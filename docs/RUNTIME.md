@@ -206,7 +206,9 @@ UTF-8 spans without adding input/capture-text copies and funds handles and per-c
 through the borrowed budget. That package lacks in-flight cooperative APIs: boundary token
 checks do not establish cancellation during a long producer call. Its ordered-choice and
 Unicode behavior also leave AWK conformance gaps; the example is not a qualified general
-AWK provider. Existing AWK semantic expectations remain the acceptance target. Adopting a
+AWK provider. CI explicitly skips the documented provider-dependent cases while retaining
+all expectations; see the [qualification procedure](../tests/Lokad.Awk.Tests/README.md#published-regex-provider-qualification).
+Existing AWK semantic expectations remain the acceptance target. Adopting a
 new producer package requires separate semantic/cancellation qualification, not a core release.
 
 [Host-provider tests](../tests/Lokad.Awk.Tests/AwkHostRegexTests.cs) cover missing/unsupported

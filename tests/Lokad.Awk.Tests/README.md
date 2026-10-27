@@ -25,6 +25,21 @@ the acquired handle; adapter checks include whole-match, named and sparse-number
 
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 
+## Published regex-provider qualification
+
+The current published provider lacks required POSIX longest/subcapture selection and scalar
+behavior, and has documented simple-class predicate/empty-group construction defects.
+`AwkRegexProviderGaps` lists the exact affected golden cases. Standard xUnit data/fact skips
+report those cases explicitly; the original AWK expectations and assertions remain in place.
+Only six provider-compilation cases defer parser/lowering checks. Other parser, translation,
+regex, host, cancellation, memory, capture-publication and ownership checks remain active.
+New failures are not automatically added to this list.
+
+Before adopting a provider release, set `AwkRegexProviderGaps.SkipReason` to `null` locally
+and run the full suite. Qualify the unchanged semantic expectations, then remove resolved
+entries/skip annotations. Green CI with these deferrals does not establish complete regex
+conformance. The core package remains independent of the concrete provider.
+
 ## End-to-End Host Tests
 
 The mock filesystem publishes successful file creation/truncation at open; appended

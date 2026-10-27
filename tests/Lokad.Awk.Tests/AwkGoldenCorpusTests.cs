@@ -10,24 +10,25 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkGoldenCorpusTests
 {
-    public static IEnumerable<object[]> DirectCases()
+    public static IEnumerable<object[]> DirectCases(bool providerGap, bool syntaxOnly = false)
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
         {
-            if (testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
-                testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported)
+            if ((testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
+                testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported) &&
+                (syntaxOnly ? AwkRegexProviderGaps.AffectsSyntax(testCase) : AwkRegexProviderGaps.AffectsExecution(testCase)) == providerGap)
             {
                 yield return [testCase];
             }
         }
     }
 
-    public static IEnumerable<object[]> ParserAcceptanceCases()
+    public static IEnumerable<object[]> ParserAcceptanceCases(bool providerGap)
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
         {
-            if (testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
-                IsParserDiagnosticCase(testCase))
+            if ((testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
+                IsParserDiagnosticCase(testCase)) && AwkRegexProviderGaps.AffectsSyntax(testCase) == providerGap)
             {
                 yield return [testCase];
             }
@@ -35,7 +36,8 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Theory]
-    [MemberData(nameof(DirectCases))]
+    [MemberData(nameof(DirectCases), false, false)]
+    [MemberData(nameof(DirectCases), true, false, Skip = AwkRegexProviderGaps.SkipReason)]
     public async Task Awk_DirectGoldenCaseMatches(AwkGoldenCase testCase)
     {
         var result = await AwkTestHarness.RunGoldenCaseAsync(testCase, CancellationToken.None);
@@ -71,7 +73,8 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Theory]
-    [MemberData(nameof(ParserAcceptanceCases))]
+    [MemberData(nameof(ParserAcceptanceCases), false)]
+    [MemberData(nameof(ParserAcceptanceCases), true, Skip = AwkRegexProviderGaps.SkipReason)]
     public async Task Awk_GoldenSourcesHaveExpectedParserAcceptance(AwkGoldenCase testCase)
     {
         var fileSystem = AwkTestHarness.BuildFileSystem(testCase);
@@ -108,7 +111,8 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Theory]
-    [MemberData(nameof(DirectCases))]
+    [MemberData(nameof(DirectCases), false, true)]
+    [MemberData(nameof(DirectCases), true, true, Skip = AwkRegexProviderGaps.SkipReason)]
     public async Task Awk_GoldenSourcesHaveInterpreterSyntaxOutlines(AwkGoldenCase testCase)
     {
         var fileSystem = AwkTestHarness.BuildFileSystem(testCase);

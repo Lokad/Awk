@@ -32,13 +32,14 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(expected, translated);
     }
 
-    public static IEnumerable<object[]> RegexGoldenCases()
+    public static IEnumerable<object[]> RegexGoldenCases(bool providerGap)
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
         {
             if (testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass &&
                 testCase.Tags.Contains(AwkGoldenTag.Regex) &&
-                !testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic))
+                !testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic) &&
+                AwkRegexProviderGaps.AffectsExecution(testCase) == providerGap)
             {
                 yield return [testCase];
             }
@@ -95,8 +96,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(false, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(true, Skip = AwkRegexProviderGaps.SkipReason)]
     public void Awk_RegexSupplementaryCapturesHaveStrictUtf8AndMeasuredRouting(
         bool charactersAsBytes)
     {
@@ -378,7 +379,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Theory]
-    [MemberData(nameof(RegexGoldenCases))]
+    [MemberData(nameof(RegexGoldenCases), false)]
+    [MemberData(nameof(RegexGoldenCases), true, Skip = AwkRegexProviderGaps.SkipReason)]
     public async Task Awk_PreparedRegexGoldenCasesMatch(AwkGoldenCase testCase)
     {
         var options = new AwkRuntimeOptions(

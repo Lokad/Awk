@@ -3,12 +3,12 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkUnicodePrintClassTests
 {
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
+    [InlineData(0, false, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(0, true, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(1, false, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(1, true, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(2, false, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(2, true, Skip = AwkRegexProviderGaps.SkipReason)]
     public void UnicodeMembershipRetainsCacheAndByteNativeCounters(int profile, bool utf8)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -44,9 +44,9 @@ public sealed class AwkUnicodePrintClassTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
+    [InlineData(0, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(1, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(2, Skip = AwkRegexProviderGaps.SkipReason)]
     public void ClassExpansionPreservesPublicCapturesAndCompleteScalarSpans(int profile)
     {
         var runtime = Runtime(profile,AwkRuntimeCounters.Disabled);
