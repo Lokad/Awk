@@ -6,6 +6,30 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkPrintfFormattingTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void LiteralRunsUseAdmittedCapacityWithoutTextInterop(bool governed)
+    {
+        var prefix = new string('x', 4095) + "😀%%:" + new string('é', 4096);
+        var format = prefix + "%04d:end";
+        var expected = AwkUtf8Codec.Encode(prefix.Replace("%%", "%", StringComparison.Ordinal) + "0007:end");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(64 << 10, counters, enabled: governed);
+        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 32 << 10))
+        using (var pressure = memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Accounting.CurrentCommittedBytes))
+        {
+            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromNumber(7), counters);
+            PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
+                counters, memory.Accounting);
+            Assert.Equal(expected.ToArray(), builder.AsSpan().ToArray());
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(1, counters.Utf8Encodes); // The integer directive; literal runs add no text objects.
+            Assert.Equal(0, counters.AwkTextAllocations);
+            Assert.Equal(0, counters.FormattingStringInteropInputs);
+        }
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void ZeroStringPrecisionDoesNotMaterializeConcatenatedText()
     {

@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
     public static readonly string[] Families =
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
-        "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
+        "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
@@ -217,6 +217,11 @@ internal static class ReferenceWorkloads
                 program = "{printf \"%s:%04d\\n\",$1,$2}";
                 fields = 2;
                 Repeat("sku\t7\n", "sku:0007\n");
+                break;
+            case "format-literals":
+                program = "{printf \"level=INFO service=orders event=processed record=%s quantity=%04d status=accepted source=inventory\\n\",$1,$2}";
+                fields = 2;
+                Repeat("sku\t7\n", "level=INFO service=orders event=processed record=sku quantity=0007 status=accepted source=inventory\n");
                 break;
             case "sorting":
                 program = "{a[NR]=$1} END{n=asort(a,b,\"@val_num_asc\");for(i=1;i<=n;i++)print b[i]}";

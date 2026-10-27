@@ -150,6 +150,8 @@ Source loading checks cancellation before decoding returned or buffered text and
 materializing the assembled source, including after memory admission. Pending reads still
 complete before source descriptors close and their storage is refunded.
 Option preparation observes caller cancellation while decoding escaped `-v`/`-F` values.
+Formatting encodes literal text in bounded runs without splitting Unicode scalars;
+long formats retain cancellation checkpoints and shared-memory admission before growth.
 
 CPU control uses the caller's `CancellationToken`, including caller-owned `CancelAfter`
 deadlines. Checkpoints remain active with observational counters disabled. Cancellation

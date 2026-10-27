@@ -3,6 +3,32 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPrintfAdmissionTests
 {
     [Theory]
+    [InlineData("x")] [InlineData("é")] [InlineData("😀")]
+    public async Task LiteralRunRefusalPreservesEarlierOutput(string scalar)
+    {
+        var budget = new CooperativeTestBudget(32 << 20);
+        var host = new MockFileSystem();
+        var armed = false;
+        host.AfterAppend = () =>
+        {
+            if (!armed)
+            {
+                armed = true;
+                budget.RefuseNextAdmissionMinimumGrowth = 1024;
+            }
+        };
+        var format = string.Concat(Enumerable.Repeat(scalar, 12_000)) + "%04d";
+        var script = "BEGIN{print \"before\";printf \"" + format + "\",7;print \"after\"}END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("😀tail")]
     public async Task CharacterWidthRefusalPreservesEarlierOutput(string value)

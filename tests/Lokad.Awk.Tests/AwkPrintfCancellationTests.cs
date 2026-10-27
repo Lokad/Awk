@@ -3,6 +3,34 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPrintfCancellationTests
 {
     [Theory]
+    [InlineData(false, "x")] [InlineData(true, "x")]
+    [InlineData(false, "é")] [InlineData(true, "é")]
+    [InlineData(false, "😀")] [InlineData(true, "😀")]
+    public void LongLiteralRunsCancelDuringFormattingAndRefund(bool governed, string scalar)
+    {
+        var format = "a" + string.Concat(Enumerable.Repeat(scalar, 12_000));
+        using var cancellation = new CancellationTokenSource();
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
+        var budget = memory.Budget;
+        using (memory)
+        {
+            using var builder = new AwkUtf8Builder(memory.Accounting, capacity: 0);
+            void Checkpoint()
+            {
+                if (builder.Length > 0) cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+            }
+            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromNumber(7), AwkRuntimeCounters.Disabled);
+            var error = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatToBuilder(
+                builder, format, arguments, PrintfMissingArgumentPolicy.Throw, AwkRuntimeCounters.Disabled,
+                memory.Accounting, checkpoint: Checkpoint));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.InRange(builder.Length, 1, AwkUtf8Codec.GetEncodedByteCount(format) - 1);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("flags")]
     [InlineData("width")]
     [InlineData("precision")]

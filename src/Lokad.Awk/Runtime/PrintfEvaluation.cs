@@ -71,7 +71,16 @@ internal static class PrintfEvaluation
             var current = format[index];
             if (current != '%')
             {
-                AppendFormatCharacter(output, format, ref index);
+                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, format.Length - index);
+                var percent = format.AsSpan(index, length).IndexOf('%');
+                if (percent >= 0)
+                    length = percent;
+                // Bound encoding work for cancellation without splitting a scalar at the edge.
+                if (index + length < format.Length && char.IsHighSurrogate(format[index + length - 1]) &&
+                    char.IsLowSurrogate(format[index + length]))
+                    length--;
+                output.Append(format.AsSpan(index, length));
+                index += length - 1;
                 continue;
             }
 
@@ -476,20 +485,6 @@ internal static class PrintfEvaluation
                 checkpoint?.Invoke();
                 return count;
             }
-        }
-
-        static void AppendFormatCharacter(
-            PrintfByteOutput output,
-            string format,
-            ref int index)
-        {
-            var charCount = char.IsHighSurrogate(format[index]) &&
-                index + 1 < format.Length &&
-                char.IsLowSurrogate(format[index + 1])
-                    ? 2
-                    : 1;
-            output.Append(format.AsSpan(index, charCount));
-            index += charCount - 1;
         }
 
         static int EstimateFloatByteCount(

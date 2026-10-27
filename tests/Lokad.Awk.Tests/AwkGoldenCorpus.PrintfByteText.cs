@@ -7,6 +7,18 @@ internal static partial class AwkGoldenCorpus
         foreach (var option in new[] { "default", "--posix", "--traditional", "-b", "--characters-as-bytes" })
         {
             string[] flags = option == "default" ? [] : [option];
+            yield return Passing("printf-literal-runs-mixed-" + option,
+                [.. flags, "BEGIN{printf \"tag=é😀%%:%04d:end\\n\",7;" +
+                    "fmt=\"left=\" \"é😀\";print sprintf(fmt \"%%%%:%s:right\",\"ok\")}\n"],
+                [], "tag=é😀%:0007:end\nleft=é😀%%:ok:right\n");
+            foreach (var prefixLength in new[] { 4095, 8191 })
+            {
+                var prefix = new string('x', prefixLength);
+                yield return Passing("printf-literal-runs-scalar-boundary-" + prefixLength + "-" + option,
+                    [.. flags, "BEGIN{printf \"" + prefix + "😀%%:%s\\n\",\"ok\";" +
+                        "print sprintf(\"" + prefix + "😀%04d:end\",7)}"],
+                    [], prefix + "😀%:ok\n" + prefix + "😀0007:end\n");
+            }
             var byteMode = option is "-b" or "--characters-as-bytes";
             var precision = byteMode ? 2 : 1;
             var padding = byteMode ? "    " : "     ";

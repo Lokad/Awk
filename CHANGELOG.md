@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `printf` and `sprintf` encode literal format text in bounded runs, avoiding
+  repeated per-character conversion while preserving Unicode boundaries and cancellation.
+
 - Execution reuses the immutable entry-environment snapshot during planning. Large hidden
   environments no longer add planning allocation or admission demand to small/terminal commands.
 

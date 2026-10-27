@@ -88,6 +88,9 @@ covers relinquished format text and reuse of AwkText's decode cache.
 input-sized allocation, and string precision against whole-value decoding. The semantics
 live in the golden corpus. `AwkBoundedSubstringTests` bounds short-result allocation/scanning
 and preserves lazy length conversion, mutation refusal and refunds.
+Literal-format goldens cover mixed directives, percent signs and scalar-aligned chunk edges;
+focused formatting/admission/cancellation checks preserve funded capacity, prior output and
+bounded cancellation without asserting fixed reservation or checkpoint counts.
 `AwkRuntimeStartupTests` bounds default random setup and unused/UTC time-zone preparation;
 it also bounds option preparation, terminal assignments, unconsumed assignment planning and
 function-inventory text construction, with early text validation and decoding cancellation checks.
