@@ -201,13 +201,14 @@ temporary validation handle. Dynamic patterns require the provider when prepared
 prepared programs share no compiled handles between executions.
 
 The [source adapter example](../examples/README.md) is compiled into tests and benchmark
-tools against published **Lokad.Utf8Regex 0.2.0**, never a sibling source checkout. It passes
+tools against published **Lokad.Utf8Regex 0.4.0**, never a sibling source checkout. It passes
 UTF-8 spans without adding input/capture-text copies and funds handles and per-call scratch
-through the borrowed budget. That package lacks in-flight cooperative APIs: boundary token
-checks do not establish cancellation during a long producer call. Its ordered-choice and
-Unicode behavior also leave AWK conformance gaps; the example is not a qualified general
-AWK provider. CI explicitly skips the documented provider-dependent cases while retaining
-all expectations; see the [qualification procedure](../tests/Lokad.Awk.Tests/README.md#published-regex-provider-qualification).
+through the borrowed budget. Compilation and searches use the producer's cooperative token
+APIs without independent construction or matching deadlines. A compiled handle does not
+retain its compilation token. POSIX longest-match and subcapture selection remain conformance
+gaps; the example is not a qualified general AWK provider. CI explicitly skips those
+documented selection cases while retaining all expectations; see the
+[qualification procedure](../tests/Lokad.Awk.Tests/README.md#published-regex-provider-qualification).
 Existing AWK semantic expectations remain the acceptance target. Adopting a
 new producer package requires separate semantic/cancellation qualification, not a core release.
 

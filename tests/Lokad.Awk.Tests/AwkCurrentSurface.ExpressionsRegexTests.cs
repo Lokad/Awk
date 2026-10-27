@@ -96,8 +96,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Theory]
-    [InlineData(false, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(true, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Awk_RegexSupplementaryCapturesHaveStrictUtf8AndMeasuredRouting(
         bool charactersAsBytes)
     {
@@ -123,7 +123,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Awk_RegexRejectsBackendSurrogateSplitsBeforeCaptureAllocation(
+    public void Awk_ProviderDoesNotMatchIsolatedSurrogates(
         bool splitCaptureOnly)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -133,17 +133,14 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters, regexEngine: AwkUtf8RegexEngine.Instance);
-        // Construct an untranslated backend pattern to exercise the publication guard.
+        // Raw provider patterns cannot select part of a Unicode scalar. Host-provider tests
+        // independently exercise Awk's range validation with malformed provider results.
         var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
         var regex = new AwkRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
         var input = AwkText.FromString("😀");
-        var exception = Assert.Throws<AwkRuntimeException>(() =>
-            runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All));
-        if (!splitCaptureOnly)
-            Assert.Throws<AwkRuntimeException>(() => runtime.MatchSpan(regex, input));
-
-        Assert.Equal("awk: regular expression splits a Unicode character\n",
-            AwkUtf8Codec.Decode(exception.MessageBytes));
+        using var match = runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All);
+        Assert.False(match.Match.Success);
+        Assert.False(runtime.MatchSpan(regex, input).Success);
         Assert.Equal(0, counters.RegexGroupsMaterialized);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);

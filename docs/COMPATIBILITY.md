@@ -212,9 +212,9 @@ match/split/patsplit/sub/gsub/gensub. Grouping a literal does not turn its scala
 
 Observable traditional ERE matches select the longest match at the earliest scalar boundary.
 Match and subexpression selection belong to the supplied provider; core contains no
-matching engine or fallback. The example provider currently has conformance gaps, including
-ordered alternatives and supplementary character classes. Its published package does not
-establish full support for the required rules below.
+matching engine or fallback. The example provider currently has POSIX whole-match and
+subcapture selection gaps. Its published package does not establish full support for the
+required rules below.
 
 `match(..., array)` and `gensub` share capture priority: `(a|aa)(a*)` on `aaa` captures
 `aa` and `a`. Nonparticipating groups/metadata are omitted; participating empty groups remain.

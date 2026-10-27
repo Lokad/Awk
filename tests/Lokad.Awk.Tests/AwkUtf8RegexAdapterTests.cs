@@ -67,13 +67,12 @@ public sealed class AwkUtf8RegexAdapterTests
     }
 
     [Fact]
-    public void AdapterReportsSurrogateSplitCapturesBeforeAwkPublication()
+    public void AdapterDoesNotJoinSurrogateAtomsAcrossGroups()
     {
         using var pattern = Compile(@"(\uD83D)(\uDE00)");
         Span<AwkRegexCaptureRange> groups = stackalloc AwkRegexCaptureRange[3];
-        Assert.True(pattern.Match("😀"u8, 0, groups, CancellationToken.None).IsByteAligned);
-        Assert.False(groups[1].IsByteAligned);
-        Assert.False(groups[2].IsByteAligned);
+        Assert.False(pattern.Match("😀"u8, 0, groups, CancellationToken.None).Success);
+        foreach (var group in groups) Assert.Equal(default, group);
     }
 
     [Fact]

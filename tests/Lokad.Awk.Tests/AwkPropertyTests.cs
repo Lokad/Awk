@@ -98,7 +98,7 @@ public sealed class AwkPropertyTests
         }
     }
 
-    [Fact(Skip = AwkRegexProviderGaps.SkipReason)]
+    [Fact]
     public void Awk_GeneratedPosixDigitRegexesMatchReferenceStrings()
     {
         var random = new Random(17830);

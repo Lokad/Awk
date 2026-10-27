@@ -14,14 +14,15 @@ var policy = AwkExecutionPolicy.CreateDefault()
 var exit = await awk.ExecuteAsync(host, policy, cancellationToken);
 ```
 
-The example targets published **0.2.0** for integration testing. It is **not yet a qualified
-AWK provider**: ordered alternation, POSIX capture priority and supplementary Unicode behavior
-have known gaps. The canonical tests retain the required AWK results. Do not infer conformance
-from successful compilation or recreate selection logic in the adapter.
+The example targets published **0.4.0** for integration testing. Unicode-scalar matching is
+qualified by the active tests. It is **not yet a qualified AWK provider**: POSIX longest-match
+and subcapture selection still have known gaps. The canonical tests retain the required AWK
+results. Do not infer conformance from successful compilation or recreate selection logic
+in the adapter. The separate Pcre2 and PythonRe profiles are not used by this AWK adapter.
 
 The contract is defined by Awk, without producer types. The adapter passes UTF-8 spans and
 capture ranges, owns its compiled handles and per-call admission, and adds no input/text copies.
-The current package has no token-aware calls; checks before/after calls and during capture
-copying preserve the token seam but cannot interrupt a producer call. Adopt cooperative APIs
-when a published package provides them, then qualify the adapter independently. No adapter
-clock or core fallback is involved. See [runtime responsibilities](../docs/RUNTIME.md#regex-engines).
+Compilation and each search receive the current cancellation token through the producer's
+cooperative APIs. The compilation token is not retained by a reusable handle. Producer match
+and construction timeouts are disabled; no adapter clock or core fallback is involved.
+See [runtime responsibilities](../docs/RUNTIME.md#regex-engines).

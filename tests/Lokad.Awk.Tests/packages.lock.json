@@ -4,9 +4,9 @@
     "net10.0": {
       "Lokad.Utf8Regex": {
         "type": "Direct",
-        "requested": "[0.2.0, )",
-        "resolved": "0.2.0",
-        "contentHash": "AK2u9bIayI3bqbHvuRYuyB9pUVbzIMhimSsFhy7GAvESangIWACzc1TdJWHKFoXD2hus0F+G1MFj343tPdeAUg=="
+        "requested": "[0.4.0, )",
+        "resolved": "0.4.0",
+        "contentHash": "SpEYyYGmHyY7Udh3/Koe8Iopy5SUdDnrP4RNf1dT2rWICvfWOKAFDUo7OqZgkjQzlD/1BLlF56aqUMEAN6+hMg=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",

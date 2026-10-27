@@ -46,11 +46,12 @@ after cleanup; no separate command/host/execution timeout diagnostics remain. Es
 cleanup uses an uncancelled token and awaits actual completion; a non-cooperating host can
 delay it indefinitely. Earlier read/write failures remain primary over cleanup failures.
 
-.NET regex and semantic fallbacks retain their fixed two-second protection where matching
-cannot poll cancellation. The internal, non-packable Utf8Regex adapter remains pinned to
-0.2.0, adds no clock and checks tokens at call boundaries; in-flight cooperation and newer
-producer adoption remain postponed independently of core. See the [runtime contract](docs/RUNTIME.md)
-for host endpoint handoff, refusal, buffer lifetimes and provider obligations.
+Core has no regex backend or semantic fallback. The application-side adapter example and
+test/benchmark tools use published Lokad.Utf8Regex 0.4.0. Compilation and matching cooperate
+with the current cancellation token without independent timeouts. Resolved scalar and
+pattern cases are re-enabled; POSIX selection qualification remains incomplete. Core retains
+no dependency on this provider. See the [runtime contract](docs/RUNTIME.md) for host endpoint
+handoff, refusal, buffer lifetimes and provider obligations.
 
 ### Observable behavior
 

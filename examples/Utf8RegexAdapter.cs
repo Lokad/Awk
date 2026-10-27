@@ -5,7 +5,7 @@ using ProducerRegex = Lokad.Utf8Regex.Utf8Regex;
 namespace Lokad.Awk.Examples;
 
 /// <summary>Application-side integration example for the published Lokad.Utf8Regex API.</summary>
-/// <remarks>The pinned package has known AWK selection/Unicode gaps; this is not a qualified
+/// <remarks>The pinned package has known POSIX selection gaps; this is not a qualified
 /// general AWK provider. This adapter adds no input copies or capture-text allocations. Producer internals
 /// use coarse shared-budget admission owned by compiled handles and active matches;
 /// no independent allowance or governor is created.</remarks>
@@ -22,14 +22,17 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         ArgumentNullException.ThrowIfNull(pattern);
         cancellationToken.ThrowIfCancellationRequested();
         var options = RegexOptions.CultureInvariant | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
-        // Published 0.2.0 has no token-aware APIs. Keep boundary checks until a producer upgrade
-        // is qualified; do not inherit its default timeout or create an independent clock.
+        // Pass cancellation through construction and matching without an independent clock.
         IMemoryReservation? storage = null;
         if (memoryBudget is not null && !memoryBudget.TryReserve(1_024L + pattern.Length * 64L, out storage))
             throw new AwkRegexAdmissionException();
         try
         {
-            var regex = new ProducerRegex(pattern, options, System.Text.RegularExpressions.Regex.InfiniteMatchTimeout);
+            var regex = ProducerRegex.Compile(pattern, options,
+                System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
+                resourcePolicy: default, constructionPolicy: default,
+                constructionTimeout: System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
+                cancellationToken: cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             compiledPattern = new CompiledPattern(regex, memoryBudget, storage);
             return true;
@@ -64,7 +67,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             cancellationToken.ThrowIfCancellationRequested();
             var regex = Regex;
             using var scratch = ReserveMatch(input.Length, 0);
-            var result = regex.IsMatch(input);
+            var result = regex.IsMatch(input, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
         }
@@ -77,7 +80,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             cancellationToken.ThrowIfCancellationRequested();
             var regex = Regex;
             using var scratch = ReserveMatch(input.Length, captures.Length);
-            var match = regex.MatchDetailedFromUtf16Offset(input, startInUtf16);
+            var match = regex.MatchDetailedFromUtf16Offset(input, startInUtf16, cancellationToken);
             if (!match.Success)
             {
                 captures.Clear();

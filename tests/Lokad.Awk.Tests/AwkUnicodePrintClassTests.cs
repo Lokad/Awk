@@ -3,16 +3,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkUnicodePrintClassTests
 {
     [Theory]
-    [InlineData(0, false, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(0, true, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(1, false, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(1, true, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(2, false, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(2, true, Skip = AwkRegexProviderGaps.SkipReason)]
-    public void UnicodeMembershipRetainsCacheAndByteNativeCounters(int profile, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void UnicodeMembershipRetainsCacheAndByteNativeCounters(int profile)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(profile,counters);
+        var runtime = Runtime(profile, counters);
         var graphPattern = new AwkRegexPattern("[[:graph:]]");
         var printPattern = new AwkRegexPattern("[[:print:]]");
         var graph = runtime.Create(graphPattern);
@@ -39,17 +36,17 @@ public sealed class AwkUnicodePrintClassTests
         var matches = samples.Length * 2;
         Assert.Equal(2, counters.RegexCompiles);
         Assert.Equal(matches, counters.RegexMatches);
-        Assert.Equal(utf8 ? 0 : samples.Length, counters.StringDecodes);
-        Assert.Equal(utf8 ? 0 : matches, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
     }
 
     [Theory]
-    [InlineData(0, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(1, Skip = AwkRegexProviderGaps.SkipReason)]
-    [InlineData(2, Skip = AwkRegexProviderGaps.SkipReason)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
     public void ClassExpansionPreservesPublicCapturesAndCompleteScalarSpans(int profile)
     {
-        var runtime = Runtime(profile,AwkRuntimeCounters.Disabled);
+        var runtime = Runtime(profile, AwkRuntimeCounters.Disabled);
         var pattern = new AwkRegexPattern("([[:graph:]]+)([[:print:]])");
         var regex = runtime.Create(pattern);
         using var captures = runtime.MatchCaptureValue(regex, AwkText.FromString("\né😀 "), AwkMemoryAccounting.Disabled);
@@ -65,10 +62,11 @@ public sealed class AwkUnicodePrintClassTests
         Assert.Equal(4, match.Utf16Length);
     }
 
-    private static AwkRegexRuntime Runtime(int profile,AwkRuntimeCounters counters)
+    private static AwkRegexRuntime Runtime(int profile, AwkRuntimeCounters counters)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         return new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters),
+            compatibilityMode: (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
     }
 }

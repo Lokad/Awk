@@ -27,12 +27,13 @@ Failing golden cases must assert the awk exit code, exact stderr, expected stdou
 
 ## Published regex-provider qualification
 
-The current published provider lacks required POSIX longest/subcapture selection and scalar
-behavior, and has documented simple-class predicate/empty-group construction defects.
+The pinned published provider, Lokad.Utf8Regex 0.4.0, lacks required POSIX longest/subcapture
+selection. Its scalar, simple-class predicate and empty-group cases now run normally.
 `AwkRegexProviderGaps` lists the exact affected golden cases. Standard xUnit data/fact skips
 report those cases explicitly; the original AWK expectations and assertions remain in place.
-Only six provider-compilation cases defer parser/lowering checks. Other parser, translation,
-regex, host, cancellation, memory, capture-publication and ownership checks remain active.
+All parser/lowering checks run. Only 22 golden cases (in both direct and prepared execution) and three
+focused selection cases are deferred. Other regex, translation, host, cancellation, memory,
+capture-publication and ownership checks remain active.
 New failures are not automatically added to this list.
 
 Before adopting a provider release, set `AwkRegexProviderGaps.SkipReason` to `null` locally
