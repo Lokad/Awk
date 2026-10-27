@@ -5,8 +5,8 @@ direct filesystem, process, console, networking, reflection or native-loading ac
 Core disables unsafe C#; the host, parser and selected regex engine remain trusted code.
 The embedding boundary does not provide OS isolation.
 
-This guide describes current source. Published 0.3.0 retains the earlier quota/deadline
-APIs; [migration notes](../CHANGELOG.md#unreleased) describe their removal.
+This guide describes 0.4.0. Version 0.3.0 retains the earlier quota/deadline APIs;
+[migration notes](../CHANGELOG.md#040) describe their removal.
 
 ## Host authority
 

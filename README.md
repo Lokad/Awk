@@ -1,6 +1,7 @@
 # Lokad.Awk
 
-Lokad.Awk is a standalone, embeddable awk runtime for .NET, with host-mediated IO so embedding applications keep control over files, streams, environment, and process policy.
+An embeddable awk interpreter for .NET 10. Run ordinary text-processing programs while your
+application controls files, streams, external commands and resource admission.
 
 ```powershell
 dotnet add package Lokad.Awk
@@ -8,126 +9,56 @@ dotnet add package Lokad.Awk
 
 ## Embedding
 
-Embedding code passes command-line-style awk arguments and an application-owned host. The host is
-the policy boundary for files, descriptors, pipes, external commands, and captured output.
+Supply command-line-style arguments and an `IAwkHost` implementation. All IO passes through
+the host; the package does not provide a filesystem or process host.
 
 ```csharp
-using System;
-using System.Threading;
 using Lokad.Awk;
 
 var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(
     "awk",
-    ["-F,", "NR > 1 { total += $3 } END { print total }", "/data/sales.csv"],
+    ["{ total += $2 } END { print total }", "/data/sales.tsv"],
     [new AwkEnvironmentVariable("PWD", "/")]);
 
 if (!Awk.TryParse(invocation, out var awk))
-    throw new InvalidOperationException("The invocation is not an awk command.");
+    throw new InvalidOperationException("Not an awk command.");
 
-IAwkHost host = new ApplicationAwkHost(); // Owns files, streams, pipes, and process policy.
+IAwkHost host = new ApplicationAwkHost(); // Implement the application's IO boundary.
 var policy = AwkExecutionPolicy.CreateRestricted()
     .WithAccessiblePathRoot(new AwkPath("/data"));
 using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 ```
 
-`ExecuteAsync` returns an `AwkExitCode`; embedding code can keep the result typed and cross to its
-integer `Value` only at a process boundary.
-`TryParse` recognizes the command name. `ExecuteAsync` validates options and parses the
-program, loading source files through the supplied host.
+`TryParse` recognizes the invocation; execution loads, parses and runs the program.
+`ApplicationAwkHost` above is application code; the test suite's
+[MockFileSystem](tests/Lokad.Awk.Tests/MockFileSystem.cs) illustrates a host implementation.
 
-The example reads unquoted comma-separated values. Quoted or multiline CSV requires host
-preprocessing; GNU CSV mode is not implemented.
+Use caller cancellation for deadlines and `WithMemoryBudget(IMemoryBudget)` for shared
+memory admission. The restricted preset limits capabilities, stack depth and open resources;
+aggregate memory admission requires a supplied budget. Text must be valid UTF-8. See the
+[runtime contract](docs/RUNTIME.md) for host ownership, cleanup and protection guarantees.
 
-For an in-memory host implementation pattern, see
-[`MockFileSystem`](tests/Lokad.Awk.Tests/MockFileSystem.cs) in the test suite.
-Host reads report EOF and failure as separate outcomes: successful batches use
-`AwkReadResult.FromContent` (or `EndOfFile`), while failed reads use `AwkReadResult.Failure` with a
-structured `AwkOperationError`. `AwkReadCompletion.MoreData` requires a nonempty batch, preventing a
-host from causing a no-progress read loop. Recoverable redirected `getline` open/read failures
-return -1, set enabled `ERRNO`, and emit no automatic runtime stderr diagnostic. Success/EOF
-preserve `ERRNO`. Unhandled main-input failures, policy/capability denial, invalid UTF-8 and
-resource refusal remain fatal; stderr written by a host command is unaffected.
-The result snapshots line offsets. Hosts keep successful read content unchanged and alive until the
-next read starts on the same descriptor or that descriptor is closed; descriptors have independent
-buffer lifetimes.
-`IAwkHost` contains only the effects used by the runtime: command execution, append, open, close,
-read, and pipe creation. Open, read, and pipe creation report unsupported capabilities and failures
-as structured results so the runtime can apply those semantics without leaking host exceptions.
-Append and command outcomes use `AwkExitCode`. `RunCommandAsync` accepts one invocation;
-its task remains active until that command completes. `CreatePipeAsync` creates a streaming
-pipe and takes only the cancellation token.
-Descriptor close returns `AwkDescriptorCloseResult`: expected failures carry an
-`AwkOperationError` and explicitly state whether the descriptor was retired. Retired failures
-are reported without a duplicate close; still-owned failures can receive cleanup. This is an
-unreleased host API change; published 0.3.0 uses the earlier status-only result.
+## Regex and compatibility
 
-`AwkExecutionPolicy.CreateRestricted()` disables script-created file redirections and command
-pipes, `@include`, and changed `ARGV` input paths; hides the invocation environment and host-error
-details; pins time and local timezone to the Unix epoch and UTC; and applies tighter stack
-and open-resource bounds. Storage admission requires a supplied shared budget.
-`CreateDefault()` preserves the broader compatibility surface. The `--sandbox` command-line option
-independently disables file and command redirections; it does not replace host-side path and
-descriptor policy.
+Regex operations require a host-supplied `IAwkRegexEngine`, configured with
+`policy.WithRegexEngine(engine)`. Core has no regex backend or Utf8Regex dependency.
+A [copyable adapter](examples/README.md) uses published Lokad.Utf8Regex 0.4.0 with cooperative
+cancellation. Its POSIX longest-match and capture-selection gaps remain documented limitations.
+Non-regex processing needs no provider.
 
-Pass a caller cancellation token and use `WithMemoryBudget` for shared host-governed admission.
-An invocation budget takes precedence and follows nested command descriptors. Awk owns only
-its child scopes; governed cleanup waits for actual host users before refunding storage.
-Admission uses coarse estimates and can refuse before execution. See the
-[runtime and host contract](docs/RUNTIME.md) for authority, memory ownership, cancellation
-and remaining bounds, including responsibilities when executing untrusted scripts.
+Supported core behavior includes records/fields, expressions, loops, functions, flat arrays,
+formatting and `getline`, with selected GNU conveniences. This is not full POSIX/GNU
+conformance: CSV mode, nested arrays, `system()` and namespaces remain unsupported.
 
-Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#unreleased).
-Published 0.3.0 corresponds to tag `v0.3.0`; its packages and source are immutable.
-Current source builds development packages as `0.0.0-dev` under `artifacts/dev/nuget/`,
-with assembly/file versions `0.0.0.0` and informational version `0.0.0-dev+<source commit>`.
-This placeholder does not select the next release version. A release must align its package,
-assembly metadata, SourceLink and tag, then qualify the final packages. Before 1.0, minor
-releases may remove public APIs as explicitly described in their release notes.
+- [Compatibility](docs/COMPATIBILITY.md): supported boundaries and known differences.
+- [Benchmarks](docs/BENCHMARKS.md): representative elapsed-time ratios and managed allocations.
+- [0.4.0 migration notes](CHANGELOG.md#040): breaking host, regex and policy API changes.
 
-## Status
+Before 1.0, minor releases may remove public APIs as described in the release notes.
 
-Lokad.Awk qualifies ordinary valid-UTF-8 text processing: patterns, expressions, loops, user
-functions, flat arrays, records/fields, getline and formatting. This is a supported core with
-selected GNU conveniences, not full POSIX/GNU conformance. CSV, nested arrays, system(), namespaces,
-typed regex values and indirect calls remain unsupported; see the
-[compatibility guide](docs/COMPATIBILITY.md).
+## Building
 
-The interpreter is the only execution engine, including its synchronous/prepared paths.
-Regex matching uses an application-supplied `IAwkRegexEngine` through
-`policy.WithRegexEngine(engine)`. Core has no matching backend or fallback and no
-Lokad.Utf8Regex dependency. Non-regex processing needs no provider. The
-[copyable adapter example](examples/README.md) is compiled into tests against a published
-NuGet version; it is not an adapter package. Its current provider has known conformance gaps,
-so a general AWK regex integration still requires qualification. See the
-[provider contract](docs/RUNTIME.md#regex-engines) and [regex semantics](docs/COMPATIBILITY.md#regex-semantics).
-
-Current representative throughput, GNU comparison and managed allocations are maintained in
-[benchmarks](docs/BENCHMARKS.md). CI builds and tests on Windows and Linux.
-
-Text remains strict UTF-8 in byte mode and under `LC_ALL=C`. The
-[runtime text boundary](docs/RUNTIME.md#text-boundary) defines units and byte-mode restrictions.
-
-## Design
-
-Source builds require the stable .NET SDK selected by `global.json` (10.0.401 with patch
-roll-forward, excluding previews). Run `dotnet test Lokad.Awk.slnx` for build and correctness.
-
-The library is intended to stay host-agnostic. The public surface should stay small:
-
-- parse command-line-style awk invocations
-- execute programs against a host-provided IO boundary
-- report structured diagnostics and exit codes
-- keep unsupported host capabilities explicit
-
-Detailed runtime contracts live in:
-
-- [docs/RUNTIME.md](docs/RUNTIME.md)
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
-
-## Dependencies
-
-- `Lokad.Parsing` for tokenization and parser infrastructure
-- Regex providers are supplied by the application; tests and benchmark tools reference published
-  `Lokad.Utf8Regex` directly and compile the example adapter source.
+Use the stable SDK pinned in `global.json`, then run `dotnet test Lokad.Awk.slnx -c Release`.
+CI builds, tests and packs on Windows and Linux. Only `src/Lokad.Awk` produces a NuGet package;
+the adapter example, tests and benchmarks are not packaged.

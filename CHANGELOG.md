@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
-Changes relative to 0.3.0. Development packages use `0.0.0-dev`.
+Changes relative to 0.3.0. This release includes breaking host and policy API changes.
 
 ### API migration
 
