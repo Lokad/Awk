@@ -46,13 +46,18 @@ internal readonly struct AwkVariableSlot
 
     internal bool TryGetArrayBinding([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        array = _text as AwkArrayIdentity ?? (_text as AwkUntypedScalar)?.Array;
+        array = Kind switch
+        {
+            AwkVariableSlotKind.ArrayBinding => _text as AwkArrayIdentity,
+            AwkVariableSlotKind.Untyped => (_text as AwkUntypedScalar)?.Array,
+            _ => null
+        };
         return array is not null;
     }
 
     internal bool TryGetUntypedScalar([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkUntypedScalar? scalar)
     {
-        scalar = _text as AwkUntypedScalar;
+        scalar = Kind == AwkVariableSlotKind.Untyped ? _text as AwkUntypedScalar : null;
         return scalar is not null;
     }
 

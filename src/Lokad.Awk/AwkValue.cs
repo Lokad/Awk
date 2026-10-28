@@ -164,10 +164,9 @@ internal readonly struct AwkValue
 
     private void ThrowIfArrayValue()
     {
-        if (_kind == AwkValueKind.ArrayReference && _text is string name)
-            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name));
         if (IsArrayValue)
-            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar("array element"));
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(
+                _text is string name ? name : "array element"));
     }
 
     public bool TryGetUntypedScalar([NotNullWhen(true)] out AwkUntypedScalar? scalar)
