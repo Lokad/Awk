@@ -2,6 +2,9 @@
 
 ## 0.4.0
 
+Published 2026-10-27 on [NuGet](https://www.nuget.org/packages/Lokad.Awk/0.4.0)
+from source [`5a9d330`](https://github.com/Lokad/Awk/commit/5a9d330e67e74ae69195790430fbcdee1333cf7c).
+
 Changes relative to 0.3.0. This release includes breaking host and policy API changes.
 
 ### API migration
