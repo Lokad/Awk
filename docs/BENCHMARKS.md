@@ -1,7 +1,14 @@
 # Benchmarks
 
-Current aggregation, record rebuilding and join rows (medium/large), plus medium projection,
-filtering and two-argument calls, were measured **2026-10-28 UTC** at
+**CSV keyed aggregation with quoted/multiline fields** was measured **2026-10-28 UTC** at
+[`5fc6ea9`](https://github.com/Lokad/Awk/commit/5fc6ea99aae28f41e1acf5f1d84270f69ab00133),
+against **GNU awk 5.3.2**. It uses development source after 0.4.0; published 0.4.0 lacks CSV.
+The row uses the interpreter, default policy, UTC, no shared admission and the source adapter
+with Utf8Regex 0.4.0; the script does not match regexes. Timing/allocation runs pass quiet checks
+and verify identical output, empty stderr and exit zero.
+
+Aggregation, record rebuilding and join rows (medium/large), plus medium projection,
+filtering and two-argument calls, retain **2026-10-28 UTC** measurements at
 [`65ef007`](https://github.com/Lokad/Awk/commit/65ef0078a7348a7b232eef5465cd9ec3f006571e),
 against **GNU awk 5.2.1**. Its runtime source matches published **0.4.0**; package metadata uses
 an independent development identity. These nine rows use the interpreter, default policy
@@ -24,11 +31,10 @@ or GNU native allocations. Rows run from worst ratio to best within each scale.
 
 ## Representative processing
 
-The 38 ordinary families below share the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
+All 39 families share the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
 across implementations. Most have 4,096 records; all-fields wide and long-field cases have
 256, and join has 4,096 records per file. GNU-marked cases do not imply full GNU conformance.
-The development CSV fixture additionally requires GNU awk 5.3 or later; it is absent from
-the retained GNU 5.2.1 results.
+CSV needs GNU awk 5.3 or later. Its row uses 5.3.2; the other rows retain their GNU 5.2.1 comparisons.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -59,6 +65,7 @@ the retained GNU 5.2.1 results.
 | Five-part string concatenation | 20.00 | 2.881 | 1.734 | 1.66× | 1.39 |
 | Field-key reads, existing/new | 63.15 | 2.785 | 1.684 | 1.65× | 1.41 |
 | Alternate reads from two lookup arrays | 21.50 | 2.389 | 1.475 | 1.62× | 0.73 |
+| CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 3.618 | 2.364 | 1.53× | 1.69 |
 | Literal field separator | 48.00 | 2.125 | 1.437 | 1.48× | 0.70 |
 | Field-key membership | 48.56 | 1.978 | 1.344 | 1.47× | 0.75 |
 | Labeled printf | 24.00 | 3.669 | 2.571 | 1.43× | 0.66 |
