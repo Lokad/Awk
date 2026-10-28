@@ -26,6 +26,8 @@ internal static class TimingQualification
             referenceWarmup = await WarmAsync(false).ConfigureAwait(false);
             var libraryIterations = await CalibrateAsync(true).ConfigureAwait(false);
             var referenceIterations = await CalibrateAsync(false).ConfigureAwait(false);
+            // Let calibration-triggered background work settle before the first quiet check.
+            await Task.Delay(TimeSpan.FromSeconds(2), deadline.Token).ConfigureAwait(false);
             for (var i = 0; i < pairs; i++)
             {
                 await Task.Delay(500, deadline.Token).ConfigureAwait(false);
