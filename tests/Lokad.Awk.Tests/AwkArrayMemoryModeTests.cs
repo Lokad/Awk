@@ -36,6 +36,8 @@ public sealed class AwkArrayMemoryModeTests
         Assert.Equal(governed, accounting.IsEnabled);
         var variables = CreateVariables(accounting, counters);
         var name = AwkArrayName.FromText("a");
+        variables.ClearArray(name);
+        var emptyArrayBytes = accounting.CurrentCommittedBytes;
         var numericKey = AwkArrayKey.FromOrdinal(1);
         var textKey = new AwkArrayKey("1");
         var paddedKey = new AwkArrayKey("01");
@@ -57,9 +59,9 @@ public sealed class AwkArrayMemoryModeTests
             variables.DeleteArrayValue(name, paddedKey);
             Assert.Equal(governed, accounting.CurrentCommittedBytes > 0);
             variables.ClearArray(name);
-            Assert.Equal(0, accounting.CurrentCommittedBytes);
+            Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(emptyArrayBytes, budget.Reserved);
         }
     }
     [Theory]
@@ -74,6 +76,8 @@ public sealed class AwkArrayMemoryModeTests
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
         var name = AwkArrayName.FromText("a");
         var textKey = new AwkArrayKey("1");
+        variables.ClearArray(name);
+        var emptyArrayBytes = accounting.CurrentCommittedBytes;
         var ordinalKey = AwkArrayKey.FromOrdinal(1);
         for (var iteration = 0; iteration < 8; iteration++)
         {
@@ -85,9 +89,9 @@ public sealed class AwkArrayMemoryModeTests
             Assert.Equal(0, count);
             Assert.True(accounting.CurrentCommittedBytes > 0);
             variables.ClearArray(name);
-            Assert.Equal(0, accounting.CurrentCommittedBytes);
+            Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(emptyArrayBytes, budget.Reserved);
         }
     }
     [Theory]
@@ -103,6 +107,8 @@ public sealed class AwkArrayMemoryModeTests
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
         var name = AwkArrayName.FromText("a");
         var existingKey = AwkArrayKey.FromOrdinal(1);
+        variables.ClearArray(name);
+        var emptyArrayBytes = accounting.CurrentCommittedBytes;
         variables.SetArrayValue(name, existingKey, AwkValue.FromNumber(42));
         var committed = accounting.CurrentCommittedBytes;
         Assert.True(committed > 0);
@@ -116,8 +122,8 @@ public sealed class AwkArrayMemoryModeTests
         variables.DeleteArrayValue(name, existingKey);
         Assert.True(accounting.CurrentCommittedBytes > 0);
         variables.ClearArray(name);
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
+        Assert.Equal(emptyArrayBytes, budget.Reserved);
     }
 
     private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,

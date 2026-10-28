@@ -147,6 +147,7 @@ public sealed class AwkSortProjectionMemoryTests
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
+        state.ClearArray(Destination);
         var beforeDestination = state.MemoryAccounting.CurrentCommittedBytes;
         state.SetArrayString(Destination, First, "keep");
         var oldBytes = state.MemoryAccounting.CurrentCommittedBytes - beforeDestination;

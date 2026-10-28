@@ -94,6 +94,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var (memory, name) = CreateState(observed, source, "@ind_str_asc");
         using var ownedMemory = memory;
         var state = memory.State;
+        state.ClearArray(Destination);
         var beforeDestination = state.MemoryAccounting.CurrentCommittedBytes;
         state.SetArrayString(Destination, First, "keep");
         var oldBytes = state.MemoryAccounting.CurrentCommittedBytes - beforeDestination;

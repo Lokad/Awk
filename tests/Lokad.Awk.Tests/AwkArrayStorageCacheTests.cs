@@ -5,6 +5,24 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkArrayStorageCacheTests
 {
+    [Fact]
+    public void BoundIdentityObservesReplacementAndClearButNotScopeRecreation()
+    {
+        var storage = new AwkArrayStorage();
+        var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("scratch"), 1);
+        var identity = storage.ResolveArray(name);
+        var replacement = Values(9);
+        storage.SetSlots(name, replacement);
+        Assert.Same(identity, storage.ResolveArray(name));
+        Assert.Same(replacement, identity.Slots);
+        storage.Clear(name);
+        Assert.Same(identity, storage.ResolveArray(name));
+        Assert.Empty(identity.Slots);
+        Assert.True(storage.Remove(name, out _));
+        Assert.False(storage.TryGetArray(name, out _));
+        Assert.NotSame(identity, storage.ResolveArray(name));
+    }
+
     [Theory]
     [InlineData("a")]
     [InlineData("ARGV")]

@@ -614,14 +614,14 @@ internal sealed class AwkVariables
             Dictionary<AwkArrayKey, AwkVariableSlot> secondSlots)
         {
             long ExistingBytes(AwkArrayName name) =>
-                ShouldGovernArray(name) && _arrays.TryGetSlots(name, out var slots)
-                    ? EstimateArrayBytes(slots)
+                _arrays.TryGetSlots(name, out var slots)
+                    ? EstimateOwnedArrayBytes(name, slots)
                     : 0;
 
             long ReplacementBytes(
                 AwkArrayName name,
                 IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> slots) =>
-                ShouldGovernArray(name) ? EstimateArrayBytes(slots) : 0;
+                EstimateOwnedArrayBytes(name, slots);
 
             var oldBytes = AwkRuntimeMemory.CheckedAdd(ExistingBytes(firstName), ExistingBytes(secondName));
             var newBytes = AwkRuntimeMemory.CheckedAdd(
@@ -725,7 +725,10 @@ internal sealed class AwkVariables
         if (_arrays.TryGetSlots(name, out var values))
             return values;
 
-        return _arrays.ResolveSlots(name);
+        using var creation = ReserveMemoryMutation(AwkRuntimeMemory.ArrayIdentityBytes, 0);
+        values = _arrays.ResolveSlots(name);
+        creation.Commit();
+        return values;
     }
 
     private Dictionary<AwkArrayKey, AwkVariableSlot> CreateIndexedArraySlots<TValue>(
@@ -773,7 +776,8 @@ internal sealed class AwkVariables
         if (!name.IsFunctionLocal || !_arrays.Remove(name, out var slots))
             return;
 
-        _memoryAccounting.ReleaseCommitted(EstimateArrayBytes(slots));
+        _memoryAccounting.ReleaseCommitted(AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(slots)));
     }
 
     internal AwkValue CreateValue(AwkVariableSlot slot) =>
@@ -913,12 +917,10 @@ internal sealed class AwkVariables
         AwkMemoryLease sourceMemoryLease,
         long transferredBytes)
     {
-        var oldBytes = ShouldGovernArray(name) && _arrays.TryGetSlots(name, out var existingSlots)
-            ? EstimateArrayBytes(existingSlots)
-            : 0;
-        var newBytes = ShouldGovernArray(name)
-            ? EstimateArrayBytes(slots)
-            : 0;
+        var oldBytes = 0L;
+        if (_arrays.TryGetSlots(name, out var existingSlots))
+            oldBytes = EstimateOwnedArrayBytes(name, existingSlots);
+        var newBytes = EstimateOwnedArrayBytes(name, slots);
         var creditedBytes = AwkRuntimeMemory.CheckedAdd(oldBytes, transferredBytes);
         using var mutation = ReserveMemoryMutation(newBytes, creditedBytes);
         _arrays.SetSlots(name, slots);
@@ -990,5 +992,9 @@ internal sealed class AwkVariables
 
     private bool ShouldGovernArray(AwkArrayName name) =>
         name.IsFunctionLocal || !AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode);
+
+    private long EstimateOwnedArrayBytes(AwkArrayName name, IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> slots) =>
+        AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
+            ShouldGovernArray(name) ? EstimateArrayBytes(slots) : 0);
 
 }

@@ -11,6 +11,7 @@ internal static class AwkRuntimeMemory
     private const int VariableSlotBytes = 24;
     private const int ArrayEntryBytes = 64;
     private const int ArrayObjectBytes = 24;
+    internal const int ArrayIdentityBytes = 24;
     private const int DictionaryObjectBytes = 56;
     private const int DictionaryEntryBytes = 40;
     private const int ListObjectBytes = 32;

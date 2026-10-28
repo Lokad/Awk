@@ -6,12 +6,12 @@ namespace Lokad.Awk;
 
 internal sealed class AwkArrayStorage
 {
-    private readonly Dictionary<AwkArrayName, Dictionary<AwkArrayKey, AwkVariableSlot>> _arrays = new();
+    private readonly Dictionary<AwkArrayName, AwkArrayIdentity> _arrays = new();
 
     private readonly IEqualityComparer<AwkArrayKey> _keyComparer;
     private readonly AwkRuntimeCounters _counters;
     private AwkArrayName _cachedName;
-    private Dictionary<AwkArrayKey, AwkVariableSlot>? _cachedSlots;
+    private AwkArrayIdentity? _cachedArray;
 
     public AwkArrayStorage()
         : this(AwkArrayKeyComparer.Instance)
@@ -42,36 +42,40 @@ internal sealed class AwkArrayStorage
     }
 
     public bool Contains(AwkArrayName name) =>
-        TryGetCachedSlots(name, out _) || _arrays.ContainsKey(name);
+        TryGetCachedArray(name, out _) || _arrays.ContainsKey(name);
 
     public bool TryGetSlots(
         AwkArrayName name,
         [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkVariableSlot>? slots)
     {
-        if (TryGetCachedSlots(name, out slots))
-            return true;
-        if (!_arrays.TryGetValue(name, out slots))
-            return false;
+        var found = TryGetArray(name, out var array);
+        slots = array?.Slots;
+        return found;
+    }
+
+    public bool TryGetArray(AwkArrayName name, [NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        if (TryGetCachedArray(name, out array)) return true;
+        if (!_arrays.TryGetValue(name, out array)) return false;
         _cachedName = name;
-        _cachedSlots = slots;
+        _cachedArray = array;
         return true;
     }
 
-    public Dictionary<AwkArrayKey, AwkVariableSlot> ResolveSlots(AwkArrayName name)
-    {
-        if (_arrays.TryGetValue(name, out var slots))
-            return slots;
+    public Dictionary<AwkArrayKey, AwkVariableSlot> ResolveSlots(AwkArrayName name) => ResolveArray(name).Slots;
 
-        slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(_keyComparer);
-        _arrays[name] = slots;
-        return slots;
+    public AwkArrayIdentity ResolveArray(AwkArrayName name)
+    {
+        if (_arrays.TryGetValue(name, out var array)) return array;
+        array = new AwkArrayIdentity(new Dictionary<AwkArrayKey, AwkVariableSlot>(_keyComparer));
+        _arrays[name] = array;
+        return array;
     }
 
     public void SetSlots(AwkArrayName name, Dictionary<AwkArrayKey, AwkVariableSlot> slots)
     {
-        _arrays[name] = slots;
-        if (_cachedSlots != null && _cachedName == name)
-            _cachedSlots = slots;
+        if (_arrays.TryGetValue(name, out var array)) array.ReplaceSlots(slots);
+        else _arrays[name] = new AwkArrayIdentity(slots);
     }
 
     public void Clear(AwkArrayName name)
@@ -83,25 +87,26 @@ internal sealed class AwkArrayStorage
         AwkArrayName name,
         [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkVariableSlot>? slots)
     {
-        var removed = _arrays.Remove(name, out slots);
+        var removed = _arrays.Remove(name, out var array);
+        slots = array?.Slots;
         if (removed && _cachedName == name)
         {
             _cachedName = default;
-            _cachedSlots = null;
+            _cachedArray = null;
         }
         return removed;
     }
 
-    private bool TryGetCachedSlots(AwkArrayName name,
-        [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkVariableSlot>? slots)
+    private bool TryGetCachedArray(AwkArrayName name,
+        [NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        if (_cachedSlots is { } cached && _cachedName == name)
+        if (_cachedArray is { } cached && _cachedName == name)
         {
             _counters.RecordArrayContainerCacheHit();
-            slots = cached;
+            array = cached;
             return true;
         }
-        slots = null;
+        array = null;
         return false;
     }
 }

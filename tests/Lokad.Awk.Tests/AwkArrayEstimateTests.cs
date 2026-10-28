@@ -5,6 +5,42 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArrayEstimateTests
 {
+    [Fact]
+    public void RefusedIdentityAdmissionDoesNotPublishAnArray()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+        var name = AwkArrayName.FromText("values");
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        AssertMemoryLimit(() => variables.ClearArray(name));
+        Assert.False(variables.TryGetArrayCount(name, out _));
+        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(1, memory.Budget.Refusals);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+    }
+
+    [Fact]
+    public void SplitPairIdentitiesStayFundedUntilTheirFunctionScopeRetires()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+        var first = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("fields"), 1);
+        var second = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("separators"), 1);
+        variables.SetSplitArrayValues(first, [AwkText.FromSourceLiteralString("x")], second, []);
+        Assert.Equal("x", variables.GetArrayValue(first, AwkArrayKey.FromOrdinal(1)).AsString());
+        var filled = memory.Budget.Reserved;
+        variables.ClearArray(first);
+        variables.ClearArray(second);
+        Assert.InRange(memory.Budget.Reserved, 1, filled - 1);
+        var empty = memory.Budget.Reserved;
+        variables.RemoveFunctionLocalArray(first);
+        Assert.InRange(memory.Budget.Reserved, 1, empty - 1);
+        variables.RemoveFunctionLocalArray(second);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -63,6 +99,8 @@ public sealed class AwkArrayEstimateTests
         var variables = new AwkVariables(accounting, counters, static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
+        variables.ClearArray(name);
+        var emptyArrayBytes = accounting.CurrentCommittedBytes;
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
         var committed = accounting.CurrentCommittedBytes;
         var reserved = budget.Reserved;
@@ -83,12 +121,12 @@ public sealed class AwkArrayEstimateTests
         {
             Replace();
             Assert.Equal(new string('x', 16), variables.GetArrayValue(name, key).AsString());
-            Assert.Equal(AwkVariables.EstimateArrayBytes(replacement), accounting.CurrentCommittedBytes);
+            Assert.Equal(emptyArrayBytes + AwkVariables.EstimateArrayBytes(replacement), accounting.CurrentCommittedBytes);
         }
         Assert.Equal(0, accounting.CurrentReservedBytes);
         variables.ClearArray(name);
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
+        Assert.Equal(emptyArrayBytes, budget.Reserved);
     }
 
     [Fact]
@@ -98,6 +136,8 @@ public sealed class AwkArrayEstimateTests
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
             AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
         var name = AwkArrayName.FromText("values");
+        variables.ClearArray(name);
+        var emptyArrayBytes = memory.Budget.Reserved;
         for (var index = 1; index <= 4096; index++)
             variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         var filled = memory.Budget.Reserved;
@@ -109,7 +149,7 @@ public sealed class AwkArrayEstimateTests
         variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         Assert.Equal(7, variables.GetArrayValue(name, AwkArrayKey.FromOrdinal(1)).AsNumber());
         variables.ClearArray(name);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(emptyArrayBytes, memory.Budget.Reserved);
     }
 
     [Fact]
@@ -119,6 +159,8 @@ public sealed class AwkArrayEstimateTests
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
             AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
         var name = AwkArrayName.FromText("values");
+        variables.ClearArray(name);
+        var ownerBytes = memory.Budget.Reserved;
         variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 192;
         var refused = false;
@@ -140,7 +182,7 @@ public sealed class AwkArrayEstimateTests
         Assert.True(refused);
         Assert.Equal(7, variables.GetArrayValue(name, AwkArrayKey.FromOrdinal(1)).AsNumber());
         variables.ClearArray(name);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(ownerBytes, memory.Budget.Reserved);
     }
 
     private static void AssertMemoryLimit(Action action)
