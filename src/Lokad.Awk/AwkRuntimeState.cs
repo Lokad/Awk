@@ -60,8 +60,10 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRuntimeResourceMonitor resources,
         AwkCompatibilityProfile compatibilityProfile,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
-        AwkRegexEscapeWarnings? regexEscapeWarnings = null)
+        AwkRegexEscapeWarnings? regexEscapeWarnings = null,
+        bool csvInput = false)
     {
+        CsvInput = csvInput;
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
         Resources = resources;
@@ -116,7 +118,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 Counters,
 
                 CompatibilityMode,
-                _regexRuntime.ResetWarningSite);
+                _regexRuntime.ResetWarningSite, csvInput);
             _recordFields = new AwkRecordFieldRuntime(
                 _fieldSplitter, CreateStringValue, CreateByteTextValue, CreateNumericStringValue, FormatStringByteText, ResolveOutputFieldSeparator, () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
                     ? AwkRecordFieldSplittingMode.Paragraph
@@ -131,7 +133,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 MemoryAccounting,
                 CompatibilityMode,
                 CancellationCheckpoint,
-                ValidateRecordSeparator);
+                ValidateRecordSeparator, csvInput, ReportCsvAssignmentWarning);
             specialVariables = _specialVariables;
             _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
             _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
@@ -361,6 +363,16 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.ProcInfo, CompatibilityMode))
             return;
         _specialVariables.InitializeProcInfo();
+    }
+
+    public bool CsvInput { get; }
+
+    private void ReportCsvAssignmentWarning(bool recordSeparator)
+    {
+        if (TryGetExecutionContext(out var execution))
+            execution.Output.ReportDiagnostic(new AwkDiagnostic(default,
+                recordSeparator ? AwkMessages.WarningCsvRecords : AwkMessages.WarningCsvFields,
+                AwkDiagnosticId.WarningRuntime));
     }
 
     public void InitializeFunctions(IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
@@ -1187,8 +1199,9 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkText input,
         AwkArrayName arrayName,
         AwkFieldSeparatorSpec separator,
-        AwkOptionalIdentifier separatorArrayName) =>
-        _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName);
+        AwkOptionalIdentifier separatorArrayName,
+        bool csv = false) =>
+        _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName, csv);
 
     public int PatsplitIntoArray(
         AwkText input,

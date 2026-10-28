@@ -145,6 +145,7 @@ internal static class AwkMessages
         "Process text files using awk patterns and actions.\n" +
         "\n" +
         "  -F fs, --field-separator=fs   use fs for the input field separator\n" +
+        "  -k, --csv                     read comma-separated values\n" +
         "  -f file, --file=file          read program source from file\n" +
         "  -e program, --source=program  use program as awk source text\n" +
         "  -v var=value, --assign=var=value\n" +
@@ -152,6 +153,10 @@ internal static class AwkMessages
         "  -h, --help                    display this help and exit\n" +
         "  -V, --version                 display Lokad awk version and exit\n");
     internal static readonly ReadOnlyMemory<byte> VersionMessage = AwkUtf8Codec.Encode("Lokad awk " + AwkVersion.Text + "\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorCsvPosixConflict =
+        AwkUtf8Codec.Encode("awk: `--posix' and `--csv' conflict\n");
+    internal const string WarningCsvFields = "warning: assignment to FS/FIELDWIDTHS/FPAT has no effect when using --csv";
+    internal const string WarningCsvRecords = "warning: assignment to RS has no effect when using --csv";
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFilePrefix = AwkUtf8Codec.Encode("awk: ");
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFileSuffix =
         AwkUtf8Codec.Encode(": No such file or directory\n");

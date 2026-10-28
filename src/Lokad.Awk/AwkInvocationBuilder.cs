@@ -13,6 +13,7 @@ internal sealed class AwkInvocationBuilder
     private AwkTerminalInvocationResult _terminalResult = AwkTerminalInvocationResult.None;
     private AwkCompatibilityProfile _compatibilityProfile = AwkCompatibilityProfile.Default;
     private bool _sandbox;
+    private bool _csv;
 
     public AwkInvocationBuilder(AwkCommandInvocation invocation)
     {
@@ -42,6 +43,12 @@ internal sealed class AwkInvocationBuilder
         return this;
     }
 
+    public AwkInvocationBuilder WithCsv()
+    {
+        _csv = true;
+        return this;
+    }
+
     public AwkInvocationBuilder WithErrorMessage(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId errorId)
     {
         _terminalResult = AwkTerminalInvocationResult.Error(errorMessage, errorId);
@@ -66,7 +73,7 @@ internal sealed class AwkInvocationBuilder
             _inputPlan,
             _runtimeArgumentsPlan,
             new AwkStdioPlan(_stdIn, _stdOut, _stdErr),
-            new AwkExecutionOptions(_compatibilityProfile, _sandbox),
+            new AwkExecutionOptions(_compatibilityProfile, _sandbox, _csv),
             _terminalResult);
 
 }

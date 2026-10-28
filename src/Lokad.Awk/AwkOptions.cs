@@ -36,6 +36,7 @@ internal enum AwkOptionAction
 {
     AddVariableAssignment,
     CharactersAsBytes,
+    Csv,
     EnterInputArguments,
     FieldSeparator,
     AddSourceFile,
@@ -72,6 +73,7 @@ internal static class AwkOptions
         new(AwkOptionAction.AddVariableAssignment, "assign", 'v', AwkOptionValueCardinality.Required),
         new(AwkOptionAction.RejectUnsupportedGnuOption, "bignum", '\0', AwkOptionValueCardinality.None),
         new(AwkOptionAction.CharactersAsBytes, "characters-as-bytes", 'b', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.Csv, "csv", 'k', AwkOptionValueCardinality.None),
         new(AwkOptionAction.RejectUnsupportedGnuOption, "copyright", '\0', AwkOptionValueCardinality.None),
         new(AwkOptionAction.RejectUnsupportedGnuOption, "debug", 'd', AwkOptionValueCardinality.None),
         new(AwkOptionAction.RejectUnsupportedGnuOption, "dump-variables", 'D', AwkOptionValueCardinality.None),

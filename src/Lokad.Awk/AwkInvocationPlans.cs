@@ -34,7 +34,8 @@ internal readonly record struct AwkStdioPlan(
 
 internal sealed record AwkExecutionOptions(
     AwkCompatibilityProfile CompatibilityProfile,
-    bool Sandbox);
+    bool Sandbox,
+    bool Csv = false);
 
 internal enum AwkTerminalInvocationKind
 {

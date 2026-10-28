@@ -10,7 +10,9 @@ internal sealed class AwkSpecialVariableDispatcher(
     AwkMemoryAccounting memoryAccounting,
     AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
     Action? checkpoint = null,
-    Action<AwkText>? validateRecordSeparator = null)
+    Action<AwkText>? validateRecordSeparator = null,
+    bool csv = false,
+    Action<bool>? reportCsvWarning = null)
 {
     private static readonly AwkArrayName ProcInfo = AwkArrayName.FromText("PROCINFO");
     private static readonly AwkArrayKey FieldModeKey = new(AwkText.FromSourceLiteralString("FS"));
@@ -23,7 +25,14 @@ internal sealed class AwkSpecialVariableDispatcher(
             AwkValue.FromText(AwkText.FromSourceLiteralString(AwkVersion.Text))),
         new(FieldModeKey, SeparatorMode)
     ];
+    private static readonly KeyValuePair<AwkArrayKey, AwkValue>[] InitialCsvProcInfo =
+    [
+        .. InitialProcInfo,
+        new(new AwkArrayKey(AwkText.FromSourceLiteralString("CSV")), AwkValue.FromNumber(1))
+    ];
     private FieldParser _parser;
+    private bool _csvFieldsWarned;
+    private bool _csvRecordsWarned;
 
     public void InitializeScalars(AwkFieldSeparatorSpec fieldSeparator)
     {
@@ -44,7 +53,10 @@ internal sealed class AwkSpecialVariableDispatcher(
         }
     }
 
-    public void InitializeProcInfo() => variables.InitializeArrayValues(ProcInfo, InitialProcInfo);
+    public void InitializeProcInfo()
+    {
+        variables.InitializeArrayValues(ProcInfo, csv ? InitialCsvProcInfo : InitialProcInfo);
+    }
 
     public void Assign(AwkVariableName name, AwkValue value)
     {
@@ -60,6 +72,25 @@ internal sealed class AwkSpecialVariableDispatcher(
         {
             variables.SetScalarValue(name, value);
             recordAssignment(id);
+            return;
+        }
+
+        if (csv)
+        {
+            // Assignments remain observable as values; they do not change CSV parsing.
+            using var staging = memoryAccounting.ReserveAllocationPeak(variables.EstimateScalarValueMemoryGrowth(name, value));
+            var records = id == AwkSpecialVariableId.RecordSeparator;
+            ref var warned = ref (records ? ref _csvRecordsWarned : ref _csvFieldsWarned);
+            if (!warned)
+            {
+                reportCsvWarning?.Invoke(records);
+            }
+            if (id == AwkSpecialVariableId.FieldPattern)
+                fieldSplitter.ValidateFieldPattern(formatString(value));
+            else if (id == AwkSpecialVariableId.FieldWidths)
+                _ = fieldSplitter.EstimateFieldWidthsMemory(formatString(value));
+            variables.SetScalarValue(name, value);
+            warned = true;
             return;
         }
 

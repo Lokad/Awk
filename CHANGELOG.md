@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Separate development packages (`0.0.0-dev`) from immutable published release artifacts.
+- Add GNU-style CSV input (`--csv`/`-k`), including multiline/quoted fields and CSV-aware
+  two-argument `split()`. Ordinary explicit-separator splitting and field reconstruction remain unchanged.
 
 ## 0.4.0
 

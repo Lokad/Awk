@@ -203,8 +203,9 @@ internal abstract partial class AwkExpression
         AwkArrayName arrayName,
         AwkExpression separator,
         AwkOptionalIdentifier separatorArrayName,
-        bool isRegexLiteral = false) =>
-        new SplitExpression(value, arrayName, separator, separatorArrayName, isRegexLiteral);
+        bool isRegexLiteral = false,
+        bool usesDefaultSeparator = false) =>
+        new SplitExpression(value, arrayName, separator, separatorArrayName, isRegexLiteral, usesDefaultSeparator);
 
     public static AwkExpression Patsplit(
         AwkExpression value,

@@ -43,6 +43,11 @@ conformance. The core package remains independent of the concrete provider.
 
 ## End-to-End Host Tests
 
+CSV goldens use pinned GNU 5.3.2 outcomes. `AwkCsvHostTests` checks byte/chunk boundaries,
+reused host buffers, stdin/files/pipes, pending cancellation, refusal, strict UTF-8 and refunds;
+prepared counter checks preserve byte-native processing and linear record scans. CSV decoding
+does not require a regex provider; explicit FPAT assignments retain regex validation.
+
 The mock filesystem publishes successful file creation/truncation at open; appended
 data stays buffered until descriptor close. Close-mode goldens cover files;
 `AwkIoCloseDirectionTests` runs file/pipe contracts through public execution with

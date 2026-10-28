@@ -25,6 +25,7 @@ internal static class AwkCommandParser
             new(invocation.CommandName, invocation.CurrentDirectory, cancellationToken);
         private AwkCompatibilityProfile _profile = AwkCompatibilityProfile.Default;
         private bool _sandbox;
+        private bool _csv;
 
         public AwkInvocation Parse()
         {
@@ -82,6 +83,8 @@ internal static class AwkCommandParser
             if (!_sourceInputPlanner.HasScript)
                 return BuildErrorInvocation(AwkMessages.ErrorMissingScript, AwkDiagnosticId.OptionMissingScript);
 
+            if (_csv && _profile.Mode == AwkCompatibilityMode.Posix)
+                return BuildErrorInvocation(AwkMessages.ErrorCsvPosixConflict, AwkDiagnosticId.OptionInvalid);
             _sourceInputPlanner.PrepareCompatibility(_profile.Mode);
             return CreateInvocationBuilder()
                 .WithPlan(_sourceInputPlanner.BuildPlan(invocation))
@@ -240,6 +243,7 @@ internal static class AwkCommandParser
         private AwkInvocationBuilder CreateInvocationBuilder()
         {
             var builder = new AwkInvocationBuilder(invocation);
+            if (_csv) builder.WithCsv();
             return _sandbox ? builder.WithSandbox() : builder;
         }
 
@@ -258,6 +262,9 @@ internal static class AwkCommandParser
 
             switch (spec.Action)
             {
+                case AwkOptionAction.Csv:
+                    _csv = true;
+                    return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.AddVariableAssignment:
                     return TryAddVariableAssignment(value);
                 case AwkOptionAction.CharactersAsBytes:

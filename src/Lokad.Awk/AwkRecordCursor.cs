@@ -31,6 +31,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     // that the active separator strategy has not ruled out.
     private int _bufferStart;
     private int _scanOffset;
+    private bool _csvInQuote;
     // Run and paragraph separators can end at a batch boundary. These bounds
     // retain that candidate so the next batch only extends the pending run.
     private int _pendingSeparatorStart = -1;
@@ -158,6 +159,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             var content = buffer.AsSpan()[_bufferStart..];
             return separator switch
             {
+                CsvSeparator => TryReadCsvRecord(content),
                 NewlineSeparator => TryReadNewlineRecord(content),
                 ParagraphSeparator => TryReadParagraph(content),
                 SingleByteSeparator singleByte => TryReadSingleByte(content, singleByte),
@@ -167,6 +169,30 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 RegexSeparator regex => TryReadRegex(regex),
                 _ => throw new InvalidOperationException("Unexpected awk record separator strategy.")
             };
+
+            BufferedReadResult TryReadCsvRecord(ReadOnlySpan<byte> content)
+            {
+                var start = GetRelativeScanStart(content);
+                long nextCheckpoint = start;
+                for (var i = start; i < content.Length; i++)
+                {
+                    if (i >= nextCheckpoint)
+                    {
+                        _scanCheckpoint();
+                        nextCheckpoint = (long)i + AwkRuntimeLimits.CancellationCheckBytes;
+                    }
+                    if (content[i] == (byte)'"') _csvInQuote = !_csvInQuote;
+                    if (content[i] == (byte)'\n' && !_csvInQuote)
+                    {
+                        RecordSeparatorScan(i - start + 1);
+                        return ConsumeRecord(content[..i], i + 1, AwkRecordTerminator.NewLine,
+                            AwkRecordFieldSplittingMode.Ordinary);
+                    }
+                }
+                RecordSeparatorScan(content.Length - start);
+                MarkScannedThroughEnd(0);
+                return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
+            }
 
             BufferedReadResult TryReadNewlineRecord(ReadOnlySpan<byte> content)
             {
@@ -671,6 +697,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
         RecordSeparator GetCurrentSeparator()
         {
+            if (_state.CsvInput) return CsvSeparator.Instance;
             var version = _state.RecordSeparatorVersion;
             if (_separatorCache.IsCurrent(version))
                 return _separatorCache.Value;
@@ -833,6 +860,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     private void ResetSeparatorSearch()
     {
+        _csvInQuote = false;
         _scanOffset = _bufferStart;
         _pendingSeparatorStart = -1;
         _pendingSeparatorEnd = -1;
@@ -857,9 +885,34 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     }
 
     private AwkText CreateText(ReadOnlySpan<byte> content) =>
+        _state.CsvInput ? CreateCsvText(content) :
         content.IsEmpty
             ? AwkText.Empty
             : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint);
+
+    private AwkText CreateCsvText(ReadOnlySpan<byte> content)
+    {
+        // Match GNU's EOF/record terminator treatment without depending on host batch boundaries.
+        if (!content.IsEmpty && content[^1] == (byte)'\r') content = content[..^1];
+        var first = IndexOfLiteral(content, "\r\n"u8, _scanCheckpoint);
+        if (first < 0)
+            return content.IsEmpty ? AwkText.Empty : AwkText.CopyHostBytes(content,
+                _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint);
+        using var normalized = new AwkUtf8Builder(_state.MemoryAccounting, content.Length);
+        var start = 0;
+        do
+        {
+            normalized.Append(content[start..first], _scanCheckpoint);
+            start = first + 1;
+            var next = IndexOfLiteral(content[start..], "\r\n"u8, _scanCheckpoint);
+            if (next < 0) break;
+            first = start + next;
+        } while (true);
+        normalized.Append(content[start..], _scanCheckpoint);
+        // The builder still contains host input, unlike builders fed only by AwkText.
+        return AwkText.CopyHostBytes(normalized.AsSpan(), _state.Counters,
+            _state.MemoryAccounting, _state.CancellationCheckpoint);
+    }
 
     internal static void ValidateSeparator(AwkRuntimeState state, AwkText value)
     {
@@ -1214,6 +1267,11 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     }
 
     private abstract record RecordSeparator;
+
+    private sealed record CsvSeparator : RecordSeparator
+    {
+        public static CsvSeparator Instance { get; } = new();
+    }
 
     private sealed record NewlineSeparator : RecordSeparator
     {

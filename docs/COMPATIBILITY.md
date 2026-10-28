@@ -289,14 +289,24 @@ later operands stop and there is no stdin fallback. BEGINFILE can explicitly rec
 nextfile; redirected getline remains recoverable. Awk does not infer file kinds from error
 text or reproduce GNU's automatic directory skipping.
 
+## CSV in development source
+
+`--csv` / `-k` follows pinned GNU 5.3.2 input behavior for quoted/multiline fields, escaped
+quotes and CRLF normalization. Two-argument `split()` uses CSV; an explicit separator uses
+ordinary splitting. Field changes rebuild `$0` with OFS. FS/RS/FPAT/FIELDWIDTHS assignments
+retain their values and report ignored parsing effects; FPAT/FIELDWIDTHS still validate.
+PROCINFO["CSV"] identifies the mode. POSIX mode conflicts with CSV. A final standalone CR
+is discarded at EOF, matching that GNU version, independently of host batch boundaries.
+Published 0.4.0 lacks CSV. [Goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.Csv.cs) and
+[host checks](../tests/Lokad.Awk.Tests/AwkCsvHostTests.cs) qualify the development path.
+
 ## Deferred and excluded capabilities
 
-CSV is provisionally first, nested arrays next, subject to a motivating script and explicit
+Nested arrays are the next GNU capability, subject to a motivating script and explicit
 acceptance criteria. Other extensions remain demand-driven; none blocks the supported core.
 
 | Capability | Current behavior |
 | --- | --- |
-| CSV (`-k`/`--csv`) | Rejected. Literal comma splitting does not handle quoted or multiline CSV; preprocess in the host. |
 | Nested arrays (`a[1][2]`) | Rejected; `a[1,2]` SUBSEP keys work. |
 | `system()` | Explicit unsupported diagnostic; one-way pipes do not imply support. |
 | Namespaces | `@namespace` and qualified identifiers are rejected; host-mediated `@include` works. |

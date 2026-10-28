@@ -167,7 +167,8 @@ internal sealed class AwkArrayRuntime
         AwkText input,
         AwkArrayName arrayName,
         AwkFieldSeparatorSpec separator,
-        AwkOptionalIdentifier separatorArrayName)
+        AwkOptionalIdentifier separatorArrayName,
+        bool csv = false)
     {
         if (separatorArrayName.HasValue && _state.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
             throw new AwkRuntimeException(AwkMessages.ErrorSplitSeparatorArrayExtension);
@@ -176,8 +177,11 @@ internal sealed class AwkArrayRuntime
             ? AwkSeparatorCaptureMode.Capture
             : AwkSeparatorCaptureMode.Omit;
         using var splitLease = _state.MemoryAccounting.ReserveTransient(
-            EstimateSplitBuffers(input.ByteLength, captureMode));
-        var result = _fieldSplitter.SplitFieldTextsBySeparator(
+            csv ? _state.MemoryAccounting.IsEnabled
+                    ? AwkCsvFields.EstimateMemory(input, materialize: true, _state.CancellationCheckpoint) : 0
+                : EstimateSplitBuffers(input.ByteLength, captureMode));
+        var result = csv ? AwkCsvFields.SplitText(input, _state.MemoryAccounting, _state.Counters, _state.CancellationCheckpoint)
+            : _fieldSplitter.SplitFieldTextsBySeparator(
             input,
             separator,
             captureMode,

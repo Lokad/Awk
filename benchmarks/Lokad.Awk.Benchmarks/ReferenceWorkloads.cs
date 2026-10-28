@@ -4,10 +4,11 @@ using System.Text;
 namespace Lokad.Awk.Benchmarking;
 
 internal sealed record ReferenceWorkload(string Name, string Scale, int Records, int Fields,
-    string Program, byte[] StandardInput, BenchmarkFile[] Files, byte[] ExpectedOutput, string Locale = "C")
+    string Program, byte[] StandardInput, BenchmarkFile[] Files, byte[] ExpectedOutput, string Locale = "C",
+    string[]? Options = null)
 {
     public long InputBytes => StandardInput.LongLength + Files.Sum(file => file.ContentBytes.LongLength);
-    public string[] Arguments => [Program, .. Files.Select(file => file.Path.TrimStart('/'))];
+    public string[] Arguments => [.. Options ?? [], Program, .. Files.Select(file => file.Path.TrimStart('/'))];
     public OutputDigest ExpectedDigest { get; } = OutputDigest.FromBytes(ExpectedOutput);
 }
 
@@ -16,7 +17,7 @@ internal static class ReferenceWorkloads
     public static readonly string[] Families =
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
-        "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
+        "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
@@ -69,8 +70,26 @@ internal static class ReferenceWorkloads
         var fields = 3;
         BenchmarkFile[] files = [];
         var locale = "C";
+        string[]? options = null;
         switch (name)
         {
+            case "csv":
+                options = ["--csv"];
+                program = "{sum[$1]+=$2;notes+=length($3)} END{for(k in sum)total+=sum[k];print length(sum),total,notes}";
+                long total = 0, notes = 0;
+                for (var i = 0; i < rows; i++)
+                {
+                    var value = i % 97;
+                    var key = "k" + (i % 16).ToString(CultureInfo.InvariantCulture);
+                    var description = (i % 3) switch { 0 => "plain", 1 => "quoted, \"note\"", _ => "multi\nline" };
+                    input.Append('"').Append(key).Append("\",").Append(value.ToString("D4", CultureInfo.InvariantCulture)).Append(',');
+                    input.Append('"').Append(description.Replace("\"", "\"\"", StringComparison.Ordinal)
+                        .Replace("\n", "\r\n", StringComparison.Ordinal)).Append("\"\r\n");
+                    total += value;
+                    notes += description.Length;
+                }
+                expected.Append(Math.Min(rows, 16)).Append(' ').Append(total).Append(' ').Append(notes).Append('\n');
+                break;
             case "projection":
                 program = "{print $2}";
                 Repeat("sku\tvalue\ttail\n", "value\n");
@@ -322,7 +341,7 @@ internal static class ReferenceWorkloads
             default:
                 throw new ArgumentException("Unknown workload family.");
         }
-        return new(name, scale, rows, fields, program, Bytes(input.ToString()), files, Bytes(expected.ToString()), locale);
+        return new(name, scale, rows, fields, program, Bytes(input.ToString()), files, Bytes(expected.ToString()), locale, options);
 
         void Repeat(string row, string output)
         {

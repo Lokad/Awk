@@ -356,6 +356,7 @@ internal static class AwkMessages
         "Process text files using awk patterns and actions.\n" +
         "\n" +
         "  -F fs, --field-separator=fs   use fs for the input field separator\n" +
+        "  -k, --csv                     read comma-separated values\n" +
         "  -f file, --file=file          read program source from file\n" +
         "  -e program, --source=program  use program as awk source text\n" +
         "  -v var=value, --assign=var=value\n" +

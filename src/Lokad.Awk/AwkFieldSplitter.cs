@@ -17,7 +17,8 @@ internal sealed class AwkFieldSplitter(
     AwkMemoryAccounting memoryAccounting,
     AwkRuntimeCounters counters,
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-    Action<object>? resetRegexWarningSite = null)
+    Action<object>? resetRegexWarningSite = null,
+    bool csv = false)
 {
     private static readonly AwkFieldSeparatorSpec NewlineSeparator = AwkFieldSeparatorSpec.FromText("\n");
     private readonly AwkByteFieldSplitter _byteSplitter = new(
@@ -111,7 +112,8 @@ internal sealed class AwkFieldSplitter(
         CaptureRecordPlan(_recordFieldSplittingMode);
 
     public AwkRecordSplitPlan CaptureRecordPlan(AwkRecordFieldSplittingMode recordMode) =>
-        _fieldSplittingMode switch
+        csv ? new(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
+            AwkRegexCaseSensitivity.CaseSensitive, recordMode) : _fieldSplittingMode switch
         {
             AwkFieldSplittingMode.FieldPattern => new(
                 _fieldSplittingMode, default, _fieldPattern, [], resolveRegexCaseSensitivity(), recordMode),
@@ -266,6 +268,7 @@ internal sealed class AwkFieldSplitter(
 
         return plan.Mode switch
         {
+            AwkFieldSplittingMode.Csv => AwkCsvFields.SplitRecord(line, memoryAccounting, counters, throwIfCancellationRequested),
             AwkFieldSplittingMode.FieldPattern => _byteSplitter.PatsplitRecordFields(
                 line, new AwkRegexPattern(plan.FieldPattern.AsString(counters, throwIfCancellationRequested), warningSite: this), plan.CaseSensitivity),
             AwkFieldSplittingMode.FieldWidths => SplitFieldWidthRecordFields(),

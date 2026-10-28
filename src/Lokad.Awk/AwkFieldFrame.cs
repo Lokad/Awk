@@ -728,10 +728,12 @@ internal sealed class AwkFieldFrame(
         if (_fieldTexts.Count == 0)
             counters.RecordFieldSplit();
         using var splitLease = governor.ReserveTransient(
-            governor.IsEnabled ? AwkRuntimeMemory.EstimateSplitBufferBytes(
+            !governor.IsEnabled ? 0 : SplitPlan.Mode == AwkFieldSplittingMode.Csv
+                ? AwkCsvFields.EstimateMemory(_recordText, materialize: false, checkpoint ?? (static () => { }))
+                : AwkRuntimeMemory.EstimateSplitBufferBytes(
                 _recordText.ByteLength,
                 fieldListCount: 2,
-                AwkSeparatorCaptureMode.Omit) : 0);
+                AwkSeparatorCaptureMode.Omit));
         var reusable = _fieldTexts.Count == 0 && _fieldTexts.Capacity is > 0 and <= MaxReusableFieldListCapacity &&
             fieldSplitter is not null && AwkFieldSplitter.SupportsIncrementalFields(SplitPlan) ? _fieldTexts : null;
         var previousCount = _fieldTexts.Count;

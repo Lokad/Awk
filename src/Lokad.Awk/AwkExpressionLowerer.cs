@@ -417,7 +417,8 @@ internal static partial class AwkExpressionLowerer
                     if (!call.TryGetOptionalArrayIdentifierArgument(3, out var separatorArrayName))
                         return false;
 
-                    lowered = AwkExpression.Split(value, arrayName, separator, separatorArrayName, isRegexLiteral);
+                    lowered = AwkExpression.Split(value, arrayName, separator, separatorArrayName,
+                        isRegexLiteral, usesDefaultSeparator: call.ArgumentCount == 2);
                     return true;
                 }
 

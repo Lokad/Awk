@@ -12,18 +12,20 @@ internal abstract partial class AwkExpression
         AwkArrayName arrayName,
         AwkExpression separatorExpression,
         AwkOptionalIdentifier separatorArrayName,
-        bool isRegexLiteral) : AwkExpression
+        bool isRegexLiteral,
+        bool usesDefaultSeparator) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
-            var separator = await separatorExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
+            var csv = usesDefaultSeparator && context.State.CsvInput;
+            var separator = csv ? default : await separatorExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.SplitIntoArray(
                 input,
                 arrayName,
-                AwkFieldSeparatorSpec.FromRegexPattern(separator, isRegexLiteral),
-                separatorArrayName));
+                csv ? default : AwkFieldSeparatorSpec.FromRegexPattern(separator, isRegexLiteral),
+                separatorArrayName, csv));
         }
     }
 

@@ -6,7 +6,8 @@ internal enum AwkFieldSplittingMode
 {
     FieldSeparator,
     FieldPattern,
-    FieldWidths
+    FieldWidths,
+    Csv
 }
 
 internal readonly record struct AwkFieldSkip(int Value);

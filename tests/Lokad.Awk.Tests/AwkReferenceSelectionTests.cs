@@ -14,7 +14,7 @@ public sealed class AwkReferenceSelectionTests
     [InlineData("startup-empty", "small", true, 1)]
     [InlineData("unknown", "all", true, 0)]
     [InlineData("projection", "unknown", true, 0)]
-    [InlineData("*", "small", true, 40)]
+    [InlineData("*", "small", true, 41)]
     public void FiltersPreserveSelectedCasesAndControlOrdering(string name, string scale, bool smoke, int count)
     {
         var workloads = ReferenceWorkloads.CreateAll(name, scale, smoke).ToArray();

@@ -24,9 +24,11 @@ or GNU native allocations. Rows run from worst ratio to best within each scale.
 
 ## Representative processing
 
-All 38 families share the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
+The 38 ordinary families below share the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
 across implementations. Most have 4,096 records; all-fields wide and long-field cases have
 256, and join has 4,096 records per file. GNU-marked cases do not imply full GNU conformance.
+The development CSV fixture additionally requires GNU awk 5.3 or later; it is absent from
+the retained GNU 5.2.1 results.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |

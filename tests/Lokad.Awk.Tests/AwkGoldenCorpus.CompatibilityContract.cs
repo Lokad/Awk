@@ -24,15 +24,11 @@ internal static partial class AwkGoldenCorpus
             .ExitsWith(2)
             .WithNondeterminismNote("Intentional host-contract difference: a failed named main input does not cause stdin fallback.")
             .Build(),
-        AwkGoldenCaseBuilder.Create("csv-short-option-rejected", ["-k", "BEGIN{print \"unreachable\"}"], [])
-            .WithStdErr("awk: invalid option -- -k\n")
-            .ExitsWith(2)
-            .WithNondeterminismNote("CSV mode is deferred; this case asserts option rejection, not CSV parsing.")
+        AwkGoldenCaseBuilder.Create("csv-short-option-begin-only", ["-k", "BEGIN{print \"ready\"}"], [])
+            .WithStdOut("ready\n")
             .Build(),
-        AwkGoldenCaseBuilder.Create("csv-long-option-rejected", ["--csv", "BEGIN{print \"unreachable\"}"], [])
-            .WithStdErr("awk: invalid option -- --csv\n")
-            .ExitsWith(2)
-            .WithNondeterminismNote("CSV mode is deferred; this case asserts option rejection, not CSV parsing.")
+        AwkGoldenCaseBuilder.Create("csv-long-option-begin-only", ["--csv", "BEGIN{print \"ready\"}"], [])
+            .WithStdOut("ready\n")
             .Build()
     ];
 }
