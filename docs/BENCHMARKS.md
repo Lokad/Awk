@@ -1,17 +1,18 @@
 # Benchmarks
 
-**CSV keyed aggregation with quoted/multiline fields** was measured **2026-10-28 UTC** at
+**Keyed aggregation (medium/large)** was measured **2026-10-28 UTC** at
+[`ac67a0e`](https://github.com/Lokad/Awk/commit/ac67a0ec20967fac9e950c54a6f76e4c699d2490),
+against **GNU awk 5.2.1**. It uses development source after 0.4.0.
+
+**CSV keyed aggregation with quoted/multiline fields** retains **2026-10-28 UTC** measurements at
 [`5fc6ea9`](https://github.com/Lokad/Awk/commit/5fc6ea99aae28f41e1acf5f1d84270f69ab00133),
 against **GNU awk 5.3.2**. It uses development source after 0.4.0; published 0.4.0 lacks CSV.
-The row uses the interpreter, default policy, UTC, no shared admission and the source adapter
-with Utf8Regex 0.4.0; the script does not match regexes. Timing/allocation runs pass quiet checks
-and verify identical output, empty stderr and exit zero.
 
-Aggregation, record rebuilding and join rows (medium/large), plus medium projection,
+Record rebuilding and join rows (medium/large), plus medium projection,
 filtering and two-argument calls, retain **2026-10-28 UTC** measurements at
 [`65ef007`](https://github.com/Lokad/Awk/commit/65ef0078a7348a7b232eef5465cd9ec3f006571e),
-against **GNU awk 5.2.1**. Its runtime source matches published **0.4.0**; package metadata uses
-an independent development identity. These nine rows use the interpreter, default policy
+against **GNU awk 5.2.1**. These seven retained rows use the published **0.4.0** runtime source
+with an independent development package identity. All ten rows measured on this date use the interpreter, default policy
 (UTC timezone), no shared admission, and the source adapter with published Utf8Regex 0.4.0;
 the selected scripts do not invoke regex matching. Timing and allocation runs have passing
 pre/middle/post quiet checks and verified output equality.
@@ -58,9 +59,9 @@ CSV needs GNU awk 5.3 or later. Its row uses 5.3.2; the other rows retain their 
 | For loop and numeric arithmetic | 8.00 | 5.277 | 2.948 | 1.79× | 0.70 |
 | printf | 24.00 | 3.406 | 1.922 | 1.77× | 0.65 |
 | While loop and numeric arithmetic | 8.00 | 5.070 | 2.895 | 1.75× | 0.70 |
-| Keyed sum / sorted output (GNU) | 24.00 | 2.397 | 1.374 | 1.74× | 0.69 |
 | Project a column / output | 60.00 | 2.254 | 1.331 | 1.69× | 0.67 |
 | Nested user calls | 8.00 | 2.758 | 1.644 | 1.68× | 0.69 |
+| Keyed sum / sorted output (GNU) | 24.00 | 2.278 | 1.360 | 1.68× | 0.69 |
 | Mixed narrow-record processing | 60.00 | 3.756 | 2.244 | 1.67× | 0.73 |
 | Five-part string concatenation | 20.00 | 2.881 | 1.734 | 1.66× | 1.39 |
 | Field-key reads, existing/new | 63.15 | 2.785 | 1.684 | 1.65× | 1.41 |
@@ -91,7 +92,7 @@ focuses on numeric width and short separators. Both include normal output consum
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Keyed sum / sorted output (GNU) | 384.00 | 40.123 | 6.344 | 6.32× | 9.45 |
+| Keyed sum / sorted output (GNU) | 384.00 | 37.640 | 6.325 | 5.95× | 9.45 |
 | Copy field / rebuild record | 960.00 | 55.287 | 10.051 | 5.50× | 24.90 |
 | Two-file membership / join | 1,386.30 | 122.417 | 29.896 | 4.09× | 39.99 |
 
@@ -132,8 +133,10 @@ include its other storage. Runtime correctness tests independently cover mutable
 buffers. A host-storage change must not be attributed to an interpreter improvement.
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Comparison runs use three warmups,
-five 500 ms iterations and one launch, with separate timing/allocation passes. These are current
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Current canonical timing uses
+adaptive warmup/calibration and eleven alternating paired batches. Allocation runs use four
+warmups, five 500 ms iterations and one launch; retained policy controls identify their own warmups.
+Timing and allocation are separate passes. These are current
 observational baseline estimates; small gains require bounded repeat confirmation.
 
 Source/binary/native identities and quiet checks before, between and after the passes pass;
