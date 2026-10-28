@@ -114,6 +114,8 @@ Plain assignment evaluates the RHS before resolving its target/key. Compound ass
 reads the target and old value before the RHS. Concatenation formats each operand before
 evaluating the next. Side effects on targets, SUBSEP or CONVFMT
 can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
+This also applies when a RHS clears, splits or mutates an aliased target array; the
+[array identity cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArrayIdentity.cs) pin these boundaries.
 Numeric OFS/ORS use current CONVFMT; use string separators to preserve assigned spelling.
 Printing a numerically assigned `$0` uses OFMT, as in mawk. GNU's cached CONVFMT spelling
 for single-record printing is not reproduced.

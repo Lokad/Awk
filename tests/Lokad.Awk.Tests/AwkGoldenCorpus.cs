@@ -79,6 +79,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(UnicodeCallerCases(), AwkGoldenTag.CommandLine),
 
         .. Tagged(AssignmentOperandCompatibilityRepairs(), AwkGoldenTag.Expression),
+        .. Tagged(ArrayIdentityCases(), AwkGoldenTag.Expression, AwkGoldenTag.Variable, AwkGoldenTag.Function),
 
         .. Tagged(ExpressionRuntimeCases(), AwkGoldenTag.Expression),
 
