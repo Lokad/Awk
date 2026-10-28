@@ -45,10 +45,10 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: TestResults/
           if-no-files-found: ignore
-      # Build release candidates; publication is a separate action.
+      # Development packages validate this source; published artifacts stay separate.
       - name: Upload packages
         uses: actions/upload-artifact@v7.0.2
         with:
           name: packages-${{ matrix.os }}
-          path: artifacts/nuget/
+          path: artifacts/dev/nuget/
           if-no-files-found: error

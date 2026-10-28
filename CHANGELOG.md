@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Separate development packages (`0.0.0-dev`) from immutable published release artifacts.
+
 ## 0.4.0
 
 Published 2026-10-27 on [NuGet](https://www.nuget.org/packages/Lokad.Awk/0.4.0)

@@ -62,3 +62,4 @@ Before 1.0, minor releases may remove public APIs as described in the release no
 Use the stable SDK pinned in `global.json`, then run `dotnet test Lokad.Awk.slnx -c Release`.
 CI builds, tests and packs on Windows and Linux. Only `src/Lokad.Awk` produces a NuGet package;
 the adapter example, tests and benchmarks are not packaged.
+Development packages use `0.0.0-dev`, with output kept separate from published artifacts.
