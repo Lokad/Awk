@@ -36,7 +36,8 @@ internal sealed class AwkFieldSplitter(
     private AwkText _fieldPattern = AwkText.Empty;
     private List<AwkFieldWidth> _fieldWidths = [];
     private long _fieldWidthsBytes;
-    private AwkFieldSplittingMode _fieldSplittingMode;
+    private AwkFieldSplittingMode _fieldSplittingMode = csv
+        ? AwkFieldSplittingMode.Csv : AwkFieldSplittingMode.FieldSeparator;
     private AwkRecordFieldSplittingMode _recordFieldSplittingMode;
 
     public void SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode mode) =>
@@ -112,9 +113,10 @@ internal sealed class AwkFieldSplitter(
         CaptureRecordPlan(_recordFieldSplittingMode);
 
     public AwkRecordSplitPlan CaptureRecordPlan(AwkRecordFieldSplittingMode recordMode) =>
-        csv ? new(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
-            AwkRegexCaseSensitivity.CaseSensitive, recordMode) : _fieldSplittingMode switch
+        _fieldSplittingMode switch
         {
+            AwkFieldSplittingMode.Csv => new(
+                _fieldSplittingMode, default, AwkText.Empty, [], AwkRegexCaseSensitivity.CaseSensitive, recordMode),
             AwkFieldSplittingMode.FieldPattern => new(
                 _fieldSplittingMode, default, _fieldPattern, [], resolveRegexCaseSensitivity(), recordMode),
             AwkFieldSplittingMode.FieldWidths => new(
