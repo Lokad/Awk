@@ -122,7 +122,7 @@ internal static class ReferenceReport
         var limits = AwkRuntimeLimits.CreateDefault();
         var policy = new
         {
-            Preset = "AwkExecutionPolicy.CreateDefault; interpreter; DotNetCompatibility; TimeZone=UTC",
+            Preset = "AwkExecutionPolicy.CreateDefault; interpreter; host Utf8RegexAdapter; TimeZone=UTC",
             limits.MaxFunctionCallDepth,
             InvocationTimeoutSeconds = ReferenceExecution.InvocationTimeout.TotalSeconds,
             DriverOutputBytes = 64L << 20,
