@@ -102,6 +102,10 @@ storage tests cover child admission, replacement and retirement. Evaluation/getl
 checks retain ancestor keys through mutation and actual host completion, including cancellation
 and refused reconstruction. Counter checks cover owner reuse, byte-native aggregation and
 execution-local owners when a prepared program is reused.
+Record-value goldens preserve numeric-string origins and spelling across helpers, mutation,
+getline and reconstruction. Record ownership checks cover persistent escapes, admission
+refusal and pending/canceled helpers, including forced stack boundaries; setting checks
+verify FS/FPAT do not retain unrelated old record buffers.
 `AwkMainInputOwnershipTests` covers sequential main files, main getline, nextfile/exit,
 refusal after open and funding through pending/canceled closes. Partial-close tests also
 suspend table retirement and logical flush, preserving every remaining stream and avoiding

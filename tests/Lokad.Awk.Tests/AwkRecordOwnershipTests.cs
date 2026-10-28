@@ -7,6 +7,85 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordOwnershipTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task FunctionFieldSnapshotStaysFundedAcrossReplacementAndPendingOutput(bool cancel, bool forceStackBoundary)
+    {
+        var budget = new CooperativeTestBudget(64 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new RecordHost
+        {
+            Pending = () => { entered.SetResult(); return release.Task; },
+            Observe = label =>
+            {
+                if (label == "held") Assert.True(budget.Reserved >= 1_000_000);
+                if (label == "done") Assert.InRange(budget.Reserved, 1, 100_000);
+            }
+        };
+        const string script = "function keep(x,y,t){t=x;print \"held\";return t} " +
+            "BEGIN{FS=\":\";$0=sprintf(\"%1000000s\",\"x\")\":tail\";" +
+            "v=keep($1,($0=\"new\"));print length(v),substr(v,length(v),1);v=\"\";print \"done\"}";
+        var execution = Execute(script, host, budget, cancellation.Token, forceStackBoundary);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved >= 1_000_000);
+        }
+        finally { release.TrySetResult(); }
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else Assert.Equal(0, (await execution).Value);
+        Assert.Equal(cancel ? "held\n" : "held\n1000000 x\ndone\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData("saved=$1", "print saved,saved+0", "0007 7\n")]
+    [InlineData("a[1]=$1", "print a[1],a[1]+0", "0007 7\n")]
+    [InlineData("a[$1]=1", "print a[\"0007\"],length(a)", "1 1\n")]
+    [InlineData("n=length(a[$1])", "print (\"0007\" in a),length(a)", "1 1\n")]
+    [InlineData("a[$1][\"x\"]=1", "print a[\"0007\"][\"x\"],length(a)", "1 1\n")]
+    public async Task PersistentFieldEscapesOwnOnlyTheirText(string assignment, string inspect, string expected)
+    {
+        var budget = new CooperativeTestBudget(32 << 20);
+        var host = new RecordHost { Observe = label =>
+        {
+            if (label == "held") Assert.InRange(budget.Reserved, 1, 100_000);
+        }};
+        var script = "BEGIN{FS=\":\";$0=\"0007:\"sprintf(\"%1000000s\",\"x\");" +
+            assignment + ";$0=\"\";print \"held\";" + inspect + "}";
+        Assert.Equal(0, (await Execute(script, host, budget)).Value);
+        Assert.Equal("held\n" + expected, host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RefusedFieldEscapeOrRecompositionStopsBeforePublication(bool recompose)
+    {
+        var budget = new CooperativeTestBudget(32 << 20);
+        var host = new RecordHost { Observe = label =>
+        {
+            if (label == "ready") budget.RefuseNextAdmissionMinimumGrowth = 1;
+        }};
+        var script = "function size(x){return length(x)} BEGIN{$0=\"0007 old\";n=size($1);" +
+            (recompose ? "$2=\"new\";" : "") + "print \"ready\";" +
+            (recompose ? "print $0" : "saved=$1") + ";print \"after\"}";
+        var exit = await Execute(script, host, budget);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("ready\n", host.Output);
+        Assert.Equal("awk: memory limit exceeded\n", host.Error);
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(1, "$1=$1")] [InlineData(2, "$1=$1")]
     [InlineData(1, "$1=\"new\"")] [InlineData(2, "$1=\"new\"")]
     [InlineData(1, "$1=7")] [InlineData(2, "$1=7")]
@@ -109,9 +188,15 @@ public sealed class AwkRecordOwnershipTests
     private static bool IsAlive(WeakReference<AwkText> text) => text.TryGetTarget(out _);
 
     private static Task<AwkExitCode> Execute(string script, IAwkHost host, IMemoryBudget budget,
-        CancellationToken token = default) => AwkTestHarness.ParseAwk(
+        CancellationToken token = default, bool forceStackBoundary = false)
+    {
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
+        if (forceStackBoundary)
+            policy = policy.WithMaxSyntaxNestingDepth(AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth + 1);
+        return AwkTestHarness.ParseAwk(
             AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
-            .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), token);
+            .ExecuteAsync(host, policy, token);
+    }
 
     private sealed class RecordHost : IAwkHost
     {

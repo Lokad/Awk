@@ -1,7 +1,43 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkSpecialRegexAssignmentTests
 {
+    [Theory]
+    [InlineData("FS")] [InlineData("FPAT")] [InlineData("RS")]
+    public void FieldSettingOwnsItsTextWithoutRetainingTheOldRecord(string variable)
+    {
+        using var memory = State(AwkRuntimeCounters.CreateEnabled());
+        var state = memory.State;
+        state.InitializeProcInfo();
+        var backing = AssignFromField(state, variable);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(IsAlive(backing));
+        Assert.Equal(",", state.ResolveVariableValue(AwkVariableName.FromText(variable)).AsString());
+        if (variable == "FS") Assert.Equal("b", state.GetFieldValue(2).AsString());
+        if (variable == "FPAT") Assert.Equal(",", state.GetFieldValue(1).AsString());
+        GC.KeepAlive(state);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference<byte[]> AssignFromField(AwkRuntimeState state, string variable)
+    {
+        var record = AwkText.FromString(", " + new string('x', 16_384));
+        Assert.True(MemoryMarshal.TryGetArray(record.AsMemory(), out var storage));
+        var bytes = storage.Array ?? throw new InvalidOperationException("Expected flat record storage.");
+        state.SetCurrentRecord(record);
+        state.AssignVariableValue(AwkVariableName.FromText(variable), state.GetFieldValue(1));
+        state.SetCurrentRecord(AwkText.FromString("a,b"));
+        return new(bytes);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool IsAlive(WeakReference<byte[]> backing) => backing.TryGetTarget(out _);
+
     public static IEnumerable<object[]> Assignments()
     {
         foreach (var variable in new[] { "FS", "FPAT", "RS" })
