@@ -1,14 +1,21 @@
 # Benchmarks
 
-Last qualified comparison with GNU awk 5.2.1. **Labeled printf** was measured **2026-10-27 UTC** at
+Current aggregation, record rebuilding and join rows (medium/large), plus medium projection,
+filtering and two-argument calls, were measured **2026-10-28 UTC** at
+[`65ef007`](https://github.com/Lokad/Awk/commit/65ef0078a7348a7b232eef5465cd9ec3f006571e),
+against **GNU awk 5.2.1**. Its runtime source matches published **0.4.0**; package metadata uses
+an independent development identity. These nine rows use the interpreter, default policy
+(UTC timezone), no shared admission, and the source adapter with published Utf8Regex 0.4.0;
+the selected scripts do not invoke regex matching. Timing and allocation runs have passing
+pre/middle/post quiet checks and verified output equality.
+
+**Labeled printf** retains **2026-10-27 UTC** measurements at
 [`2b099dc`](https://github.com/Lokad/Awk/commit/2b099dc9ff84ccca2a5944d887c0bea4afb58be4).
-The other 37 medium and three large rows retain **2026-10-22 UTC** measurements at
+The remaining 31 medium rows retain **2026-10-22 UTC** measurements at
 [`d020a3d`](https://github.com/Lokad/Awk/commit/d020a3d96af27c7ca1607995584aa17c5b248e19).
-The separately dated policy controls below are retained. This is a selective refresh.
-All comparison rows use the interpreter, default .NET regex and default policy (UTC time zone),
-without shared admission. These retained revisions precede the host-required provider boundary.
-They are not fresh measurements of that change. Current tools compile the example adapter against published
-Lokad.Utf8Regex; regex-sensitive comparisons require renewed provider qualification.
+Those retained rows use the earlier default .NET regex backend without shared admission;
+provider-sensitive rows do not qualify the current host-supplied provider. The policy controls
+below retain their separately identified revisions and dates.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed by
 GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per Lokad
@@ -25,18 +32,17 @@ across implementations. Most have 4,096 records; all-fields wide and long-field 
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE capture arrays (GNU) | 28.00 | 38.472 | 8.148 | 4.72× | 15.97 |
 | gsub and output | 56.00 | 5.460 | 2.184 | 2.50× | 3.65 |
+| Two-file membership / join | 77.83 | 6.891 | 2.808 | 2.45× | 2.94 |
 | Text function with branches and local temporary | 62.00 | 4.599 | 1.967 | 2.34× | 2.24 |
-| Two-file membership / join | 77.83 | 6.531 | 2.863 | 2.28× | 2.94 |
 | Loop with two-argument calls and local temporary | 8.00 | 10.520 | 4.686 | 2.25× | 0.73 |
 | Numeric array sort (GNU) | 18.92 | 5.634 | 2.531 | 2.23× | 2.46 |
-| Copy field / rebuild record | 60.00 | 3.522 | 1.612 | 2.19× | 1.61 |
+| Copy field / rebuild record | 60.00 | 3.365 | 1.584 | 2.12× | 1.61 |
 | ERE boolean matching | 32.00 | 2.655 | 1.319 | 2.01× | 0.70 |
 | Branching function, two arguments | 8.00 | 8.643 | 4.326 | 2.00× | 0.74 |
-| Loop with two-argument calls | 8.00 | 8.240 | 4.182 | 1.97× | 0.72 |
+| Loop with two-argument calls | 8.00 | 8.170 | 4.140 | 1.97× | 0.72 |
 | Branching function, one argument | 8.00 | 7.849 | 4.027 | 1.95× | 0.74 |
 | Project three columns / output | 60.00 | 3.195 | 1.642 | 1.95× | 0.68 |
 | Loop with unary arithmetic calls | 8.00 | 7.101 | 3.834 | 1.85× | 0.71 |
-| Keyed sum / sorted output (GNU) | 24.00 | 2.538 | 1.388 | 1.83× | 0.72 |
 | ASCII substr/index/length/casing | 52.00 | 2.915 | 1.609 | 1.81× | 1.01 |
 | Unicode length/substr / output | 60.00 | 3.832 | 2.124 | 1.80× | 1.91 |
 | ERE field separator | 48.00 | 3.673 | 2.036 | 1.80× | 3.42 |
@@ -44,7 +50,8 @@ across implementations. Most have 4,096 records; all-fields wide and long-field 
 | For loop and numeric arithmetic | 8.00 | 5.277 | 2.948 | 1.79× | 0.70 |
 | printf | 24.00 | 3.406 | 1.922 | 1.77× | 0.65 |
 | While loop and numeric arithmetic | 8.00 | 5.070 | 2.895 | 1.75× | 0.70 |
-| Project a column / output | 60.00 | 2.421 | 1.394 | 1.74× | 0.67 |
+| Keyed sum / sorted output (GNU) | 24.00 | 2.397 | 1.374 | 1.74× | 0.69 |
+| Project a column / output | 60.00 | 2.254 | 1.331 | 1.69× | 0.67 |
 | Nested user calls | 8.00 | 2.758 | 1.644 | 1.68× | 0.69 |
 | Mixed narrow-record processing | 60.00 | 3.756 | 2.244 | 1.67× | 0.73 |
 | Five-part string concatenation | 20.00 | 2.881 | 1.734 | 1.66× | 1.39 |
@@ -54,7 +61,7 @@ across implementations. Most have 4,096 records; all-fields wide and long-field 
 | Field-key membership | 48.56 | 1.978 | 1.344 | 1.47× | 0.75 |
 | Labeled printf | 24.00 | 3.669 | 2.571 | 1.43× | 0.66 |
 | Literal index search in a field | 70.00 | 2.246 | 1.617 | 1.39× | 0.71 |
-| Filter three fields | 24.00 | 2.047 | 1.561 | 1.31× | 0.67 |
+| Filter three fields | 24.00 | 2.015 | 1.537 | 1.31× | 0.67 |
 | Field loop, 64 fields | 80.00 | 2.435 | 2.254 | 1.08× | 0.99 |
 | Filter `$1` / occasionally print `$3`, 64 fields | 1,291.42 | 1.857 | 2.245 | 0.83× | 2.14 |
 | Byte-run ERE record separator (GNU) | 36.00 | 1.214 | 1.494 | 0.81× | 0.96 |
@@ -75,9 +82,9 @@ focuses on numeric width and short separators. Both include normal output consum
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Keyed sum / sorted output (GNU) | 384.00 | 41.282 | 6.364 | 6.49× | 9.48 |
-| Copy field / rebuild record | 960.00 | 54.634 | 10.708 | 5.10× | 24.90 |
-| Two-file membership / join | 1,386.30 | 125.307 | 30.834 | 4.06× | 39.99 |
+| Keyed sum / sorted output (GNU) | 384.00 | 40.123 | 6.344 | 6.32× | 9.45 |
+| Copy field / rebuild record | 960.00 | 55.287 | 10.051 | 5.50× | 24.90 |
+| Two-file membership / join | 1,386.30 | 122.417 | 29.896 | 4.09× | 39.99 |
 
 ## Retained managed policy controls
 
