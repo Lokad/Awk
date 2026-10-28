@@ -50,8 +50,18 @@ internal sealed class AwkVariableRuntime(
 
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count)
     {
+        if (functions.TryGetBoundArray(new AwkVariableName(name.Identifier), out var array))
+        {
+            count = array.Slots.Count;
+            return true;
+        }
         var resolved = ResolveName(new AwkVariableName(name.Identifier));
-        if (resolved.Kind is AwkVariableNameResolutionKind.LocalArrayAlias or AwkVariableNameResolutionKind.PotentialArrayAlias)
+        if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
+        {
+            variables.TryGetArrayCount(resolved.ArrayName, out count);
+            return true;
+        }
+        if (resolved.Kind == AwkVariableNameResolutionKind.PotentialArrayAlias)
             return variables.TryGetArrayCount(resolved.ArrayName, out count);
 
         if (resolved.Kind is AwkVariableNameResolutionKind.LocalScalar or AwkVariableNameResolutionKind.MissingLocalScalar)
@@ -118,6 +128,8 @@ internal sealed class AwkVariableRuntime(
         if (functions.TryAssignLocal(name, value))
             return;
 
+        if (functions.TryResolveLocal(name, out var local) && local.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name.Text));
         AssignGlobalVariableValue(name, value);
     }
 

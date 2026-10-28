@@ -116,6 +116,10 @@ evaluating the next. Side effects on targets, SUBSEP or CONVFMT
 can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
 This also applies when a RHS clears, splits or mutates an aliased target array; the
 [array identity cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArrayIdentity.cs) pin these boundaries.
+Development nested-array targets retain evaluated paths and prior values, then reacquire
+current storage after mutation. Getline likewise writes its captured logical path after
+input-phase changes; GNU can instead discard a write into a removed child. Keep such
+order-sensitive mutation in separate statements for portability.
 Numeric OFS/ORS use current CONVFMT; use string separators to preserve assigned spelling.
 Printing a numerically assigned `$0` uses OFMT, as in mawk. GNU's cached CONVFMT spelling
 for single-record printing is not reproduced.
@@ -302,14 +306,24 @@ is discarded at EOF, matching that GNU version, independently of host batch boun
 Published 0.4.0 lacks CSV. [Goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.Csv.cs) and
 [host checks](../tests/Lokad.Awk.Tests/AwkCsvHostTests.cs) qualify the development path.
 
+## Nested arrays in development source
+
+Development source supports GNU arrays of arrays, including child function aliases,
+nested iteration/deletion, and child operands for split/patsplit, sorting, match captures,
+substitution and getline. POSIX/traditional profiles reject this syntax. Published 0.4.0
+supports flat/SUBSEP arrays only. [Goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NestedArrays.cs)
+cover the supported boundaries; compound SUBSEP keys remain distinct from child arrays.
+
+Array-taking builtins reject ancestor/descendant operands. A child target removed by a
+later argument fails explicitly rather than accepting a detached write. Scalar/array
+conflicts also fail; this does not introduce array assignment or array-valued returns.
+
 ## Deferred and excluded capabilities
 
-Nested arrays are the next GNU capability, subject to a motivating script and explicit
-acceptance criteria. Other extensions remain demand-driven; none blocks the supported core.
+Further extensions remain demand-driven; none blocks the supported core.
 
 | Capability | Current behavior |
 | --- | --- |
-| Nested arrays (`a[1][2]`) | Rejected; `a[1,2]` SUBSEP keys work. |
 | `system()` | Explicit unsupported diagnostic; one-way pipes do not imply support. |
 | Namespaces | `@namespace` and qualified identifiers are rejected; host-mediated `@include` works. |
 | Typed regex / indirect calls | `@/pattern/` and `@name(...)` are rejected. |

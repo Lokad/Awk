@@ -232,6 +232,13 @@ internal static class AwkStatementLowerer
                     return true;
                 }
 
+                if (target.TargetExpression is { Kind: AwkExpressionKind.ArrayElement } nested &&
+                    AwkExpressionLowerer.TryLowerArrayOperand(nested, scope, out var parent) &&
+                    AwkExpressionLowerer.TryLowerArrayIndex(target.Children, scope, out var nestedIndex))
+                {
+                    statement = AwkStatement.DeleteArrayElement(parent, nestedIndex);
+                    return true;
+                }
                 if (target.Kind != AwkExpressionKind.ArrayElement ||
                     target.Children.Count < 2 ||
                     !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(target, out var targetArrayName) ||
@@ -437,6 +444,16 @@ internal static class AwkStatementLowerer
                     }
 
                     statement = null;
+                    if (header.Parts.Count == 2 &&
+                        TryGetIdentifierExpression(header.Parts[0], out var nestedLoopVariable) &&
+                        AwkStatementLoweringShapes.RequiredExpression(header.Parts[1]).TryGetValue(out var nestedArray) &&
+                        nestedArray.Kind == AwkExpressionKind.ArrayElement &&
+                        AwkExpressionLowerer.TryLowerArrayOperand(nestedArray, scope, out var operand) &&
+                        !scope.IsReservedVariable(nestedLoopVariable.Text))
+                    {
+                        statement = AwkStatement.ForIn(new(nestedLoopVariable), operand, body);
+                        return true;
+                    }
                     if (header.Parts.Count != 2 ||
                         !TryGetIdentifierExpression(header.Parts[0], out var loopVariable) ||
                         !TryGetIdentifierExpression(header.Parts[1], out var arrayVariable) ||

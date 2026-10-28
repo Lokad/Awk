@@ -186,6 +186,7 @@ internal abstract partial class AwkExpression
         }
 
         private static AwkValue EvaluateLengthValue(AwkEvaluationContext context, AwkValue value) =>
+            value.TryGetArrayBinding(out var array) ? AwkValue.FromNumber(array.Slots.Count) :
             value.TryGetArrayName(out var name) && context.State.TryGetExistingArrayCount(name, out var count)
                 ? AwkValue.FromNumber(count)
                 : AwkValue.FromNumber(context.State.CountStringUnits(context.State.FormatStringByteText(value)));

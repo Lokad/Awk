@@ -38,6 +38,17 @@ internal abstract partial class AwkStatement
         }
     }
 
+    private sealed class DeleteNestedArrayElementStatement(AwkArrayOperand parent, AwkArrayIndex index) : AwkStatement
+    {
+        private readonly AwkArrayPath _path = new(parent, index);
+
+        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
+        {
+            await _path.DeleteAsync(context).ConfigureAwait(false);
+            return AwkStatementFlow.Continue;
+        }
+    }
+
     private sealed class ExpressionStatement(AwkExpression expression) : AwkStatement
     {
         internal override bool TryGetLocalAssignment(

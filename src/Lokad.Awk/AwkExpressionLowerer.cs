@@ -105,6 +105,13 @@ internal static partial class AwkExpressionLowerer
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
+            if (expression.TargetExpression is { Kind: AwkExpressionKind.ArrayElement } nested &&
+                TryLowerArrayOperand(nested, scope, out var parent) &&
+                TryLowerArrayIndex(expression.Children, scope, out var nestedIndex))
+            {
+                lowered = AwkExpression.ArrayElement(parent, nestedIndex);
+                return true;
+            }
             if (expression.Children.Count < 2 ||
                 !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target) ||
                 scope.IsReservedVariable(target.Name))
@@ -375,16 +382,14 @@ internal static partial class AwkExpressionLowerer
                         return false;
                     }
 
-                    var captureArrayName = AwkOptionalIdentifier.None;
+                    AwkArrayOperand? captureArray = null;
                     if (call.ArgumentCount == 3)
                     {
-                        if (!call.TryGetIdentifierArgument(2, out var captureArrayIdentifier))
+                        if (!TryLowerArrayArgument(call, 2, scope, out captureArray))
                             return false;
-
-                        captureArrayName = AwkOptionalIdentifier.Some(captureArrayIdentifier);
                     }
 
-                    lowered = AwkExpression.Match(value, pattern, captureArrayName);
+                    lowered = AwkExpression.Match(value, pattern, captureArray);
                     return true;
                 }
 
@@ -395,7 +400,7 @@ internal static partial class AwkExpressionLowerer
                 {
                     lowered = null;
                     if (!call.GetArgument(0).TryGetValue(out var valueSyntax) ||
-                        !call.TryGetArrayNameArgument(1, out var arrayName) ||
+                        !TryLowerArrayArgument(call, 1, scope, out var arrayName) ||
                         !TryLower(valueSyntax, scope, out var value))
                     {
                         return false;
@@ -414,7 +419,7 @@ internal static partial class AwkExpressionLowerer
                         isRegexLiteral = TryReadRegexLiteralPattern(separatorSyntax, out _, scope.Checkpoint);
                     }
 
-                    if (!call.TryGetOptionalArrayIdentifierArgument(3, out var separatorArrayName))
+                    if (!TryLowerOptionalArrayArgument(call, 3, scope, out var separatorArrayName))
                         return false;
 
                     lowered = AwkExpression.Split(value, arrayName, separator, separatorArrayName,
@@ -429,7 +434,7 @@ internal static partial class AwkExpressionLowerer
                 {
                     lowered = null;
                     if (!call.GetArgument(0).TryGetValue(out var valueSyntax) ||
-                        !call.TryGetArrayNameArgument(1, out var arrayName) ||
+                        !TryLowerArrayArgument(call, 1, scope, out var arrayName) ||
                         !TryLower(valueSyntax, scope, out var value))
                     {
                         return false;
@@ -446,7 +451,7 @@ internal static partial class AwkExpressionLowerer
                         }
                     }
 
-                    if (!call.TryGetOptionalArrayIdentifierArgument(3, out var separatorArrayName))
+                    if (!TryLowerOptionalArrayArgument(call, 3, scope, out var separatorArrayName))
                         return false;
 
                     lowered = AwkExpression.Patsplit(value, arrayName, pattern, separatorArrayName);
@@ -456,16 +461,16 @@ internal static partial class AwkExpressionLowerer
                 static bool TryLowerSortCall(
                     AwkBuiltinCallSyntax call,
                     AwkLoweringScope scope,
-                    Func<AwkArrayName, AwkArrayName, AwkExpression, AwkExpression> factory,
+                    Func<AwkArrayOperand, AwkArrayOperand?, AwkExpression, AwkExpression> factory,
                     [NotNullWhen(true)] out AwkExpression? lowered)
                 {
                     lowered = null;
-                    if (!call.TryGetArrayNameArgument(0, out var sourceArrayName))
+                    if (!TryLowerArrayArgument(call, 0, scope, out var sourceArrayName))
                         return false;
 
-                    var destinationArrayName = sourceArrayName;
+                    AwkArrayOperand? destinationArrayName = null;
                     if (call.ArgumentCount >= 2 &&
-                        !call.TryGetArrayNameArgument(1, out destinationArrayName))
+                        !TryLowerArrayArgument(call, 1, scope, out destinationArrayName))
                     {
                         return false;
                     }
@@ -748,6 +753,13 @@ internal static partial class AwkExpressionLowerer
             var operatorKind = expression.OperatorTokens[0].Kind;
             if (operatorKind == AwkTokenKind.In)
             {
+                if (rightSyntax.Kind == AwkExpressionKind.ArrayElement &&
+                    TryLowerArrayOperand(rightSyntax, scope, out var arrayOperand) &&
+                    TryLowerMembershipIndex(expression.Children[0], scope, out var nestedMembershipIndex))
+                {
+                    lowered = AwkExpression.ArrayMembership(nestedMembershipIndex, arrayOperand);
+                    return true;
+                }
                 if (!AwkExpressionSyntaxFacts.TryGetIdentifier(rightSyntax, out var arrayName) ||
                     !TryLowerMembershipIndex(expression.Children[0], scope, out var membershipIndex))
                 {
@@ -988,6 +1000,41 @@ internal static partial class AwkExpressionLowerer
 
     private static AwkDiagnostic InvalidExpression(AwkExpressionSyntax expression, string message) =>
         new(expression.Span, message, AwkDiagnosticId.BindInvalidProgram);
+
+    private static bool TryLowerArrayArgument(AwkBuiltinCallSyntax call, int index, AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkArrayOperand? operand)
+    {
+        operand = null;
+        return call.GetArgument(index).TryGetValue(out var syntax) && TryLowerArrayOperand(syntax, scope, out operand);
+    }
+
+    private static bool TryLowerOptionalArrayArgument(AwkBuiltinCallSyntax call, int index, AwkLoweringScope scope,
+        out AwkArrayOperand? operand)
+    {
+        operand = null;
+        return index >= call.ArgumentCount || TryLowerArrayArgument(call, index, scope, out operand);
+    }
+
+    internal static bool TryLowerArrayOperand(AwkExpressionSyntax expression, AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkArrayOperand? operand)
+    {
+        scope.Checkpoint?.Invoke();
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var name) && !scope.IsReservedVariable(name.Name))
+        {
+            operand = new AwkArrayOperand.Named(new(name.Identifier), scope.GetPreparedGlobalArrayIndex(name.Identifier));
+            return true;
+        }
+        if (scope.CompatibilityMode == AwkCompatibilityMode.GnuDefault &&
+            expression.Kind == AwkExpressionKind.ArrayElement && expression.TargetExpression is { } target &&
+            TryLowerArrayOperand(target, scope, out var parent) &&
+            TryLowerArrayIndex(expression.Children, scope, out var index))
+        {
+            operand = new AwkArrayOperand.Element(parent, index);
+            return true;
+        }
+        operand = null;
+        return false;
+    }
 
     public static bool TryLowerArrayIndex(
         IReadOnlyList<AwkExpressionSyntax> children,

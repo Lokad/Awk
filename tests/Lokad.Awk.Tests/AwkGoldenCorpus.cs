@@ -80,6 +80,7 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(AssignmentOperandCompatibilityRepairs(), AwkGoldenTag.Expression),
         .. Tagged(ArrayIdentityCases(), AwkGoldenTag.Expression, AwkGoldenTag.Variable, AwkGoldenTag.Function),
+        .. Tagged(NestedArrayCases(), AwkGoldenTag.Array, AwkGoldenTag.Expression, AwkGoldenTag.Function),
 
         .. Tagged(ExpressionRuntimeCases(), AwkGoldenTag.Expression),
 
@@ -281,14 +282,6 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{split(\"00\", a); print typeof(a[1]), (a[1]==0), (a[1]==\"00\"), (a[1]?1:0)}"],
             [],
             "strnum 1 1 0\n"),
-
-        CompilerDiagnostic(Failing(
-            "arrays-of-arrays-unsupported",
-            ["BEGIN{a[1][2]=3}"],
-            [],
-            2,
-            string.Empty,
-            "awk: arrays of arrays are unsupported in Lokad awk\n")),
 
         Passing(
             "arrays-of-arrays-token-in-string",

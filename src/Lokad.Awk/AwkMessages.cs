@@ -96,8 +96,12 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: `*' must be the last designator in FIELDWIDTHS\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedIndirectFunctionCall =
         AwkUtf8Codec.Encode("awk: indirect function calls are unsupported in Lokad awk\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedArrayOfArrays =
-        AwkUtf8Codec.Encode("awk: arrays of arrays are unsupported in Lokad awk\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorArrayOfArraysExtension =
+        AwkUtf8Codec.Encode("awk: arrays of arrays are a GNU extension\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorDetachedArray =
+        AwkUtf8Codec.Encode("awk: array target was removed during evaluation\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorOverlappingArrays =
+        AwkUtf8Codec.Encode("awk: array arguments must not contain one another\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSplitSameDestinationAndSeparatorArray =
         AwkUtf8Codec.Encode("awk: split separator array must be distinct from the destination array\n");
     internal static readonly ReadOnlyMemory<byte> ErrorCannotDeleteSymtab =

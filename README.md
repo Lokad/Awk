@@ -49,8 +49,9 @@ Non-regex processing needs no provider.
 
 Supported core behavior includes records/fields, expressions, loops, functions, flat arrays,
 formatting and `getline`, with selected GNU conveniences. This is not full POSIX/GNU
-conformance: nested arrays, `system()` and namespaces remain unsupported.
-Development source adds CSV input (`--csv`/`-k`); published 0.4.0 does not include it.
+conformance: `system()` and namespaces remain unsupported.
+Development source adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`);
+published 0.4.0 supports neither.
 
 - [Compatibility](docs/COMPATIBILITY.md): supported boundaries and known differences.
 - [Benchmarks](docs/BENCHMARKS.md): representative elapsed-time ratios and managed allocations.

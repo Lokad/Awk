@@ -17,7 +17,8 @@ internal sealed class AwkFunctionRuntime
         Func<AwkArrayName, bool> containsArray,
         Action<AwkArrayName> removeFunctionLocalArray,
         Action? checkpoint = null,
-        Func<AwkArrayName, AwkArrayIdentity?>? findArray = null)
+        Func<AwkArrayName, AwkArrayIdentity?>? findArray = null,
+        Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null)
     {
         _removeFunctionLocalArray = removeFunctionLocalArray;
         _calls = new AwkFunctionCallStack(
@@ -26,7 +27,8 @@ internal sealed class AwkFunctionRuntime
             createValue,
             containsArray,
             checkpoint,
-            findArray);
+            findArray,
+            promoteArrayOrigin);
     }
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
@@ -81,8 +83,13 @@ internal sealed class AwkFunctionRuntime
     public bool TryGetArrayReadName(AwkVariableName name, out AwkArrayName arrayName) =>
         _calls.TryGetArrayReadName(name, out arrayName);
 
-    public bool TryGetBoundArray(AwkVariableName name, [NotNullWhen(true)] out AwkArrayIdentity? array) =>
-        _calls.TryGetBoundArray(name, out array);
+    public bool TryGetBoundArray(AwkVariableName name, [NotNullWhen(true)] out AwkArrayIdentity? array, bool promote = false) =>
+        _calls.TryGetBoundArray(name, out array, promote);
+
+    public void RepairSubarrayAliases(AwkArrayIdentity removed, bool includeRoot, bool cancellable) =>
+        _calls.RepairSubarrayAliases(removed, includeRoot, cancellable);
+
+    public void RepairElementAliases(AwkUntypedScalar removed) => _calls.RepairElementAliases(removed);
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>
         _calls.TryAssignLocal(name, value);

@@ -134,6 +134,9 @@ public sealed class AwkEvaluationOwnershipTests
     [InlineData(false, "concat")] [InlineData(true, "concat")]
     [InlineData(false, "assignment")] [InlineData(true, "assignment")]
     [InlineData(false, "compound")] [InlineData(true, "compound")]
+    [InlineData(false, "nested-compound")] [InlineData(true, "nested-compound")]
+    [InlineData(false, "nested-index")] [InlineData(true, "nested-index")]
+    [InlineData(false, "nested-read")] [InlineData(true, "nested-read")]
     [InlineData(false, "pattern")] [InlineData(true, "pattern")]
     [InlineData(false, "print")] [InlineData(true, "print")]
     [InlineData(false, "printf-values")] [InlineData(true, "printf-values")]
@@ -156,6 +159,9 @@ public sealed class AwkEvaluationOwnershipTests
                   "concat" => "print length(x wipe())",
                   "assignment" => "a[wipe()]=x",
                   "compound" => "a[x]=2;a[x]+=wipe()",
+                  "nested-compound" => "a[x][\"c\"]=2;a[x][\"c\"]+=wipe()",
+                  "nested-index" => "a[x][wipe()]=2",
+                  "nested-read" => "print a[x][wipe()]",
                   "pattern" => "print match(x,wipe())",
                   "print" => "print x,wipe()",
                   "printf-values" => "printf \"%s%s\\n\",x,wipe()",
@@ -176,6 +182,32 @@ public sealed class AwkEvaluationOwnershipTests
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         else Assert.Equal(0, (await execution).Value);
         Assert.Equal("", host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task NestedTargetRefusalStopsBeforeLaterWorkAndRefunds(bool duringIndex)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var host = new OwnershipHost { OnHeld = () => budget.RefuseNextAdmissionMinimumGrowth = 1 };
+        var source = duringIndex
+            ? "function idx(){print \"held\";return \"c\"}function rhs(){print \"rhs\";return 2}" +
+              "BEGIN{a[\"r\"][\"c\"]=7;a[\"r\"][idx()]+=rhs();print \"after\"}"
+            : "function rhs(){delete a;print \"held\";return 2}" +
+              "BEGIN{a[\"r\"][\"c\"]=7;a[\"r\"][\"c\"]+=rhs();print \"after\"}";
+        var exit = await ExecuteAsync(source, host, budget);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("held\n", host.Output);
+        Assert.Equal("awk: memory limit exceeded\n", host.Error);
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, budget.Reserved);
+
+        var next = new OwnershipHost();
+        Assert.Equal(0, (await ExecuteAsync("BEGIN{print 42}", next, budget)).Value);
+        Assert.Equal("42\n", next.Output);
+        Assert.Equal("", next.Error);
         Assert.Equal(0, budget.Reserved);
     }
 

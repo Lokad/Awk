@@ -103,15 +103,18 @@ public sealed class AwkGetlineOwnershipTests
             .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), token);
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task DestinationFundingLastsThroughActualPendingRead(bool cancel)
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task DestinationFundingLastsThroughActualPendingRead(bool cancel, bool nested)
     {
         var budget = new CooperativeTestBudget(32 << 20);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new ReadHost { Input = true, PendingRead = () => { entered.SetResult(); return completed.Task; } };
-        var execution = Execute("BEGIN{x=sprintf(\"%01000000d\",0);s=getline a[x];print s,length(a)}" +
+        var destination = nested ? "a[x][\"c\"]" : "a[x]";
+        var result = nested ? "s,length(a),a[sprintf(\"%01000000d\",0)][\"c\"]" : "s,length(a)";
+        var execution = Execute("BEGIN{x=sprintf(\"%01000000d\",0);s=getline " + destination + ";print " + result + "}" +
             "BEGINFILE{delete a;x=\"\";print \"held\"}", host, budget, cancellation.Token);
         try
         {
@@ -127,7 +130,7 @@ public sealed class AwkGetlineOwnershipTests
         else
         {
             Assert.Equal(0, (await execution).Value);
-            Assert.Equal("held\n1 1\n", host.Output);
+            Assert.Equal(nested ? "held\n1 1 a\n" : "held\n1 1\n", host.Output);
         }
         Assert.Equal("", host.Error);
         Assert.Equal(0, budget.Reserved);

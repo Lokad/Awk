@@ -584,6 +584,10 @@ internal sealed class AwkExpressionSyntaxParser
 
     [Rule]
     public GetlineDestination GetlineArrayDestination(
+        [NT] GetlineArrayPath target) => new(target.Expression);
+
+    [Rule]
+    public GetlineArrayPath GetlineArrayPathRoot(
         [AwkT(AwkTokenKind.Identifier)] Pos<string> target,
         [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
         [NT] AwkExpressionSyntax firstIndex,
@@ -592,6 +596,24 @@ internal sealed class AwkExpressionSyntaxParser
     {
         _checkpoint?.Invoke();
         return new(ArrayElement(Variable(target), open, firstIndex, tails, close));
+    }
+
+    [Rule]
+    public GetlineArrayPath GetlineArrayPathChild(
+        [NT] GetlineArrayPath target,
+        [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
+        [NT] AwkExpressionSyntax firstIndex,
+        [AwkL(Min = 0)] ArgumentTail[] tails,
+        [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
+    {
+        _checkpoint?.Invoke();
+        return new(ArrayElement(target.Expression, open, firstIndex, tails, close));
+    }
+
+    public readonly struct GetlineArrayPath(AwkExpressionSyntax? expression)
+    {
+        public AwkExpressionSyntax Expression => expression ??
+            throw new InvalidOperationException("The default getline array path has no expression.");
     }
 
     [Rule]
@@ -775,7 +797,8 @@ internal sealed class AwkExpressionSyntaxParser
             AwkExpressionSyntax right,
             AwkToken op)
         {
-            if (right.Kind != AwkExpressionKind.Variable)
+            if (right.Kind != AwkExpressionKind.Variable &&
+                !(right.Kind == AwkExpressionKind.ArrayElement && AwkExpressionSyntaxFacts.TryGetArrayRoot(right, out _)))
                 return CreateTokenNode(AwkExpressionKind.Unknown, op);
             return CreateNode(AwkExpressionKind.Binary, left, right, [op]);
         }

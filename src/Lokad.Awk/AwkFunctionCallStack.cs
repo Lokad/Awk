@@ -11,7 +11,8 @@ internal sealed class AwkFunctionCallStack(
     Func<AwkVariableSlot, AwkValue> createValue,
     Func<AwkArrayName, bool>? containsArray = null,
     Action? checkpoint = null,
-    Func<AwkArrayName, AwkArrayIdentity?>? findArray = null)
+    Func<AwkArrayName, AwkArrayIdentity?>? findArray = null,
+    Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null)
 {
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
     private readonly Stack<AwkFunctionFrame> _frames = new();
@@ -105,9 +106,22 @@ internal sealed class AwkFunctionCallStack(
                     continue;
                 }
                 var argument = arguments[index];
+                if (argument.Kind == AwkFunctionArgumentKind.Array &&
+                    argument.Value.TryGetArrayBinding(out var removed) && removed.IsDetached)
+                {
+                    slot = AwkFunctionLocalSlot.ArrayAlias(AwkArrayName.FunctionLocal(layout.Parameters[index].Identifier, frame.Id));
+                    continue;
+                }
+                if (argument.Kind == AwkFunctionArgumentKind.UntypedScalar &&
+                    argument.Value.TryGetUntypedScalar(out var origin) && origin.IsDetached)
+                {
+                    slot = AwkFunctionLocalSlot.MissingScalar();
+                    continue;
+                }
                 slot = argument.Kind switch
                 {
-                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName, findArray?.Invoke(argument.ArrayName)),
+                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName,
+                        argument.Value.TryGetArrayBinding(out var directArray) ? directArray : findArray?.Invoke(argument.ArrayName)),
                     AwkFunctionArgumentKind.PotentialArray =>
                         AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
                     AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
@@ -306,7 +320,14 @@ internal sealed class AwkFunctionCallStack(
 
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
-            argument = AwkFunctionArgument.Array(slot.ArrayName);
+            argument = slot.ArrayName.Text.Length == 0 && slot.Value.TryGetArrayBinding(out var array)
+                ? AwkFunctionArgument.Array(array) : AwkFunctionArgument.Array(slot.ArrayName);
+            return true;
+        }
+
+        if (slot.Value.TryGetArrayBinding(out var child))
+        {
+            argument = AwkFunctionArgument.Array(child);
             return true;
         }
 
@@ -452,22 +473,66 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryGetBoundArray(AwkVariableName name, [NotNullWhen(true)] out AwkArrayIdentity? array)
+    public bool TryGetBoundArray(AwkVariableName name, [NotNullWhen(true)] out AwkArrayIdentity? array,
+        bool promote = false)
     {
-        if (TryPeekLocalFrame(out var frame) && TryGetLocalSlot(frame, name, out var slotId, out var slot) &&
-            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+        if (TryPeekLocalFrame(out var frame) && TryGetLocalSlot(frame, name, out var slotId, out var slot))
         {
             if (slot.Value.TryGetArrayBinding(out array)) return true;
-            array = findArray?.Invoke(slot.ArrayName);
-            if (array is not null)
+            if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
             {
-                // The existing array owner funds its storage; this is a non-owning alias.
-                frame.GetSlot(slotId.Index) = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName, array);
+                array = findArray?.Invoke(slot.ArrayName);
+                if (array is not null)
+                {
+                    // The existing array owner funds its storage; this is a non-owning alias.
+                    frame.GetSlot(slotId.Index) = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName, array);
+                    return true;
+                }
+            }
+            if (promote && slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped &&
+                slot.Value.TryGetUntypedScalar(out var origin) && origin.Parent is not null && promoteArrayOrigin is not null)
+            {
+                array = promoteArrayOrigin(origin);
                 return true;
             }
         }
         array = null;
         return false;
+    }
+
+    public void RepairSubarrayAliases(AwkArrayIdentity removed, bool includeRoot, bool cancellable)
+    {
+        var poll = cancellable ? checkpoint : null;
+        foreach (var frame in _frames)
+        {
+            for (var index = 0; index < frame.Layout.SlotCount; index++)
+            {
+                var slot = frame.GetSlot(index);
+                if ((index & 63) == 0) poll?.Invoke();
+                if (slot.Value.TryGetArrayBinding(out var array) && array.IsWithin(removed, poll) &&
+                    (includeRoot || !ReferenceEquals(array, removed)))
+                {
+                    var name = AwkArrayName.FunctionLocal(frame.Layout.Parameters[index].Identifier, frame.Id);
+                    ReplaceLocalSlot(frame, new(index), slot, AwkFunctionLocalSlot.ArrayAlias(name));
+                }
+                else if (slot.Value.TryGetUntypedScalar(out var origin) && !origin.IsScalar && origin.Array is null &&
+                    origin.Parent is { } parent && parent.IsWithin(removed, poll))
+                    ReplaceLocalSlot(frame, new(index), slot, AwkFunctionLocalSlot.MissingScalar());
+            }
+        }
+    }
+
+    public void RepairElementAliases(AwkUntypedScalar removed)
+    {
+        if (removed.IsScalar) return;
+        foreach (var frame in _frames)
+            for (var index = 0; index < frame.Layout.SlotCount; index++)
+            {
+                if ((index & 63) == 0) checkpoint?.Invoke();
+                var slot = frame.GetSlot(index);
+                if (slot.Value.TryGetUntypedScalar(out var origin) && ReferenceEquals(origin, removed))
+                    ReplaceLocalSlot(frame, new(index), slot, AwkFunctionLocalSlot.MissingScalar());
+            }
     }
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>
@@ -483,6 +548,7 @@ internal sealed class AwkFunctionCallStack(
 
         if (!TryGetLocalSlot(frame, name, out var slotId, out var slot) ||
             slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
+            slot.Value.TryGetArrayBinding(out _) ||
             slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
         {
             return false;
@@ -503,6 +569,7 @@ internal sealed class AwkFunctionCallStack(
 
         if (!TryGetLocalSlot(frame, slotId, out var slot) ||
             slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
+            slot.Value.TryGetArrayBinding(out _) ||
             slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
         {
             return false;
@@ -583,6 +650,8 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalSlot slot,
         AwkFunctionLocalProjection projection)
     {
+        if (slot.Value.TryGetArrayBinding(out _))
+            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
             return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
 
@@ -644,6 +713,8 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalSlot slot,
         AwkFunctionLocalProjection projection)
     {
+        if (projection == AwkFunctionLocalProjection.Value && slot.Value.TryGetArrayBinding(out _))
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(frame.Layout.Parameters[slotId.Index].Text));
         if (projection != AwkFunctionLocalProjection.Value ||
             slot.Kind is not (AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.PotentialArrayAlias or AwkFunctionLocalSlotKind.UntypedScalar) ||
             slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))

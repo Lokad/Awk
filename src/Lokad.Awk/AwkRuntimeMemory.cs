@@ -11,7 +11,9 @@ internal static class AwkRuntimeMemory
     private const int VariableSlotBytes = 24;
     private const int ArrayEntryBytes = 64;
     private const int ArrayObjectBytes = 24;
-    internal const int ArrayIdentityBytes = 24;
+    // Coarse owner estimate includes the identity and its dictionary object, including
+    // empty children. Entry/bucket capacity is charged separately below.
+    internal const int ArrayIdentityBytes = 96;
     private const int DictionaryObjectBytes = 56;
     private const int DictionaryEntryBytes = 40;
     private const int ListObjectBytes = 32;
@@ -74,7 +76,7 @@ internal static class AwkRuntimeMemory
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
         CheckedAdd(VariableSlotBytes, slot.RetainedTextMemoryBytes);
 
-    public static long EstimateUntypedScalarBytes() => 24;
+    public static long EstimateUntypedScalarBytes() => 32;
 
     public static long EstimateTimeZoneOffsetsBytes() => EstimateArrayBufferBytes(2, sizeof(long));
 

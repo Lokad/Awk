@@ -46,8 +46,14 @@ internal readonly struct AwkVariableSlot
 
     internal bool TryGetArrayBinding([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        array = _text as AwkArrayIdentity;
+        array = _text as AwkArrayIdentity ?? (_text as AwkUntypedScalar)?.Array;
         return array is not null;
+    }
+
+    internal bool TryGetUntypedScalar([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkUntypedScalar? scalar)
+    {
+        scalar = _text as AwkUntypedScalar;
+        return scalar is not null;
     }
 
     private AwkVariableSlot(AwkText text, double number)
@@ -63,7 +69,7 @@ internal readonly struct AwkVariableSlot
         value.TryGetUntypedScalar(out var scalar) ? FromUntypedScalar(scalar) : FromValue(value);
 
     public bool IsUntyped => Kind == AwkVariableSlotKind.Untyped &&
-        _text is AwkUntypedScalar { IsScalar: false };
+        _text is AwkUntypedScalar { IsScalar: false, Array: null };
 
     public void PromoteUntypedScalar()
     {
@@ -134,7 +140,7 @@ internal readonly struct AwkVariableSlot
         Func<AwkText, AwkValue> createDeferredTextValue) =>
         Kind switch
         {
-            AwkVariableSlotKind.ArrayBinding => throw new InvalidOperationException("An array binding is not a scalar slot."),
+            AwkVariableSlotKind.ArrayBinding when _text is AwkArrayIdentity array => AwkValue.FromArrayReference(array),
             AwkVariableSlotKind.Unassigned => AwkValue.Unassigned(),
             AwkVariableSlotKind.Untyped when _text is AwkUntypedScalar scalar => AwkValue.FromUntypedScalar(scalar),
             AwkVariableSlotKind.Number => AwkValue.FromNumber(_number),

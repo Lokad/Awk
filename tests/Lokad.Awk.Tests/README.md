@@ -97,6 +97,11 @@ frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests`
 public-boundary partial-close failures and cleanup without replaying successful closes.
 `AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,
 nested-call refusal, and funding through actual completion of pending/canceled host users.
+Nested-array goldens cover hierarchy, promotion, aliases, builtin operands and captured paths;
+storage tests cover child admission, replacement and retirement. Evaluation/getline ownership
+checks retain ancestor keys through mutation and actual host completion, including cancellation
+and refused reconstruction. Counter checks cover owner reuse, byte-native aggregation and
+execution-local owners when a prepared program is reused.
 `AwkMainInputOwnershipTests` covers sequential main files, main getline, nextfile/exit,
 refusal after open and funding through pending/canceled closes. Partial-close tests also
 suspend table retirement and logical flush, preserving every remaining stream and avoiding

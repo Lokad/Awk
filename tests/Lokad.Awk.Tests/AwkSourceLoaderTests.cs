@@ -454,8 +454,6 @@ public sealed class AwkSourceLoaderTests
     [InlineData("BEGIN{print @/x/}", "awk: strongly typed regexp constants are unsupported in Lokad awk\n")]
     [InlineData("BEGIN{print _\"text\"}", "awk: internationalization functions are unsupported in Lokad awk\n")]
     [InlineData("BEGIN{print @fn(1)}", "awk: indirect function calls are unsupported in Lokad awk\n")]
-    [InlineData("BEGIN{print a[1][2]}", "awk: arrays of arrays are unsupported in Lokad awk\n")]
-    [InlineData("BEGIN{print a[1] [2]}", "awk: arrays of arrays are unsupported in Lokad awk\n")]
     [InlineData("BEGIN{print ns::\\\nvalue}", "awk: namespaces are unsupported in Lokad awk\n")]
     public async Task AwkParser_RejectsUnsupportedSyntaxFromTokens(
         string program,

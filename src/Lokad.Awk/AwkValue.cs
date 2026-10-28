@@ -137,7 +137,18 @@ internal readonly struct AwkValue
     public static AwkValue FromGlobalArrayReference(AwkIdentifier identifier) =>
         new(identifier.Text, 0, AwkValueKind.ArrayReference);
 
-    public bool IsArrayValue => _kind == AwkValueKind.ArrayReference;
+    public static AwkValue FromArrayReference(AwkArrayIdentity array) =>
+        new(array, 0, AwkValueKind.ArrayReference);
+
+    public bool IsArrayValue => _kind == AwkValueKind.ArrayReference ||
+        _kind == AwkValueKind.Untyped && _text is AwkUntypedScalar { Array: not null };
+
+    public bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        array = _kind == AwkValueKind.ArrayReference ? _text as AwkArrayIdentity :
+            _kind == AwkValueKind.Untyped ? (_text as AwkUntypedScalar)?.Array : null;
+        return array is not null;
+    }
 
     public bool TryGetArrayName(out AwkArrayName name)
     {
@@ -155,6 +166,8 @@ internal readonly struct AwkValue
     {
         if (_kind == AwkValueKind.ArrayReference && _text is string name)
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name));
+        if (IsArrayValue)
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar("array element"));
     }
 
     public bool TryGetUntypedScalar([NotNullWhen(true)] out AwkUntypedScalar? scalar)
@@ -279,7 +292,7 @@ internal readonly struct AwkValue
         _kind == AwkValueKind.Untyped && _text is AwkUntypedScalar { IsScalar: true };
 
     public bool IsUntypedValue => _kind == AwkValueKind.Untyped &&
-        _text is AwkUntypedScalar { IsScalar: false };
+        _text is AwkUntypedScalar { IsScalar: false, Array: null };
 
     public bool IsDeferredTextValue => _kind is
         AwkValueKind.DeferredDecimalText or
@@ -309,7 +322,8 @@ internal readonly struct AwkValue
             return _kind switch
             {
                 AwkValueKind.Unassigned => AwkRuntimeValueKind.Unassigned,
-                AwkValueKind.Untyped => IsUntypedValue ? AwkRuntimeValueKind.Untyped : AwkRuntimeValueKind.Unassigned,
+                AwkValueKind.Untyped => IsArrayValue ? AwkRuntimeValueKind.Array :
+                    IsUntypedValue ? AwkRuntimeValueKind.Untyped : AwkRuntimeValueKind.Unassigned,
                 AwkValueKind.ArrayReference => AwkRuntimeValueKind.Array,
                 AwkValueKind.Number => AwkRuntimeValueKind.Number,
                 AwkValueKind.NumericString => AwkRuntimeValueKind.NumericString,

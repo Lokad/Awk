@@ -22,14 +22,14 @@ internal abstract record AwkReference
 
     public async ValueTask<AwkValue> EvaluateAsync(AwkEvaluationContext context)
     {
-        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
+        using var target = await ResolveTargetAsync(context).ConfigureAwait(false);
         return target.Evaluate(context.State);
     }
 
     public virtual async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
         using var heldValue = context.State.MemoryAccounting.RetainValue(value);
-        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
+        using var target = await ResolveTargetAsync(context).ConfigureAwait(false);
         target.AssignValue(context.State, value);
     }
 
@@ -37,9 +37,13 @@ internal abstract record AwkReference
         AwkEvaluationContext context)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
-        target.PrepareForSubstitution(context.State);
-        var input = context.State.FormatStringByteText(target.Evaluate(context.State));
-        return AwkResolvedSubstitutionTarget.ReferenceTarget(input, target);
+        try
+        {
+            target.PrepareForSubstitution(context.State);
+            var input = context.State.FormatStringByteText(target.Evaluate(context.State));
+            return AwkResolvedSubstitutionTarget.ReferenceTarget(input, target);
+        }
+        catch { target.Dispose(); throw; }
     }
 
     public virtual ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
@@ -52,25 +56,27 @@ internal abstract record AwkReference
             return AwaitCompoundTargetAsync(context, value, operation, pending);
 
         var target = pending.Result;
-        var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
+        var heldKey = AwkMemoryLease.Disabled;
         try
         {
+            heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
             var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
             var right = value.EvaluateAsync(context);
             if (!right.IsCompletedSuccessfully)
                 return AwaitCompoundValueAsync(context, target, currentValue, right, operation, heldKey);
             var result = AssignCompound(context, target, currentValue, right.Result, operation);
             heldKey.Dispose();
+            target.Dispose();
             return ValueTask.FromResult(result);
         }
-        catch { heldKey.Dispose(); throw; }
+        catch { heldKey.Dispose(); target.Dispose(); throw; }
     }
 
     private static async ValueTask<AwkValue> AwaitCompoundTargetAsync(
         AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation,
         ValueTask<AwkResolvedReference> pending)
     {
-        var target = await pending.ConfigureAwait(false);
+        using var target = await pending.ConfigureAwait(false);
         using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
         var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
         var rightValue = await value.EvaluateAsync(context).ConfigureAwait(false);
@@ -81,6 +87,7 @@ internal abstract record AwkReference
         AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
         ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
     {
+        using (target)
         using (heldKey)
             return AssignCompound(context, target, currentValue, await pending.ConfigureAwait(false), operation);
     }
@@ -114,8 +121,12 @@ internal abstract record AwkReference
     internal async ValueTask<AwkResolvedReference> ResolveGetlineTargetAsync(AwkEvaluationContext context)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
-        target.PrepareForGetline(context.State);
-        return target;
+        try
+        {
+            target.PrepareForGetline(context.State);
+            return target;
+        }
+        catch { target.Dispose(); throw; }
     }
 
     internal bool TryGetSynchronousScalar(out AwkResolvedReference target)
@@ -151,6 +162,7 @@ internal abstract record AwkReference
         AwkEvaluationContext context, AwkResolvedReference target,
         Func<double, double> update, AwkNumericUpdateResult resultSelection)
     {
+        using var heldTarget = target;
         var previous = AwkValue.FromNumber(target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint));
         var result = AwkValue.FromNumber(update(previous.AsNumber(context.State.CancellationCheckpoint)));
         target.AssignValue(context.State, result);
@@ -336,10 +348,11 @@ internal sealed record AwkFieldReference(AwkExpression FieldIndexExpression) : A
     }
 }
 
-internal readonly struct AwkResolvedReference
+internal readonly struct AwkResolvedReference : IDisposable
 {
     internal long RetainedKeyBytes =>
-        _kind == AwkResolvedReferenceKind.ArrayElement ? _arrayIndex.RetainedTextMemoryBytes : 0;
+        _kind is AwkResolvedReferenceKind.ArrayElement
+            ? _arrayIndex.RetainedTextMemoryBytes : 0;
 
     private readonly AwkResolvedReferenceKind _kind;
     private readonly AwkVariableName _scalarVariable;
@@ -348,6 +361,7 @@ internal readonly struct AwkResolvedReference
     private readonly AwkArrayKey _arrayIndex;
     private readonly AwkFieldIndex _fieldIndex;
     private readonly int _globalIndex;
+    private readonly AwkCapturedArrayPath? _arrayPath;
 
     private AwkResolvedReference(
         AwkResolvedReferenceKind kind,
@@ -356,7 +370,8 @@ internal readonly struct AwkResolvedReference
         AwkArrayName arrayVariable,
         AwkArrayKey arrayIndex,
         AwkFieldIndex fieldIndex,
-        int globalIndex = default)
+        int globalIndex = default,
+        AwkCapturedArrayPath? arrayPath = null)
     {
         _kind = kind;
         _scalarVariable = scalarVariable;
@@ -365,6 +380,7 @@ internal readonly struct AwkResolvedReference
         _arrayIndex = arrayIndex;
         _fieldIndex = fieldIndex;
         _globalIndex = globalIndex;
+        _arrayPath = arrayPath;
     }
 
     public static AwkResolvedReference Scalar(AwkVariableName variable) =>
@@ -381,6 +397,11 @@ internal readonly struct AwkResolvedReference
     public static AwkResolvedReference ArrayElement(AwkArrayName variable, AwkArrayKey index) =>
         new(AwkResolvedReferenceKind.ArrayElement, default, default, variable, index, default);
 
+    public static AwkResolvedReference NestedArrayElement(AwkCapturedArrayPath path) =>
+        new(AwkResolvedReferenceKind.NestedArrayElement, default, default, default, default, default, arrayPath: path);
+
+    public void Dispose() => _arrayPath?.Dispose();
+
     public static AwkResolvedReference Field(AwkFieldIndex fieldIndex) =>
         new(AwkResolvedReferenceKind.Field, default, default, default, default, fieldIndex);
 
@@ -394,6 +415,8 @@ internal readonly struct AwkResolvedReference
                 _localScalarSlotId,
                 _scalarVariable),
             AwkResolvedReferenceKind.ArrayElement => state.GetArrayAwkValue(_arrayVariable, _arrayIndex),
+            AwkResolvedReferenceKind.NestedArrayElement when _arrayPath is { } path =>
+                state.GetArrayAwkValue(path.ResolveOwner(state), path.Key),
             AwkResolvedReferenceKind.Field => EvaluateField(state, _fieldIndex),
             _ => AwkValue.Unassigned()
         };
@@ -462,6 +485,10 @@ internal readonly struct AwkResolvedReference
                 state.SetArrayAwkValue(_arrayVariable, _arrayIndex, value);
                 break;
 
+            case AwkResolvedReferenceKind.NestedArrayElement when _arrayPath is { } path:
+                state.SetArrayAwkValue(path.ResolveOwner(state), path.Key, value);
+                break;
+
             case AwkResolvedReferenceKind.Field:
                 state.AssignFieldValue(_fieldIndex, value);
                 break;
@@ -486,5 +513,6 @@ internal enum AwkResolvedReferenceKind
     PreparedGlobalScalar,
     LocalScalar,
     ArrayElement,
+    NestedArrayElement,
     Field
 }

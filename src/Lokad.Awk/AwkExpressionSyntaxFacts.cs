@@ -92,8 +92,15 @@ internal static class AwkExpressionSyntaxFacts
         if (TryGetAssignableIdentifier(expression, out _))
             return true;
 
-        return TryGetAssignableArrayElementTarget(expression, out _) &&
+        return expression.Kind == AwkExpressionKind.ArrayElement && TryGetArrayRoot(expression, out _) &&
             expression.Children.Count >= 2;
+    }
+
+    public static bool TryGetArrayRoot(AwkExpressionSyntax expression, out AwkIdentifierSyntax root)
+    {
+        while (expression.Kind == AwkExpressionKind.ArrayElement && expression.TargetExpression is { } target)
+            expression = target;
+        return TryGetIdentifier(expression, out root);
     }
 
     public static bool IsIncrementOrDecrementExpression(AwkExpressionSyntax expression)
@@ -114,7 +121,7 @@ internal static class AwkExpressionSyntaxFacts
         AwkExpressionSyntax expression,
         out AwkIdentifierSyntax target)
     {
-        if (TryGetArrayElementTarget(expression, out target))
+        if (expression.Kind == AwkExpressionKind.ArrayElement && TryGetArrayRoot(expression, out target))
             return true;
 
         target = default;

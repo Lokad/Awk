@@ -28,6 +28,12 @@ internal static class AwkLValueLowerer
             AwkExpressionSyntax expression,
             AwkLoweringScope scope)
         {
+            if (expression.TargetExpression is { Kind: AwkExpressionKind.ArrayElement } nested &&
+                AwkExpressionLowerer.TryLowerArrayOperand(nested, scope, out var parent) &&
+                AwkExpressionLowerer.TryLowerArrayIndex(expression.Children, scope, out var nestedIndex))
+            {
+                return AwkLValueLoweringResult.Valid(new AwkNestedArrayElementReference(parent, nestedIndex));
+            }
             if (expression.Children.Count < 2 ||
                 !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(expression, out var target) ||
                 scope.IsReservedVariable(target.Name) ||

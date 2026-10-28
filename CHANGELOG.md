@@ -7,6 +7,9 @@
   two-argument `split()`. Ordinary explicit-separator splitting and field reconstruction remain unchanged.
 - Reduce repeated array-name resolution with stable execution-owned bindings for globals,
   parameters and update targets, preserving backing replacement, admission and cancellation.
+- Add GNU arrays of arrays, including child aliases, nested iteration and array-taking
+  builtin targets. Captured update/getline paths survive parent replacement without
+  reevaluating keys; see the documented evaluation-order boundaries.
 
 ## 0.4.0
 

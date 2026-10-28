@@ -54,12 +54,15 @@ internal abstract partial class AwkStatement
     private sealed class ForInStatement(
         AwkVariableName loopVariable,
         AwkArrayName arrayVariable,
-        AwkStatement[] body) : AwkStatement
+        AwkStatement[] body,
+        AwkArrayOperand? operand = null) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
-            using var keys = await state.SnapshotArrayKeyValuesAsync(arrayVariable, context).ConfigureAwait(false);
+            using var keys = operand is null
+                ? await state.SnapshotArrayKeyValuesAsync(arrayVariable, context).ConfigureAwait(false)
+                : await state.SnapshotArrayKeyValuesAsync(await operand.ResolveAsync(context).ConfigureAwait(false), context).ConfigureAwait(false);
             for (var index = 0; index < keys.Count; index++)
             {
                 state.Checkpoint();

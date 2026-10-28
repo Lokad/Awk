@@ -195,8 +195,8 @@ internal abstract partial class AwkExpression
     public static AwkExpression TypeOfArrayElement(AwkArrayName variableName, AwkArrayIndex index) =>
         new TypeOfArrayElementExpression(variableName, index);
 
-    public static AwkExpression Match(AwkExpression value, AwkExpression pattern, AwkOptionalIdentifier captureArrayName) =>
-        new MatchExpression(value, pattern, captureArrayName);
+    public static AwkExpression Match(AwkExpression value, AwkExpression pattern, AwkArrayOperand? captureArray) =>
+        new MatchExpression(value, pattern, captureArray);
 
     public static AwkExpression Split(
         AwkExpression value,
@@ -205,20 +205,36 @@ internal abstract partial class AwkExpression
         AwkOptionalIdentifier separatorArrayName,
         bool isRegexLiteral = false,
         bool usesDefaultSeparator = false) =>
-        new SplitExpression(value, arrayName, separator, separatorArrayName, isRegexLiteral, usesDefaultSeparator);
+        Split(value, new AwkArrayOperand.Named(arrayName, -1), separator,
+            separatorArrayName.HasValue ? new AwkArrayOperand.Named(new(separatorArrayName.Value), -1) : null,
+            isRegexLiteral, usesDefaultSeparator);
+
+    public static AwkExpression Split(AwkExpression value, AwkArrayOperand array, AwkExpression separator,
+        AwkArrayOperand? separators, bool isRegexLiteral, bool usesDefaultSeparator) =>
+        new SplitExpression(value, array, separator, separators, isRegexLiteral, usesDefaultSeparator);
 
     public static AwkExpression Patsplit(
         AwkExpression value,
         AwkArrayName arrayName,
         AwkExpression pattern,
         AwkOptionalIdentifier separatorArrayName) =>
-        new PatsplitExpression(value, arrayName, pattern, separatorArrayName);
+        Patsplit(value, new AwkArrayOperand.Named(arrayName, -1), pattern,
+            separatorArrayName.HasValue ? new AwkArrayOperand.Named(new(separatorArrayName.Value), -1) : null);
+
+    public static AwkExpression Patsplit(AwkExpression value, AwkArrayOperand array, AwkExpression pattern,
+        AwkArrayOperand? separators) => new PatsplitExpression(value, array, pattern, separators);
 
     public static AwkExpression Asort(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
-        new AsortExpression(sourceArrayName, destinationArrayName, order);
+        Asort(new AwkArrayOperand.Named(sourceArrayName, -1), new AwkArrayOperand.Named(destinationArrayName, -1), order);
 
     public static AwkExpression Asorti(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
-        new AsortiExpression(sourceArrayName, destinationArrayName, order);
+        Asorti(new AwkArrayOperand.Named(sourceArrayName, -1), new AwkArrayOperand.Named(destinationArrayName, -1), order);
+
+    public static AwkExpression Asort(AwkArrayOperand source, AwkArrayOperand? destination, AwkExpression order) =>
+        new SortArrayExpression(source, destination, order, keys: false);
+
+    public static AwkExpression Asorti(AwkArrayOperand source, AwkArrayOperand? destination, AwkExpression order) =>
+        new SortArrayExpression(source, destination, order, keys: true);
 
     public static AwkExpression Assignment(AwkReference target, AwkExpression value) =>
         new AssignmentExpression(target, value);

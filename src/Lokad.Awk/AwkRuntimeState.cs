@@ -91,7 +91,10 @@ internal sealed class AwkRuntimeState : IDisposable
             _variables.ContainsArray,
             _variables.RemoveFunctionLocalArray,
             CancellationCheckpoint,
-            name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null);
+            name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null,
+            _variables.PromoteArrayOrigin);
+        _variables.RepairSubarrayAliases = _functions.RepairSubarrayAliases;
+        _variables.RepairElementAliases = _functions.RepairElementAliases;
         _regexRuntime = new AwkRegexRuntime(
             ResolveRegexCaseSensitivity,
             stringUnitMode,
@@ -701,7 +704,7 @@ internal sealed class AwkRuntimeState : IDisposable
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
         if (TryGetBoundGlobalArray(index, out array)) return true;
-        if (!name.IsFunctionLocal && _functions.TryGetBoundArray(new(name.Identifier), out array))
+        if (!name.IsFunctionLocal && _functions.TryGetBoundArray(new(name.Identifier), out array, promote: true))
         {
             Counters.RecordBoundLocalArrayAccess();
             return true;
@@ -1130,6 +1133,29 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1) =>
         _arrayRuntime.GetAwkValue(name, index, globalIndex);
 
+    internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, int globalIndex = -1) =>
+        _arrayRuntime.ResolveOrdinaryArray(name, globalIndex);
+
+    internal AwkArrayIdentity GetSubarray(AwkArrayIdentity parent, AwkArrayKey key) =>
+        _variables.GetSubarray(parent, key);
+
+    internal AwkArrayIdentity GetSubarray(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
+        _arrayRuntime.GetSubarray(name, key, globalIndex);
+
+    internal AwkArrayIdentity? FindSubarray(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
+        _arrayRuntime.FindSubarray(name, key, globalIndex);
+
+    internal AwkArrayIdentity? FindSubarray(AwkArrayIdentity parent, AwkArrayKey key) => _variables.FindSubarray(parent, key);
+
+    internal AwkValue GetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key) =>
+        _variables.GetArrayValue(array, key);
+
+    internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
+        _variables.SetArrayValue(array, key, value);
+
+    internal ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(AwkArrayIdentity array,
+        AwkEvaluationContext context) => _arrayRuntime.SnapshotKeyValuesAsync(array, context);
+
     public AwkValue GetArrayFieldValue(AwkArrayName name, int index, int globalIndex = -1)
     {
         if (index < 0)
@@ -1176,7 +1202,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkValue CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
     {
         var result = AwkValue.FromNumber(number);
-        if (target.Array is { } array)
+        if (target.Array is { IsDetached: false } array)
         {
             // Read the owner's current dictionary after the RHS, including suspension.
             _variables.SetArrayValue(array, target.Key, result);
@@ -1226,6 +1252,8 @@ internal sealed class AwkRuntimeState : IDisposable
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.DeleteValue(name, index);
 
+    internal void DeleteArrayValue(AwkArrayIdentity array, AwkArrayKey key) => _variables.DeleteArrayValue(array, key);
+
     public int SplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
@@ -1241,6 +1269,12 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkOptionalIdentifier separatorArrayName) =>
         _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
 
+    internal int SplitIntoArray(AwkText input, AwkArrayTarget array, AwkFieldSeparatorSpec separator,
+        AwkArrayTarget? separators, bool csv) => _arrayRuntime.SplitIntoArray(input, array, separator, separators, csv);
+
+    internal int PatsplitIntoArray(AwkText input, AwkArrayTarget array, AwkRegexPattern pattern,
+        AwkArrayTarget? separators) => _arrayRuntime.PatsplitIntoArray(input, array, pattern, separators);
+
     public ValueTask<int> SortArrayValuesAsync(
         AwkArrayName sourceArrayName,
         AwkArrayName destinationArrayName,
@@ -1255,11 +1289,20 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkEvaluationContext context) =>
         _arrayRuntime.SortArrayKeysAsync(sourceArrayName, destinationArrayName, order, context);
 
+    internal ValueTask<int> SortArrayValuesAsync(AwkArrayTarget source, AwkArrayTarget destination,
+        AwkArraySortOrder order, AwkEvaluationContext context) => _arrayRuntime.SortArrayValuesAsync(source, destination, order, context);
+
+    internal ValueTask<int> SortArrayKeysAsync(AwkArrayTarget source, AwkArrayTarget destination,
+        AwkArraySortOrder order, AwkEvaluationContext context) => _arrayRuntime.SortArrayKeysAsync(source, destination, order, context);
+
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
 
     public void ReplaceMatchCaptureArray(AwkArrayName name, AwkLeasedRegexMatch match) =>
-        _arrayRuntime.ReplaceMatchCaptures(name, match);
+        _arrayRuntime.ReplaceMatchCaptures(new AwkArrayTarget(name), match);
+
+    internal void ReplaceMatchCaptureArray(AwkArrayTarget target, AwkLeasedRegexMatch match) =>
+        _arrayRuntime.ReplaceMatchCaptures(target, match);
 
     public ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,

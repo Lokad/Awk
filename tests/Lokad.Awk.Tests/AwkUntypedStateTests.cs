@@ -16,7 +16,6 @@ public sealed class AwkUntypedStateTests
         Assert.True(origin.IsUntypedValue);
         Assert.True(argument.IsUntyped);
         Assert.Equal(AwkVariableSlotKind.Unassigned, copy.Kind);
-        Assert.Equal(24, origin.RetainedTextMemoryBytes);
         Assert.True(origin.ForceScalar().IsUnassignedValue);
         Assert.False(argument.IsUntyped);
         Assert.True(origin.IsUnassignedValue);

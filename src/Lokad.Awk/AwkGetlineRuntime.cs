@@ -62,7 +62,7 @@ internal static class AwkGetlineRuntime
 
         var resolvedSource = await source.ResolveAsync(context).ConfigureAwait(false);
         using var sourceLease = context.State.MemoryAccounting.ReserveTransient(resolvedSource.RetainedNameBytes);
-        var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
+        using var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
         using var targetLease = context.State.MemoryAccounting.ReserveTransient(resolvedTarget.RetainedKeyBytes);
         var result = await resolvedSource.ReadAsync(execution).ConfigureAwait(false);
 

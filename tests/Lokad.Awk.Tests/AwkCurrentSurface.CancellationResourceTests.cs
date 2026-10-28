@@ -532,9 +532,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var arrayName = AwkArrayName.FromText("a");
         var ordinalOne = new AwkArrayKey("1");
-        using var memoryForState = CreateGovernedState(800);
+        using var memoryForState = CreateGovernedState(8 << 20);
         var state = memoryForState.State;
         state.SetArrayString(arrayName, ordinalOne, "keep");
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
 
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.SplitIntoArray(
@@ -1246,7 +1247,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         AwkExpression.Match(
             AwkExpression.Literal("abcd"),
             AwkExpression.Literal("(ab)(cd)"),
-            AwkOptionalIdentifier.Some(arrayName.Identifier));
+            new AwkArrayOperand.Named(arrayName, -1));
 
     private static void SetMatchState(AwkRuntimeState state, int start, int length)
     {

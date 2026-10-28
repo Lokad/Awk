@@ -107,6 +107,9 @@ Executions borrow the program's immutable function lookup; frames, locals and mu
 remain execution-owned.
 Development source keeps an array's stable identity funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
+Nested-array storage belongs to its parent. Captured path keys stay funded through later
+mutation and actual completion of pending host operations; deleting an entry does not
+authorize an unfunded write through a removed child.
 Source-directive preprocessing shares that frontend admission before token allocation.
 Replacement may need old/new overlap; streaming charges live storage, not cumulative I/O.
 

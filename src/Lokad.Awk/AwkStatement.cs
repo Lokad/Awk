@@ -90,6 +90,9 @@ internal abstract partial class AwkStatement
     public static AwkStatement DeleteArrayElement(AwkArrayName arrayName, AwkArrayIndex index) =>
         new DeleteArrayElementStatement(arrayName, index);
 
+    public static AwkStatement DeleteArrayElement(AwkArrayOperand array, AwkArrayIndex index) =>
+        new DeleteNestedArrayElementStatement(array, index);
+
     public static AwkStatement DeleteArray(AwkArrayName arrayName) =>
         new DeleteArrayStatement(arrayName);
 
@@ -124,6 +127,9 @@ internal abstract partial class AwkStatement
 
     public static AwkStatement ForIn(AwkVariableName loopVariable, AwkArrayName arrayVariable, IReadOnlyList<AwkStatement> body) =>
         new ForInStatement(loopVariable, arrayVariable, AwkCollectionSnapshots.Copy(body));
+
+    public static AwkStatement ForIn(AwkVariableName loopVariable, AwkArrayOperand array, IReadOnlyList<AwkStatement> body) =>
+        new ForInStatement(loopVariable, default, AwkCollectionSnapshots.Copy(body), array);
 
     public static AwkStatement For(
         AwkStatement initializer,

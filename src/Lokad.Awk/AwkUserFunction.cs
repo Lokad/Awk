@@ -289,7 +289,9 @@ internal readonly struct AwkFunctionArgument
         new(AwkFunctionArgumentKind.Scalar, value, default);
 
     public static AwkFunctionArgument FromValue(AwkValue value) =>
-        value.TryGetArrayName(out var name)
+        value.TryGetArrayBinding(out var array)
+            ? Array(array)
+            : value.TryGetArrayName(out var name)
             ? Array(name)
             : value.IsUntypedValue
             ? new(AwkFunctionArgumentKind.UntypedScalar, value, default)
@@ -297,6 +299,9 @@ internal readonly struct AwkFunctionArgument
 
     public static AwkFunctionArgument Array(AwkArrayName arrayName) =>
         new(AwkFunctionArgumentKind.Array, default, arrayName);
+
+    public static AwkFunctionArgument Array(AwkArrayIdentity array) =>
+        new(AwkFunctionArgumentKind.Array, AwkValue.FromArrayReference(array), default);
 
     public static AwkFunctionArgument PotentialArray(AwkArrayName arrayName) =>
         PotentialArray(arrayName, AwkValue.FromUntypedScalar(new AwkUntypedScalar()));

@@ -150,7 +150,9 @@ internal static class AwkBuiltinCallShape
         out AwkBuiltinArgumentRoleFailure failure)
     {
         static bool IsArrayName(AwkExpressionSyntax argument, AwkLoweringScope scope) =>
-            AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out var identifier) &&
+            AwkExpressionSyntaxFacts.TryGetArrayRoot(argument, out var identifier) &&
+            (argument.Kind == AwkExpressionKind.Variable ||
+                argument.Kind == AwkExpressionKind.ArrayElement && scope.CompatibilityMode == AwkCompatibilityMode.GnuDefault) &&
             !scope.IsReservedVariable(identifier.Name);
 
         static bool AcceptsArgumentRole(

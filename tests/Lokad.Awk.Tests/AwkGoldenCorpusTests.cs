@@ -114,7 +114,7 @@ public sealed class AwkGoldenCorpusTests
             return;
         }
 
-        Assert.Empty(binding.Diagnostics);
+        Assert.True(binding.Diagnostics.Count == 0, string.Join("\n", binding.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.True(binding.Program.HasProgram);
     }
 

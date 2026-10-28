@@ -215,6 +215,13 @@ internal sealed class AwkRuntimeCounters
 
     public long ArrayNameResolutions { get; private set; }
 
+    public long SubarrayPromotions { get; private set; }
+
+    public void RecordSubarrayPromotion()
+    {
+        if (_enabled) lock (_sync) SubarrayPromotions++;
+    }
+
     public void RecordArrayNameResolution()
     {
         if (_enabled) lock (_sync) ArrayNameResolutions++;

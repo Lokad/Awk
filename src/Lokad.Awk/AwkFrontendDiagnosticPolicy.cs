@@ -53,7 +53,7 @@ internal static class AwkFrontendDiagnosticPolicy
                     : AwkDiagnosticId.ParseSyntax;
                 AddDiagnostic(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", id));
             }
-            else if (TryGetUnsupportedDiagnostic(source, tokens, index, out var unsupportedMessage, checkpoint))
+            else if (TryGetUnsupportedDiagnostic(source, tokens, index, compatibilityMode, out var unsupportedMessage, checkpoint))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     tokens[index].Span,
@@ -106,6 +106,7 @@ internal static class AwkFrontendDiagnosticPolicy
             string source,
             IReadOnlyList<AwkToken> tokens,
             int index,
+            AwkCompatibilityMode mode,
             out ReadOnlyMemory<byte> errorMessage, Action? checkpoint)
         {
             var token = tokens[index];
@@ -145,13 +146,13 @@ internal static class AwkFrontendDiagnosticPolicy
 
                     break;
                 case AwkTokenKind.RightBracket:
-                    if (TokenAtOrEnd(
+                    if (mode != AwkCompatibilityMode.GnuDefault && TokenAtOrEnd(
                             source,
                             tokens,
                             NextSignificantTokenIndex(tokens, index + 1, checkpoint))
                         .Kind == AwkTokenKind.LeftBracket)
                     {
-                        errorMessage = AwkMessages.ErrorUnsupportedArrayOfArrays;
+                        errorMessage = AwkMessages.ErrorArrayOfArraysExtension;
                         return true;
                     }
 

@@ -47,7 +47,7 @@ internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : 
         Reference.ResolveSubstitutionTargetAsync(context);
 }
 
-internal readonly struct AwkResolvedSubstitutionTarget
+internal readonly struct AwkResolvedSubstitutionTarget : IDisposable
 {
     private readonly AwkText? _input;
     private readonly AwkResolvedReference _reference;
@@ -64,6 +64,8 @@ internal readonly struct AwkResolvedSubstitutionTarget
     }
 
     public AwkText Input => _input ?? AwkText.Empty;
+
+    public void Dispose() => _reference.Dispose();
 
     public static AwkResolvedSubstitutionTarget CurrentRecord(AwkText input) =>
         new(input, default, isCurrentRecord: true);
@@ -105,7 +107,7 @@ internal sealed record AwkReferenceGetlineTarget(AwkReference Reference) : AwkGe
             await Reference.ResolveGetlineTargetAsync(context).ConfigureAwait(false));
 }
 
-internal readonly struct AwkResolvedGetlineTarget
+internal readonly struct AwkResolvedGetlineTarget : IDisposable
 {
     private readonly bool _hasReference;
     private readonly AwkResolvedReference _reference;
@@ -120,6 +122,8 @@ internal readonly struct AwkResolvedGetlineTarget
     public static AwkResolvedGetlineTarget ReferenceTarget(AwkResolvedReference reference) => new(reference);
     public bool IsCurrentRecord => !_hasReference;
     public long RetainedKeyBytes => _hasReference ? _reference.RetainedKeyBytes : 0;
+
+    public void Dispose() => _reference.Dispose();
 
     public void AssignRecord(AwkRuntimeState state, AwkText record, AwkRecordFieldSplittingMode fieldSplittingMode)
     {

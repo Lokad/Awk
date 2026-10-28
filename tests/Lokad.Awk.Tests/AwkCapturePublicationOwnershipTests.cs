@@ -7,6 +7,54 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
 {
     private static readonly AwkArrayName Target = AwkArrayName.FromText("captures");
 
+    [Fact]
+    public void EmptyCapturePublicationAdmitsBeforePromotingAMissingChild()
+    {
+        const int limit = 1 << 20;
+        using var memoryForState = State(true);
+        var state = memoryForState.State;
+        var parent = state.ResolveOrdinaryArray(Target);
+        var reference = state.GetArrayAwkValue(parent, AwkArrayKey.FromOrdinal(1));
+        var target = new AwkArrayTarget(reference);
+        using (state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes))
+        {
+            Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch));
+            Assert.False(reference.IsArrayValue);
+            Assert.Single(parent.Slots);
+        }
+        state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch);
+        Assert.True(reference.TryGetArrayBinding(out var child));
+        Assert.Empty(child.Slots);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ChildCaptureReplacementKeepsItsIdentityAndRefusesBeforeChangingIt(bool refuse)
+    {
+        using var memoryForState = State(true);
+        var state = memoryForState.State;
+        var parent = state.ResolveOrdinaryArray(Target);
+        var child = state.GetSubarray(parent, AwkArrayKey.FromOrdinal(1));
+        var grandchild = state.GetSubarray(child, AwkArrayKey.FromOrdinal(2));
+        state.SetArrayAwkValue(grandchild, AwkArrayKey.FromOrdinal(3), AwkValue.FromText("old"));
+        using var match = Match(state);
+        if (refuse) memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var target = new AwkArrayTarget(AwkValue.FromArrayReference(child));
+        if (refuse)
+        {
+            Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(target, match));
+            Assert.False(grandchild.IsDetached);
+            Assert.Equal("old", state.GetArrayAwkValue(grandchild, AwkArrayKey.FromOrdinal(3)).AsString());
+        }
+        else
+        {
+            state.ReplaceMatchCaptureArray(target, match);
+            Assert.True(grandchild.IsDetached);
+            Assert.Equal("s", state.GetArrayAwkValue(child, AwkArrayKey.FromOrdinal(1)).AsString());
+        }
+        Assert.Same(child, state.GetSubarray(parent, AwkArrayKey.FromOrdinal(1)));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -10,6 +10,45 @@ public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task NestedAggregationReusesChildOwnersWithoutStringConversions(bool helper)
+    {
+        var source = helper
+            ? "function add(a,r,s,v){a[r][s]+=v;return a[r][s]} {n+=add(a,$1,$2,$3)} END{print n,a[\"k\"][\"r\"]}"
+            : "{a[$1][$2]+=$3;n+=a[$1][$2]} END{print n,a[\"k\"][\"r\"]}";
+        var single = await RunAsync([source], "k r 2\n", false);
+        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("k r 2\n", 128)), false);
+        Assert.Equal(0, single.ExitCode);
+        Assert.Equal(0, repeated.ExitCode);
+        Assert.Equal("2 2\n", single.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("16512 256\n", repeated.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", repeated.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(single.Counters.SubarrayPromotions > 0);
+        Assert.Equal(single.Counters.SubarrayPromotions, repeated.Counters.SubarrayPromotions);
+        Assert.Equal(0, repeated.Counters.StringDecodes);
+        Assert.Equal(0, repeated.Counters.Utf8Encodes);
+    }
+
+    [Fact]
+    public async Task PreparedNestedPathsDoNotCaptureAnEarlierExecutionsOwners()
+    {
+        var arguments = new[] { "function edit(){delete a;return 2} BEGIN{a[1][2]=7;a[1][2]+=edit();print a[1][2]}" };
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None,
+            regexEngine: AwkUtf8RegexEngine.Instance);
+        foreach (var _ in Enumerable.Range(0, 3))
+        {
+            var host = new MockFileSystem();
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, CreateOptions(counters));
+            Assert.Equal(0, exit.Value);
+            Assert.Equal("9\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.True(counters.SubarrayPromotions > 0);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     internal async Task StableBindingsAvoidRepeatedArrayNameResolution(bool aliases)
     {
         var source = aliases
