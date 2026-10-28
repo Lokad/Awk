@@ -112,8 +112,9 @@ internal readonly struct AwkFunctionLocalSlot
             new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned),
             default);
 
-    public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName) =>
-        new(AwkFunctionLocalSlotKind.ArrayAlias, default, arrayName);
+    public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName, AwkArrayIdentity? array = null) =>
+        new(AwkFunctionLocalSlotKind.ArrayAlias,
+            array is null ? default : AwkVariableSlot.FromArrayBinding(array), arrayName);
 
     public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName, AwkValue value) =>
         new(AwkFunctionLocalSlotKind.PotentialArrayAlias, AwkVariableSlot.FromArgumentValue(value), arrayName);

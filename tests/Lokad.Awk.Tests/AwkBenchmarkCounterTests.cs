@@ -10,6 +10,28 @@ public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    internal async Task StableBindingsAvoidRepeatedArrayNameResolution(bool aliases)
+    {
+        var source = aliases
+            ? "function add(a,b,k,v){a[k]+=v;b[k]++;return a[k]+b[k]} BEGIN{a[\"k\"]=0;b[\"k\"]=0} {n+=add(a,b,$1,$2)} END{print n,a[\"k\"],b[\"k\"]}"
+            : "BEGIN{a[\"k\"]=0;b[\"k\"]=0} {a[$1]+=$2;b[$1]++;n+=a[$1]+b[$1]} END{print n,a[\"k\"],b[\"k\"]}";
+        var single = await RunAsync([source], "k 2\n", false);
+        const int count = 128;
+        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("k 2\n", count)), false);
+        Assert.Equal(0, single.ExitCode);
+        Assert.Equal(0, repeated.ExitCode);
+        Assert.Equal("3 2 1\n", single.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("24768 256 128\n", repeated.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", repeated.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(single.Counters.ArrayNameResolutions, repeated.Counters.ArrayNameResolutions);
+        Assert.True(repeated.Counters.BoundArrayUpdates > single.Counters.BoundArrayUpdates);
+        Assert.Equal(aliases, repeated.Counters.BoundLocalArrayAccesses > 0);
+        Assert.Equal(0, repeated.Counters.StringDecodes);
+        Assert.Equal(0, repeated.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task BeginOnlyAvoidsAutomaticReadWork(bool useUtf8Regex)
     {
         var result = await RunAsync(["BEGIN{print \"B\"}"], "unused\n", useUtf8Regex);
@@ -194,14 +216,14 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    internal async Task ParsedArrayReadsReuseTheirStorageContainer()
+    internal async Task ParsedArrayReadsUseStableBindings()
     {
         var result = await RunAsync(["BEGIN{a[1]=7;a[2]=8}{s+=a[$1]}END{print s}"], "1\n2\n1\n2\n",
             false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("30\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.True(result.Counters.ArrayContainerCacheHits >= 4);
+        Assert.True(result.Counters.BoundGlobalArrayAccesses >= 4);
     }
 
     [Fact]

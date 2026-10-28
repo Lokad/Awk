@@ -45,7 +45,7 @@ internal sealed class AwkRuntimeState : IDisposable
     private readonly AwkSpecialVariableDispatcher _specialVariables;
     private readonly AwkVariableRuntime _variableRuntime;
     private readonly AwkFunctionRuntime _functions;
-    private int[]? _globalReadSlots;
+    private AwkGlobalBinding[]? _globalReadSlots;
     private readonly AwkExecutionContextStack _executionContexts = new();
     private readonly AwkRangePatternRuntime _rangePatterns = new();
     private readonly AwkExecutionControlRuntime _executionControl = new();
@@ -90,7 +90,8 @@ internal sealed class AwkRuntimeState : IDisposable
             _variables.CreateValue,
             _variables.ContainsArray,
             _variables.RemoveFunctionLocalArray,
-            CancellationCheckpoint);
+            CancellationCheckpoint,
+            name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null);
         _regexRuntime = new AwkRegexRuntime(
             ResolveRegexCaseSensitivity,
             stringUnitMode,
@@ -135,7 +136,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 CancellationCheckpoint,
                 ValidateRecordSeparator, csvInput, ReportCsvAssignmentWarning);
             specialVariables = _specialVariables;
-            _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
+            _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint, Counters);
             _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
             _specialVariables.InitializeScalars(fieldSeparator);
             _recordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber));
@@ -668,10 +669,10 @@ internal sealed class AwkRuntimeState : IDisposable
         ThrowIfCancellationRequested();
         var bytes = AwkRuntimeMemory.EstimateGlobalReadSlotsBytes(count);
         MemoryAccounting.Reserve(bytes);
-        int[] slots;
+        AwkGlobalBinding[] slots;
         try
         {
-            slots = new int[count];
+            slots = new AwkGlobalBinding[count];
         }
         catch
         {
@@ -682,36 +683,50 @@ internal sealed class AwkRuntimeState : IDisposable
         _globalReadSlots = slots;
     }
 
-    // Zero is unknown, positive is scalar slot+1, -1 is an established ordinary global array.
-    // Array kind survives dictionary replacement; only function-local arrays can be removed.
-    internal bool TryUseBoundGlobalArray(int index)
+    internal bool TryGetBoundGlobalArray(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
         // Getline can run file actions inside a function; retain name resolution in that context.
-        if (index < 0 || _functions.IsInsideFunction) return false;
-        if (_globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index] == -1)
+        if (index >= 0 && !_functions.IsInsideFunction && _globalReadSlots is { } slots &&
+            (uint)index < (uint)slots.Length && slots[index].Array is { } bound)
         {
+            array = bound;
             Counters.RecordBoundGlobalArrayAccess();
             return true;
         }
+        array = null;
         return false;
     }
 
-    internal void BindGlobalArray(int index)
+    internal bool TryGetBoundArray(AwkArrayName name, int index,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        if (TryGetBoundGlobalArray(index, out array)) return true;
+        if (!name.IsFunctionLocal && _functions.TryGetBoundArray(new(name.Identifier), out array))
+        {
+            Counters.RecordBoundLocalArrayAccess();
+            return true;
+        }
+        array = null;
+        return false;
+    }
+
+    internal void BindGlobalArray(int index, AwkArrayName resolvedName)
     {
         if (index < 0 || _functions.IsInsideFunction) return;
-        if (_globalReadSlots is { } slots && (uint)index < (uint)slots.Length)
-            slots[index] = -1;
+        if (_globalReadSlots is { } slots && (uint)index < (uint)slots.Length &&
+            _variables.TryGetOrdinaryArray(resolvedName, out var array))
+            slots[index] = new(0, array);
     }
 
     // Bind only after the original operation succeeds; no failed admission can publish a binding.
     internal bool HasBoundGlobalScalar(int index) =>
-        _globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index] > 0;
+        _globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index].ScalarSlot > 0;
 
     internal bool TryResolvePreparedGlobalNumber(int index, out double number)
     {
         if (_globalReadSlots is { } slots)
         {
-            var encoded = slots[index];
+            var encoded = slots[index].ScalarSlot;
             if (encoded > 0 && _variables.TryGetScalarNumber(new AwkGlobalSlotId(encoded - 1), out number))
             {
                 Counters.RecordNumericGlobalRead();
@@ -726,16 +741,16 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (_globalReadSlots is not { } slots)
             return ResolveVariableValue(name);
-        var encoded = slots[index];
+        var encoded = slots[index].ScalarSlot;
         if (encoded > 0)
             return GetGlobalScalarValue(new AwkGlobalSlotId(encoded - 1));
 
-        if (encoded < 0)
+        if (slots[index].Array is not null)
             return ResolveVariableValue(name);
 
         var value = ResolveVariableValue(name);
         var slot = GetOrCreateGlobalScalarSlot(name);
-        slots[index] = slot.Value + 1;
+        slots[index] = new(slot.Value + 1, null);
         return value;
     }
 
@@ -765,13 +780,13 @@ internal sealed class AwkRuntimeState : IDisposable
             AssignVariableValue(name, value);
             return;
         }
-        var encoded = slots[index];
+        var encoded = slots[index].ScalarSlot;
         if (encoded > 0)
         {
             AssignVariableValue(new AwkGlobalSlotId(encoded - 1), value);
             return;
         }
-        if (encoded < 0)
+        if (slots[index].Array is not null)
         {
             AssignVariableValue(name, value);
             return;
@@ -780,7 +795,7 @@ internal sealed class AwkRuntimeState : IDisposable
         // Preserve first-write admission and failure timing; bind only after success.
         AssignVariableValue(name, value);
         var slot = GetOrCreateGlobalScalarSlot(name);
-        slots[index] = slot.Value + 1;
+        slots[index] = new(slot.Value + 1, null);
     }
 
     public void AssignVariable(AwkVariableName name, string value)
@@ -1126,12 +1141,12 @@ internal sealed class AwkRuntimeState : IDisposable
         return GetArrayAwkValue(name, ToArrayKey(field), globalIndex);
     }
 
-    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index)
+    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index, int globalIndex = -1)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key))
+            _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, globalIndex))
             return key;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return ToArrayKey(field);
@@ -1140,19 +1155,35 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetElementRuntimeKind(name, index);
 
-    public void GetArrayFieldTarget(AwkArrayName name, int index, out AwkArrayKey key, out AwkValue value)
+    public void GetArrayFieldTarget(AwkArrayName name, int index, out AwkArrayKey key, out AwkValue value, int globalIndex = -1)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedKeyValue(name, bytes, out key, out value))
+            _arrayRuntime.TryGetBorrowedKeyValue(name, bytes, out key, out value, globalIndex))
         {
             Counters.RecordBorrowedFieldTargetSnapshot();
             return;
         }
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         key = ToArrayKey(field);
-        value = GetArrayAwkValue(name, key);
+        value = GetArrayAwkValue(name, key, globalIndex);
+    }
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, double previous, int globalIndex) =>
+        new(key, previous, _arrayRuntime.FindOrdinaryArray(name, globalIndex));
+
+    internal AwkValue CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
+    {
+        var result = AwkValue.FromNumber(number);
+        if (target.Array is { } array)
+        {
+            // Read the owner's current dictionary after the RHS, including suspension.
+            _variables.SetArrayValue(array, target.Key, result);
+            Counters.RecordBoundArrayUpdate();
+        }
+        else SetArrayAwkValue(name, target.Key, result);
+        return result;
     }
 
     public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>

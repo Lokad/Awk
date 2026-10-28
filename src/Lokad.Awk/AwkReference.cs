@@ -237,7 +237,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
 
     protected override async ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context)
     {
-        var index = await IndexExpression.ResolveTargetKeyAsync(context, Variable).ConfigureAwait(false);
+        var index = await IndexExpression.ResolveTargetKeyAsync(context, Variable, GlobalIndex).ConfigureAwait(false);
         return AwkResolvedReference.ArrayElement(Variable, index);
     }
 
@@ -251,10 +251,10 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
             state.Checkpoint(); // Field expression, before its numeric index literal.
             // The shape check admits only NumberExpression, whose evaluation always completes synchronously.
             var field = AwkFieldIndex.FromNumber(indexExpression.ResolveNumberAsync(context).GetAwaiter().GetResult()).Value;
-            state.GetArrayFieldTarget(Variable, field, out var fieldKey, out var currentValue);
+            state.GetArrayFieldTarget(Variable, field, out var fieldKey, out var currentValue, GlobalIndex);
             return ApplyCompoundForValue(context, fieldKey, currentValue.AsNumber(state.CancellationCheckpoint), value, operation);
         }
-        var key = IndexExpression.ResolveTargetKeyAsync(context, Variable);
+        var key = IndexExpression.ResolveTargetKeyAsync(context, Variable, GlobalIndex);
         return key.IsCompletedSuccessfully
             ? ApplyCompoundForKey(context, key.Result, value, operation)
             : AwaitCompoundKeyAsync(context, key, value, operation);
@@ -268,7 +268,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
         var state = context.State;
-        var current = state.GetArrayAwkValue(Variable, key).AsNumber(state.CancellationCheckpoint);
+        var current = state.GetArrayAwkValue(Variable, key, GlobalIndex).AsNumber(state.CancellationCheckpoint);
         return ApplyCompoundForValue(context, key, current, value, operation);
     }
 
@@ -276,33 +276,54 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         double current, AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
         var state = context.State;
+        var target = state.PrepareArrayUpdate(Variable, key, current, GlobalIndex);
         var heldKey = state.MemoryAccounting.ReserveTransient(key.RetainedTextMemoryBytes);
         try
         {
             var right = value.ResolveNumberAsync(context);
             if (!right.IsCompletedSuccessfully)
-                return AwaitCompoundValueAsync(state, key, current, right, operation, heldKey);
-            var result = AssignCompound(state, key, current, right.Result, operation);
+                return AwaitCompoundValueAsync(state, target, right, operation, heldKey);
+            var result = AssignCompound(state, target, right.Result, operation);
             heldKey.Dispose();
             return ValueTask.FromResult(result);
         }
         catch { heldKey.Dispose(); throw; }
     }
 
-    private async ValueTask<AwkValue> AwaitCompoundValueAsync(AwkRuntimeState state, AwkArrayKey key,
-        double current, ValueTask<double> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
+    private async ValueTask<AwkValue> AwaitCompoundValueAsync(AwkRuntimeState state, AwkArrayUpdateTarget target,
+        ValueTask<double> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
     {
         using (heldKey)
-            return AssignCompound(state, key, current, await pending.ConfigureAwait(false), operation);
+            return AssignCompound(state, target, await pending.ConfigureAwait(false), operation);
     }
 
-    private AwkValue AssignCompound(AwkRuntimeState state, AwkArrayKey key, double current,
+    private AwkValue AssignCompound(AwkRuntimeState state, AwkArrayUpdateTarget target,
         double right, AwkCompoundAssignmentOperation operation)
     {
-        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(
-            current, right, operation));
-        state.SetArrayAwkValue(Variable, key, result);
-        return result;
+        return state.CommitArrayUpdate(Variable, target,
+            AwkNumericOperations.ApplyCompoundAssignment(target.Previous, right, operation));
+    }
+
+    protected override ValueTask<AwkValue> ApplyNumericUpdateAsync(AwkEvaluationContext context,
+        Func<double, double> update, AwkNumericUpdateResult resultSelection)
+    {
+        var pending = IndexExpression.ResolveTargetKeyAsync(context, Variable, GlobalIndex);
+        return pending.IsCompletedSuccessfully
+            ? ValueTask.FromResult(ApplyNumeric(context.State, pending.Result, update, resultSelection))
+            : AwaitNumericKey(context.State, pending, update, resultSelection);
+    }
+
+    private async ValueTask<AwkValue> AwaitNumericKey(AwkRuntimeState state, ValueTask<AwkArrayKey> pending,
+        Func<double, double> update, AwkNumericUpdateResult resultSelection) =>
+        ApplyNumeric(state, await pending.ConfigureAwait(false), update, resultSelection);
+
+    private AwkValue ApplyNumeric(AwkRuntimeState state, AwkArrayKey key,
+        Func<double, double> update, AwkNumericUpdateResult resultSelection)
+    {
+        var previous = state.GetArrayAwkValue(Variable, key, GlobalIndex).AsNumber(state.CancellationCheckpoint);
+        var target = state.PrepareArrayUpdate(Variable, key, previous, GlobalIndex);
+        var result = state.CommitArrayUpdate(Variable, target, update(previous));
+        return resultSelection == AwkNumericUpdateResult.Previous ? AwkValue.FromNumber(previous) : result;
     }
 }
 

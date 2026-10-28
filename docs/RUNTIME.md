@@ -105,6 +105,8 @@ Lowering's name-to-ordinal table is temporary; prepared execution retains its co
 bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
 remain execution-owned.
+Development source keeps an array's stable identity funded after `delete array` clears
+its entries/backing storage; that small owner retires with its execution or function scope.
 Source-directive preprocessing shares that frontend admission before token allocation.
 Replacement may need old/new overlap; streaming charges live storage, not cumulative I/O.
 

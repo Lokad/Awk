@@ -85,34 +85,59 @@ internal sealed class AwkArrayRuntime
 
     public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1)
     {
-        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveArrayReadName(name);
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+            return _variables.GetArrayValue(array, index);
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetExistingArrayValue(resolved, index, out var value))
         {
-            _state.BindGlobalArray(globalIndex);
+            _state.BindGlobalArray(globalIndex, resolved);
             return value;
         }
         using var admission = _variables.PreflightArrayElementRead(resolved, index);
-        var destination = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        var destination = _variableRuntime.ResolveOrPromoteArrayName(name);
         var result = _variables.GetArrayValue(destination, index);
-        _state.BindGlobalArray(globalIndex);
+        _state.BindGlobalArray(globalIndex, destination);
         return result;
     }
 
     public bool TryGetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value,
         int globalIndex = -1)
     {
-        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveArrayReadName(name);
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+            return _variables.TryGetArrayValue(array, index, out value);
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
         var found = _variables.TryGetExistingArrayValue(resolved, index, out value);
-        if (found) _state.BindGlobalArray(globalIndex);
+        if (found) _state.BindGlobalArray(globalIndex, resolved);
         return found;
     }
 
-    public bool TryGetBorrowedKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key) =>
-        _variables.TryGetExistingArrayKey(_variableRuntime.ResolveArrayReadName(name), index, out key);
+    public bool TryGetBorrowedKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key, int globalIndex = -1)
+    {
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+            return array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out _);
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
+        var found = _variables.TryGetExistingArrayKey(resolved, index, out key);
+        if (found) _state.BindGlobalArray(globalIndex, resolved);
+        return found;
+    }
 
     public bool TryGetBorrowedKeyValue(AwkArrayName name, ReadOnlySpan<byte> index,
-        out AwkArrayKey key, out AwkValue value) =>
-        _variables.TryGetExistingArrayKeyValue(_variableRuntime.ResolveArrayReadName(name), index, out key, out value);
+        out AwkArrayKey key, out AwkValue value, int globalIndex = -1)
+    {
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+            return _variables.TryGetArrayKeyValue(array, index, out key, out value);
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
+        var found = _variables.TryGetExistingArrayKeyValue(resolved, index, out key, out value);
+        if (found) _state.BindGlobalArray(globalIndex, resolved);
+        return found;
+    }
+
+    public AwkArrayIdentity? FindOrdinaryArray(AwkArrayName name, int globalIndex)
+    {
+        if (_state.TryGetBoundArray(name, globalIndex, out var array)) return array;
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
+        return _variables.TryGetOrdinaryArray(resolved, out array) ? array : null;
+    }
 
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)
     {
@@ -132,17 +157,20 @@ internal sealed class AwkArrayRuntime
 
     public bool ContainsValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1)
     {
-        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        if (_state.TryGetBoundArray(name, globalIndex, out var array)) return array.Slots.ContainsKey(index);
+        var resolved = _variableRuntime.ResolveOrPromoteArrayName(name);
         var found = _variables.ContainsArrayValue(resolved, index);
-        _state.BindGlobalArray(globalIndex);
+        _state.BindGlobalArray(globalIndex, resolved);
         return found;
     }
 
     public bool ContainsValue(AwkArrayName name, ReadOnlySpan<byte> index, int globalIndex = -1)
     {
-        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+            return array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().ContainsKey(index);
+        var resolved = _variableRuntime.ResolveOrPromoteArrayName(name);
         var found = _variables.ContainsArrayValue(resolved, index);
-        _state.BindGlobalArray(globalIndex);
+        _state.BindGlobalArray(globalIndex, resolved);
         return found;
     }
 
@@ -153,9 +181,14 @@ internal sealed class AwkArrayRuntime
 
     public void SetAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, int globalIndex = -1)
     {
-        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+        {
+            _variables.SetArrayValue(array, index, value);
+            return;
+        }
+        var resolved = _variableRuntime.ResolveOrPromoteArrayName(name);
         _variables.SetArrayValue(resolved, index, value);
-        _state.BindGlobalArray(globalIndex);
+        _state.BindGlobalArray(globalIndex, resolved);
     }
 
     public void DeleteValue(AwkArrayName name, AwkArrayKey index)

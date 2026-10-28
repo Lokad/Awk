@@ -6,7 +6,8 @@ internal sealed class AwkVariableRuntime(
     AwkVariables variables,
     AwkFunctionRuntime functions,
     AwkSpecialVariableDispatcher specialVariables,
-    Action? checkpoint = null)
+    Action? checkpoint = null,
+    AwkRuntimeCounters? counters = null)
 {
     public bool HasScalar(AwkVariableName name) =>
         ResolveName(name).Kind is
@@ -174,6 +175,7 @@ internal sealed class AwkVariableRuntime(
 
     public AwkArrayName ResolveOrPromoteArrayName(AwkArrayName name)
     {
+        counters?.RecordArrayNameResolution();
         if (name.IsFunctionLocal)
             return name;
 
@@ -218,6 +220,7 @@ internal sealed class AwkVariableRuntime(
 
     public AwkArrayName ResolveArrayReadName(AwkArrayName name)
     {
+        counters?.RecordArrayNameResolution();
         if (name.IsFunctionLocal)
             return name;
         if (functions.TryGetArrayReadName(new AwkVariableName(name.Identifier), out var local))

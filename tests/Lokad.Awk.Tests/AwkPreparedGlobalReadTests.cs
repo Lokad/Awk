@@ -25,9 +25,9 @@ public sealed class AwkPreparedGlobalReadTests
         var counters = state.Counters;
         var name = AwkVariableName.FromText("missing");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        Assert.Equal(4, Unsafe.SizeOf<int>());
         state.InitializeGlobalReadSlots(3);
-        Assert.Equal(24 + 3 * 4, state.MemoryAccounting.CurrentCommittedBytes - before);
+        Assert.Equal(24 + 3 * Unsafe.SizeOf<AwkGlobalBinding>(),
+            state.MemoryAccounting.CurrentCommittedBytes - before);
         Assert.False(state.HasScalar(name));
         var admitted = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);

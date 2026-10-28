@@ -10,7 +10,8 @@ internal sealed class AwkFunctionCallStack(
     AwkMemoryAccounting memoryAccounting,
     Func<AwkVariableSlot, AwkValue> createValue,
     Func<AwkArrayName, bool>? containsArray = null,
-    Action? checkpoint = null)
+    Action? checkpoint = null,
+    Func<AwkArrayName, AwkArrayIdentity?>? findArray = null)
 {
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
     private readonly Stack<AwkFunctionFrame> _frames = new();
@@ -106,7 +107,7 @@ internal sealed class AwkFunctionCallStack(
                 var argument = arguments[index];
                 slot = argument.Kind switch
                 {
-                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName),
+                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName, findArray?.Invoke(argument.ArrayName)),
                     AwkFunctionArgumentKind.PotentialArray =>
                         AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
                     AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
@@ -448,6 +449,24 @@ internal sealed class AwkFunctionCallStack(
             }
         }
         arrayName = default;
+        return false;
+    }
+
+    public bool TryGetBoundArray(AwkVariableName name, [NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        if (TryPeekLocalFrame(out var frame) && TryGetLocalSlot(frame, name, out var slotId, out var slot) &&
+            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+        {
+            if (slot.Value.TryGetArrayBinding(out array)) return true;
+            array = findArray?.Invoke(slot.ArrayName);
+            if (array is not null)
+            {
+                // The existing array owner funds its storage; this is a non-owning alias.
+                frame.GetSlot(slotId.Index) = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName, array);
+                return true;
+            }
+        }
+        array = null;
         return false;
     }
 

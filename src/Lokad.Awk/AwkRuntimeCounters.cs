@@ -209,6 +209,27 @@ internal sealed class AwkRuntimeCounters
 
     public long BoundGlobalArrayAccesses { get; private set; }
 
+    public long BoundLocalArrayAccesses { get; private set; }
+
+    public long BoundArrayUpdates { get; private set; }
+
+    public long ArrayNameResolutions { get; private set; }
+
+    public void RecordArrayNameResolution()
+    {
+        if (_enabled) lock (_sync) ArrayNameResolutions++;
+    }
+
+    public void RecordBoundArrayUpdate()
+    {
+        if (_enabled) lock (_sync) BoundArrayUpdates++;
+    }
+
+    public void RecordBoundLocalArrayAccess()
+    {
+        if (_enabled) lock (_sync) BoundLocalArrayAccesses++;
+    }
+
     public void RecordBoundGlobalArrayAccess()
     {
         if (_enabled) lock (_sync) BoundGlobalArrayAccesses++;

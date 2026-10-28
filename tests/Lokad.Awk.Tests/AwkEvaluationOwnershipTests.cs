@@ -4,6 +4,34 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkEvaluationOwnershipTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task ForwardedArrayUpdateSurvivesReplacementAndPendingHostOutput(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(32 << 20);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new OwnershipHost { PendingHeld = () => { entered.SetResult(); return release.Task; } };
+        const string script = "function reset(a){split(\"10 20\",a);x=\"\";print \"held\";return 3}" +
+            "function bump(p,key){return p[key]+=reset(p)}" +
+            "BEGIN{x=sprintf(\"%01000000d\",0);a[x]=7;print bump(a,x),a[1],a[2],length(a)}";
+        var execution = ExecuteAsync(script, host, budget, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved >= 1_000_000);
+        }
+        finally { release.TrySetResult(); }
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else Assert.Equal(0, (await execution).Value);
+        Assert.Equal(cancel ? "held\n" : "held\n10 10 20 3\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> Captures()
     {
         foreach (var expression in new[]

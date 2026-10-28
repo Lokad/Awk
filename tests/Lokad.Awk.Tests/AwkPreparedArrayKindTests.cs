@@ -47,7 +47,7 @@ public sealed class AwkPreparedArrayKindTests
         var error = Assert.Throws<AwkRuntimeException>(() =>
             state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), 0));
         Assert.Equal("awk: attempt to use scalar `a' as an array\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.False(state.TryUseBoundGlobalArray(0));
+        Assert.False(state.TryGetBoundGlobalArray(0, out _));
         Assert.Equal(3, state.ResolveVariableValue(Variable).AsNumber());
     }
 
@@ -126,7 +126,7 @@ public sealed class AwkPreparedArrayKindTests
         state.PushFunctionFrame(new([Variable]), [AwkFunctionArgument.Array(other)]);
         try { Assert.Equal(9, state.GetArrayAwkValue(Array, Key, 0).AsNumber()); }
         finally { state.PopFunctionFrame(); }
-        Assert.False(state.TryUseBoundGlobalArray(0));
+        Assert.False(state.TryGetBoundGlobalArray(0, out _));
         var error = Assert.Throws<AwkRuntimeException>(() =>
             state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), 0));
         Assert.Equal("awk: attempt to use scalar `a' as an array\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -144,12 +144,12 @@ public sealed class AwkPreparedArrayKindTests
         var reference = AwkReference.ArrayElement(Array, AwkArrayIndex.Simple(new PendingKey(completion.Task)), 0);
         var pending = reference.AssignValueAsync(new(state), AwkValue.FromNumber(7));
         Assert.False(pending.IsCompleted);
-        Assert.False(state.TryUseBoundGlobalArray(0));
+        Assert.False(state.TryGetBoundGlobalArray(0, out _));
         if (outcome == 0)
         {
             completion.SetResult(AwkValue.FromText("k"));
             await pending;
-            Assert.True(state.TryUseBoundGlobalArray(0));
+            Assert.True(state.TryGetBoundGlobalArray(0, out _));
             Assert.Equal(7, state.GetArrayAwkValue(Array, Key, 0).AsNumber());
         }
         else
@@ -164,7 +164,7 @@ public sealed class AwkPreparedArrayKindTests
                 completion.SetCanceled(new CancellationToken(true));
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.AsTask());
             }
-            Assert.False(state.TryUseBoundGlobalArray(0));
+            Assert.False(state.TryGetBoundGlobalArray(0, out _));
         }
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }

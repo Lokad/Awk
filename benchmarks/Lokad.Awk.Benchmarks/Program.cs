@@ -261,8 +261,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Memory peak |");
-        Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", 22)));
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Array names resolved | Bound array updates | Bound aliases | Memory peak |");
+        Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", 25)));
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -329,6 +329,9 @@ internal static class BenchmarkCounterReport
                     counters.RuneSliceBytesScanned.ToString(CultureInfo.InvariantCulture),
                     counters.RuneSliceIndexAllocations.ToString(CultureInfo.InvariantCulture),
                     counters.RuneSliceIndexBytes.ToString(CultureInfo.InvariantCulture),
+                    counters.ArrayNameResolutions.ToString(CultureInfo.InvariantCulture),
+                    counters.BoundArrayUpdates.ToString(CultureInfo.InvariantCulture),
+                    counters.BoundLocalArrayAccesses.ToString(CultureInfo.InvariantCulture),
                     counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));
 
             static string EscapeCell(string value) =>

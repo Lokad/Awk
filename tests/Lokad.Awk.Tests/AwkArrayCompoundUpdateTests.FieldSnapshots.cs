@@ -155,8 +155,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     private sealed record ForwardingFieldTarget(AwkArrayIndex Inner) : AwkArrayIndex
     {
         public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) => Inner.ResolveKeyAsync(context);
-        internal override ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array) =>
-            Inner.ResolveTargetKeyAsync(context, array);
+        internal override ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, int globalIndex = -1) =>
+            Inner.ResolveTargetKeyAsync(context, array, globalIndex);
     }
 
     private readonly record struct FieldTargetResult(bool Exists, double Value, int Effects, long Peak, long Snapshots, string Error);

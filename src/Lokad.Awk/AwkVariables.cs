@@ -147,6 +147,58 @@ internal sealed class AwkVariables
         !name.IsFunctionLocal && IsSymbolTable(name.Text) ||
         _arrays.Contains(name);
 
+    internal bool TryGetOrdinaryArray(AwkArrayName name,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        if (name.IsFunctionLocal || !AwkSpecialVariables.TryGet(name.Text, out _))
+            return _arrays.TryGetArray(name, out array);
+        array = null;
+        return false;
+    }
+
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, AwkArrayKey index)
+    {
+        var slots = array.Slots;
+        if (slots.TryGetValue(index, out var slot)) return CreateValue(slot);
+        return CreateMissingArrayValue(slots, index);
+    }
+
+    private AwkValue CreateMissingArrayValue(Dictionary<AwkArrayKey, AwkVariableSlot> slots, AwkArrayKey index)
+    {
+        using var admission = _memoryAccounting.AdmitMutation(EstimateArrayInsertionGrowth(slots,
+            AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index) - AwkRuntimeMemory.EstimateArrayBackingBytes(1)));
+        var slot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
+        SetArraySlot(slots, index, slot);
+        return CreateValue(slot);
+    }
+
+    internal bool TryGetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, out AwkValue value)
+    {
+        if (array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out var slot))
+        {
+            value = CreateValue(slot);
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    internal bool TryGetArrayKeyValue(AwkArrayIdentity array, ReadOnlySpan<byte> index,
+        out AwkArrayKey key, out AwkValue value)
+    {
+        if (array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out var slot))
+        {
+            value = CreateValue(slot);
+            return true;
+        }
+        key = default;
+        value = default;
+        return false;
+    }
+
+    internal void SetArrayValue(AwkArrayIdentity array, AwkArrayKey index, AwkValue value) =>
+        SetArraySlot(array.Slots, index, AwkVariableSlot.FromValue(value));
+
     public bool TryGetArrayCount(AwkArrayName name, out int count)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
@@ -384,11 +436,7 @@ internal sealed class AwkVariables
 
         if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode))
             throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
-        using var admission = _memoryAccounting.AdmitMutation(EstimateArrayInsertionGrowth(values,
-            AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index) - AwkRuntimeMemory.EstimateArrayBackingBytes(1)));
-        var untypedSlot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
-        SetArraySlot(values, index, untypedSlot);
-        return CreateValue(untypedSlot);
+        return CreateMissingArrayValue(values, index);
     }
 
     public bool TryPeekArrayValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)

@@ -35,6 +35,21 @@ internal readonly struct AwkVariableSlot
         Kind = AwkVariableSlotKind.Untyped;
     }
 
+    private AwkVariableSlot(AwkArrayIdentity array)
+    {
+        _text = array;
+        _number = 0;
+        Kind = AwkVariableSlotKind.ArrayBinding;
+    }
+
+    internal static AwkVariableSlot FromArrayBinding(AwkArrayIdentity array) => new(array);
+
+    internal bool TryGetArrayBinding([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        array = _text as AwkArrayIdentity;
+        return array is not null;
+    }
+
     private AwkVariableSlot(AwkText text, double number)
     {
         _text = text;
@@ -119,6 +134,7 @@ internal readonly struct AwkVariableSlot
         Func<AwkText, AwkValue> createDeferredTextValue) =>
         Kind switch
         {
+            AwkVariableSlotKind.ArrayBinding => throw new InvalidOperationException("An array binding is not a scalar slot."),
             AwkVariableSlotKind.Unassigned => AwkValue.Unassigned(),
             AwkVariableSlotKind.Untyped when _text is AwkUntypedScalar scalar => AwkValue.FromUntypedScalar(scalar),
             AwkVariableSlotKind.Number => AwkValue.FromNumber(_number),
@@ -136,5 +152,6 @@ internal enum AwkVariableSlotKind
     Number,
     NumericString,
     DeferredText,
-    PreparedNumericString
+    PreparedNumericString,
+    ArrayBinding
 }

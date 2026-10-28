@@ -16,7 +16,7 @@ internal abstract record AwkArrayIndex
     /// <summary>Evaluates every component and returns the byte-native key used by an awk array.</summary>
     public abstract ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context);
 
-    internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array) =>
+    internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, int globalIndex = -1) =>
         ResolveKeyAsync(context);
 }
 
@@ -28,14 +28,14 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
         return context.State.ToArrayKey(value);
     }
 
-    internal override async ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array)
+    internal override async ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, int globalIndex = -1)
     {
         if (!AwkExpression.TryGetFieldIndexExpression(Expression, out var indexExpression))
             return await ResolveKeyAsync(context).ConfigureAwait(false);
         // Retain the field expression's checkpoint before evaluating its index.
         context.State.Checkpoint();
         var index = AwkFieldIndex.FromNumber(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
-        return context.State.GetArrayFieldKey(array, index);
+        return context.State.GetArrayFieldKey(array, index, globalIndex);
     }
 }
 
