@@ -1,6 +1,12 @@
 # Benchmarks
 
-**Keyed aggregation (medium/large)** was measured **2026-10-28 UTC** at
+**Large keyed aggregation:** Lokad was measured **2026-10-29 UTC** at
+[`9326475`](https://github.com/Lokad/Awk/commit/93264757e773863a1bd9f05b35d70b55d2aa3fc1),
+using public parse/bind/execution with no shared admission. Its GNU awk 5.2.1 time retains
+the **2026-10-28 UTC** reference measurement; the ratio combines those explicitly dated results.
+Output was also checked against pinned GNU awk 5.3.2. This is development source after 0.4.0.
+
+**Medium keyed aggregation** retains **2026-10-28 UTC** measurements at
 [`ac67a0e`](https://github.com/Lokad/Awk/commit/ac67a0ec20967fac9e950c54a6f76e4c699d2490),
 against **GNU awk 5.2.1**. It uses development source after 0.4.0.
 
@@ -12,7 +18,7 @@ Record rebuilding and join rows (medium/large), plus medium projection,
 filtering and two-argument calls, retain **2026-10-28 UTC** measurements at
 [`65ef007`](https://github.com/Lokad/Awk/commit/65ef0078a7348a7b232eef5465cd9ec3f006571e),
 against **GNU awk 5.2.1**. These seven retained rows use the published **0.4.0** runtime source
-with an independent development package identity. All ten rows measured on this date use the interpreter, default policy
+with an independent development package identity. These rows use the interpreter, default policy
 (UTC timezone), no shared admission, and the source adapter with published Utf8Regex 0.4.0;
 the selected scripts do not invoke regex matching. Timing and allocation runs have passing
 pre/middle/post quiet checks and verified output equality.
@@ -92,7 +98,7 @@ focuses on numeric width and short separators. Both include normal output consum
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Keyed sum / sorted output (GNU) | 384.00 | 37.640 | 6.325 | 5.95× | 9.45 |
+| Keyed sum / sorted output (GNU) | 384.00 | 36.405 | 6.325 | 5.76× | 9.45 |
 | Copy field / rebuild record | 960.00 | 55.287 | 10.051 | 5.50× | 24.90 |
 | Two-file membership / join | 1,386.30 | 122.417 | 29.896 | 4.09× | 39.99 |
 
