@@ -4,6 +4,10 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordValueCases() =>
     [
+        Passing("record-value-helper-composite-prefix-before-later-call", ["function id(x){return x} function change(){$0=\"later tail\";return $1} BEGIN{$0=\"0007 kept\";a[id($1),change()]=1;print ((\"0007\" SUBSEP \"later\") in a),$0}"], [],
+            "1 later tail\n"),
+        Passing("record-value-returned-argument-key-after-record-replacement", ["function keep(x,y){return x} function change(){$0=\"later tail\";return \"key\"} BEGIN{$0=\"0007 kept\";a[keep($1,change()),\"x\"]=1;print ((\"0007\" SUBSEP \"x\") in a),$0}"], [],
+            "1 later tail\n"),
         Passing("record-value-helper-arithmetic-local", ["function add(x,t){t=x+1;return t} {print add($2),\"[\"$2\"]\",typeof($2)}"], [],
             "8 [0007] strnum\n10 [9] strnum\n", "a 0007\nb 9\n"),
         Passing("record-value-return-keeps-spelling", ["function id(x){return x} {v=id($2);$0=\"q r\";print \"[\"v\"]\",typeof(v),(v==7),(v==\"7\")}"], [],
