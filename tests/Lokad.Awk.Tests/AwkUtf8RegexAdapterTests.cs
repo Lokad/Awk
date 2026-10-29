@@ -66,6 +66,39 @@ public sealed class AwkUtf8RegexAdapterTests
         Assert.True(pattern.IsMatch("zab"u8, CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData("(?<42>é)(?<100>😀)?", "xé😀", 0)]
+    [InlineData("(?<=é)(😀)?$", "é😀", 1)]
+    [InlineData("(a|ab)(b)?", "zab", 0)]
+    [InlineData("(x)?$", "é😀", 3)]
+    public void RangeOnlyAndDetailedSearchKeepSelectionAndCoordinates(string source, string input, int offset)
+    {
+        using var pattern = Compile(source);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+        var captures = new AwkRegexCaptureRange[pattern.GroupCount];
+        var detailed = pattern.Match(bytes, offset, captures, CancellationToken.None);
+        Assert.Equal(detailed, pattern.Match(bytes, offset, [], CancellationToken.None));
+        Assert.Equal(detailed, captures[0]);
+    }
+
+    [Fact]
+    public void SparseProviderGroupsFillDenseAwkSlots()
+    {
+        using var pattern = Compile("(?<42>é)(?<100>😀)?");
+        Span<AwkRegexCaptureRange> captures = stackalloc AwkRegexCaptureRange[3];
+        var whole = pattern.Match("xé😀"u8, 0, captures, CancellationToken.None);
+        Assert.Equal(new(true, 1, 6, 1, 3, true), whole);
+        Assert.Equal(new(true, 1, 2, 1, 1, true), captures[1]);
+        Assert.Equal(new(true, 3, 4, 2, 2, true), captures[2]);
+    }
+
+    [Fact]
+    public void RangeOnlyMissReturnsTheDefaultAwkRange()
+    {
+        using var pattern = Compile("missing");
+        Assert.Equal(default, pattern.Match("é😀"u8, 0, [], CancellationToken.None));
+    }
+
     [Fact]
     public void AdapterDoesNotJoinSurrogateAtomsAcrossGroups()
     {

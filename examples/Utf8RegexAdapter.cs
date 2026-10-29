@@ -7,8 +7,9 @@ namespace Lokad.Awk.Examples;
 /// <summary>Application-side integration example for the published Lokad.Utf8Regex API.</summary>
 /// <remarks>The pinned package has known POSIX selection gaps; this is not a qualified
 /// general AWK provider. This adapter adds no input copies or capture-text allocations. Producer internals
-/// use coarse shared-budget admission owned by compiled handles and active matches;
-/// no independent allowance or governor is created.</remarks>
+/// are not connected to the host budget by the published API. This adapter reserves coarse estimates
+/// for compiled handles and active searches; these are not full engine-allocation coverage.
+/// No independent allowance or governor is created.</remarks>
 public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
 {
     /// <summary>Gets the stateless shared engine. Compiled handles remain execution-owned.</summary>
@@ -48,6 +49,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
     {
         private ProducerRegex? _regex;
         private readonly IMemoryBudget? _budget;
+        private readonly int[] _groupNumbers;
         private IMemoryReservation? _storage;
 
         public CompiledPattern(ProducerRegex regex, IMemoryBudget? budget, IMemoryReservation? storage)
@@ -55,10 +57,10 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             _regex = regex;
             _budget = budget;
             _storage = storage;
-            GroupCount = regex.GetGroupNames().Length;
+            _groupNumbers = regex.GetGroupNumbers();
         }
 
-        public int GroupCount { get; }
+        public int GroupCount => _groupNumbers.Length;
 
         private ProducerRegex Regex => _regex ?? throw new ObjectDisposedException(nameof(CompiledPattern));
 
@@ -80,6 +82,15 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             cancellationToken.ThrowIfCancellationRequested();
             var regex = Regex;
             using var scratch = ReserveMatch(input.Length, captures.Length);
+            if (captures.IsEmpty)
+            {
+                var range = regex.MatchFromUtf16Offset(input, startInUtf16, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!range.Success) return default;
+                return new(range.Success, range.IsByteAligned ? range.IndexInBytes : 0,
+                    range.IsByteAligned ? range.LengthInBytes : 0, range.IndexInUtf16,
+                    range.LengthInUtf16, range.IsByteAligned);
+            }
             var match = regex.MatchDetailedFromUtf16Offset(input, startInUtf16, cancellationToken);
             if (!match.Success)
             {
@@ -90,7 +101,8 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             for (var index = 0; index < captures.Length; index++)
             {
                 if ((index & 1023) == 0) cancellationToken.ThrowIfCancellationRequested();
-                var group = match.GetGroup(index);
+                // AWK slots are dense; provider group numbers may be sparse.
+                var group = match.GetGroup(_groupNumbers[index]);
                 var aligned = group.IsByteAligned;
                 captures[index] = new(group.Success, aligned ? group.IndexInBytes : 0,
                     aligned ? group.LengthInBytes : 0, group.IndexInUtf16, group.LengthInUtf16, aligned);

@@ -216,7 +216,9 @@ prepared programs share no compiled handles between executions.
 The [source adapter example](../examples/README.md) is compiled into tests and benchmark
 tools against published **Lokad.Utf8Regex 0.4.0**, never a sibling source checkout. It passes
 UTF-8 spans without adding input/capture-text copies and funds handles and per-call scratch
-through the borrowed budget. Compilation and searches use the producer's cooperative token
+with coarse estimates through the borrowed budget. The published provider has no shared-budget
+hook; these estimates do not cover every engine allocation. Range-only searches avoid detailed
+capture shaping, and sparse provider groups map to dense AWK slots. Compilation and searches use the producer's cooperative token
 APIs without independent construction or matching deadlines. A compiled handle does not
 retain its compilation token. POSIX longest-match and subcapture selection remain conformance
 gaps; the example is not a qualified general AWK provider. CI explicitly skips those

@@ -25,4 +25,7 @@ capture ranges, owns its compiled handles and per-call admission, and adds no in
 Compilation and each search receive the current cancellation token through the producer's
 cooperative APIs. The compilation token is not retained by a reusable handle. Producer match
 and construction timeouts are disabled; no adapter clock or core fallback is involved.
+The published API has no shared-budget hook. Handle and search reservations are coarse
+adapter estimates, not complete coverage of engine allocations. Range-only searches use the
+provider's value-match API; capture searches map defined provider groups to dense AWK slots.
 See [runtime responsibilities](../docs/RUNTIME.md#regex-engines).

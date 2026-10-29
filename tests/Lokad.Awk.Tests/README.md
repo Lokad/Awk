@@ -36,6 +36,10 @@ focused selection cases are deferred. Other regex, translation, host, cancellati
 capture-publication and ownership checks remain active.
 New failures are not automatically added to this list.
 
+Adapter boundary checks cover range-only versus detailed selection, dense publication of sparse
+provider groups, token forwarding and disposal. Published0.4.0 has no shared-budget hook; the
+adapter's handle/search reservations are coarse estimates, not full engine allocation admission.
+
 Before adopting a provider release, set `AwkRegexProviderGaps.SkipReason` to `null` locally
 and run the full suite. Qualify the unchanged semantic expectations, then remove resolved
 entries/skip annotations. Green CI with these deferrals does not establish complete regex
