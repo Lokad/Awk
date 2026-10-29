@@ -190,9 +190,8 @@ public sealed class AwkFieldMutationCancellationTests
         if (operation == "field")
         {
             expected += AwkRuntimeMemory.EstimateTextBytes(AwkText.FromSourceLiteralString("tail"));
-            // Cache backing storage uses a coarse capacity estimate. A duplicated staging
-            // charge is hundreds of KiB and cannot hide within this small cache allowance.
-            Assert.InRange(governor.CurrentCommittedBytes, expected, expected + 1_024);
+            expected += AwkRuntimeMemory.EstimateFieldValueListBytes(4);
+            Assert.Equal(expected, governor.CurrentCommittedBytes);
         }
         else
             Assert.Equal(expected, governor.CurrentCommittedBytes);

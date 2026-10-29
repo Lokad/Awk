@@ -138,8 +138,8 @@ public sealed class AwkIncrementalFieldTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, " ");
-        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", 8))), splitter.CaptureRecordPlan());
-        Assert.Equal(8, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", 1024))), splitter.CaptureRecordPlan());
+        Assert.Equal(1024, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
         frame.SetRecordText(AwkText.FromSourceLiteralString("small row"), splitter.CaptureRecordPlan());
         Assert.Equal("small", Read(frame, splitter, 1));
         Assert.Equal(0, counters.FieldListBufferReuses);
