@@ -78,6 +78,13 @@ internal sealed class AwkRuntimeCounters
     }
     public long FieldListBufferReuses { get; private set; }
 
+    public long FieldValueCacheBufferAllocations { get; private set; }
+
+    public void RecordFieldValueCacheBufferAllocation()
+    {
+        if (_enabled) lock (_sync) FieldValueCacheBufferAllocations++;
+    }
+
     public long FieldSplits { get; private set; }
 
     public long WhitespaceFieldSearches { get; private set; }

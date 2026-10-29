@@ -15,12 +15,13 @@ internal readonly struct AwkFieldText
     private readonly int _start;
     private readonly int _length;
 
-    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length)
+    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length, int cacheSlot = 0)
     {
         Kind = kind;
         _ownedText = ownedText;
         _start = start;
         _length = length;
+        CacheSlot = cacheSlot;
     }
 
     public static AwkFieldText Empty { get; } =
@@ -39,6 +40,11 @@ internal readonly struct AwkFieldText
             : new AwkFieldText(AwkFieldTextKind.RecordSlice, AwkText.Empty, start, length);
 
     public AwkFieldTextKind Kind { get; }
+
+    // Zero means no cached scalar. The owning frame interprets this slot; byte views ignore it.
+    internal int CacheSlot { get; }
+
+    internal AwkFieldText WithCacheSlot(int slot) => new(Kind, _ownedText, _start, _length, slot);
 
     public long RetainedTextByteLength =>
         Kind == AwkFieldTextKind.Owned

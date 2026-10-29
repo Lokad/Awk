@@ -44,7 +44,7 @@ public sealed class AwkFieldCapacityTests
         var (frame, record, _) = Frame(accounting, counters, 64);
         Grow(frame, operation, target);
         var capacity = target >= 2048 ? target : 128;
-        var cacheBytes = operation == "field" ? 320 : 0;
+        var cacheBytes = operation == "field" ? AwkRuntimeMemory.EstimateFieldValueListBytes(4) : 0;
         Assert.Equal(target, frame.GetFieldCount(NoSplit));
         Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(capacity) + cacheBytes +
             (operation == "reference" ? 0 : Space.EstimatedRetainedMemoryBytes),
@@ -146,7 +146,7 @@ public sealed class AwkFieldCapacityTests
         Assert.Equal(100, fields.Count);
         Assert.Equal(128, fields.Capacity);
         Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(128) +
-            (operation == "field" ? 320 : 0) +
+            (operation == "field" ? AwkRuntimeMemory.EstimateFieldValueListBytes(4) : 0) +
             (operation == "reference" ? 0 : Space.EstimatedRetainedMemoryBytes), accounting.CurrentCommittedBytes);
         frame.ResetRecord();
         AssertRefunded(accounting, budget);

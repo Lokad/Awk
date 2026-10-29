@@ -110,16 +110,14 @@ internal sealed class AwkMemoryAccounting
     // separate reservation and commit so failure can preserve prior state.
     public void ReserveAndCommit(long byteCount)
     {
-        Reserve(byteCount);
-        try
-        {
-            CommitReserved(byteCount);
-        }
-        catch
-        {
-            ReleaseReserved(byteCount);
-            throw;
-        }
+        if (!IsEnabled || byteCount <= 0)
+            return;
+
+        var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes, byteCount);
+        var liveBytes = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, committed);
+        ResizeOwner(liveBytes);
+        CurrentCommittedBytes = committed;
+        _counters.RecordMemoryLiveBytes(liveBytes);
     }
 
     public AwkMemoryLease CreateTransientLease() =>

@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static AwkGoldenCase[] FieldCountValueCompatibilityRepairs() =>
     [
+        Passing("field-values-survive-out-of-order-reads-truncation-and-growth",
+            ["BEGIN{$0=\"a b c d e f g h\";g=$7;b=$2;f=$6;a=$1;d=$4;NF=4;print $1,$2,$4,g,b,f,a,d;$8=8;print ($6==\"\"),($7==\"\"),NF;$2=42;NF=2;print $0,$1,$2}"],
+            [], "a b d g b f a d\n1 1 8\na 42 a 42\n"),
         Passing("nf-fractional-value-and-in-range-field-write",
             ["BEGIN{$0=\"a b c\";NF=1.8;print NF,typeof(NF),$1,$2,\"[\"$0\"]\";$1=\"z\";print NF,\"[\"$0\"]\"}"],
             [], "1.8 number a  [a]\n1.8 [z]\n"),

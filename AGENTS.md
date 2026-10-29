@@ -29,6 +29,9 @@ or environment dependencies.
   qualification machinery. Internal prepared programs prepare interpreter execution only.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
+- Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
+  split completion, staged field changes and reconstruction. Escaping scalar values own their text;
+  byte views do not interpret cache slots.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
 - Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one
