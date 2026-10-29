@@ -185,32 +185,48 @@ public sealed class AwkParagraphEofTests
     [Fact]
     public async Task RepeatedRetainedPipeEofDoesNotAllocateOrRescanLeaders()
     {
-        var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(new byte[] { 10, 10 }, [1], AwkReadCompletion.EndOfFile));
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
-        state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
-        using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
-        for (var index = 0; index < 16; index++)
-            _ = await cursor.ReadAsync();
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (var index = 0; index < 1_000; index++)
-            _ = await cursor.ReadAsync();
-
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        var result = await Task.Factory.StartNew(static () =>
+        {
+            var host = new TestOperationVisitor([]);
+            host.EnqueueAwkReadResult(AwkReadResult.FromContent(new byte[] { 10, 10 }, [1], AwkReadCompletion.EndOfFile));
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
+            state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
+            var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+            using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
+            // Match the other exact allocation guards: keep runner/GC/pool work
+            // outside this thread's warm EOF reads, without relaxing the ceiling.
+            Assert.True(GC.TryStartNoGCRegion(16 << 20));
+            try
+            {
+                GC.WaitForPendingFinalizers();
+                for (var index = 0; index < 16; index++)
+                    _ = cursor.ReadAsync().GetAwaiter().GetResult();
+                var committed = state.MemoryAccounting.CurrentCommittedBytes;
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var index = 0; index < 1_000; index++)
+                {
+                    var pending = cursor.ReadAsync();
+                    if (!pending.IsCompletedSuccessfully || pending.Result.HasRecord)
+                        throw new InvalidOperationException("Retained EOF must complete synchronously without a record.");
+                }
+                return (Allocated: GC.GetAllocatedBytesForCurrentThread() - before,
+                    CommittedBefore: committed, CommittedAfter: state.MemoryAccounting.CurrentCommittedBytes,
+                    Scanned: counters.RecordSeparatorBytesScanned, Records: counters.RecordsRead,
+                    Decodes: counters.StringDecodes, Reads: host.ReadLineBatchLineCounts.Count);
+            }
+            finally { GC.EndNoGCRegion(); }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 #if DEBUG
-        Assert.InRange(allocated, 0, 224_000);
+        Assert.InRange(result.Allocated, 0, 224_000);
 #else
-        Assert.Equal(0, allocated);
+        Assert.Equal(0, result.Allocated);
 #endif
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(2, counters.RecordSeparatorBytesScanned);
-        Assert.Equal(0, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Single(host.ReadLineBatchLineCounts);
+        Assert.Equal(result.CommittedBefore, result.CommittedAfter);
+        Assert.Equal(2, result.Scanned);
+        Assert.Equal(0, result.Records);
+        Assert.Equal(0, result.Decodes);
+        Assert.Equal(1, result.Reads);
     }
 
     [Theory]
