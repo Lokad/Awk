@@ -21,6 +21,12 @@ internal sealed class AwkRuntimeCounters
     public long ArrayContainerCacheHits { get; private set; }
 
     public long BorrowedFieldTargetSnapshots { get; private set; }
+    public long NumericArraySlotReads { get; private set; }
+
+    public void RecordNumericArraySlotRead()
+    {
+        if (_enabled) lock (_sync) NumericArraySlotReads++;
+    }
 
     public long BorrowedFieldSubstrings { get; private set; }
 

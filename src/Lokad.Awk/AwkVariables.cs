@@ -164,6 +164,29 @@ internal sealed partial class AwkVariables
         return CreateMissingArrayValue(array, index);
     }
 
+    internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey index)
+    {
+        ThrowIfDetached(array);
+        return array.Slots.TryGetValue(index, out var slot)
+            ? ReadArraySlotNumber(slot)
+            : CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
+    }
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
+    {
+        ThrowIfDetached(array);
+        if (array.Slots.TryGetValue(index, out var slot))
+            return new(index, ReadArraySlotNumber(slot), array);
+        return new(index, CreateMissingArrayValue(array, index).AsNumber(_checkpoint), array);
+    }
+
+    internal double ReadArraySlotNumber(AwkVariableSlot slot)
+    {
+        if (!slot.TryGetNumber(out var number)) return CreateValue(slot).AsNumber(_checkpoint);
+        _counters.RecordNumericArraySlotRead();
+        return number;
+    }
+
     private AwkValue CreateMissingArrayValue(AwkArrayIdentity array, AwkArrayKey index)
     {
         var slots = array.Slots;
@@ -185,18 +208,9 @@ internal sealed partial class AwkVariables
         return false;
     }
 
-    internal bool TryGetArrayKeyValue(AwkArrayIdentity array, ReadOnlySpan<byte> index,
-        out AwkArrayKey key, out AwkValue value)
-    {
-        if (array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out var slot))
-        {
-            value = CreateValue(slot);
-            return true;
-        }
-        key = default;
-        value = default;
-        return false;
-    }
+    internal bool TryGetArrayKeySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index,
+        out AwkArrayKey key, out AwkVariableSlot slot) =>
+        array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out slot);
 
     internal void SetArrayValue(AwkArrayIdentity array, AwkArrayKey index, AwkValue value)
     {

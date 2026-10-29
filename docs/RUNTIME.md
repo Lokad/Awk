@@ -107,6 +107,8 @@ Executions borrow the program's immutable function lookup; frames, locals and mu
 remain execution-owned.
 Development source keeps an array's stable identity funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
+Numeric updates capture their key and prior value before the RHS; commit uses the owner's
+current storage and resolves a detached target again without reevaluating its key.
 Nested-array storage belongs to its parent. Captured path keys stay funded through later
 mutation and actual completion of pending host operations; deleting an entry does not
 authorize an unfunded write through a removed child.

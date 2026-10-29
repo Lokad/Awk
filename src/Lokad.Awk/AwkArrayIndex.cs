@@ -18,10 +18,39 @@ internal abstract record AwkArrayIndex
 
     internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, int globalIndex = -1) =>
         ResolveKeyAsync(context);
+
+    internal virtual ValueTask<AwkArrayUpdateTarget> PrepareUpdateAsync(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1)
+    {
+        var key = ResolveTargetKeyAsync(context, array, globalIndex);
+        return key.IsCompletedSuccessfully
+            ? ValueTask.FromResult(context.State.PrepareArrayUpdate(array, key.Result, globalIndex))
+            : AwaitUpdateKeyAsync(context, array, globalIndex, key);
+    }
+
+    private static async ValueTask<AwkArrayUpdateTarget> AwaitUpdateKeyAsync(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex, ValueTask<AwkArrayKey> pending) =>
+        context.State.PrepareArrayUpdate(array, await pending.ConfigureAwait(false), globalIndex);
 }
 
 internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayIndex
 {
+    internal override ValueTask<AwkArrayUpdateTarget> PrepareUpdateAsync(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1)
+    {
+        if (!AwkExpression.TryGetFieldIndexExpression(Expression, out var indexExpression))
+            return base.PrepareUpdateAsync(context, array, globalIndex);
+        context.State.Checkpoint();
+        var index = indexExpression.ResolveNumberAsync(context);
+        return index.IsCompletedSuccessfully
+            ? ValueTask.FromResult(context.State.PrepareArrayFieldUpdate(array, AwkFieldIndex.FromNumber(index.Result).Value, globalIndex))
+            : AwaitFieldUpdateAsync(context, array, globalIndex, index);
+    }
+
+    private static async ValueTask<AwkArrayUpdateTarget> AwaitFieldUpdateAsync(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex, ValueTask<double> pending) =>
+        context.State.PrepareArrayFieldUpdate(array, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, globalIndex);
+
     public override async ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context)
     {
         var value = await Expression.EvaluateAsync(context).ConfigureAwait(false);

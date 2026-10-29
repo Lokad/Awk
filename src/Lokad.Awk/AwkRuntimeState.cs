@@ -1150,6 +1150,9 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkValue GetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key) =>
         _variables.GetArrayValue(array, key);
 
+    internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey key) =>
+        _variables.GetArrayNumber(array, key);
+
     internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
         _variables.SetArrayValue(array, key, value);
 
@@ -1181,23 +1184,22 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetElementRuntimeKind(name, index);
 
-    public void GetArrayFieldTarget(AwkArrayName name, int index, out AwkArrayKey key, out AwkValue value, int globalIndex = -1)
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, int globalIndex = -1)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedKeyValue(name, bytes, out key, out value, globalIndex))
+            _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, globalIndex))
         {
             Counters.RecordBorrowedFieldTargetSnapshot();
-            return;
+            return target;
         }
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        key = ToArrayKey(field);
-        value = GetArrayAwkValue(name, key, globalIndex);
+        return PrepareArrayUpdate(name, ToArrayKey(field), globalIndex);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, double previous, int globalIndex) =>
-        new(key, previous, _arrayRuntime.FindOrdinaryArray(name, globalIndex));
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
+        _arrayRuntime.PrepareUpdate(name, key, globalIndex);
 
     internal AwkValue CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
     {

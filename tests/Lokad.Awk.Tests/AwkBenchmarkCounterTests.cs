@@ -418,6 +418,18 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task NumericArrayUpdatesReadStoredNumbersWithoutTextConversion()
+    {
+        var result = await RunAsync(["BEGIN{a[\"x\"]=1;for(i=0;i<100;i++)a[\"x\"]+=2;a[\"nested\"][\"y\"]=3;a[\"nested\"][\"y\"]++;print a[\"x\"],a[\"nested\"][\"y\"]}"], "", false);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("201 4\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(result.Counters.NumericArraySlotReads >= 101);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Fact]
     public async Task ParsedScalarLengthUsesExistingPreparedBindings()
     {
         const string source = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";

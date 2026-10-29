@@ -6,6 +6,8 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("array-identity-dynamic-field-prefix-postfix", ["BEGIN{$0=\"k other\";i=1;a[\"k\"]=\"0007\";print a[$i]++,++a[$(i+0)],a[\"k\"]}"], [],
+            "7 9 9\n"),
         AwkGoldenCaseBuilder.Create("array-identity-clear-rhs",
             ["function f(){delete a;a[\"other\"]=17;return 3} BEGIN{a[\"k\"]=5;a[\"k\"]+=f();print a[\"k\"],a[\"other\"],length(a)}"], [])
             .WithStdOut("8 17 2\n")

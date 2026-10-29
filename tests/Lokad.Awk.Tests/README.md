@@ -223,4 +223,8 @@ semantic, cancellation and memory-lifetime coverage runs outside those regions.
 
 ## Review Gates
 
+Array-update checks cover numeric slot reads, dynamic/suspending field selection, captured
+keys/prior values through RHS mutation, and the existing nested-path/virtual-array behavior.
+Numeric preparation does not replace missing-read, membership, refusal or cleanup assertions.
+
 Every new awk feature, compatibility decision, or diagnostic needs a golden case unless the behavior is only observable at a narrower structural layer. Parser and runtime refactors should state which duplicate current-surface or end-to-end tests were removed, narrowed, or intentionally retained.

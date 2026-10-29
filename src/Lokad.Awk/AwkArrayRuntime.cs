@@ -174,22 +174,58 @@ internal sealed class AwkArrayRuntime
         return found;
     }
 
-    public bool TryGetBorrowedKeyValue(AwkArrayName name, ReadOnlySpan<byte> index,
-        out AwkArrayKey key, out AwkValue value, int globalIndex = -1)
+    public bool TryPrepareBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
+        out AwkArrayUpdateTarget target, int globalIndex = -1)
     {
         if (_state.TryGetBoundArray(name, globalIndex, out var array))
-            return _variables.TryGetArrayKeyValue(array, index, out key, out value);
+        {
+            if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
+            {
+                target = new(key, _variables.ReadArraySlotNumber(slot), array);
+                return true;
+            }
+            target = default;
+            return false;
+        }
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        var found = _variables.TryGetExistingArrayKeyValue(resolved, index, out key, out value);
-        if (found) _state.BindGlobalArray(globalIndex, resolved);
-        return found;
+        if (_variables.TryGetOrdinaryArray(resolved, out array))
+        {
+            if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
+            {
+                _state.BindGlobalArray(globalIndex, resolved);
+                target = new(key, _variables.ReadArraySlotNumber(slot), array);
+                return true;
+            }
+        }
+        else if (_variables.TryGetExistingArrayKeyValue(resolved, index, out var key, out var value))
+        {
+            _state.BindGlobalArray(globalIndex, resolved);
+            target = new(key, value.AsNumber(_state.CancellationCheckpoint), null);
+            return true;
+        }
+        target = default;
+        return false;
     }
 
-    public AwkArrayIdentity? FindOrdinaryArray(AwkArrayName name, int globalIndex)
+    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, int globalIndex)
     {
-        if (_state.TryGetBoundArray(name, globalIndex, out var array)) return array;
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+            return _variables.PrepareArrayUpdate(array, key);
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        return _variables.TryGetOrdinaryArray(resolved, out array) ? array : null;
+        if (_variables.TryGetOrdinaryArray(resolved, out array) && array.Slots.TryGetValue(key, out var slot))
+        {
+            _state.BindGlobalArray(globalIndex, resolved);
+            return new(key, _variables.ReadArraySlotNumber(slot), array);
+        }
+        // Keep missing-read promotion/admission and special-array behavior in their
+        // established order. The already-bound ordinary path above needs no second resolve.
+        var previous = GetAwkValue(name, key, globalIndex).AsNumber(_state.CancellationCheckpoint);
+        if (!_state.TryGetBoundArray(name, globalIndex, out array))
+        {
+            resolved = _variableRuntime.ResolveArrayReadName(name);
+            _variables.TryGetOrdinaryArray(resolved, out array);
+        }
+        return new(key, previous, array);
     }
 
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)

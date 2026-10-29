@@ -6,6 +6,51 @@ public sealed partial class AwkArrayCompoundUpdateTests
         AwkExpression.FieldIndex(AwkExpression.Number(index)));
 
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task DynamicFieldSelectionCompletesBeforeTargetReadAndSurvivesPendingRight(bool pendingIndex, bool pendingRight)
+    {
+        using var memory = State();
+        var state = memory.State;
+        var name = AwkArrayName.FromText("values");
+        var key = new AwkArrayKey("selected");
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(11));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("earlier row"));
+        var selector = new ValueSource(1, pendingIndex);
+        var selectorEffects = 0;
+        var index = AwkArrayIndex.Simple(AwkExpression.FieldIndex(new EffectExpression(selector, () =>
+        {
+            selectorEffects++;
+            if (!pendingIndex) state.SetCurrentRecord(AwkText.FromSourceLiteralString("selected row"));
+        })));
+        var right = new ValueSource(3, pendingRight);
+        var update = AwkReference.ArrayElement(name, index).ApplyCompoundAssignmentAsync(new(state),
+            new EffectExpression(right, () =>
+            {
+                state.DeleteArrayValue(name, key);
+                state.SetCurrentRecord(AwkText.FromSourceLiteralString("later row"));
+                state.SetArrayAwkValue(name, key, AwkValue.FromNumber(100));
+            }), AwkCompoundAssignmentOperation.Add);
+        if (pendingIndex)
+        {
+            Assert.False(update.IsCompleted);
+            Assert.Equal(0, state.Counters.BorrowedFieldTargetSnapshots);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("selected row"));
+            selector.Complete();
+        }
+        if (pendingRight) right.Complete();
+        Assert.Equal(14, (await update).AsNumber());
+        Assert.Equal(14, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("earlier")));
+        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("later")));
+        Assert.Equal(1, selectorEffects);
+        Assert.Equal(1, selector.Consumptions);
+        Assert.Equal(1, right.Consumptions);
+        Assert.Equal(1, state.Counters.BorrowedFieldTargetSnapshots);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task LiteralFieldSnapshotSurvivesPendingRightAndRecordReuse(bool pending)
