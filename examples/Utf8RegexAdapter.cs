@@ -49,7 +49,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
     {
         private ProducerRegex? _regex;
         private readonly IMemoryBudget? _budget;
-        private readonly int[] _groupNumbers;
+        private int[] _groupNumbers;
         private IMemoryReservation? _storage;
 
         public CompiledPattern(ProducerRegex regex, IMemoryBudget? budget, IMemoryReservation? storage)
@@ -58,9 +58,10 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             _budget = budget;
             _storage = storage;
             _groupNumbers = regex.GetGroupNumbers();
+            GroupCount = _groupNumbers.Length;
         }
 
-        public int GroupCount => _groupNumbers.Length;
+        public int GroupCount { get; }
 
         private ProducerRegex Regex => _regex ?? throw new ObjectDisposedException(nameof(CompiledPattern));
 
@@ -124,6 +125,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         public void Dispose()
         {
             _regex = null;
+            _groupNumbers = [];
             _storage?.Dispose();
             _storage = null;
         }
