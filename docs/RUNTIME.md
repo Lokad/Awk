@@ -48,6 +48,12 @@ Unexpected host exceptions become generic awk diagnostics. Policy/admission fail
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 
+Ordinary stdout is passed to `AppendAsync` at statement boundaries and awaited before execution
+continues. Hosts may buffer physical I/O; append completion acknowledges the bytes and ends the
+borrowed-buffer lifetime. There is no separate host callback for physical flushing. File
+`fflush` closes the current output descriptor while retaining the stream name for a later
+append-mode reopen. Output-pipe flush does not close the pipe or wait for its command.
+
 `CloseDescriptorAsync` returns `AwkDescriptorCloseResult`. `Closed()` reports success and
 ends ownership. `Failure(error, descriptorRetired: true)` reports an expected close/final-flush
 failure after retirement; Awk reports the filtered host cause and never closes that descriptor
