@@ -50,7 +50,7 @@ Non-regex processing needs no provider.
 Supported core behavior includes records/fields, expressions, loops, functions, flat arrays,
 formatting and `getline`, with selected GNU conveniences. This is not full POSIX/GNU
 conformance: `system()` and namespaces remain unsupported.
-Development source adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`);
+Version 0.5.0 adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`);
 published 0.4.0 supports neither.
 
 - [Compatibility](docs/COMPATIBILITY.md): supported boundaries and known differences.
@@ -65,3 +65,4 @@ Use the stable SDK pinned in `global.json`, then run `dotnet test Lokad.Awk.slnx
 CI builds, tests and packs on Windows and Linux. Only `src/Lokad.Awk` produces a NuGet package;
 the adapter example, tests and benchmarks are not packaged.
 Development packages use `0.0.0-dev`, with output kept separate from published artifacts.
+Release packaging supplies explicit package and assembly versions.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Separate development packages (`0.0.0-dev`) from immutable published release artifacts.
 - Add GNU-style CSV input (`--csv`/`-k`), including multiline/quoted fields and CSV-aware

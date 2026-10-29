@@ -5,7 +5,7 @@ direct filesystem, process, console, networking, reflection or native-loading ac
 Core disables unsafe C#; the host, parser and selected regex engine remain trusted code.
 The embedding boundary does not provide OS isolation.
 
-This guide describes 0.4.0. Version 0.3.0 retains the earlier quota/deadline APIs;
+This guide covers 0.5.0. Version 0.3.0 retains the earlier quota/deadline APIs;
 [migration notes](../CHANGELOG.md#040) describe their removal.
 
 ## Host authority
@@ -111,7 +111,7 @@ Lowering's name-to-ordinal table is temporary; prepared execution retains its co
 bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
 remain execution-owned.
-Development source keeps an array's stable identity funded after `delete array` clears
+An array's stable identity stays funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
 Numeric updates capture their key and prior value before the RHS; commit uses the owner's
 current storage and resolves a detached target again without reevaluating its key.

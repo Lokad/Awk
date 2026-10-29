@@ -5,6 +5,8 @@ host-controlled I/O and predictable resource admission. This is not full POSIX/G
 conformance. The interpreter is the only execution engine; regex matching requires an
 application-supplied provider.
 
+This guide covers 0.5.0. Published 0.4.0 lacks CSV input and nested arrays.
+
 **Supported** means golden coverage within the stated boundary. **Partial** means
 implemented with remaining differences. **Deferred** means unsupported, without a delivery
 commitment. Rejection tests do not establish feature support.
@@ -20,8 +22,8 @@ identify qualified support and Lokad-specific boundaries.
 | Expressions and statements | Supported: arithmetic, concatenation, assignments, conditionals, loops and switch; profile/name rules apply. | [Grammar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GrammarBoundaries.cs), [profiles](#compatibility-profiles-and-names) |
 | Rules and input phases | Supported: ordinary/range patterns, BEGIN/END, next/nextfile and GNU BEGINFILE/ENDFILE, with phase restrictions. | [Function flow](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FunctionFlow.cs) |
 | User functions | Supported: recursion, local scalar parameters, missing arguments and forwarded array aliases; depth/resource limits apply. | [Untyped values](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.UntypedState.cs), [runtime contract](RUNTIME.md) |
-| Scalars and flat arrays | Supported: numeric strings/origins, associative and SUBSEP compound keys, membership, delete and array length. Compound keys are not nested arrays. | [Value rules](#values-numbers-and-formatting), [goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) |
-| Records and fields | Supported: FS/FPAT/FIELDWIDTHS, character/regex/paragraph RS, RT, lazy fields and NF mutation. | [Field modes](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FieldModes.cs), [record differences](#fields-and-records) |
+| Scalars and arrays | Supported: numeric strings/origins, associative and SUBSEP compound keys, membership, delete, array length and GNU nested arrays. Compound keys remain distinct from child arrays. | [Value rules](#values-numbers-and-formatting), [nested arrays](#nested-arrays), [goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) |
+| Records and fields | Supported: FS/FPAT/FIELDWIDTHS, character/regex/paragraph RS, RT, lazy fields, NF mutation and CSV input. | [Field modes](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FieldModes.cs), [record differences](#fields-and-records), [CSV](#csv-input) |
 | Getline | Supported: main/redirected/one-way pipe expressions with scalar, array or field destinations; failure and destination rules apply. | [Destinations](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GetlineDestinations.cs), [failures](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GetlineFailures.cs), [I/O rules](#host-io-and-getline) |
 | Output and streams | Supported through the host: print/printf, file/one-way pipe redirection, close and logical flush. | [Flush cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FlushCompatibility.cs), [I/O rules](#host-io-and-getline) |
 | Formatting | Partial: common conversions, `%a`/`%A`, positional arguments, width/precision and integer rules. `%C`/`%S`, D/H/w controls and `%P` remain unsupported. | [Formatting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FormattingSyntax.cs), [integers](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.IntegerFormatting.cs) |
@@ -116,7 +118,7 @@ evaluating the next. Side effects on targets, SUBSEP or CONVFMT
 can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
 This also applies when a RHS clears, splits or mutates an aliased target array; the
 [array identity cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArrayIdentity.cs) pin these boundaries.
-Development nested-array targets retain evaluated paths and prior values, then reacquire
+Nested-array targets retain evaluated paths and prior values, then reacquire
 current storage after mutation. Getline likewise writes its captured logical path after
 input-phase changes; GNU can instead discard a write into a removed child. Keep such
 order-sensitive mutation in separate statements for portability.
@@ -295,7 +297,7 @@ later operands stop and there is no stdin fallback. BEGINFILE can explicitly rec
 nextfile; redirected getline remains recoverable. Awk does not infer file kinds from error
 text or reproduce GNU's automatic directory skipping.
 
-## CSV in development source
+## CSV input
 
 `--csv` / `-k` follows pinned GNU 5.3.2 input behavior for quoted/multiline fields, escaped
 quotes and CRLF normalization. Two-argument `split()` uses CSV; an explicit separator uses
@@ -304,11 +306,11 @@ retain their values and report ignored parsing effects; FPAT/FIELDWIDTHS still v
 PROCINFO["CSV"] identifies the mode. POSIX mode conflicts with CSV. A final standalone CR
 is discarded at EOF, matching that GNU version, independently of host batch boundaries.
 Published 0.4.0 lacks CSV. [Goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.Csv.cs) and
-[host checks](../tests/Lokad.Awk.Tests/AwkCsvHostTests.cs) qualify the development path.
+[host checks](../tests/Lokad.Awk.Tests/AwkCsvHostTests.cs) qualify this input mode.
 
-## Nested arrays in development source
+## Nested arrays
 
-Development source supports GNU arrays of arrays, including child function aliases,
+GNU arrays of arrays include child function aliases,
 nested iteration/deletion, and child operands for split/patsplit, sorting, match captures,
 substitution and getline. POSIX/traditional profiles reject this syntax. Published 0.4.0
 supports flat/SUBSEP arrays only. [Goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NestedArrays.cs)
