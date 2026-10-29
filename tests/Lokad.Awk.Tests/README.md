@@ -153,6 +153,9 @@ Canonical AWK assertions stay unchanged where that provider has conformance gaps
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.
+`AwkIndexedFieldCacheTests` covers sparse late reads, prefix completion, defaults, retained
+storage and escaped snapshots. Canonical field-count goldens cover out-of-order reads followed
+by truncation/growth; memory transition tests preserve pending users during immediate charges.
 `AwkRecordOwnershipTests` covers dirty-record separator funding, unused retention, refusal
 and pending/canceled output lifetimes.
 

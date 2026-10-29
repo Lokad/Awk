@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Reuse bounded record storage and a compact scalar cache while preserving owned escaping values.
+- Simplify immediate shared-memory charges while keeping pending reservations funded.
+- Use range-only searches and dense sparse-group publication in the source regex adapter.
+
 ## 0.5.0
 
 - Separate development packages (`0.0.0-dev`) from immutable published release artifacts.

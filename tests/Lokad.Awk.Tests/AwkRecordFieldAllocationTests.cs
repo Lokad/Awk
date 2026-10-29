@@ -118,7 +118,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void GovernedSmallFieldCacheRemainsChargedAndAvoidsPerRecordDictionaryAllocation()
+    public void GovernedSmallFieldCacheRemainsChargedAndReusesStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForAccounting = new CooperativeTestMemory(4_096, counters);

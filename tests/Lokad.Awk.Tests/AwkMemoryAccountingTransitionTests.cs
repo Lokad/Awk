@@ -32,12 +32,14 @@ public sealed class AwkMemoryAccountingTransitionTests
     {
         var budget = new CooperativeTestBudget(256);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var ledger = AwkMemoryAccounting.Create(AwkRuntimeCounters.CreateEnabled(), owner);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var ledger = AwkMemoryAccounting.Create(counters, owner);
         ledger.Reserve(40);
         ledger.ReserveAndCommit(20);
         Assert.Equal(40, ledger.CurrentReservedBytes);
         Assert.Equal(20, ledger.CurrentCommittedBytes);
         Assert.Equal(60, budget.Reserved);
+        Assert.Equal(60, counters.MemoryPeakLiveBytes);
         ledger.ReleaseReserved(40);
         Assert.Equal(20, budget.Reserved);
         ledger.ReleaseCommitted(20);
