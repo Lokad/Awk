@@ -897,16 +897,7 @@ internal sealed class AwkFieldFrame(
 
         if (newBytes > _retainedMemoryBytes)
         {
-            governor.Reserve(newBytes - _retainedMemoryBytes);
-            try
-            {
-                governor.CommitReserved(newBytes - _retainedMemoryBytes);
-            }
-            catch
-            {
-                governor.ReleaseReserved(newBytes - _retainedMemoryBytes);
-                throw;
-            }
+            governor.ReserveAndCommit(newBytes - _retainedMemoryBytes);
         }
         else if (_retainedMemoryBytes > newBytes)
         {
