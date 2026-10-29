@@ -103,10 +103,10 @@ internal sealed class AwkFieldFrame(
 
         AwkValue GetCachedFieldValue(int index, Func<AwkText, AwkValue> createFieldValue)
         {
-            if (TryGetCachedFieldValue(index, out var cached))
-                return cached;
-
             var fieldText = _fieldTexts[index];
+            if (fieldText.CacheSlot != 0)
+                return _fieldValueCache[fieldText.CacheSlot - 1].Value;
+
             var value = createFieldValue(fieldText.Materialize(_recordText, counters, governor, checkpoint));
             var capacity = PlanFieldCacheCapacity(_fieldValueCache.Count + 1);
             var newRetainedBytes = _retainedMemoryBytes;
@@ -119,12 +119,7 @@ internal sealed class AwkFieldFrame(
                     EstimateCachedFieldPayloadBytes(fieldText, value));
             }
             if (capacity != _fieldValueCache.Capacity)
-            {
-                var stagedBytes = EstimateFieldCacheBufferBytes(capacity);
-                using var staging = governor.ReserveTransient(stagedBytes);
-                var cache = StageFieldValueCache(_fieldTexts, capacity);
-                PublishStagedFields(_fieldTexts, cache, newRetainedBytes, staging, stagedBytes);
-            }
+                GrowFieldValueCache(capacity, newRetainedBytes);
             else
             {
                 checkpoint?.Invoke();
@@ -145,7 +140,7 @@ internal sealed class AwkFieldFrame(
 
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
-        if (HasCachedFieldValue(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
+        if (field.CacheSlot != 0 || field.Kind == AwkFieldTextKind.Owned)
             return false;
 
         if (!byteMode && field.Kind == AwkFieldTextKind.RecordSlice)
@@ -171,7 +166,7 @@ internal sealed class AwkFieldFrame(
 
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
-        if (HasCachedFieldValue(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
+        if (field.CacheSlot != 0 || field.Kind == AwkFieldTextKind.Owned)
             return false;
         bytes = field.AsSpan(_recordText, checkpoint);
         return true;
@@ -230,8 +225,9 @@ internal sealed class AwkFieldFrame(
         var from = source.Value - 1;
         var to = destination.Value - 1;
         var field = _fieldTexts[from];
-        if (field.Kind != AwkFieldTextKind.RecordSlice || _fieldTexts[to].Kind != AwkFieldTextKind.RecordSlice ||
-            HasCachedFieldValue(from) || HasCachedFieldValue(to)) return false;
+        var previous = _fieldTexts[to];
+        if (field.Kind != AwkFieldTextKind.RecordSlice || previous.Kind != AwkFieldTextKind.RecordSlice ||
+            field.CacheSlot != 0 || previous.CacheSlot != 0) return false;
 
         var separator = resolveOutputFieldSeparator();
         var payloadBytes = AwkRuntimeMemory.CheckedAdd(
@@ -500,9 +496,6 @@ internal sealed class AwkFieldFrame(
         return fields;
     }
 
-    private bool HasCachedFieldValue(int index) =>
-        (uint)index < (uint)_fieldTexts.Count && _fieldTexts[index].CacheSlot != 0;
-
     private bool TryGetCachedFieldValue(int index, out AwkValue value)
     {
         if ((uint)index < (uint)_fieldTexts.Count && _fieldTexts[index].CacheSlot is > 0 and var slot)
@@ -521,6 +514,14 @@ internal sealed class AwkFieldFrame(
         if (count <= _fieldValueCache.Capacity) return _fieldValueCache.Capacity;
         return (int)Math.Min(Array.MaxLength,
             Math.Max((long)count, Math.Max(4L, 2L * _fieldValueCache.Capacity)));
+    }
+
+    private void GrowFieldValueCache(int capacity, long retainedBytes)
+    {
+        var bytes = EstimateFieldCacheBufferBytes(capacity);
+        using var staging = governor.ReserveTransient(bytes);
+        var cache = StageFieldValueCache(_fieldTexts, capacity);
+        PublishStagedFields(_fieldTexts, cache, retainedBytes, staging, bytes);
     }
 
     // Cache slots belong to this frame's descriptors; scalar snapshots never carry them.
