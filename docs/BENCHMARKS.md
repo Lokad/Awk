@@ -1,13 +1,16 @@
 # Benchmarks
 
-Current snapshot: **2026-10-29 UTC**, Release source
-[`fbde177`](https://github.com/Lokad/Awk/commit/fbde177f6b19f34e269ab4a3b7dd42177ddcf7f3) for the **0.5.0** candidate,
-against **GNU awk 5.3.2**. All figures below were refreshed together on the quiet Linux machine:
-SDK 10.0.401, .NET 10.0.12, interpreter, C locale (C.UTF-8 for Unicode) and UTC. It uses the development
-build of that source; versioned release packages are qualified separately. Regex workloads
-use the source adapter with published **Lokad.Utf8Regex 0.4.0** and include Awk's translation
-and replacement work. Their exact outputs pass; the 47 documented provider-selection deferrals
-remain separate.
+Measured on **2026-10-29 UTC**, against **GNU awk 5.3.2**, on the quiet Linux machine:
+SDK 10.0.401, .NET 10.0.12, Release interpreter, C locale (C.UTF-8 for Unicode) and UTC.
+Regex rows marked † use source
+[`9d7e708`](https://github.com/Lokad/Awk/commit/9d7e708d858b92931d6239837fc34f6e5c860d67).
+Other rows retain measurements of
+[`fbde177`](https://github.com/Lokad/Awk/commit/fbde177f6b19f34e269ab4a3b7dd42177ddcf7f3),
+the frozen **0.5.0** candidate. The core runtime is identical between these sources;
+the regex adapter differs. Development builds were measured; versioned packages are qualified separately.
+Regex workloads use the source adapter with published **Lokad.Utf8Regex 0.4.0**, including Awk's
+translation and replacement work. Exact outputs pass; the 47 documented provider-selection
+deferrals remain separate.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** is Lokad elapsed divided by
 GNU elapsed; higher is slower. Managed allocations include parsing, execution and host storage,
@@ -25,9 +28,9 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| gsub and output | 56.00 | 11.638 | 1.796 | 6.48× | 24.08 |
-| ERE field separator | 48.00 | 7.767 | 1.651 | 4.70× | 4.21 |
-| ERE boolean matching | 32.00 | 3.736 | 0.932 | 4.01× | 7.64 |
+| gsub and output † | 56.00 | 11.204 | 1.790 | 6.26× | 22.58 |
+| ERE field separator † | 48.00 | 7.171 | 1.651 | 4.34× | 2.71 |
+| ERE boolean matching † | 32.00 | 3.621 | 0.927 | 3.91× | 7.64 |
 | Numeric array sort (GNU) | 18.92 | 5.906 | 2.022 | 2.92× | 2.42 |
 | Two-file membership / join | 77.83 | 7.220 | 2.487 | 2.90× | 2.94 |
 | Copy field / rebuild record | 60.00 | 3.520 | 1.259 | 2.80× | 1.61 |
@@ -53,13 +56,13 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Literal field separator | 48.00 | 1.954 | 1.000 | 1.95× | 0.70 |
 | Mixed narrow-record processing | 60.00 | 3.632 | 1.865 | 1.95× | 0.73 |
 | Field-key reads, existing/new | 63.15 | 2.584 | 1.365 | 1.89× | 1.43 |
-| ERE capture arrays (GNU) | 28.00 | 13.877 | 7.339 | 1.89× | 33.93 |
+| ERE capture arrays (GNU) † | 28.00 | 13.655 | 7.318 | 1.87× | 33.93 |
 | Literal index search in a field | 70.00 | 2.219 | 1.224 | 1.81× | 0.71 |
 | Filter three fields | 24.00 | 2.108 | 1.213 | 1.74× | 0.67 |
 | Labeled printf | 24.00 | 3.763 | 2.377 | 1.58× | 0.66 |
 | CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 3.398 | 2.324 | 1.46× | 1.69 |
 | Field loop, 64 fields | 80.00 | 2.479 | 1.866 | 1.33× | 0.99 |
-| Byte-run ERE record separator (GNU) | 36.00 | 1.451 | 1.134 | 1.28× | 0.96 |
+| Byte-run ERE record separator (GNU) † | 36.00 | 1.353 | 1.128 | 1.20× | 0.96 |
 | Multicharacter record separator (GNU) | 52.00 | 1.269 | 1.169 | 1.08× | 0.55 |
 | Filter `$1` / occasionally print `$3`, 64 fields | 1,291.42 | 1.974 | 1.856 | 1.06× | 2.14 |
 | Changed ASCII case | 580.00 | 2.495 | 2.480 | 1.01× | 2.97 |
