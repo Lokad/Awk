@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -41,7 +41,7 @@ internal static class ReferenceWorkloads
 
     public static ReferenceWorkload Create(string name, string scale)
     {
-        if (name == "scalar-sum")
+        if (name is "scalar-sum" or "field-call-loop")
         {
             var scalarRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
             var scalarInput = new StringBuilder();
@@ -53,8 +53,12 @@ internal static class ReferenceWorkloads
                     .Append(scalarNumber.ToString(CultureInfo.InvariantCulture)).Append('\n');
                 scalarTotal += scalarNumber;
             }
-            return new(name, scale, scalarRows, 2, "{total+=$2}END{print total}",
-                Bytes(scalarInput.ToString()), [], Bytes(scalarTotal.ToString(CultureInfo.InvariantCulture) + "\n"));
+            var fieldCalls = name == "field-call-loop";
+            var scalarProgram = fieldCalls
+                ? "function score(x){return x+0}{for(i=0;i<8;i++)sum[$1]+=score($2)}END{for(k in sum)total+=sum[k];print total}"
+                : "{total+=$2}END{print total}";
+            return new(name, scale, scalarRows, 2, scalarProgram,
+                Bytes(scalarInput.ToString()), [], Bytes((scalarTotal * (fieldCalls ? 8 : 1)).ToString(CultureInfo.InvariantCulture) + "\n"));
         }
         if (name == "function-control-flow")
         {
