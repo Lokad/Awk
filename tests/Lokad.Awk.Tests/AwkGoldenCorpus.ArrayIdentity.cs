@@ -6,6 +6,11 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        AwkGoldenCaseBuilder.Create("composite-key-missing-read-before-rhs",
+            ["function rhs(p){print ((\"x\",\"y\") in p);return 3} BEGIN{a[\"other\"]=1;a[\"x\",\"y\"]+=rhs(a);print a[\"x\",\"y\"],length(a)}"], [])
+            .WithStdOut("1\n3 2\n")
+            .WithNondeterminismNote("Lokad preserves the qualified missing-read insertion before the RHS; GNU awk 5.3.2 observes the missing key during the RHS.")
+            .Build(),
         Passing("composite-key-missing-membership-and-update",
             ["BEGIN{print ((\"x\",\"y\") in a),length(a);a[\"x\",\"y\"]++;print ((\"x\",\"y\") in a),length(a),a[\"x\",\"y\"]}"],
             [], "0 0\n1 1 1\n"),
