@@ -6,6 +6,9 @@ internal static partial class AwkGoldenCorpus
     // SYMTAB writes use Lokad's documented shared setter policy; diagnostics normalize to exit 2.
     private static IEnumerable<AwkGoldenCase> FieldModeCompatibilityCases()
     {
+        yield return Passing("record-splitting-case-applies-to-regex-not-literal-separators",
+            ["BEGIN{FS=\"a\";IGNORECASE=1}{print NF,$1,$2,$3} NR==1{FS=\"[a]\"}"],
+            [], "2 xAy z \n3 x y z\n", "xAyaz\nxAyaz\n");
         foreach (var row in FieldModeRows)
             yield return AwkGoldenCaseBuilder.Create(row.Name, row.Arguments, [])
                 .WithStandardInput(row.Input).ExitsWith(row.Exit)

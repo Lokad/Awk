@@ -140,6 +140,9 @@ zero text conversions and refunds. The reference catalog includes a complete fun
 with local mutation, a loop and early returns, independently of prepared return shapes.
 Single-consumption ValueTask sources verify completion effects are flushed before flow
 propagates, without replaying earlier statements or running later ones after failure.
+Compound-update goldens preserve numeric-string spelling across scalar, field and nested-array targets.
+Pending record replacement checks retain prior values and target/key funding through completion,
+cancellation and refused admission. Literal and regex separators retain their distinct case behavior.
 `AwkPartialCloseTests` covers
 public-boundary partial-close failures and cleanup without replaying successful closes.
 `AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,

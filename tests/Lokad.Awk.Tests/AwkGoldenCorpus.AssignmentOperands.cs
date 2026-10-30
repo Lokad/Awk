@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> AssignmentOperandCompatibilityRepairs()
     {
+        yield return Passing("numeric-updates-preserve-input-field-spelling-across-targets",
+            ["function update(x){x+=$2;return x}{x=8;x+=$2;a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]+=$2;print x,update(8),a[\"row\"][\"sum\"],$2,$2==2;$1+=$2;print $1,$2}"],
+            [], "10 10 10 0002 1\n10 0002\n", "8 0002\n");
         yield return AwkGoldenCaseBuilder.Create(
             "array-compound-captures-key-and-left-before-right-effects",
             ["BEGIN{i=1;a[1]=7;print (a[i++] += (a[1]=100)),i,a[1];SUBSEP=\":\";a[1,2]=5;print (a[1,2] += ((SUBSEP=\"/\")?3:0)),a[\"1:2\"],a[1,2]+0}"],

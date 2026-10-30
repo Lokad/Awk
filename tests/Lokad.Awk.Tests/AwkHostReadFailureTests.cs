@@ -7,6 +7,69 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 {
     [Theory]
+    [InlineData("complete", "global")] [InlineData("cancel", "global")] [InlineData("refuse", "global")]
+    [InlineData("complete", "local")] [InlineData("cancel", "local")] [InlineData("refuse", "local")]
+    [InlineData("complete", "field")] [InlineData("cancel", "field")] [InlineData("refuse", "field")]
+    [InlineData("complete", "nested")] [InlineData("cancel", "nested")] [InlineData("refuse", "nested")]
+    public async Task NumericCompoundKeepsItsCapturedLeftAcrossPendingRecordReplacement(string outcome, string target)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInput("4 new\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = async (descriptor, maximum, token) =>
+        {
+            using var registration = token.Register(() => canceled.TrySetResult());
+            entered.TrySetResult();
+            await resume.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
+        };
+        var body = target switch
+        {
+            "local" => "print calculate(8)",
+            "field" => "$1+=more();print $1,$2",
+            "nested" => "a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]+=more();print a[\"row\"][\"sum\"]",
+            _ => "x=8;x+=more();print x"
+        };
+        var source = "function more(){getline;return $1} function calculate(x){x+=more();return x} " +
+            "BEGIN{$0=\"8 old\";print \"ready\";" + body + ";exit}END{print \"completed\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.True(budget.Reserved > 0);
+            if (outcome == "cancel")
+            {
+                cancellation.Cancel();
+                await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(execution.IsCompleted);
+                Assert.True(budget.Reserved > 0);
+            }
+            if (outcome == "refuse") budget.RefuseNextAdmissionMinimumGrowth = 1;
+            resume.TrySetResult();
+            if (outcome == "cancel") await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+            else Assert.Equal(outcome == "complete" ? AwkExitCode.Success : AwkExitCode.FatalError, await execution);
+            var successful = target == "field" ? "ready\n12 new\ncompleted\n" : "ready\n12\ncompleted\n";
+            Assert.Equal(outcome == "complete" ? successful : "ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(outcome == "refuse" ? "awk: memory limit exceeded\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            resume.TrySetResult();
+            try { await execution; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
     [InlineData("complete", "argument")] [InlineData("cancel", "argument")] [InlineData("refuse", "argument")]
     [InlineData("complete", "condition")] [InlineData("cancel", "condition")] [InlineData("refuse", "condition")]
     [InlineData("complete", "return")] [InlineData("cancel", "return")] [InlineData("refuse", "return")]
