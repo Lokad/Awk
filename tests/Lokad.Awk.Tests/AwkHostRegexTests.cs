@@ -316,11 +316,27 @@ public sealed class AwkHostRegexTests
         Assert.True(first.Disposed);
     }
 
+    [Fact]
+    public async Task SearchAdmissionRefusalFailsBeforeLaterEffectsAndRefundsTheExecution()
+    {
+        var engine = new RecordingEngine(Behavior.RefuseSearch);
+        var budget = new CooperativeTestBudget(1 << 20);
+        var host = new MockFileSystem();
+        var exit = await Tool("BEGIN{print \"before\";r=\"a\";print match(\"a\",r);print \"after\"}END{print \"end\"}")
+            .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine).WithMemoryBudget(budget),
+                CancellationToken.None);
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
+        Assert.Equal(0, budget.Reserved);
+    }
+
     private static Awk Tool(string source) => AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
 
     public enum Behavior
     {
-        Normal, Unsupported, RefuseCompile, RefuseMatch, BadByteRange, NegativeByteLength, SplitScalar,
+        Normal, Unsupported, RefuseCompile, RefuseMatch, RefuseSearch, BadByteRange, NegativeByteLength, SplitScalar,
         NoGroups, NegativeGroupCount
     }
 
@@ -384,8 +400,11 @@ public sealed class AwkHostRegexTests
             return inner.IsMatch(input, token);
         }
 
-        public IAwkRegexSearch CreateSearch(ReadOnlyMemory<byte> input, CancellationToken token) =>
-            new Search(this, inner.CreateSearch(input, token), input.Length);
+        public IAwkRegexSearch CreateSearch(ReadOnlyMemory<byte> input, CancellationToken token)
+        {
+            if (behavior == Behavior.RefuseSearch) throw new AwkRegexAdmissionException();
+            return new Search(this, inner.CreateSearch(input, token), input.Length);
+        }
 
         private sealed class Search(Pattern pattern, IAwkRegexSearch innerSearch, int inputLength) : IAwkRegexSearch
         {

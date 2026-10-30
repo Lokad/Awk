@@ -73,7 +73,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
             var regex = Regex;
-            using var scratch = ReserveMatch(input.Length, 0);
+            using var scratch = Reserve(256L + input.Length * 2L);
             var result = regex.IsMatch(input, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
@@ -83,9 +83,9 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = Regex;
-            IMemoryReservation? storage = null;
-            if (_budget is not null && !_budget.TryReserve(128, out storage))
-                throw new AwkRegexAdmissionException();
+            // Fund the scoped metadata and one serial matching workspace together. Keep
+            // that admission until disposal rather than reserving again for each match.
+            var storage = Reserve(384L + input.Length * 2L + GroupCount * 32L);
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -111,7 +111,6 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
                 cancellationToken.ThrowIfCancellationRequested();
                 MoveTo(startOffsetInBytes, cancellationToken);
                 var input = _subject.Span;
-                using var scratch = pattern.ReserveMatch(input.Length, captures.Length);
                 var regex = pattern.Regex;
                 if (captures.IsEmpty)
                 {
@@ -188,10 +187,10 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             }
         }
 
-        private IMemoryReservation? ReserveMatch(int inputBytes, int captures)
+        private IMemoryReservation? Reserve(long bytes)
         {
             if (_budget is null) return null;
-            if (!_budget.TryReserve(256L + inputBytes * 2L + captures * 32L, out var scratch))
+            if (!_budget.TryReserve(bytes, out var scratch))
                 throw new AwkRegexAdmissionException();
             return scratch;
         }

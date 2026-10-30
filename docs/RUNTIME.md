@@ -264,7 +264,7 @@ prepared programs share no compiled handles between executions.
 
 The [source adapter example](../examples/README.md) is compiled into tests and benchmark
 tools against published **Lokad.Utf8Regex 0.4.0**, never a sibling source checkout. It passes
-UTF-8 spans without adding input/capture-text copies and funds handles and per-call scratch
+UTF-8 spans without adding input/capture-text copies and funds handles and scoped search scratch
 with coarse estimates through the borrowed budget. The published provider has no shared-budget
 hook; these estimates do not cover every engine allocation. Its string-only compilation API
 requires one adapter-owned UTF-8-to-string conversion per compilation, after admission.
