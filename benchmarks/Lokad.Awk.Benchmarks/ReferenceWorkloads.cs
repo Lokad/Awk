@@ -18,7 +18,7 @@ internal static class ReferenceWorkloads
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
-        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -41,6 +41,28 @@ internal static class ReferenceWorkloads
 
     public static ReferenceWorkload Create(string name, string scale)
     {
+        if (name == "function-control-flow")
+        {
+            var count = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
+            var functionInput = new StringBuilder();
+            long total = 0;
+            for (var row = 0; row < count; row++)
+            {
+                var number = row % 97;
+                functionInput.Append(number.ToString(CultureInfo.InvariantCulture)).Append('\n');
+                var value = number + 2;
+                for (var step = 0; step < 4; step++)
+                {
+                    if (step == 1) continue;
+                    value = (value * 3 + 3) % 101;
+                    if (value == 0) { value = 3; break; }
+                }
+                total += value;
+            }
+            return new(name, scale, count, 1,
+                "function score(x,a,b,c,d,t,i){t=x+a;for(i=0;i<b;i++){if(i==c)continue;t=(t*3+d)%101;if(t==0)return d};return t} {total+=score($1,2,4,1,3)} END{print total}",
+                Bytes(functionInput.ToString()), [], Bytes(total.ToString(CultureInfo.InvariantCulture) + "\n"));
+        }
         if (name == "general-call-loop")
         {
             var ordinary = Create("multi-arg-loop", scale);

@@ -135,6 +135,9 @@ reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 6
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases
 preserve the ordinary path and keep storage funded through actual completion or cancellation.
 Function-flow checks also cover nested returns and pending conditions/return values.
+Ordinary short/long function counters preserve numeric cells, bounded text allocation,
+zero text conversions and refunds. The reference catalog includes a complete function
+with local mutation, a loop and early returns, independently of prepared return shapes.
 Single-consumption ValueTask sources verify completion effects are flushed before flow
 propagates, without replaying earlier statements or running later ones after failure.
 `AwkPartialCloseTests` covers
