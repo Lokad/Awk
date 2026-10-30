@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Lokad.Awk;
 
 /// <summary>
-/// Well-formed but not yet canonicalized awk path.
+/// Syntax-checked path text with optional lexical helpers for link-free host namespaces.
 /// </summary>
 public sealed class AwkRawPath : IParsable<AwkRawPath>
 {
@@ -64,12 +64,13 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
     public static bool TryParse(string? s, [NotNullWhen(true)] out AwkRawPath? result) =>
         TryParse(s, null, out result);
 
-    /// <summary>Resolves this path against <paramref name="current"/> without a confinement boundary.</summary>
+    /// <summary>Forms a lexical absolute path; it does not traverse a filesystem or prove access.</summary>
     public AwkPath ToAbsolute(AwkPath current) =>
         ResolveAbsolute(current, AwkPathConfinement.None);
 
     /// <summary>
-    /// Resolves this path against <paramref name="current"/> and rejects results outside that directory.
+    /// Forms a lexical absolute path and rejects lexical results outside <paramref name="current"/>.
+    /// This does not enforce filesystem containment against links or missing intermediate directories.
     /// </summary>
     public AwkPath ToAbsoluteWithin(AwkPath current) =>
         ResolveAbsolute(current, AwkPathConfinement.CurrentDirectory);

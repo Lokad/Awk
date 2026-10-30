@@ -57,7 +57,7 @@ public sealed class AwkOperandPathBoundaryTests
     }
 
     [Fact]
-    public async Task ResolutionRefusalPreservesEarlierOutputAndNeverOpensTheFile()
+    public async Task RequestAdmissionRefusalPreservesEarlierOutputAndNeverOpensTheFile()
     {
         var budget = new CooperativeTestBudget(16 << 20);
         var armed = false;
@@ -67,7 +67,7 @@ public sealed class AwkOperandPathBoundaryTests
             {
                 if (armed) return;
                 armed = true;
-                budget.RefuseNextAdmissionMinimumGrowth = 32 << 10;
+                budget.RefuseNextAdmissionMinimumGrowth = 1;
             }
         };
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",

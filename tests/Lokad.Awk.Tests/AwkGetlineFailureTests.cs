@@ -142,7 +142,7 @@ bool readFailure)
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
             CancellationToken token) => _pipes.AppendAsync(descriptor, content, token);
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode,
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode,
             CancellationToken token) => _pipes.OpenFileAsync(path, mode, token);
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor,
             CancellationToken token) => _pipes.CloseDescriptorAsync(descriptor, token);

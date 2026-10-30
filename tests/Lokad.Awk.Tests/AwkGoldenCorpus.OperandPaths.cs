@@ -28,9 +28,9 @@ internal static partial class AwkGoldenCorpus
         yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-good-control", ["BEGIN{print \"ok\";exit}", "safe"], [File("/safe","SAFE\n")])
             .WithStandardInput("").WithStdOut("ok\n")
             .Build();
-        yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-consumed-invalid", ["BEGIN{print \"before\"}{print}", "../../missing-for-review"], [])
+        yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-consumed-host-missing", ["BEGIN{print \"before\"}{print}", "../../missing-for-review"], [])
             .WithStandardInput("").WithStdOut("before\n")
-            .ExitsWith(2).WithStdErr("awk: invalid path\n").WithNondeterminismNote("Virtual root rejection retains earlier BEGIN output; native missing-file diagnostics differ.")
+            .ExitsWith(2).WithStdErr("awk: ../../missing-for-review: No such file or directory\n")
             .Build();
         yield return AwkGoldenCaseBuilder.Create("operand-path-path-main-colon", ["{print}", "data:part"], [File("/data:part","PAYLOAD\n")])
             .WithStandardInput("").WithStdOut("PAYLOAD\n")
@@ -103,9 +103,9 @@ internal static partial class AwkGoldenCorpus
         yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-good-control--posix", ["--posix", "BEGIN{print \"ok\";exit}", "safe"], [File("/safe","SAFE\n")])
             .WithStandardInput("").WithStdOut("ok\n")
             .Build();
-        yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-consumed-invalid--posix", ["--posix", "BEGIN{print \"before\"}{print}", "../../missing-for-review"], [])
+        yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-consumed-host-missing--posix", ["--posix", "BEGIN{print \"before\"}{print}", "../../missing-for-review"], [])
             .WithStandardInput("").WithStdOut("before\n")
-            .ExitsWith(2).WithStdErr("awk: invalid path\n").WithNondeterminismNote("Virtual root rejection retains earlier BEGIN output; native missing-file diagnostics differ.")
+            .ExitsWith(2).WithStdErr("awk: ../../missing-for-review: No such file or directory\n")
             .Build();
         yield return AwkGoldenCaseBuilder.Create("operand-path-path-main-colon--posix", ["--posix", "{print}", "data:part"], [File("/data:part","PAYLOAD\n")])
             .WithStandardInput("").WithStdOut("PAYLOAD\n")
@@ -178,9 +178,9 @@ internal static partial class AwkGoldenCorpus
         yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-good-control--traditional", ["--traditional", "BEGIN{print \"ok\";exit}", "safe"], [File("/safe","SAFE\n")])
             .WithStandardInput("").WithStdOut("ok\n")
             .Build();
-        yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-consumed-invalid--traditional", ["--traditional", "BEGIN{print \"before\"}{print}", "../../missing-for-review"], [])
+        yield return AwkGoldenCaseBuilder.Create("operand-path-lazy-consumed-host-missing--traditional", ["--traditional", "BEGIN{print \"before\"}{print}", "../../missing-for-review"], [])
             .WithStandardInput("").WithStdOut("before\n")
-            .ExitsWith(2).WithStdErr("awk: invalid path\n").WithNondeterminismNote("Virtual root rejection retains earlier BEGIN output; native missing-file diagnostics differ.")
+            .ExitsWith(2).WithStdErr("awk: ../../missing-for-review: No such file or directory\n")
             .Build();
         yield return AwkGoldenCaseBuilder.Create("operand-path-path-main-colon--traditional", ["--traditional", "{print}", "data:part"], [File("/data:part","PAYLOAD\n")])
             .WithStandardInput("").WithStdOut("PAYLOAD\n")

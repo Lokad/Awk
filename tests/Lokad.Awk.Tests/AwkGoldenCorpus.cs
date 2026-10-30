@@ -3047,20 +3047,25 @@ internal static partial class AwkGoldenCorpus
             "awk: system() is unsupported in Lokad awk\n"),
 
         Failing(
-            "above-root-command-line-path-is-diagnostic",
+            "parent-path-command-line-host-missing-is-diagnostic",
             ["BEGIN{print}{}", "../../secret"],
             [],
             2,
             "\n",
-            "awk: invalid path\n"),
+            "awk: ../../secret: No such file or directory\n"),
 
-        Failing(
-            "above-root-runtime-path-is-diagnostic",
-            ["BEGIN{getline value < \"../../secret\"}"],
+        Passing(
+            "parent-path-getline-host-missing-is-recoverable",
+            ["BEGIN{print (getline value < \"../../secret\"),ERRNO}"],
             [],
-            2,
-            string.Empty,
-            "awk: invalid path\n"),
+            "-1 No such file or directory\n"),
+
+        PassingWithExpectedFiles(
+            "parent-path-output-is-host-resolved",
+            ["BEGIN{print \"written\" > \"../../file\";print close(\"../../file\")}"],
+            [],
+            "0\n",
+            [File("/file", "written\n")]),
 
         Failing(
             "coprocess-output-unsupported",

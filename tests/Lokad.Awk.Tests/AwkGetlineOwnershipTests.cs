@@ -156,7 +156,7 @@ public sealed class AwkGetlineOwnershipTests
             }
             return AwkAppendResult.Accepted();
         }
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         { Opens++; return Task.FromResult(AwkOpenedFile.MissingFile()); }
         public async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {

@@ -107,7 +107,7 @@ public sealed class AwkSourceCloseTests
             return Files.CloseDescriptorAsync(descriptor, token);
         }
 
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) =>
             Files.OpenFileAsync(path, mode, token);
         public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
             Files.ReadAsync(descriptor, count, token);

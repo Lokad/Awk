@@ -15,10 +15,10 @@ internal static partial class AwkSourceLoader
         CancellationToken cancellationToken)
     {
         resources.RecordInclude(includeDepth);
-        AwkResolvedPath resolved;
+        AwkFileOperand resolved;
         try
         {
-            resolved = plan.ResolvePath(includePath);
+            resolved = plan.PreparePath(includePath);
         }
         catch (AwkRuntimeException error) when (error.Id == AwkDiagnosticId.HostIoFailure)
         {
@@ -33,7 +33,7 @@ internal static partial class AwkSourceLoader
             .ConfigureAwait(false);
         if (script is AwkScriptFileReadResult.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
         {
-            resolved = plan.ResolvePath(includePath + ".awk");
+            resolved = plan.PreparePath(includePath + ".awk");
             script = await AwkScriptFileReader.TryReadAsync(
                     host,
                     plan,

@@ -111,7 +111,7 @@ public sealed class AwkOutputOwnershipTests
             else return await Files.AppendAsync(descriptor, content, token).ConfigureAwait(false);
             return AwkAppendResult.Accepted();
         }
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         { Opened++; return Files.OpenFileAsync(path, mode, token); }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Files.CloseDescriptorAsync(descriptor, token);
         public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Files.ReadAsync(descriptor, count, token);

@@ -10,7 +10,7 @@ public readonly struct AwkOperationError
     /// <summary>Initializes an operation error with a safe message without an <c>awk:</c> prefix.</summary>
     public AwkOperationError(AwkOperationErrorKind kind, string message)
     {
-        if (kind is < AwkOperationErrorKind.Unspecified or > AwkOperationErrorKind.IoFailure)
+        if (kind is < AwkOperationErrorKind.Unspecified or > AwkOperationErrorKind.PolicyDenied)
             throw new ArgumentOutOfRangeException(nameof(kind));
         ArgumentException.ThrowIfNullOrEmpty(message);
         Kind = kind;
@@ -38,7 +38,9 @@ public enum AwkOperationErrorKind
     /// <summary>The host does not implement the requested operation.</summary>
     NotSupported,
     /// <summary>An ordinary input/output operation failed.</summary>
-    IoFailure
+    IoFailure,
+    /// <summary>The requested namespace boundary or host capability policy denied access.</summary>
+    PolicyDenied
 }
 
 /// <summary>Identifies whether an append accepted its entire payload and remains writable.</summary>
@@ -136,11 +138,15 @@ public enum AwkReadCompletion
 /// <summary>Represents the result of opening a file through an <see cref="IAwkHost"/>.</summary>
 public readonly struct AwkOpenedFile
 {
-    private AwkOpenedFile(AwkOpenedFileStatus status, AwkFileDescriptor fileDescriptor, AwkOperationError error)
+    private readonly AwkPath? _resolvedPath;
+
+    private AwkOpenedFile(AwkOpenedFileStatus status, AwkFileDescriptor fileDescriptor, AwkOperationError error,
+        AwkPath? resolvedPath = null)
     {
         Status = status;
         FileDescriptor = fileDescriptor;
         Error = error;
+        _resolvedPath = resolvedPath;
     }
 
     /// <summary>Gets the outcome category.</summary>
@@ -148,6 +154,10 @@ public readonly struct AwkOpenedFile
 
     /// <summary>Gets the opened descriptor when <see cref="Success"/> is true.</summary>
     public AwkFileDescriptor FileDescriptor { get; }
+
+    /// <summary>Gets the stable host-resolved identity after a successful open.</summary>
+    public AwkPath ResolvedPath => _resolvedPath ??
+        throw new InvalidOperationException("The file was not opened.");
 
     /// <summary>Gets the host-shaped error when <see cref="Failed"/> is true.</summary>
     public AwkOperationError Error { get; }
@@ -161,9 +171,13 @@ public readonly struct AwkOpenedFile
     /// <summary>Gets whether the host failed to open the file for another reason.</summary>
     public bool Failed => Status == AwkOpenedFileStatus.Failure;
 
-    /// <summary>Creates a successful result carrying <paramref name="fileDescriptor"/>.</summary>
-    public static AwkOpenedFile Opened(AwkFileDescriptor fileDescriptor) =>
-        new(AwkOpenedFileStatus.Success, fileDescriptor, default);
+    /// <summary>Creates a successful result with a stable canonical identity resolved by the host.</summary>
+    /// <remarks>Resolve links and enforce namespace policy before opening. This identity is separate from display names.</remarks>
+    public static AwkOpenedFile Opened(AwkFileDescriptor fileDescriptor, AwkPath resolvedPath)
+    {
+        ArgumentNullException.ThrowIfNull(resolvedPath);
+        return new(AwkOpenedFileStatus.Success, fileDescriptor, default, resolvedPath);
+    }
 
     /// <summary>Creates a result indicating that the requested file does not exist.</summary>
     public static AwkOpenedFile MissingFile() =>

@@ -10,10 +10,11 @@ internal static class AwkScriptFileReader
     public static async Task<AwkScriptFileReadResult> TryReadAsync(
         IAwkHost host,
         AwkSourceLoadPlan plan,
-        AwkResolvedPath path,
+        AwkFileOperand path,
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
+        path = plan.BindHostPolicy(path);
         var rawPath = AwkUtf8Codec.Decode(path.Display);
         var awkPath = plan.AwkPath;
         if (rawPath.Contains('/') || awkPath.Length == 0)
@@ -31,7 +32,7 @@ internal static class AwkScriptFileReader
                     AwkRuntimeMemory.CheckedAdd(rawPath.Length, 1));
                 plan.Memory.AdmitTextCopy(candidateLength);
                 cancellationToken.ThrowIfCancellationRequested();
-                candidate = plan.ResolvePath(string.Concat(awkPath.AsSpan(start, length), "/", rawPath));
+                candidate = plan.PreparePath(string.Concat(awkPath.AsSpan(start, length), "/", rawPath));
             }
             var result = await ReadCandidateAsync(candidate).ConfigureAwait(false);
             if (result is not AwkScriptFileReadResult.Missing)
@@ -41,45 +42,44 @@ internal static class AwkScriptFileReader
             start = end + 1;
         }
 
-        async Task<AwkScriptFileReadResult> ReadCandidateAsync(AwkResolvedPath candidate)
+        async Task<AwkScriptFileReadResult> ReadCandidateAsync(AwkFileOperand candidate)
         {
-            plan.ThrowIfDenied(candidate.Absolute);
-            var result = await TryReadResolvedAsync(host, plan, candidate, resources, cancellationToken)
+            var result = await TryReadRequestedFileAsync(host, plan, candidate, resources, cancellationToken)
                 .ConfigureAwait(false);
             return result switch
             {
                 AwkScriptTextReadResult.Found found => AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
                     found.Text, new AwkSourceName(AwkUtf8Codec.Decode(candidate.Display)),
-                    new AwkSourceIdentity(candidate.Absolute.Path))),
+                    new AwkSourceIdentity(found.ResolvedPath.Path))),
                 AwkScriptTextReadResult.Failed failed => AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id),
                 _ => AwkScriptFileReadResult.MissingFile
             };
         }
     }
 
-    private static async Task<AwkScriptTextReadResult> TryReadResolvedAsync(
+    private static async Task<AwkScriptTextReadResult> TryReadRequestedFileAsync(
         IAwkHost host,
         AwkSourceLoadPlan plan,
-        AwkResolvedPath path,
+        AwkFileOperand path,
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
-        if (plan.TryGetScriptText(path.Absolute, out var cached))
+        if (plan.TryGetRequestText(path.Request, out var cached))
             return cached;
 
-        var result = await ReadResolvedAsync(
+        var result = await ReadRequestedFileAsync(
                 host,
                 path,
                 resources,
                 cancellationToken,
                 plan)
             .ConfigureAwait(false);
-        plan.CacheScriptText(path.Absolute, result);
+        plan.CacheRequestText(path.Request, result);
         return result;
 
-        static async Task<AwkScriptTextReadResult> ReadResolvedAsync(
+        static async Task<AwkScriptTextReadResult> ReadRequestedFileAsync(
             IAwkHost host,
-            AwkResolvedPath path,
+            AwkFileOperand path,
             AwkRuntimeResourceMonitor resources,
             CancellationToken cancellationToken,
             AwkSourceLoadPlan plan)
@@ -101,8 +101,9 @@ internal static class AwkScriptFileReader
             }
 
             resources.RecordHostCall();
-            var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
+            var opened = await host.OpenFileAsync(path.Request, AwkFileOpenMode.Read, cancellationToken)
                 .ConfigureAwait(false);
+            AwkHostPathPolicy.ThrowIfDenied(opened);
             if (opened.Missing)
                 return AwkScriptTextReadResult.MissingText;
 
@@ -116,10 +117,12 @@ internal static class AwkScriptFileReader
             AwkScriptTextReadResult readResult;
             try
             {
-                readResult = await ReadOpenedSourceAsync(
+                readResult = plan.TryGetResolvedText(opened.ResolvedPath, out var previous) ? previous :
+                    await ReadOpenedSourceAsync(
                         host,
                         opened.FileDescriptor,
                         path,
+                        opened.ResolvedPath,
                         resources,
                         cancellationToken,
                         plan)
@@ -169,7 +172,8 @@ internal static class AwkScriptFileReader
             static async Task<AwkScriptTextReadResult> ReadOpenedSourceAsync(
                 IAwkHost host,
                 AwkFileDescriptor descriptor,
-                AwkResolvedPath path,
+                AwkFileOperand path,
+                AwkPath identity,
                 AwkRuntimeResourceMonitor resources,
                 CancellationToken cancellationToken,
                 AwkSourceLoadPlan plan)
@@ -215,7 +219,7 @@ internal static class AwkScriptFileReader
                             AwkDiagnosticId.SourceLoadFailure);
                     }
                     resources.Checkpoint();
-                    return AwkScriptTextReadResult.FoundText(builder.ToString());
+                    return AwkScriptTextReadResult.FoundText(builder.ToString(), identity);
                 }
                 catch (AwkHostReadException exception)
                 {
@@ -253,15 +257,15 @@ internal abstract record AwkScriptTextReadResult
     public static AwkScriptTextReadResult MissingText { get; } =
         new Missing();
 
-    public static AwkScriptTextReadResult FoundText(string text) =>
-        new Found(text);
+    public static AwkScriptTextReadResult FoundText(string text, AwkPath resolvedPath) =>
+        new Found(text, resolvedPath);
 
     public static AwkScriptTextReadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
         new Failed(errorMessage, id);
 
     internal sealed record Missing : AwkScriptTextReadResult;
 
-    internal sealed record Found(string Text) : AwkScriptTextReadResult;
+    internal sealed record Found(string Text, AwkPath ResolvedPath) : AwkScriptTextReadResult;
 
     internal sealed record Failed(
         ReadOnlyMemory<byte> ErrorMessage,

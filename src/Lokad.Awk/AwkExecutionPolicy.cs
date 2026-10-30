@@ -54,7 +54,7 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets whether structured host error details may be included in awk diagnostics.</summary>
     public bool ExposeHostErrorDetails { get; private init; } = true;
 
-    /// <summary>Gets the optional lexical root for every host-opened path.</summary>
+    /// <summary>Gets the optional namespace root that hosts must enforce before opening paths.</summary>
     public AwkPath? AccessiblePathRoot { get; private init; }
 
     /// <summary>Gets the time provider observed by time-related awk builtins.</summary>
@@ -131,7 +131,7 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithHostErrorDetails(bool expose) =>
         this with { ExposeHostErrorDetails = expose };
 
-    /// <summary>Returns a copy that restricts host-opened paths to the supplied lexical root.</summary>
+    /// <summary>Returns a copy requesting host enforcement of the supplied namespace root before effects.</summary>
     public AwkExecutionPolicy WithAccessiblePathRoot(AwkPath root)
     {
         ArgumentNullException.ThrowIfNull(root);

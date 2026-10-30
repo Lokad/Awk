@@ -22,28 +22,20 @@ internal sealed class AwkIoHostAdapter(
 {
     private CancellationTokenSource? _commandCancellation;
 
-    public AwkMemoryPeakAdmission AdmitPathResolution(string path)
+    public AwkMemoryPeakAdmission AdmitPathRequest(string path, bool hasDisplay = false)
     {
         if (!accounting.IsEnabled || !AwkRawPath.IsValid(path)) return default;
-        var characters = AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.CheckedAdd(path.Length, currentDirectory.Path.Length), 1);
-        // Combined/canonical UTF-16 strings, display UTF-8 and segment-list growth.
-        var separators = 0;
-        foreach (var character in path)
-            if (character == '/') separators++;
-        foreach (var character in currentDirectory.Path)
-            if (character == '/') separators++;
-        return accounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(128,
-            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedMultiply(characters, 8),
-                AwkRuntimeMemory.CheckedMultiply(separators, 32))));
+        // Original display UTF-8 and the request; cwd/root are borrowed immutable values.
+        resources.Checkpoint();
+        var displayBytes = hasDisplay ? 0 : AwkUtf8Codec.GetEncodedByteCount(path);
+        return accounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(128, displayBytes));
     }
 
-    public AwkResolvedPath ResolvePath(string path)
+    public AwkFileOperand PreparePath(string path)
     {
         resources.Checkpoint();
-        var resolved = AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory);
-        AwkHostPathPolicy.ThrowIfDenied(resolved.Absolute, accessiblePathRoot);
-        return resolved;
+        return AwkPathResolution.PrepareRuntimeArgument(path, currentDirectory,
+            accessiblePathRoot: accessiblePathRoot);
     }
 
     public async Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
@@ -142,11 +134,12 @@ internal sealed class AwkIoHostAdapter(
         _commandCancellation = null;
     }
 
-    public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
+    public async Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode)
     {
-        AwkHostPathPolicy.ThrowIfDenied(path, accessiblePathRoot);
         resources.RecordHostCall();
-        return await host.OpenFileAsync(path, mode, cancellationToken).ConfigureAwait(false);
+        var opened = await host.OpenFileAsync(path, mode, cancellationToken).ConfigureAwait(false);
+        AwkHostPathPolicy.ThrowIfDenied(opened);
+        return opened;
     }
 
     public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor)

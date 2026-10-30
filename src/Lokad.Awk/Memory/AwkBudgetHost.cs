@@ -9,7 +9,7 @@ internal sealed class AwkBudgetHost(IAwkHost host, AwkExecutionMemoryOwner owner
     public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken) => owner.Track(host.AppendAsync(descriptor, content, cancellationToken));
 
-    public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode,
+    public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode,
         CancellationToken cancellationToken) => owner.Track(host.OpenFileAsync(path, mode, cancellationToken));
 
     public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor,

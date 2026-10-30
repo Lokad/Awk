@@ -58,7 +58,7 @@ public sealed class AwkCommandForwardingTests
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected append.");
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected file open.");
         public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected read.");

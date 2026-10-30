@@ -16,8 +16,8 @@ public sealed class AwkBenchmarkInputTests
     {
         var fixture = new BenchmarkFile("/data", text);
         using var host = new ReferenceBenchmarkHost([fixture], [], false);
-        var first = await host.OpenFileAsync(new("/data"), AwkFileOpenMode.Read, CancellationToken.None);
-        var second = await host.OpenFileAsync(new("/data"), AwkFileOpenMode.Read, CancellationToken.None);
+        var first = await host.OpenFileAsync(new("/data", AwkPath.Root), AwkFileOpenMode.Read, CancellationToken.None);
+        var second = await host.OpenFileAsync(new("/data", AwkPath.Root), AwkFileOpenMode.Read, CancellationToken.None);
         using var output = new MemoryStream();
         var firstRead = await host.ReadAsync(first.FileDescriptor, limit, CancellationToken.None);
         var firstBytes = firstRead.Content.ToArray();

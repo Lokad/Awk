@@ -11,7 +11,7 @@ public sealed class MockFileSystemTests
     {
         var host = new MockFileSystem();
         if (existing) host.AddFile("/data", "old");
-        var opened = await host.OpenFileAsync(new AwkPath("/data"), mode, CancellationToken.None);
+        var opened = await host.OpenFileAsync(new AwkPathRequest("/data", AwkPath.Root), mode, CancellationToken.None);
         Assert.True(opened.Success);
         try
         {
@@ -37,7 +37,7 @@ public sealed class MockFileSystemTests
         host.AddFile("/protected", "old", AwkFileTreePermission.ReadOnly);
         foreach (var path in new[] { "/readonly/new", "/directory", "/protected", "/missing/new" })
         {
-            var opened = await host.OpenFileAsync(new AwkPath(path), mode, CancellationToken.None);
+            var opened = await host.OpenFileAsync(new AwkPathRequest(path, AwkPath.Root), mode, CancellationToken.None);
             Assert.False(opened.Success);
         }
         Assert.False(host.FileExists("/readonly/new"));

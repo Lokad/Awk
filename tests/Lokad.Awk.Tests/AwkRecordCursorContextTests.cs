@@ -81,11 +81,11 @@ public sealed class AwkRecordCursorContextTests
             if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(content.Span);
             return Task.FromResult(AwkAppendResult.Accepted());
         }
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         {
             var descriptor = new AwkFileDescriptor(501);
             OpenDescriptors.Add(descriptor);
-            return Task.FromResult(AwkOpenedFile.Opened(descriptor));
+            return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
         }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {

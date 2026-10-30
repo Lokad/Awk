@@ -120,7 +120,7 @@ public sealed class AwkFlushTests
             Entered.TrySetResult(true);
             return Release.Task;
         }
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => _files.OpenFileAsync(path, mode, token);
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) => _files.OpenFileAsync(path, mode, token);
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => _files.CloseDescriptorAsync(descriptor, token);
         public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => _files.ReadAsync(descriptor, count, token);
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => _files.RunCommandAsync(command, token);

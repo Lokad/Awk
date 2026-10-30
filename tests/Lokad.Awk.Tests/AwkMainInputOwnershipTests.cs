@@ -82,7 +82,7 @@ public sealed class AwkMainInputOwnershipTests
         {
             foreach (var name in new[] { "one", "two", "three" }) Files.AddFile("/" + name, "row\n");
         }
-        public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public async Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         {
             var result = await Files.OpenFileAsync(path, mode, token);
             if (result.Success)

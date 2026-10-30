@@ -95,7 +95,8 @@ internal sealed class AwkIo
         return _host.WriteStandardOutputAsync(content);
     }
 
-    internal AwkMemoryPeakAdmission AdmitPathResolution(string path) => _host.AdmitPathResolution(path);
+    internal AwkMemoryPeakAdmission AdmitPathRequest(string path, bool hasDisplay = false) =>
+        _host.AdmitPathRequest(path, hasDisplay);
 
     public Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content)
     {
@@ -127,8 +128,8 @@ internal sealed class AwkIo
 
         if (!_descriptors.TryGetOutput(path.Text, out var descriptor))
         {
-            using var resolution = _host.AdmitPathResolution(path.Text);
-            var targetPath = _host.ResolvePath(path.Text);
+            using var resolution = _host.AdmitPathRequest(path.Text);
+            var targetPath = _host.PreparePath(path.Text);
             if (!_descriptors.HasOutput(path.Text) &&
                 _descriptors.OutputFileCount + _pipes.OutputPipeCount >= _maxOutputFiles)
                 throw new AwkRuntimeException(AwkMessages.ErrorOutputFileLimit, AwkDiagnosticId.HostIoFailure);
@@ -136,7 +137,7 @@ internal sealed class AwkIo
             var mode = _descriptors.ResolveOutputOpenMode(path.Text, output.Kind);
             using var pending = _state.MemoryAccounting.CreateTransientLease();
             _descriptors.PrepareOutput(path.Text, pending);
-            var opened = await _host.OpenFileAsync(targetPath.Absolute, mode).ConfigureAwait(false);
+            var opened = await _host.OpenFileAsync(targetPath.Request, mode).ConfigureAwait(false);
             if (!opened.Success)
             {
                 throw new AwkRuntimeException(opened.Failed
@@ -174,14 +175,14 @@ internal sealed class AwkIo
             if (_descriptors.TryGetInput(path, out var existing))
                 return AwkInputReaderResult.Success(existing);
 
-            using var resolution = _host.AdmitPathResolution(path);
-            var targetPath = _host.ResolvePath(path);
+            using var resolution = _host.AdmitPathRequest(path);
+            var targetPath = _host.PreparePath(path);
             if (_descriptors.InputFileCount >= _maxInputFiles)
                 throw new AwkRuntimeException(AwkMessages.ErrorInputFileLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
             using var pending = _state.MemoryAccounting.CreateTransientLease();
             _descriptors.PrepareInput(path, pending);
-            var opened = await _host.OpenFileAsync(targetPath.Absolute, AwkFileOpenMode.Read).ConfigureAwait(false);
+            var opened = await _host.OpenFileAsync(targetPath.Request, AwkFileOpenMode.Read).ConfigureAwait(false);
             if (!opened.Success)
             {
                 var error = AwkIoError.FromErrno(opened.Failed

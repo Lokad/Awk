@@ -119,7 +119,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(
-            AwkPath path,
+            AwkPathRequest path,
             AwkFileOpenMode mode,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();

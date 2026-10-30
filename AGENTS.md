@@ -41,6 +41,9 @@ or environment dependencies.
 - Reads return bounded byte borrows (`AwkReadBuffer`). Advance an absolute consumed prefix and
   dispose before another operation on that descriptor. Preserve unread suffixes, terminal errors,
   UTF-8 chunk boundaries and funding through actual users; the host does not split lines.
+- File opens pass `AwkPathRequest` unchanged to host traversal. Hosts enforce its accessible root
+  before effects and return a resolved identity with successful opens. Do not restore core lexical
+  authorization or path collapsing; preserve exact stream/display names independently of source identity.
 - Regex providers own engine allocation admission and engine-specific protection. Keep the
   existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
   Providers own match selection and scalar matching; Awk owns AWK translation, validated capture

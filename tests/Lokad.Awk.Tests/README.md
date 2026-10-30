@@ -62,6 +62,9 @@ partial/structured-close tests retain pending-failure, ownership and no-replay c
 Append tests distinguish complete acceptance, downstream closure and typed failure for stdout,
 files and pipes. They cover pending-buffer funding through cancellation, one terminal diagnostic,
 failed stderr without retry and cleanup without running later statements or END actions.
+Path cases exercise original spelling/cwd/root forwarding and host traversal with links,
+missing intermediate directories and trailing slashes. They check policy before effects,
+resolved source identity/reuse and unchanged exact redirection stream names.
 `AwkHostReadFailureTests` covers consumed-prefix commit/disposal, unread suffixes after early
 exit, terminal data/error ordering, source/getline behavior, scalar-splitting chunks and
 stdin aliases written only after releasing their read borrow. Regex windows admit only

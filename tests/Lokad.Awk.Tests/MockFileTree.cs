@@ -61,6 +61,36 @@ internal sealed class MockFileTree
         return TryResolveNode(ParsePath(path), out var node) && node is FileNode;
     }
 
+    public bool TryResolvePath(AwkPathRequest request, out AwkPath path, out AwkOperationError error)
+    {
+        path = request.Path.StartsWith('/') ? AwkPath.Root : request.CurrentDirectory;
+        string? failure = null;
+        foreach (var segment in request.Path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (failure is null && (!TryResolveNode(path, out var node) || node is not DirectoryNode))
+                failure = node is FileNode ? "Not a directory" : "No such file or directory";
+            if (segment == ".") continue;
+            if (segment == "..") { path = path.Parent ?? AwkPath.Root; continue; }
+            if (!path.TryChild(segment, out var child))
+            {
+                error = new(AwkOperationErrorKind.IoFailure, "Invalid path.");
+                return false;
+            }
+            path = child;
+        }
+        if (request.AccessiblePathRoot is { } root && !root.IsEqualToOrParentOf(path))
+        {
+            error = new(AwkOperationErrorKind.PolicyDenied, "Path is outside the accessible root.");
+            return false;
+        }
+        if (failure is null && request.Path.EndsWith('/') &&
+            (!TryResolveNode(path, out var final) || final is not DirectoryNode))
+            failure = "Not a directory";
+        error = failure is null ? default : new(failure == "Not a directory"
+            ? AwkOperationErrorKind.IoFailure : AwkOperationErrorKind.NotFound, failure);
+        return failure is null;
+    }
+
     public byte[] ReadFileBytes(string path)
     {
         if (!TryResolveNode(ParsePath(path), out var node) || node is not FileNode file)

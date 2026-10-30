@@ -33,6 +33,8 @@ var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 `TryParse` recognizes the invocation; execution loads, parses and runs the program.
 `ApplicationAwkHost` above is application code; the test suite's
 [MockFileSystem](tests/Lokad.Awk.Tests/MockFileSystem.cs) illustrates a host implementation.
+File opens receive original path spelling, cwd and the requested accessible root. The host
+resolves its namespace and enforces that root before effects.
 
 Use caller cancellation for deadlines and `WithMemoryBudget(IMemoryBudget)` for shared
 memory admission. The restricted preset limits capabilities, stack depth and open resources;

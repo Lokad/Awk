@@ -58,14 +58,14 @@ internal sealed class AwkSourceInputPlanner
 
     public void AddSourceFile(string path)
     {
-        var scriptPath = AwkPathResolution.ResolveArgument(path, _currentDirectory);
+        var scriptPath = AwkPathResolution.PrepareArgument(path, _currentDirectory);
         _sources.Add(AwkSourceReference.File(scriptPath));
         HasScript = true;
     }
 
     public void AddIncludeFile(string path)
     {
-        var includePath = AwkPathResolution.ResolveArgument(path, _currentDirectory);
+        var includePath = AwkPathResolution.PrepareArgument(path, _currentDirectory);
         _sources.Add(AwkSourceReference.Include(includePath));
     }
 

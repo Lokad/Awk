@@ -12,6 +12,8 @@ public sealed class MockFileSystem : IAwkHost
     private readonly MockFileTree _files = new();
     private readonly MockFileDescriptorTable _descriptors = new();
 
+    public MockFileSystem() => _files.AddDirectory("/dev");
+
     public List<AwkCommandInvocation> AwkCommandInvocations { get; } = [];
 
     public Action? AfterAppend { get; set; }
@@ -111,7 +113,7 @@ public sealed class MockFileSystem : IAwkHost
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
-        AwkPath path,
+        AwkPathRequest request,
         AwkFileOpenMode mode,
         CancellationToken cancellationToken)
     {
@@ -119,8 +121,12 @@ public sealed class MockFileSystem : IAwkHost
         if (OpenFileException is { } exception)
             throw exception;
 
+        if (!_files.TryResolvePath(request, out var path, out var pathError))
+            return Task.FromResult(pathError.Kind == AwkOperationErrorKind.NotFound
+                ? AwkOpenedFile.MissingFile() : AwkOpenedFile.Failure(pathError));
+
         if (path.Equals(AwkFileDescriptor.DevNullPath))
-            return Task.FromResult(AwkOpenedFile.Opened(AwkFileDescriptor.DevNull));
+            return Task.FromResult(AwkOpenedFile.Opened(AwkFileDescriptor.DevNull, path));
 
         if (mode == AwkFileOpenMode.Read)
         {
@@ -138,7 +144,7 @@ public sealed class MockFileSystem : IAwkHost
             return _files.OpenForRead(path) switch
             {
                 MockReadOpenResult.Opened opened =>
-                    AwkOpenedFile.Opened(_descriptors.OpenRead(opened.Content)),
+                    AwkOpenedFile.Opened(_descriptors.OpenRead(opened.Content), path),
                 MockReadOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
                 MockReadOpenResult.MissingFile => AwkOpenedFile.MissingFile(),
                 _ => AwkOpenedFile.MissingFile()
@@ -150,7 +156,7 @@ public sealed class MockFileSystem : IAwkHost
             return _files.OpenForWrite(path, mode) switch
             {
                 MockWriteOpenResult.Opened opened =>
-                    AwkOpenedFile.Opened(_descriptors.OpenWrite(opened.InitialContent, opened.Commit)),
+                    AwkOpenedFile.Opened(_descriptors.OpenWrite(opened.InitialContent, opened.Commit), path),
                 MockWriteOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
                 _ => AwkOpenedFile.MissingFile()
             };

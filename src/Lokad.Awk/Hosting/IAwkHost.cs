@@ -45,10 +45,13 @@ public interface IAwkHost
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Opens <paramref name="path"/> using the requested mode. Unsupported access and host
+    /// Traverses the original <paramref name="path"/> in the host namespace and opens it in the requested mode.
+    /// Enforce its accessible root before effects; return PolicyDenied when that boundary rejects access.
+    /// Successful opens supply the host-resolved canonical identity, independently of display spelling.
+    /// Unsupported access and host
     /// failures must be returned as an <see cref="AwkOpenedFile"/> result, not thrown as host exceptions.
     /// </summary>
-    Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken);
+    Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken cancellationToken);
 
     /// <summary>
     /// Closes a descriptor. Expected failures carry a structured cause and state whether

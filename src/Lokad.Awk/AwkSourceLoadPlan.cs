@@ -14,7 +14,8 @@ internal sealed class AwkSourceLoadPlan
     private readonly int _maxHostErrorBytes;
     private readonly AwkCompatibilityMode _compatibilityMode;
     private readonly Dictionary<AwkSourceIdentity, AwkSourceSegmentKind> _sourceRoles = [];
-    private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
+    private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByIdentity = [];
+    private readonly Dictionary<AwkPathRequest, AwkScriptTextReadResult> _scriptTextByRequest = [];
 
     private AwkSourceLoadPlan(
         IReadOnlyList<AwkSourceReference> sources,
@@ -99,11 +100,29 @@ internal sealed class AwkSourceLoadPlan
 
     // A bare name can resolve through AWKPATH instead. Authorize the actual candidate
     // in the reader before consulting its cache or opening a host descriptor.
-    public AwkResolvedPath ResolvePath(string path) =>
-        AwkPathResolution.ResolveRuntimeArgument(path, _currentDirectory);
+    public AwkFileOperand PreparePath(string path) =>
+        AwkPathResolution.PrepareRuntimeArgument(path, _currentDirectory, accessiblePathRoot: _accessiblePathRoot);
 
-    public void ThrowIfDenied(AwkPath path) =>
-        AwkHostPathPolicy.ThrowIfDenied(path, _accessiblePathRoot);
+    public AwkFileOperand BindHostPolicy(AwkFileOperand path) =>
+        Equals(path.Request.AccessiblePathRoot, _accessiblePathRoot) ? path :
+            new(path.Display, new(path.Request.Path, path.Request.CurrentDirectory, _accessiblePathRoot));
+
+    public bool TryGetRequestText(AwkPathRequest request,
+        [NotNullWhen(true)] out AwkScriptTextReadResult? result) =>
+        _scriptTextByRequest.TryGetValue(request, out result);
+
+    public void CacheRequestText(AwkPathRequest request, AwkScriptTextReadResult result)
+    {
+        if (result is AwkScriptTextReadResult.Failed) return;
+        if (!_scriptTextByRequest.ContainsKey(request))
+        {
+            Memory.AdmitSourceUnits(4);
+            Memory.AdmitTextCopy(request.Path.Length);
+        }
+        _scriptTextByRequest[request] = result;
+        if (result is AwkScriptTextReadResult.Found found)
+            CacheResolvedText(found.ResolvedPath, result);
+    }
 
     public AwkSourceRegistration RegisterSource(AwkScriptFile script, AwkSourceSegmentKind kind)
     {
@@ -114,23 +133,23 @@ internal sealed class AwkSourceLoadPlan
         return AwkSourceRegistration.Added;
     }
 
-    public bool TryGetScriptText(
+    public bool TryGetResolvedText(
         AwkPath path,
         [NotNullWhen(true)] out AwkScriptTextReadResult? result) =>
-        _scriptTextByPath.TryGetValue(path, out result);
+        _scriptTextByIdentity.TryGetValue(path, out result);
 
-    public void CacheScriptText(AwkPath path, AwkScriptTextReadResult result)
+    public void CacheResolvedText(AwkPath path, AwkScriptTextReadResult result)
     {
         if (result is not AwkScriptTextReadResult.Failed)
         {
-            if (!_scriptTextByPath.ContainsKey(path))
+            if (!_scriptTextByIdentity.ContainsKey(path))
             {
                 // Cached misses and empty files retain path/index storage too. Admit a
                 // coarse entry/growth estimate through the existing frontend owner.
                 Memory.AdmitSourceUnits(4);
                 Memory.AdmitTextCopy(path.Path.Length);
             }
-            _scriptTextByPath[path] = result;
+            _scriptTextByIdentity[path] = result;
         }
     }
 }

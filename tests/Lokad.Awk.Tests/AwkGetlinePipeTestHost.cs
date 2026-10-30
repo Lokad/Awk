@@ -42,7 +42,7 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
         return Task.FromResult(AwkAppendResult.Accepted());
     }
 
-    public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken) =>
+    public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken cancellationToken) =>
         files.OpenFileAsync(path, mode, cancellationToken);
 
     public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)

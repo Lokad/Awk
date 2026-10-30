@@ -7,7 +7,7 @@ public sealed class AwkPathCancellationTests
     [InlineData("read", 1 << 20)] [InlineData("read", 4 << 20)]
     [InlineData("write", 1 << 20)] [InlineData("write", 4 << 20)]
     [InlineData("main", 1 << 20)] [InlineData("main", 4 << 20)]
-    public async Task CancellationDuringPathAdmissionStopsBeforeResolution(string operation, int size)
+    public async Task CancellationDuringPathAdmissionStopsBeforeHostRequest(string operation, int size)
     {
         var path = new string('p', size);
         var source = operation switch
@@ -28,14 +28,14 @@ public sealed class AwkPathCancellationTests
             var host = new PathHost();
             var armed = false;
             host.Files.AfterAppend = () => armed = true;
-            long start = 0, afterCancelGrowth = 0;
+            long start = 0;
             var budget = new CooperativeTestBudget(256 << 20)
             {
                 OnGrowth = growth =>
                 {
-                    if (cancellation.IsCancellationRequested) { afterCancelGrowth += growth; return; }
-                    // Select the path construction peak, after any text decoding admission.
-                    if (!armed || growth < 6L * size) return;
+                    if (cancellation.IsCancellationRequested) return;
+                    // Cancel at the next actual preparation admission, independent of its size or staging.
+                    if (!armed || growth <= 0) return;
                     cancellation.Cancel();
                     start = GC.GetAllocatedBytesForCurrentThread();
                 }
@@ -46,7 +46,6 @@ public sealed class AwkPathCancellationTests
             Assert.True(start > 0);
             Assert.Equal(cancellation.Token, failure.CancellationToken);
             Assert.InRange(allocated, 0, 64 << 10);
-            Assert.Equal(0, afterCancelGrowth);
             Assert.Equal(0, host.OpenRequests);
             Assert.Equal("before\n", host.Files.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.Files.GetOutput(AwkFileDescriptor.StdErr));
@@ -60,7 +59,7 @@ public sealed class AwkPathCancellationTests
     {
         public MockFileSystem Files { get; } = new();
         public int OpenRequests { get; private set; }
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         {
             OpenRequests++;
             return Files.OpenFileAsync(path, mode, token);

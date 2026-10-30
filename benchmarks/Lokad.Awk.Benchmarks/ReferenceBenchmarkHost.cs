@@ -28,17 +28,17 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
-        AwkPath path,
+        AwkPathRequest path,
         AwkFileOpenMode mode,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (mode != AwkFileOpenMode.Read || !_files.TryGetValue(path.Path, out var content))
+        if (mode != AwkFileOpenMode.Read || !_files.TryGetValue(AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory).Path, out var content))
             return Task.FromResult(AwkOpenedFile.MissingFile());
 
         var descriptor = new AwkFileDescriptor(_nextDescriptor++);
         _openFiles[descriptor] = new ReadState(content);
-        return Task.FromResult(AwkOpenedFile.Opened(descriptor));
+        return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
     }
 
     public ValueTask<AwkReadBuffer> ReadAsync(

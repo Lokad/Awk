@@ -92,7 +92,7 @@ public sealed class AwkPipeFailureCancellationTests
             return Task.FromResult(AwkAppendResult.Accepted());
         }
 
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
-            Task.FromResult(AwkOpenedFile.Opened(new(100)));
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) =>
+            Task.FromResult(AwkOpenedFile.Opened(new(100), AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
     }
 }

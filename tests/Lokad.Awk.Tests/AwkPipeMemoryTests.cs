@@ -154,7 +154,7 @@ public sealed class AwkPipeMemoryTests
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
 
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) =>
             Task.FromResult(AwkOpenedFile.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "No files in this host.")));
     }
 }

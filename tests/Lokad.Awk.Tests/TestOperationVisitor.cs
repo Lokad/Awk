@@ -93,12 +93,12 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(operation.Result);
     }
 
-    public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken)
+    public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var operation = Dequeue<TestHostOperation.OpenFile>("open file descriptors");
         AfterOpenFile?.Invoke();
-        return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor));
+        return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
     }
 
     public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(

@@ -277,8 +277,10 @@ missing-location admission can occur without a value assignment. Direct postfix 
 destinations are rejected; use `getline $(i++)` for explicit index mutation.
 
 Open-pipe commands are opaque host input, including colons, backslashes, wildcards and
-quotes. File streams use exact evaluated names with ordinal comparison; canonical host paths
-are not stream identities. Different spellings of one file have independent cursors and opens.
+quotes. File streams use exact evaluated names with ordinal comparison; host-resolved identities
+are not stream names. Different spellings of one file have independent cursors and opens.
+File requests retain cwd and traversal-significant spelling for the host. Source aliases use
+the host's resolved identity for include reuse and role conflicts; see the runtime contract.
 Redirected `getline < "-"` borrows stdin; `"./-"` reads the literal file. Output `> "-"`
 still names a literal file, differing from GNU; use `/dev/stdout` for supplied stdout.
 Same-name streams select the latest opening. Output-pipe fflush succeeds without

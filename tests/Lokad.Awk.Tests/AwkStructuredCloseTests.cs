@@ -176,12 +176,12 @@ public sealed class AwkStructuredCloseTests
         public StringBuilder Output { get; } = new();
         public StringBuilder Error { get; } = new();
 
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         {
             var descriptor = NewDescriptor();
             _inputs[descriptor] = path.Path.EndsWith(".awk", StringComparison.Ordinal)
                 ? "BEGIN{print \"body\"}"u8.ToArray() : "row\n"u8.ToArray();
-            return Task.FromResult(AwkOpenedFile.Opened(descriptor));
+            return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
         }
         public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {

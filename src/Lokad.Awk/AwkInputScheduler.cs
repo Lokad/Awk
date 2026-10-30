@@ -125,17 +125,18 @@ internal sealed class AwkInputScheduler(
                 }
 
                 var rawPath = originalFile?.RawPath ?? ResolveArgumentString(argumentText);
-                using var resolution = io.AdmitPathResolution(rawPath);
+                using var resolution = io.AdmitPathRequest(rawPath, hasDisplay: originalFile is not null);
                 state.Checkpoint();
-                var path = AwkPathResolution.ResolveRuntimeArgument(rawPath,
-                    invocation.RuntimeArgumentsPlan.CurrentDirectory, originalFile?.Display ?? default);
-                AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);
+                var path = AwkPathResolution.PrepareRuntimeArgument(rawPath,
+                    invocation.RuntimeArgumentsPlan.CurrentDirectory, originalFile?.Display ?? default,
+                    accessiblePathRoot);
                 state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                 var displayBytes = AwkRuntimeMemory.CheckedAdd(32, path.Display.Length);
                 using var pendingDisplay = state.MemoryAccounting.ReserveTransient(displayBytes);
                 state.Resources.RecordHostCall();
-                var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
+                var opened = await host.OpenFileAsync(path.Request, AwkFileOpenMode.Read, cancellationToken)
                     .ConfigureAwait(false);
+                AwkHostPathPolicy.ThrowIfDenied(opened);
                 if (!opened.Success)
                 {
                     if (await HandleOpenFailureAsync(path, opened).ConfigureAwait(false))
@@ -197,7 +198,7 @@ internal sealed class AwkInputScheduler(
                 return false;
             }
 
-            async ValueTask<bool> HandleOpenFailureAsync(AwkResolvedPath path, AwkOpenedFile opened)
+            async ValueTask<bool> HandleOpenFailureAsync(AwkFileOperand path, AwkOpenedFile opened)
             {
                 if (!actionExecutor.HasBeginFileActions)
                     throw CreateOpenFailure(path, opened);
@@ -214,7 +215,7 @@ internal sealed class AwkInputScheduler(
 
                 return false;
 
-                AwkRuntimeException CreateOpenFailure(AwkResolvedPath path, AwkOpenedFile opened) =>
+                AwkRuntimeException CreateOpenFailure(AwkFileOperand path, AwkOpenedFile opened) =>
                     new(
                         opened.Failed
                             ? AwkMessages.FormatPathError(path.Display, ResolveHostError(opened.Error))

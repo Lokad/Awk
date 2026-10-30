@@ -148,7 +148,6 @@ public sealed class AwkOpaquePipeTests
     }
 
     [Theory]
-    [InlineData("../../file")]
     [InlineData("file\tname")]
     [InlineData("file\u007fname")]
     public async Task InvalidFileRedirectsRemainInvalid(string path)

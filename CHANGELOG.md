@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Breaking host API:** `OpenFileAsync` receives `AwkPathRequest` with original path text,
+  explicit cwd and an optional accessible root. Hosts traverse and authorize before effects;
+  `Opened(descriptor, resolvedPath)` supplies their stable canonical identity. Core no longer
+  collapses dot segments or trailing slashes before host access. Report `PolicyDenied` for
+  fatal policy denial; ordinary getline I/O failures remain recoverable. Parent paths now
+  follow host traversal instead of an automatic above-root syntax rejection.
 - **Breaking host API:** replace `ReadLinesAsync` / `AwkReadResult` with bounded
   `ValueTask<AwkReadBuffer> ReadAsync(descriptor, maxBytes, token)`. Hosts no longer provide
   line offsets. Awk advances an absolute consumed prefix; disposal commits it once and ends

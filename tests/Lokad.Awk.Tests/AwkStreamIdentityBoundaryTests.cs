@@ -108,7 +108,7 @@ public sealed class AwkStreamIdentityBoundaryTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task CanonicalAuthorizationStillPrecedesEachHostOpen(bool input)
+    public async Task HostAuthorizationPrecedesNamespaceEffects(bool input)
     {
         var host = new TraceHost(0);
         host.Inner.AddFile("/jail/data", "one\n");
@@ -118,7 +118,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail")).WithMemoryBudget(budget);
         Assert.Equal(AwkExitCode.FatalError, await Execute(host, [script], policy, directory: new AwkPath("/jail")));
-        Assert.Equal(new[] { "/jail/data" }, host.Opens);
+        Assert.Equal(new[] { "data", "../outside" }, host.Opens);
         Assert.Equal("protected\n", host.Inner.ReadFile("/outside"));
         Assert.Equal("awk: path is outside the execution policy root\n", host.Inner.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.Inner.OpenFileCount);
@@ -159,7 +159,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMaxInputFiles(1).WithMaxOutputFiles(1).WithMemoryBudget(budget);
         Assert.Equal(AwkExitCode.FatalError, await Execute(host, [script], policy));
-        Assert.Equal(new[] { "/data" }, host.Opens);
+        Assert.Equal(new[] { "data" }, host.Opens);
         Assert.Equal(input ? "awk: input file limit exceeded\n" : "awk: output file limit exceeded\n",
             host.Inner.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.Inner.OpenFileCount);
@@ -183,7 +183,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         public List<int> Closes { get; } = [];
         public Func<ValueTask<AwkReadBuffer>>? PendingRead { get; init; }
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) => Inner.AppendAsync(descriptor, content, token);
-        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
         { Opens.Add(path.Path); return Inner.OpenFileAsync(path, mode, token); }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         { Closes.Add(descriptor.Id); return Inner.CloseDescriptorAsync(descriptor, token); }

@@ -7,6 +7,120 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 {
     [Theory]
+    [InlineData("input")] [InlineData("source")] [InlineData("output")]
+    public async Task HostAppliesRequestedRootAfterLinkTraversalBeforeEffects(string kind)
+    {
+        foreach (var allowed in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+        {
+            var host = new TraversalHost(kind == "source");
+            const string raw = "link/../data";
+            string[] arguments = kind switch
+            {
+                "source" => ["-f", raw],
+                "output" => ["BEGIN{print \"written\">\"" + raw + "\";print close(\"" + raw + "\")}"],
+                _ => ["{print}", raw]
+            };
+            var invocation = new AwkCommandInvocation("awk", arguments, [], new("/work"),
+                AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
+            var root = new AwkPath(allowed ? "/target" : "/work");
+            var budget = new CooperativeTestBudget(2 << 20);
+            var policy = AwkTestHarness.CreatePolicy().WithAccessiblePathRoot(root);
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            var exit = await AwkTestHarness.ParseAwk(invocation).ExecuteAsync(host, policy, CancellationToken.None);
+            Assert.Equal(allowed ? AwkExitCode.Success : AwkExitCode.FatalError, exit);
+            Assert.Equal(allowed ? kind == "output" ? "0\n" : "target\n" : "",
+                host.Files.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(allowed ? "" : "awk: path is outside the execution policy root\n",
+                host.Files.GetOutput(AwkFileDescriptor.StdErr));
+            var request = Assert.Single(host.Requests);
+            Assert.Equal(raw, request.Path);
+            Assert.Equal("/work", request.CurrentDirectory.Path);
+            Assert.Same(root, request.AccessiblePathRoot);
+            if (!allowed && kind == "output")
+                Assert.Equal("target\n", host.Files.ReadFile("/target/data"));
+            Assert.Equal(0, host.Files.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
+    [Fact]
+    public async Task IncludeAliasesUseTheHostResolvedIdentityOnce()
+    {
+        var host = new TraversalHost(source: true);
+        var invocation = new AwkCommandInvocation("awk",
+            ["@include \"link/../data\"\n@include \"/target/data\"\nBEGIN{print \"body\"}"], [], new("/work"),
+            AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
+        Assert.Equal(AwkExitCode.Success, await AwkTestHarness.ParseAwk(invocation)
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Equal("target\nbody\n", host.Files.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.Files.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, host.Requests.Count);
+        Assert.Equal(0, host.Files.OpenFileCount);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task SourceRoleConflictUsesTheHostResolvedLinkIdentity(bool includeFirst)
+    {
+        var host = new TraversalHost(source: true);
+        var invocation = new AwkCommandInvocation("awk", includeFirst
+            ? ["-i", "link/../data", "-f", "/target/data"] : ["-f", "link/../data", "-i", "/target/data"],
+            [], new("/work"), AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
+        Assert.Equal(AwkExitCode.FatalError, await AwkTestHarness.ParseAwk(invocation)
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Empty(host.Files.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: /target/data: cannot use a file as both program source and include\n",
+            host.Files.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.Files.OpenFileCount);
+    }
+
+    [Theory]
+    [InlineData("input", "link/../data")]
+    [InlineData("input", "missing/../data")]
+    [InlineData("input", "data/")]
+    [InlineData("source", "link/../data")]
+    [InlineData("source", "missing/../data")]
+    [InlineData("source", "data/")]
+    [InlineData("output", "link/../data")]
+    [InlineData("output", "missing/../data")]
+    [InlineData("output", "data/")]
+    public async Task HostTraversalSeesOriginalPathBeforeResolvingLinksAndDirectories(string kind, string raw)
+    {
+        foreach (var governed in new[] { false, true })
+        {
+            var host = new TraversalHost(kind == "source");
+            string[] arguments = kind switch
+            {
+                "source" => ["-f", raw],
+                "output" => ["BEGIN{print \"written\">\"" + raw + "\";print close(\"" + raw + "\")}"],
+                _ => ["{print}", raw]
+            };
+            var invocation = new AwkCommandInvocation("awk", arguments, [], new("/work"),
+                AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
+            var tool = AwkTestHarness.ParseAwk(invocation);
+            var budget = new CooperativeTestBudget(2 << 20);
+            var policy = AwkTestHarness.CreatePolicy();
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            var exit = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+            var success = raw.StartsWith("link/", StringComparison.Ordinal);
+            Assert.Equal(success ? AwkExitCode.Success : AwkExitCode.FatalError, exit);
+            Assert.Equal(success ? kind == "output" ? "0\n" : "target\n" : "",
+                host.Files.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(success ? "" : "awk: " + raw + (raw.EndsWith('/') ? ": Not a directory\n" : ": No such file or directory\n"),
+                host.Files.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(raw, Assert.Single(host.Requests).Path);
+            if (success && kind == "output")
+            {
+                Assert.Equal("written\n", host.Files.ReadFile("/target/data"));
+                Assert.Equal("lexical\n", host.Files.ReadFile("/work/data"));
+            }
+            Assert.Equal(0, host.Files.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
+    [Theory]
     [InlineData("stdout", false, false)] [InlineData("stdout", false, true)]
     [InlineData("stdout", true, false)] [InlineData("stdout", true, true)]
     [InlineData("file", false, false)] [InlineData("file", false, true)]
@@ -365,6 +479,47 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         Assert.Equal(
             "awk: consumer: close failed\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+    }
+
+    private sealed class TraversalHost : IAwkHost
+    {
+        private readonly HashSet<string> _directories = ["/", "/work", "/target", "/target/sub"];
+        public MockFileSystem Files { get; } = new();
+        public List<AwkPathRequest> Requests { get; } = [];
+
+        public TraversalHost(bool source)
+        {
+            Files.AddFile("/target/data", source ? "BEGIN{print \"target\"}" : "target\n");
+            Files.AddFile("/work/data", source ? "BEGIN{print \"lexical\"}" : "lexical\n");
+        }
+
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
+        {
+            Requests.Add(path);
+            var raw = path.Path;
+            var current = raw.StartsWith('/') ? "/" : path.CurrentDirectory.Path;
+            foreach (var part in raw.Split('/', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!_directories.Contains(current)) return Failed("Not a directory");
+                if (part == ".") continue;
+                if (part == "..") { current = new AwkPath(current).Parent?.Path ?? "/"; continue; }
+                current = (current == "/" ? "" : current) + "/" + part;
+                if (current == "/work/link") current = "/target/sub";
+                if (!_directories.Contains(current) && !Files.FileExists(current))
+                    return Failed("No such file or directory");
+            }
+            if (raw.EndsWith('/') && !_directories.Contains(current)) return Failed("Not a directory");
+            return Files.OpenFileAsync(new(current, path.CurrentDirectory, path.AccessiblePathRoot), mode, token);
+
+            static Task<AwkOpenedFile> Failed(string message) =>
+                Task.FromResult(AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound, message)));
+        }
+
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token) => Files.AppendAsync(descriptor, bytes, token);
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maxBytes, CancellationToken token) => Files.ReadAsync(descriptor, maxBytes, token);
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Files.CloseDescriptorAsync(descriptor, token);
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Files.RunCommandAsync(command, token);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Files.CreatePipeAsync(token);
     }
 
     [Fact]

@@ -2,9 +2,9 @@ namespace Lokad.Awk;
 
 internal static class AwkHostPathPolicy
 {
-    public static void ThrowIfDenied(AwkPath path, AwkPath? accessibleRoot)
+    public static void ThrowIfDenied(AwkOpenedFile opened)
     {
-        if (accessibleRoot is not null && !accessibleRoot.IsEqualToOrParentOf(path))
+        if (opened.Error.Kind == AwkOperationErrorKind.PolicyDenied)
         {
             throw new AwkRuntimeException(
                 AwkMessages.ErrorPathOutsideExecutionRoot,

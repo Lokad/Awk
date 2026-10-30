@@ -17,20 +17,31 @@ fixes time to Unix epoch/UTC; and tightens stack and open-resource bounds.
 Explicit invocation inputs remain available. Supply shared admission and caller cancellation
 for resource control; the preset supplies neither an aggregate memory allowance nor a deadline.
 
-`--sandbox` disables file and command redirections. `AccessiblePathRoot` checks canonical
-virtual paths lexically; a filesystem host enforces its root against symlinks, reparse points
+`--sandbox` disables file and command redirections. `AccessiblePathRoot` is forwarded to
+the host, which enforces it against its resolved namespace before effects, including links
 and races. Supported `/dev/*` aliases name supplied descriptors. Main input accepts `-`,
 `/dev/stdin` and `/dev/fd/0` without opening a host path or taking ownership of stdin.
 
 Main-input operands remain text until the scheduler selects them. Unused or discarded operands
-are not validated as paths; selected paths receive shared admission and canonical authorization
-before opening. Source/include paths are resolved while preparing the program. Virtual filenames
+are not validated as paths; selected paths receive shared admission before host traversal.
+Source/include requests are prepared while loading the program. Virtual filenames
 accept literal `:`, `*` and `\`; only `/` separates segments. There is no glob expansion or drive
 syntax. Hosts determine whether their backing store supports these names.
 
 Pipes require policy and host permission. Awk passes opaque command text to the host without
 invoking a shell. Hosts control command allowlists, parsing, environment and process limits.
 Unsupported effects remain explicit; see [compatibility](COMPATIBILITY.md).
+
+`OpenFileAsync(AwkPathRequest, mode, token)` receives original spelling and explicit cwd.
+Preserve dot segments and trailing slash until traversal: `link/../data` can differ from
+`data`, and a missing intermediate directory cannot disappear through normalization.
+Return `Opened(descriptor, resolvedPath)` with a stable canonical identity after authorization.
+Source reuse and include-role checks use that identity; ARGV, FILENAME, diagnostics and
+redirection stream names retain their own spelling. Different source aliases may require
+another open/close to discover identity, while exact repeated requests reuse loaded source.
+Return `PolicyDenied` for fatal policy refusal. Ordinary missing/permission/transport errors
+retain their I/O behavior, including recoverable getline. Lexical helpers do not prove
+filesystem containment. Core performs no direct filesystem traversal.
 
 Hosts implement `RunCommandAsync(AwkCommandInvocation, CancellationToken)` returning
 `Task<AwkExitCode>` and `CreatePipeAsync(CancellationToken)` for streaming pipes.

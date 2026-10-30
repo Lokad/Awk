@@ -164,8 +164,8 @@ public sealed class AwkArgumentSchedulingTests
 
     [Theory]
     [InlineData("b.txt", "awk: path is outside the execution policy root\n")]
-    [InlineData("../b.txt", "awk: invalid path\n")]
-    public async Task AddedPathsStillHonorPathValidationBeforeOpening(string path, string diagnostic)
+    [InlineData("../b.txt", "awk: path is outside the execution policy root\n")]
+    public async Task AddedPathsHonorHostPolicyBeforeOpeningDescriptors(string path, string diagnostic)
     {
         {
             var host = Files();
