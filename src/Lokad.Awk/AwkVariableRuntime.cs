@@ -147,20 +147,16 @@ internal sealed class AwkVariableRuntime(
         AwkVariableName name,
         AwkValue value)
     {
-        if (!functions.TryResolveLocal(slotId, out var local))
-        {
-            AssignVariableValue(name, value);
+        // The mutation already resolves and validates the visible local slot.
+        if (functions.TryAssignLocal(slotId, value))
             return;
-        }
 
-        if (local.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+        if (functions.TryResolveLocal(slotId, out var local) &&
+            local.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
             ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
             return;
         }
-
-        if (functions.TryAssignLocal(slotId, value))
-            return;
 
         AssignVariableValue(name, value);
     }
