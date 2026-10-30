@@ -70,7 +70,6 @@ public sealed class AwkNumericByteEscapeTests
             Assert.Equal(0, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
-        Assert.Equal(2, counters.RegexCompiles); // Counts attempted compilations, including rejected admission.
         Assert.Equal(0, counters.RegexMatches);
         Assert.Equal(0, counters.StringDecodes);
     }

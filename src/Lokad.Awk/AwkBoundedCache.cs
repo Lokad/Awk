@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkBoundedCache<TKey, TValue> where TKey : notnull
 {
     private readonly int _capacity;
-    private readonly Dictionary<TKey, CacheEntry> _entries = [];
+    private readonly Dictionary<TKey, CacheEntry> _entries;
     private readonly LinkedList<TKey> _recency = [];
     private readonly Action<TValue>? _release;
 
@@ -13,6 +13,7 @@ internal sealed class AwkBoundedCache<TKey, TValue> where TKey : notnull
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _capacity = capacity;
+        _entries = new(capacity);
         _release = release;
     }
 

@@ -7,13 +7,36 @@ internal sealed partial class AwkRegexRuntime
     public AwkRegex PrepareContinuingRecordSeparator(AwkRegex regex)
     {
         var sensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
-        var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.RecordSeparator);
-        if (_regexCache.TryGetValue(key, out var cached)) return cached;
-        using var temporary = _memoryAccounting.CreateTransientLease();
-        var ere = SuppressInputStart(regex.Pattern, temporary);
-        if (ReferenceEquals(ere, regex.Pattern)) return regex;
-        _resources.RecordRegexCompilation();
-        return Cache(key, CreateRegex(ere, sensitivity, hasFixedCaseSensitivity: true));
+        if (regex.SuppressInputStart || !ResolveCompiledRegex(regex, sensitivity).HasInputStart) return regex;
+        var key = new AwkRegexCacheKey(regex.Pattern, regex.PatternHashCode, sensitivity, regex.SourceKind,
+            regex.CompatibilityMode, fixedSensitivity: true, suppressInputStart: true);
+        if (_compiledRegexCache is { } cache && cache.TryGetValue(key, out var cached)) return cached.Recipe;
+        return CompileAndCache(key, regex.Pattern, sensitivity, fixedSensitivity: true, regex.SourceKind,
+            regex.CompatibilityMode, suppressInputStart: true).Recipe;
+    }
+
+    private bool HasInputStart(AwkText pattern)
+    {
+        var bytes = pattern.AsSpan(_throwIfCancellationRequested);
+        if (bytes.IndexOfAny((byte)'^', (byte)'\\') < 0) return false;
+        long next = 0;
+        for (var index = 0; index < bytes.Length; index++)
+        {
+            AwkRegexConstruction.CheckProgress(index, ref next, _throwIfCancellationRequested);
+            if (bytes[index] == (byte)'^') return true;
+            if (bytes[index] == (byte)'[')
+            {
+                var end = AwkRegexConstruction.BracketEnd(pattern, index, _throwIfCancellationRequested);
+                if (end < index)
+                    throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
+                index = end;
+            }
+            else if (bytes[index] == (byte)'\\' && index + 1 < bytes.Length)
+            {
+                if (bytes[++index] == (byte)'A') return true;
+            }
+        }
+        return false;
     }
 
     private AwkText SuppressInputStart(AwkText pattern, AwkMemoryLease temporary)

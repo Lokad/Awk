@@ -42,6 +42,9 @@ adapter's handle/search reservations are coarse estimates, not full engine alloc
 Native-pattern checks pin byte content through translation and equivalent cache keys, including
 supplementary scalars and NUL. Core conversion counters exclude the example adapter's temporary
 pattern decoding for the published provider's string-only compilation API.
+Cache-admission cases use a compact, conforming provider adapter to separate retained core
+keys from provider storage estimates. They cover public refusal/no later effects/refunds and
+key admission surviving eviction until active searches finish.
 Byte-search checks cover scoped subject lifetimes, current tokens, byte restarts in either
 direction and eviction during active use. Coordinate goldens cover supplementary scalars,
 combining sequences, NUL, empty/absent captures and byte mode. Core counter checks require

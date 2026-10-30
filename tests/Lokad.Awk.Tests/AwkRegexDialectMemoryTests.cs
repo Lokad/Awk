@@ -7,17 +7,19 @@ public sealed class AwkRegexDialectMemoryTests
     {
         using var memoryForGovernor = Governor(1);
         var governor = memoryForGovernor.Accounting;
-        var runtime = Runtime(governor,() => { });
+        using var runtime = Runtime(governor,() => { });
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(")")));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         using var memoryForAdmitted = Governor(1 << 24);
         var admitted = memoryForAdmitted.Accounting;
-        var retry = Runtime(admitted,() => { });
+        using var retry = Runtime(admitted,() => { });
         var regex = retry.Create(new AwkRegexPattern(")"));
         Assert.True(retry.IsMatch(regex, AwkText.FromString(")")));
         Assert.Same(regex, retry.Create(new AwkRegexPattern(")")));
+        Assert.True(admitted.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
+        retry.Dispose();
         Assert.Equal(0, admitted.CurrentCommittedBytes);
     }
 
@@ -28,10 +30,12 @@ public sealed class AwkRegexDialectMemoryTests
         using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
         var governor = memoryForGovernor.Accounting;
         long heldAtLastCheck = -1;
-        var runtime = Runtime(governor,() => heldAtLastCheck = governor.CurrentCommittedBytes);
+        using var runtime = Runtime(governor,() => heldAtLastCheck = governor.CurrentCommittedBytes);
         var regex = runtime.Create(new AwkRegexPattern(@"\q"));
         Assert.True(heldAtLastCheck >= 26, $"Final preparation check held {heldAtLastCheck} bytes.");
         Assert.True(runtime.IsMatch(regex, AwkText.FromString("q")));
+        Assert.True(governor.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
+        runtime.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }

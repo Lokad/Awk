@@ -6,6 +6,8 @@ internal enum AwkRegexCaseSensitivity
     IgnoreCase
 }
 
+internal enum AwkRegexSourceKind { Translated, Pattern, Literal }
+
 // Immutable Awk preparation; execution caches own provider handles.
 internal sealed class AwkRegex
 {
@@ -13,23 +15,40 @@ internal sealed class AwkRegex
     private readonly AwkRegexCaseSensitivity _caseSensitivity;
 
     internal AwkRegex(AwkText pattern, AwkRegexCaseSensitivity caseSensitivity,
-        bool hasFixedCaseSensitivity = false, Action? checkpoint = null)
+        bool hasFixedCaseSensitivity = false, Action? checkpoint = null,
+        AwkRegexSourceKind sourceKind = AwkRegexSourceKind.Translated,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        bool suppressInputStart = false)
     {
         Pattern = pattern;
         _caseSensitivity = caseSensitivity;
         _hasFixedCaseSensitivity = hasFixedCaseSensitivity;
         PatternHashCode = pattern.GetHashCode(checkpoint);
+        SourceKind = sourceKind;
+        CompatibilityMode = compatibilityMode;
+        SuppressInputStart = suppressInputStart;
     }
 
     public AwkText Pattern { get; }
     internal int PatternHashCode { get; }
+    internal AwkRegexSourceKind SourceKind { get; }
+    internal AwkCompatibilityMode CompatibilityMode { get; }
+    internal bool SuppressInputStart { get; }
+    internal bool HasFixedCaseSensitivity => _hasFixedCaseSensitivity;
 
     public AwkRegexCaseSensitivity ResolveCaseSensitivity(Func<AwkRegexCaseSensitivity> resolveCurrent) =>
         _hasFixedCaseSensitivity ? _caseSensitivity : resolveCurrent();
 
     public static AwkRegex Create(AwkRegexPattern pattern, AwkRegexCaseSensitivity caseSensitivity,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault, Action? checkpoint = null) =>
-        new(TranslatePattern(pattern, compatibilityMode, checkpoint), caseSensitivity, checkpoint: checkpoint);
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault, Action? checkpoint = null)
+    {
+        // Frontend preparation still validates AWK syntax. Retain only its source recipe;
+        // execution-owned cache entries fund source keys and provider handles. Translated
+        // buffers have a transient construction lifetime rather than escaping via recipes.
+        _ = TranslatePattern(pattern, compatibilityMode, checkpoint);
+        return new(pattern.Text, caseSensitivity, checkpoint: checkpoint,
+            sourceKind: AwkRegexSourceKind.Pattern, compatibilityMode: compatibilityMode);
+    }
 
     public static AwkText TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,

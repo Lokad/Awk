@@ -13,7 +13,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         using var memoryForGovernor = Governor(1);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(governor,counters);
+        using var runtime = Runtime(governor,counters);
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.CreateLiteral(new AwkRegexLiteralText(text)));
@@ -24,10 +24,12 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         }
         using var memoryForAdmitted = Governor(1 << 24);
         var admitted = memoryForAdmitted.Accounting;
-        var retry = Runtime(admitted,counters);
+        using var retry = Runtime(admitted,counters);
         var regex = retry.CreateLiteral(new AwkRegexLiteralText(text));
         Assert.Same(regex, retry.CreateLiteral(new AwkRegexLiteralText(text)));
         Assert.Equal(1, counters.RegexCompiles);
+        Assert.True(admitted.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
+        retry.Dispose();
         Assert.Equal(0, admitted.CurrentCommittedBytes);
         Assert.Equal(0, admitted.CurrentReservedBytes);
     }
@@ -130,10 +132,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         using var memoryForProbeGovernor = Governor(1 << 20);
         var probeGovernor = memoryForProbeGovernor.Accounting;
         var heldChecks = 0;
-        _ = Runtime(probeGovernor,AwkRuntimeCounters.Disabled,() =>
-        {
-            if (probeGovernor.CurrentCommittedBytes == bytes) heldChecks++;
-        }).CreateLiteral(new AwkRegexLiteralText("."));
+        using var probe = Runtime(probeGovernor, AwkRuntimeCounters.Disabled, () => heldChecks++);
+        _ = probe.CreateLiteral(new AwkRegexLiteralText("."));
         Assert.True(heldChecks > 0);
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
@@ -141,21 +141,22 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         using var cancellation = new CancellationTokenSource();
         var armed = true;
         var checks = 0;
-        var runtime = Runtime(governor,counters,() =>
+        using var runtime = Runtime(governor,counters,() =>
         {
-            if (armed && governor.CurrentCommittedBytes == bytes && ++checks == heldChecks) cancellation.Cancel();
+            if (armed && ++checks == heldChecks) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         });
         var error = Assert.Throws<OperationCanceledException>(() => runtime.CreateLiteral(new AwkRegexLiteralText(".")));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(1, counters.RegexCompiles);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
         var retry = runtime.CreateLiteral(new AwkRegexLiteralText("."));
         Assert.Same(retry, runtime.CreateLiteral(new AwkRegexLiteralText(".")));
         Assert.Equal(2, counters.RegexCompiles);
         Assert.True(counters.MemoryPeakLiveBytes >= bytes);
+        runtime.Dispose();
+        Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 
     [Theory]

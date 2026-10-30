@@ -661,9 +661,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_RegexEnumerationHoldsOnlyOneMatchBuffer()
     {
-        using var memoryForState = CreateGovernedState(8192);
+        using var memoryForState = CreateGovernedState(32 << 10);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var input = AwkText.FromString(new string('a', 1000));
 
         var matchCount = 0;
@@ -674,11 +675,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 matchCount++;
             }
 
-            Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         }
 
         Assert.Equal(1000, matchCount);
-        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -688,6 +689,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var memoryForState = CreateGovernedState(64 << 10);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var input = AwkText.FromString(new string('a', 10000));
 
         using (var leasedMatch = state.MatchRegexValue(regex, input, AwkRegexCapturePlan.All))
@@ -697,7 +699,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             Assert.True(match.Success);
             Assert.Equal("a", match.Value.AsString());
         }
-        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -736,9 +738,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_SubFirstReplacementSucceedsWithBoundedSearchScratch()
     {
-        using var memoryForState = CreateGovernedState(8192);
+        using var memoryForState = CreateGovernedState(32 << 10);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var input = AwkText.FromString("aaaa");
         Assert.True(memoryForState.Budget.TryReserve(
             memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 600, out var pressure));
@@ -755,7 +758,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         Assert.Equal(1, replacementCount);
         Assert.Equal("Xaaa", replaced.AsString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

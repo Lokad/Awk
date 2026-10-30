@@ -12,8 +12,8 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private readonly CancellationToken _cancellationToken;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
-    private readonly AwkBoundedCache<AwkRegexCacheKey, AwkRegex> _regexCache;
-    private readonly AwkBoundedCache<AwkRegexCacheKey, CompiledPattern> _compiledRegexCache;
+    private AwkBoundedCache<AwkRegexCacheKey, CompiledPattern>? _compiledRegexCache;
+    private AwkMemoryLease _cacheStorage = AwkMemoryLease.Disabled;
     private readonly IAwkRegexEngine? _engine;
     private readonly IMemoryBudget? _regexMemoryBudget;
     private readonly AwkMemoryAccounting _memoryAccounting;
@@ -62,8 +62,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         _compatibilityMode = compatibilityMode;
         _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryAccounting, compatibilityMode,
             reportUnicodeWarning, throwIfCancellationRequested, regexEscapeWarnings);
-        _regexCache = new(MaxCachedRegexes);
-        _compiledRegexCache = new(MaxCachedRegexes, static pattern => pattern.Dispose());
     }
 
     public void ResetWarningSite(object site) => _unicodeWarnings.Reset(site);
@@ -82,24 +80,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         _throwIfCancellationRequested();
 
         _unicodeWarnings.Report(pattern, caseSensitivity);
-        var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedPattern : AwkRegexCacheKind.Pattern;
-        var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind, _throwIfCancellationRequested);
-        if (_regexCache.TryGetValue(key, out var cached))
-            return cached;
-
-        try
-        {
-            _resources.RecordRegexCompilation();
-            using var translatedText = _memoryAccounting.CreateTransientLease();
-            var translated = AwkRegex.TranslatePattern(pattern, _compatibilityMode, _throwIfCancellationRequested,
-                translatedText, _memoryAccounting);
-            return Cache(key, CreateRegex(translated, caseSensitivity, hasFixedCaseSensitivity));
-        }
-        catch (ArgumentException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
-        }
-
+        return Prepare(pattern.Text, caseSensitivity, hasFixedCaseSensitivity, AwkRegexSourceKind.Pattern);
     }
 
     public AwkRegex CreateLiteral(AwkRegexLiteralText literal) =>
@@ -108,31 +89,21 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     public AwkRegex CreateLiteral(AwkRegexLiteralText literal, AwkRegexCaseSensitivity caseSensitivity) =>
         CreateLiteral(literal, caseSensitivity, hasFixedCaseSensitivity: true);
 
-    private AwkRegex CreateLiteral(
-        AwkRegexLiteralText literal,
-        AwkRegexCaseSensitivity caseSensitivity,
+    private AwkRegex CreateLiteral(AwkRegexLiteralText literal, AwkRegexCaseSensitivity caseSensitivity,
         bool hasFixedCaseSensitivity)
     {
         _throwIfCancellationRequested();
-        var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedLiteral : AwkRegexCacheKind.Literal;
-        var key = new AwkRegexCacheKey(literal.Text, caseSensitivity, kind, _throwIfCancellationRequested);
-        if (_regexCache.TryGetValue(key, out var cached))
-            return cached;
+        return Prepare(literal.Text, caseSensitivity, hasFixedCaseSensitivity, AwkRegexSourceKind.Literal);
+    }
 
-        try
-        {
-
-            using var translatedText = _memoryAccounting.CreateTransientLease();
-            var escaped = AwkRegexConstruction.EscapeLiteral(literal.Text,
-                _throwIfCancellationRequested, _memoryAccounting, translatedText);
-
-            _resources.RecordRegexCompilation();
-            return Cache(key, CreateRegex(escaped, caseSensitivity, hasFixedCaseSensitivity));
-        }
-        catch (ArgumentException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
-        }
+    private AwkRegex Prepare(AwkText source, AwkRegexCaseSensitivity sensitivity, bool fixedSensitivity,
+        AwkRegexSourceKind kind)
+    {
+        var key = new AwkRegexCacheKey(source, source.GetHashCode(_throwIfCancellationRequested),
+            sensitivity, kind, _compatibilityMode, fixedSensitivity, suppressInputStart: false);
+        if (_compiledRegexCache is { } cache && cache.TryGetValue(key, out var cached)) return cached.Recipe;
+        return CompileAndCache(key, source, sensitivity, fixedSensitivity, kind, _compatibilityMode,
+            suppressInputStart: false).Recipe;
     }
 
     public bool IsMatch(AwkRegex regex, AwkText input)
@@ -212,72 +183,110 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private static AwkRuntimeException AdmissionFailure() =>
         new(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
-    private AwkRegex Cache(AwkRegexCacheKey key, AwkRegex regex)
+    private CompiledPattern ResolveCompiledRegex(AwkRegex regex, AwkRegexCaseSensitivity sensitivity)
     {
-        _throwIfCancellationRequested();
-        _regexCache.Set(key, regex);
-        return regex;
+        var key = new AwkRegexCacheKey(regex.Pattern, regex.PatternHashCode, sensitivity, regex.SourceKind,
+            regex.CompatibilityMode, regex.HasFixedCaseSensitivity, regex.SuppressInputStart);
+        if (_compiledRegexCache is { } cache && cache.TryGetValue(key, out var cached)) return cached;
+        return CompileAndCache(key, regex.Pattern, sensitivity, regex.HasFixedCaseSensitivity,
+            regex.SourceKind, regex.CompatibilityMode, regex.SuppressInputStart, regex);
     }
 
-    private AwkRegex CreateRegex(AwkText translatedPattern, AwkRegexCaseSensitivity caseSensitivity,
-        bool hasFixedCaseSensitivity)
+    private CompiledPattern CompileAndCache(AwkRegexCacheKey key, AwkText source,
+        AwkRegexCaseSensitivity sensitivity, bool fixedSensitivity, AwkRegexSourceKind kind,
+        AwkCompatibilityMode mode, bool suppressInputStart, AwkRegex? recipe = null)
     {
-        var regex = new AwkRegex(translatedPattern, caseSensitivity, hasFixedCaseSensitivity,
-            _throwIfCancellationRequested);
-        _ = ResolveCompiledRegex(regex, caseSensitivity, countCompilation: false);
-        return regex;
-    }
-
-
-    private CompiledPattern ResolveCompiledRegex(AwkRegex regex, AwkRegexCaseSensitivity sensitivity,
-        bool countCompilation = true)
-    {
-        var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.TranslatedPattern);
-        if (_compiledRegexCache.TryGetValue(key, out var cached)) return cached;
         if (_engine is not { } engine)
             throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderRequired, AwkDiagnosticId.RuntimeRegexProvider);
 
-        if (countCompilation) _resources.RecordRegexCompilation();
+        var cache = EnsureCompiledCache();
+        // The key can outlive its record, variable or frontend owner. Charge its actual
+        // retained text plus recipe/entry/list-node storage, independently of the provider.
+        var entryLease = _memoryAccounting.ReserveTransient(
+            AwkRuntimeMemory.CheckedAdd(192, AwkRuntimeMemory.EstimateTextBytes(source)));
         IAwkCompiledRegex? compiled = null;
+        var transferred = false;
         try
         {
+            recipe ??= new AwkRegex(source, sensitivity, fixedSensitivity, _throwIfCancellationRequested,
+                kind, mode, suppressInputStart);
+            _resources.RecordRegexCompilation();
+            using var translatedText = _memoryAccounting.CreateTransientLease();
+            var translated = kind switch
+            {
+                AwkRegexSourceKind.Pattern => AwkRegex.TranslatePattern(new AwkRegexPattern(source), mode,
+                    _throwIfCancellationRequested, translatedText, _memoryAccounting),
+                AwkRegexSourceKind.Literal => AwkRegexConstruction.EscapeLiteral(source,
+                    _throwIfCancellationRequested, _memoryAccounting, translatedText),
+                _ => source
+            };
+            var hasInputStart = HasInputStart(translated);
+            if (suppressInputStart) translated = SuppressInputStart(translated, translatedText);
             _throwIfCancellationRequested();
-            var supported = engine.TryCompile(regex.Pattern.AsSpan(_throwIfCancellationRequested), sensitivity == AwkRegexCaseSensitivity.IgnoreCase,
-                _regexMemoryBudget, _cancellationToken, out compiled);
+            var supported = engine.TryCompile(translated.AsSpan(_throwIfCancellationRequested),
+                sensitivity == AwkRegexCaseSensitivity.IgnoreCase, _regexMemoryBudget, _cancellationToken, out compiled);
             if (!supported)
                 throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
             if (compiled is null || compiled.GroupCount < 1)
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             _throwIfCancellationRequested();
-            var owner = new CompiledPattern(compiled);
-            _compiledRegexCache.Set(key, owner);
+            var owner = new CompiledPattern(compiled, recipe, entryLease, hasInputStart);
+            cache.Set(key, owner);
+            transferred = true;
             return owner;
         }
-        catch (AwkRegexAdmissionException)
+        catch (AwkRegexAdmissionException) { throw AdmissionFailure(); }
+        catch (ArgumentException)
         {
-            compiled?.Dispose();
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
         }
-        catch
+        finally
         {
-            compiled?.Dispose();
-            throw;
+            if (!transferred)
+            {
+                try { compiled?.Dispose(); }
+                finally { entryLease.Dispose(); }
+            }
         }
+    }
+
+    private AwkBoundedCache<AwkRegexCacheKey, CompiledPattern> EnsureCompiledCache()
+    {
+        if (_compiledRegexCache is { } existing) return existing;
+        // This dictionary has a larger key than ordinary dictionaries. The doubled
+        // coarse capacity covers its prime-sized backing arrays and collection objects.
+        var storage = _memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(128,
+            AwkRuntimeMemory.EstimateDictionaryBufferBytes(MaxCachedRegexes * 2)));
+        try
+        {
+            var cache = new AwkBoundedCache<AwkRegexCacheKey, CompiledPattern>(MaxCachedRegexes,
+                static pattern => pattern.Dispose());
+            _compiledRegexCache = cache;
+            _cacheStorage = storage;
+            return cache;
+        }
+        catch { storage.Dispose(); throw; }
     }
 
     public void Dispose()
     {
-        _regexCache.Clear();
-        _compiledRegexCache.Clear();
+        var cache = _compiledRegexCache;
+        _compiledRegexCache = null;
+        try { cache?.Clear(); }
+        finally { _cacheStorage.Dispose(); _cacheStorage = AwkMemoryLease.Disabled; }
     }
 
     // Eviction retires an entry; active synchronous calls/searches keep its provider
-    // and admission alive until their own finally/disposal boundary.
-    internal sealed class CompiledPattern(IAwkCompiledRegex pattern) : IDisposable
+    // and key admission alive until their own finally/disposal boundary.
+    internal sealed class CompiledPattern(IAwkCompiledRegex pattern, AwkRegex recipe,
+        AwkMemoryLease lease, bool hasInputStart) : IDisposable
     {
         private IAwkCompiledRegex? _pattern = pattern;
         private int _users;
         private bool _retired;
+        private AwkRegex? _recipe = recipe;
+        public AwkRegex Recipe => _recipe ?? throw new ObjectDisposedException(nameof(CompiledPattern));
+        public bool HasInputStart { get; } = hasInputStart;
         public IAwkCompiledRegex Pattern => _pattern ?? throw new ObjectDisposedException(nameof(CompiledPattern));
         public void Pin() { _ = Pattern; _users++; }
         public void Unpin() { _users--; ReleaseIfRetired(); }
@@ -287,7 +296,9 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             if (!_retired || _users != 0) return;
             var owned = _pattern;
             _pattern = null;
-            owned?.Dispose();
+            _recipe = null;
+            try { owned?.Dispose(); }
+            finally { lease.Dispose(); }
         }
     }
 
@@ -354,68 +365,24 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         }
     }
 
-    private readonly struct AwkRegexCacheKey : IEquatable<AwkRegexCacheKey>
+    private readonly struct AwkRegexCacheKey(AwkText pattern, int patternHashCode,
+        AwkRegexCaseSensitivity sensitivity, AwkRegexSourceKind kind, AwkCompatibilityMode mode,
+        bool fixedSensitivity, bool suppressInputStart) : IEquatable<AwkRegexCacheKey>
     {
-        private readonly AwkText? _pattern;
-        private readonly int _patternHashCode;
+        private readonly AwkText? _pattern = pattern;
+        private AwkText Pattern => _pattern ?? AwkText.Empty;
+        private AwkRegexCaseSensitivity Sensitivity { get; } = sensitivity;
+        private AwkRegexSourceKind Kind { get; } = kind;
+        private AwkCompatibilityMode Mode { get; } = mode;
+        private bool FixedSensitivity { get; } = fixedSensitivity;
+        private bool SuppressInputStart { get; } = suppressInputStart;
 
-        public AwkRegexCacheKey(
-            AwkText pattern,
-            AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind,
-            Action checkpoint)
-            : this(pattern, pattern.GetHashCode(checkpoint), caseSensitivity, kind)
-        {
-        }
-
-        public AwkRegexCacheKey(
-            AwkRegex regex,
-            AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind)
-            : this(regex.Pattern, regex.PatternHashCode, caseSensitivity, kind)
-        {
-        }
-
-        private AwkRegexCacheKey(
-            AwkText pattern,
-            int patternHashCode,
-            AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind)
-        {
-            _pattern = pattern;
-            _patternHashCode = patternHashCode;
-            CaseSensitivity = caseSensitivity;
-            Kind = kind;
-        }
-
-        public AwkText PatternText => _pattern ?? AwkText.Empty;
-
-        private AwkRegexCaseSensitivity CaseSensitivity { get; }
-
-        private AwkRegexCacheKind Kind { get; }
-
-
-        public bool Equals(AwkRegexCacheKey other) =>
-            CaseSensitivity == other.CaseSensitivity &&
-            Kind == other.Kind &&
-            PatternText.Equals(other.PatternText);
-
-        public override bool Equals(object? obj) =>
-            obj is AwkRegexCacheKey other && Equals(other);
-
+        public bool Equals(AwkRegexCacheKey other) => Sensitivity == other.Sensitivity &&
+            Kind == other.Kind && Mode == other.Mode && FixedSensitivity == other.FixedSensitivity &&
+            SuppressInputStart == other.SuppressInputStart && Pattern.Equals(other.Pattern);
+        public override bool Equals(object? obj) => obj is AwkRegexCacheKey other && Equals(other);
         public override int GetHashCode() =>
-            HashCode.Combine(_pattern is null ? AwkText.Empty.GetHashCode() : _patternHashCode,
-                CaseSensitivity, Kind);
-    }
-
-    private enum AwkRegexCacheKind
-    {
-        Pattern,
-        Literal,
-        FixedPattern,
-        FixedLiteral,
-        TranslatedPattern,
-        RecordSeparator
+            HashCode.Combine(patternHashCode, Sensitivity, Kind, Mode, FixedSensitivity, SuppressInputStart);
     }
 
 }

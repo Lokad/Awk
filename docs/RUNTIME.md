@@ -252,8 +252,10 @@ The [contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) keeps responsibilities
   Providers own engine admission/protection and poll cancellation during work. Refused
   admission throws `AwkRegexAdmissionException`. There is no adapter-owned deadline.
 
-The application owns the engine and must allow concurrent compilation. Execution-local
-bounded caches own compiled handles, disposing them on eviction or cleanup. Disposal is
+The application owns the engine and must allow concurrent compilation. One execution-local
+bounded cache owns compiled handles and admits its retained UTF-8 source keys and entry
+storage independently of provider admission. Translation buffers are temporary; cache backing
+is admitted on first use. Entries retire on eviction or cleanup. Disposal is
 deferred until active calls/searches finish. Dispose searches before releasing or changing
 their subject; disposal is idempotent and non-throwing. Awk funds scoped search metadata,
 translation, replacements and published captures

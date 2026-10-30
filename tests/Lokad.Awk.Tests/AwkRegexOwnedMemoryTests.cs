@@ -20,14 +20,18 @@ public sealed class AwkRegexOwnedMemoryTests
         using var memoryForGovernor = Governor(1 << 24);
         var governor = memoryForGovernor.Accounting;
         var observed = 0;
-        var runtime = Runtime(governor,() =>
+        using var runtime = Runtime(governor,() =>
         {
             if (governor.CurrentCommittedBytes >= bytes) observed++;
         });
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.True(observed > 0);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        var retained = governor.CurrentCommittedBytes;
+        Assert.True(retained >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
         Assert.Same(regex, runtime.Create(new AwkRegexPattern(pattern)));
+        Assert.Equal(retained, governor.CurrentCommittedBytes);
+        runtime.Dispose();
+        Assert.Equal(0, governor.CurrentCommittedBytes);
         // Translation scratch must also be admitted before compilation.
         using var memoryForShortGovernor = Governor(bytes);
         // Translation scratch must also be admitted before compilation.
@@ -44,16 +48,19 @@ public sealed class AwkRegexOwnedMemoryTests
         using var memoryForGovernor = Governor(1 << 20);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(governor,counters: counters);
+        using var runtime = Runtime(governor,counters: counters);
+        var warm = runtime.Create(new AwkRegexPattern("x"));
+        var retained = governor.CurrentCommittedBytes;
         for (var attempt = 1; attempt <= 2; attempt++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() =>
                 runtime.Create(new AwkRegexPattern("[[:digit:]](")));
             Assert.Equal(AwkDiagnosticId.RuntimeInvalidRegex, error.Id);
             Assert.Equal(AwkUtf8Codec.Decode(Lokad.Awk.AwkMessages.ErrorInvalidRegex), AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(0, governor.CurrentCommittedBytes);
+            Assert.Equal(retained, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(attempt, counters.RegexCompiles);
+            Assert.Equal(attempt + 1, counters.RegexCompiles);
+            Assert.Same(warm, runtime.Create(new AwkRegexPattern("x")));
         }
     }
 
@@ -63,36 +70,33 @@ public sealed class AwkRegexOwnedMemoryTests
         const string pattern = "[[:alpha:][:digit:]]";
         using var memoryForProbeGovernor = Governor(1 << 24);
         var probeGovernor = memoryForProbeGovernor.Accounting;
-        var heldChecks = new List<long>();
-        _ = Runtime(probeGovernor,() =>
-        {
-            heldChecks.Add(probeGovernor.CurrentCommittedBytes);
-        }).Create(new AwkRegexPattern(pattern));
-        var bytes = heldChecks.Last(value => value > 0);
-        Assert.True(bytes > 92);
-        var totalHeldChecks = heldChecks.Count(value => value == bytes);
+        var totalChecks = 0;
+        using var probe = Runtime(probeGovernor, () => totalChecks++);
+        _ = probe.Create(new AwkRegexPattern(pattern));
         using var memoryForGovernor = Governor(1 << 24);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = true;
-        var runtime = Runtime(governor,() =>
+        using var runtime = Runtime(governor, () =>
         {
-            if (armed && governor.CurrentCommittedBytes == bytes && ++checks == totalHeldChecks)
-                cancellation.Cancel();
+            if (armed && ++checks == totalChecks) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        },counters);
+        }, counters);
         var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(new AwkRegexPattern(pattern)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(1, counters.RegexCompiles);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
         var retry = runtime.Create(new AwkRegexPattern(pattern));
         Assert.Equal(2, counters.RegexCompiles);
+        var retained = governor.CurrentCommittedBytes;
         Assert.Same(retry, runtime.Create(new AwkRegexPattern(pattern)));
+        Assert.Equal(retained, governor.CurrentCommittedBytes);
         Assert.Equal(2, counters.RegexCompiles);
+        runtime.Dispose();
+        Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 
     private static CooperativeTestMemory Governor(long bytes) =>
