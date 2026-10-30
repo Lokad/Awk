@@ -2,7 +2,7 @@
 
 Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **‡** measure
 Release development source
-[`eb0ca66`](https://github.com/Lokad/Awk/commit/eb0ca66e89a52377be6bb0d5266dd7affc7d7123).
+[`9625a0f`](https://github.com/Lokad/Awk/commit/9625a0fa17a3492f73b3ae5f681c6085ad99b940).
 Rows marked **†** retain source
 [`4360424`](https://github.com/Lokad/Awk/commit/43604247da2bdd88ec79a312617fc4d366c45e10).
 Other unmarked representative/larger rows retain
@@ -33,7 +33,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | ERE field separator † | 48.00 | 7.633 | 1.649 | 4.63× | 3.19 |
 | ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
 | ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
-| Composite-key sum / sorted output (GNU) ‡ | 24.00 | 3.186 | 1.160 | 2.75× | 2.24 |
+| Composite-key sum / sorted output (GNU) ‡ | 24.00 | 3.054 | 1.164 | 2.62× | 1.83 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
@@ -82,7 +82,7 @@ effect of process startup. No shared admission.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Composite-key sum / sorted output (GNU) ‡ | 384.00 | 50.697 | 8.355 | 6.07× | 33.77 |
+| Composite-key sum / sorted output (GNU) ‡ | 384.00 | 47.576 | 8.366 | 5.69× | 27.27 |
 | Keyed sum / sorted output (GNU) | 384.00 | 34.823 | 6.160 | 5.65× | 7.45 |
 | Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
@@ -91,8 +91,8 @@ effect of process startup. No shared admission.
 
 Embedded execution only; no GNU timing or native-allocation claim. The five ERE/ordinary
 aggregation rows retain **4360424** measurements. The two composite rows measure
-[`1ecfc07`](https://github.com/Lokad/Awk/commit/1ecfc075c920245f68e323f51c38bb815d5f5dda),
-whose core source is identical to eb0ca66. These are separate profile runs, with their actual
+[`5db44c2`](https://github.com/Lokad/Awk/commit/5db44c252ec720b0f640ba24e6c516b9ed244ad4),
+whose core source is identical to 9625a0f. These are separate profile runs, with their actual
 source revisions retained. Regex cases have 4,096 records; aggregation has 65,536 and 16 keys. The record-separator
 case uses `([,;]+){1}` and verifies provider use; the byte-run RS row above uses a fast path.
 The existing thread-safe 512 MiB test budget supplies shared admission. Application budget
@@ -106,8 +106,8 @@ using the same four-warmup/five-iteration measurement settings.
 | Provider-backed ERE record separator | 512 MiB | 8.345 | 17.553 |
 | gsub and output | 512 MiB | 12.807 | 24.560 |
 | Aggregation, 65,536 records | 512 MiB | 53.796 | 8.740 |
-| Composite-key aggregation, 65,536 records | None | 49.643 | 33.768 |
-| Composite-key aggregation, 65,536 records | 512 MiB | 72.549 | 37.771 |
+| Composite-key aggregation, 65,536 records | None | 47.243 | 27.270 |
+| Composite-key aggregation, 65,536 records | 512 MiB | 66.780 | 31.273 |
 
 ## Measurement contract
 
