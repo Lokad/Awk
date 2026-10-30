@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -55,6 +55,14 @@ internal static class ReferenceWorkloads
         {
             Name = name,
             Program = "function step(x,a,t){t=(x*3+a)%101;return t} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"
+        };
+
+        // Keep the same 16 retained keys and output as ordinary aggregation, while
+        // exercising multi-component construction independently of dictionary growth.
+        if (name == "aggregate-composite") return Create("aggregate", scale) with
+        {
+            Name = name,
+            Program = "{sum[$1,$2]+=$2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\";for(k in sum){split(k,p,SUBSEP);print p[1],sum[k]}}"
         };
 
         var rows = scale switch
