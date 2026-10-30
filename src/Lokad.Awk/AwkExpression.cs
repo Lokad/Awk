@@ -262,6 +262,14 @@ internal abstract partial class AwkExpression
         context.State.FormatStringByteText(
             await EvaluateAsync(context).ConfigureAwait(false));
 
+    // Immediate text consumers own their copy before another operand can change the
+    // record. Other evaluation paths still return ordinary owned/scalar values.
+    internal virtual async ValueTask AppendByteTextAsync(AwkEvaluationContext context, AwkUtf8Builder destination)
+    {
+        var value = await EvaluateAsync(context).ConfigureAwait(false);
+        destination.Append(context.State.FormatStringByteText(value), context.State.CancellationCheckpoint);
+    }
+
     public virtual ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
     {
         var pending = EvaluateAsync(context);

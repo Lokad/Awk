@@ -9,6 +9,32 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompositeFieldKeysConsumeBytesWithoutOwnedComponentValues(bool governed)
+    {
+        const int records = 256;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("k 0007 1\n", records)));
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", "{sum[$1,$2]+=$3} END{print sum[\"k\",\"0007\"]}"),
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var options = CreateOptions(counters) with { MemoryBudget = governed ? budget : null };
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        // Record and final key storage remain owned; component-only field copies do not.
+        Assert.InRange(counters.AwkTextAllocations, records, records * 3);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task NestedAggregationReusesChildOwnersWithoutStringConversions(bool helper)
     {

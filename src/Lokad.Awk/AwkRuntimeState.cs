@@ -501,6 +501,20 @@ internal sealed class AwkRuntimeState : IDisposable
         return CreateDeferredTextValue(text);
     }
 
+    internal void AppendFieldByteText(AwkUtf8Builder destination, int index)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+        {
+            // Copy synchronously; neither the field span nor its owner crosses an await.
+            destination.Append(bytes, CancellationCheckpoint);
+            return;
+        }
+        var value = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        destination.Append(FormatStringByteText(value), CancellationCheckpoint);
+    }
+
     public void AppendFieldPrint(AwkOutputSink output, int index)
     {
         if (index < 0)

@@ -6,6 +6,21 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("composite-field-key-formats-mutated-numeric-value",
+            ["BEGIN{$0=\"a x\";CONVFMT=\"%.2f\";$1=2.5;a[$1,$2]=8;CONVFMT=\"%.3f\";print a[\"2.50\",\"x\"]}"], [], "8\n"),
+        Passing("composite-field-key-keeps-empty-and-record-components",
+            ["BEGIN{$0=\"a\";a[$9,$0]=4;print a[\"\",\"a\"],NF}"], [], "4 1\n"),
+        Passing("composite-field-key-keeps-original-numeric-spelling",
+            ["{a[$1,$2]+=$3;print a[\"k\",\"0007\"],a[\"k\",7]+0,$2}"], [], "2 0 0007\n", "k 0007 2\n"),
+        Passing("composite-field-key-copies-before-record-mutation",
+            ["function edit(){$1=\"changed\";return \"tail\"} {a[$1,edit(),$1]=7;print a[\"original\",\"tail\",\"changed\"],length(a)}"],
+            [], "7 1\n", "original rest\n"),
+        Passing("composite-field-key-copies-before-main-getline",
+            ["function readnext(){getline;return $1} {a[$1,readnext()]=5;print a[\"first\",\"second\"],NR,FNR;exit}"],
+            [], "5 2 2\n", "first\nsecond\n"),
+        Passing("composite-field-key-evaluates-dynamic-indices-once",
+            ["function idx(){return ++n} {a[$idx(),$idx()]=3;print a[\"a\",\"b\"],n}"],
+            [], "3 2\n", "a b\n"),
         Passing("array-identity-dynamic-field-prefix-postfix", ["BEGIN{$0=\"k other\";i=1;a[\"k\"]=\"0007\";print a[$i]++,++a[$(i+0)],a[\"k\"]}"], [],
             "7 9 9\n"),
         AwkGoldenCaseBuilder.Create("array-identity-clear-rhs",

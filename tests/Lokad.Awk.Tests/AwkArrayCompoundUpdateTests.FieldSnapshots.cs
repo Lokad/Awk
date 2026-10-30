@@ -2,6 +2,31 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkArrayCompoundUpdateTests
 {
+    [Fact]
+    public async Task CompositeFieldComponentsSurvivePendingIndexAndReusedRecordStorage()
+    {
+        using var memory = State();
+        var state = memory.State;
+        var original = "old tail"u8.ToArray();
+        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(original, 0, original.Length));
+        var selector = new ValueSource(2, pending: true);
+        var effects = 0;
+        var index = AwkArrayIndex.Composite([
+            AwkExpression.FieldIndex(AwkExpression.Number(1)),
+            AwkExpression.FieldIndex(new EffectExpression(selector, () => effects++))]);
+        var pending = index.ResolveKeyAsync(new(state));
+        Assert.False(pending.IsCompleted);
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("new selected"));
+        Array.Fill(original, (byte)'z');
+        selector.Complete();
+        Assert.Equal(new AwkArrayKey("old" + (char)28 + "selected"), await pending);
+        Assert.Equal(1, effects);
+        Assert.Equal(1, selector.Consumptions);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     private static AwkArrayIndex LiteralField(int index) => AwkArrayIndex.Simple(
         AwkExpression.FieldIndex(AwkExpression.Number(index)));
 

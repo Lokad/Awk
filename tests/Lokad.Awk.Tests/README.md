@@ -23,6 +23,11 @@ alongside the canonical warning-order, scalar-rendering and history cases.
 Host-engine checks reject nonpositive group counts before later script effects and dispose
 the acquired handle; adapter checks include whole-match, named and sparse-numbered counts.
 
+Composite-key field goldens preserve spelling, dynamic index order, cached/mutated values,
+record replacement and getline. Counter cases distinguish owned final keys from temporary
+component text; pending host-read cases check the earlier component survives record reuse,
+refusal/cancellation stops later effects and all execution owners refund.
+
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 
 ## Published regex-provider qualification

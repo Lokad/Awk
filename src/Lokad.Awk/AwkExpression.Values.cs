@@ -25,6 +25,13 @@ internal abstract partial class AwkExpression
                 ? context.State.GetFieldNumber(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
+        internal override async ValueTask AppendByteTextAsync(AwkEvaluationContext context, AwkUtf8Builder destination)
+        {
+            context.State.Checkpoint();
+            var index = AwkFieldIndex.FromNumber(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false));
+            context.State.AppendFieldByteText(destination, index.Value);
+        }
+
         public ValueTask<bool> CompareLeftAsync(AwkEvaluationContext context, AwkValue left, AwkComparison comparison)
         {
             context.State.Checkpoint();

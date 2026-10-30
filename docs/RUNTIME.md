@@ -188,7 +188,9 @@ the variable's current value. Zero- and one-field records do not retain an unuse
 Using stdin aliases alongside main input can retain admitted read-ahead; hosts may reuse a read
 buffer only after its borrow is disposed. Cancellation alone does not end that borrow.
 Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a
-decoded regex-input cache.
+decoded regex-input cache. Composite keys can copy field bytes straight into their
+owned builder; no field view survives later operand evaluation or suspension. Escaping scalar
+values still own their text.
 File redirections admit open-path scratch, retained exact stream names and table growth before
 host opens. Logical flush retains name ownership; close refunds the name after the host finishes, while reusable table
 capacity stays funded until execution cleanup.

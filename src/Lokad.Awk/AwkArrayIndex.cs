@@ -80,9 +80,7 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
             if (index > 0)
                 builder.Append(separator, context.State.CancellationCheckpoint);
 
-            var part = context.State.FormatStringByteText(
-                await Expressions[index].EvaluateAsync(context).ConfigureAwait(false));
-            builder.Append(part, context.State.CancellationCheckpoint);
+            await Expressions[index].AppendByteTextAsync(context, builder).ConfigureAwait(false);
         }
 
         return new AwkArrayKey(builder.CopyToAwkText(context.State.Counters, context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
