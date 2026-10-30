@@ -18,7 +18,6 @@ internal sealed partial class AwkRegexRuntime
     private bool HasInputStart(AwkText pattern)
     {
         var bytes = pattern.AsSpan(_throwIfCancellationRequested);
-        if (bytes.IndexOfAny((byte)'^', (byte)'\\') < 0) return false;
         long next = 0;
         for (var index = 0; index < bytes.Length; index++)
         {
