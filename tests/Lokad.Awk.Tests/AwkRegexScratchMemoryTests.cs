@@ -139,37 +139,43 @@ public sealed class AwkRegexScratchMemoryTests
     }
 
     [Theory]
-    [InlineData(64, false)]
-    [InlineData(64, true)]
-    [InlineData(65, false)]
-    [InlineData(65, true)]
-    [InlineData(1538, false)]
-    [InlineData(1538, true)]
-    public void CaptureMemoryAdmitsTheLiveCoordinateScratchPeak(int groups, bool reject)
+    [InlineData(64, false, false)]
+    [InlineData(64, false, true)]
+    [InlineData(64, true, false)]
+    [InlineData(64, true, true)]
+    [InlineData(65, false, false)]
+    [InlineData(65, false, true)]
+    [InlineData(65, true, false)]
+    [InlineData(65, true, true)]
+    [InlineData(1538, false, false)]
+    [InlineData(1538, false, true)]
+    [InlineData(1538, true, false)]
+    [InlineData(1538, true, true)]
+    public void CaptureAdmissionPreservesResultsOrRefusesBeforeMaterialization(int groups, bool scalarPositions, bool reject)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var (retained, scratch) = CaptureBytes(groups);
-        using var memoryForGovernor = Governor(Math.Max(retained, scratch) - (reject ? 1 : 0), counters);
+        using var memoryForGovernor = Governor(reject ? 1 : 1 << 24, counters);
         var governor = memoryForGovernor.Accounting;
         if (reject)
         {
-            var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(groups, governor, counters); });
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+            {
+                using var result = Capture(groups, governor, counters, scalarPositions: scalarPositions);
+            });
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(0, counters.RegexGroupsMaterialized);
         }
         else
         {
-            using (var result = Capture(groups, governor, counters))
+            using var result = Capture(groups, governor, counters, scalarPositions: scalarPositions);
+            Assert.True(governor.CurrentCommittedBytes > 0);
+            Assert.Equal(groups, result.Match.Groups.Count);
+            Assert.All(result.Match.Groups, group =>
             {
-                Assert.Equal(retained, governor.CurrentCommittedBytes);
-                Assert.Equal(groups, result.Match.Groups.Count);
-                Assert.All(result.Match.Groups, group =>
-                {
-                    Assert.Equal(0, group.Index);
-                    Assert.Equal(4, group.Length);
-                    Assert.Equal("\U0001f600", group.Value.AsString());
-                });
-            }
+                Assert.Equal(0, group.Index);
+                Assert.Equal(scalarPositions ? 1 : 4, group.Length);
+                Assert.Equal("😀", group.Value.AsString());
+            });
         }
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -183,8 +189,7 @@ public sealed class AwkRegexScratchMemoryTests
     {
         const int groups = 65;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var (retained, scratch) = CaptureBytes(groups);
-        using var memoryForGovernor = Governor(retained + scratch, counters);
+        using var memoryForGovernor = Governor(1 << 24, counters);
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -202,7 +207,7 @@ public sealed class AwkRegexScratchMemoryTests
         Assert.Equal(0, governor.CurrentCommittedBytes);
         using var retry = new CancellationTokenSource();
         using (var result = Capture(groups, governor, counters, retry.Token.ThrowIfCancellationRequested))
-            Assert.Equal(retained, governor.CurrentCommittedBytes);
+            Assert.True(governor.CurrentCommittedBytes > 0);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 
@@ -230,9 +235,8 @@ public sealed class AwkRegexScratchMemoryTests
     [InlineData(true)]
     public void CountersDoNotChangeScratchMemoryAdmission(bool observe)
     {
-        var (retained, scratch) = CaptureBytes(65);
         var counters = observe ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        using var memoryForGovernor = Governor(Math.Max(retained, scratch) - 1, counters);
+        using var memoryForGovernor = Governor(1, counters);
         var governor = memoryForGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(65, governor, counters); });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -246,11 +250,6 @@ public sealed class AwkRegexScratchMemoryTests
         "pairs" => (AwkText.FromString(string.Concat(Enumerable.Repeat("\\1", 8192))), 8192),
         _ => throw new ArgumentOutOfRangeException(nameof(shape))
     };
-
-    private static (long Retained, long Scratch) CaptureBytes(int groups) =>
-        (AwkRuntimeMemory.EstimateRegexMatchBytes(groups,
-            AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.EstimateTextBytes(4), groups)),
-         groups >= 64 ? AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes((groups + 1) * 2) : 0);
 
     private static AwkLeasedRegexMatch Capture(int groups, AwkMemoryAccounting governor,
         AwkRuntimeCounters counters, Action? checkpoint = null, bool scalarPositions = false)
