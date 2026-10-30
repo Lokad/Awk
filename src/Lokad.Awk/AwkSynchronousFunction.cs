@@ -96,19 +96,12 @@ internal abstract partial class AwkExpression
         private readonly AwkSynchronousFunction _function;
         private readonly AwkSynchronousExpression[] _operands;
 
-        public SynchronousFunctionCall(AwkSynchronousFunction function, AwkSynchronousExpression[] operands)
+        public SynchronousFunctionCall(AwkSynchronousFunction function, AwkSynchronousExpression[] operands, int depth, int calls)
         {
             _function = function;
             _operands = operands;
-            var depth = function.SynchronousDepth;
-            var calls = function.SynchronousCallDepth;
-            foreach (var operand in operands)
-            {
-                depth = Math.Max(depth, operand.SynchronousDepth);
-                calls = Math.Max(calls, operand.SynchronousCallDepth);
-            }
-            SynchronousDepth = depth + 1;
-            SynchronousCallDepth = calls + 1;
+            SynchronousDepth = depth;
+            SynchronousCallDepth = calls;
         }
 
         internal override int SynchronousDepth { get; }

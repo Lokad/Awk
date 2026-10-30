@@ -87,6 +87,8 @@ internal abstract partial class AwkExpression
             {
                 preparationCheckpoint?.Invoke();
                 var operands = new AwkSynchronousExpression[arguments.Count];
+                var depth = function.SynchronousDepth;
+                var calls = function.SynchronousCallDepth;
                 for (var index = 0; index < operands.Length; index++)
                 {
                     if ((index & 63) == 0) preparationCheckpoint?.Invoke();
@@ -95,8 +97,10 @@ internal abstract partial class AwkExpression
                         expression = AwkSynchronousExpression.Unavailable;
                         return false;
                     }
+                    depth = Math.Max(depth, operands[index].SynchronousDepth);
+                    calls = Math.Max(calls, operands[index].SynchronousCallDepth);
                 }
-                var call = new SynchronousFunctionCall(function, operands);
+                var call = new SynchronousFunctionCall(function, operands, depth + 1, calls + 1);
                 if (call.SynchronousDepth <= 16 && call.SynchronousCallDepth < 4)
                 {
                     expression = call;
