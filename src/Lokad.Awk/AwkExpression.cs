@@ -315,7 +315,7 @@ internal abstract partial class AwkExpression
     }
 
     internal virtual AwkExpression PrepareSynchronousCallAction(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) => this;
 
     internal virtual bool TryGetFieldCopy(out int source, out int destination)
     {

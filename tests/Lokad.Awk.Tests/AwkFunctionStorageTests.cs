@@ -4,6 +4,50 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionStorageTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void GeneralCallPreparationObservesCancellationBeforeTheArgumentTail(bool loop, bool preCanceled)
+    {
+        const int count = 256;
+        using var cancellation = new CancellationTokenSource();
+        var visited = 0;
+        var value = (AwkSynchronousExpression)AwkExpression.Number(1);
+        var probe = new PreparationProbe(() => { if (++visited == 2) cancellation.Cancel(); }, value);
+        var name = AwkFunctionName.FromText("score");
+        var layout = new AwkFunctionLocalLayout(Enumerable.Range(0, count)
+            .Select(index => AwkVariableName.FromText("p" + index)).ToArray());
+        var functions = new Dictionary<AwkFunctionName, AwkSynchronousFunction> { [name] = new(layout, value) };
+        var call = AwkExpression.FunctionCall(name, Enumerable.Repeat<AwkExpression>(probe, count).ToArray());
+        var body = AwkStatement.Expression(AwkExpression.Assignment(AwkReference.Scalar(AwkVariableName.FromText("n")), call));
+        if (preCanceled) cancellation.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+        {
+            if (loop)
+            {
+                var initialize = AwkStatement.Expression(AwkExpression.Assignment(AwkReference.Scalar(AwkVariableName.FromText("i")), value));
+                _ = AwkStatement.For(initialize, new(value), initialize, [body], functions, cancellation.Token.ThrowIfCancellationRequested);
+            }
+            else _ = new AwkAction(null, [body], functions, cancellation.Token.ThrowIfCancellationRequested);
+        });
+        Assert.True(visited < count);
+        if (preCanceled) Assert.Equal(0, visited);
+    }
+
+    private sealed class PreparationProbe(Action visit, AwkSynchronousExpression value) : AwkExpression
+    {
+        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            visit();
+            expression = value;
+            return true;
+        }
+
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            throw new InvalidOperationException("This expression is used only for preparation.");
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task LargeCallRefusalPrecedesStorageAllocationAndArgumentEffects(bool suppliedArguments)

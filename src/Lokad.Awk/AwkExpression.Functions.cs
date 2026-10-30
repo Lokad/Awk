@@ -79,19 +79,23 @@ internal abstract partial class AwkExpression
     private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) : AwkExpression
     {
         internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression)
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
         {
-            if (remainingDepth > 0 && arguments.Count <= 4 && functions.TryGetValue(name, out var function) &&
+            if (remainingDepth > 0 && functions.TryGetValue(name, out var function) &&
                 (function.Layout.SlotCount == arguments.Count ||
-                    (function.HasLocalAssignment && arguments.Count < function.Layout.SlotCount && function.Layout.SlotCount <= 4)))
+                    (function.HasLocalAssignment && arguments.Count < function.Layout.SlotCount)))
             {
+                preparationCheckpoint?.Invoke();
                 var operands = new AwkSynchronousExpression[arguments.Count];
                 for (var index = 0; index < operands.Length; index++)
-                    if (!arguments[index].TryPrepareFunctionCalls(functions, remainingDepth - 1, out operands[index]))
+                {
+                    if ((index & 63) == 0) preparationCheckpoint?.Invoke();
+                    if (!arguments[index].TryPrepareFunctionCalls(functions, remainingDepth - 1, out operands[index], preparationCheckpoint))
                     {
                         expression = AwkSynchronousExpression.Unavailable;
                         return false;
                     }
+                }
                 var call = new SynchronousFunctionCall(function, operands);
                 if (call.SynchronousDepth <= 16 && call.SynchronousCallDepth < 4)
                 {

@@ -141,9 +141,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
     [Theory]
     [InlineData(4, 1, true)]
-    [InlineData(5, 1, false)]
+    [InlineData(5, 1, true)]
+    [InlineData(65, 1, true)]
     [InlineData(2, 3, false)]
-    public void LocalConditionalReturnCallsKeepOmittedLocalBounds(int slots, int arguments, bool expected)
+    public void LocalConditionalReturnCallsSupportOmittedLocalsAndRejectExcessArguments(int slots, int arguments, bool expected)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
         var function = Bind("function step(" + parameters + "){x=1;if(x)return x;return 0} BEGIN{}")

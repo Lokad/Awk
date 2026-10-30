@@ -20,8 +20,8 @@ internal readonly struct AwkCondition(AwkExpression expression)
         return expression.SynchronousDepth > 0;
     }
 
-    internal AwkCondition PrepareSynchronousCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
-        Expression.TryPrepareFunctionCalls(functions, 16, out var prepared) ? new(prepared) : this;
+    internal AwkCondition PrepareSynchronousCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
+        Expression.TryPrepareFunctionCalls(functions, 16, out var prepared, preparationCheckpoint) ? new(prepared) : this;
 }
 
 internal enum AwkComparison

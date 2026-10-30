@@ -138,10 +138,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(1, 0, true)]
     [InlineData(2, 1, true)]
     [InlineData(4, 1, true)]
-    [InlineData(5, 1, false)]
+    [InlineData(5, 1, true)]
+    [InlineData(65, 1, true)]
     [InlineData(2, 3, false)]
     [InlineData(2, 2, true)]
-    public void LocalAssignmentReturnCallsBoundOmittedLocalsAndExtraArguments(int slots, int arguments, bool expected)
+    public void LocalAssignmentReturnCallsSupportOmittedLocalsAndRejectExcessArguments(int slots, int arguments, bool expected)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
         var function = Bind("function step(" + parameters + "){x=1;return x} BEGIN{}").Functions[AwkFunctionName.FromText("step")];

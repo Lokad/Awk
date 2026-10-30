@@ -129,7 +129,12 @@ publication. References into scalar storage must be reacquired after preparation
 covering redirected reads/writes and main input before resolution or host opens.
 
 `AwkFunctionStorageTests` covers pre-admission of large argument/frame buffers, funded
-frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests` covers
+frame/alias caches, setup cancellation and final refunds.
+General-arity preparation checks cover cancellation through action/loop preparation and
+reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
+goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases
+preserve the ordinary path and keep storage funded through actual completion or cancellation.
+`AwkPartialCloseTests` covers
 public-boundary partial-close failures and cleanup without replaying successful closes.
 `AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,
 nested-call refusal, and funding through actual completion of pending/canceled host users.

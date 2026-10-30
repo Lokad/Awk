@@ -523,7 +523,7 @@ internal static class AwkStatementLowerer
                         return false;
                     }
 
-                    statement = AwkStatement.For(initializer, condition, increment, body, scope.SynchronousFunctions);
+                    statement = AwkStatement.For(initializer, condition, increment, body, scope.SynchronousFunctions, scope.Checkpoint);
                     return true;
                 }
 

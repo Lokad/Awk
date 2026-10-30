@@ -136,8 +136,8 @@ internal abstract partial class AwkStatement
         AwkCondition condition,
         AwkStatement increment,
         IReadOnlyList<AwkStatement> body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null) =>
-        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body), synchronousFunctions);
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null, Action? preparationCheckpoint = null) =>
+        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body), synchronousFunctions, preparationCheckpoint);
 
     public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body) =>
         new WhileStatement(condition, AwkCollectionSnapshots.Copy(body));
@@ -192,7 +192,7 @@ internal abstract partial class AwkStatement
         TryPrepareSynchronousAction(out action);
 
     internal virtual AwkStatement PrepareSynchronousCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) => this;
 
     internal virtual bool TryGetLocalAssignment(
         out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)

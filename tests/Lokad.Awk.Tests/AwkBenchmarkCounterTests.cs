@@ -9,6 +9,39 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, 5)] [InlineData(true, 5)]
+    [InlineData(false, 9)] [InlineData(true, 9)]
+    [InlineData(false, 65)] [InlineData(true, 65)]
+    public async Task PreparedCallsUseGeneralAdmittedArgumentStorage(bool governed, int arity)
+    {
+        const int records = 128;
+        var parameters = string.Join(',', Enumerable.Range(0, arity).Select(i => "p" + i));
+        var arguments = string.Join(',', Enumerable.Repeat("1", arity));
+        var source = "function score(" + parameters + "){return p0+p" + (arity - 1) +
+            "} {n+=score(" + arguments + ")} END{print n}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("r\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        using var compilationCancellation = new CancellationTokenSource();
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), compilationCancellation.Token,
+            regexEngine: AwkUtf8RegexEngine.Instance);
+        compilationCancellation.Cancel(); // Preparation must not retain this token in executable metadata.
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.SynchronousActionRuns >= records);
+        Assert.True(counters.SynchronousFunctionRuns >= records);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task RepeatedCompositeUpdatesReuseRetainedKeys(bool governed)

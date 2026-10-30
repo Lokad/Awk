@@ -10,12 +10,12 @@ internal readonly struct AwkAction
     private readonly Action<AwkEvaluationContext>? _synchronous;
 
     public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null)
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null)
     {
         _pattern = pattern;
         var snapshot = AwkCollectionSnapshots.Copy(statements);
         _statements = snapshot;
-        _synchronous = AwkStatementBlockExecutor.TryPrepareActions(snapshot, functions);
+        _synchronous = AwkStatementBlockExecutor.TryPrepareActions(snapshot, functions, preparationCheckpoint);
     }
 
     internal AwkStatement[] Statements => _statements ?? [];

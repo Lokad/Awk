@@ -140,10 +140,10 @@ internal abstract partial class AwkExpression
     private sealed class BinaryExpression(AwkExpression left, AwkExpression right, AwkNumericOperation operation) : AwkExpression
     {
         internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression)
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
         {
-            if (remainingDepth > 0 && left.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var first) &&
-                right.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var second) &&
+            if (remainingDepth > 0 && left.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var first, preparationCheckpoint) &&
+                right.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var second, preparationCheckpoint) &&
                 TryGetSynchronousPair(first, second, out var syncLeft, out var syncRight))
             {
                 expression = new SynchronousBinaryExpression(syncLeft, syncRight, operation);

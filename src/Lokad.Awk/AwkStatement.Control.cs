@@ -87,9 +87,9 @@ internal abstract partial class AwkStatement
         AwkCondition condition,
         AwkStatement increment,
         AwkStatement[] body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions) : AwkStatement
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions, Action? preparationCheckpoint) : AwkStatement
     {
-        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions);
+        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions, preparationCheckpoint);
 
         internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
             ref int remainingStatements, out Action<AwkEvaluationContext> action)

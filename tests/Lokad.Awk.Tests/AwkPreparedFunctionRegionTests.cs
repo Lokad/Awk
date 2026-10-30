@@ -395,10 +395,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("function f(x,y){return x+y}", "f(3,4)", true, false)]
     [InlineData("function f(x,y,z){return x+y+z}", "f(1,2,4)", true, false)]
     [InlineData("function f(w,x,y,z){return w+x+y+z}", "f(1,1,1,4)", true, false)]
-    [InlineData("function f(v,w,x,y,z){return v+w+x+y+z}", "f(1,1,1,1,3)", false, true)]
+    [InlineData("function f(v,w,x,y,z){return v+w+x+y+z}", "f(1,1,1,1,3)", true, true)]
     [InlineData("function f(x,y){return x+y}", "f(7)", false, false)]
     [InlineData("function f(x){return x}", "f(7,2)", false, true)]
-    public async Task CompleteCallActionsAvoidArgumentRentsWithinTheirArityBound(
+    public async Task CompletePreparedCallActionsUseInlineOrAdmittedArgumentStorage(
         string function, string call, bool prepared, bool rents)
     {
         var program = Bind(function + " BEGIN{total=" + call + "}");

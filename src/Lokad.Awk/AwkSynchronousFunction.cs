@@ -61,12 +61,12 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
                 if (prepared.ContainsKey(name) ||
                     !function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative,
                         out var local, out var prefix) ||
-                    !expression.TryPrepareFunctionCalls(prepared, 16, out var body)) continue;
+                    !expression.TryPrepareFunctionCalls(prepared, 16, out var body, checkpoint)) continue;
                 var initial = AwkSynchronousExpression.Unavailable;
-                if (prefix.HasValue && !prefix.Value.TryPrepareFunctionCalls(prepared, 16, out initial)) continue;
+                if (prefix.HasValue && !prefix.Value.TryPrepareFunctionCalls(prepared, 16, out initial, checkpoint)) continue;
                 var otherwise = body;
                 if (condition.SynchronousDepth > 0 && (condition.SynchronousDepth > 16 ||
-                    !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise))) continue;
+                    !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise, checkpoint))) continue;
                 var candidate = new AwkSynchronousFunction(function.LocalLayout, body, condition, otherwise, local, initial);
                 if (candidate.SynchronousDepth > 16 || candidate.SynchronousCallDepth >= 4) continue;
                 prepared.Add(name, candidate);
@@ -85,7 +85,7 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
 internal abstract partial class AwkExpression
 {
     internal virtual bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkSynchronousExpression expression)
+        int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
     {
         expression = this as AwkSynchronousExpression ?? AwkSynchronousExpression.Unavailable;
         return remainingDepth > 0 && expression.SynchronousDepth is > 0 and <= 16;
@@ -132,9 +132,9 @@ internal abstract partial class AwkExpression
                 state.ThrowIfCancellationRequested();
                 state.PushFunctionFrame(_function.Layout, [argument]);
             }
-            else
+            else if (_operands.Length <= 4)
             {
-                // Preparation bounds arity to four; each nested call has its own temporary.
+                // Keep small synchronous calls on their stack-local argument storage.
                 Span<AwkFunctionArgument> arguments = [default, default, default, default];
                 AwkMemoryLease? staged = null;
                 try
@@ -156,8 +156,31 @@ internal abstract partial class AwkExpression
                 }
                 finally { staged?.Dispose(); }
             }
+            else PushRentedArguments(context);
             try { return _function.EvaluateBody(context); }
             finally { state.PopFunctionFrame(); }
+        }
+
+        private void PushRentedArguments(AwkEvaluationContext context)
+        {
+            var state = context.State;
+            using var buffer = AwkUserFunction.RentedFunctionArguments.Rent(_operands.Length, state);
+            var arguments = buffer.Values;
+            for (var index = 0; index < _operands.Length; index++)
+            {
+                if ((index & 63) == 0) state.CancellationCheckpoint();
+                var operand = _operands[index];
+                if (operand.TryResolveArrayArgument(state, out var alias))
+                {
+                    arguments[index] = alias;
+                    continue;
+                }
+                var value = operand.EvaluateSynchronous(context);
+                buffer.Retain(value);
+                arguments[index] = AwkFunctionArgument.FromValue(value);
+            }
+            state.ThrowIfCancellationRequested();
+            state.PushFunctionFrame(_function.Layout, arguments.AsSpan(0, _operands.Length));
         }
     }
 }

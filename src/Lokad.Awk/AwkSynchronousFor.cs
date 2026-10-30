@@ -23,15 +23,15 @@ internal sealed class AwkSynchronousFor(
 
     public static AwkSynchronousFor? TryPrepare(AwkStatement initializer, AwkCondition condition,
         AwkStatement increment, AwkStatement[] body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null)
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null)
     {
         var ordinary = TryPrepareBody(initializer, condition, increment, body, false);
         if (ordinary is not null || body.Length > 16 || functions is not { Count: > 0 }) return ordinary;
         var preparedBody = new AwkStatement[body.Length];
         for (var index = 0; index < body.Length; index++)
-            preparedBody[index] = body[index].PrepareSynchronousCalls(functions);
-        return TryPrepareBody(initializer.PrepareSynchronousCalls(functions), condition.PrepareSynchronousCalls(functions),
-            increment.PrepareSynchronousCalls(functions), preparedBody, true);
+            preparedBody[index] = body[index].PrepareSynchronousCalls(functions, preparationCheckpoint);
+        return TryPrepareBody(initializer.PrepareSynchronousCalls(functions, preparationCheckpoint), condition.PrepareSynchronousCalls(functions, preparationCheckpoint),
+            increment.PrepareSynchronousCalls(functions, preparationCheckpoint), preparedBody, true);
     }
 
     private static AwkSynchronousFor? TryPrepareBody(AwkStatement initializer, AwkCondition condition,

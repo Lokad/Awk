@@ -7,16 +7,16 @@ namespace Lokad.Awk;
 internal static class AwkStatementBlockExecutor
 {
     internal static Action<AwkEvaluationContext>? TryPrepareActions(AwkStatement[] statements,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions)
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions, Action? preparationCheckpoint = null)
     {
         if (statements.Length is 0 or > 16) return null;
         var remaining = 16;
-        return TryPrepareActions(statements, functions, 4, ref remaining, out var execute) ? execute : null;
+        return TryPrepareActions(statements, functions, 4, ref remaining, out var execute, preparationCheckpoint) ? execute : null;
     }
 
     internal static bool TryPrepareActions(AwkStatement[] statements,
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions, int conditionalDepth,
-        ref int remainingStatements, out Action<AwkEvaluationContext> execute)
+        ref int remainingStatements, out Action<AwkEvaluationContext> execute, Action? preparationCheckpoint = null)
     {
         execute = static _ => { };
         if (statements.Length > remainingStatements) return false;
@@ -26,7 +26,7 @@ internal static class AwkStatementBlockExecutor
         {
             if (--remainingStatements < 0) return false;
             var statement = functions is { Count: > 0 }
-                ? statements[index].PrepareSynchronousCalls(functions) : statements[index];
+                ? statements[index].PrepareSynchronousCalls(functions, preparationCheckpoint) : statements[index];
             if (!statement.TryPrepareTopLevelSynchronousAction(conditionalDepth,
                     ref remainingStatements, out actions[index])) return false;
         }

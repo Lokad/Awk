@@ -222,7 +222,7 @@ internal sealed class AwkUserFunction
         }
     }
 
-    private readonly struct RentedFunctionArguments : IDisposable
+    internal readonly struct RentedFunctionArguments : IDisposable
     {
         private readonly AwkFunctionArgument[]? _values;
         private readonly AwkMemoryLease? _memory;

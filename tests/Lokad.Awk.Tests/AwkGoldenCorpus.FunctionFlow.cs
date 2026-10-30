@@ -4,6 +4,14 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("prepared-general-arity-evaluates-arguments-in-caller-order",
+            ["function score(a,b,c,d,e){return a*10000+b*1000+c*100+d*10+e} BEGIN{i=1}{n+=score(i++,i++,i++,i++,i++)} END{print n,i}"], [], "80245 11\n", "one\ntwo\n");
+        yield return Passing("prepared-general-arity-keeps-field-spelling-and-aliases",
+            ["function score(p,a,b,c,d){return a+b+c+d} BEGIN{t[\"0007\"]=9}{n+=score(t,$1,1,2,3)} END{print n,t[\"0007\"],length(t)}"], [], "26 9 1\n", "0007\n0007\n");
+        yield return Passing("prepared-general-arity-returns-numeric-string-spelling",
+            ["function identity(a,b,c,d,e){return a}{v=identity($1,1,2,3,4)} END{print \"[\"v\"]\",v==7,length(v)}"], [], "[0007] 1 4\n", "0007\n");
+        yield return Passing("prepared-general-arity-keeps-local-prefix-and-missing-values",
+            ["function score(a,b,c,d,e,t,u){t=a+b+c+d+e;return t+u}{n+=score(1,2,3,4,5)} END{print n}"], [], "30\n", "one\ntwo\n");
         yield return Passing("output-captures-values-and-format-before-later-mutation",
             ["""
                 function wipe(){x="";print "held";return 0}
@@ -61,8 +69,8 @@ internal static partial class AwkGoldenCorpus
             [], "1 1 2\n0 0 2\n");
 
         yield return Passing("prepared-return-keeps-scalar-snapshots-and-input-spelling",
-            ["function id(x){return x} function missing(){return unused} BEGIN{s=id(\"007\");n=id(7);u=missing();unused=9;print s,s==7,n,n+1,u==\"\",u==0;print id(id(\"café\"))}"],
-            [], "007 0 7 8 1 1\ncafé\n");
+            ["function id(x){return x} function missing(){return unused} BEGIN{s=id(\"007\");n=id(7);u=missing();unused=9;print s,s==7,n,n+1,u==\"\",u==0;print id(id(\"cafÃ©\"))}"],
+            [], "007 0 7 8 1 1\ncafÃ©\n");
 
         yield return AwkGoldenCaseBuilder
             .Create("function-next-original-repro",

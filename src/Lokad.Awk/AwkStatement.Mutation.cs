@@ -56,9 +56,9 @@ internal abstract partial class AwkStatement
             expression.TryGetLocalAssignment(out local, out value);
 
         internal override AwkStatement PrepareSynchronousCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions)
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null)
         {
-            var prepared = expression.PrepareSynchronousCallAction(functions);
+            var prepared = expression.PrepareSynchronousCallAction(functions, preparationCheckpoint);
             return ReferenceEquals(prepared, expression) ? this : new ExpressionStatement(prepared);
         }
 

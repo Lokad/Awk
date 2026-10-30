@@ -47,8 +47,8 @@ internal abstract partial class AwkExpression
         }
 
         internal override AwkExpression PrepareSynchronousCallAction(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
-            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value) && !ReferenceEquals(value, valueExpression)
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
+            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value, preparationCheckpoint) && !ReferenceEquals(value, valueExpression)
                 ? new AssignmentExpression(target, value) : this;
 
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
@@ -100,8 +100,8 @@ internal abstract partial class AwkExpression
         AwkCompoundAssignmentOperation operation) : AwkExpression
     {
         internal override AwkExpression PrepareSynchronousCallAction(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
-            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value) && !ReferenceEquals(value, valueExpression)
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
+            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value, preparationCheckpoint) && !ReferenceEquals(value, valueExpression)
                 ? new CompoundAssignmentExpression(target, value, operation) : this;
 
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
