@@ -125,33 +125,38 @@ internal abstract partial class AwkExpression
                 state.ThrowIfCancellationRequested();
                 state.PushFunctionFrame(_function.Layout, [argument]);
             }
-            else if (_operands.Length <= 4)
-            {
-                // Keep small synchronous calls on their stack-local argument storage.
-                Span<AwkFunctionArgument> arguments = [default, default, default, default];
-                AwkMemoryLease? staged = null;
-                try
-                {
-                    for (var index = 0; index < _operands.Length; index++)
-                    {
-                        var operand = _operands[index];
-                        arguments[index] = operand.TryResolveArrayArgument(state, out var alias)
-                            ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
-                        var bytes = arguments[index].Value.RetainedTextMemoryBytes;
-                        if (state.MemoryAccounting.IsEnabled && bytes > 0)
-                        {
-                            staged ??= state.MemoryAccounting.CreateTransientLease();
-                            staged.ReserveAdditional(bytes);
-                        }
-                    }
-                    state.ThrowIfCancellationRequested();
-                    state.PushFunctionFrame(_function.Layout, arguments[.._operands.Length]);
-                }
-                finally { staged?.Dispose(); }
-            }
+            else if (_operands.Length <= 4) PushInlineArguments(context);
             else PushRentedArguments(context);
             try { return _function.EvaluateBody(context); }
             finally { state.PopFunctionFrame(); }
+        }
+
+        // Keep the staging cells out of the common frame used by unary and general calls.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void PushInlineArguments(AwkEvaluationContext context)
+        {
+            var state = context.State;
+            // Keep small synchronous calls on their stack-local argument storage.
+            Span<AwkFunctionArgument> arguments = [default, default, default, default];
+            AwkMemoryLease? staged = null;
+            try
+            {
+                for (var index = 0; index < _operands.Length; index++)
+                {
+                    var operand = _operands[index];
+                    arguments[index] = operand.TryResolveArrayArgument(state, out var alias)
+                        ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                    var bytes = arguments[index].Value.RetainedTextMemoryBytes;
+                    if (state.MemoryAccounting.IsEnabled && bytes > 0)
+                    {
+                        staged ??= state.MemoryAccounting.CreateTransientLease();
+                        staged.ReserveAdditional(bytes);
+                    }
+                }
+                state.ThrowIfCancellationRequested();
+                state.PushFunctionFrame(_function.Layout, arguments[.._operands.Length]);
+            }
+            finally { staged?.Dispose(); }
         }
 
         private void PushRentedArguments(AwkEvaluationContext context)
