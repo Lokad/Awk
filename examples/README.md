@@ -21,7 +21,10 @@ results. Do not infer conformance from successful compilation or recreate select
 in the adapter. The separate Pcre2 and PythonRe profiles are not used by this AWK adapter.
 
 The contract is defined by Awk, without producer types. The adapter passes UTF-8 spans and
-capture ranges, owns its compiled handles and per-call admission, and adds no input/text copies.
+capture ranges, owns its compiled handles and per-call admission, and adds no subject or
+capture-text copies. `TryCompile` borrows UTF-8 pattern bytes. Published 0.4.0 requires a
+string pattern, so the adapter decodes once per compilation after admission. This temporary
+conversion belongs to the adapter and is outside core conversion counters.
 Compilation and each search receive the current cancellation token through the producer's
 cooperative APIs. The compilation token is not retained by a reusable handle. Producer match
 and construction timeouts are disabled; no adapter clock or core fallback is involved.

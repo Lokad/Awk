@@ -12,7 +12,7 @@ internal abstract partial class AwkExpression
         {
             var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
-                AwkRuntimeMemory.EstimateUtf16StringBytes(regexPattern.Text.Length));
+                AwkRuntimeMemory.EstimateTextBytes(regexPattern.Text));
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
             using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementText.EstimatedRetainedMemoryBytes);
             var regex = context.State.CreateRegex(regexPattern);
@@ -38,7 +38,7 @@ internal abstract partial class AwkExpression
         {
             var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
-                AwkRuntimeMemory.EstimateUtf16StringBytes(regexPattern.Text.Length));
+                AwkRuntimeMemory.EstimateTextBytes(regexPattern.Text));
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
             using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementText.EstimatedRetainedMemoryBytes);
             var regex = context.State.CreateRegex(regexPattern);
@@ -84,7 +84,7 @@ internal abstract partial class AwkExpression
             var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
                 captureArray is AwkArrayOperand.Element
-                    ? AwkRuntimeMemory.EstimateUtf16StringBytes(pattern.Text.Length) : 0);
+                    ? AwkRuntimeMemory.EstimateTextBytes(pattern.Text) : 0);
             AwkArrayTarget? captureTarget = captureArray is null ? null :
                 await captureArray.CaptureAsync(context).ConfigureAwait(false);
             using var heldTarget = context.State.MemoryAccounting.ReserveTransient(captureTarget?.RetainedBytes ?? 0);

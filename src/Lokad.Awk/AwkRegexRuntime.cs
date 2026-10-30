@@ -83,7 +83,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
         _unicodeWarnings.Report(pattern, caseSensitivity);
         var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedPattern : AwkRegexCacheKind.Pattern;
-        var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind);
+        var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind, _throwIfCancellationRequested);
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -115,7 +115,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     {
         _throwIfCancellationRequested();
         var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedLiteral : AwkRegexCacheKind.Literal;
-        var key = new AwkRegexCacheKey(literal.Text, caseSensitivity, kind);
+        var key = new AwkRegexCacheKey(literal.Text, caseSensitivity, kind, _throwIfCancellationRequested);
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -207,10 +207,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         return regex;
     }
 
-    private AwkRegex CreateRegex(string translatedPattern, AwkRegexCaseSensitivity caseSensitivity,
+    private AwkRegex CreateRegex(AwkText translatedPattern, AwkRegexCaseSensitivity caseSensitivity,
         bool hasFixedCaseSensitivity)
     {
-        var regex = new AwkRegex(translatedPattern, caseSensitivity, hasFixedCaseSensitivity);
+        var regex = new AwkRegex(translatedPattern, caseSensitivity, hasFixedCaseSensitivity,
+            _throwIfCancellationRequested);
         _ = ResolveCompiledRegex(regex, caseSensitivity, countCompilation: false);
         return regex;
     }
@@ -229,7 +230,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         try
         {
             _throwIfCancellationRequested();
-            var supported = engine.TryCompile(regex.Pattern, sensitivity == AwkRegexCaseSensitivity.IgnoreCase,
+            var supported = engine.TryCompile(regex.Pattern.AsSpan(_throwIfCancellationRequested), sensitivity == AwkRegexCaseSensitivity.IgnoreCase,
                 _regexMemoryBudget, _cancellationToken, out compiled);
             if (!supported)
                 throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
@@ -314,14 +315,15 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
     private readonly struct AwkRegexCacheKey : IEquatable<AwkRegexCacheKey>
     {
-        private readonly string? _pattern;
+        private readonly AwkText? _pattern;
         private readonly int _patternHashCode;
 
         public AwkRegexCacheKey(
-            string pattern,
+            AwkText pattern,
             AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind)
-            : this(pattern, pattern.GetHashCode(), caseSensitivity, kind)
+            AwkRegexCacheKind kind,
+            Action checkpoint)
+            : this(pattern, pattern.GetHashCode(checkpoint), caseSensitivity, kind)
         {
         }
 
@@ -334,7 +336,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         }
 
         private AwkRegexCacheKey(
-            string pattern,
+            AwkText pattern,
             int patternHashCode,
             AwkRegexCaseSensitivity caseSensitivity,
             AwkRegexCacheKind kind)
@@ -345,7 +347,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             Kind = kind;
         }
 
-        public string PatternText => _pattern ?? string.Empty;
+        public AwkText PatternText => _pattern ?? AwkText.Empty;
 
         private AwkRegexCaseSensitivity CaseSensitivity { get; }
 
@@ -355,13 +357,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         public bool Equals(AwkRegexCacheKey other) =>
             CaseSensitivity == other.CaseSensitivity &&
             Kind == other.Kind &&
-            string.Equals(PatternText, other.PatternText, StringComparison.Ordinal);
+            PatternText.Equals(other.PatternText);
 
         public override bool Equals(object? obj) =>
             obj is AwkRegexCacheKey other && Equals(other);
 
         public override int GetHashCode() =>
-            HashCode.Combine(_pattern is null ? string.Empty.GetHashCode() : _patternHashCode,
+            HashCode.Combine(_pattern is null ? AwkText.Empty.GetHashCode() : _patternHashCode,
                 CaseSensitivity, Kind);
     }
 

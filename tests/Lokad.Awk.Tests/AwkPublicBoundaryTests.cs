@@ -543,8 +543,8 @@ public sealed class AwkPublicBoundaryTests
         Assert.Empty(default(AwkSourceUnit).Segments);
         Assert.Equal(string.Empty, default(AwkSourceName).Text);
         Assert.Equal(string.Empty, default(AwkSourceIdentity).Text);
-        Assert.Equal(string.Empty, default(AwkRegexPattern).Text);
-        Assert.Equal(string.Empty, default(AwkRegexLiteralText).Text);
+        Assert.Same(AwkText.Empty, default(AwkRegexPattern).Text);
+        Assert.Same(AwkText.Empty, default(AwkRegexLiteralText).Text);
         Assert.Equal(string.Empty, default(AwkErrno).Text);
     }
 

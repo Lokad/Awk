@@ -21,17 +21,15 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
         var previous = default(Entry);
         var found = _sites is not null && _sites.TryGetValue(site, out previous);
         var flag = sensitivity == AwkRegexCaseSensitivity.IgnoreCase ? 2 : 1;
-        var sameText = found && previous.Pattern is string previousPattern &&
+        var sameText = found && previous.Pattern is AwkText previousPattern &&
             (ReferenceEquals(previousPattern, pattern.Text) ||
-             AwkRegexConstruction.Equals(previousPattern, pattern.Text, checkpoint));
+             previousPattern.Equals(pattern.Text, checkpoint));
         if (sameText && (previous.CompiledCases & flag) != 0)
         {
             ReportWarnings(null);
             return;
         }
-        if (!(AwkRegexConstruction.IndexOf(pattern.Text, @"\u", 0, checkpoint) >= 0 ||
-              AwkRegexConstruction.IndexOf(pattern.Text, @"\x", 0, checkpoint) >= 0) ||
-            !AwkRegexEscapes.HasNumericWarnings(pattern.Text, mode, checkpoint))
+        if (!AwkRegexEscapes.HasNumericWarnings(pattern.Text, mode, checkpoint))
         {
             ReportWarnings(null);
             if (found)
@@ -41,7 +39,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
             }
             return;
         }
-        var bytes = AwkRuntimeMemory.EstimateDiagnosticMessageBytes(pattern.Text.Length);
+        var bytes = AwkRuntimeMemory.EstimateTextBytes(pattern.Text);
         var grow = !found && (_sites?.Count ?? 0) >= _capacity;
         var capacity = grow
             ? AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedMultiply(Math.Max(2, _capacity), 2))
@@ -97,5 +95,5 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
             governor.ReleaseCommitted(previous.Bytes);
     }
 
-    private readonly record struct Entry(string? Pattern, int CompiledCases, long Bytes);
+    private readonly record struct Entry(AwkText? Pattern, int CompiledCases, long Bytes);
 }

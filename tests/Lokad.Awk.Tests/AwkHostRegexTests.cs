@@ -297,7 +297,7 @@ public sealed class AwkHostRegexTests
         public Action<CancellationToken>? BeforeCompile { get; init; }
         public List<Pattern> Patterns { get; } = [];
 
-        public bool TryCompile(string pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
+        public bool TryCompile(ReadOnlySpan<byte> pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
             CancellationToken token, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
         {
             BeforeCompile?.Invoke(token);

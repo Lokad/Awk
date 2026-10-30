@@ -185,7 +185,7 @@ public sealed class AwkUnicodeRegexTests
                 AwkRegexEscapes.ReportUnicodeWarnings(pattern, AwkCompatibilityMode.GnuDefault,
                     _ => Assert.Fail("Cancellation must precede the trailing warning."), Check);
             else
-                AwkRegexEscapes.Decode(pattern, AwkCompatibilityMode.GnuDefault, Check);
+                AwkRegexEscapes.Decode(AwkText.FromString(pattern), AwkCompatibilityMode.GnuDefault, Check, AwkMemoryAccounting.Disabled, AwkMemoryLease.Disabled);
         });
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(2, checks);

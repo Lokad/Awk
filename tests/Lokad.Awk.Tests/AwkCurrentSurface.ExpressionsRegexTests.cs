@@ -29,7 +29,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     {
         var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern));
 
-        Assert.Equal(expected, translated);
+        Assert.Equal(expected, translated.AsString());
     }
 
     public static IEnumerable<object[]> RegexGoldenCases(bool providerGap)
@@ -136,7 +136,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         // Raw provider patterns cannot select part of a Unicode scalar. Host-provider tests
         // independently exercise Awk's range validation with malformed provider results.
         var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
-        var regex = new AwkRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
+        var regex = new AwkRegex(AwkText.FromString(pattern), AwkRegexCaseSensitivity.CaseSensitive);
         var input = AwkText.FromString("😀");
         using var match = runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All);
         Assert.False(match.Match.Success);
@@ -519,7 +519,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(1, counters.StringDecodes);
+        Assert.Equal(0, counters.StringDecodes);
     }
 
     [Fact]

@@ -244,7 +244,7 @@ internal static class AwkRegexSyntaxValidator
             IAwkCompiledRegex? compiled = null;
             try
             {
-                var supported = regexEngine.TryCompile(translated, false, memoryBudget, cancellationToken, out compiled);
+                var supported = regexEngine.TryCompile(translated.AsSpan(checkpoint), false, memoryBudget, cancellationToken, out compiled);
                 if (!supported)
                     throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
                 if (compiled is null || compiled.GroupCount < 1) return false;

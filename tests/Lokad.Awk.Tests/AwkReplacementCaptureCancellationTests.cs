@@ -203,7 +203,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         AwkLeasedRegexMatch Build(Action callback)
         {
             var coordinates = byteCoordinates ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16;
-            Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("(a+)", false,
+            Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("(a+)"u8, false,
                 null, CancellationToken.None, out var pattern));
             using (pattern)
             {

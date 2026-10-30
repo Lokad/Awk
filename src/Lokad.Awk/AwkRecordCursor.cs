@@ -768,8 +768,17 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                             _ => (Math.Max(0x10000, (first & 0x07) << 18),
                                 Math.Min(0x10FFFF, ((first & 0x07) << 18) + 0x3FFFF))
                         };
-                        var pattern = "[" + char.ConvertFromUtf32(minimum) + "-" + char.ConvertFromUtf32(maximum) + "]";
-                        return Regex(_state.CreateRegex(new AwkRegexPattern(pattern, warningSite: this)));
+                        Span<byte> pattern = stackalloc byte[11];
+                        pattern[0] = (byte)'[';
+                        var written = 1 + new Rune(minimum).EncodeToUtf8(pattern[1..]);
+                        pattern[written++] = (byte)'-';
+                        written += new Rune(maximum).EncodeToUtf8(pattern[written..]);
+                        pattern[written++] = (byte)']';
+                        using var heldPattern = _state.MemoryAccounting.ReserveTransient(
+                            AwkRuntimeMemory.EstimateTextBytes(written));
+                        var text = AwkText.CopyTrustedBytes(pattern[..written], _state.Counters,
+                            AwkMemoryAccounting.Disabled, _state.CancellationCheckpoint);
+                        return Regex(_state.CreateRegex(new AwkRegexPattern(text, warningSite: this)));
                     }
                     return first == (byte)'\n'
                         ? NewlineSeparator.Instance
@@ -799,7 +808,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
                 return Regex(_state.CreateRegex(
-                    new AwkRegexPattern(separatorText.AsString(_state.Counters, _state.CancellationCheckpoint), warningSite: _state),
+                    new AwkRegexPattern(separatorText, warningSite: _state),
                     _state.ResolveRegexCaseSensitivity()));
 
                 RegexSeparator Regex(AwkRegex regex) => new(regex, _state.PrepareContinuingRecordSeparator(regex));
@@ -977,7 +986,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             state.CancellationCheckpoint();
             return;
         }
-        var pattern = new AwkRegexPattern(value.AsString(state.Counters, state.CancellationCheckpoint), warningSite: state);
+        var pattern = new AwkRegexPattern(value, warningSite: state);
         _ = state.CreateRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
         _ = state.CreateRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
     }

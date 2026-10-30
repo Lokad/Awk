@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Breaking regex-provider API:** `TryCompile` now borrows a `ReadOnlySpan<byte>` UTF-8
+  pattern. Core translation, warning history and cache keys stay byte-native. Providers
+  must own and admit retained source; the example adapts the published provider's string
+  compilation API. Matching offsets and language positions are unchanged by this slice.
 - **Breaking host API:** `OpenFileAsync` receives `AwkPathRequest` with original path text,
   explicit cwd and an optional accessible root. Hosts traverse and authorize before effects;
   `Opened(descriptor, resolvedPath)` supplies their stable canonical identity. Core no longer

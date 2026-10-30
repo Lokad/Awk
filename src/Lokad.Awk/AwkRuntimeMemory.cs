@@ -56,14 +56,6 @@ internal static class AwkRuntimeMemory
         characterCount < AwkRuntimeLimits.CancellationCheckBytes ? 0 :
             CheckedAdd(128, CheckedMultiply(characterCount, sizeof(char) * 4));
 
-    // Regex.Escape uses stack scratch for at most 85 input characters. Larger
-    // inputs rent a buffer initially sized input + 200 and may grow it. This
-    // conservative bound covers pool rounding and old/new buffers during growth;
-    // the exact returned string is charged separately through cache publication.
-    public static long EstimateRegexLiteralEscapeScratchBytes(int inputCharacters, int outputCharacters) =>
-        inputCharacters <= 85 ? 0 : CheckedAdd(128,
-            CheckedMultiply(Math.Max(CheckedAdd(inputCharacters, 200), outputCharacters), 12));
-
     public static long EstimateTextBytes(int byteLength)
     {
         if (byteLength <= 0)

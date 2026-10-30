@@ -68,7 +68,7 @@ internal sealed class AwkFieldSplitter(
     {
         if (!value.Equals(_fieldPattern))
             resetRegexWarningSite?.Invoke(this);
-        var pattern = new AwkRegexPattern(value.AsString(counters, throwIfCancellationRequested), warningSite: this);
+        var pattern = new AwkRegexPattern(value, warningSite: this);
         _ = createRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
         _ = createRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
     }
@@ -272,7 +272,7 @@ internal sealed class AwkFieldSplitter(
         {
             AwkFieldSplittingMode.Csv => AwkCsvFields.SplitRecord(line, memoryAccounting, counters, throwIfCancellationRequested),
             AwkFieldSplittingMode.FieldPattern => _byteSplitter.PatsplitRecordFields(
-                line, new AwkRegexPattern(plan.FieldPattern.AsString(counters, throwIfCancellationRequested), warningSite: this), plan.CaseSensitivity),
+                line, new AwkRegexPattern(plan.FieldPattern, warningSite: this), plan.CaseSensitivity),
             AwkFieldSplittingMode.FieldWidths => SplitFieldWidthRecordFields(),
             _ => plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph
                 ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(

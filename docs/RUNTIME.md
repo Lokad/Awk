@@ -238,8 +238,9 @@ separator fast paths remain byte-native.
 
 The [contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) keeps responsibilities explicit:
 
-- Awk translates AWK escapes, ERE operators, classes and assertions. Providers consume
-  this translated pattern spelling and valid UTF-8 directly, with invariant case choice.
+- Awk translates AWK escapes, ERE operators, classes and assertions in UTF-8. Pattern
+  payloads and cache keys stay byte-native. `TryCompile` borrows translated UTF-8 bytes;
+  providers own and admit any retained source. Case choice is invariant.
 - Providers select the earliest start, longest whole match and POSIX subexpression priority.
   Selection must not depend on the number of capture slots requested. Dot/classes operate
   on complete Unicode scalars. Core validates byte/UTF-16 ranges before publishing captures.
@@ -262,7 +263,10 @@ The [source adapter example](../examples/README.md) is compiled into tests and b
 tools against published **Lokad.Utf8Regex 0.4.0**, never a sibling source checkout. It passes
 UTF-8 spans without adding input/capture-text copies and funds handles and per-call scratch
 with coarse estimates through the borrowed budget. The published provider has no shared-budget
-hook; these estimates do not cover every engine allocation. Range-only searches avoid detailed
+hook; these estimates do not cover every engine allocation. Its string-only compilation API
+requires one adapter-owned UTF-8-to-string conversion per compilation, after admission.
+Core conversion counters exclude provider internals; zero core conversions do not establish
+native end-to-end compilation. Range-only searches avoid detailed
 capture shaping, and sparse provider groups map to dense AWK slots. Compilation and searches use the producer's cooperative token
 APIs without independent construction or matching deadlines. A compiled handle does not
 retain its compilation token. POSIX longest-match and subcapture selection remain conformance

@@ -330,7 +330,7 @@ internal sealed class AwkByteFieldSplitter(
         }
         else
         {
-            var regexText = separatorText.AsString(counters, throwIfCancellationRequested);
+            var regexText = separatorText;
             AwkRegex regex;
             if (separatorText.GetRuneLength(throwIfCancellationRequested) > 1)
             {

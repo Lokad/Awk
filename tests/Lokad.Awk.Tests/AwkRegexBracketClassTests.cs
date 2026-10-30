@@ -38,7 +38,7 @@ public sealed class AwkRegexBracketClassTests
     [InlineData("(?x:(a))#[[:absent:]]")]
     [InlineData("(?x)(?-x:#[[:absent:]])")]
     public void InvalidClassesRespectLexicalAndScopedCommentContext(string pattern) =>
-        Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(pattern));
+        Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern)));
 
     [Theory]
     [InlineData("[:word:]")]
@@ -52,7 +52,7 @@ public sealed class AwkRegexBracketClassTests
     [InlineData("[[=a=][:digit:]]")]
     [InlineData("[[.a.][:digit:]]")]
     public void ClassLookingTextDoesNotRejectValidContexts(string pattern) =>
-        AwkRegexBracketClasses.Validate(pattern);
+        AwkRegexBracketClasses.Validate(AwkText.FromString(pattern));
 
     [Theory]
     [InlineData(false)]
@@ -63,9 +63,9 @@ public sealed class AwkRegexBracketClassTests
         var governor = memoryForGovernor.Accounting;
         using var lease = governor.CreateTransientLease();
         if (invalid)
-            Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate("[[:absent:]]", lease: lease));
+            Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString("[[:absent:]]"), lease: lease));
         else
-            AwkRegexBracketClasses.Validate("(a)([[:digit:]])", lease: lease);
+            AwkRegexBracketClasses.Validate(AwkText.FromString("(a)([[:digit:]])"), lease: lease);
     }
 
     [Theory]
@@ -79,16 +79,16 @@ public sealed class AwkRegexBracketClassTests
         var shortGovernor = memoryForShortGovernor.Accounting;
         using (var lease = shortGovernor.CreateTransientLease())
         {
-            var failure = Assert.Throws<AwkRuntimeException>(() => AwkRegexBracketClasses.Validate(pattern, lease: lease));
+            var failure = Assert.Throws<AwkRuntimeException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: lease));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         }
         using var memoryForGovernor = Governor(bytes + 11);
         var governor = memoryForGovernor.Accounting;
         using var retained = governor.ReserveTransient(11);
         if (invalid)
-            Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(pattern, lease: retained));
+            Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained));
         else
-            AwkRegexBracketClasses.Validate(pattern, lease: retained);
+            AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained);
         Assert.Equal(11, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
@@ -109,12 +109,12 @@ public sealed class AwkRegexBracketClassTests
                 cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(
-            "(?x)(a)[[:digit:]]", Check, retained));
+        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(
+            "(?x)(a)[[:digit:]]"), Check, retained));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(11, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        AwkRegexBracketClasses.Validate("(?x)(a)[[:digit:]]", lease: retained);
+        AwkRegexBracketClasses.Validate(AwkText.FromString("(?x)(a)[[:digit:]]"), lease: retained);
         Assert.Equal(11, governor.CurrentCommittedBytes);
     }
 
@@ -138,7 +138,7 @@ public sealed class AwkRegexBracketClassTests
             if (++checks == 3) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(pattern, Check));
+        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), Check));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
 

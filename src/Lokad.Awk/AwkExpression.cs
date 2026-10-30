@@ -84,7 +84,7 @@ internal abstract partial class AwkExpression
     internal virtual AwkRegexPatternOrigin RegexPatternOrigin => AwkRegexPatternOrigin.Runtime;
 
     public async ValueTask<AwkRegexPattern> ResolveRegexPatternAsync(AwkEvaluationContext context) =>
-        new(await ResolveStringAsync(context).ConfigureAwait(false), RegexPatternOrigin, this);
+        new(await ResolveByteTextAsync(context).ConfigureAwait(false), RegexPatternOrigin, this);
 
     public static AwkExpression Variable(AwkVariableName name) => new VariableExpression(name);
 

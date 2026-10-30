@@ -12,14 +12,15 @@ namespace Lokad.Awk;
 public interface IAwkRegexEngine
 {
     /// <summary>Compiles an already translated pattern, or reports unsupported syntax.</summary>
-    /// <param name="pattern">Awk's translated ERE pattern using .NET-compatible assertion/category spelling;
-    /// match Unicode scalars rather than UTF-16 halves. Do not translate AWK syntax again.</param>
+    /// <param name="patternUtf8">Borrowed valid UTF-8 bytes of Awk's translated ERE pattern using .NET-compatible assertion/category spelling;
+    /// match Unicode scalars rather than UTF-16 halves. Do not translate AWK syntax again. Do not retain the span; any retained source must be
+    /// provider-owned and admitted before allocation.</param>
     /// <param name="ignoreCase">Whether invariant case-insensitive matching is requested.</param>
     /// <param name="memoryBudget">The borrowed active budget, or null without host accounting.</param>
     /// <param name="cancellationToken">Current operation cancellation; do not retain it.</param>
     /// <param name="compiledPattern">An owned handle on success, otherwise null.</param>
     /// <returns>True on success, false when this engine cannot implement the pattern.</returns>
-    bool TryCompile(string pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
+    bool TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
         CancellationToken cancellationToken,
         [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern);
 }

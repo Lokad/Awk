@@ -92,7 +92,7 @@ public sealed class AwkRangeParagraphTests
         Assert.True(state.GetFieldValue(1).ByteText.AsSpan().SequenceEqual("a\nb"u8));
         Assert.True(state.GetFieldValue(2).ByteText.AsSpan().SequenceEqual("x"u8));
         if (backend)
-            Assert.Equal(1, counters.StringDecodes); // Literal FS compilation; record bytes stay native.
+            Assert.Equal(0, counters.StringDecodes); // Literal FS preparation and record bytes stay native.
     }
 
     [Fact]

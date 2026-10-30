@@ -1482,8 +1482,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("96\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(rowCount, counters.FieldSplits);
         Assert.Equal(2, counters.RegexCompiles);
-        Assert.Equal(1, counters.AwkTextAsStringCalls);
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
 
     [Fact]

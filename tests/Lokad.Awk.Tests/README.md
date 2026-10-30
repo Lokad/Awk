@@ -39,6 +39,9 @@ New failures are not automatically added to this list.
 Adapter boundary checks cover range-only versus detailed selection, dense publication of sparse
 provider groups, token forwarding and disposal. Published0.4.0 has no shared-budget hook; the
 adapter's handle/search reservations are coarse estimates, not full engine allocation admission.
+Native-pattern checks pin byte content through translation and equivalent cache keys, including
+supplementary scalars and NUL. Core conversion counters exclude the example adapter's temporary
+pattern decoding for the published provider's string-only compilation API.
 
 Before adopting a provider release, set `AwkRegexProviderGaps.SkipReason` to `null` locally
 and run the full suite. Qualify the unchanged semantic expectations, then remove resolved

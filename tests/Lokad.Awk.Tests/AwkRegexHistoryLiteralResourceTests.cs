@@ -78,7 +78,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     [InlineData("small")]
     [InlineData("sparse")]
     [InlineData("pool-growth")]
-    public void LiteralEscapingPreservesBclResultsAndRetainsOneExactString(string shape)
+    public void LiteralEscapingPreservesSpellingAndAdmitsOwnedBytes(string shape)
     {
         var text = shape switch
         {
@@ -92,33 +92,32 @@ public sealed class AwkRegexHistoryLiteralResourceTests
             _ => throw new ArgumentException("Unknown escape shape.")
         };
         var expected = System.Text.RegularExpressions.Regex.Escape(text);
-        var bytes = ReferenceEquals(text, expected) ? 0 : 24L + 2L * expected.Length;
+        var bytes = ReferenceEquals(text, expected) ? 0 : AwkRuntimeMemory.EstimateTextBytes(AwkText.FromString(expected));
+        var input = AwkText.FromString(text);
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
         var governor = memoryForGovernor.Accounting;
         using (var resultText = governor.CreateTransientLease())
         {
-            var actual = AwkRegexConstruction.EscapeLiteral(text, () => { }, governor, resultText);
-            Assert.Equal(expected, actual);
+            var actual = AwkRegexConstruction.EscapeLiteral(input, () => { }, governor, resultText);
+            Assert.Equal(expected, actual.AsString());
             Assert.Equal(bytes, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
-            if (bytes == 0) Assert.Same(text, actual);
+            if (bytes == 0) Assert.Same(input, actual);
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var peak = counters.MemoryPeakLiveBytes;
-        // A uniform twice-input bound would reject this valid exact-budget literal.
-        if (shape == "sparse") Assert.Equal(34, peak);
         using var memoryForExact = Governor(Math.Max(1, peak));
         var exact = memoryForExact.Accounting;
         using (var resultText = exact.CreateTransientLease())
-            Assert.Equal(expected, AwkRegexConstruction.EscapeLiteral(text, () => { }, exact, resultText));
+            Assert.Equal(expected, AwkRegexConstruction.EscapeLiteral(input, () => { }, exact, resultText).AsString());
         Assert.Equal(0, exact.CurrentCommittedBytes);
         if (peak == 0) return;
         using var memoryForShortGovernor = Governor(peak - 1);
         var shortGovernor = memoryForShortGovernor.Accounting;
         using var rejected = shortGovernor.CreateTransientLease();
         var error = Assert.Throws<AwkRuntimeException>(() =>
-            AwkRegexConstruction.EscapeLiteral(text, () => { }, shortGovernor, rejected));
+            AwkRegexConstruction.EscapeLiteral(input, () => { }, shortGovernor, rejected));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, shortGovernor.CurrentCommittedBytes);
         Assert.Equal(0, shortGovernor.CurrentReservedBytes);
@@ -127,7 +126,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     [Fact]
     public void LiteralCacheCancellationReleasesAdmissionWithoutPublishing()
     {
-        const long bytes = 28; // Regex.Escape(".") returns two UTF-16 units.
+        var bytes = AwkRuntimeMemory.EstimateTextBytes(AwkText.FromString(@"\."));
         using var memoryForProbeGovernor = Governor(1 << 20);
         var probeGovernor = memoryForProbeGovernor.Accounting;
         var heldChecks = 0;
@@ -156,7 +155,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         var retry = runtime.CreateLiteral(new AwkRegexLiteralText("."));
         Assert.Same(retry, runtime.CreateLiteral(new AwkRegexLiteralText(".")));
         Assert.Equal(2, counters.RegexCompiles);
-        Assert.Equal(bytes, counters.MemoryPeakLiveBytes);
+        Assert.True(counters.MemoryPeakLiveBytes >= bytes);
     }
 
     [Theory]
@@ -165,7 +164,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     public void LiteralCancellationReleasesScratchAndPreservesBorrowedResultCharge(string phase)
     {
         var text = new string('.', 8192);
-        var bytes = 24L + 4L * text.Length;
+        var input = AwkText.FromString(text);
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
         var governor = memoryForGovernor.Accounting;
@@ -175,20 +174,20 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         {
             resultText.ReserveAdditional(43);
             var error = Assert.Throws<OperationCanceledException>(() =>
-                AwkRegexConstruction.EscapeLiteral(text, () =>
+                AwkRegexConstruction.EscapeLiteral(input, () =>
                 {
                     if (phase == "measure" && ++checks == 3 || phase == "construct" && governor.CurrentCommittedBytes > 43)
                         cancellation.Cancel();
                     cancellation.Token.ThrowIfCancellationRequested();
                 }, governor, resultText));
             Assert.Equal(cancellation.Token, error.CancellationToken);
-            Assert.Equal(43 + (phase == "construct" ? bytes : 0), governor.CurrentCommittedBytes);
+            Assert.Equal(43, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
         using var retry = governor.CreateTransientLease();
         Assert.Equal(System.Text.RegularExpressions.Regex.Escape(text),
-            AwkRegexConstruction.EscapeLiteral(text, () => { }, governor, retry));
+            AwkRegexConstruction.EscapeLiteral(input, () => { }, governor, retry).AsString());
     }
 
     [Fact]

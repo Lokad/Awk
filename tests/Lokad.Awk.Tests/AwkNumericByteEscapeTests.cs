@@ -59,7 +59,7 @@ public sealed class AwkNumericByteEscapeTests
     {
         const string pattern = @"\360\237\230\200";
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(1, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(profile,counters,limits,governor);
@@ -115,7 +115,7 @@ public sealed class AwkNumericByteEscapeTests
         var failure = Assert.Throws<OperationCanceledException>(() =>
         {
             if (regex)
-                AwkRegexEscapes.Decode(text, (AwkCompatibilityMode)profile, Check);
+                AwkRegexEscapes.Decode(AwkText.FromString(text), (AwkCompatibilityMode)profile, Check, AwkMemoryAccounting.Disabled, AwkMemoryLease.Disabled);
             else
                 AwkEscapes.DecodeSourceString(text, (AwkCompatibilityMode)profile, Check);
         });

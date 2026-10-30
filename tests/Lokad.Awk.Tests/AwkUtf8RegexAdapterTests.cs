@@ -112,7 +112,7 @@ public sealed class AwkUtf8RegexAdapterTests
     public void CachedHandleUsesTheCurrentOperationToken()
     {
         using var compilation = new CancellationTokenSource();
-        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("a", true, null, compilation.Token, out var pattern));
+        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("a"u8, true, null, compilation.Token, out var pattern));
         using (pattern)
         {
             compilation.Cancel();
@@ -126,7 +126,7 @@ public sealed class AwkUtf8RegexAdapterTests
             Assert.True(pattern.Match("a"u8, 0, [], CancellationToken.None).Success);
         }
         var compileError = Assert.Throws<OperationCanceledException>(() => AwkUtf8RegexEngine.Instance.TryCompile(
-            "a", false, null, compilation.Token, out _));
+            "a"u8, false, null, compilation.Token, out _));
         Assert.Equal(compilation.Token, compileError.CancellationToken);
     }
 
@@ -142,7 +142,7 @@ public sealed class AwkUtf8RegexAdapterTests
 
     private static IAwkCompiledRegex Compile(string source)
     {
-        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile(source, false, null, CancellationToken.None, out var pattern));
+        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile(System.Text.Encoding.UTF8.GetBytes(source), false, null, CancellationToken.None, out var pattern));
         return pattern;
     }
 }

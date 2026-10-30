@@ -446,8 +446,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("2 café bravo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(1, counters.StringDecodes);
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
 
     [Fact]

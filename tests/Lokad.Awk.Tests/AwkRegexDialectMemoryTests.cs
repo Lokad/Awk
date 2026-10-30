@@ -59,7 +59,7 @@ public sealed class AwkRegexDialectMemoryTests
         {
             results.ReserveAdditional(43);
             Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, results, governor));
-            Assert.True(governor.CurrentCommittedBytes >= 43 + 24 + 2L * expected.Length);
+            Assert.True(governor.CurrentCommittedBytes >= 43 + AwkRuntimeMemory.EstimateTextBytes(expected));
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);

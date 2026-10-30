@@ -321,7 +321,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Equal(2, counters.FieldSplits);
         Assert.Equal(4, counters.FieldsMaterialized);
         Assert.True(counters.ValuesCreated > 0);
-        Assert.True(counters.StringDecodes > 0);
+        Assert.Equal(0, counters.StringDecodes);
         Assert.True(counters.RecordSeparatorResolutions > 0);
         Assert.Equal(17, counters.OutputBytes);
         Assert.Equal(1, counters.RegexCompiles);

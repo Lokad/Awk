@@ -113,8 +113,8 @@ public sealed class AwkRegexPreparationCancellationTests
         foreach (var mode in new[] { AwkCompatibilityMode.GnuDefault, AwkCompatibilityMode.Posix,
             AwkCompatibilityMode.Traditional })
         {
-            Assert.Equal(expected, AwkRegex.TranslatePattern(new AwkRegexPattern(text), mode, () => { }));
-            Assert.Equal(expected, AwkRegex.TranslatePattern(new AwkRegexPattern(text), mode));
+            Assert.Equal(expected, AwkRegex.TranslatePattern(new AwkRegexPattern(text), mode, () => { }).AsString());
+            Assert.Equal(expected, AwkRegex.TranslatePattern(new AwkRegexPattern(text), mode).AsString());
         }
     }
 

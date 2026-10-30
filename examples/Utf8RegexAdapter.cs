@@ -12,23 +12,27 @@ namespace Lokad.Awk.Examples;
 /// No independent allowance or governor is created.</remarks>
 public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
 {
+    private static readonly System.Text.UTF8Encoding PatternEncoding = new(false, true);
     /// <summary>Gets the stateless shared engine. Compiled handles remain execution-owned.</summary>
     public static AwkUtf8RegexEngine Instance { get; } = new();
 
     /// <inheritdoc />
-    public bool TryCompile(string pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
+    public bool TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
         CancellationToken cancellationToken,
         [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
     {
-        ArgumentNullException.ThrowIfNull(pattern);
         cancellationToken.ThrowIfCancellationRequested();
         var options = RegexOptions.CultureInvariant | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
         // Pass cancellation through construction and matching without an independent clock.
         IMemoryReservation? storage = null;
-        if (memoryBudget is not null && !memoryBudget.TryReserve(1_024L + pattern.Length * 64L, out storage))
+        if (memoryBudget is not null && !memoryBudget.TryReserve(1_024L + patternUtf8.Length * 64L, out storage))
             throw new AwkRegexAdmissionException();
         try
         {
+            // Published 0.4.0 only compiles strings. This temporary adapter-owned conversion
+            // is included in the coarse construction admission; core preparation stays UTF-8.
+            var pattern = PatternEncoding.GetString(patternUtf8);
+            cancellationToken.ThrowIfCancellationRequested();
             var regex = ProducerRegex.Compile(pattern, options,
                 System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
                 resourcePolicy: default, constructionPolicy: default,
