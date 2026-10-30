@@ -91,6 +91,14 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) FieldValueCacheBufferAllocations++;
     }
 
+    // Byte-native numeric reads only; ordinary owned-value classification is separate.
+    public long NumericFieldByteParses { get; private set; }
+
+    public void RecordNumericFieldByteParse()
+    {
+        if (_enabled) lock (_sync) NumericFieldByteParses++;
+    }
+
     public long FieldSplits { get; private set; }
 
     public long WhitespaceFieldSearches { get; private set; }

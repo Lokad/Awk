@@ -554,6 +554,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!_recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out var bytes))
             return GetFieldValue(index).AsNumber(CancellationCheckpoint);
 
+        Counters.RecordNumericFieldByteParse();
         var parsed = AwkNumberParser.Parse(bytes, NumberParsingMode, CancellationCheckpoint);
         parsed.ThrowIfError();
         return parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
