@@ -107,6 +107,9 @@ arithmetic prefix conversion, whose whitespace is ASCII C whitespace. Numeric fi
 retain their spelling/origin. NaN equality and ordered comparisons are false, inequality
 is true, and NaN is true as a condition. Ordinary strings retain string truth/comparison.
 
+With `--non-decimal-data`, `0x1.5` retains its text but errors on numeric conversion;
+GNU 5.2.1 and 5.3.2 instead accept the numeric prefix `1`.
+
 Missing ordinary array reads create untyped entries; membership does not. Arrays pass
 by alias, including forwarded missing parameters. Scalar assignments/returns copy values.
 Grouped arguments impose scalar context and reject arrays. Function parameters shadow
