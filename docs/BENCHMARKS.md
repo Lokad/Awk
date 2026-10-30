@@ -143,8 +143,10 @@ Optional `--render-report PATH_TO_JSON` writes standalone Markdown beside a comp
 artifact using Lokad.Awk/awk. Raw JSON retains its GNU/Lokad statistic for existing tooling.
 Existing `--governed-profile` cases cover calls, projection and aggregation with a 512 MiB
 thread-safe test budget, including default-mode call/aggregation controls. Its paired
-default/shared `fs-regex`, `rs-regex`, `dynamic-pattern` and `substitution` scenarios
-exercise the native provider boundary with the existing medium fixtures. Medium arithmetic
+default/shared `fs-regex`, `dynamic-pattern`, `substitution` and `rs-engine` scenarios
+exercise the provider boundary with the existing medium fixtures. `rs-regex` uses a byte-run
+fast path; `rs-engine` uses equivalent `([,;]+){1}` separators and checks provider use before
+timing. Medium arithmetic
 cases compare GNU/default, POSIX and governed POSIX execution. Keep transfers/builds outside measurement
 windows. Preserve the full correctness suite and confirm promising changes once in both source orders.
 

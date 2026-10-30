@@ -11,6 +11,7 @@ public class GovernedAllocationProfile
     [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate",
         "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic",
         "default-fs-regex", "shared-fs-regex", "default-rs-regex", "shared-rs-regex",
+        "default-rs-engine", "shared-rs-engine",
         "default-dynamic-pattern", "shared-dynamic-pattern", "default-substitution", "shared-substitution")]
     public string Scenario { get; set; } = "shared-calls";
 
@@ -23,7 +24,7 @@ public class GovernedAllocationProfile
             "shared-projection" => "projection",
             "shared-aggregate" or "default-aggregate" => "aggregate",
             "default-fs-regex" or "shared-fs-regex" => "fs-regex",
-            "default-rs-regex" or "shared-rs-regex" => "rs-regex",
+            "default-rs-regex" or "shared-rs-regex" or "default-rs-engine" or "shared-rs-engine" => "rs-regex",
             "default-dynamic-pattern" or "shared-dynamic-pattern" => "regex-match",
             "default-substitution" or "shared-substitution" => "substitution",
             _ => "multi-arg-loop"
@@ -34,6 +35,16 @@ public class GovernedAllocationProfile
         {
             Program = "BEGIN{p=\"^ABC\"} $0 ~ p {n++} END{print n}"
         };
+        if (Scenario.EndsWith("-rs-engine", StringComparison.Ordinal))
+        {
+            _workload = _workload with
+            {
+                Program = _workload.Program.Replace("[,;]+", "([,;]+){1}", StringComparison.Ordinal)
+            };
+            var counters = ReferenceExecution.CountersAsync(_workload, CancellationToken.None).GetAwaiter().GetResult();
+            if (counters.RegexMatches < _workload.Records)
+                throw new InvalidOperationException("Expected provider-backed record separators.");
+        }
         if (!Scenario.StartsWith("default-", StringComparison.Ordinal)) _policy = _policy.WithMemoryBudget(_budget);
         Execute().GetAwaiter().GetResult();
     }
