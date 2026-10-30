@@ -1,7 +1,9 @@
 # Benchmarks
 
-Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **¶** measure
+Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **‖** measure
 Release development source
+[`fb15f4a`](https://github.com/Lokad/Awk/commit/fb15f4acdca2531b792438f819e9504176573cd9).
+Rows marked **¶** retain source
 [`4209c95`](https://github.com/Lokad/Awk/commit/4209c95fac69967bf6968c8b2619aefd7ad1bcfe).
 Rows marked **§** retain source
 [`810a378`](https://github.com/Lokad/Awk/commit/810a378625f55a1085402b748518628df87101f2).
@@ -26,7 +28,7 @@ remain local.
 
 ## Representative processing
 
-All 42 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
+All 43 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
 without shared admission. Most have 4,096 records; wide all-field and long-field cases have 256.
 Join has 4,096 records per file. Rows are ordered by elapsed ratio. GNU-marked cases do not
 imply full GNU conformance; CSV requires GNU 5.3 or later.
@@ -58,6 +60,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Five-part string concatenation | 20.00 | 2.788 | 1.350 | 2.07× | 1.39 |
 | Nested user calls § | 8.00 | 3.100 | 1.503 | 2.06× | 0.52 |
 | Literal field separator | 48.00 | 2.071 | 1.007 | 2.06× | 0.57 |
+| Sum one numeric column ‖ | 25.08 | 2.438 | 1.191 | 2.05× | 0.88 |
 | For loop and numeric arithmetic | 8.00 | 4.797 | 2.396 | 2.00× | 0.57 |
 | Mixed narrow-record processing | 60.00 | 3.707 | 1.867 | 1.99× | 0.60 |
 | While loop and numeric arithmetic | 8.00 | 4.732 | 2.393 | 1.98× | 0.57 |
@@ -76,6 +79,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Multicharacter record separator (GNU) | 52.00 | 1.121 | 1.162 | 0.96× | 0.55 |
 | Filter `$2` after a 4 KiB field | 1,025.50 | 0.214 | 1.552 | 0.14× | 1.13 |
 
+Scalar summation isolates numeric field consumption from keyed updates.
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Array reads cover
 existing/new keys and alternating lookup tables; field search includes Unicode prefixes.
 
@@ -90,6 +94,7 @@ effect of process startup. No shared admission.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Composite-key sum / sorted output (GNU) ‡ | 384.00 | 47.576 | 8.366 | 5.69× | 27.27 |
 | Keyed sum / sorted output (GNU) | 384.00 | 34.823 | 6.160 | 5.65× | 7.45 |
+| Sum one numeric column ‖ | 401.40 | 41.043 | 7.409 | 5.54× | 13.19 |
 | Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
 
