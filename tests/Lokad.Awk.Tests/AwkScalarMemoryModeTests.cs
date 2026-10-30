@@ -3,6 +3,64 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkScalarMemoryModeTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void NumericUpdatesKeepTheirOwnerFundedAndRealGrowthStillFails(bool beforeBaseline, bool indexed)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+            static (_, _) => { }, static () => 0, static () => { });
+        var name = AwkVariableName.FromText("total");
+        if (beforeBaseline) variables.SetScalarValue(name, AwkValue.FromNumber(7));
+        variables.CaptureScalarMemoryBaseline();
+        if (!beforeBaseline) variables.SetScalarValue(name, AwkValue.FromNumber(7));
+        var id = variables.GetOrCreateScalarSlot(name);
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        for (var value = 8; value <= 100; value++)
+        {
+            if (indexed) variables.SetScalarValue(id, AwkValue.FromNumber(value));
+            else variables.SetScalarValue(name, AwkValue.FromNumber(value));
+        }
+        Assert.Equal(100, variables.GetScalarValue(id).AsNumber());
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(name, new string('x', 4096)));
+        Assert.Equal(100, variables.GetOrCreateScalarValue(name).AsNumber());
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void NumericOfsPublicationReacquiresStorageAfterPreparation(bool fail)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        Action prepare = static () => { };
+        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+            static (_, _) => { }, static () => 0, () => prepare());
+        var ofs = AwkVariableName.FromText("OFS");
+        variables.SetScalarValue(ofs, AwkValue.FromNumber(42));
+        variables.CaptureScalarMemoryBaseline();
+        var failure = new AwkRuntimeException("preparation rejected"u8.ToArray());
+        prepare = () =>
+        {
+            for (var index = 0; index < 256; index++)
+                variables.SetScalarValue(AwkVariableName.FromText("added" + index), AwkValue.FromNumber(index));
+            if (fail) throw failure;
+        };
+        if (fail)
+            Assert.Same(failure, Assert.Throws<AwkRuntimeException>(() => variables.SetScalarValue(ofs, AwkValue.FromNumber(7))));
+        else variables.SetScalarValue(ofs, AwkValue.FromNumber(7));
+        Assert.Equal(fail ? 42 : 7, variables.GetOrCreateScalarValue(ofs).AsNumber());
+        Assert.Equal(255, variables.GetOrCreateScalarValue(AwkVariableName.FromText("added255")).AsNumber());
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task UpdatesPreserveComputedNfOfsPreparationAndRefunds(bool governed)

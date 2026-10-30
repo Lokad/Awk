@@ -93,6 +93,10 @@ without retry or fallback, and reuse by later commands after actual cleanup. Low
 memory tests inspect unchanged reservations and refunds after false; that primitive contract
 does not authorize a running command to recover from refusal.
 
+Scalar/array memory-mode checks cover numeric overwrites followed by refused growth,
+equivalent retained keys, and OFS preparation that grows scalar storage or fails before
+publication. References into scalar storage must be reacquired after preparation.
+
 `AwkPathCancellationTests` bounds allocation after path admission requests cancellation,
 covering redirected reads/writes and main input before resolution or host opens.
 

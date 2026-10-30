@@ -2,6 +2,31 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArrayMemoryModeTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void NumericUpdatesRetainEquivalentKeysAndRefuseRealGrowth(bool storedAsText)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled);
+        var array = AwkArrayName.FromText("totals");
+        var ordinal = AwkArrayKey.FromOrdinal(1);
+        var text = new AwkArrayKey("1");
+        variables.SetArrayValue(array, storedAsText ? text : ordinal, AwkValue.FromNumber(7));
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        for (var value = 8; value <= 100; value++)
+            variables.SetArrayValue(array, storedAsText ? ordinal : text, AwkValue.FromNumber(value));
+        Assert.Equal(100, variables.GetArrayValue(array, text).AsNumber());
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(3)));
+        Assert.Equal(100, variables.GetArrayValue(array, ordinal).AsNumber());
+        Assert.True(variables.TryGetArrayCount(array, out var count));
+        Assert.Equal(1, count);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
 
     [Fact]
     public void LongKeyAccessCancelsBeforeMutation()
