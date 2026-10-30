@@ -140,6 +140,9 @@ zero text conversions and refunds. The reference catalog includes a complete fun
 with local mutation, a loop and early returns, independently of prepared return shapes.
 Single-consumption ValueTask sources verify completion effects are flushed before flow
 propagates, without replaying earlier statements or running later ones after failure.
+Parameter-context goldens preserve identity spelling, string truth/comparison, missing
+values and array aliases. Field-index cases retain later getline and i++ effects; unused
+numeric-conversion errors stay deferred through argument evaluation.
 Compound-update goldens preserve numeric-string spelling across scalar, field and nested-array targets.
 Pending record replacement checks retain prior values and target/key funding through completion,
 cancellation and refused admission. Literal and regex separators retain their distinct case behavior.

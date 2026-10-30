@@ -4,6 +4,32 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("prepared-numeric-parameter-keeps-pending-field-index-evaluation",
+            ["function score(x){return x+1}function fieldno(){getline;return 2}BEGIN{$0=\"old 0002\";print score($(fieldno())),$0;exit}"],
+            [], "6 new 0005\n", "new 0005\n");
+        yield return Passing("prepared-numeric-parameter-keeps-mutating-field-index-evaluation",
+            ["function score(x){return x+1}BEGIN{$0=\"0002 0005\";i=1;print score($(i++)),i}"],
+            [], "3 2\n");
+        yield return Passing("prepared-parameter-comparison-condition-keeps-string-origin",
+            ["function score(x,c){if(c==0)return x+1;return x+0}{print score($1,$2),$1,$2}"],
+            [], "2 0002 abc\n", "0002 abc\n");
+        yield return Passing("prepared-parameter-unused-error-stays-deferred",
+            ["--non-decimal-data", "function score(x,c){if(c)return x+1;return 0}function later(){print \"later\";return 0}{print score($1,later()),$1}"],
+            [], "later\n0 0x1.5\n", "0x1.5\n");
+        yield return Passing("prepared-parameter-contexts-preserve-spelling-comparison-and-truth",
+            ["function number(x){return x+0} function identity(x){return x} function equal(x){return x==0} function truth(x){if(x)return 1;return 0} function branch(x,c){if(c)return x+1;return x*2}{print number($1),identity($1),equal($2),truth($2),branch($1,$2),$1,$2}"],
+            [], "2 0002 0 1 3 0002 abc\n", "0002 abc\n");
+        yield return Passing("prepared-parameter-mixed-numeric-and-text-uses",
+            ["function score(n,s){return n+length(s)}{total+=score($1,$2)}END{print total}"],
+            [], "6\n", "0002 0007\n");
+        yield return Passing("prepared-parameter-omitted-and-untyped-arguments",
+            ["function add(x){return x+1}BEGIN{print add(),add(z),z==0,z==\"\"}"], [], "1 1 1 1\n");
+        yield return Passing("prepared-parameter-later-getline-keeps-earlier-value",
+            ["function score(x,y){return x+y}function more(){getline;return $1}BEGIN{$0=\"0002 old\";print score($1,more()),$1;exit}"],
+            [], "7 5\n", "5 new\n");
+        yield return Passing("prepared-parameter-unused-array-alias-remains-an-array",
+            ["function score(p,x){return x+1}BEGIN{a[1]=7}{total+=score(a,$1)}END{print total,a[1]}"],
+            [], "7 7\n", "0002\n0003\n");
         yield return Passing("ordinary-function-nested-loops-propagate-return-and-local-flow",
             ["function score(x,a,t,i,j){t=x;for(i=0;i<4;i++){if(i==1)continue;for(j=0;j<3;j++){if(j==1)break;t+=i};if(i==2)return t};return t} BEGIN{i=99;a[\"x\"]=5}{print score($1,a),i,a[\"x\"]}"],
             [], "9 99 5\n", "0007\n");
