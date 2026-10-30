@@ -2,7 +2,10 @@
 
 Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **‖** measure
 Release development source
-[`fb15f4a`](https://github.com/Lokad/Awk/commit/fb15f4acdca2531b792438f819e9504176573cd9).
+[`9facac7`](https://github.com/Lokad/Awk/commit/9facac7d45566d24f3f6d919c3c84a759f3eebde)
+for repeated field calls and retain
+[`fb15f4a`](https://github.com/Lokad/Awk/commit/fb15f4acdca2531b792438f819e9504176573cd9)
+for scalar summation.
 Rows marked **¶** retain source
 [`4209c95`](https://github.com/Lokad/Awk/commit/4209c95fac69967bf6968c8b2619aefd7ad1bcfe).
 Rows marked **§** retain source
@@ -28,7 +31,7 @@ remain local.
 
 ## Representative processing
 
-All 43 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
+All 44 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
 without shared admission. Most have 4,096 records; wide all-field and long-field cases have 256.
 Join has 4,096 records per file. Rows are ordered by elapsed ratio. GNU-marked cases do not
 imply full GNU conformance; CSV requires GNU 5.3 or later.
@@ -37,6 +40,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | gsub and output † | 56.00 | 10.676 | 1.789 | 5.97× | 23.75 |
 | ERE field separator † | 48.00 | 7.633 | 1.649 | 4.63× | 3.19 |
+| Loop with repeated field arguments ‖ | 25.08 | 15.430 | 4.008 | 3.85× | 0.95 |
 | ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
 | Function with locals, loop and early return ¶ | 11.58 | 9.079 | 2.619 | 3.47× | 0.59 |
 | ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
@@ -79,13 +83,14 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Multicharacter record separator (GNU) | 52.00 | 1.121 | 1.162 | 0.96× | 0.55 |
 | Filter `$2` after a 4 KiB field | 1,025.50 | 0.214 | 1.552 | 0.14× | 1.13 |
 
-Scalar summation isolates numeric field consumption from keyed updates.
+Scalar summation isolates numeric field consumption from keyed updates. The repeated-field
+loop calls a helper eight times per record and updates 16 keys, exercising numeric reuse.
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Array reads cover
 existing/new keys and alternating lookup tables; field search includes Unicode prefixes.
 
 ## Larger inputs
 
-65,536 records per case, per file for join; both aggregation cases retain 16 keys. Composite
+65,536 records per case, per file for join; aggregations and the repeated-field loop retain 16 keys. Composite
 aggregation uses two field components and the same input/output oracle as ordinary aggregation.
 These reduce the relative
 effect of process startup. No shared admission.
@@ -96,6 +101,7 @@ effect of process startup. No shared admission.
 | Keyed sum / sorted output (GNU) | 384.00 | 34.823 | 6.160 | 5.65× | 7.45 |
 | Sum one numeric column ‖ | 401.40 | 41.043 | 7.409 | 5.54× | 13.19 |
 | Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
+| Loop with repeated field arguments ‖ | 401.40 | 226.210 | 53.017 | 4.27× | 13.26 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
 
 ## Shared-admission profiles
