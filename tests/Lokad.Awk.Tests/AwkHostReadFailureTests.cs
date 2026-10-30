@@ -7,8 +7,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 {
     [Theory]
-    [InlineData("complete")] [InlineData("cancel")] [InlineData("refuse")]
-    public async Task GeneralArityWithAPendingArgumentRetainsTheOrdinaryCallerPath(string outcome)
+    [InlineData("complete", "argument")] [InlineData("cancel", "argument")] [InlineData("refuse", "argument")]
+    [InlineData("complete", "condition")] [InlineData("cancel", "condition")] [InlineData("refuse", "condition")]
+    [InlineData("complete", "return")] [InlineData("cancel", "return")] [InlineData("refuse", "return")]
+    public async Task OrdinaryFunctionResumesPendingArgumentConditionOrReturnOnce(string outcome, string position)
     {
         var host = new MockFileSystem();
         host.SetStandardInput("4 row\n");
@@ -23,8 +25,15 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             host.ReadAsyncOverride = null;
             return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
         };
-        const string source = "function more(){getline;return $1} function score(a,b,c,d,e){return a+b+c+d+e} " +
-            "BEGIN{$0=\"7 row\";print \"ready\";for(i=0;i<1;i++)result=score($1,more(),1,2,3);print result;exit} END{print \"completed\"}";
+        var source = "function more(){getline;return $1} " + (position switch
+        {
+            "condition" => "function score(a,b,c,d,e,t,i){t=a;for(i=0;i<2;i++){if(i==0)continue;if(more())t+=b+c+d+e};return t} " +
+                "BEGIN{$0=\"7 row\";print \"ready\";result=score($1,1,2,3,4);print result;exit}",
+            "return" => "function score(a,b,c,d,e,t,i){t=a;for(i=0;i<2;i++){if(i==0)continue;return more()+t+b+c+d+e};return 0} " +
+                "BEGIN{$0=\"7 row\";print \"ready\";result=score($1,1,2,3,0);print result;exit}",
+            _ => "function score(a,b,c,d,e){return a+b+c+d+e} " +
+                "BEGIN{$0=\"7 row\";print \"ready\";for(i=0;i<1;i++)result=score($1,more(),1,2,3);print result;exit}"
+        }) + " END{print \"completed\"}";
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var budget = new CooperativeTestBudget(4 << 20);
         using var cancellation = new CancellationTokenSource();

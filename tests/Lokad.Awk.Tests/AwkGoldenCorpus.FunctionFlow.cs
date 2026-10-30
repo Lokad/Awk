@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("ordinary-function-nested-loops-propagate-return-and-local-flow",
+            ["function score(x,a,t,i,j){t=x;for(i=0;i<4;i++){if(i==1)continue;for(j=0;j<3;j++){if(j==1)break;t+=i};if(i==2)return t};return t} BEGIN{i=99;a[\"x\"]=5}{print score($1,a),i,a[\"x\"]}"],
+            [], "9 99 5\n", "0007\n");
+        yield return Passing("ordinary-function-loops-preserve-returned-field-origin",
+            ["function identity(x,t,i){t=x;i=0;do{i++;if(i<2)continue;return t}while(i<4);return} {v=identity($1)} END{print \"[\"v\"]\",v==7,length(v)}"],
+            [], "[0007] 1 4\n", "0007\n");
         yield return Passing("prepared-general-arity-evaluates-arguments-in-caller-order",
             ["function score(a,b,c,d,e){return a*10000+b*1000+c*100+d*10+e} BEGIN{i=1}{n+=score(i++,i++,i++,i++,i++)} END{print n,i}"], [], "80245 11\n", "one\ntwo\n");
         yield return Passing("prepared-general-arity-keeps-field-spelling-and-aliases",

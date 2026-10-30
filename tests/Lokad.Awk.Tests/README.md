@@ -134,6 +134,9 @@ General-arity preparation checks cover cancellation through action/loop preparat
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases
 preserve the ordinary path and keep storage funded through actual completion or cancellation.
+Function-flow checks also cover nested returns and pending conditions/return values.
+Single-consumption ValueTask sources verify completion effects are flushed before flow
+propagates, without replaying earlier statements or running later ones after failure.
 `AwkPartialCloseTests` covers
 public-boundary partial-close failures and cleanup without replaying successful closes.
 `AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,
