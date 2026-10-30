@@ -24,7 +24,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
         };
         const string source = "function more(){getline;return $1} function score(a,b,c,d,e){return a+b+c+d+e} " +
-            "BEGIN{$0=\"7 row\";print \"ready\";print score($1,more(),1,2,3);exit} END{print \"completed\"}";
+            "BEGIN{$0=\"7 row\";print \"ready\";for(i=0;i<1;i++)result=score($1,more(),1,2,3);print result;exit} END{print \"completed\"}";
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var budget = new CooperativeTestBudget(4 << 20);
         using var cancellation = new CancellationTokenSource();

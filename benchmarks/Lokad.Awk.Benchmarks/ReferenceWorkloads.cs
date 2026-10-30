@@ -18,7 +18,7 @@ internal static class ReferenceWorkloads
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
-        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -41,6 +41,15 @@ internal static class ReferenceWorkloads
 
     public static ReferenceWorkload Create(string name, string scale)
     {
+        if (name == "general-call-loop")
+        {
+            var ordinary = Create("multi-arg-loop", scale);
+            var value = 7;
+            for (var step = 0; step < 8; step++) value = (value * 3 + step + 6) % 101;
+            return new(name, scale, ordinary.Records, ordinary.Fields,
+                "function score(x,a,b,c,d){return (x*3+a+b+c+d)%101} {x=$1;for(i=0;i<8;i++)x=score(x,i,1,2,3);total+=x} END{print total}",
+                ordinary.StandardInput, ordinary.Files, Bytes((value * ordinary.Records).ToString(CultureInfo.InvariantCulture) + "\n"));
+        }
         if (name == "local-conditional-text")
         {
             var textRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
