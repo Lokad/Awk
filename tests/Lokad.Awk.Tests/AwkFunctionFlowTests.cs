@@ -54,15 +54,15 @@ public sealed class AwkFunctionFlowTests
         host.AddFile("/side", "side\n");
         host.SetStandardInput("a\nb\n");
         var reads = 0;
-        host.ReadLinesAsyncOverride = ReadAsync;
-        async Task<AwkReadResult> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        host.ReadAsyncOverride = ReadAsync;
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             await Task.Yield();
             token.ThrowIfCancellationRequested();
             reads++;
-            host.ReadLinesAsyncOverride = null;
-            try { return await host.ReadLinesAsync(descriptor, count, token); }
-            finally { host.ReadLinesAsyncOverride = ReadAsync; }
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, count, token); }
+            finally { host.ReadAsyncOverride = ReadAsync; }
         }
         var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var counters = AwkRuntimeCounters.CreateEnabled();

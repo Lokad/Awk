@@ -22,7 +22,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public List<AwkCommandInvocation> CommandInvocations { get; } = [];
 
-    public List<int> ReadLineBatchLineCounts { get; } = [];
+    public List<int> ReadByteCounts { get; } = [];
 
     public Action? BeforeAppend { get; set; }
 
@@ -118,22 +118,22 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(operation.Status);
     }
 
-    public Task<AwkReadResult> ReadLinesAsync(
+    public ValueTask<AwkReadBuffer> ReadAsync(
         AwkFileDescriptor fileDescriptor,
-        int maxLineCount,
+        int maxBytes,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ReadLineBatchLineCounts.Add(maxLineCount);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
+        ReadByteCounts.Add(maxBytes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
 
         if (fileDescriptor.IsDevNull)
         {
-            return Task.FromResult(AwkReadResult.EndOfFile);
+            return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
         }
 
-        var operation = Dequeue<TestHostOperation.ReadLines>("read results");
-        return Task.FromResult(operation.Result);
+        var operation = Dequeue<TestHostOperation.ReadBytes>("read results");
+        return ValueTask.FromResult(operation.Result);
     }
 
     public void EnqueueCommandExitCode(int exitCode) =>
@@ -164,9 +164,9 @@ public sealed class TestOperationVisitor : IAwkHost
         _operations.Enqueue(new TestHostOperation.CloseDescriptor(status));
     }
 
-    public void EnqueueAwkReadResult(AwkReadResult result)
+    public void EnqueueReadBuffer(AwkReadBuffer result)
     {
-        _operations.Enqueue(new TestHostOperation.ReadLines(result));
+        _operations.Enqueue(new TestHostOperation.ReadBytes(result));
     }
 
     private T Dequeue<T>(string description)
@@ -197,7 +197,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
         public sealed record CloseDescriptor(AwkDescriptorCloseResult Status) : TestHostOperation;
 
-        public sealed record ReadLines(AwkReadResult Result) : TestHostOperation;
+        public sealed record ReadBytes(AwkReadBuffer Result) : TestHostOperation;
 
     }
 

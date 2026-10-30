@@ -103,17 +103,12 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         fileSystem.SetStandardInputBytes([0x61, 0x80, 0x0A]);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var counters = AwkRuntimeCounters.Disabled;
-        var reader = new AsyncLineReader(
+        var reader = new AwkByteReader(
             fileSystem,
             AwkFileDescriptor.StdIn,
             CancellationToken.None,
-            AwkIo.InputReadBatchLineCount,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
-        var descriptorReader = new AwkRecordDescriptorReader(
-            fileSystem,
-            CancellationToken.None,
-            state.Resources);
-        using var cursor = new AwkRecordCursor(state, descriptorReader, reader);
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), true, 4 << 10);
+        using var cursor = new AwkRecordCursor(state, reader);
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
             async () => await cursor.ReadAsync());
 
@@ -179,33 +174,30 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_DefaultRecordProcessingReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "first\n"u8.ToArray(),
-            [],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
+        Assert.Equal([AwkByteReader.ReadSize], host.ReadByteCounts);
     }
 
     [Fact]
     public async Task Awk_DynamicCustomRecordSeparatorKeepsBufferedAndUnreadInput()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "a\nb|"u8.ToArray(),
-            [2],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "c\n"u8.ToArray(),
-            [],
-            AwkReadCompletion.EndOfFile));
+            AwkReadCompletion.EndOfFile, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var program = "{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); " +
@@ -215,8 +207,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(
-            [AwkIo.InputReadBatchLineCount, AwkIo.InputReadBatchLineCount],
-            host.ReadLineBatchLineCounts);
+            [AwkByteReader.ReadSize, AwkByteReader.ReadSize],
+            host.ReadByteCounts);
         Assert.Equal("1:a[N]\n2:b[|]\n3:cN[]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -224,17 +216,16 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_SingleCharacterCustomRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "first|second|"u8.ToArray(),
-            [],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
+        Assert.Equal([AwkByteReader.ReadSize], host.ReadByteCounts);
     }
 
     [Fact]
@@ -936,12 +927,11 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var host = new TestOperationVisitor([]);
         for (var index = 0; index < batches.Length; index++)
         {
-            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
                 Encoding.UTF8.GetBytes(batches[index]),
-                [],
                 index == batches.Length - 1
                     ? AwkReadCompletion.EndOfFile
-                    : AwkReadCompletion.MoreData));
+                    : AwkReadCompletion.MoreData, static _ => { }));
             for (var appendIndex = 0; appendIndex < appendsAfterBatch[index]; appendIndex++)
                 host.EnqueueAppendResult(AwkAppendResult.Accepted());
         }
@@ -950,7 +940,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal(Enumerable.Repeat(AwkIo.InputReadBatchLineCount, batches.Length), host.ReadLineBatchLineCounts);
+        Assert.Equal(Enumerable.Repeat(AwkByteReader.ReadSize, batches.Length), host.ReadByteCounts);
         Assert.Equal(expectedOutput, host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -982,12 +972,11 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
         for (var index = 0; index < batchCount; index++)
         {
-            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
                 batch,
-                [],
                 index == batchCount - 1
                     ? AwkReadCompletion.EndOfFile
-                    : AwkReadCompletion.MoreData));
+                    : AwkReadCompletion.MoreData, static _ => { }));
         }
 
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
@@ -1020,12 +1009,11 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
         for (var index = 0; index < batchCount; index++)
         {
-            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
                 batch,
-                [],
                 index == batchCount - 1
                     ? AwkReadCompletion.EndOfFile
-                    : AwkReadCompletion.MoreData));
+                    : AwkReadCompletion.MoreData, static _ => { }));
         }
 
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
@@ -1044,15 +1032,13 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_RegexRecordSeparatorPreservesInputStartAcrossBufferCompaction()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "xfirst,"u8.ToArray(),
-            [],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "xsecond"u8.ToArray(),
-            [],
-            AwkReadCompletion.EndOfFile));
+            AwkReadCompletion.EndOfFile, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
@@ -1091,22 +1077,19 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             BuildInvocation("awk", program),
             CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             Encoding.UTF8.GetBytes(firstBatch),
-            [],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         for (var index = 0; index < continuationCount; index++)
         {
-            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
                 Encoding.UTF8.GetBytes(continuationBatch),
-                [],
-                AwkReadCompletion.MoreData));
+                AwkReadCompletion.MoreData, static _ => { }));
         }
 
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "next"u8.ToArray(),
-            [],
-            AwkReadCompletion.EndOfFile));
+            AwkReadCompletion.EndOfFile, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
@@ -1126,17 +1109,16 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_RegexRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "first,second;"u8.ToArray(),
-            [],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
+        Assert.Equal([AwkByteReader.ReadSize], host.ReadByteCounts);
     }
 
     [Fact]
@@ -1167,17 +1149,16 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_ParagraphRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "first paragraph\n\nsecond paragraph\n"u8.ToArray(),
-            [],
-            AwkReadCompletion.MoreData));
+            AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
+        Assert.Equal([AwkByteReader.ReadSize], host.ReadByteCounts);
     }
 
     [Fact]

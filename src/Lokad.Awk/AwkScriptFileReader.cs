@@ -176,36 +176,44 @@ internal static class AwkScriptFileReader
             {
                 try
                 {
+                    plan.Memory.AdmitTextCopy(32);
+                    resources.Checkpoint();
                     var builder = new StringBuilder();
-                    var reader = new AsyncLineReader(
-                        host,
-                        descriptor,
-                        cancellationToken,
-                        int.MaxValue,
-                        resources,
-                        exposeHostErrorDetails: plan.ExposeHostErrorDetails,
-                        maxHostErrorBytes: plan.MaxHostErrorBytes);
-                    while (await reader.TryBufferLineAsync().ConfigureAwait(false))
+                    var decoder = AwkUtf8Codec.CreateDecoder();
+                    using var reader = new AwkByteReader(host, descriptor, cancellationToken, resources,
+                        plan.ExposeHostErrorDetails, plan.MaxHostErrorBytes);
+                    try
                     {
-                        resources.Checkpoint();
-                        var line = reader.ReadLine();
-                        if (line.IsEmpty)
-                            continue;
-
-                        try
+                        while (await reader.TryBufferAsync().ConfigureAwait(false))
                         {
-                            plan.Memory.AdmitTextCopy(line.Length);
+                            plan.Memory.AdmitTextCopy(reader.Content.Length);
                             resources.Checkpoint();
-                            builder.Append(AwkUtf8Codec.Decode(line));
+                            var content = reader.Content;
+                            DecodeChunk(content.Span, reader.ReachedEof);
+                            reader.Advance(content.Length);
                         }
-                        catch (DecoderFallbackException)
+                        DecodeChunk(ReadOnlySpan<byte>.Empty, true);
+
+                        void DecodeChunk(ReadOnlySpan<byte> bytes, bool final)
                         {
-                            return AwkScriptTextReadResult.Failure(
-                                AwkMessages.FormatPathError(path.Display, "invalid UTF-8 source"),
-                                AwkDiagnosticId.SourceLoadFailure);
+                            Span<char> characters = stackalloc char[1_024];
+                            bool completed;
+                            do
+                            {
+                                resources.Checkpoint();
+                                decoder.Convert(bytes, characters, final,
+                                    out var consumed, out var written, out completed);
+                                builder.Append(characters[..written]);
+                                bytes = bytes[consumed..];
+                            } while (!completed);
                         }
                     }
-
+                    catch (DecoderFallbackException)
+                    {
+                        return AwkScriptTextReadResult.Failure(
+                            AwkMessages.FormatPathError(path.Display, "invalid UTF-8 source"),
+                            AwkDiagnosticId.SourceLoadFailure);
+                    }
                     resources.Checkpoint();
                     return AwkScriptTextReadResult.FoundText(builder.ToString());
                 }

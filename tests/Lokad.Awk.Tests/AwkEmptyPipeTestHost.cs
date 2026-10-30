@@ -61,17 +61,22 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         return Task.FromResult(AwkDescriptorCloseResult.Closed());
     }
 
-    public Task<AwkReadResult> ReadLinesAsync(
-        AwkFileDescriptor descriptor, int maxLineCount, CancellationToken cancellationToken)
+    public ValueTask<AwkReadBuffer> ReadAsync(
+        AwkFileDescriptor descriptor, int maxBytes, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_pipes.TryGetValue(descriptor, out var pipe))
-            return files.ReadLinesAsync(descriptor, maxLineCount, cancellationToken);
+            return files.ReadAsync(descriptor, maxBytes, cancellationToken);
         Assert.Equal(pipe.Read, descriptor);
         Assert.True(pipe.ReadOpen);
+        Assert.False(pipe.Borrowed);
         var content = pipe.Content;
-        pipe.Content = ReadOnlyMemory<byte>.Empty;
-        return Task.FromResult(AwkReadResult.FromContent(content, [], AwkReadCompletion.EndOfFile));
+        if (content.IsEmpty) return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
+        var length = Math.Min(maxBytes, content.Length);
+        pipe.Borrowed = true;
+        return ValueTask.FromResult(AwkReadBuffer.FromContent(content[..length],
+            length == content.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData,
+            consumed => { pipe.Content = content[consumed..]; pipe.Borrowed = false; }));
     }
 
     public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)
@@ -89,6 +94,7 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         public AwkFileDescriptor Write { get; } = write;
         public bool ReadOpen { get; set; } = true;
         public bool WriteOpen { get; set; } = true;
+        public bool Borrowed { get; set; }
         public ReadOnlyMemory<byte> Content { get; set; }
         public TaskCompletionSource<AwkExitCode> Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);

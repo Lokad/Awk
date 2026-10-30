@@ -22,12 +22,12 @@ bool asynchronousHost)
         var reads = 0;
         if (asynchronousHost)
         {
-            host.ReadLinesAsyncOverride = async (_, _, token) =>
+            host.ReadAsyncOverride = async (_, _, token) =>
             {
                 await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
                 token.ThrowIfCancellationRequested();
                 reads++;
-                return AwkReadResult.FromContent("x\n"u8.ToArray(), [], AwkReadCompletion.MoreData);
+                return AwkReadBuffer.FromContent("x\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { });
             };
         }
 
@@ -79,13 +79,13 @@ bool asynchronousHost)
         using var cancellation = new CancellationTokenSource();
         var host = new MockFileSystem();
         var reads = 0;
-        host.ReadLinesAsyncOverride = async (_, _, token) =>
+        host.ReadAsyncOverride = async (_, _, token) =>
         {
             await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             if (++reads == 500)
                 cancellation.Cancel();
             token.ThrowIfCancellationRequested();
-            return AwkReadResult.FromContent("x\n"u8.ToArray(), [], AwkReadCompletion.MoreData);
+            return AwkReadBuffer.FromContent("x\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { });
         };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiled.ExecuteAsync(host, cancellation.Token, Options(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled)));

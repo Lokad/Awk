@@ -23,12 +23,12 @@ public sealed class AwkNewlineCursorCompletionTests
         Assert.Equal(finite, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         var initialRecord = state.CurrentRecordByteText;
-        var completion = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reads = 0;
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => ++reads == 1 ? completion.Task
-                : Task.FromResult(AwkReadResult.FromContent("last"u8.ToArray(), [], AwkReadCompletion.EndOfFile))
+            ReadAsyncOverride = (_, _, _) => ++reads == 1 ? new(completion.Task)
+                : ValueTask.FromResult(AwkReadBuffer.FromContent("last"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }))
         };
         var fault = new InvalidOperationException("expected task fault");
         using var cancellation = new CancellationTokenSource();
@@ -38,13 +38,13 @@ public sealed class AwkNewlineCursorCompletionTests
             switch (outcome)
             {
                 case 0:
-                    Assert.True(completion.TrySetResult(AwkReadResult.FromContent("café\r\n"u8.ToArray(), [], AwkReadCompletion.MoreData)));
+                    Assert.True(completion.TrySetResult(AwkReadBuffer.FromContent("café\r\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { })));
                     break;
                 case 1:
-                    Assert.True(completion.TrySetResult(AwkReadResult.EndOfFile));
+                    Assert.True(completion.TrySetResult(AwkReadBuffer.EndOfFile));
                     break;
                 case 2:
-                    Assert.True(completion.TrySetResult(AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "expected read failure"))));
+                    Assert.True(completion.TrySetResult(AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "expected read failure"))));
                     break;
                 case 3:
                     Assert.True(completion.TrySetException(fault));
@@ -58,8 +58,8 @@ public sealed class AwkNewlineCursorCompletionTests
         if (!pending)
             Complete();
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
-        var lineReader = descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn);
-        using var cursor = new AwkRecordCursor(state, descriptorReader, lineReader);
+        var byteReader = descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn);
+        using var cursor = new AwkRecordCursor(state, byteReader);
         var read = cursor.ReadAsync();
         Assert.Equal(1, reads);
         if (pending)

@@ -169,16 +169,6 @@ internal sealed class AwkIoHostAdapter(
         await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
     }
 
-    public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>
-        new(
-            host,
-            descriptor,
-            cancellationToken,
-            maxLineCount,
-            resources,
-            exposeHostErrorDetails: exposeHostErrorDetails,
-            maxHostErrorBytes: maxHostErrorBytes);
-
     public string ResolveError(AwkOperationError error) =>
         AwkHostBoundaryPolicy.ResolveError(error, exposeHostErrorDetails, maxHostErrorBytes);
 

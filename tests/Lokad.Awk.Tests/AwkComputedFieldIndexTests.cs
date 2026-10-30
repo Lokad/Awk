@@ -16,7 +16,7 @@ public sealed class AwkComputedFieldIndexTests
         var host = new MockFileSystem();
         host.SetStandardInput(test.StandardInput);
         var reads = 0;
-        host.AfterReadLines = () => reads++;
+        host.AfterRead = () => reads++;
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);

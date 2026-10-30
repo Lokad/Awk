@@ -58,15 +58,15 @@ internal static class FunctionStackProbe
         var workload = new ReferenceWorkload("stack-" + shape, "control", 0, 0, source, [], [], Encoding.UTF8.GetBytes(expectedOutput));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var reads = 0;
-        async Task<AwkReadResult> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             if (++reads == 1000 && shape == "cancel")
                 cancellation.Cancel();
             token.ThrowIfCancellationRequested();
             if (reads > 1000)
-                return AwkReadResult.EndOfFile;
-            return AwkReadResult.FromContent("x\n"u8.ToArray(), [], AwkReadCompletion.MoreData);
+                return AwkReadBuffer.EndOfFile;
+            return AwkReadBuffer.FromContent("x\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { });
         }
         using var host = new ReferenceBenchmarkHost(workload, true,
             shape is "async" or "cancel" or "prepared-async" or "prepared-field-async" or "prepared-four-async" ? ReadAsync : null);

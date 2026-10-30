@@ -9,10 +9,10 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData(true)]
     public async Task ProviderMatchAdmissionFailsBeforeRecordEffects(bool injectedRefusal)
     {
-        var budget = new CooperativeTestBudget((injectedRefusal ? 16 : 2) << 20);
+        var budget = new CooperativeTestBudget(injectedRefusal ? 16 << 20 : 192 << 10);
         var host = new InputHost(budget, "ax!" + new string('q', 1_000_000))
         {
-            OnRead = () => { if (injectedRefusal) budget.RefuseNextAdmissionMinimumGrowth = 1_500_000; }
+            OnRead = () => { if (injectedRefusal) budget.RefuseNextAdmissionMinimumGrowth = 100_000; }
         };
         var exit = await Execute("BEGIN{RS=\"x.\";print \"base\"}{print \"after\";exit}END{print \"end\"}", host, budget);
         Assert.Equal(2, exit.Value);
@@ -44,10 +44,10 @@ public sealed class AwkRecordInputMemoryTests
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.InRange(budget.Reserved, 1_000_000, 1_500_000);
+            Assert.InRange(budget.Reserved, AwkByteReader.ReadSize, AwkByteReader.ReadSize + (128 << 10));
             if (cancel) cancellation.Cancel();
             Assert.False(execution.IsCompleted);
-            Assert.InRange(budget.Reserved, 1_000_000, 1_500_000);
+            Assert.InRange(budget.Reserved, AwkByteReader.ReadSize, AwkByteReader.ReadSize + (128 << 10));
         }
         finally { release.TrySetResult(); }
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
@@ -67,7 +67,7 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal("a\n", host.Output);
         Assert.Equal("", host.Error);
         // Provider scratch is refunded before output; only the raw input remains funded.
-        Assert.InRange(Assert.Single(host.OutputAdmission), 1_000_000, 1_500_000);
+        Assert.InRange(Assert.Single(host.OutputAdmission), AwkByteReader.ReadSize, AwkByteReader.ReadSize + (128 << 10));
         AssertRefunded(budget);
     }
 
@@ -80,8 +80,8 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("first\n1000000\n1\ndone\n", host.Output);
         Assert.Equal("", host.Error);
-        Assert.Equal(2, host.Reads);
-        Assert.InRange(host.ReadAdmission[1], 1_000_000, 1_500_000);
+        Assert.True(host.Reads > 2);
+        Assert.InRange(host.ReadAdmission[^1], 1_000_000, 1_500_000);
         AssertRefunded(budget);
     }
 
@@ -95,7 +95,7 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal(0, (await Execute(script, host, budget)).Value);
         Assert.Equal("held\nretained\ndone\n", host.Output);
         Assert.Equal("", host.Error);
-        Assert.All(host.OutputAdmission.Take(2), bytes => Assert.InRange(bytes, 1_000_000, 1_500_000));
+        Assert.All(host.OutputAdmission.Take(2), bytes => Assert.InRange(bytes, AwkByteReader.ReadSize, AwkByteReader.ReadSize + (128 << 10)));
         Assert.InRange(host.OutputAdmission[2], 1, 100_000);
         AssertRefunded(budget);
     }
@@ -114,6 +114,8 @@ public sealed class AwkRecordInputMemoryTests
     private sealed class InputHost(CooperativeTestBudget budget, params string[] batches) : IAwkHost
     {
         private readonly byte[][] _batches = batches.Select(Encoding.UTF8.GetBytes).ToArray();
+        private int _batchIndex;
+        private int _batchOffset;
         public int Reads { get; private set; }
         public List<long> ReadAdmission { get; } = [];
         public List<long> OutputAdmission { get; } = [];
@@ -132,14 +134,22 @@ public sealed class AwkRecordInputMemoryTests
             if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(content.Span);
             return AwkAppendResult.Accepted();
         }
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             ReadAdmission.Add(budget.Reserved);
             OnRead?.Invoke();
-            if (Reads == _batches.Length) return Task.FromResult(AwkReadResult.EndOfFile);
-            var batch = _batches[Reads++];
-            return Task.FromResult(AwkReadResult.FromContent(batch, [],
-                Reads == _batches.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData));
+            Reads++;
+            if (_batchIndex == _batches.Length) return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
+            var batch = _batches[_batchIndex];
+            var length = Math.Min(count, batch.Length - _batchOffset);
+            var content = batch.AsMemory(_batchOffset, length);
+            return ValueTask.FromResult(AwkReadBuffer.FromContent(content,
+                _batchIndex + 1 == _batches.Length && _batchOffset + length == batch.Length
+                    ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData, consumed =>
+                {
+                    _batchOffset += consumed;
+                    if (_batchOffset == batch.Length) { _batchIndex++; _batchOffset = 0; }
+                }));
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => Task.FromResult(AwkOpenedFile.MissingFile());
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Task.FromResult(AwkDescriptorCloseResult.Closed());

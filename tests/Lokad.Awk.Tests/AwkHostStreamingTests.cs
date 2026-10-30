@@ -12,7 +12,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
         host.BeforeAppend = () => observedBeforeAppend.Add(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
+        host.EnqueueReadBuffer(AwkReadBuffer.EndOfFile);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{print \"one\"; print \"two\"}"));
@@ -109,13 +109,13 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
 
-        public Task<AwkReadResult> ReadLinesAsync(
+        public ValueTask<AwkReadBuffer> ReadAsync(
             AwkFileDescriptor fileDescriptor,
-            int maxLineCount,
+            int maxBytes,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(AwkReadResult.EndOfFile);
+            return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(

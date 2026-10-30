@@ -11,7 +11,6 @@ internal sealed record AwkRuntimeLimits
     public const int DefaultMaxInputFiles = 10_000;
     public const int DefaultMaxPipes = 1_024;
     public const int DefaultMaxIncludeDepth = 128;
-    public const int DefaultInputReadBatchLineCount = 128;
     public const int DefaultUtf8BuilderInitialCapacity = 256;
     public const int DefaultRegexCacheSize = 128;
 

@@ -207,11 +207,13 @@ internal sealed class AwkUtf8Builder : IDisposable
         Length -= length;
     }
 
-    public AwkText BorrowAsAwkText()
+    public AwkText BorrowAsAwkText(int byteLength)
     {
         // This view is valid only until the builder is mutated.
         ThrowIfDisposed();
-        return AwkText.FromTrustedBorrowedBytes(_buffer, 0, Length);
+        if (byteLength < 0 || byteLength > Length)
+            throw new ArgumentOutOfRangeException(nameof(byteLength));
+        return AwkText.FromTrustedBorrowedBytes(_buffer, 0, byteLength);
     }
 
     public AwkText CopyToAwkText(AwkRuntimeCounters counters, Action? checkpoint = null)

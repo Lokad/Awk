@@ -62,6 +62,10 @@ partial/structured-close tests retain pending-failure, ownership and no-replay c
 Append tests distinguish complete acceptance, downstream closure and typed failure for stdout,
 files and pipes. They cover pending-buffer funding through cancellation, one terminal diagnostic,
 failed stderr without retry and cleanup without running later statements or END actions.
+`AwkHostReadFailureTests` covers consumed-prefix commit/disposal, unread suffixes after early
+exit, terminal data/error ordering, source/getline behavior, scalar-splitting chunks and
+stdin aliases written only after releasing their read borrow. Regex windows admit only
+complete validated UTF-8; an incomplete trailing scalar waits for the next byte chunk.
 
 Use host-facing tests when the risk includes command quoting, pipelines, command substitution, descriptor wiring, working-directory behavior, source-file paths, or integration with other host tools. Do not duplicate plain language behavior here unless a host boundary is the point of the test.
 
@@ -217,7 +221,7 @@ Oracle comparison remains opt-in so CI stays deterministic unless a developer ex
 quiet-machine gates, and report claim qualification. It compile-links the pure helpers
 from benchmark tooling without referencing BenchmarkDotNet or an external process.
 `AwkBenchmarkInputTests` checks the shared performance host's borrowed immutable fixtures,
-line offsets, independent descriptor positions, batching and EOF. Mutable/reused host-buffer
+bounded bytes, independent descriptor positions, consumed-prefix commits and EOF. Mutable/reused host-buffer
 contracts remain covered independently by runtime host/record tests.
 The optional native driver's `--driver-smoke` integration checks require explicitly
 selected GNU awk and stay outside ordinary test execution.

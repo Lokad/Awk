@@ -120,14 +120,17 @@ public readonly struct AwkDescriptorCloseResult
         new(AwkOperationStatus.Failure, descriptorRetired, error);
 }
 
-/// <summary>Identifies whether a successful host read reached the end of its input.</summary>
+/// <summary>Identifies what follows the supplied host byte prefix.</summary>
 public enum AwkReadCompletion
 {
     /// <summary>More input may be available.</summary>
     MoreData,
 
     /// <summary>The read reached the end of its input.</summary>
-    EndOfFile
+    EndOfFile,
+
+    /// <summary>A terminal failure follows any supplied prefix.</summary>
+    Failure
 }
 
 /// <summary>Represents the result of opening a file through an <see cref="IAwkHost"/>.</summary>
@@ -257,114 +260,4 @@ public enum AwkFileOpenMode
 
     /// <summary>Open for writing after existing content.</summary>
     WriteAppend
-}
-
-/// <summary>Represents one line-oriented read completed by an <see cref="IAwkHost"/>.</summary>
-public readonly struct AwkReadResult
-{
-    private AwkReadResult(
-        AwkOperationStatus status,
-        ReadOnlyMemory<byte> content,
-        int[] lineStartOffsets,
-        AwkReadCompletion completion,
-        AwkOperationError error)
-    {
-        ArgumentNullException.ThrowIfNull(lineStartOffsets);
-
-        static void ValidateLineStartOffsets(int contentLength, int[] lineStartOffsets)
-        {
-            var previous = 0;
-            for (var index = 0; index < lineStartOffsets.Length; index++)
-            {
-                var offset = lineStartOffsets[index];
-                if (offset <= previous || offset >= contentLength)
-                {
-                    throw new ArgumentException(
-                        "Line start offsets must be strictly increasing positions inside the content.",
-                        nameof(lineStartOffsets));
-                }
-
-                previous = offset;
-            }
-        }
-
-        ValidateLineStartOffsets(content.Length, lineStartOffsets);
-        Status = status;
-        Content = content;
-        LineStartOffsets = lineStartOffsets.Length == 0
-            ? ReadOnlyMemory<int>.Empty
-            : new ReadOnlyMemory<int>([.. lineStartOffsets]);
-        Completion = completion;
-        Error = error;
-    }
-
-    /// <summary>Gets a successful empty result that has reached the end of the input.</summary>
-    public static AwkReadResult EndOfFile { get; } =
-        FromContent(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), AwkReadCompletion.EndOfFile);
-
-    /// <summary>
-    /// Creates a successful result. Offsets identify each line start after the first and must be
-    /// strictly increasing positions inside <paramref name="content"/>. A result that permits more
-    /// data must contain at least one byte so callers always make progress. Offset metadata is
-    /// copied; the content remains borrowed under the lifetime contract of
-    /// <see cref="IAwkHost.ReadLinesAsync"/>.
-    /// </summary>
-    public static AwkReadResult FromContent(
-        ReadOnlyMemory<byte> content,
-        int[] lineStartOffsets,
-        AwkReadCompletion completion)
-    {
-        if (completion is not AwkReadCompletion.MoreData and not AwkReadCompletion.EndOfFile)
-            throw new ArgumentOutOfRangeException(nameof(completion));
-
-        if (content.IsEmpty && completion == AwkReadCompletion.MoreData)
-        {
-            throw new ArgumentException(
-                "A successful read that permits more data must contain at least one byte.",
-                nameof(content));
-        }
-
-        return new AwkReadResult(
-            AwkOperationStatus.Success,
-            content,
-            lineStartOffsets,
-            completion,
-            default);
-    }
-
-    /// <summary>Creates a failed read carrying an awk-shaped host error.</summary>
-    public static AwkReadResult Failure(AwkOperationError error) =>
-        new(
-            AwkOperationStatus.Failure,
-            ReadOnlyMemory<byte>.Empty,
-            Array.Empty<int>(),
-            AwkReadCompletion.MoreData,
-            error);
-
-    /// <summary>Gets the outcome category.</summary>
-    public AwkOperationStatus Status { get; }
-
-    /// <summary>
-    /// Gets the bytes returned by a successful read. The memory remains valid until the host starts
-    /// the next read on the same descriptor or that descriptor is closed.
-    /// </summary>
-    public ReadOnlyMemory<byte> Content { get; }
-
-    /// <summary>Gets an immutable snapshot of the byte offsets at which lines after the first begin.</summary>
-    public ReadOnlyMemory<int> LineStartOffsets { get; }
-
-    /// <summary>Gets the host-shaped error returned by a failed read.</summary>
-    public AwkOperationError Error { get; }
-
-    /// <summary>Gets whether the read succeeded.</summary>
-    public bool Success => Status == AwkOperationStatus.Success;
-
-    /// <summary>Gets whether the read failed.</summary>
-    public bool Failed => Status == AwkOperationStatus.Failure;
-
-    /// <summary>Gets whether more data may follow a successful read.</summary>
-    public AwkReadCompletion Completion { get; }
-
-    /// <summary>Gets whether the successful read consumed the end of the input.</summary>
-    public bool ReachedEof => Completion == AwkReadCompletion.EndOfFile;
 }

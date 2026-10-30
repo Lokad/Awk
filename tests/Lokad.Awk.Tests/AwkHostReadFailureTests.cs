@@ -6,15 +6,179 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task InputCommandHandoffReleasesTheParentStdinBorrow(bool governed)
+    {
+        var released = false;
+        var host = new TestOperationVisitor([]);
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent("first\nsecond\n"u8.ToArray(),
+            AwkReadCompletion.EndOfFile, _ => released = true));
+        host.EnqueueAwkPipeDescriptors(new(new(80), new(81)));
+        host.RunCommandOverride = (_, _) =>
+        {
+            Assert.True(released);
+            return Task.FromResult(new AwkExitCode(17));
+        };
+        host.EnqueueReadBuffer(AwkReadBuffer.EndOfFile);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            "{\"producer\"|getline x;print $0;close(\"producer\");exit}"));
+        var budget = new CooperativeTestBudget(2 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("first\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task WritingAStdinAliasEndsItsBorrowBeforeAppending(bool redirected, bool governed)
+    {
+        var borrowed = false;
+        var completions = 0;
+        var host = new MockFileSystem
+        {
+            ReadOverride = (_, _) =>
+            {
+                Assert.False(borrowed);
+                borrowed = true;
+                return AwkReadBuffer.FromContent("first\nsecond\n"u8.ToArray(), AwkReadCompletion.EndOfFile,
+                    _ => { borrowed = false; completions++; });
+            },
+            AfterAppend = () => Assert.False(borrowed)
+        };
+        var invocation = new AwkCommandInvocation("awk",
+            [redirected ? "{print > \"/dev/stdout\";exit}" : "{print;exit}"], [], AwkPath.Root,
+            AwkFileDescriptor.StdIn, AwkFileDescriptor.StdIn,
+            AwkFileDescriptor.StdErr);
+        var tool = AwkTestHarness.ParseAwk(invocation);
+        var budget = new CooperativeTestBudget(2 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("first\n", host.GetOutput(AwkFileDescriptor.StdIn));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, completions);
+        Assert.False(borrowed);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task SourcePrefixFollowedByReadFailureDoesNotExecute(bool governed)
+    {
+        var completed = false;
+        var host = new MockFileSystem
+        {
+            ReadOverride = (_, _) => AwkReadBuffer.Failure(new(AwkOperationErrorKind.IoFailure, "source failed"),
+                "BEGIN{print \"body\"}\n"u8.ToArray(), _ => completed = true)
+        };
+        host.AddFile("/source", "unused");
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/source"));
+        var budget = new CooperativeTestBudget(2 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: /source: source failed\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(completed);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(new byte[] { 0xff })]
+    [InlineData(new byte[] { 0x61, 0x80 })]
+    [InlineData(new byte[] { 0xf0, 0x9f })]
+    public async Task RegexRecordInputRejectsInvalidOrIncompleteUtf8(byte[] bytes)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInputBytes(bytes);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"x|Q+\"}{print \"after\"}"));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: invalid UTF-8 input\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task OversizedHostReadFailsAndDisposesItsBorrow()
+    {
+        var consumed = -1;
+        var host = new MockFileSystem
+        {
+            ReadOverride = (_, maxBytes) => AwkReadBuffer.FromContent(new byte[maxBytes + 1],
+                AwkReadCompletion.EndOfFile, count => consumed = count)
+        };
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print \"after\"}"));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: file descriptor 0: read failed: Read exceeded the requested byte count.\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, consumed);
+    }
+
+    [Theory]
+    [InlineData("source", 1)] [InlineData("source", 2)] [InlineData("source", 3)] [InlineData("source", 7)]
+    [InlineData("newline", 1)] [InlineData("newline", 2)] [InlineData("newline", 3)] [InlineData("newline", 7)]
+    [InlineData("regex", 1)] [InlineData("regex", 2)] [InlineData("regex", 3)] [InlineData("regex", 7)]
+    public async Task ByteChunksPreserveScalarBoundariesAndBorrowOrder(string kind, int chunkSize)
+    {
+        foreach (var governed in new[] { false, true })
+        {
+            var text = kind == "source" ? "BEGIN{print \"α😀\"}" : kind == "regex" ? "αx😀QQlast" : "α\n😀\nlast";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            var position = 0;
+            var borrowed = false;
+            var completions = 0;
+            var reads = 0;
+            var host = new MockFileSystem
+            {
+                ReadOverride = (_, maxBytes) =>
+                {
+                    Assert.False(borrowed);
+                    if (position == bytes.Length) return AwkReadBuffer.EndOfFile;
+                    var length = Math.Min(Math.Min(chunkSize, maxBytes), bytes.Length - position);
+                    borrowed = true;
+                    reads++;
+                    return AwkReadBuffer.FromContent(bytes.AsMemory(position, length),
+                        position + length == bytes.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData,
+                        consumed => { position += consumed; borrowed = false; completions++; });
+                },
+                AfterCloseDescriptor = () => Assert.False(borrowed)
+            };
+            host.AddFile("/source", "unused");
+            string[] arguments = kind == "source" ? ["-f", "/source"] :
+                [kind == "regex" ? "BEGIN{RS=\"x|Q+\"}{print}" : "{print}"];
+            var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments));
+            var budget = new CooperativeTestBudget(2 << 20);
+            var policy = AwkTestHarness.CreatePolicy();
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+            Assert.Equal(kind == "source" ? "α😀\n" : "α\n😀\nlast\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(bytes.Length, position);
+            Assert.Equal(reads, completions);
+            Assert.False(borrowed);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
     [Fact]
     public async Task Awk_MainInputReadFailureIsFatalAfterCompletedRecords()
     {
         var readCount = 0;
         var host = new MockFileSystem
         {
-            ReadLinesOverride = (_, _) => readCount++ == 0
-                ? AwkReadResult.FromContent("one\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
-                : AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
+            ReadOverride = (_, _) => readCount++ == 0
+                ? AwkReadBuffer.FromContent("one\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { })
+                : AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print}"));
 
@@ -32,8 +196,8 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     {
         var host = new MockFileSystem
         {
-            ReadLinesOverride = (_, _) =>
-                AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
+            ReadOverride = (_, _) =>
+                AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/data.txt", "unread");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
@@ -54,8 +218,8 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     {
         var host = new MockFileSystem
         {
-            ReadLinesOverride = (_, _) =>
-                AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
+            ReadOverride = (_, _) =>
+                AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/script.awk", "BEGIN{print \"unread\"}");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
@@ -75,9 +239,9 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         using var cancellation = new CancellationTokenSource();
         var host = new MockFileSystem
         {
-            AfterReadLines = cancellation.Cancel,
-            ReadLinesOverride = (_, _) =>
-                AwkReadResult.FromContent("BEGIN{print 1}"u8.ToArray(), [], AwkReadCompletion.MoreData)
+            AfterRead = cancellation.Cancel,
+            ReadOverride = (_, _) =>
+                AwkReadBuffer.FromContent("BEGIN{print 1}"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { })
         };
         host.AddFile("/script.awk", "unread");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
@@ -89,10 +253,10 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
-    public void AwkReadResult_SeparatesEndOfFileFromFailure()
+    public void AwkReadBuffer_SeparatesEndOfFileFromFailure()
     {
-        var endOfFile = AwkReadResult.EndOfFile;
-        var failure = AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
+        var endOfFile = AwkReadBuffer.EndOfFile;
+        var failure = AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
 
         Assert.True(endOfFile.Success);
         Assert.True(endOfFile.ReachedEof);
@@ -103,34 +267,118 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
-    public void AwkReadResult_RejectsMalformedLineOffsets()
+    public void AwkReadBuffer_CommitsOneAbsoluteMonotonicPrefixOnDisposal()
     {
-        Assert.Throws<ArgumentException>(() =>
-            AwkReadResult.FromContent("one\n"u8.ToArray(), [4], AwkReadCompletion.EndOfFile));
-        Assert.Throws<ArgumentException>(() =>
-            AwkReadResult.FromContent("one\ntwo\n"u8.ToArray(), [4, 4], AwkReadCompletion.EndOfFile));
+        var committed = -1;
+        var completions = 0;
+        var borrow = AwkReadBuffer.FromContent("abc"u8.ToArray(), AwkReadCompletion.MoreData,
+            count => { committed = count; completions++; });
+        Assert.Throws<ArgumentOutOfRangeException>(() => borrow.SetConsumedBytes(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => borrow.SetConsumedBytes(4));
+        borrow.SetConsumedBytes(1);
+        borrow.SetConsumedBytes(1);
+        borrow.SetConsumedBytes(2);
+        Assert.Throws<ArgumentOutOfRangeException>(() => borrow.SetConsumedBytes(1));
+        Assert.Equal(-1, committed);
+        Assert.Equal("abc", System.Text.Encoding.UTF8.GetString(borrow.Content.Span));
+        borrow.Dispose();
+        borrow.Dispose();
+        Assert.Equal(2, committed);
+        Assert.Equal(1, completions);
+        Assert.Throws<ObjectDisposedException>(() => borrow.Content);
+        Assert.Throws<ObjectDisposedException>(() => borrow.SetConsumedBytes(2));
     }
 
     [Fact]
-    public void AwkReadResult_RejectsSuccessfulReadsThatCannotMakeProgress()
+    public void AwkReadBuffer_RejectsSuccessfulReadsThatCannotMakeProgress()
     {
         Assert.Throws<ArgumentException>(() =>
-            AwkReadResult.FromContent(ReadOnlyMemory<byte>.Empty, [], AwkReadCompletion.MoreData));
+            AwkReadBuffer.FromContent(ReadOnlyMemory<byte>.Empty, AwkReadCompletion.MoreData, static _ => { }));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            AwkReadResult.FromContent("one\n"u8.ToArray(), [], (AwkReadCompletion)42));
+            AwkReadBuffer.FromContent("one\n"u8.ToArray(), (AwkReadCompletion)42, static _ => { }));
     }
 
     [Fact]
-    public void AwkReadResult_SnapshotsLineOffsets()
+    public void AwkReadBuffer_TerminalFailureCanCarryAUsablePrefix()
     {
-        int[] offsets = [4];
-        var result = AwkReadResult.FromContent(
-            "one\ntwo\n"u8.ToArray(),
-            offsets,
-            AwkReadCompletion.EndOfFile);
+        var committed = -1;
+        using (var result = AwkReadBuffer.Failure(new(AwkOperationErrorKind.PermissionDenied, "read denied"),
+            "one\ntail"u8.ToArray(), count => committed = count))
+        {
+            Assert.True(result.Failed);
+            Assert.False(result.ReachedEof);
+            Assert.Equal(AwkOperationErrorKind.PermissionDenied, result.Error.Kind);
+            Assert.Equal("one\ntail", System.Text.Encoding.UTF8.GetString(result.Content.Span));
+            result.SetConsumedBytes(4);
+        }
+        Assert.Equal(4, committed);
+    }
 
-        offsets[0] = 1;
+    [Theory]
+    [InlineData("newline", false)] [InlineData("newline", true)]
+    [InlineData("literal", false)] [InlineData("literal", true)]
+    [InlineData("paragraph", false)] [InlineData("paragraph", true)]
+    [InlineData("csv", false)] [InlineData("csv", true)]
+    public async Task EarlyExitLeavesUnconsumedHostSuffix(string separator, bool governed)
+    {
+        var host = new MockFileSystem();
+        var input = separator switch
+        {
+            "literal" => "first|second|",
+            "paragraph" => "first\n\nsecond\n\n",
+            "csv" => "\"a\nb\",c\nlast,d\n",
+            _ => "first\nsecond\n"
+        };
+        host.SetStandardInput(input);
+        var script = separator switch
+        {
+            "literal" => "BEGIN{RS=\"|\"}{print;exit}",
+            "paragraph" => "BEGIN{RS=\"\"}{print;exit}",
+            "csv" => "{print $1;exit}",
+            _ => "{print;exit}"
+        };
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            separator == "csv" ? ["--csv", script] : [script]));
+        var budget = new CooperativeTestBudget(2 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal(separator == "csv" ? "a\nb\n" : "first\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        using var remaining = await host.ReadAsync(AwkFileDescriptor.StdIn, 100, CancellationToken.None);
+        var expected = separator switch
+        {
+            "literal" => "second|",
+            "paragraph" => "second\n\n",
+            "csv" => "last,d\n",
+            _ => "second\n"
+        };
+        Assert.Equal(expected, System.Text.Encoding.UTF8.GetString(remaining.Content.Span));
+        Assert.Equal(0, budget.Reserved);
+    }
 
-        Assert.Equal([4], result.LineStartOffsets.ToArray());
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task TerminalDataDeliversCompleteRecordsBeforeFailure(bool getline)
+    {
+        var reads = 0;
+        var host = new MockFileSystem
+        {
+            ReadOverride = (_, _) =>
+            {
+                reads++;
+                return AwkReadBuffer.Failure(new(AwkOperationErrorKind.IoFailure, "device failed"),
+                    "one\ntwo\npartial"u8.ToArray(), static _ => { });
+            }
+        };
+        var script = getline ? "BEGIN{for(i=0;i<3;i++){s=(getline x);print s,x,ERRNO}}" : "{print}END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
+        Assert.Equal(getline ? AwkExitCode.Success : AwkExitCode.FatalError,
+            await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Equal(getline ? "1 one \n1 two \n-1 two device failed\n" : "one\ntwo\n",
+            host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(getline ? "" : "awk: file descriptor 0: read failed: device failed\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, reads);
     }
 }

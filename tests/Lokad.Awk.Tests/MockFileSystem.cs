@@ -16,16 +16,16 @@ public sealed class MockFileSystem : IAwkHost
 
     public Action? AfterAppend { get; set; }
 
-    public Action? AfterReadLines { get; set; }
+    public Action? AfterRead { get; set; }
 
     public Action? AfterCloseDescriptor { get; set; }
 
     public Func<AwkFileDescriptor, bool, bool>? CloseDescriptorResultOverride { get; set; }
 
-    public Func<AwkFileDescriptor, int, AwkReadResult>? ReadLinesOverride { get; set; }
+    public Func<AwkFileDescriptor, int, AwkReadBuffer>? ReadOverride { get; set; }
 
-    public Func<AwkFileDescriptor, int, CancellationToken, Task<AwkReadResult>>?
-        ReadLinesAsyncOverride { get; set; }
+    public Func<AwkFileDescriptor, int, CancellationToken, ValueTask<AwkReadBuffer>>?
+        ReadAsyncOverride { get; set; }
 
     public Exception? OpenFileException { get; set; }
 
@@ -175,25 +175,25 @@ public sealed class MockFileSystem : IAwkHost
             succeeded ? AwkDescriptorCloseResult.Closed() : AwkDescriptorCloseResult.Failure(default, descriptorRetired: closed));
     }
 
-    public Task<AwkReadResult> ReadLinesAsync(
+    public ValueTask<AwkReadBuffer> ReadAsync(
         AwkFileDescriptor fileDescriptor,
-        int maxLineCount,
+        int maxBytes,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
 
-        if (ReadLinesAsyncOverride is { } readLinesAsyncOverride)
-            return readLinesAsyncOverride(fileDescriptor, maxLineCount, cancellationToken);
+        if (ReadAsyncOverride is { } readAsyncOverride)
+            return readAsyncOverride(fileDescriptor, maxBytes, cancellationToken);
 
-        var readLinesOverride = ReadLinesOverride;
-        var result = readLinesOverride == null
-            ? _descriptors.ReadLines(fileDescriptor, maxLineCount)
-            : new MockDescriptorReadResult(readLinesOverride(fileDescriptor, maxLineCount), true);
+        var readOverride = ReadOverride;
+        var result = readOverride == null
+            ? _descriptors.ReadBytes(fileDescriptor, maxBytes)
+            : new MockDescriptorReadResult(readOverride(fileDescriptor, maxBytes), true);
         if (result.NotifyAfterRead)
-            AfterReadLines?.Invoke();
+            AfterRead?.Invoke();
 
-        return Task.FromResult(result.Result);
+        return ValueTask.FromResult(result.Result);
     }
 
     public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)

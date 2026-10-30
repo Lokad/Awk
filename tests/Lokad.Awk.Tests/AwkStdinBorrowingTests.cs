@@ -65,8 +65,8 @@ public sealed class AwkStdinBorrowingTests
     public async Task RefusalPrecedesTheReadThatWouldInvalidateAnUnreadTail()
     {
         var budget = new CooperativeTestBudget(16 << 20);
-        var host = new AliasHost(true, false, "a\n" + new string('b', 1_000_000) + "\n")
-        { Before = () => budget.RefuseNextAdmissionMinimumGrowth = 100_000 };
+        var host = new AliasHost(true, false, "a\n" + new string('b', 30_000) + "\n")
+        { Before = () => budget.RefuseNextAdmissionMinimumGrowth = 10_000 };
         var exit = await Execute("{print \"before\";getline x<\"/dev/stdin\";print \"after\";exit}", host, budget);
         Assert.Equal(2, exit.Value);
         Assert.Equal("before\n", host.Output);
@@ -84,16 +84,16 @@ public sealed class AwkStdinBorrowingTests
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var host = new AliasHost(true, false, "a\n" + new string('b', 1_000_000) + "\n")
+        var host = new AliasHost(true, false, "a\n" + new string('b', 30_000) + "\n")
         { PendingRead = () => { entered.SetResult(); return completed.Task; } };
         var execution = Execute("{print \"before\";getline x<\"/dev/fd/0\";print \"after\";exit}", host, budget, cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.True(budget.Reserved >= 1_000_000);
+            Assert.True(budget.Reserved >= 30_000);
             if (cancel) cancellation.Cancel();
             Assert.False(execution.IsCompleted);
-            Assert.True(budget.Reserved >= 1_000_000);
+            Assert.True(budget.Reserved >= 30_000);
         }
         finally { completed.TrySetResult(); }
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
@@ -115,7 +115,7 @@ public sealed class AwkStdinBorrowingTests
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
-        using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn));
+        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
         var allocated = counters.AwkTextPayloadBytes;
         foreach (var expected in new[] { "a", "b", "c" })
             Assert.Equal(expected, (await cursor.ReadAsync()).RecordText.AsString());
@@ -149,17 +149,14 @@ public sealed class AwkStdinBorrowingTests
             return Task.FromResult(AwkAppendResult.Accepted());
         }
 
-        public async Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        public async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             Assert.Equal(AwkFileDescriptor.StdIn, descriptor);
             Reads++;
             if (Reads == 1)
             {
-                var offsets = new List<int>();
-                for (var index = 0; index + 1 < _bytes.Length; index++)
-                    if (_bytes[index] == (byte)'\n') offsets.Add(index + 1);
-                return AwkReadResult.FromContent(_bytes, offsets.ToArray(),
-                    moreData ? AwkReadCompletion.MoreData : AwkReadCompletion.EndOfFile);
+                return AwkReadBuffer.FromContent(_bytes,
+                    moreData ? AwkReadCompletion.MoreData : AwkReadCompletion.EndOfFile, static _ => { });
             }
             if (PendingRead is { } pending) await pending().ConfigureAwait(false);
             if (reuse) _bytes.AsSpan().Fill((byte)'z');
@@ -167,9 +164,9 @@ public sealed class AwkStdinBorrowingTests
             {
                 var next = reuse ? _bytes : new byte[6];
                 "d\ne\n"u8.CopyTo(next);
-                return AwkReadResult.FromContent(next.AsMemory(0, 4), [2], AwkReadCompletion.EndOfFile);
+                return AwkReadBuffer.FromContent(next.AsMemory(0, 4), AwkReadCompletion.EndOfFile, static _ => { });
             }
-            return AwkReadResult.EndOfFile;
+            return AwkReadBuffer.EndOfFile;
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => Task.FromResult(AwkOpenedFile.MissingFile());

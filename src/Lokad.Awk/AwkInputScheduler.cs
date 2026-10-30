@@ -36,7 +36,7 @@ internal sealed class AwkInputScheduler(
     public void PreserveStandardInput()
     {
         if (_currentInput is { } input && !_ownedDescriptor.TryGetValue(out _))
-            input.Cursor.PreserveBorrowedInput();
+            input.Cursor.PreserveBorrowedInput(releaseDescriptor: true);
     }
 
     public async ValueTask<AwkInputRecordResult> ReadAsync()
@@ -54,6 +54,7 @@ internal sealed class AwkInputScheduler(
 
             var input = _currentInput ??
                 throw new InvalidOperationException("Main input was not initialized after a successful open.");
+            if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
             var record = await input.Cursor.ReadAsync().ConfigureAwait(false);
             if (record.HasRecord)
             {
@@ -231,8 +232,7 @@ internal sealed class AwkInputScheduler(
                     maxHostErrorBytes);
                 var cursor = new AwkRecordCursor(
                     state,
-                    descriptorReader,
-                    descriptorReader.CreateLineReader(descriptor));
+                    descriptorReader.CreateByteReader(descriptor));
                 if (descriptor == invocation.Stdio.StdIn)
                     io.PreserveStandardInputIfRedirected(cursor);
                 return cursor;

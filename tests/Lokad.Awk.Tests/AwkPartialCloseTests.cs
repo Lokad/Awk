@@ -117,8 +117,8 @@ public sealed class AwkPartialCloseTests
             return AwkDescriptorCloseResult.Closed();
         }
 
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
-            Task.FromResult(AwkReadResult.EndOfFile);
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
+            ValueTask.FromResult(AwkReadBuffer.EndOfFile);
 
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) =>
             FailCommand

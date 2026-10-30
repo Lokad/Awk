@@ -7,8 +7,6 @@ namespace Lokad.Awk;
 
 internal sealed class AwkIo
 {
-    internal const int InputReadBatchLineCount = AwkRuntimeLimits.DefaultInputReadBatchLineCount;
-
     private readonly AwkIoDescriptorTable _descriptors;
     private readonly AwkIoHostAdapter _host;
     private readonly AwkPipeRuntime _pipes;
@@ -16,6 +14,9 @@ internal sealed class AwkIo
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeState _state;
     private readonly AwkRecordDescriptorReader _descriptorReader;
+    private readonly AwkFileDescriptor _stdIn;
+    private readonly AwkFileDescriptor _stdOut;
+    private readonly AwkFileDescriptor _stdErr;
     private readonly int _maxOutputFiles;
     private readonly int _maxInputFiles;
     private readonly bool _sandbox;
@@ -46,6 +47,9 @@ internal sealed class AwkIo
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10)
     {
+        _stdIn = stdIn;
+        _stdOut = stdOut;
+        _stdErr = stdErr;
         _host = new AwkIoHostAdapter(
             host,
             currentDirectory,
@@ -87,6 +91,7 @@ internal sealed class AwkIo
 
     public Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
     {
+        ReleaseStandardInputBorrow(_stdOut);
         return _host.WriteStandardOutputAsync(content);
     }
 
@@ -94,6 +99,7 @@ internal sealed class AwkIo
 
     public Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content)
     {
+        ReleaseStandardInputBorrow(_stdErr);
         return _host.WriteStandardErrorAsync(content);
     }
 
@@ -113,6 +119,7 @@ internal sealed class AwkIo
 
         if (_specialPaths.TryResolveOutput(path.Text, out var specialDescriptor))
         {
+            ReleaseStandardInputBorrow(specialDescriptor);
             await _host.AppendAsync(specialDescriptor, output.Content)
                 .ConfigureAwait(false);
             return;
@@ -160,7 +167,7 @@ internal sealed class AwkIo
                     _standardInputReader = CreateRecordCursor(specialDescriptor);
                     _standardInputOrder = NextRedirectionOrder();
                 }
-                _standardInputReader.PreserveBorrowedInput();
+                _standardInputReader.PreserveBorrowedInput(releaseDescriptor: true);
                 return AwkInputReaderResult.Success(_standardInputReader);
             }
 
@@ -201,6 +208,8 @@ internal sealed class AwkIo
     public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
     {
         ThrowIfCommandPipeDisabled();
+        // An input-pipe command borrows parent stdin as well as its new output pipe.
+        ReleaseStandardInputBorrow(_stdIn);
         var reader = await _pipes.GetInputReaderAsync(command).ConfigureAwait(false);
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
@@ -219,7 +228,17 @@ internal sealed class AwkIo
 
     public void PreserveStandardInputIfRedirected(AwkRecordCursor cursor)
     {
-        if (_standardInputReader is not null) cursor.PreserveBorrowedInput();
+        if (_standardInputReader is not null) cursor.PreserveBorrowedInput(releaseDescriptor: true);
+    }
+
+    public void PreserveRedirectedStandardInput() =>
+        _standardInputReader?.PreserveBorrowedInput(releaseDescriptor: true);
+
+    private void ReleaseStandardInputBorrow(AwkFileDescriptor descriptor)
+    {
+        if (descriptor != _stdIn) return;
+        _preserveMainStandardInput?.Invoke();
+        PreserveRedirectedStandardInput();
     }
 
     public Task<AwkGetlineResult> ReadMainRecordAsync()
@@ -263,8 +282,7 @@ internal sealed class AwkIo
         AwkFileDescriptor descriptor, AwkParagraphLeaderPolicy paragraphLeaderPolicy) =>
         new(
             _state,
-            _descriptorReader,
-            _host.CreateLineReader(descriptor, InputReadBatchLineCount),
+            _descriptorReader.CreateByteReader(descriptor),
             paragraphLeaderPolicy);
 
     private void ThrowIfFileRedirectionDisabled()

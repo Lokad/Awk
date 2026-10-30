@@ -19,14 +19,14 @@ public sealed class AwkGetlineFailureTests
         var files = new MockFileSystem();
         files.AddFile("/data", "unread");
         var reads = 0;
-        AwkReadResult Read() => afterRecord && reads++ == 0
-            ? AwkReadResult.FromContent("007\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
-            : AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
+        AwkReadBuffer Read() => afterRecord && reads++ == 0
+            ? AwkReadBuffer.FromContent("007\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { })
+            : AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
         var host = new FailureHost(files);
         if (source == "pipe")
             host.PipeRead = Read;
         else
-            files.ReadLinesOverride = (_, _) => Read();
+            files.ReadOverride = (_, _) => Read();
 
         string Getline(string destination) => source switch
         {
@@ -67,8 +67,8 @@ bool readFailure)
             if (readFailure)
             {
                 host.AddFile("/data", "unread");
-                host.ReadLinesOverride = (_, _) =>
-                    AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
+                host.ReadOverride = (_, _) =>
+                    AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
             }
             var appends = 0;
             host.AfterAppend = () => appends++;
@@ -121,7 +121,7 @@ bool readFailure)
     private sealed class FailureHost(MockFileSystem files) : IAwkHost
     {
         private readonly AwkGetlinePipeTestHost _pipes = new(files);
-        public Func<AwkReadResult>? PipeRead { get; set; }
+        public Func<AwkReadBuffer>? PipeRead { get; set; }
         public string CommandError { get; init; } = string.Empty;
         public int OpenPipeCount => _pipes.OpenPipeCount;
 
@@ -133,11 +133,11 @@ bool readFailure)
             return await _pipes.RunCommandAsync(command, token);
         }
 
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             return PipeRead is { } read && descriptor.Id >= 1_000_000
-                ? Task.FromResult(read()) : _pipes.ReadLinesAsync(descriptor, count, token);
+                ? ValueTask.FromResult(read()) : _pipes.ReadAsync(descriptor, count, token);
         }
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,

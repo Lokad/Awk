@@ -51,7 +51,10 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
         if (!_pipes.TryGetValue(descriptor, out var pipe))
             return files.CloseDescriptorAsync(descriptor, cancellationToken);
         if (descriptor == pipe.Read)
+        {
+            Assert.False(pipe.Borrowed);
             pipe.ReadOpen = false;
+        }
         else
         {
             pipe.WriteOpen = false;
@@ -60,32 +63,23 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
         return Task.FromResult(AwkDescriptorCloseResult.Closed());
     }
 
-    public Task<AwkReadResult> ReadLinesAsync(
-        AwkFileDescriptor descriptor, int maxLineCount, CancellationToken cancellationToken)
+    public ValueTask<AwkReadBuffer> ReadAsync(
+        AwkFileDescriptor descriptor, int maxBytes, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_pipes.TryGetValue(descriptor, out var pipe))
-            return files.ReadLinesAsync(descriptor, maxLineCount, cancellationToken);
+            return files.ReadAsync(descriptor, maxBytes, cancellationToken);
         Assert.Equal(pipe.Read, descriptor);
         Assert.True(pipe.ReadOpen);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
+        Assert.False(pipe.Borrowed);
         var bytes = pipe.Bytes;
-        var offsets = new List<int>();
-        var end = bytes.Length;
-        for (var index = 0; index < bytes.Length; index++)
-        {
-            if (bytes[index] != (byte)'\n' || index + 1 == bytes.Length)
-                continue;
-            if (offsets.Count + 1 == maxLineCount)
-            {
-                end = index + 1;
-                break;
-            }
-            offsets.Add(index + 1);
-        }
-        pipe.Bytes = bytes[end..];
-        return Task.FromResult(AwkReadResult.FromContent(bytes.AsMemory(0, end), offsets.ToArray(),
-            pipe.Bytes.Length == 0 ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData));
+        if (bytes.IsEmpty) return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
+        var length = Math.Min(maxBytes, bytes.Length);
+        pipe.Borrowed = true;
+        return ValueTask.FromResult(AwkReadBuffer.FromContent(bytes[..length],
+            length == bytes.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData,
+            consumed => { pipe.Bytes = bytes[consumed..]; pipe.Borrowed = false; }));
     }
 
     public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)
@@ -101,7 +95,8 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
     {
         public AwkFileDescriptor Read { get; } = read;
         public AwkFileDescriptor Write { get; } = write;
-        public byte[] Bytes { get; set; } = [];
+        public ReadOnlyMemory<byte> Bytes { get; set; }
+        public bool Borrowed { get; set; }
         public bool ReadOpen { get; set; } = true;
         public bool WriteOpen { get; set; } = true;
         public TaskCompletionSource<AwkExitCode> Completion { get; } =

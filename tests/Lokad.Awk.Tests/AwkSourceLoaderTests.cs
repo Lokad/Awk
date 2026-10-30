@@ -151,7 +151,7 @@ public sealed class AwkSourceLoaderTests
             }
         };
         host.EnqueueOpenAwkFileDescriptor(100);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent("BEGIN{print 1}\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent("BEGIN{print 1}\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"));
         var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try

@@ -59,7 +59,7 @@ public sealed class AwkUtf8BuilderTests
         using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 2);
         builder.Append("abc"u8);
 
-        var input = builder.BorrowAsAwkText();
+        var input = builder.BorrowAsAwkText(builder.Length);
         var ownedCopy = input.CopyByteSlice(
             0,
             input.ByteLength,

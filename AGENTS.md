@@ -38,6 +38,9 @@ or environment dependencies.
   status, and `CreatePipeAsync` accepts only a cancellation token.
 - Appends return `AwkAppendResult`, separately from command exit statuses. Only full acceptance
   leaves output writable; terminal closure/failure must never cause payload or diagnostic replay.
+- Reads return bounded byte borrows (`AwkReadBuffer`). Advance an absolute consumed prefix and
+  dispose before another operation on that descriptor. Preserve unread suffixes, terminal errors,
+  UTF-8 chunk boundaries and funding through actual users; the host does not split lines.
 - Regex providers own engine allocation admission and engine-specific protection. Keep the
   existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
   Providers own match selection and scalar matching; Awk owns AWK translation, validated capture

@@ -7,6 +7,8 @@ internal static class AwkUtf8Codec
 {
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
+    public static Decoder CreateDecoder() => StrictUtf8.GetDecoder();
+
     public static string Decode(ReadOnlyMemory<byte> bytes) =>
         bytes.IsEmpty ? string.Empty : StrictUtf8.GetString(bytes.Span);
 

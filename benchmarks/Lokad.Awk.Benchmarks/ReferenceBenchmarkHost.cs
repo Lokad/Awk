@@ -2,7 +2,7 @@ namespace Lokad.Awk.Benchmarking;
 
 // Immutable fixtures can remain borrowed for the entire host lifetime.
 internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files, byte[] standardInput, bool capture,
-    Func<AwkFileDescriptor, int, CancellationToken, Task<AwkReadResult>>? readOverride = null) : IAwkHost, IDisposable
+    Func<AwkFileDescriptor, int, CancellationToken, ValueTask<AwkReadBuffer>>? readOverride = null) : IAwkHost, IDisposable
 {
     private readonly Dictionary<string, byte[]> _files = files.ToDictionary(file => file.Path, file => file.ContentBytes, StringComparer.Ordinal);
     private readonly Dictionary<AwkFileDescriptor, ReadState> _openFiles = new() { [AwkFileDescriptor.StdIn] = new(standardInput) };
@@ -11,7 +11,7 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
     private int _nextDescriptor = 3;
 
     public ReferenceBenchmarkHost(ReferenceWorkload workload, bool capture,
-        Func<AwkFileDescriptor, int, CancellationToken, Task<AwkReadResult>>? readOverride = null)
+        Func<AwkFileDescriptor, int, CancellationToken, ValueTask<AwkReadBuffer>>? readOverride = null)
         : this(workload.Files, workload.StandardInput, capture, readOverride) { }
 
     public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
@@ -41,7 +41,7 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
         return Task.FromResult(AwkOpenedFile.Opened(descriptor));
     }
 
-    public Task<AwkReadResult> ReadLinesAsync(
+    public ValueTask<AwkReadBuffer> ReadAsync(
         AwkFileDescriptor fileDescriptor,
         int limit,
         CancellationToken cancellationToken)
@@ -49,9 +49,9 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
         cancellationToken.ThrowIfCancellationRequested();
         if (readOverride is not null) return readOverride(fileDescriptor, limit, cancellationToken);
         if (!_openFiles.TryGetValue(fileDescriptor, out var state))
-            return Task.FromResult(AwkReadResult.EndOfFile);
+            return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
 
-        return Task.FromResult(state.ReadLines(limit));
+        return ValueTask.FromResult(state.ReadBytes(limit));
     }
 
     public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
@@ -90,47 +90,21 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
     private sealed class ReadState(byte[] content)
     {
         private int _offset;
+        private bool _borrowed;
 
-        public AwkReadResult ReadLines(int limit)
+        public AwkReadBuffer ReadBytes(int maxBytes)
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
-
-            if (_offset >= content.Length)
-                return AwkReadResult.EndOfFile;
-
-            var start = _offset;
-            var span = content.AsSpan(start);
-            var offsets = limit == 1 ? [] : new int[Math.Min(limit - 1, span.Length)];
-            var lineCount = 0;
-            var consumed = 0;
-            while (lineCount < limit)
-            {
-                var newline = span[consumed..].IndexOf((byte)'\n');
-                if (newline < 0)
-                    break;
-
-                lineCount++;
-                consumed += newline + 1;
-                if (lineCount >= limit)
-                    break;
-
-                offsets[lineCount - 1] = consumed;
-            }
-
-            if (lineCount > 0)
-            {
-                _offset += consumed;
-                return AwkReadResult.FromContent(
-                    content.AsMemory(start, consumed),
-                    lineCount > 1 ? offsets[..(lineCount - 1)] : [],
-                    _offset >= content.Length
-                        ? AwkReadCompletion.EndOfFile
-                        : AwkReadCompletion.MoreData);
-            }
-
-            _offset = content.Length;
-            return AwkReadResult.FromContent(content.AsMemory(start), [], AwkReadCompletion.EndOfFile);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
+            if (_borrowed) return AwkReadBuffer.Failure(new(AwkOperationErrorKind.IoFailure, "A read borrow is already active."));
+            if (_offset >= content.Length) return AwkReadBuffer.EndOfFile;
+            var length = Math.Min(maxBytes, content.Length - _offset);
+            _borrowed = true;
+            return AwkReadBuffer.FromContent(content.AsMemory(_offset, length), _offset + length == content.Length
+                ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData, consumed =>
+                {
+                    _offset += consumed;
+                    _borrowed = false;
+                });
         }
     }
 }
-

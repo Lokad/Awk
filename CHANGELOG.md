@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Breaking host API:** replace `ReadLinesAsync` / `AwkReadResult` with bounded
+  `ValueTask<AwkReadBuffer> ReadAsync(descriptor, maxBytes, token)`. Hosts no longer provide
+  line offsets. Awk advances an absolute consumed prefix; disposal commits it once and ends
+  the borrow. Return unread bytes on the next read and keep storage alive until disposal.
+  Terminal reads may include bytes; complete records precede failure, without treating a
+  partial failed record as EOF. Source loading also accepts scalar-splitting byte chunks.
 - **Breaking host API:** `AppendAsync` now returns `Task<AwkAppendResult>`: acknowledge
   complete output with `Accepted()`, or report terminal `DownstreamClosed()` / `Failure(error)`.
   Command callbacks still return `AwkExitCode`. `AwkOperationError` now takes a cause enum

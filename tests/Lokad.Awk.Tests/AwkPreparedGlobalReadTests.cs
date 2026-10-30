@@ -103,14 +103,14 @@ public sealed class AwkPreparedGlobalReadTests
         {
             var host = new MockFileSystem();
             host.AddFile("/data", input);
-            if (pending) host.ReadLinesAsyncOverride = ReadAsync;
-            async Task<AwkReadResult> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+            if (pending) host.ReadAsyncOverride = ReadAsync;
+            async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
             {
                 if (Interlocked.Increment(ref arrivals) == 2) ready.TrySetResult();
                 await ready.Task.WaitAsync(token).ConfigureAwait(false);
-                host.ReadLinesAsyncOverride = null;
-                try { return await host.ReadLinesAsync(descriptor, count, token).ConfigureAwait(false); }
-                finally { host.ReadLinesAsyncOverride = ReadAsync; }
+                host.ReadAsyncOverride = null;
+                try { return await host.ReadAsync(descriptor, count, token).ConfigureAwait(false); }
+                finally { host.ReadAsyncOverride = ReadAsync; }
             }
             var exit = await compiled.ExecuteAsync(host, deadline.Token, AwkTestHarness.CreateRuntimeOptions());
             Assert.Equal(AwkExitCode.Success, exit);

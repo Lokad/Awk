@@ -106,7 +106,7 @@ public sealed class AwkMainInputOwnershipTests
             if (closed.DescriptorRetired) Assert.True(Active.Remove(descriptor));
             return closed;
         }
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Files.ReadLinesAsync(descriptor, count, token);
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Files.ReadAsync(descriptor, count, token);
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) => Files.AppendAsync(descriptor, content, token);
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Files.RunCommandAsync(command, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Files.CreatePipeAsync(token);

@@ -63,13 +63,13 @@ public sealed class AwkGetlineDestinationTests
         var host = new MockFileSystem();
         host.AddFile("/data", "record\n");
         var readEntered = false;
-        host.ReadLinesAsyncOverride = (_, _, token) =>
+        host.ReadAsyncOverride = (_, _, token) =>
         {
             readEntered = true;
             Assert.True(state.TryPeekArrayAwkValue(array, key, out var value));
             Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
             cancellation.Cancel();
-            return Task.FromCanceled<AwkReadResult>(token);
+            return ValueTask.FromCanceled<AwkReadBuffer>(token);
         };
         using var output = AwkTestHarness.CreateOutputSink();
         var io = CreateIo(host, state, limits, cancellation.Token);

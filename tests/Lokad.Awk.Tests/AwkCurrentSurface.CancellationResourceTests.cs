@@ -44,7 +44,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var cancellation = new CancellationTokenSource();
         var fileSystem = new MockFileSystem
         {
-            AfterReadLines = cancellation.Cancel
+            AfterRead = cancellation.Cancel
         };
         fileSystem.AddFile("/file.txt", "one\ntwo\n");
 
@@ -77,7 +77,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var cancellation = new CancellationTokenSource();
         var fileSystem = new MockFileSystem
         {
-            AfterReadLines = cancellation.Cancel,
+            AfterRead = cancellation.Cancel,
             AfterCloseDescriptor = static () => throw new InvalidOperationException("cleanup failed")
         };
         fileSystem.AddFile("/file.txt", "one\ntwo\n");
@@ -140,7 +140,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var cancellation = new CancellationTokenSource();
         var fileSystem = new MockFileSystem
         {
-            AfterReadLines = cancellation.Cancel
+            AfterRead = cancellation.Cancel
         };
         fileSystem.SetStandardInput(input);
 
@@ -1043,7 +1043,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkRuntimeLimits.DefaultMaxInputFiles, limits.MaxInputFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxPipes, limits.MaxPipes);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeDepth, limits.MaxIncludeDepth);
-        Assert.Equal(AwkRuntimeLimits.DefaultInputReadBatchLineCount, AwkIo.InputReadBatchLineCount);
+        Assert.Equal(AwkByteReader.ReadSize, AwkByteReader.ReadSize);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFunctionCallDepth, limits.MaxFunctionCallDepth);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth, limits.MaxSyntaxNestingDepth);
     }

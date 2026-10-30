@@ -12,14 +12,16 @@ public sealed class AwkBenchmarkInputTests
     [InlineData("é\n😀\ntailé", 128)]
     [InlineData("a\nb\n", 1)]
     [InlineData("tail", 128)]
-    public async Task ImmutableFixturesStayBorrowedWithIndependentPositionsAndExactLineOffsets(string text, int limit)
+    public async Task ImmutableFixturesStayBorrowedWithIndependentPositionsAndBoundedBytes(string text, int limit)
     {
         var fixture = new BenchmarkFile("/data", text);
         using var host = new ReferenceBenchmarkHost([fixture], [], false);
         var first = await host.OpenFileAsync(new("/data"), AwkFileOpenMode.Read, CancellationToken.None);
         var second = await host.OpenFileAsync(new("/data"), AwkFileOpenMode.Read, CancellationToken.None);
         using var output = new MemoryStream();
-        var firstRead = await host.ReadLinesAsync(first.FileDescriptor, limit, CancellationToken.None);
+        var firstRead = await host.ReadAsync(first.FileDescriptor, limit, CancellationToken.None);
+        var firstBytes = firstRead.Content.ToArray();
+        var firstCompletion = firstRead.Completion;
         var batch = firstRead;
         while (true)
         {
@@ -28,18 +30,19 @@ public sealed class AwkBenchmarkInputTests
             {
                 Assert.True(MemoryMarshal.TryGetArray(batch.Content, out var segment));
                 Assert.Same(fixture.ContentBytes, segment.Array);
-                var expected = new List<int>();
-                for (var i = 0; i + 1 < batch.Content.Length; i++)
-                    if (batch.Content.Span[i] == '\n') expected.Add(i + 1);
-                Assert.Equal(expected, batch.LineStartOffsets.ToArray());
+                Assert.InRange(batch.Content.Length, 1, limit);
             }
-            if (batch.ReachedEof) break;
-            batch = await host.ReadLinesAsync(first.FileDescriptor, limit, CancellationToken.None);
+            var eof = batch.ReachedEof;
+            batch.SetConsumedBytes(batch.Content.Length);
+            batch.Dispose();
+            if (eof) break;
+            batch = await host.ReadAsync(first.FileDescriptor, limit, CancellationToken.None);
         }
         Assert.Equal(fixture.ContentBytes, output.ToArray());
-        var independent = await host.ReadLinesAsync(second.FileDescriptor, limit, CancellationToken.None);
-        Assert.Equal(firstRead.Content.ToArray(), independent.Content.ToArray());
-        Assert.Equal(firstRead.Completion, independent.Completion);
-        Assert.True((await host.ReadLinesAsync(first.FileDescriptor, limit, CancellationToken.None)).ReachedEof);
+        using var independent = await host.ReadAsync(second.FileDescriptor, limit, CancellationToken.None);
+        Assert.Equal(firstBytes, independent.Content.ToArray());
+        Assert.Equal(firstCompletion, independent.Completion);
+        using var final = await host.ReadAsync(first.FileDescriptor, limit, CancellationToken.None);
+        Assert.True(final.ReachedEof);
     }
 }

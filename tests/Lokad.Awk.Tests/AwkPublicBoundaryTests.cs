@@ -104,7 +104,7 @@ public sealed class AwkPublicBoundaryTests
         using var cancellation = new CancellationTokenSource();
         var host = new MockFileSystem();
         host.AddFile("/comments.awk", "# " + new string('x', 64 << 10));
-        host.AfterReadLines = cancellation.Cancel;
+        host.AfterRead = cancellation.Cancel;
         var budget = new CooperativeTestBudget(16 << 20);
         var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -127,7 +127,7 @@ public sealed class AwkPublicBoundaryTests
         host.AddFile("/comments.awk", "# " + new string('x', 64 << 10));
         host.AddFile("/data", "data\n");
         var budget = new CooperativeTestBudget(16 << 20);
-        host.AfterReadLines = () => budget.RefuseNextAdmissionMinimumGrowth = 1;
+        host.AfterRead = () => budget.RefuseNextAdmissionMinimumGrowth = 1;
         var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/comments.awk", "/data"));

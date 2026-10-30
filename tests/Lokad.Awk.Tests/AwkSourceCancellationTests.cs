@@ -20,10 +20,8 @@ public sealed class AwkSourceCancellationTests
         bool include, bool governed, AwkReadCompletion completion, bool multiline)
     {
         var content = Encoding.UTF8.GetBytes("#" + new string('a', (1 << 20) - 2) + "\n");
-        var offsets = multiline ? Enumerable.Range(1, content.Length / 128 - 1).Select(i => i * 128).ToArray() : [];
         if (multiline)
             for (var i = 0; i < content.Length; i += 128) { content[i] = (byte)'#'; content[i + 127] = (byte)'\n'; }
-        var batch = AwkReadResult.FromContent(content, offsets, completion);
         // Warm the same cancellation boundary before bounding allocations.
         await RunAsync();
         await RunAsync();
@@ -36,11 +34,11 @@ public sealed class AwkSourceCancellationTests
             budget.OnGrowth = growth => { if (cancellation.IsCancellationRequested) afterCancelGrowth += growth; };
             var host = new MockFileSystem
             {
-                ReadLinesOverride = (_, _) =>
+                ReadOverride = (_, maxBytes) =>
                 {
                     cancellation.Cancel();
                     start = GC.GetAllocatedBytesForCurrentThread();
-                    return batch;
+                    return AwkReadBuffer.FromContent(content.AsMemory(0, Math.Min(maxBytes, content.Length)), completion, static _ => { });
                 }
             };
             host.AddFile("/source", "placeholder");
@@ -65,7 +63,6 @@ public sealed class AwkSourceCancellationTests
     {
         using var cancellation = new CancellationTokenSource();
         var payload = Encoding.UTF8.GetBytes("#" + new string('a', 1 << 20) + "\n");
-        var batch = AwkReadResult.FromContent(payload, [], AwkReadCompletion.EndOfFile);
         var armed = false;
         long start = 0;
         var budget = new CooperativeTestBudget(32 << 20)
@@ -77,7 +74,7 @@ public sealed class AwkSourceCancellationTests
                 start = GC.GetAllocatedBytesForCurrentThread();
             }
         };
-        var host = new MockFileSystem { ReadLinesOverride = (_, _) => { armed = true; return batch; } };
+        var host = new MockFileSystem { ReadOverride = (_, maxBytes) => { armed = true; return AwkReadBuffer.FromContent(payload.AsMemory(0, Math.Min(maxBytes, payload.Length)), AwkReadCompletion.MoreData, static _ => { }); } };
         host.AddFile("/source", "placeholder");
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             Tool(include).ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token));
@@ -96,10 +93,10 @@ public sealed class AwkSourceCancellationTests
     {
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { entered.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { entered.TrySetResult(); return new(pending.Task); }
         };
         host.AddFile("/source", "placeholder");
         var budget = new CooperativeTestBudget(1 << 20);
@@ -113,7 +110,7 @@ public sealed class AwkSourceCancellationTests
             Assert.False(run.IsCompleted);
             Assert.Equal(1, host.OpenFileCount);
             Assert.Equal(governed, budget.Reserved > 0);
-            pending.SetResult(AwkReadResult.FromContent("BEGIN{print \"unreached\"}"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+            pending.SetResult(AwkReadBuffer.FromContent("BEGIN{print \"unreached\"}"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -122,7 +119,7 @@ public sealed class AwkSourceCancellationTests
         }
         finally
         {
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
             try { await run; } catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         }
     }

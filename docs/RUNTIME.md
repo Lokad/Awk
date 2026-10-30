@@ -49,6 +49,24 @@ Unexpected host exceptions become generic awk diagnostics. Policy/admission fail
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 
+`ReadAsync(descriptor, maxBytes, token)` returns `ValueTask<AwkReadBuffer>`, a disposable
+borrow of at most the requested bytes. `MoreData` requires a nonempty buffer; EOF and failure
+may carry a usable prefix. Awk recognizes records across chunks and validates strict UTF-8,
+including source files. Complete prefix records precede a read-error diagnostic; an incomplete
+failed record is never published as successful EOF. An explicit later getline may attempt a
+new read after returning -1; Awk does not automatically retry a failed operation.
+
+`SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
+without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,
+including after ordinary early exit. Hosts keep the content immutable and funded until disposal.
+The completion callback must not throw or perform cancellable I/O. Dispose before another
+operation on the same descriptor; concurrent borrows on one descriptor are unsupported.
+Different descriptors have independent borrows. Consumption includes bytes transferred into
+Awk's funded record-recognition/read-ahead storage. Stdin aliases retain their independent
+awk buffers; switching cursors transfers their read-ahead before releasing the host borrow.
+Command hosts coordinate any shared descriptor access by their own users; input-command
+handoff releases Awk's current stdin borrow before the host can start those users.
+
 Ordinary stdout is passed to `AppendAsync` at statement boundaries and awaited before execution
 continues. Hosts may buffer physical I/O; append completion acknowledges the bytes and ends the
 borrowed-buffer lifetime. There is no separate host callback for physical flushing. File
@@ -156,8 +174,8 @@ or CONVFMT does not leave a separate formatter cache retaining the old text.
 Captured `close()` names remain funded across later argument evaluation and pending users.
 Dirty records fund their captured `OFS` until reconstruction or replacement, independently of
 the variable's current value. Zero- and one-field records do not retain an unused separator.
-Using stdin aliases alongside main input can retain admitted unread batches; hosts may still
-reuse the previous read buffer when the next read on that descriptor begins.
+Using stdin aliases alongside main input can retain admitted read-ahead; hosts may reuse a read
+buffer only after its borrow is disposed. Cancellation alone does not end that borrow.
 Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a
 decoded regex-input cache.
 File redirections admit open-path scratch, retained exact stream names and table growth before

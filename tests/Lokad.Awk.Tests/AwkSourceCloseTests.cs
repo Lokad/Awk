@@ -89,7 +89,7 @@ public sealed class AwkSourceCloseTests
         {
             _outcome = outcome;
             Files.AddFile("/script.awk", "BEGIN { print \"body\" }");
-            if (readFailure) Files.ReadLinesOverride = static (_, _) => AwkReadResult.Failure(new(AwkOperationErrorKind.PermissionDenied, "read denied"));
+            if (readFailure) Files.ReadOverride = static (_, _) => AwkReadBuffer.Failure(new(AwkOperationErrorKind.PermissionDenied, "read denied"));
         }
 
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
@@ -109,8 +109,8 @@ public sealed class AwkSourceCloseTests
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
             Files.OpenFileAsync(path, mode, token);
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
-            Files.ReadLinesAsync(descriptor, count, token);
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
+            Files.ReadAsync(descriptor, count, token);
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) =>
             Files.AppendAsync(descriptor, content, token);
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) =>

@@ -105,16 +105,16 @@ public sealed class AwkPipeMemoryTests
         public Action<AwkFileDescriptor>? OnAppend { get; set; }
         public Action? OnCreate { get; init; }
 
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             if (inputPipe && descriptor == AwkFileDescriptor.StdIn)
-                return Task.FromResult(AwkReadResult.EndOfFile);
+                return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
             Assert.Equal(inputPipe ? new AwkFileDescriptor(10) : AwkFileDescriptor.StdIn, descriptor);
-            if (RecordsRead == rows) return Task.FromResult(AwkReadResult.EndOfFile);
+            if (RecordsRead == rows) return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
             RecordsRead++;
-            return Task.FromResult(AwkReadResult.FromContent(Line, [],
-                RecordsRead == rows ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData));
+            return ValueTask.FromResult(AwkReadBuffer.FromContent(Line,
+                RecordsRead == rows ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData, static _ => { }));
         }
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)

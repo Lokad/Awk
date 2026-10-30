@@ -104,8 +104,8 @@ per invocation, including launch, pipe I/O and native file fixtures. Both consum
 all output. Fixture generation and preflight are outside timing; startup is not subtracted.
 These compare embedding with CLI execution; small cases do not isolate evaluator costs.
 
-The performance host borrows immutable fixture bytes and snapshots line offsets. Allocations
-include its other storage. Runtime correctness tests independently cover mutable/reused host
+Managed allocations include host storage and interaction. The tables remain measured at the
+source revision stated above. Runtime correctness tests independently cover mutable/reused host
 buffers. A host-storage change must not be attributed to an interpreter improvement.
 
 Host: Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; BenchmarkDotNet 0.15.8.

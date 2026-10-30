@@ -9,20 +9,20 @@ public sealed class AwkRecordCursorContextTests
     {
         foreach (var golden in AwkGoldenCorpus.DirectCases.Where(c => c.Name.StartsWith("cursor-reader-", StringComparison.Ordinal)))
         foreach (var source in new[] { "stdin", "file", "pipe" })
-        foreach (var batchLines in new[] { 1, 128 })
+        foreach (var chunkBytes in new[] { 1, 128 })
         foreach (var governed in new[] { false, true })
-            yield return [golden, source, batchLines, governed];
+            yield return [golden, source, chunkBytes, governed];
     }
 
     [Theory]
     [MemberData(nameof(Configurations))]
-    public async Task CursorContextDoesNotDependOnHostBatches(AwkGoldenCase golden, string source, int batchLines, bool governed)
+    public async Task CursorContextDoesNotDependOnHostBatches(AwkGoldenCase golden, string source, int chunkBytes, bool governed)
     {
         var script = golden.Arguments[0];
         if (source == "pipe") script = script.Replace("(getline)", "(\"source\" | getline)", StringComparison.Ordinal);
         var arguments = source == "file" ? new[] { script, "/input" } : new[] { script };
         var budget = new CooperativeTestBudget(16 << 20);
-        var host = new CursorHost(golden.StandardInput, batchLines, source);
+        var host = new CursorHost(golden.StandardInput, chunkBytes, source);
         var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, []));
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -59,30 +59,21 @@ public sealed class AwkRecordCursorContextTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private sealed class CursorHost(string input, int batchLines, string source) : IAwkHost
+    private sealed class CursorHost(string input, int chunkBytes, string source) : IAwkHost
     {
         private readonly byte[] _bytes = Encoding.UTF8.GetBytes(input);
         private int _position;
         public HashSet<AwkFileDescriptor> OpenDescriptors { get; } = [];
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int maxLineCount, CancellationToken token)
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maxBytes, CancellationToken token)
         {
             if (_position == _bytes.Length || source == "pipe" && descriptor == AwkFileDescriptor.StdIn)
-                return Task.FromResult(AwkReadResult.EndOfFile);
-            var end = _position;
-            var offsets = new List<int>();
-            var lines = 0;
-            while (end < _bytes.Length)
-            {
-                if (_bytes[end++] != (byte)'\n') continue;
-                if (++lines == Math.Min(batchLines, maxLineCount)) break;
-                if (end < _bytes.Length) offsets.Add(end - _position);
-            }
-            var result = AwkReadResult.FromContent(_bytes.AsMemory(_position, end - _position), offsets.ToArray(),
-                end == _bytes.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData);
-            _position = end;
-            return Task.FromResult(result);
+                return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
+            var length = Math.Min(Math.Min(chunkBytes, maxBytes), _bytes.Length - _position);
+            return ValueTask.FromResult(AwkReadBuffer.FromContent(_bytes.AsMemory(_position, length),
+                _position + length == _bytes.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData,
+                consumed => _position += consumed));
         }
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {

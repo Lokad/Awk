@@ -94,7 +94,7 @@ public sealed class AwkCsvHostTests
         var host = new CsvHost(Encoding.UTF8.GetBytes("a,\"" + new string('x', 300_000) + "\"\n"), 150_000);
         host.BeforeRead = read =>
         {
-            if (read != 2) return Task.CompletedTask;
+            if (read != 4) return Task.CompletedTask;
             entered.SetResult();
             return release.Task;
         };
@@ -157,23 +157,26 @@ public sealed class AwkCsvHostTests
     {
         private readonly byte[] _scratch = new byte[Math.Min(input.Length, chunkSize)];
         private int _position;
+        private bool _borrowed;
         public int Reads { get; private set; }
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
         public HashSet<AwkFileDescriptor> OpenDescriptors { get; } = [];
         public Func<int, Task>? BeforeRead { get; set; }
         public Action? AfterOutput { get; init; }
-        public async Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int maxLines, CancellationToken token)
+        public async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maxBytes, CancellationToken token)
         {
+            Assert.False(_borrowed);
             if (_position == input.Length || source == "pipe" && descriptor == AwkFileDescriptor.StdIn)
-                return AwkReadResult.EndOfFile;
+                return AwkReadBuffer.EndOfFile;
             Reads++;
             if (BeforeRead is { } before) await before(Reads);
-            var count = Math.Min(chunkSize, input.Length - _position);
+            var count = Math.Min(maxBytes, Math.Min(chunkSize, input.Length - _position));
             input.AsSpan(_position, count).CopyTo(_scratch);
-            _position += count;
-            return AwkReadResult.FromContent(_scratch.AsMemory(0, count), [],
-                _position == input.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData);
+            _borrowed = true;
+            return AwkReadBuffer.FromContent(_scratch.AsMemory(0, count),
+                _position + count == input.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData,
+                consumed => { _position += consumed; _borrowed = false; });
         }
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
         {

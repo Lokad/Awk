@@ -15,14 +15,14 @@ bool observed, bool delayed)
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", "BEGIN{getline x<\"/input\";while(1){x++}}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem();
         host.AddFile("/input", "1\n");
-        host.ReadLinesAsyncOverride = (_, _, token) =>
+        host.ReadAsyncOverride = (_, _, token) =>
         {
             entered.TrySetResult(true);
-            return delayed ? pending.Task.WaitAsync(token)
-                : Task.FromResult(AwkReadResult.FromContent("1\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+            return delayed ? new(pending.Task.WaitAsync(token))
+                : ValueTask.FromResult(AwkReadBuffer.FromContent("1\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
         };
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -46,7 +46,7 @@ bool observed, bool delayed)
         finally
         {
             cancellation.Cancel();
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
             try { await run.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (OperationCanceledException) { }
         }
@@ -96,7 +96,7 @@ bool observed, bool delayed)
         Assert.Contains(new AwkFileDescriptor(100), closed);
         if (pipe) Assert.Contains(new AwkFileDescriptor(101), closed);
         Assert.Empty(host.CommandInvocations);
-        Assert.Empty(host.ReadLineBatchLineCounts);
+        Assert.Empty(host.ReadByteCounts);
         Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, budget.Reserved);

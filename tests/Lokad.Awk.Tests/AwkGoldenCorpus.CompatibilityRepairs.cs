@@ -299,7 +299,7 @@ internal static partial class AwkGoldenCorpus
             "Xb\naaaXb\naaabX\naaab\n<a>b\na<>b\nab<>\n");
 
         var batchPrefix = string.Concat(Enumerable.Repeat("b\n",
-            AwkRuntimeLimits.DefaultInputReadBatchLineCount - 1));
+            127));
         yield return Passing(
             "regex-rs-empty-matches-preserve-record-across-host-batches",
             ["BEGIN{RS=\"a*\"} {print length($0),length(RT)}", "/empty.txt"],

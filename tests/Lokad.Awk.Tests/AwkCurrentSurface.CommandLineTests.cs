@@ -281,12 +281,12 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         using var readBarrier = new Barrier(participantCount: 2);
         var firstRun = new MockFileSystem
         {
-            AfterReadLines = () => Assert.True(readBarrier.SignalAndWait(TimeSpan.FromSeconds(10)))
+            AfterRead = () => Assert.True(readBarrier.SignalAndWait(TimeSpan.FromSeconds(10)))
         };
         firstRun.AddFile("/file.txt", "1|2|");
         var secondRun = new MockFileSystem
         {
-            AfterReadLines = () => Assert.True(readBarrier.SignalAndWait(TimeSpan.FromSeconds(10)))
+            AfterRead = () => Assert.True(readBarrier.SignalAndWait(TimeSpan.FromSeconds(10)))
         };
         secondRun.AddFile("/file.txt", "10|20|30|");
 

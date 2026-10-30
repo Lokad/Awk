@@ -264,10 +264,10 @@ versioned reference qualification, not reproducing native crashes or data loss. 
 
 ## Host I/O and getline
 
-All source, input, output and one-way pipes cross `IAwkHost`. Successful reads distinguish
-MoreData from EOF; MoreData contains bytes. Line offsets are snapshotted, while content
-remains borrowed until the next read starts on that descriptor or it closes. Append buffers
-remain valid until the host task completes. Other descriptors have independent lifetimes.
+All source, input, output and one-way pipes cross `IAwkHost`. Bounded byte reads distinguish
+MoreData, EOF and failure, including useful terminal prefixes. Read buffers remain borrowed
+until disposal commits their consumed prefix; no host line offsets are required. Append
+buffers remain borrowed until actual completion. See the [runtime contract](RUNTIME.md#host-authority).
 
 Redirected getline I/O failures return -1 and set enabled ERRNO without an automatic runtime
 stderr diagnostic; callers must check the status. Success/EOF preserve ERRNO.

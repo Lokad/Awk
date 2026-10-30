@@ -114,7 +114,7 @@ public sealed class AwkOutputOwnershipTests
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         { Opened++; return Files.OpenFileAsync(path, mode, token); }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Files.CloseDescriptorAsync(descriptor, token);
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Files.ReadLinesAsync(descriptor, count, token);
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Files.ReadAsync(descriptor, count, token);
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Files.RunCommandAsync(command, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Files.CreatePipeAsync(token);
         public void Dispose() => Digest.Dispose();

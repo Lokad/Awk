@@ -950,8 +950,7 @@ public sealed class AwkBenchmarkCounterTests
     [Fact]
     public async Task Awk_LiteralRecordSeparatorPreservesPartialMatchesAcrossBatches()
     {
-        var prefix = string.Concat(Enumerable.Repeat("line\n",
-            AwkRuntimeLimits.DefaultInputReadBatchLineCount - 1));
+        var prefix = new string('a', AwkByteReader.ReadSize - 4);
         var input = prefix + "one</\nrow>two</\nrow>";
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{RS=\"</\\nrow>\"} {n++} END{print n}"], input);

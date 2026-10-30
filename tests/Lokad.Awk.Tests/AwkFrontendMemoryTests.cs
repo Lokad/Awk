@@ -6,11 +6,11 @@ public sealed class AwkFrontendMemoryTests
     public async Task PendingIncludeReadKeepsSourceAdmissionUntilActualCompletion()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { entered.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { entered.TrySetResult(); return new(pending.Task); }
         };
         host.AddFile("/lib.awk", "BEGIN{print 42}");
         var awk = AwkTestHarness.ParseAwk(Command("BEGIN{}; @include \"/lib.awk\"; BEGIN{print 1}", budget));
@@ -24,7 +24,7 @@ public sealed class AwkFrontendMemoryTests
             Assert.True(budget.Reserved > 0);
             Assert.Equal(1, host.OpenFileCount);
         }
-        finally { pending.TrySetResult(AwkReadResult.EndOfFile); }
+        finally { pending.TrySetResult(AwkReadBuffer.EndOfFile); }
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -92,11 +92,11 @@ public sealed class AwkFrontendMemoryTests
     public async Task SourceReadCancellationKeepsAdmissionUntilActualCompletion()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { started.TrySetResult(); return new(pending.Task); }
         };
         host.AddFile("/script.awk", "BEGIN{}");
         using var cancellation = new CancellationTokenSource();
@@ -112,7 +112,7 @@ public sealed class AwkFrontendMemoryTests
         }
         finally
         {
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
         }
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -201,10 +201,10 @@ public sealed class AwkFrontendMemoryTests
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command("{print}", budget), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var retained = budget.Reserved;
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { started.TrySetResult(); return new(pending.Task); }
         };
         var execution = compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions());
         Task first;
@@ -222,7 +222,7 @@ public sealed class AwkFrontendMemoryTests
         }
         finally
         {
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
         }
         Assert.Equal(0, (await execution).Value);
         await Task.WhenAll(first, second);
@@ -243,12 +243,12 @@ public sealed class AwkFrontendMemoryTests
         };
         var pending = new[]
         {
-            new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously),
-            new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously)
+            new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously)
         };
         var hosts = Enumerable.Range(0, 2).Select(index => new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { entered[index].TrySetResult(); return pending[index].Task; }
+            ReadAsyncOverride = (_, _, _) => { entered[index].TrySetResult(); return new(pending[index].Task); }
         }).ToArray();
         var executions = hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions())).ToArray();
         try
@@ -257,8 +257,8 @@ public sealed class AwkFrontendMemoryTests
             var disposal = compiled.DisposeAsync().AsTask();
             Assert.False(disposal.IsCompleted);
             Assert.True(budget.Reserved > 0);
-            pending[0].TrySetResult(AwkReadResult.FromContent("41\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
-            pending[1].TrySetResult(AwkReadResult.FromContent("10\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+            pending[0].TrySetResult(AwkReadBuffer.FromContent("41\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
+            pending[1].TrySetResult(AwkReadBuffer.FromContent("10\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
             Assert.All(await Task.WhenAll(executions).WaitAsync(TimeSpan.FromSeconds(10)),
                 exit => Assert.Equal(AwkExitCode.Success, exit));
             await disposal.WaitAsync(TimeSpan.FromSeconds(10));
@@ -274,7 +274,7 @@ public sealed class AwkFrontendMemoryTests
         }
         finally
         {
-            foreach (var result in pending) result.TrySetResult(AwkReadResult.EndOfFile);
+            foreach (var result in pending) result.TrySetResult(AwkReadBuffer.EndOfFile);
             await Task.WhenAll(executions);
             await compiled.DisposeAsync();
         }

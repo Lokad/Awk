@@ -197,12 +197,12 @@ public sealed class AwkStructuredCloseTests
             Active.Remove(descriptor);
             return AwkDescriptorCloseResult.Closed();
         }
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            if (FailReads) return Task.FromResult(AwkReadResult.Failure(new(AwkOperationErrorKind.PermissionDenied, "read denied")));
-            return Task.FromResult(_inputs.Remove(descriptor, out var content)
-                ? AwkReadResult.FromContent(content, [], AwkReadCompletion.EndOfFile) : AwkReadResult.EndOfFile);
+            if (FailReads) return ValueTask.FromResult(AwkReadBuffer.Failure(new(AwkOperationErrorKind.PermissionDenied, "read denied")));
+            return ValueTask.FromResult(_inputs.Remove(descriptor, out var content)
+                ? AwkReadBuffer.FromContent(content, AwkReadCompletion.EndOfFile, static _ => { }) : AwkReadBuffer.EndOfFile);
         }
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {

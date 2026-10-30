@@ -275,12 +275,12 @@ public sealed class AwkCooperativeMemoryTests
     public async Task CanceledReadKeepsItsScopeUntilTheUnderlyingTaskCompletes()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource();
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { started.TrySetResult(); return new(pending.Task); }
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
@@ -295,7 +295,7 @@ public sealed class AwkCooperativeMemoryTests
         }
         finally
         {
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
         }
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         Assert.Equal(cancellation.Token, error.CancellationToken);
@@ -308,11 +308,11 @@ public sealed class AwkCooperativeMemoryTests
     public async Task CallerCancellationDoesNotRefundAnActiveHostBorrow()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { started.TrySetResult(); return new(pending.Task); }
         };
         using var cancellation = new CancellationTokenSource();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
@@ -328,7 +328,7 @@ public sealed class AwkCooperativeMemoryTests
         }
         finally
         {
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
         }
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         Assert.Equal(0, budget.Reserved);
@@ -341,11 +341,11 @@ public sealed class AwkCooperativeMemoryTests
     {
         const long limit = 1 << 20;
         var budget = new CooperativeTestBudget(limit);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstHost = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
+            ReadAsyncOverride = (_, _, _) => { started.TrySetResult(); return new(pending.Task); }
         };
         var first = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
         var second = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{a[1]=42;print a[1]}"));
@@ -369,7 +369,7 @@ public sealed class AwkCooperativeMemoryTests
         }
         finally
         {
-            pending.TrySetResult(AwkReadResult.EndOfFile);
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
         }
         Assert.Equal(0, (await execution).Value);
         Assert.Equal(0, budget.Reserved);

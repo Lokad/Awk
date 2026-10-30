@@ -35,17 +35,16 @@ public sealed class AwkRangeParagraphTests
         var input = "a\r\nbéx\r\n\r\nc\r\n"u8.ToArray();
         var host = new TestOperationVisitor([]);
         if (boundary > 0)
-            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
-                input.AsMemory(0, boundary), [], AwkReadCompletion.MoreData));
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
-            input.AsMemory(boundary), [], AwkReadCompletion.EndOfFile));
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
+                input.AsMemory(0, boundary), AwkReadCompletion.MoreData, static _ => { }));
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
+            input.AsMemory(boundary), AwkReadCompletion.EndOfFile, static _ => { }));
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForState = State(counters);
         var state = memoryForState.State;
         Assign(state, "RS", "");
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
-        using var cursor = new AwkRecordCursor(state, descriptorReader,
-            descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn));
+        using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
 
         var first = await cursor.ReadAsync();
         var last = await cursor.ReadAsync();
@@ -56,8 +55,8 @@ public sealed class AwkRangeParagraphTests
         Assert.True(last.RecordText.AsSpan().SequenceEqual("c"u8));
         Assert.True(last.Terminator.ByteText.AsSpan().SequenceEqual("\r\n"u8));
         Assert.False(eof.HasRecord);
-        Assert.Equal(Enumerable.Repeat(AwkIo.InputReadBatchLineCount, boundary == 0 ? 1 : 2),
-            host.ReadLineBatchLineCounts);
+        Assert.Equal(Enumerable.Repeat(AwkByteReader.ReadSize, boundary == 0 ? 1 : 2),
+            host.ReadByteCounts);
         Assert.InRange(counters.RecordSeparatorBytesScanned, input.Length, input.Length * 3L);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.RegexMatches);
@@ -106,11 +105,10 @@ public sealed class AwkRangeParagraphTests
         Assign(state, "RS", "");
         // The first read ends a separator run when it encounters x; x and its final
         // CRLF remain in the EOF buffer for the second read and its allocation check.
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
-            "a\n\nx\r\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
+            "a\n\nx\r\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
-        using var cursor = new AwkRecordCursor(state, descriptorReader,
-            descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn));
+        using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
         _ = await cursor.ReadAsync();
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 2;
@@ -127,7 +125,7 @@ public sealed class AwkRangeParagraphTests
         var record = await cursor.ReadAsync();
         Assert.True(record.RecordText.EqualsAscii("x"));
         Assert.True(record.Terminator.ByteText.AsSpan().SequenceEqual("\r\n"u8));
-        Assert.Single(host.ReadLineBatchLineCounts);
+        Assert.Single(host.ReadByteCounts);
         Assert.Equal(0, counters.StringDecodes);
     }
 

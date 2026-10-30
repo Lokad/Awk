@@ -158,11 +158,11 @@ public sealed class AwkGetlineOwnershipTests
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         { Opens++; return Task.FromResult(AwkOpenedFile.MissingFile()); }
-        public async Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        public async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             if (PendingRead is { } pending) await pending().ConfigureAwait(false);
-            if (Input && !_read) { _read = true; return AwkReadResult.FromContent("a\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile); }
-            return AwkReadResult.EndOfFile;
+            if (Input && !_read) { _read = true; return AwkReadBuffer.FromContent("a\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }); }
+            return AwkReadBuffer.EndOfFile;
         }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Task.FromResult(AwkDescriptorCloseResult.Closed());
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Task.FromResult(AwkExitCode.Success);

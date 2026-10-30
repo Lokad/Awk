@@ -153,7 +153,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         var host = new MockFileSystem();
         host.SetStandardInputBytes([0xff]);
         var reads = 0;
-        host.AfterReadLines = () => reads++;
+        host.AfterRead = () => reads++;
         string[] arguments = profile.Length == 0 ? ["BEGIN{print \"B\"}"] : [profile, "BEGIN{print \"B\"}"];
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments));
         var budget = new CooperativeTestBudget(1 << 20);
@@ -173,16 +173,16 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task BeginCompletesWithoutAnAdditionalInputRead(bool getline, bool governed)
     {
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reads = 0;
         var host = new MockFileSystem
         {
-            ReadLinesAsyncOverride = (_, _, _) =>
+            ReadAsyncOverride = (_, _, _) =>
             {
                 reads++;
                 return getline && reads == 1
-                    ? Task.FromResult(AwkReadResult.FromContent("a\n"u8.ToArray(), [], AwkReadCompletion.MoreData))
-                    : pending.Task;
+                    ? ValueTask.FromResult(AwkReadBuffer.FromContent("a\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { }))
+                    : new(pending.Task);
             }
         };
         var budget = new CooperativeTestBudget(1 << 20);
@@ -191,7 +191,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
             getline ? "BEGIN{getline x;print x,NR}" : "BEGIN{print \"B\"}"));
         var run = tool.ExecuteAsync(host, policy, CancellationToken.None);
-        pending.TrySetResult(AwkReadResult.EndOfFile);
+        pending.TrySetResult(AwkReadBuffer.EndOfFile);
 
         Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(getline ? 1 : 0, reads);
@@ -300,7 +300,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             closed.Add(descriptor);
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         };
-        if (input) host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
+        if (input) host.EnqueueReadBuffer(AwkReadBuffer.EndOfFile);
         else host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var script = input ? "BEGIN{\"worker\"|getline x;close(\"worker\");print \"after\"}" :

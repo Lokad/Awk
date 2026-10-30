@@ -84,9 +84,9 @@ public sealed class AwkStreamIdentityBoundaryTests
     {
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(1 << 20);
-        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var host = new TraceHost(42) { PendingRead = () => { entered.TrySetResult(); return pending.Task; } };
+        var host = new TraceHost(42) { PendingRead = () => { entered.TrySetResult(); return new(pending.Task); } };
         var execution = Execute(host, [getline ? "BEGIN{getline x;print x;exit}" : "{print}", "/dev/fd/0"],
             AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try
@@ -96,7 +96,7 @@ public sealed class AwkStreamIdentityBoundaryTests
             Assert.False(execution.IsCompleted);
             Assert.True(budget.Reserved > 0);
         }
-        finally { pending.TrySetResult(AwkReadResult.EndOfFile); }
+        finally { pending.TrySetResult(AwkReadBuffer.EndOfFile); }
         var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Empty(host.Opens);
@@ -181,14 +181,14 @@ public sealed class AwkStreamIdentityBoundaryTests
         public List<string> Opens { get; } = [];
         public List<int> Reads { get; } = [];
         public List<int> Closes { get; } = [];
-        public Func<Task<AwkReadResult>>? PendingRead { get; init; }
+        public Func<ValueTask<AwkReadBuffer>>? PendingRead { get; init; }
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) => Inner.AppendAsync(descriptor, content, token);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         { Opens.Add(path.Path); return Inner.OpenFileAsync(path, mode, token); }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         { Closes.Add(descriptor.Id); return Inner.CloseDescriptorAsync(descriptor, token); }
-        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int max, CancellationToken token)
-        { Reads.Add(descriptor.Id); return PendingRead is { } pending ? pending() : Inner.ReadLinesAsync(descriptor.Id == Stdin ? AwkFileDescriptor.StdIn : descriptor, max, token); }
+        public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int max, CancellationToken token)
+        { Reads.Add(descriptor.Id); return PendingRead is { } pending ? pending() : Inner.ReadAsync(descriptor.Id == Stdin ? AwkFileDescriptor.StdIn : descriptor, max, token); }
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Inner.RunCommandAsync(command, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Inner.CreatePipeAsync(token);
     }

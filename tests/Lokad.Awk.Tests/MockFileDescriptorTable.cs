@@ -73,12 +73,12 @@ internal sealed class MockFileDescriptorTable
         return true;
     }
 
-    public MockDescriptorReadResult ReadLines(AwkFileDescriptor descriptor, int maxLineCount)
+    public MockDescriptorReadResult ReadBytes(AwkFileDescriptor descriptor, int maxBytes)
     {
         if (descriptor.IsDevNull)
         {
             return new MockDescriptorReadResult(
-                AwkReadResult.EndOfFile,
+                AwkReadBuffer.EndOfFile,
                 false);
         }
 
@@ -86,11 +86,11 @@ internal sealed class MockFileDescriptorTable
         if (state == null)
         {
             return new MockDescriptorReadResult(
-                AwkReadResult.EndOfFile,
+                AwkReadBuffer.EndOfFile,
                 false);
         }
 
-        return new MockDescriptorReadResult(state.ReadLines(maxLineCount), true);
+        return new MockDescriptorReadResult(state.ReadBytes(maxBytes), true);
 
         MockOpenFileState? GetStateForDescriptor(AwkFileDescriptor descriptor)
         {
@@ -103,7 +103,7 @@ internal sealed class MockFileDescriptorTable
     }
 }
 
-internal readonly record struct MockDescriptorReadResult(AwkReadResult Result, bool NotifyAfterRead);
+internal readonly record struct MockDescriptorReadResult(AwkReadBuffer Result, bool NotifyAfterRead);
 
 internal sealed class MockOpenFileState
 {
@@ -111,6 +111,7 @@ internal sealed class MockOpenFileState
     private readonly MockHostByteBuffer? _writeBuffer;
     private readonly Action<byte[]>? _onClose;
     private int _offset;
+    private bool _borrowed;
 
     private MockOpenFileState(byte[] content, MockHostByteBuffer? writeBuffer, Action<byte[]>? onClose)
     {
@@ -139,53 +140,26 @@ internal sealed class MockOpenFileState
 
     public void Close()
     {
+        if (_borrowed) throw new InvalidOperationException("Close while a read borrow is active.");
         if (_writeBuffer == null || _onClose == null)
             return;
 
         _onClose(_writeBuffer.ToMemory().ToArray());
     }
 
-    public AwkReadResult ReadLines(int maxLineCount)
+    public AwkReadBuffer ReadBytes(int maxBytes)
     {
-        if (_offset >= _content.Length)
-            return AwkReadResult.EndOfFile;
-
-        var start = _offset;
-        var span = _content.AsSpan(start);
-        var offsets = maxLineCount == 1 ? Array.Empty<int>() : new int[Math.Min(maxLineCount - 1, span.Length)];
-        var lineCount = 0;
-        var consumed = 0;
-        while (lineCount < maxLineCount)
-        {
-            var newline = span[consumed..].IndexOf((byte)'\n');
-            if (newline < 0)
-                break;
-
-            lineCount++;
-            consumed += newline + 1;
-            if (lineCount >= maxLineCount)
-                break;
-
-            offsets[lineCount - 1] = consumed;
-        }
-
-        if (lineCount > 0)
-        {
-            _offset += consumed;
-            var completeBuffer = new byte[consumed];
-            Array.Copy(_content, start, completeBuffer, 0, consumed);
-            return AwkReadResult.FromContent(
-                completeBuffer,
-                lineCount > 1 ? offsets[..(lineCount - 1)] : Array.Empty<int>(),
-                _offset >= _content.Length
-                    ? AwkReadCompletion.EndOfFile
-                    : AwkReadCompletion.MoreData);
-        }
-
-        var length = _content.Length - start;
-        var buffer = new byte[length];
-        Array.Copy(_content, start, buffer, 0, length);
-        _offset = _content.Length;
-        return AwkReadResult.FromContent(buffer, Array.Empty<int>(), AwkReadCompletion.EndOfFile);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
+        if (_borrowed) return AwkReadBuffer.Failure(new(AwkOperationErrorKind.IoFailure, "A read borrow is already active."));
+        if (_offset >= _content.Length) return AwkReadBuffer.EndOfFile;
+        var length = Math.Min(maxBytes, _content.Length - _offset);
+        var content = _content.AsMemory(_offset, length);
+        _borrowed = true;
+        return AwkReadBuffer.FromContent(content, _offset + length == _content.Length
+            ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData, consumed =>
+            {
+                _offset += consumed;
+                _borrowed = false;
+            });
     }
 }
