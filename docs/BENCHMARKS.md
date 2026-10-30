@@ -1,12 +1,14 @@
 # Benchmarks
 
-Current snapshot: **2026-10-30 UTC**, Release source
-[`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d) for current **development**,
-against **GNU awk 5.3.2**. All figures below were refreshed at this milestone on the quiet Linux machine:
-SDK 10.0.401, .NET 10.0.12, interpreter, C locale and UTC. The benchmark uses the development
-build of that source; package qualification is separate. Regex workloads
-use the source adapter with published **Lokad.Utf8Regex 0.4.0**. Their exact outputs pass;
-the 47 documented provider-selection deferrals remain separate.
+Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **†** and the
+shared-admission profiles measure Release development source
+[`4360424`](https://github.com/Lokad/Awk/commit/43604247da2bdd88ec79a312617fc4d366c45e10).
+Unmarked rows and larger inputs retain measurements of
+[`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d)
+from the same UTC date; they were **not rerun for the latest source**.
+All use the quiet Linux machine: SDK 10.0.401, .NET 10.0.12, interpreter, C locale and UTC.
+Package qualification is separate. Regex workloads use the source adapter with published
+**Lokad.Utf8Regex 0.4.0**. Exact outputs pass; the 47 provider-selection deferrals remain separate.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** is Lokad elapsed divided by
 GNU elapsed; higher is slower. Managed allocations include parsing, execution and host storage,
@@ -24,18 +26,19 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| gsub and output | 56.00 | 11.100 | 1.794 | 6.19× | 22.58 |
-| ERE field separator | 48.00 | 7.164 | 1.656 | 4.33× | 2.71 |
-| ERE boolean matching | 32.00 | 3.520 | 0.929 | 3.79× | 7.64 |
+| gsub and output † | 56.00 | 10.676 | 1.789 | 5.97× | 23.75 |
+| ERE field separator † | 48.00 | 7.633 | 1.649 | 4.63× | 3.19 |
+| ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
+| ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
 | Copy field / rebuild record | 60.00 | 3.338 | 1.258 | 2.65× | 1.49 |
 | Project three columns / output | 60.00 | 3.147 | 1.211 | 2.60× | 0.55 |
 | Loop with two-argument calls and local temporary | 8.00 | 10.390 | 4.064 | 2.56× | 0.60 |
-| Project a column / output | 60.00 | 2.293 | 0.962 | 2.38× | 0.55 |
+| Project a column / output † | 60.00 | 2.332 | 0.974 | 2.39× | 1.18 |
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 |
-| Keyed sum / sorted output (GNU) | 24.00 | 2.232 | 0.998 | 2.24× | 0.57 |
+| Keyed sum / sorted output (GNU) † | 24.00 | 2.311 | 0.999 | 2.31× | 0.52 |
 | Loop with two-argument calls | 8.00 | 8.335 | 3.741 | 2.23× | 0.59 |
 | ASCII substr/index/length/casing | 52.00 | 2.775 | 1.252 | 2.22× | 1.01 |
 | Branching function, two arguments | 8.00 | 8.812 | 3.997 | 2.20× | 0.62 |
@@ -53,7 +56,6 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Literal index search in a field | 70.00 | 2.294 | 1.226 | 1.87× | 0.58 |
 | Field-key membership | 48.56 | 1.854 | 0.996 | 1.86× | 0.63 |
 | Field-key reads, existing/new | 63.15 | 2.518 | 1.362 | 1.85× | 1.30 |
-| ERE capture arrays (GNU) | 28.00 | 13.371 | 7.335 | 1.82× | 33.92 |
 | Filter three fields | 24.00 | 2.182 | 1.210 | 1.80× | 0.54 |
 | Labeled printf | 24.00 | 3.667 | 2.367 | 1.55× | 0.53 |
 | CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 3.298 | 2.362 | 1.40× | 1.69 |
@@ -78,23 +80,22 @@ effect of process startup. No shared admission.
 | Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
 
-## Shared-admission controls
+## Shared-admission profiles
 
-Embedded execution only; no native timing or native-allocation comparison. Calls use 65,536
-records with eight two-argument calls per record; aggregation/projection use 65,536 records,
-arithmetic 4,096. Shared admission uses the existing 512 MiB thread-safe test budget; actual
-application budgets can cost differently. These are the unchanged `--governed-profile` fixtures.
+Current source **4360424**, embedded execution only; no GNU timing or native-allocation claim.
+Regex cases have 4,096 records; aggregation has 65,536 and 16 keys. The record-separator
+case uses `([,;]+){1}` and verifies provider use; the byte-run RS row above uses a fast path.
+The existing thread-safe 512 MiB test budget supplies shared admission. Application budget
+implementations can cost differently. These are complete GNU/default public invocations,
+using the same four-warmup/five-iteration measurement settings.
 
-| Script | Mode | Shared admission | Lokad ms | Lokad allocated MiB |
-| --- | --- | --- | ---: | ---: |
-| Arithmetic | GNU/default | None | 4.788 | 0.572 |
-| Arithmetic | POSIX | None | 4.838 | 0.569 |
-| Arithmetic | POSIX | 512 MiB | 5.485 | 0.570 |
-| Two-argument calls | GNU/default | None | 136.545 | 7.474 |
-| Two-argument calls | GNU/default | 512 MiB | 168.248 | 9.475 |
-| Aggregation | GNU/default | None | 34.880 | 7.449 |
-| Aggregation | GNU/default | 512 MiB | 52.425 | 9.451 |
-| Projection | GNU/default | 512 MiB | 49.296 | 9.896 |
+| Script | Shared admission | Lokad ms | Lokad allocated MiB |
+| --- | --- | ---: | ---: |
+| ERE field separator | None | 7.826 | 3.191 |
+| ERE field separator | 512 MiB | 8.144 | 3.630 |
+| Provider-backed ERE record separator | 512 MiB | 8.345 | 17.553 |
+| gsub and output | 512 MiB | 12.807 | 24.560 |
+| Aggregation, 65,536 records | 512 MiB | 53.796 | 8.740 |
 
 ## Measurement contract
 
