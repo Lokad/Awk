@@ -1,11 +1,14 @@
 # Benchmarks
 
-Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **†** and the
-shared-admission profiles measure Release development source
+Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **‡** measure
+Release development source
+[`eb0ca66`](https://github.com/Lokad/Awk/commit/eb0ca66e89a52377be6bb0d5266dd7affc7d7123).
+Rows marked **†** retain source
 [`4360424`](https://github.com/Lokad/Awk/commit/43604247da2bdd88ec79a312617fc4d366c45e10).
-Unmarked rows and larger inputs retain measurements of
-[`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d)
-from the same UTC date; they were **not rerun for the latest source**.
+Other unmarked representative/larger rows retain
+[`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d).
+All were measured on the same UTC date; retained rows were **not rerun for the latest source**.
+Admission-profile revisions are stated below.
 All use the quiet Linux machine: SDK 10.0.401, .NET 10.0.12, interpreter, C locale and UTC.
 Package qualification is separate. Regex workloads use the source adapter with published
 **Lokad.Utf8Regex 0.4.0**. Exact outputs pass; the 47 provider-selection deferrals remain separate.
@@ -19,7 +22,7 @@ remain local.
 
 ## Representative processing
 
-All 39 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
+All 40 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
 without shared admission. Most have 4,096 records; wide all-field and long-field cases have 256.
 Join has 4,096 records per file. Rows are ordered by elapsed ratio. GNU-marked cases do not
 imply full GNU conformance; CSV requires GNU 5.3 or later.
@@ -30,6 +33,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | ERE field separator † | 48.00 | 7.633 | 1.649 | 4.63× | 3.19 |
 | ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
 | ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
+| Composite-key sum / sorted output (GNU) ‡ | 24.00 | 3.186 | 1.160 | 2.75× | 2.24 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
@@ -71,19 +75,25 @@ existing/new keys and alternating lookup tables; field search includes Unicode p
 
 ## Larger inputs
 
-65,536 records per case, per file for join; aggregation has 16 keys. These reduce the relative
+65,536 records per case, per file for join; both aggregation cases retain 16 keys. Composite
+aggregation uses two field components and the same input/output oracle as ordinary aggregation.
+These reduce the relative
 effect of process startup. No shared admission.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| Composite-key sum / sorted output (GNU) ‡ | 384.00 | 50.697 | 8.355 | 6.07× | 33.77 |
 | Keyed sum / sorted output (GNU) | 384.00 | 34.823 | 6.160 | 5.65× | 7.45 |
 | Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
 
 ## Shared-admission profiles
 
-Current source **4360424**, embedded execution only; no GNU timing or native-allocation claim.
-Regex cases have 4,096 records; aggregation has 65,536 and 16 keys. The record-separator
+Embedded execution only; no GNU timing or native-allocation claim. The five ERE/ordinary
+aggregation rows retain **4360424** measurements. The two composite rows measure
+[`1ecfc07`](https://github.com/Lokad/Awk/commit/1ecfc075c920245f68e323f51c38bb815d5f5dda),
+whose core source is identical to eb0ca66. These are separate profile runs, with their actual
+source revisions retained. Regex cases have 4,096 records; aggregation has 65,536 and 16 keys. The record-separator
 case uses `([,;]+){1}` and verifies provider use; the byte-run RS row above uses a fast path.
 The existing thread-safe 512 MiB test budget supplies shared admission. Application budget
 implementations can cost differently. These are complete GNU/default public invocations,
@@ -96,6 +106,8 @@ using the same four-warmup/five-iteration measurement settings.
 | Provider-backed ERE record separator | 512 MiB | 8.345 | 17.553 |
 | gsub and output | 512 MiB | 12.807 | 24.560 |
 | Aggregation, 65,536 records | 512 MiB | 53.796 | 8.740 |
+| Composite-key aggregation, 65,536 records | None | 49.643 | 33.768 |
+| Composite-key aggregation, 65,536 records | 512 MiB | 72.549 | 37.771 |
 
 ## Measurement contract
 
