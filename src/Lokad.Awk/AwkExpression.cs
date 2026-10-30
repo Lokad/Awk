@@ -264,9 +264,18 @@ internal abstract partial class AwkExpression
 
     // Immediate text consumers own their copy before another operand can change the
     // record. Other evaluation paths still return ordinary owned/scalar values.
-    internal virtual async ValueTask AppendByteTextAsync(AwkEvaluationContext context, AwkUtf8Builder destination)
+    internal virtual ValueTask AppendByteTextAsync(AwkEvaluationContext context, AwkUtf8Builder destination)
     {
-        var value = await EvaluateAsync(context).ConfigureAwait(false);
+        var value = EvaluateAsync(context);
+        if (!value.IsCompletedSuccessfully) return AwaitAppendByteTextAsync(context, destination, value);
+        destination.Append(context.State.FormatStringByteText(value.Result), context.State.CancellationCheckpoint);
+        return default;
+    }
+
+    private static async ValueTask AwaitAppendByteTextAsync(AwkEvaluationContext context,
+        AwkUtf8Builder destination, ValueTask<AwkValue> pending)
+    {
+        var value = await pending.ConfigureAwait(false);
         destination.Append(context.State.FormatStringByteText(value), context.State.CancellationCheckpoint);
     }
 
