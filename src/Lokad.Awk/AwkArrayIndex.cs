@@ -72,17 +72,39 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
 {
     public override async ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context)
     {
+        using var builder = await BuildKeyAsync(context).ConfigureAwait(false);
+        return new AwkArrayKey(builder.CopyToAwkText(context.State.Counters, context.State.CancellationCheckpoint),
+            context.State.CancellationCheckpoint);
+    }
+
+    internal override async ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1)
+    {
+        using var builder = await BuildKeyAsync(context).ConfigureAwait(false);
+        return context.State.ResolveArrayKey(array, builder, globalIndex);
+    }
+
+    internal override async ValueTask<AwkArrayUpdateTarget> PrepareUpdateAsync(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1)
+    {
+        using var builder = await BuildKeyAsync(context).ConfigureAwait(false);
+        return context.State.PrepareArrayUpdate(array, builder, globalIndex);
+    }
+
+    private async ValueTask<AwkUtf8Builder> BuildKeyAsync(AwkEvaluationContext context)
+    {
         var separator = context.State.ResolveSubscriptSeparatorText();
         using var heldSeparator = context.State.MemoryAccounting.ReserveTransient(separator.EstimatedRetainedMemoryBytes);
-        using var builder = new AwkUtf8Builder(context.State.MemoryAccounting);
-        for (var index = 0; index < Expressions.Count; index++)
+        var builder = new AwkUtf8Builder(context.State.MemoryAccounting);
+        try
         {
-            if (index > 0)
-                builder.Append(separator, context.State.CancellationCheckpoint);
-
-            await Expressions[index].AppendByteTextAsync(context, builder).ConfigureAwait(false);
+            for (var index = 0; index < Expressions.Count; index++)
+            {
+                if (index > 0) builder.Append(separator, context.State.CancellationCheckpoint);
+                await Expressions[index].AppendByteTextAsync(context, builder).ConfigureAwait(false);
+            }
+            return builder; // The caller owns admission and disposal after synchronous lookup/copy.
         }
-
-        return new AwkArrayKey(builder.CopyToAwkText(context.State.Counters, context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
+        catch { builder.Dispose(); throw; }
     }
 }

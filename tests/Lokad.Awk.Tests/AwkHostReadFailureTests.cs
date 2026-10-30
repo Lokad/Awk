@@ -7,13 +7,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 {
     [Theory]
-    [InlineData("complete")]
-    [InlineData("cancel")]
-    [InlineData("refuse")]
-    public async Task CompositeFieldKeyOwnsItsEarlierComponentAcrossPendingGetline(string outcome)
+    [InlineData("complete", false)] [InlineData("complete", true)]
+    [InlineData("cancel", false)] [InlineData("cancel", true)]
+    [InlineData("refuse", false)] [InlineData("refuse", true)]
+    public async Task CompositeKeyAndCapturedTargetSurvivePendingGetline(string outcome, bool existingTarget)
     {
         var host = new MockFileSystem();
-        host.SetStandardInput("after row\n");
+        host.SetStandardInput(existingTarget ? "3\n" : "after row\n");
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         host.ReadAsyncOverride = async (descriptor, maximum, token) =>
@@ -23,7 +23,11 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             host.ReadAsyncOverride = null;
             return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
         };
-        const string script = "function readnext(){getline;return $1} " +
+        var script = existingTarget
+            ? "function rhs(){delete a;a[\"keep\"]=9;getline;return $1} " +
+                "BEGIN{a[\"left\",\"right\"]=5;print \"ready\";a[\"left\",\"right\"]+=rhs();" +
+                "print a[\"left\",\"right\"],a[\"keep\"],length(a);exit} END{print \"completed\"}"
+            : "function readnext(){getline;return $1} " +
             "BEGIN{$0=\"before row\";a[\"keep\"]=9;print \"ready\";" +
             "a[$1,readnext()]=7;print a[\"before\",\"after\"],a[\"keep\"],length(a);exit} END{print \"completed\"}";
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", script));
@@ -49,7 +53,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 Assert.Equal(outcome == "complete" ? AwkExitCode.Success : AwkExitCode.FatalError,
                     await execution);
             }
-            Assert.Equal(outcome == "complete" ? "ready\n7 9 2\ncompleted\n" : "ready\n",
+            Assert.Equal(outcome == "complete" ? (existingTarget ? "ready\n8 9 2\ncompleted\n" : "ready\n7 9 2\ncompleted\n") : "ready\n",
                 host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(outcome == "refuse" ? "awk: memory limit exceeded\n" : "",
                 host.GetOutput(AwkFileDescriptor.StdErr));

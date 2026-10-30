@@ -1211,6 +1211,12 @@ internal sealed class AwkRuntimeState : IDisposable
         return PrepareArrayUpdate(name, ToArrayKey(field), globalIndex);
     }
 
+    internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, int globalIndex) =>
+        _arrayRuntime.ResolveKey(name, builder, globalIndex);
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, int globalIndex) =>
+        _arrayRuntime.PrepareUpdate(name, builder, globalIndex);
+
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
         _arrayRuntime.PrepareUpdate(name, key, globalIndex);
 

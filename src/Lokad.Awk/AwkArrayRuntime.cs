@@ -207,6 +207,16 @@ internal sealed class AwkArrayRuntime
         return false;
     }
 
+    public AwkArrayKey ResolveKey(AwkArrayName name, AwkUtf8Builder builder, int globalIndex) =>
+        TryGetBorrowedKey(name, builder.AsSpan(), out var key, globalIndex) ? key : CopyKey(builder);
+
+    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, int globalIndex) =>
+        TryPrepareBorrowedUpdate(name, builder.AsSpan(), out var target, globalIndex)
+            ? target : PrepareUpdate(name, CopyKey(builder), globalIndex);
+
+    private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
+        new(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint), _state.CancellationCheckpoint);
+
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, int globalIndex)
     {
         if (_state.TryGetBoundArray(name, globalIndex, out var array))

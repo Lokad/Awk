@@ -27,6 +27,9 @@ Composite-key field goldens preserve spelling, dynamic index order, cached/mutat
 record replacement and getline. Counter cases distinguish owned final keys from temporary
 component text; pending host-read cases check the earlier component survives record reuse,
 refusal/cancellation stops later effects and all execution owners refund.
+Repeated-update counters also distinguish retained keys from lookup-only copies. Composite
+key/owner snapshots survive pending RHS clear/rehash and special-array aliases without
+retaining dictionary entry references.
 
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 

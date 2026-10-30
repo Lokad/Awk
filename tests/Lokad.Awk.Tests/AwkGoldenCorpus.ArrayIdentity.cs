@@ -6,6 +6,16 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("composite-key-missing-membership-and-update",
+            ["BEGIN{print ((\"x\",\"y\") in a),length(a);a[\"x\",\"y\"]++;print ((\"x\",\"y\") in a),length(a),a[\"x\",\"y\"]}"],
+            [], "0 0\n1 1 1\n"),
+        Passing("composite-key-special-array-alias",
+            ["function inc(p){p[\"\",1]++} BEGIN{SUBSEP=\"\";inc(ARGV);print ARGV[1],ARGC}", "7"], [], "8 2\n"),
+        AwkGoldenCaseBuilder.Create("composite-key-clear-during-rhs",
+            ["function refill(p){delete p;p[\"keep\"]=9;return 3} BEGIN{a[\"x\",\"y\"]=5;a[\"x\",\"y\"]+=refill(a);print a[\"x\",\"y\"],a[\"keep\"],length(a)}"], [])
+            .WithStdOut("8 9 2\n")
+            .WithNondeterminismNote("Lokad captures the key and prior value before the RHS, preserving its qualified operand order; GNU awk 5.3.2 produced 3 9 2\\n after refill.")
+            .Build(),
         Passing("composite-field-key-formats-mutated-numeric-value",
             ["BEGIN{$0=\"a x\";CONVFMT=\"%.2f\";$1=2.5;a[$1,$2]=8;CONVFMT=\"%.3f\";print a[\"2.50\",\"x\"]}"], [], "8\n"),
         Passing("composite-field-key-keeps-empty-and-record-components",

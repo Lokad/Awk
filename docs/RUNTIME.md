@@ -190,7 +190,9 @@ buffer only after its borrow is disposed. Cancellation alone does not end that b
 Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a
 decoded regex-input cache. Composite keys can copy field bytes straight into their
 owned builder; no field view survives later operand evaluation or suspension. Escaping scalar
-values still own their text.
+values still own their text. Existing composite compound targets reuse the stored key and
+capture its value/array identity, retaining key admission across a pending RHS. A new retained
+key still requires an owned copy; commit reacquires the array's current storage.
 File redirections admit open-path scratch, retained exact stream names and table growth before
 host opens. Logical flush retains name ownership; close refunds the name after the host finishes, while reusable table
 capacity stays funded until execution cleanup.
