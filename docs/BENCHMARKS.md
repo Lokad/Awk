@@ -1,7 +1,9 @@
 # Benchmarks
 
-Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **§** measure
+Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **¶** measure
 Release development source
+[`4209c95`](https://github.com/Lokad/Awk/commit/4209c95fac69967bf6968c8b2619aefd7ad1bcfe).
+Rows marked **§** retain source
 [`810a378`](https://github.com/Lokad/Awk/commit/810a378625f55a1085402b748518628df87101f2).
 Rows marked **‡** retain source
 [`9625a0f`](https://github.com/Lokad/Awk/commit/9625a0fa17a3492f73b3ae5f681c6085ad99b940).
@@ -24,7 +26,7 @@ remain local.
 
 ## Representative processing
 
-All 41 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
+All 42 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
 without shared admission. Most have 4,096 records; wide all-field and long-field cases have 256.
 Join has 4,096 records per file. Rows are ordered by elapsed ratio. GNU-marked cases do not
 imply full GNU conformance; CSV requires GNU 5.3 or later.
@@ -34,14 +36,15 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | gsub and output † | 56.00 | 10.676 | 1.789 | 5.97× | 23.75 |
 | ERE field separator † | 48.00 | 7.633 | 1.649 | 4.63× | 3.19 |
 | ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
+| Function with locals, loop and early return ¶ | 11.58 | 9.079 | 2.619 | 3.47× | 0.59 |
 | ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
 | Copy field / rebuild record | 60.00 | 3.338 | 1.258 | 2.65× | 1.49 |
 | Composite-key sum / sorted output (GNU) ‡ | 24.00 | 3.054 | 1.164 | 2.62× | 1.83 |
-| Loop with two-argument calls and local temporary § | 8.00 | 12.459 | 4.779 | 2.61× | 0.55 |
 | Project three columns / output | 60.00 | 3.147 | 1.211 | 2.60× | 0.55 |
+| Loop with two-argument calls and local temporary ¶ | 8.00 | 10.732 | 4.274 | 2.51× | 0.55 |
 | Loop with five-argument calls § | 8.00 | 15.167 | 6.109 | 2.48× | 0.57 |
 | Project a column / output † | 60.00 | 2.332 | 0.974 | 2.39× | 1.18 |
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 |
