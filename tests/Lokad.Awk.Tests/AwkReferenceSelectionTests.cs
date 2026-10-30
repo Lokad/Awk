@@ -11,13 +11,14 @@ public sealed class AwkReferenceSelectionTests
     [InlineData("aggregate-composite", "all", false, 3)]
     [InlineData("general-call-loop", "all", false, 3)]
     [InlineData("function-control-flow", "all", false, 3)]
+    [InlineData("scalar-sum", "all", false, 3)]
     [InlineData("projection", "small", true, 1)]
     [InlineData("*", "control", false, 2)]
     [InlineData("startup-empty", "small", false, 0)]
     [InlineData("startup-empty", "small", true, 1)]
     [InlineData("unknown", "all", true, 0)]
     [InlineData("projection", "unknown", true, 0)]
-    [InlineData("*", "small", true, 44)]
+    [InlineData("*", "small", true, 45)]
     public void FiltersPreserveSelectedCasesAndControlOrdering(string name, string scale, bool smoke, int count)
     {
         var workloads = ReferenceWorkloads.CreateAll(name, scale, smoke).ToArray();

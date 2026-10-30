@@ -5,6 +5,8 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Posix(Passing("benchmark-core-scalar-sum",
+            ["{total+=$2}END{print total}"], [], "3\n", "k0 0001\nk1 2\n"));
         yield return Posix(Passing("benchmark-core-function-control-flow",
             ["function score(x,a,b,c,d,t,i){t=x+a;for(i=0;i<b;i++){if(i==c)continue;t=(t*3+d)%101;if(t==0)return d};return t} {total+=score($1,2,4,1,3)} END{print total}"],
             [], "173\n", "0\n7\n"));
