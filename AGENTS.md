@@ -48,6 +48,9 @@ or environment dependencies.
   existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
   Providers own match selection and scalar matching; Awk owns AWK translation, validated capture
   publication, replacements and their ordinary storage. Do not add a core matching engine or fallback.
+- Regex searches borrow one complete immutable UTF-8 subject until disposal and use byte-only
+  restarts/captures. Keep compiled handles alive through active calls/searches, including eviction.
+  Derive scalar language coordinates only when requested; do not restore core UTF-16 bookkeeping.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
   output and capture arrays should not partially mutate on failure.
 - Do not add package dependencies casually. Package references are allowlisted in

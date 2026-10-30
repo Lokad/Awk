@@ -226,7 +226,8 @@ required rules below.
 
 `match(..., array)` and `gensub` share capture priority: `(a|aa)(a*)` on `aaa` captures
 `aa` and `a`. Nonparticipating groups/metadata are omitted; participating empty groups remain.
-Normal-mode start/length uses UTF-16 units, byte mode uses UTF-8 bytes. Whole matches and
+Normal-mode start/length counts Unicode scalars; byte mode counts UTF-8 bytes. For `a😀b`,
+matching `b` reports RSTART 3 normally and 6 in byte mode. Whole matches and
 observable captures must be scalar-aligned before slicing, allocation or publication;
 otherwise execution fails with `awk: regular expression splits a Unicode character`.
 

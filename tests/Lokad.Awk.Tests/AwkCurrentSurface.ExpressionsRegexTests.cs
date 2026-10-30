@@ -112,7 +112,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         using var match = runtime.MatchValue(regex, input, AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
 
         Assert.Equal(4, match.Match.ByteLength);
-        Assert.Equal(charactersAsBytes ? 4 : 2, match.Match.Length);
+        Assert.Equal(charactersAsBytes ? 4 : 1, match.Match.Length);
         Assert.All(match.Match.Groups, group =>
             Assert.Equal("😀", new UTF8Encoding(false, true).GetString(group.Value.AsSpan())));
         Assert.Equal(2, counters.RegexGroupsMaterialized);
@@ -253,11 +253,12 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     public void Awk_ProviderCaptureCoordinatesIncludeGroupsBeforeTheWholeMatch()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var whole = new AwkRegexCaptureRange(true, 2, 1, 1, 1, true);
-        AwkRegexCaptureRange[] groups = [whole, new(true, 0, 2, 0, 1, true)];
+        var whole = new AwkRegexCaptureRange(true, 2, 1);
+        AwkRegexCaptureRange[] groups = [whole, new(true, 0, 2)];
 
+        var cursor = new AwkRegexScalarCoordinates();
         using var leasedMatch = AwkRegexMatch.FromRanges(
-            whole, "\u00e9x"u8, groups, AwkRegexSearchOffset.Start, AwkRegexCoordinatePolicy.Byte, counters, AwkMemoryAccounting.Disabled, () => { });
+            whole, "\u00e9x"u8, groups, 0, AwkRegexCoordinatePolicy.Byte, counters, AwkMemoryAccounting.Disabled, () => { }, ref cursor);
         var match = leasedMatch.Match;
 
         Assert.True(match.Success);

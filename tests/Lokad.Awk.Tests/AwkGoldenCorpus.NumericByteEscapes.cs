@@ -2,7 +2,7 @@ namespace Lokad.Awk.Tests;
 
 internal static partial class AwkGoldenCorpus
 {
-    // Regex coordinates retain the current UTF-16 contract; ordinary length() counts scalars.
+    // Regex coordinates and ordinary length() count Unicode scalars by default.
     private static IEnumerable<AwkGoldenCase> NumericByteEscapeCases()
     {
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-two-string",
@@ -28,28 +28,28 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("1 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-four-literal",
             ["BEGIN{print match(\"a\ud83d\ude00b\",/(\\360\\237\\230\\200)/),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-four-dynamic",
             ["BEGIN{p=\"(\\\\360\\\\237\\\\230\\\\200)\";print match(\"a\ud83d\ude00b\",p),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-maximum-string",
             ["BEGIN{v=\"\\364\\217\\277\\277\";print length(v),v==\"\udbff\udfff\";print \"\udbff\udfff\"~v}"], [])
             .WithStdOut("1 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-maximum-literal",
             ["BEGIN{print match(\"a\udbff\udfffb\",/(\\364\\217\\277\\277)/),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-maximum-dynamic",
             ["BEGIN{p=\"(\\\\364\\\\217\\\\277\\\\277)\";print match(\"a\udbff\udfffb\",p),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-mixed-string",
             ["BEGIN{v=\"\\303\\251\\342\\202\\254\\360\\237\\230\\200\";print length(v),v==\"\u00e9\u20ac\ud83d\ude00\";print \"\u00e9\u20ac\ud83d\ude00\"~v}"], [])
             .WithStdOut("3 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-mixed-literal",
             ["BEGIN{print match(\"a\u00e9\u20ac\ud83d\ude00b\",/(\\303\\251\\342\\202\\254\\360\\237\\230\\200)/),RLENGTH}"], [])
-            .WithStdOut("2 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-mixed-dynamic",
             ["BEGIN{p=\"(\\\\303\\\\251\\\\342\\\\202\\\\254\\\\360\\\\237\\\\230\\\\200)\";print match(\"a\u00e9\u20ac\ud83d\ude00b\",p),RLENGTH}"], [])
-            .WithStdOut("2 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-gnu-truncated-octal",
             ["BEGIN{v=\"\\501\";print v==\"A\",length(v);print \"A\"~/\\501/;print \"A\"~\"\\\\501\"}"], [])
             .WithStdOut("1 1\n1\n1\n").WithStdErr("").ExitsWith(0).Build();
@@ -121,28 +121,28 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("1 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-four-literal",
             ["--posix", "BEGIN{print match(\"a\ud83d\ude00b\",/(\\360\\237\\230\\200)/),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-four-dynamic",
             ["--posix", "BEGIN{p=\"(\\\\360\\\\237\\\\230\\\\200)\";print match(\"a\ud83d\ude00b\",p),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-maximum-string",
             ["--posix", "BEGIN{v=\"\\364\\217\\277\\277\";print length(v),v==\"\udbff\udfff\";print \"\udbff\udfff\"~v}"], [])
             .WithStdOut("1 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-maximum-literal",
             ["--posix", "BEGIN{print match(\"a\udbff\udfffb\",/(\\364\\217\\277\\277)/),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-maximum-dynamic",
             ["--posix", "BEGIN{p=\"(\\\\364\\\\217\\\\277\\\\277)\";print match(\"a\udbff\udfffb\",p),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-mixed-string",
             ["--posix", "BEGIN{v=\"\\303\\251\\342\\202\\254\\360\\237\\230\\200\";print length(v),v==\"\u00e9\u20ac\ud83d\ude00\";print \"\u00e9\u20ac\ud83d\ude00\"~v}"], [])
             .WithStdOut("3 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-mixed-literal",
             ["--posix", "BEGIN{print match(\"a\u00e9\u20ac\ud83d\ude00b\",/(\\303\\251\\342\\202\\254\\360\\237\\230\\200)/),RLENGTH}"], [])
-            .WithStdOut("2 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-mixed-dynamic",
             ["--posix", "BEGIN{p=\"(\\\\303\\\\251\\\\342\\\\202\\\\254\\\\360\\\\237\\\\230\\\\200)\";print match(\"a\u00e9\u20ac\ud83d\ude00b\",p),RLENGTH}"], [])
-            .WithStdOut("2 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-posix-truncated-octal",
             ["--posix", "BEGIN{v=\"\\501\";print v==\"A\",length(v);print \"A\"~/\\501/;print \"A\"~\"\\\\501\"}"], [])
             .WithStdOut("1 1\n1\n1\n").WithStdErr("").ExitsWith(0).Build();
@@ -217,28 +217,28 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("1 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-four-literal",
             ["--traditional", "BEGIN{print match(\"a\ud83d\ude00b\",/(\\360\\237\\230\\200)/),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-four-dynamic",
             ["--traditional", "BEGIN{p=\"(\\\\360\\\\237\\\\230\\\\200)\";print match(\"a\ud83d\ude00b\",p),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-maximum-string",
             ["--traditional", "BEGIN{v=\"\\364\\217\\277\\277\";print length(v),v==\"\udbff\udfff\";print \"\udbff\udfff\"~v}"], [])
             .WithStdOut("1 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-maximum-literal",
             ["--traditional", "BEGIN{print match(\"a\udbff\udfffb\",/(\\364\\217\\277\\277)/),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-maximum-dynamic",
             ["--traditional", "BEGIN{p=\"(\\\\364\\\\217\\\\277\\\\277)\";print match(\"a\udbff\udfffb\",p),RLENGTH}"], [])
-            .WithStdOut("2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-mixed-string",
             ["--traditional", "BEGIN{v=\"\\303\\251\\342\\202\\254\\360\\237\\230\\200\";print length(v),v==\"\u00e9\u20ac\ud83d\ude00\";print \"\u00e9\u20ac\ud83d\ude00\"~v}"], [])
             .WithStdOut("3 1\n1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-mixed-literal",
             ["--traditional", "BEGIN{print match(\"a\u00e9\u20ac\ud83d\ude00b\",/(\\303\\251\\342\\202\\254\\360\\237\\230\\200)/),RLENGTH}"], [])
-            .WithStdOut("2 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-mixed-dynamic",
             ["--traditional", "BEGIN{p=\"(\\\\303\\\\251\\\\342\\\\202\\\\254\\\\360\\\\237\\\\230\\\\200)\";print match(\"a\u00e9\u20ac\ud83d\ude00b\",p),RLENGTH}"], [])
-            .WithStdOut("2 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("2 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("numeric-byte-traditional-truncated-octal",
             ["--traditional", "BEGIN{v=\"\\501\";print v==\"A\",length(v);print \"A\"~/\\501/;print \"A\"~\"\\\\501\"}"], [])
             .WithStdOut("1 1\n1\n1\n").WithStdErr("").ExitsWith(0).Build();

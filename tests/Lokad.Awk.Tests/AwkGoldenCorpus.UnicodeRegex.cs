@@ -4,6 +4,7 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> UnicodeRegexCases()
     {
+        foreach (var testCase in NativeRegexPositionCases()) yield return testCase;
         yield return AwkGoldenCaseBuilder.Create("unicode-regex-warnings-0000",
             ["BEGIN{p=\"\\\\u\";print \"u?qud8008\"~p;exit}"], [])
             .WithStdOut("1\n").WithStdErr("awk: warning: no hex digits in `\\u' escape sequence\n").ExitsWith(0).Build();

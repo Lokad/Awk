@@ -58,8 +58,6 @@ public sealed class AwkUnicodePrintClassTests
         Assert.True(match.Success);
         Assert.Equal(1, match.ByteIndex);
         Assert.Equal(7, match.ByteLength);
-        Assert.Equal(1, match.Utf16Index);
-        Assert.Equal(4, match.Utf16Length);
     }
 
     private static AwkRegexRuntime Runtime(int profile, AwkRuntimeCounters counters)

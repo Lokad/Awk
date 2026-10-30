@@ -13,7 +13,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
     private readonly AwkBoundedCache<AwkRegexCacheKey, AwkRegex> _regexCache;
-    private readonly AwkBoundedCache<AwkRegexCacheKey, IAwkCompiledRegex> _compiledRegexCache;
+    private readonly AwkBoundedCache<AwkRegexCacheKey, CompiledPattern> _compiledRegexCache;
     private readonly IAwkRegexEngine? _engine;
     private readonly IMemoryBudget? _regexMemoryBudget;
     private readonly AwkMemoryAccounting _memoryAccounting;
@@ -138,67 +138,79 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     public bool IsMatch(AwkRegex regex, AwkText input)
     {
         _throwIfCancellationRequested();
+        var owner = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+        owner.Pin();
         try
         {
-            var compiled = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
             _resources.RecordRegexMatch();
-            var result = compiled.IsMatch(input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
+            var result = owner.Pattern.IsMatch(input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
             _throwIfCancellationRequested();
             return result;
         }
-        catch (AwkRegexAdmissionException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
+        catch (AwkRegexAdmissionException) { throw AdmissionFailure(); }
+        finally { owner.Unpin(); }
     }
 
     public AwkLeasedRegexMatch MatchValue(AwkRegex regex, AwkText input,
-        AwkMemoryAccounting governor, AwkRegexCapturePlan capturePlan) =>
-        MatchValue(regex, input, governor, capturePlan, AwkRegexSearchOffset.Start, out _);
+        AwkMemoryAccounting governor, AwkRegexCapturePlan capturePlan)
+    {
+        using var search = OpenSearch(regex, input);
+        return search.MatchValue(0, governor, capturePlan, out _);
+    }
 
     public AwkLeasedRegexMatch MatchCaptureValue(AwkRegex regex, AwkText input,
-        AwkMemoryAccounting governor) =>
-        MatchValue(regex, input, governor, AwkRegexCapturePlan.All);
+        AwkMemoryAccounting governor) => MatchValue(regex, input, governor, AwkRegexCapturePlan.All);
 
-    internal AwkLeasedRegexMatch MatchValue(AwkRegex regex, AwkText input,
-        AwkMemoryAccounting governor, AwkRegexCapturePlan capturePlan,
-        AwkRegexSearchOffset searchOffset, out AwkRegexMatchSpan matchSpan)
+    public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input, int searchOffset = 0)
     {
-        _throwIfCancellationRequested();
-        return MatchValueCore(regex, input, governor, capturePlan, searchOffset, out matchSpan);
+        using var search = OpenSearch(regex, input);
+        return search.MatchSpan(searchOffset);
     }
-
-    public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input) =>
-        MatchSpan(regex, input, AwkRegexSearchOffset.Start);
 
     public AwkRegexMatchPosition MatchPosition(AwkRegex regex, AwkText input) =>
-        AwkRegexMatchPosition.FromSpan(MatchSpan(regex, input),
-            _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16);
+        AwkRegexMatchPosition.FromSpan(MatchSpan(regex, input), input,
+            _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar,
+            _counters, _throwIfCancellationRequested);
 
-    public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input, AwkRegexSearchOffset searchOffset)
+    public AwkRegexMatchEnumerator EnumerateMatchValues(AwkRegex regex, AwkText input,
+        AwkMemoryAccounting governor, AwkRegexCapturePlan capturePlan) =>
+        new(OpenSearch(regex, input), governor, capturePlan);
+
+    public AwkRegexMatchSpanEnumerator EnumerateMatchSpans(AwkRegex regex, AwkText input) =>
+        new(this, regex, input);
+
+    public Search OpenSearch(AwkRegex regex, AwkText input, int inputStart = 0)
     {
         _throwIfCancellationRequested();
-        return MatchSpanCore(regex, input, searchOffset);
+        var owner = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+        owner.Pin();
+        var lease = AwkMemoryLease.Disabled;
+        IAwkRegexSearch? provider = null;
+        var transferred = false;
+        try
+        {
+            // One scoped owner, including its lease and input reference; no subject copy.
+            lease = _memoryAccounting.ReserveTransient(128);
+            provider = owner.Pattern.CreateSearch(input.AsMemory(_throwIfCancellationRequested)[inputStart..],
+                _cancellationToken);
+            _throwIfCancellationRequested();
+            var search = new Search(this, owner, provider, input, inputStart, lease);
+            transferred = true;
+            return search;
+        }
+        catch (AwkRegexAdmissionException) { throw AdmissionFailure(); }
+        finally
+        {
+            if (!transferred)
+            {
+                try { provider?.Dispose(); }
+                finally { lease.Dispose(); owner.Unpin(); }
+            }
+        }
     }
 
-    public AwkRegexMatchEnumerator EnumerateMatchValues(
-        AwkRegex regex,
-        AwkText input,
-        AwkMemoryAccounting governor,
-        AwkRegexCapturePlan capturePlan)
-    {
-        _throwIfCancellationRequested();
-        return new AwkRegexMatchEnumerator(this, regex, input, governor, capturePlan);
-    }
-
-    public AwkRegexMatchSpanEnumerator EnumerateMatchSpans(AwkRegex regex, AwkText input)
-    {
-        _throwIfCancellationRequested();
-        return new AwkRegexMatchSpanEnumerator(this, regex, input);
-    }
-
-    internal AwkRegexSearchOffset AdvanceAfterMatch(AwkText input, AwkRegexMatchSpan match) =>
-        AwkRegexSearchOffset.AfterMatch(input, match, _throwIfCancellationRequested);
+    private static AwkRuntimeException AdmissionFailure() =>
+        new(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
     private AwkRegex Cache(AwkRegexCacheKey key, AwkRegex regex)
     {
@@ -217,7 +229,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     }
 
 
-    private IAwkCompiledRegex ResolveCompiledRegex(AwkRegex regex, AwkRegexCaseSensitivity sensitivity,
+    private CompiledPattern ResolveCompiledRegex(AwkRegex regex, AwkRegexCaseSensitivity sensitivity,
         bool countCompilation = true)
     {
         var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.TranslatedPattern);
@@ -237,8 +249,9 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             if (compiled is null || compiled.GroupCount < 1)
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             _throwIfCancellationRequested();
-            _compiledRegexCache.Set(key, compiled);
-            return compiled;
+            var owner = new CompiledPattern(compiled);
+            _compiledRegexCache.Set(key, owner);
+            return owner;
         }
         catch (AwkRegexAdmissionException)
         {
@@ -252,65 +265,93 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         }
     }
 
-    private AwkRegexMatchSpan MatchSpanCore(AwkRegex regex, AwkText input, AwkRegexSearchOffset offset,
-        AwkRegexSearchOffset inputStart = default)
-    {
-        try
-        {
-            var compiled = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
-            _resources.RecordRegexMatch();
-            var bytes = input.AsSpan(_throwIfCancellationRequested)[inputStart.ByteIndex..];
-            var relativeOffset = new AwkRegexSearchOffset(offset.ByteIndex - inputStart.ByteIndex,
-                offset.Utf16Index - inputStart.Utf16Index);
-            var whole = compiled.Match(bytes, relativeOffset.Utf16Index, [], _cancellationToken);
-            _throwIfCancellationRequested();
-            if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
-            AwkRegexMatch.ValidateRanges(bytes, whole, [], relativeOffset, _memoryAccounting, _throwIfCancellationRequested);
-            return AwkRegexMatchSpan.Match(inputStart.ByteIndex + whole.ByteIndex, whole.ByteLength,
-                inputStart.Utf16Index + whole.Utf16Index, whole.Utf16Length);
-        }
-        catch (AwkRegexAdmissionException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
-    }
-
-    private AwkLeasedRegexMatch MatchValueCore(AwkRegex regex, AwkText input, AwkMemoryAccounting governor,
-        AwkRegexCapturePlan capturePlan, AwkRegexSearchOffset offset,
-        out AwkRegexMatchSpan matchSpan)
-    {
-        try
-        {
-            var compiled = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
-            var count = capturePlan.SelectGroupCount(compiled.GroupCount);
-            using var scratch = governor.ReserveTransient(count <= 32 ? 0 :
-                AwkRuntimeMemory.EstimateRegexCaptureRangeArrayBytes(count));
-            Span<AwkRegexCaptureRange> ranges = count <= 32
-                ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
-            _resources.RecordRegexMatch();
-            var bytes = input.AsSpan(_throwIfCancellationRequested);
-            var whole = compiled.Match(bytes, offset.Utf16Index, ranges, _cancellationToken);
-            _throwIfCancellationRequested();
-            if (!whole.Success)
-            {
-                matchSpan = AwkRegexMatchSpan.NoMatch;
-                return AwkLeasedRegexMatch.NoMatch;
-            }
-            var result = AwkRegexMatch.FromRanges(whole, bytes, ranges, offset,
-                _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16, _counters, governor, _throwIfCancellationRequested);
-            matchSpan = AwkRegexMatchSpan.Match(whole.ByteIndex, whole.ByteLength, whole.Utf16Index, whole.Utf16Length);
-            return result;
-        }
-        catch (AwkRegexAdmissionException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
-    }
-
     public void Dispose()
     {
         _regexCache.Clear();
         _compiledRegexCache.Clear();
+    }
+
+    // Eviction retires an entry; active synchronous calls/searches keep its provider
+    // and admission alive until their own finally/disposal boundary.
+    internal sealed class CompiledPattern(IAwkCompiledRegex pattern) : IDisposable
+    {
+        private IAwkCompiledRegex? _pattern = pattern;
+        private int _users;
+        private bool _retired;
+        public IAwkCompiledRegex Pattern => _pattern ?? throw new ObjectDisposedException(nameof(CompiledPattern));
+        public void Pin() { _ = Pattern; _users++; }
+        public void Unpin() { _users--; ReleaseIfRetired(); }
+        public void Dispose() { _retired = true; ReleaseIfRetired(); }
+        private void ReleaseIfRetired()
+        {
+            if (!_retired || _users != 0) return;
+            var owned = _pattern;
+            _pattern = null;
+            owned?.Dispose();
+        }
+    }
+
+    internal sealed class Search(AwkRegexRuntime runtime, CompiledPattern owner, IAwkRegexSearch provider,
+        AwkText input, int inputStart, AwkMemoryLease lease) : IDisposable
+    {
+        private AwkText _input = input;
+        private AwkRegexScalarCoordinates _coordinates;
+        private bool _disposed;
+
+        public int AdvanceAfterMatch(AwkRegexMatchSpan match) =>
+            AwkRegexMatchSpan.AfterMatch(_input, match, runtime._throwIfCancellationRequested);
+        public int InputByteLength => _input.ByteLength;
+
+        public AwkRegexMatchSpan MatchSpan(int offset)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            runtime._throwIfCancellationRequested();
+            try
+            {
+                runtime._resources.RecordRegexMatch();
+                var whole = provider.Match(offset - inputStart, [], runtime._cancellationToken);
+                runtime._throwIfCancellationRequested();
+                if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
+                AwkRegexMatch.ValidateRanges(_input.AsSpan()[inputStart..], whole, [], offset - inputStart,
+                    runtime._throwIfCancellationRequested);
+                return AwkRegexMatchSpan.Match(inputStart + whole.ByteIndex, whole.ByteLength);
+            }
+            catch (AwkRegexAdmissionException) { throw AdmissionFailure(); }
+        }
+
+        public AwkLeasedRegexMatch MatchValue(int offset, AwkMemoryAccounting governor,
+            AwkRegexCapturePlan capturePlan, out AwkRegexMatchSpan matchSpan)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            runtime._throwIfCancellationRequested();
+            try
+            {
+                var count = capturePlan.SelectGroupCount(owner.Pattern.GroupCount);
+                using var scratch = governor.ReserveTransient(count <= 32 ? 0 :
+                    AwkRuntimeMemory.EstimateRegexCaptureRangeArrayBytes(count));
+                Span<AwkRegexCaptureRange> ranges = count <= 32
+                    ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
+                runtime._resources.RecordRegexMatch();
+                var whole = provider.Match(offset - inputStart, ranges, runtime._cancellationToken);
+                runtime._throwIfCancellationRequested();
+                if (!whole.Success) { matchSpan = AwkRegexMatchSpan.NoMatch; return AwkLeasedRegexMatch.NoMatch; }
+                var result = AwkRegexMatch.FromRanges(whole, _input.AsSpan()[inputStart..], ranges, offset - inputStart,
+                    runtime._stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar,
+                    runtime._counters, governor, runtime._throwIfCancellationRequested, ref _coordinates, capturePlan.IncludesPositions);
+                matchSpan = AwkRegexMatchSpan.Match(inputStart + whole.ByteIndex, whole.ByteLength);
+                return result;
+            }
+            catch (AwkRegexAdmissionException) { throw AdmissionFailure(); }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _input = AwkText.Empty;
+            try { provider.Dispose(); }
+            finally { lease.Dispose(); owner.Unpin(); }
+        }
     }
 
     private readonly struct AwkRegexCacheKey : IEquatable<AwkRegexCacheKey>
@@ -379,111 +420,59 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
 }
 
-internal sealed class AwkRegexMatchEnumerator : IDisposable
+internal sealed class AwkRegexMatchEnumerator(AwkRegexRuntime.Search search,
+    AwkMemoryAccounting governor, AwkRegexCapturePlan capturePlan) : IDisposable
 {
-    private readonly AwkRegexRuntime _runtime;
-    private readonly AwkRegex _regex;
-    private readonly AwkText _input;
-    private readonly AwkMemoryAccounting _governor;
-    private readonly AwkRegexCapturePlan _capturePlan;
     private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
-    private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
+    private int _nextOffset;
     private bool _completed;
     private bool _disposed;
-
-    public AwkRegexMatchEnumerator(
-        AwkRegexRuntime runtime,
-        AwkRegex regex,
-        AwkText input,
-        AwkMemoryAccounting governor,
-        AwkRegexCapturePlan capturePlan)
-    {
-        _runtime = runtime;
-        _regex = regex;
-        _input = input;
-        _governor = governor;
-        _capturePlan = capturePlan;
-    }
 
     public bool MoveNext(out AwkRegexMatch match)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _currentMatch.Dispose();
         _currentMatch = AwkLeasedRegexMatch.NoMatch;
-        if (_completed)
-        {
-            match = AwkRegexMatch.NoMatch;
-            return false;
-        }
-
-        _currentMatch = _runtime.MatchValue(
-            _regex,
-            _input,
-            _governor,
-            _capturePlan,
-            _nextOffset,
-            out var matchSpan);
+        if (_completed) { match = AwkRegexMatch.NoMatch; return false; }
+        _currentMatch = search.MatchValue(_nextOffset, governor, capturePlan, out var span);
         match = _currentMatch.Match;
-        if (!match.Success)
-        {
-            _completed = true;
-            return false;
-        }
-
-        if (matchSpan.ByteLength == 0 && matchSpan.ByteIndex >= _input.ByteLength)
-            _completed = true;
-        else
-            _nextOffset = _runtime.AdvanceAfterMatch(_input, matchSpan);
-
+        if (!match.Success) { _completed = true; search.Dispose(); return false; }
+        if (span.ByteLength == 0 && span.ByteIndex >= search.InputByteLength) _completed = true;
+        else _nextOffset = search.AdvanceAfterMatch(span);
         return true;
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-
+        if (_disposed) return;
         _disposed = true;
         _currentMatch.Dispose();
         _currentMatch = AwkLeasedRegexMatch.NoMatch;
+        search.Dispose();
     }
 }
 
-internal struct AwkRegexMatchSpanEnumerator(
-    AwkRegexRuntime runtime,
-    AwkRegex regex,
-    AwkText input) : IDisposable
+internal struct AwkRegexMatchSpanEnumerator(AwkRegexRuntime runtime, AwkRegex regex, AwkText input) : IDisposable
 {
-    private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
+    private AwkRegexRuntime.Search? _search;
+    private int _nextOffset;
     private bool _completed;
     private bool _disposed;
-
     public bool MoveNext(out AwkRegexMatchSpan match)
     {
         ObjectDisposedException.ThrowIf(_disposed, typeof(AwkRegexMatchSpanEnumerator));
-        if (_completed)
-        {
-            match = AwkRegexMatchSpan.NoMatch;
-            return false;
-        }
-
-        match = runtime.MatchSpan(regex, input, _nextOffset);
-        if (!match.Success)
-        {
-            _completed = true;
-            return false;
-        }
-
-        if (match.ByteLength == 0 && match.ByteIndex >= input.ByteLength)
-            _completed = true;
-        else
-            _nextOffset = runtime.AdvanceAfterMatch(input, match);
-
+        if (_completed) { match = AwkRegexMatchSpan.NoMatch; return false; }
+        var search = _search ??= runtime.OpenSearch(regex, input);
+        match = search.MatchSpan(_nextOffset);
+        if (!match.Success) { _completed = true; search.Dispose(); return false; }
+        if (match.ByteLength == 0 && match.ByteIndex >= search.InputByteLength) _completed = true;
+        else _nextOffset = search.AdvanceAfterMatch(match);
         return true;
     }
-
     public void Dispose()
     {
+        if (_disposed) return;
         _disposed = true;
+        _search?.Dispose();
     }
 }

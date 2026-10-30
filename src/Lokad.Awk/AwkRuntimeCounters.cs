@@ -16,6 +16,12 @@ internal sealed class AwkRuntimeCounters
 
     public bool IsEnabled => _enabled;
 
+    public long RegexCoordinateBytes { get; private set; }
+    public void RecordRegexCoordinateBytes(int bytes)
+    {
+        if (_enabled) lock (_sync) RegexCoordinateBytes += bytes;
+    }
+
     public long RecordsRead { get; private set; }
 
     public long ArrayContainerCacheHits { get; private set; }

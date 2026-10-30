@@ -45,8 +45,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     // current record. The offset pair avoids repeated byte-to-UTF-16 conversion.
     private AwkText? _regexInput;
     private int _validatedRegexBytes;
-    private int _regexOffsetBufferStart = -1;
-    private int _regexOffsetUtf16Index;
     private SeparatorCache _separatorCache;
 
     public AwkRecordCursor(
@@ -396,15 +394,16 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 var input = GetRegexInput(buffer);
                 if (input.ByteLength == _bufferStart && !_descriptorReachedEof)
                     return BufferedReadResult.NeedMoreData;
-                var recordStart = GetRegexSearchOffset(buffer);
+                var recordStart = _bufferStart;
                 var searchOffset = recordStart;
                 var regex = _hasConsumedDescriptorBytes ? separator.Continuing : separator.Value;
+                using var search = _state.OpenRecordSeparatorSearch(regex, input, recordStart);
                 AwkRegexMatchSpan match;
                 while (true)
                 {
                     _state.Resources.RecordRegexRecordSeparatorBytesScanned(
-                        input.ByteLength - searchOffset.ByteIndex);
-                    match = _state.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset);
+                        input.ByteLength - searchOffset);
+                    match = search.MatchSpan(searchOffset);
                     if (!match.Success || match.ByteLength > 0)
                         break;
                     if (match.ByteIndex >= input.ByteLength)
@@ -413,7 +412,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         break;
                     }
 
-                    searchOffset = AwkRegexSearchOffset.AfterMatch(input, match, _state.CancellationCheckpoint);
+                    searchOffset = AwkRegexMatchSpan.AfterMatch(input, match, _state.CancellationCheckpoint);
                 }
 
                 if (!match.Success)
@@ -422,7 +421,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return _descriptorReachedEof
                         ? ConsumeExistingText(
                             input.CopyByteSlice(
-                                recordStart.ByteIndex,
+                                recordStart,
                                 remainingLength,
                                 _state.Counters,
                                 _state.MemoryAccounting,
@@ -435,9 +434,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (!_descriptorReachedEof && match.ByteIndex + match.ByteLength == input.ByteLength)
                     return BufferedReadResult.NeedMoreData;
 
-                var recordLength = match.ByteIndex - recordStart.ByteIndex;
+                var recordLength = match.ByteIndex - recordStart;
                 var record = input.CopyByteSlice(
-                    recordStart.ByteIndex,
+                    recordStart,
                     recordLength,
                     _state.Counters,
                     _state.MemoryAccounting,
@@ -448,12 +447,10 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     _state.Counters,
                     _state.MemoryAccounting,
                     _state.CancellationCheckpoint));
-                var next = AwkRegexSearchOffset.AfterMatch(input, match, _state.CancellationCheckpoint);
-                var consumedLength = next.ByteIndex - recordStart.ByteIndex;
+                var next = AwkRegexMatchSpan.AfterMatch(input, match, _state.CancellationCheckpoint);
+                var consumedLength = next - recordStart;
                 _bufferStart += consumedLength;
                 _hasConsumedDescriptorBytes |= consumedLength > 0;
-                _regexOffsetBufferStart = _bufferStart;
-                _regexOffsetUtf16Index = next.Utf16Index;
                 return BufferedReadResult.FromRecord(AwkInputRecordResult.Record(
                     record,
                     terminator,
@@ -466,7 +463,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 {
                     _bufferStart += consumedLength;
                     _hasConsumedDescriptorBytes |= consumedLength > 0;
-                    _regexOffsetBufferStart = -1;
                     ResetSeparatorSearch();
                     return BufferedReadResult.FromRecord(AwkInputRecordResult.Record(
                         record,
@@ -505,23 +501,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return _regexInput;
                 }
 
-                AwkRegexSearchOffset GetRegexSearchOffset(AwkUtf8Builder buffer)
-                {
-                    if (_regexOffsetBufferStart == _bufferStart)
-                    {
-                        return new AwkRegexSearchOffset(
-                            _bufferStart,
-                            _regexOffsetUtf16Index);
-                    }
 
-                    var utf16Index = GetUtf16Length(buffer.AsSpan()[.._bufferStart], _scanCheckpoint);
-                    _scanCheckpoint();
-                    _regexOffsetUtf16Index = utf16Index;
-                    _regexOffsetBufferStart = _bufferStart;
-                    return new AwkRegexSearchOffset(
-                        _bufferStart,
-                        _regexOffsetUtf16Index);
-                }
             }
 
             BufferedReadResult TryReadParagraph(ReadOnlySpan<byte> content)
@@ -529,7 +509,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 var previous = new ParagraphReadPosition(
                     _bufferStart, _scanOffset, _pendingSeparatorStart, _pendingSeparatorEnd,
                     _hasConsumedDescriptorBytes, _discardedParagraphLeader,
-                    _paragraphLeaderScanLength, _regexOffsetBufferStart);
+                    _paragraphLeaderScanLength);
                 try
                 {
                     return ReadParagraph(content);
@@ -545,7 +525,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     _hasConsumedDescriptorBytes = previous.HasConsumedDescriptorBytes;
                     _discardedParagraphLeader = previous.DiscardedParagraphLeader;
                     _paragraphLeaderScanLength = previous.ParagraphLeaderScanLength;
-                    _regexOffsetBufferStart = previous.RegexOffsetBufferStart;
                     throw;
                 }
             }
@@ -582,7 +561,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     // Discarding an all-blank batch remains streaming progress. Once
                     // a record body exists, keep its leaders until that record commits.
                     _bufferStart += recordStart;
-                    _regexOffsetBufferStart = -1;
                     if (recordStart > 0)
                         ResetSeparatorSearch();
                     return _descriptorReachedEof
@@ -888,7 +866,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private void ClearRegexInput()
     {
         _regexInput = null;
-        _regexOffsetBufferStart = -1;
     }
 
     private BufferedReadResult FinalRecordOrNeedMore(
@@ -935,7 +912,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         var record = CreateText(recordBytes);
         _bufferStart += consumedLength;
         _hasConsumedDescriptorBytes |= consumedLength > 0;
-        _regexOffsetBufferStart = -1;
         ResetSeparatorSearch();
         return BufferedReadResult.FromRecord(AwkInputRecordResult.Record(
             record,
@@ -1200,23 +1176,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         return -1;
     }
 
-    private static int GetUtf16Length(ReadOnlySpan<byte> bytes, Action checkpoint)
-    {
-        var length = 0;
-        var offset = 0;
-        while (offset < bytes.Length)
-        {
-            checkpoint();
-            var end = offset + Math.Min(AwkRuntimeLimits.CancellationCheckBytes, bytes.Length - offset);
-            // Input is strict UTF-8 and the record offset is a scalar boundary.
-            while (end < bytes.Length && (bytes[end] & 0xC0) == 0x80)
-                end--;
-            length += Encoding.UTF8.GetCharCount(bytes[offset..end]);
-            offset = end;
-        }
-        return length;
-    }
-
     private static bool TryReadNewline(ReadOnlySpan<byte> content, int position, out int length)
     {
         if (position >= content.Length)
@@ -1269,8 +1228,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         int PendingSeparatorEnd,
         bool HasConsumedDescriptorBytes,
         bool DiscardedParagraphLeader,
-        int ParagraphLeaderScanLength,
-        int RegexOffsetBufferStart);
+        int ParagraphLeaderScanLength);
 
     private enum BufferedReadStatus
     {

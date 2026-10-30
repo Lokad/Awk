@@ -79,43 +79,113 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             return result;
         }
 
-        public AwkRegexCaptureRange Match(ReadOnlySpan<byte> input, int startInUtf16,
-            Span<AwkRegexCaptureRange> captures, CancellationToken cancellationToken)
+        public IAwkRegexSearch CreateSearch(ReadOnlyMemory<byte> input, CancellationToken cancellationToken)
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(startInUtf16);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(captures.Length, GroupCount);
             cancellationToken.ThrowIfCancellationRequested();
-            var regex = Regex;
-            using var scratch = ReserveMatch(input.Length, captures.Length);
-            if (captures.IsEmpty)
+            _ = Regex;
+            IMemoryReservation? storage = null;
+            if (_budget is not null && !_budget.TryReserve(128, out storage))
+                throw new AwkRegexAdmissionException();
+            try
             {
-                var range = regex.MatchFromUtf16Offset(input, startInUtf16, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!range.Success) return default;
-                return new(range.Success, range.IsByteAligned ? range.IndexInBytes : 0,
-                    range.IsByteAligned ? range.LengthInBytes : 0, range.IndexInUtf16,
-                    range.LengthInUtf16, range.IsByteAligned);
+                return new Search(this, input, storage);
             }
-            var match = regex.MatchDetailedFromUtf16Offset(input, startInUtf16, cancellationToken);
-            if (!match.Success)
+            catch { storage?.Dispose(); throw; }
+        }
+
+        private sealed class Search(CompiledPattern pattern, ReadOnlyMemory<byte> subject,
+            IMemoryReservation? storage) : IAwkRegexSearch
+        {
+            private ReadOnlyMemory<byte> _subject = subject;
+            private IMemoryReservation? _storage = storage;
+            private int _byteOffset;
+            private int _utf16Offset;
+            private bool _disposed;
+
+            public AwkRegexCaptureRange Match(int startOffsetInBytes,
+                Span<AwkRegexCaptureRange> captures, CancellationToken cancellationToken)
             {
-                captures.Clear();
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                ArgumentOutOfRangeException.ThrowIfGreaterThan(captures.Length, pattern.GroupCount);
                 cancellationToken.ThrowIfCancellationRequested();
-                return default;
+                MoveTo(startOffsetInBytes, cancellationToken);
+                var input = _subject.Span;
+                using var scratch = pattern.ReserveMatch(input.Length, captures.Length);
+                var regex = pattern.Regex;
+                if (captures.IsEmpty)
+                {
+                    var range = regex.MatchFromUtf16Offset(input, _utf16Offset, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return range.Success ? new(true, range.IsByteAligned ? range.IndexInBytes : -1,
+                        range.IsByteAligned ? range.LengthInBytes : 0) : default;
+                }
+                var match = regex.MatchDetailedFromUtf16Offset(input, _utf16Offset, cancellationToken);
+                if (!match.Success)
+                {
+                    captures.Clear();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return default;
+                }
+                for (var index = 0; index < captures.Length; index++)
+                {
+                    if ((index & 1023) == 0) cancellationToken.ThrowIfCancellationRequested();
+                    var group = match.GetGroup(pattern._groupNumbers[index]);
+                    captures[index] = group.Success ? new(true, group.IsByteAligned ? group.IndexInBytes : -1,
+                        group.IsByteAligned ? group.LengthInBytes : 0) : default;
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                return new(true, match.IsByteAligned ? match.IndexInBytes : -1,
+                    match.IsByteAligned ? match.LengthInBytes : 0);
             }
-            for (var index = 0; index < captures.Length; index++)
+
+            private void MoveTo(int target, CancellationToken token)
             {
-                if ((index & 1023) == 0) cancellationToken.ThrowIfCancellationRequested();
-                // AWK slots are dense; provider group numbers may be sparse.
-                var group = match.GetGroup(_groupNumbers[index]);
-                var aligned = group.IsByteAligned;
-                captures[index] = new(group.Success, aligned ? group.IndexInBytes : 0,
-                    aligned ? group.LengthInBytes : 0, group.IndexInUtf16, group.LengthInUtf16, aligned);
+                var bytes = _subject.Span;
+                ArgumentOutOfRangeException.ThrowIfNegative(target);
+                ArgumentOutOfRangeException.ThrowIfGreaterThan(target, bytes.Length);
+                if (target < bytes.Length && (bytes[target] & 0xC0) == 0x80)
+                    throw new ArgumentException("Search offset splits a Unicode scalar.", nameof(target));
+                // Published 0.4.0 only accepts UTF-16 restarts. Reuse scalar progress rather
+                // than decoding a prefix for every match. This scope makes subject identity
+                // and lifetime explicit; no borrowed-span identity cache is needed.
+                var nextCheck = _byteOffset;
+                while (_byteOffset < target)
+                {
+                    if (_byteOffset >= nextCheck)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        nextCheck = (int)Math.Min(int.MaxValue, _byteOffset + 16_384L);
+                    }
+                    if (System.Text.Rune.DecodeFromUtf8(bytes[_byteOffset..], out var rune, out var consumed) !=
+                        System.Buffers.OperationStatus.Done) throw new ArgumentException("Invalid UTF-8 subject.");
+                    _byteOffset += consumed;
+                    _utf16Offset += rune.Utf16SequenceLength;
+                }
+                nextCheck = _byteOffset;
+                while (_byteOffset > target)
+                {
+                    if (_byteOffset <= nextCheck)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        nextCheck = _byteOffset - 16_384;
+                    }
+                    if (System.Text.Rune.DecodeLastFromUtf8(bytes[.._byteOffset], out var rune, out var consumed) !=
+                        System.Buffers.OperationStatus.Done) throw new ArgumentException("Invalid UTF-8 subject.");
+                    _byteOffset -= consumed;
+                    _utf16Offset -= rune.Utf16SequenceLength;
+                }
+                token.ThrowIfCancellationRequested();
             }
-            cancellationToken.ThrowIfCancellationRequested();
-            var matchAligned = match.IsByteAligned;
-            return new(match.Success, matchAligned ? match.IndexInBytes : 0,
-                matchAligned ? match.LengthInBytes : 0, match.IndexInUtf16, match.LengthInUtf16, matchAligned);
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _subject = default;
+                _storage?.Dispose();
+                _storage = null;
+            }
         }
 
         private IMemoryReservation? ReserveMatch(int inputBytes, int captures)

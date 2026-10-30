@@ -9,7 +9,9 @@ public class GovernedAllocationProfile
     private AwkExecutionPolicy _policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
     private readonly Lokad.Awk.Tests.CooperativeTestBudget _budget = new(512L << 20);
     [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate",
-        "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic")]
+        "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic",
+        "default-fs-regex", "shared-fs-regex", "default-rs-regex", "shared-rs-regex",
+        "default-dynamic-pattern", "shared-dynamic-pattern", "default-substitution", "shared-substitution")]
     public string Scenario { get; set; } = "shared-calls";
 
     [GlobalSetup]
@@ -20,9 +22,18 @@ public class GovernedAllocationProfile
             "default-arithmetic" or "default-posix-arithmetic" or "shared-posix-arithmetic" => "arithmetic-loops",
             "shared-projection" => "projection",
             "shared-aggregate" or "default-aggregate" => "aggregate",
+            "default-fs-regex" or "shared-fs-regex" => "fs-regex",
+            "default-rs-regex" or "shared-rs-regex" => "rs-regex",
+            "default-dynamic-pattern" or "shared-dynamic-pattern" => "regex-match",
+            "default-substitution" or "shared-substitution" => "substitution",
             _ => "multi-arg-loop"
         };
-        _workload = ReferenceWorkloads.Create(family, family == "arithmetic-loops" ? "medium" : "large");
+        _workload = ReferenceWorkloads.Create(family, family is "arithmetic-loops" or "fs-regex" or "rs-regex" or
+            "regex-match" or "substitution" ? "medium" : "large");
+        if (family == "regex-match") _workload = _workload with
+        {
+            Program = "BEGIN{p=\"^ABC\"} $0 ~ p {n++} END{print n}"
+        };
         if (!Scenario.StartsWith("default-", StringComparison.Ordinal)) _policy = _policy.WithMemoryBudget(_budget);
         Execute().GetAwaiter().GetResult();
     }

@@ -45,86 +45,72 @@ internal readonly record struct AwkRegexMatch
 
 
     internal static void ValidateRanges(ReadOnlySpan<byte> input, AwkRegexCaptureRange whole,
-        ReadOnlySpan<AwkRegexCaptureRange> groups, AwkRegexSearchOffset searchOffset,
-        AwkMemoryAccounting governor, Action checkpoint)
+        ReadOnlySpan<AwkRegexCaptureRange> groups, int searchOffset, Action checkpoint)
     {
-        if (whole.ByteIndex < searchOffset.ByteIndex || whole.Utf16Index < searchOffset.Utf16Index ||
-            groups.Length != 0 && groups[0] != whole) throw InvalidRange();
-        var count = AwkRuntimeMemory.CheckedAdd(groups.Length, 1);
-        count = AwkRuntimeMemory.CheckedAdd(count, count);
-        using var scratch = governor.ReserveTransient(count <= 128 ? 0 :
-            AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes(count));
-        Span<long> boundaries = count <= 128 ? stackalloc long[count] : new long[count];
-        var used = 0;
-        Add(whole, input.Length, boundaries, ref used);
+        if (whole.ByteIndex < searchOffset || groups.Length != 0 && groups[0] != whole) throw InvalidRange();
+        Validate(input, whole);
         foreach (var group in groups)
         {
             checkpoint();
-            Add(group, input.Length, boundaries, ref used);
+            Validate(input, group);
         }
-        boundaries = boundaries[..used];
-        boundaries.Sort();
-        var reuseSearchOffset = used != 0 && (int)(boundaries[0] >> 32) >= searchOffset.ByteIndex;
-        var byteIndex = reuseSearchOffset ? searchOffset.ByteIndex : 0;
-        var utf16Index = reuseSearchOffset ? searchOffset.Utf16Index : 0;
-        long nextCheckpoint = byteIndex;
-        foreach (var boundary in boundaries)
-        {
-            checkpoint();
-            var target = (int)(boundary >> 32);
-            while (byteIndex < target)
-            {
-                if (byteIndex >= nextCheckpoint)
-                {
-                    checkpoint();
-                    nextCheckpoint = (long)byteIndex + AwkRuntimeLimits.CancellationCheckBytes;
-                }
-                if (Rune.DecodeFromUtf8(input[byteIndex..], out var rune, out var consumed) != OperationStatus.Done)
-                    throw InvalidRange();
-                byteIndex += consumed;
-                utf16Index += rune.Utf16SequenceLength;
-            }
-            if (byteIndex != target || utf16Index != (int)(uint)boundary) throw InvalidRange();
-        }
+        checkpoint();
 
-        static void Add(AwkRegexCaptureRange range, int length, Span<long> destination, ref int used)
+        static void Validate(ReadOnlySpan<byte> bytes, AwkRegexCaptureRange range)
         {
             if (!range.Success) return;
-            AwkRegexScalarBoundary.ThrowIfUnaligned(range.IsByteAligned);
-            if (range.ByteIndex < 0 || range.ByteIndex > length || range.ByteLength < 0 ||
-                range.ByteLength > length - range.ByteIndex || range.Utf16Index < 0 ||
-                range.Utf16Length < 0 || range.Utf16Index > length || range.Utf16Length > length - range.Utf16Index)
-                throw InvalidRange();
-            destination[used++] = ((long)range.ByteIndex << 32) | (uint)range.Utf16Index;
-            destination[used++] = ((long)(range.ByteIndex + range.ByteLength) << 32) |
-                (uint)(range.Utf16Index + range.Utf16Length);
+            if (range.ByteIndex < 0 || range.ByteIndex > bytes.Length || range.ByteLength < 0 ||
+                range.ByteLength > bytes.Length - range.ByteIndex) throw InvalidRange();
+            // AwkText has already validated the subject. Boundaries need no coordinate map.
+            AwkRegexScalarBoundary.ThrowIfUnaligned(IsBoundary(bytes, range.ByteIndex) &&
+                IsBoundary(bytes, range.ByteIndex + range.ByteLength));
         }
     }
+
+    internal static bool IsBoundary(ReadOnlySpan<byte> bytes, int index) =>
+        index == bytes.Length || (bytes[index] & 0xC0) != 0x80;
 
     private static AwkRuntimeException InvalidRange() =>
         new(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
 
     internal static AwkLeasedRegexMatch FromRanges(AwkRegexCaptureRange whole, ReadOnlySpan<byte> input,
-        ReadOnlySpan<AwkRegexCaptureRange> captures, AwkRegexSearchOffset offset,
-        AwkRegexCoordinatePolicy coordinatePolicy, AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint)
+        ReadOnlySpan<AwkRegexCaptureRange> captures, int offset,
+        AwkRegexCoordinatePolicy coordinatePolicy, AwkRuntimeCounters counters, AwkMemoryAccounting governor,
+        Action checkpoint, ref AwkRegexScalarCoordinates cursor, bool includePositions = true)
     {
-        ValidateRanges(input, whole, captures, offset, governor, checkpoint);
+        ValidateRanges(input, whole, captures, offset, checkpoint);
+        var coordinateCount = coordinatePolicy == AwkRegexCoordinatePolicy.Scalar && includePositions
+            ? AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.CheckedAdd(captures.Length, 1), 2)) : 0;
+        using var scratch = governor.ReserveTransient(coordinateCount <= 128 ? 0 :
+            AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes(coordinateCount), 2));
+        Span<long> boundaries = coordinateCount <= 128 ? stackalloc long[coordinateCount] : new long[coordinateCount];
+        Span<int> positions = coordinateCount <= 128 ? stackalloc int[coordinateCount] : new int[coordinateCount];
+        positions.Clear();
+        if (coordinateCount != 0)
+        {
+            var used = 0;
+            Add(whole, 0, boundaries, ref used);
+            for (var index = 0; index < captures.Length; index++)
+            {
+                checkpoint();
+                Add(captures[index], (index + 1) * 2, boundaries, ref used);
+            }
+            boundaries = boundaries[..used];
+            boundaries.Sort();
+            foreach (var boundary in boundaries)
+            {
+                var target = (int)(boundary >> 32);
+                positions[(int)(uint)boundary] = cursor.MoveTo(input, target, counters, checkpoint);
+            }
+        }
         var retainedBytes = 0L;
         if (governor.IsEnabled)
-        {
-
             foreach (var capture in captures)
             {
                 checkpoint();
-                if (capture.Success)
-                {
-
-                    retainedBytes = AwkRuntimeMemory.CheckedAdd(retainedBytes,
-                        AwkRuntimeMemory.EstimateTextBytes(capture.ByteLength));
-                }
-
+                if (capture.Success) retainedBytes = AwkRuntimeMemory.CheckedAdd(retainedBytes,
+                    AwkRuntimeMemory.EstimateTextBytes(capture.ByteLength));
             }
-        }
         var lease = governor.ReserveTransient(AwkRuntimeMemory.EstimateRegexMatchBytes(captures.Length, retainedBytes));
         try
         {
@@ -137,26 +123,26 @@ internal readonly record struct AwkRegexMatch
                 var capture = captures[index];
                 var value = capture.Success
                     ? AwkText.CopyTrustedBytes(input.Slice(capture.ByteIndex, capture.ByteLength),
-                        counters, AwkMemoryAccounting.Disabled, checkpoint)
-                    : AwkText.Empty;
-                groups[index] = new(capture.Success,
-                    coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? capture.ByteIndex : capture.Utf16Index,
-                    coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? capture.ByteLength : capture.Utf16Length, value);
+                        counters, AwkMemoryAccounting.Disabled, checkpoint) : AwkText.Empty;
+                var start = coordinateCount == 0 ? capture.ByteIndex : positions[(index + 1) * 2];
+                var length = coordinateCount == 0 ? capture.ByteLength : positions[(index + 1) * 2 + 1] - start;
+                groups[index] = new(capture.Success, start, length, value);
             }
             checkpoint();
-            return new(new(true,
-                coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? whole.ByteIndex : whole.Utf16Index,
-                coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? whole.ByteLength : whole.Utf16Length,
-                whole.ByteIndex, whole.ByteLength, groups.Length == 0 ? AwkText.Empty : groups[0].Value, groups),
-                lease, retainedBytes);
+            var wholeStart = coordinateCount == 0 ? whole.ByteIndex : positions[0];
+            var wholeLength = coordinateCount == 0 ? whole.ByteLength : positions[1] - wholeStart;
+            return new(new(true, wholeStart, wholeLength, whole.ByteIndex, whole.ByteLength,
+                groups.Length == 0 ? AwkText.Empty : groups[0].Value, groups), lease, retainedBytes);
         }
-        catch
+        catch { lease.Dispose(); throw; }
+
+        static void Add(AwkRegexCaptureRange range, int slot, Span<long> destination, ref int used)
         {
-            lease.Dispose();
-            throw;
+            if (!range.Success) return;
+            destination[used++] = ((long)range.ByteIndex << 32) | (uint)slot;
+            destination[used++] = ((long)(range.ByteIndex + range.ByteLength) << 32) | (uint)(slot + 1);
         }
     }
-
 }
 
 internal readonly struct AwkLeasedRegexMatch(
@@ -199,87 +185,89 @@ internal readonly record struct AwkRegexGroup
     public AwkText Value => _value ?? AwkText.Empty;
 }
 
-internal readonly record struct AwkRegexMatchPosition(
-    bool Success,
-    int Index,
-    int Length)
+internal readonly record struct AwkRegexMatchPosition(bool Success, int Index, int Length)
 {
-    public static AwkRegexMatchPosition FromSpan(
-        AwkRegexMatchSpan match,
-        AwkRegexCoordinatePolicy coordinatePolicy) =>
-        coordinatePolicy == AwkRegexCoordinatePolicy.Byte
-            ? new AwkRegexMatchPosition(match.Success, match.ByteIndex, match.ByteLength)
-            : new AwkRegexMatchPosition(match.Success, match.Utf16Index, match.Utf16Length);
+    public static AwkRegexMatchPosition FromSpan(AwkRegexMatchSpan match, AwkText input,
+        AwkRegexCoordinatePolicy policy, AwkRuntimeCounters counters, Action checkpoint)
+    {
+        if (!match.Success || policy == AwkRegexCoordinatePolicy.Byte)
+            return new(match.Success, match.ByteIndex, match.ByteLength);
+        var cursor = new AwkRegexScalarCoordinates();
+        var bytes = input.AsSpan(checkpoint);
+        var start = cursor.MoveTo(bytes, match.ByteIndex, counters, checkpoint);
+        var end = cursor.MoveTo(bytes, match.ByteIndex + match.ByteLength, counters, checkpoint);
+        return new(true, start, end - start);
+    }
 }
 
-internal enum AwkRegexCoordinatePolicy
+internal enum AwkRegexCoordinatePolicy { Scalar, Byte }
+
+internal readonly record struct AwkRegexMatchSpan(bool Success, int ByteIndex, int ByteLength)
 {
-    Utf16,
-    Byte
-}
+    public static AwkRegexMatchSpan NoMatch => default;
+    public static AwkRegexMatchSpan Match(int byteIndex, int byteLength) => new(true, byteIndex, byteLength);
 
-internal readonly record struct AwkRegexMatchSpan(
-    bool Success,
-    int ByteIndex,
-    int ByteLength,
-    int Utf16Index,
-    int Utf16Length)
-{
-    public static AwkRegexMatchSpan NoMatch { get; } = new(false, 0, 0, 0, 0);
-
-    public static AwkRegexMatchSpan Match(int byteIndex, int byteLength) =>
-        new(true, byteIndex, byteLength, byteIndex, byteLength);
-
-    public static AwkRegexMatchSpan Match(
-        int byteIndex,
-        int byteLength,
-        int utf16Index,
-        int utf16Length) =>
-        new(true, byteIndex, byteLength, utf16Index, utf16Length);
-}
-
-internal readonly record struct AwkRegexSearchOffset(int ByteIndex, int Utf16Index)
-{
-    public static AwkRegexSearchOffset Start { get; } = new(0, 0);
-
-    public static AwkRegexSearchOffset AfterMatch(AwkText input, AwkRegexMatchSpan match, Action? checkpoint = null)
+    public static int AfterMatch(AwkText input, AwkRegexMatchSpan match, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        if (match.ByteLength > 0 || match.ByteIndex >= input.ByteLength)
-        {
-            return new AwkRegexSearchOffset(
-                match.ByteIndex + match.ByteLength,
-                match.Utf16Index + match.Utf16Length);
-        }
+        var end = match.ByteIndex + match.ByteLength;
+        if (match.ByteLength != 0 || end == input.ByteLength) return end;
+        if (Rune.DecodeFromUtf8(input.AsSpan(checkpoint)[end..], out _, out var consumed) != OperationStatus.Done)
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
+        return end + consumed;
+    }
+}
 
-        var status = Rune.DecodeFromUtf8(input.AsSpan(checkpoint)[match.ByteIndex..], out var rune, out var bytesConsumed);
-        return status == OperationStatus.Done && bytesConsumed > 0
-            ? new AwkRegexSearchOffset(
-                match.ByteIndex + bytesConsumed,
-                match.Utf16Index + rune.Utf16SequenceLength)
-            : new AwkRegexSearchOffset(match.ByteIndex + 1, match.Utf16Index + 1);
+// Only language-facing position publication needs scalar counting. Repeated capture
+// enumeration reuses this small cursor; no mandatory whole-subject index is retained.
+internal struct AwkRegexScalarCoordinates
+{
+    private int _byteOffset;
+    private int _scalarOffset;
+
+    public int MoveTo(ReadOnlySpan<byte> input, int target, AwkRuntimeCounters counters, Action checkpoint)
+    {
+        var before = _byteOffset;
+        long next = _byteOffset;
+        while (_byteOffset < target)
+        {
+            if (_byteOffset >= next) { checkpoint(); next = (long)_byteOffset + AwkRuntimeLimits.CancellationCheckBytes; }
+            if (Rune.DecodeFromUtf8(input[_byteOffset..], out _, out var consumed) != OperationStatus.Done)
+                throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
+            _byteOffset += consumed;
+            _scalarOffset++;
+        }
+        next = _byteOffset;
+        while (_byteOffset > target)
+        {
+            if (_byteOffset <= next) { checkpoint(); next = (long)_byteOffset - AwkRuntimeLimits.CancellationCheckBytes; }
+            if (Rune.DecodeLastFromUtf8(input[.._byteOffset], out _, out var consumed) != OperationStatus.Done)
+                throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
+            _byteOffset -= consumed;
+            _scalarOffset--;
+        }
+        counters.RecordRegexCoordinateBytes(Math.Abs(target - before));
+        checkpoint();
+        return _scalarOffset;
     }
 }
 
 internal readonly record struct AwkRegexCapturePlan
 {
     private readonly int _maximumGroupCount;
-
-    private AwkRegexCapturePlan(int maximumGroupCount)
+    private AwkRegexCapturePlan(int maximumGroupCount, bool includesPositions = false)
     {
         _maximumGroupCount = maximumGroupCount;
+        IncludesPositions = includesPositions;
     }
-
+    public bool IncludesPositions { get; }
     public static AwkRegexCapturePlan None => default;
-
-    public static AwkRegexCapturePlan All { get; } = new(int.MaxValue);
-
+    public static AwkRegexCapturePlan All { get; } = new(int.MaxValue, includesPositions: true);
     public static AwkRegexCapturePlan ThroughGroup(int maximumGroupIndex)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumGroupIndex);
         return new AwkRegexCapturePlan(checked(maximumGroupIndex + 1));
     }
-
     public int SelectGroupCount(int availableGroupCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(availableGroupCount);

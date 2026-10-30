@@ -26,8 +26,9 @@ public interface IAwkRegexEngine
 }
 
 /// <summary>An Awk-owned compiled pattern used synchronously within one execution.</summary>
-/// <remarks>Do not retain input, capture spans or operation tokens after a call. Poll current
-/// cancellation during work and throw AwkRegexAdmissionException for refused admission.
+/// <remarks>Do not retain operation tokens. Poll current cancellation during work and throw
+/// AwkRegexAdmissionException for refused admission. Awk keeps the compiled pattern alive
+/// until its active calls and scoped searches complete.
 /// Disposal must be idempotent and non-throwing. Awk never disposes the supplied engine.</remarks>
 public interface IAwkCompiledRegex : IDisposable
 {
@@ -37,28 +38,36 @@ public interface IAwkCompiledRegex : IDisposable
     /// <summary>Tests the input without materializing capture values.</summary>
     bool IsMatch(ReadOnlySpan<byte> input, CancellationToken cancellationToken);
 
-    /// <summary>Finds a match in the complete input from a UTF-16 search offset.</summary>
+    /// <summary>Starts a synchronous search scope borrowing the complete immutable UTF-8 subject.</summary>
+    /// <remarks>The caller keeps input valid and unchanged until the search is disposed. A search
+    /// may retain this memory for that lifetime, but must not copy the subject unnecessarily or
+    /// retain its construction token. Dispose each search before disposing the compiled pattern.</remarks>
+    IAwkRegexSearch CreateSearch(ReadOnlyMemory<byte> input, CancellationToken cancellationToken);
+}
+
+/// <summary>A scoped search over one complete immutable UTF-8 subject.</summary>
+/// <remarks>Dispose before releasing or changing the subject. Disposal is idempotent and
+/// non-throwing. Do not retain capture spans or operation tokens after a call.</remarks>
+public interface IAwkRegexSearch : IDisposable
+{
+    /// <summary>Finds a match from an absolute, scalar-aligned byte offset in the bound subject.</summary>
     /// <remarks>The caller supplies zero or a prefix of GroupCount capture slots, including group0.
-    /// Fill every supplied slot, including unmatched groups. Offsets are absolute in the complete
-    /// input. The result describes the whole match independently of requested captures. Preserve
-    /// full-input anchor/lookbehind context; do not search an isolated suffix.
+    /// Fill every supplied slot, including unmatched groups. Offsets are absolute in the bound
+    /// subject. The result describes the whole match independently of requested captures. Preserve
+    /// complete-subject anchor/lookbehind context; do not search an isolated suffix.
     /// Choose the earliest viable start, then the longest whole match. Resolve ambiguous
     /// subexpressions using POSIX capture priority, independently of how many slots were requested.
     /// Every successful range must end on Unicode scalar boundaries. A provider must implement
     /// these rules itself; Awk validates ranges and publishes captures but does not select matches.</remarks>
-    AwkRegexCaptureRange Match(ReadOnlySpan<byte> input, int startInUtf16,
+    AwkRegexCaptureRange Match(int startOffsetInBytes,
         Span<AwkRegexCaptureRange> captures, CancellationToken cancellationToken);
 }
 
-/// <summary>A match/capture range in UTF-8 bytes and UTF-16 code units.</summary>
+/// <summary>A participating or absent match/capture range in UTF-8 bytes.</summary>
 /// <param name="Success">Whether the group participated.</param>
 /// <param name="ByteIndex">Its absolute UTF-8 byte offset.</param>
 /// <param name="ByteLength">Its UTF-8 byte length.</param>
-/// <param name="Utf16Index">Its absolute UTF-16 code-unit offset.</param>
-/// <param name="Utf16Length">Its UTF-16 code-unit length.</param>
-/// <param name="IsByteAligned">Whether both ends lie on Unicode scalar boundaries.</param>
-public readonly record struct AwkRegexCaptureRange(bool Success, int ByteIndex, int ByteLength,
-    int Utf16Index, int Utf16Length, bool IsByteAligned);
+public readonly record struct AwkRegexCaptureRange(bool Success, int ByteIndex, int ByteLength);
 
 /// <summary>Signals refused host memory admission inside a supplied regex engine.</summary>
 /// <remarks>Awk treats this as a fatal memory-limit failure, never an unsupported-pattern fallback.</remarks>

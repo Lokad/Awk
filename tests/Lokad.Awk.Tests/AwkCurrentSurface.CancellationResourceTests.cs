@@ -734,14 +734,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public void Awk_SubFirstReplacementMemoryLimitDoesNotReserveEnumerationList()
+    public void Awk_SubFirstReplacementSucceedsWithBoundedSearchScratch()
     {
         using var memoryForState = CreateGovernedState(8192);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
         Assert.True(memoryForState.Budget.TryReserve(
-            memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 300, out var pressure));
+            memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 600, out var pressure));
         using var heldPressure = pressure;
 
         var replaced = AwkRegexSubstitution.ReplaceAll(

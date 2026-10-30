@@ -158,7 +158,7 @@ internal static class AwkRuntimeMemory
         EstimateArrayBufferBytes(count, sizeof(long));
 
     public static long EstimateRegexCaptureRangeArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, 24);
+        EstimateArrayBufferBytes(count, 16);
 
     public static long EstimateRegexMatchBytes(int groupCount, long retainedTextBytes) =>
         CheckedAdd(

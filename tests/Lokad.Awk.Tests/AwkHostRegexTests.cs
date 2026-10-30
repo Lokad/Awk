@@ -67,7 +67,7 @@ public sealed class AwkHostRegexTests
         Assert.Same(engine, custom.RegexEngine);
         Assert.DoesNotContain(typeof(Awk).Assembly.GetReferencedAssemblies(),
             assembly => assembly.Name == "Lokad.Utf8Regex");
-        Assert.Equal(24, Unsafe.SizeOf<AwkRegexCaptureRange>());
+        Assert.Equal(12, Unsafe.SizeOf<AwkRegexCaptureRange>());
     }
 
     [Theory]
@@ -162,7 +162,7 @@ public sealed class AwkHostRegexTests
 
     [Theory]
     [InlineData(Behavior.BadByteRange)]
-    [InlineData(Behavior.BadUtf16Range)]
+    [InlineData(Behavior.NegativeByteLength)]
     [InlineData(Behavior.SplitScalar)]
     public void InvalidRangesFailBeforeCaptureAllocationOrPublication(Behavior behavior)
     {
@@ -279,11 +279,48 @@ public sealed class AwkHostRegexTests
         }
     }
 
+    [Fact]
+    public void CacheEvictionKeepsAnActiveSubjectSearchAlive()
+    {
+        var engine = new RecordingEngine();
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled, regexEngine: engine);
+        var regex = runtime.Create(new AwkRegexPattern("a"));
+        using var search = runtime.OpenSearch(regex, AwkText.FromSourceLiteralString("a"));
+        var first = Assert.Single(engine.Patterns);
+        for (var index = 0; index < 300; index++) runtime.Create(new AwkRegexPattern("key" + index));
+        Assert.False(first.Disposed);
+        Assert.True(search.MatchSpan(0).Success);
+        search.Dispose();
+        Assert.True(first.Disposed);
+        runtime.Dispose();
+        Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
+    }
+
+    [Fact]
+    public void CacheEvictionDuringAnExistenceCallDefersDisposalUntilReturn()
+    {
+        Action? evict = null;
+        var engine = new RecordingEngine { BeforeMatch = _ => evict?.Invoke() };
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled, regexEngine: engine);
+        var regex = runtime.Create(new AwkRegexPattern("a"));
+        var first = Assert.Single(engine.Patterns);
+        evict = () =>
+        {
+            evict = null;
+            for (var index = 0; index < 300; index++) runtime.Create(new AwkRegexPattern("key" + index));
+            Assert.False(first.Disposed);
+        };
+        Assert.True(runtime.IsMatch(regex, AwkText.FromSourceLiteralString("a")));
+        Assert.True(first.Disposed);
+    }
+
     private static Awk Tool(string source) => AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
 
     public enum Behavior
     {
-        Normal, Unsupported, RefuseCompile, RefuseMatch, BadByteRange, BadUtf16Range, SplitScalar,
+        Normal, Unsupported, RefuseCompile, RefuseMatch, BadByteRange, NegativeByteLength, SplitScalar,
         NoGroups, NegativeGroupCount
     }
 
@@ -324,6 +361,7 @@ public sealed class AwkHostRegexTests
 
     private sealed class Pattern(IAwkCompiledRegex inner, Behavior behavior, Action<CancellationToken>? beforeMatch) : IAwkCompiledRegex
     {
+        private Behavior BehaviorMode => behavior;
         public bool Disposed { get; private set; }
         public int GroupCount => behavior switch
         {
@@ -346,20 +384,27 @@ public sealed class AwkHostRegexTests
             return inner.IsMatch(input, token);
         }
 
-        public AwkRegexCaptureRange Match(ReadOnlySpan<byte> input, int startInUtf16,
-            Span<AwkRegexCaptureRange> captures, CancellationToken token)
+        public IAwkRegexSearch CreateSearch(ReadOnlyMemory<byte> input, CancellationToken token) =>
+            new Search(this, inner.CreateSearch(input, token), input.Length);
+
+        private sealed class Search(Pattern pattern, IAwkRegexSearch innerSearch, int inputLength) : IAwkRegexSearch
         {
-            Before(token);
-            var result = inner.Match(input, startInUtf16, captures, token);
-            result = behavior switch
+            public AwkRegexCaptureRange Match(int startOffsetInBytes, Span<AwkRegexCaptureRange> captures,
+                CancellationToken token)
             {
-                Behavior.BadByteRange => result with { ByteIndex = input.Length + 1 },
-                Behavior.BadUtf16Range => result with { Utf16Index = 1 },
-                Behavior.SplitScalar => result with { ByteIndex = 1, ByteLength = 0 },
-                _ => result
-            };
-            if (captures.Length != 0) captures[0] = result;
-            return result;
+                pattern.Before(token);
+                var result = innerSearch.Match(startOffsetInBytes, captures, token);
+                result = pattern.BehaviorMode switch
+                {
+                    Behavior.BadByteRange => result with { ByteIndex = inputLength + 1 },
+                    Behavior.NegativeByteLength => result with { ByteLength = -1 },
+                    Behavior.SplitScalar => result with { ByteIndex = 1, ByteLength = 0 },
+                    _ => result
+                };
+                if (captures.Length != 0) captures[0] = result;
+                return result;
+            }
+            public void Dispose() => innerSearch.Dispose();
         }
 
         public void Dispose()

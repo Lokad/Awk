@@ -25,6 +25,11 @@ capture ranges, owns its compiled handles and per-call admission, and adds no su
 capture-text copies. `TryCompile` borrows UTF-8 pattern bytes. Published 0.4.0 requires a
 string pattern, so the adapter decodes once per compilation after admission. This temporary
 conversion belongs to the adapter and is outside core conversion counters.
+`CreateSearch` borrows a complete immutable subject for a disposable scope; keep its storage
+and compiled pattern alive until disposal. `Match` takes an absolute byte restart and returns
+byte-only ranges. The published provider's UTF-16 restart mapping stays inside this scope,
+reusing progress in either direction without a whole-subject string or dense coordinate map.
+The core derives scalar positions only for AWK-visible results.
 Compilation and each search receive the current cancellation token through the producer's
 cooperative APIs. The compilation token is not retained by a reusable handle. Producer match
 and construction timeouts are disabled; no adapter clock or core fallback is involved.

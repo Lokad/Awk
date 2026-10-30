@@ -196,7 +196,7 @@ public sealed class AwkRegexScratchMemoryTests
                     : governor.CurrentCommittedBytes > 0 && counters.RegexGroupsMaterialized == 0 && ++checks == (phase == "allocation" ? 1 : 3);
                 if (reached) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            });
+            }, scalarPositions: phase == "coordinates");
         });
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -253,12 +253,13 @@ public sealed class AwkRegexScratchMemoryTests
          groups >= 64 ? AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes((groups + 1) * 2) : 0);
 
     private static AwkLeasedRegexMatch Capture(int groups, AwkMemoryAccounting governor,
-        AwkRuntimeCounters counters, Action? checkpoint = null)
+        AwkRuntimeCounters counters, Action? checkpoint = null, bool scalarPositions = false)
     {
-        var whole = new AwkRegexCaptureRange(true, 0, 4, 0, 2, true);
+        var whole = new AwkRegexCaptureRange(true, 0, 4);
         var ranges = Enumerable.Repeat(whole, groups).ToArray();
-        return AwkRegexMatch.FromRanges(whole, "\U0001f600"u8, ranges, AwkRegexSearchOffset.Start,
-            AwkRegexCoordinatePolicy.Byte, counters, governor, checkpoint ?? (() => { }));
+        var cursor = new AwkRegexScalarCoordinates();
+        return AwkRegexMatch.FromRanges(whole, "\U0001f600"u8, ranges, 0,
+            scalarPositions ? AwkRegexCoordinatePolicy.Scalar : AwkRegexCoordinatePolicy.Byte, counters, governor, checkpoint ?? (() => { }), ref cursor);
     }
 
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),

@@ -142,7 +142,9 @@ may succeed without running measurements.
 Optional `--render-report PATH_TO_JSON` writes standalone Markdown beside a comparison
 artifact using Lokad.Awk/awk. Raw JSON retains its GNU/Lokad statistic for existing tooling.
 Existing `--governed-profile` cases cover calls, projection and aggregation with a 512 MiB
-thread-safe test budget, including default-mode call/aggregation controls. Medium arithmetic
+thread-safe test budget, including default-mode call/aggregation controls. Its paired
+default/shared `fs-regex`, `rs-regex`, `dynamic-pattern` and `substitution` scenarios
+exercise the native provider boundary with the existing medium fixtures. Medium arithmetic
 cases compare GNU/default, POSIX and governed POSIX execution. Keep transfers/builds outside measurement
 windows. Preserve the full correctness suite and confirm promising changes once in both source orders.
 

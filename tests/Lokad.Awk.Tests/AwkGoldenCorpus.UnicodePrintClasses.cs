@@ -112,7 +112,7 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("0\n1\n0\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-coordinate",
             ["BEGIN{print match(\"\u00e9\ud83d\ude00 \",/([[:graph:]]+)([[:print:]])/),RLENGTH}"], [])
-            .WithStdOut("1 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-separator-option",
             ["-F", "[[:graph:]]+", "{printf \"%d:[%s]:[%s]:[%s]\\n\",NF,$1,$2,$3}"], [])
             .WithStandardInput("a\u00e9b c\ud83d\ude00d\n")
@@ -123,7 +123,7 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("[] a\u00e9b\n[ ] c\ud83d\ude00d\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-array",
             ["BEGIN{print match(\"\u00e9\ud83d\ude00 \",/([[:graph:]]+)([[:print:]])/,a),RLENGTH;print a[1]==\"\u00e9\ud83d\ude00\",a[2]==\" \",a[1,\"start\"],a[1,\"length\"],a[2,\"start\"],a[2,\"length\"]}"], [])
-            .WithStdOut("1 4\n1 1 1 3 4 1\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 3\n1 1 1 2 3 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-byte-coordinate",
             ["--characters-as-bytes", "BEGIN{print match(\"\u00e9\ud83d\ude00 \",/([[:graph:]]+)([[:print:]])/),RLENGTH}"], [])
             .WithStdOut("1 7\n").WithStdErr("").ExitsWith(0).Build();
@@ -235,7 +235,7 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("0\n1\n0\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-posix-capture-coordinate",
             ["--posix", "BEGIN{print match(\"\u00e9\ud83d\ude00 \",/([[:graph:]]+)([[:print:]])/),RLENGTH}"], [])
-            .WithStdOut("1 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-posix-separator-option",
             ["--posix", "-F", "[[:graph:]]+", "{printf \"%d:[%s]:[%s]:[%s]\\n\",NF,$1,$2,$3}"], [])
             .WithStandardInput("a\u00e9b c\ud83d\ude00d\n")
@@ -348,7 +348,7 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("0\n1\n0\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-traditional-capture-coordinate",
             ["--traditional", "BEGIN{print match(\"\u00e9\ud83d\ude00 \",/([[:graph:]]+)([[:print:]])/),RLENGTH}"], [])
-            .WithStdOut("1 4\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 3\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-traditional-separator-option",
             ["--traditional", "-F", "[[:graph:]]+", "{printf \"%d:[%s]:[%s]:[%s]\\n\",NF,$1,$2,$3}"], [])
             .WithStandardInput("a\u00e9b c\ud83d\ude00d\n")
@@ -361,10 +361,10 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("1 2\n9\n1 1 2\n1 1 1\n1 2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-nested-literal",
             ["BEGIN{a[\"old\"]=\"keep\";print match(\"\u00e9\ud83d\ude00\",/(([[:graph:]])([[:graph:]]))/,a),RLENGTH;print length(a);print a[0]==\"\u00e9\ud83d\ude00\",a[0,\"start\"],a[0,\"length\"];print a[1]==\"\u00e9\ud83d\ude00\",a[1,\"start\"],a[1,\"length\"];print a[2]==\"\u00e9\",a[2,\"start\"],a[2,\"length\"];print a[3]==\"\ud83d\ude00\",a[3,\"start\"],a[3,\"length\"];}"], [])
-            .WithStdOut("1 3\n12\n1 1 3\n1 1 3\n1 1 1\n1 2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 2\n12\n1 1 2\n1 1 2\n1 1 1\n1 2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-nested-dynamic",
             ["BEGIN{a[\"old\"]=\"keep\";p=\"(([[:graph:]])([[:graph:]]))\";print match(\"\u00e9\ud83d\ude00\",p,a),RLENGTH;print length(a);print a[0]==\"\u00e9\ud83d\ude00\",a[0,\"start\"],a[0,\"length\"];print a[1]==\"\u00e9\ud83d\ude00\",a[1,\"start\"],a[1,\"length\"];print a[2]==\"\u00e9\",a[2,\"start\"],a[2,\"length\"];print a[3]==\"\ud83d\ude00\",a[3,\"start\"],a[3,\"length\"];}"], [])
-            .WithStdOut("1 3\n12\n1 1 3\n1 1 3\n1 1 1\n1 2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 2\n12\n1 1 2\n1 1 2\n1 1 1\n1 2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-empty-literal",
             ["BEGIN{a[\"old\"]=\"keep\";print match(\"\u00e9\",/()([[:graph:]])/,a),RLENGTH;print length(a);print a[0]==\"\u00e9\",a[0,\"start\"],a[0,\"length\"];print a[1]==\"\",a[1,\"start\"],a[1,\"length\"];print a[2]==\"\u00e9\",a[2,\"start\"],a[2,\"length\"];}"], [])
             .WithStdOut("1 1\n9\n1 1 1\n1 1 0\n1 1 1\n").WithStdErr("").ExitsWith(0).Build();
@@ -379,10 +379,10 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("1 1\n6\n1 1 1\n0 0 0\n1 1 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-repeated-literal",
             ["BEGIN{a[\"old\"]=\"keep\";print match(\"\u00e9\ud83d\ude00\",/([[:graph:]])+/,a),RLENGTH;print length(a);print a[0]==\"\u00e9\ud83d\ude00\",a[0,\"start\"],a[0,\"length\"];print a[1]==\"\ud83d\ude00\",a[1,\"start\"],a[1,\"length\"];}"], [])
-            .WithStdOut("1 3\n6\n1 1 3\n1 2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 2\n6\n1 1 2\n1 2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-repeated-dynamic",
             ["BEGIN{a[\"old\"]=\"keep\";p=\"([[:graph:]])+\";print match(\"\u00e9\ud83d\ude00\",p,a),RLENGTH;print length(a);print a[0]==\"\u00e9\ud83d\ude00\",a[0,\"start\"],a[0,\"length\"];print a[1]==\"\ud83d\ude00\",a[1,\"start\"],a[1,\"length\"];}"], [])
-            .WithStdOut("1 3\n6\n1 1 3\n1 2 2\n").WithStdErr("").ExitsWith(0).Build();
+            .WithStdOut("1 2\n6\n1 1 2\n1 2 1\n").WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-print-gnu-capture-literal-parenthesis-literal",
             ["BEGIN{a[\"old\"]=\"keep\";print match(\"(\u00e9\",/[()]([[:graph:]])/,a),RLENGTH;print length(a);print a[0]==\"(\u00e9\",a[0,\"start\"],a[0,\"length\"];print a[1]==\"\u00e9\",a[1,\"start\"],a[1,\"length\"];}"], [])
             .WithStdOut("1 2\n6\n1 1 2\n1 2 1\n").WithStdErr("").ExitsWith(0).Build();

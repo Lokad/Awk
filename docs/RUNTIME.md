@@ -123,7 +123,7 @@ arrive as .NET strings and are strictly encoded; their original process bytes ar
 Unpaired UTF-16 surrogates fail with an awk text diagnostic rather than leaking encoding exceptions.
 
 For text, `length`, `index`, `substr`, `FIELDWIDTHS` and `%s` format width/precision count
-Unicode scalars by default; regex positions and capture lengths use UTF-16 code units.
+Unicode scalars by default, as do regex positions and capture lengths.
 `--characters-as-bytes` changes these units to UTF-8 bytes, but results and observable
 regex ranges must still end at scalar boundaries.
 Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--posix`
@@ -243,17 +243,20 @@ The [contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) keeps responsibilities
   providers own and admit any retained source. Case choice is invariant.
 - Providers select the earliest start, longest whole match and POSIX subexpression priority.
   Selection must not depend on the number of capture slots requested. Dot/classes operate
-  on complete Unicode scalars. Core validates byte/UTF-16 ranges before publishing captures.
-- Compiled handles report `GroupCount`, including group 0, and search from a UTF-16 offset
-  while preserving full-input assertion context. Fill every supplied capture slot, including
-  unmatched groups. Do not retain borrowed input, spans or operation tokens.
+  on complete Unicode scalars. Core checks byte bounds and scalar alignment before publication.
+- Compiled handles report `GroupCount`, including group 0. `CreateSearch` binds a complete,
+  immutable UTF-8 subject until disposal; scoped `Match` receives an absolute byte restart
+  and fills every supplied capture slot. Preserve complete-subject assertion context.
+  Captures contain participation and byte ranges only. Do not retain capture spans or tokens.
 - Construction and matching receive the active borrowed memory budget and current token.
   Providers own engine admission/protection and poll cancellation during work. Refused
   admission throws `AwkRegexAdmissionException`. There is no adapter-owned deadline.
 
 The application owns the engine and must allow concurrent compilation. Execution-local
 bounded caches own compiled handles, disposing them on eviction or cleanup. Disposal is
-idempotent and non-throwing. Awk funds translation, replacements and published captures
+deferred until active calls/searches finish. Dispose searches before releasing or changing
+their subject; disposal is idempotent and non-throwing. Awk funds scoped search metadata,
+translation, replacements and published captures
 through ordinary memory admission; it does not predict the provider's internal footprint.
 Regex literals require the provider during source validation, before effects; Awk releases its
 temporary validation handle. Dynamic patterns require the provider when prepared. Internal
@@ -266,7 +269,9 @@ with coarse estimates through the borrowed budget. The published provider has no
 hook; these estimates do not cover every engine allocation. Its string-only compilation API
 requires one adapter-owned UTF-8-to-string conversion per compilation, after admission.
 Core conversion counters exclude provider internals; zero core conversions do not establish
-native end-to-end compilation. Range-only searches avoid detailed
+native end-to-end execution. The published restart API uses UTF-16 offsets; a search scope
+tracks the corresponding offset incrementally without copying or rescanning subject prefixes.
+Range-only searches avoid detailed
 capture shaping, and sparse provider groups map to dense AWK slots. Compilation and searches use the producer's cooperative token
 APIs without independent construction or matching deadlines. A compiled handle does not
 retain its compilation token. POSIX longest-match and subcapture selection remain conformance

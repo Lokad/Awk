@@ -1085,9 +1085,8 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRegex PrepareContinuingRecordSeparator(AwkRegex regex) =>
         _regexRuntime.PrepareContinuingRecordSeparator(regex);
 
-    public AwkRegexMatchSpan MatchRecordSeparatorSpan(AwkRegex regex, AwkText input,
-        AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset) =>
-        _regexRuntime.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset);
+    public AwkRegexRuntime.Search OpenRecordSeparatorSearch(AwkRegex regex, AwkText input, int recordStart) =>
+        _regexRuntime.OpenSearch(regex, input, recordStart);
 
     public AwkRegex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);

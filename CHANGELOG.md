@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+- **Breaking regex-provider API:** replace stateless UTF-16 matching with `CreateSearch`
+  over a borrowed immutable UTF-8 subject. Scoped `Match` takes absolute byte offsets;
+  `AwkRegexCaptureRange` contains only participation and byte index/length. Dispose each
+  search before releasing its subject; active calls/searches keep compiled handles alive
+  through cache eviction. Direct `IsMatch` remains capture-free.
+- Correct default regex positions and capture lengths to count Unicode scalars, matching
+  ordinary string operations. For `a😀b`, matching `b` now reports RSTART 3; explicit byte
+  mode still reports 6. Consumers relying on UTF-16 positions must update their indexing.
 - **Breaking regex-provider API:** `TryCompile` now borrows a `ReadOnlySpan<byte>` UTF-8
   pattern. Core translation, warning history and cache keys stay byte-native. Providers
   must own and admit retained source; the example adapts the published provider's string
-  compilation API. Matching offsets and language positions are unchanged by this slice.
+  compilation API.
 - **Breaking host API:** `OpenFileAsync` receives `AwkPathRequest` with original path text,
   explicit cwd and an optional accessible root. Hosts traverse and authorize before effects;
   `Opened(descriptor, resolvedPath)` supplies their stable canonical identity. Core no longer

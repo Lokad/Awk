@@ -56,10 +56,4 @@ internal sealed partial class AwkRegexRuntime
         finally { builder?.Dispose(); }
     }
 
-    public AwkRegexMatchSpan MatchRecordSeparatorSpan(AwkRegex regex, AwkText input,
-        AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset)
-    {
-        _throwIfCancellationRequested();
-        return MatchSpanCore(regex, input, searchOffset, recordStart);
-    }
 }
