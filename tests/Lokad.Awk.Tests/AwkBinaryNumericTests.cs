@@ -20,7 +20,7 @@ public sealed class AwkBinaryNumericTests
             AwkExpression.Multiply(Field(1), AwkExpression.Number(2)), Field(2));
         Assert.Equal(17, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
         Assert.Equal(allocations, counters.AwkTextAllocations);
-        bytes[2] = (byte)'8';
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("008 3 tail"));
         Assert.Equal(19, await expression.ResolveNumberAsync(new AwkEvaluationContext(state)));
         state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
         Assert.Equal(5.5, await expression.ResolveNumberAsync(new AwkEvaluationContext(state)));

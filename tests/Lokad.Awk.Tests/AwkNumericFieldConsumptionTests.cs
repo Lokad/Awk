@@ -5,7 +5,7 @@ public sealed class AwkNumericFieldConsumptionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void NumericReadConsumesBorrowedBytesWithoutCachingAndRespectsModifiedValues(bool governed)
+    public void NumericReadsKeepTextBorrowedAndRespectRecordAndFieldWrites(bool governed)
     {
         using var memory = State(governed);
         var state = memory.State;
@@ -18,7 +18,7 @@ public sealed class AwkNumericFieldConsumptionTests
         var allocations = counters.AwkTextAllocations;
         Assert.Equal(7, state.GetFieldNumber(2));
         Assert.Equal(allocations, counters.AwkTextAllocations);
-        bytes[4] = (byte)'8';
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("k 008"));
         Assert.Equal(8, state.GetFieldNumber(2));
         state.AssignFieldValue(2, AwkValue.FromNumber(1.25));
         Assert.Equal(1.25, state.GetFieldNumber(2));

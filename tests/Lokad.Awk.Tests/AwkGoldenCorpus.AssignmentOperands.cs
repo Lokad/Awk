@@ -4,6 +4,26 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> AssignmentOperandCompatibilityRepairs()
     {
+        yield return Passing("numeric-field-reuse-copy-does-not-alias-cache-slots",
+            ["{a=$2+0;b=$3+0}{$3=$2}{$2=\"0009\"}{print $0,$2+0,$3+0;NF=2;print $0}"],
+            [], "k 0009 0007 9 7\nk 0009\n", "k 0007 0008\n");
+        yield return Passing("numeric-field-reuse-keeps-key-and-value-spelling",
+            ["{n=$2+0;a[$2]=1;print n,$2,(\"0007\" in a),(\"7\" in a),($2==7)}"],
+            [], "7 0007 1 0 1\n", "k 0007 tail\n");
+        yield return Passing("numeric-field-reuse-keeps-copy-and-record-spelling",
+            ["{n=$2+0;$3=$2;print $0,$2+0,$3+0}"], [], "k 0007 0007 7 7\n", "k 0007 tail\n");
+        yield return Passing("numeric-field-reuse-survives-nf-shrink-and-growth",
+            ["{x=$2+0;y=$4+0;NF=2;print $0,$2+0;NF=4;$4=\"0009\";print $0,$2+0,$4+0}"],
+            [], "k 0007 7\nk 0007  0009 7 9\n", "k 0007 t 0008\n");
+        yield return Passing("numeric-field-reuse-keeps-escaping-value-origin",
+            ["function identity(x){return x}{n=$2+0;v=identity($2);$0=\"new 9\";print n,v,(v==7),length(v)}"],
+            [], "7 0007 1 4\n", "k 0007 tail\n");
+        yield return Passing("numeric-field-reuse-keeps-prefix-classification-and-truth",
+            ["{x=$2+0;y=$3+0;print x,$2,($2==12),y,($3?1:0),($3==0)}"],
+            [], "12 12x 0 0 1 0\n", "k 12x abc\n");
+        yield return Passing("numeric-field-reuse-keeps-prefix-cache-through-split-completion",
+            ["{x=$1+0;print NF,$1,x}"], [], "41 0007 7\n",
+            "0007 " + string.Join(' ', Enumerable.Repeat("text", 40)) + "\n");
         yield return Passing("numeric-updates-preserve-input-field-spelling-across-targets",
             ["function update(x){x+=$2;return x}{x=8;x+=$2;a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]+=$2;print x,update(8),a[\"row\"][\"sum\"],$2,$2==2;$1+=$2;print $1,$2}"],
             [], "10 10 10 0002 1\n10 0002\n", "8 0002\n");

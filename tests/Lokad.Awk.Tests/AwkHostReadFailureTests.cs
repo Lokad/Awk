@@ -73,6 +73,8 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     [InlineData("complete", "argument")] [InlineData("cancel", "argument")] [InlineData("refuse", "argument")]
     [InlineData("complete", "condition")] [InlineData("cancel", "condition")] [InlineData("refuse", "condition")]
     [InlineData("complete", "return")] [InlineData("cancel", "return")] [InlineData("refuse", "return")]
+    [InlineData("complete", "numeric-field")] [InlineData("cancel", "numeric-field")] [InlineData("refuse", "numeric-field")]
+    [InlineData("complete", "field-index")] [InlineData("cancel", "field-index")] [InlineData("refuse", "field-index")]
     public async Task OrdinaryFunctionResumesPendingArgumentConditionOrReturnOnce(string outcome, string position)
     {
         var host = new MockFileSystem();
@@ -90,6 +92,10 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         };
         var source = "function more(){getline;return $1} " + (position switch
         {
+            "numeric-field" => "function score(a,b,c,d,e){return a+b+c+d+e} " +
+                "BEGIN{$0=\"7 row\";seed=$1+0;print \"ready\";for(i=0;i<1;i++)result=score($1,more(),1,2,3);print result;exit}",
+            "field-index" => "function fieldno(){getline;return 1}function score(a,b,c,d,e){return a+b+c+d+e} " +
+                "BEGIN{$0=\"7 row\";seed=$1+0;print \"ready\";result=score($(fieldno()),1,2,3,7);print result;exit}",
             "condition" => "function score(a,b,c,d,e,t,i){t=a;for(i=0;i<2;i++){if(i==0)continue;if(more())t+=b+c+d+e};return t} " +
                 "BEGIN{$0=\"7 row\";print \"ready\";result=score($1,1,2,3,4);print result;exit}",
             "return" => "function score(a,b,c,d,e,t,i){t=a;for(i=0;i<2;i++){if(i==0)continue;return more()+t+b+c+d+e};return 0} " +

@@ -21,7 +21,9 @@ public sealed class AwkSynchronousPredicateTests
         var context = new AwkEvaluationContext(state);
         Assert.Equal(1, (await predicate.EvaluateAsync(context)).AsNumber());
         Assert.Equal(before, counters.AwkTextAllocations);
-        bytes[0] = (byte)'1';
+        var replacement = AwkText.FromSourceLiteralString("1 needle");
+        state.SetCurrentRecord(replacement);
+        before = counters.AwkTextAllocations;
         Assert.Equal(0, (await predicate.EvaluateAsync(context)).AsNumber());
         Assert.Equal(before, counters.AwkTextAllocations);
     }
