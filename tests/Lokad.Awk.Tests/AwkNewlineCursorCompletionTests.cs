@@ -44,7 +44,7 @@ public sealed class AwkNewlineCursorCompletionTests
                     Assert.True(completion.TrySetResult(AwkReadResult.EndOfFile));
                     break;
                 case 2:
-                    Assert.True(completion.TrySetResult(AwkReadResult.Failure(new AwkOperationError("expected read failure"))));
+                    Assert.True(completion.TrySetResult(AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "expected read failure"))));
                     break;
                 case 3:
                     Assert.True(completion.TrySetException(fault));

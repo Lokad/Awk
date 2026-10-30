@@ -117,12 +117,12 @@ public sealed class AwkPipeMemoryTests
                 RecordsRead == rows ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData));
         }
 
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             if (descriptor == AwkFileDescriptor.StdErr) _error.Append(Encoding.UTF8.GetString(content.Span));
             else { OnAppend?.Invoke(descriptor); Writes++; }
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
 
         public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command,
@@ -155,6 +155,6 @@ public sealed class AwkPipeMemoryTests
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
-            Task.FromResult(AwkOpenedFile.Failure(new AwkOperationError("No files in this host.")));
+            Task.FromResult(AwkOpenedFile.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "No files in this host.")));
     }
 }

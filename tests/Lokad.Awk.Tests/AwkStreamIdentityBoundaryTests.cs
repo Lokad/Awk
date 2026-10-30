@@ -182,7 +182,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         public List<int> Reads { get; } = [];
         public List<int> Closes { get; } = [];
         public Func<Task<AwkReadResult>>? PendingRead { get; init; }
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) => Inner.AppendAsync(descriptor, content, token);
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) => Inner.AppendAsync(descriptor, content, token);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         { Opens.Add(path.Path); return Inner.OpenFileAsync(path, mode, token); }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)

@@ -92,7 +92,7 @@ public sealed class MockFileSystem : IAwkHost
         return Task.FromResult(AwkExitCode.Success);
     }
 
-    public Task<AwkExitCode> AppendAsync(
+    public Task<AwkAppendResult> AppendAsync(
         AwkFileDescriptor fileDescriptor,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
@@ -101,12 +101,13 @@ public sealed class MockFileSystem : IAwkHost
         if (fileDescriptor.IsDevNull)
         {
             AfterAppend?.Invoke();
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
 
         var result = _descriptors.Append(fileDescriptor, content);
         AfterAppend?.Invoke();
-        return Task.FromResult(new AwkExitCode(result));
+        return Task.FromResult(result == 0 ? AwkAppendResult.Accepted() :
+            AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "Descriptor is not writable.")));
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
@@ -199,6 +200,6 @@ public sealed class MockFileSystem : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(AwkPipeCreationResult.NotSupported(
-            new AwkOperationError("MockFileSystem does not create pipes.")));
+            new AwkOperationError(AwkOperationErrorKind.IoFailure, "MockFileSystem does not create pipes.")));
     }
 }

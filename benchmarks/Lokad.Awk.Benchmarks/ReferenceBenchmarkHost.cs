@@ -14,7 +14,7 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
         Func<AwkFileDescriptor, int, CancellationToken, Task<AwkReadResult>>? readOverride = null)
         : this(workload.Files, workload.StandardInput, capture, readOverride) { }
 
-    public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
+    public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -24,7 +24,7 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
             _stderr.Append(content.Span);
         else
             throw new InvalidOperationException("Comparison workloads cannot write another descriptor.");
-        return Task.FromResult(AwkExitCode.Success);
+        return Task.FromResult(AwkAppendResult.Accepted());
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
@@ -72,7 +72,7 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
 
     public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken) =>
         Task.FromResult(AwkPipeCreationResult.NotSupported(
-            new AwkOperationError("Benchmark host does not create pipes.")));
+            new AwkOperationError(AwkOperationErrorKind.NotSupported, "Benchmark host does not create pipes.")));
 
     public ReferenceExecutionResult Finish(int exit)
     {

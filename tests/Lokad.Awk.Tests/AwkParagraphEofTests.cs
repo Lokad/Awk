@@ -15,7 +15,7 @@ public sealed class AwkParagraphEofTests
         host.EnqueueCommandExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode(first), [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode(last), [], AwkReadCompletion.EndOfFile));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -45,7 +45,7 @@ public sealed class AwkParagraphEofTests
                 ? AwkReadResult.EndOfFile
                 : ++reads == 1
                     ? AwkReadResult.FromContent("\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
-                    : AwkReadResult.Failure(new AwkOperationError("Device read failed"))
+                    : AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/data", "ignored");
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -236,7 +236,7 @@ public sealed class AwkParagraphEofTests
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n"u8.ToArray(), [], AwkReadCompletion.MoreData));
-        host.EnqueueAwkReadResult(AwkReadResult.Failure(new AwkOperationError("Device read failed")));
+        host.EnqueueAwkReadResult(AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed")));
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));

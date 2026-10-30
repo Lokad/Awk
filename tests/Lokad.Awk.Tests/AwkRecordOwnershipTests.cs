@@ -204,7 +204,7 @@ public sealed class AwkRecordOwnershipTests
         public Func<Task>? Pending { get; init; }
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
-        public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             var text = Encoding.UTF8.GetString(content.Span);
             if (descriptor == AwkFileDescriptor.StdErr) Error += text;
@@ -214,7 +214,7 @@ public sealed class AwkRecordOwnershipTests
                 Observe?.Invoke(text.TrimEnd('\n'));
                 if (text == "held\n" && Pending is { } pending) await pending().ConfigureAwait(false);
             }
-            return AwkExitCode.Success;
+            return AwkAppendResult.Accepted();
         }
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Task.FromResult(AwkReadResult.EndOfFile);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => Task.FromResult(AwkOpenedFile.MissingFile());

@@ -175,7 +175,7 @@ public sealed class AwkCsvHostTests
             return AwkReadResult.FromContent(_scratch.AsMemory(0, count), [],
                 _position == input.Length ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData);
         }
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
         {
             if (descriptor == AwkFileDescriptor.StdOut)
             {
@@ -183,7 +183,7 @@ public sealed class AwkCsvHostTests
                 AfterOutput?.Invoke();
             }
             else if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(bytes.Span);
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         {

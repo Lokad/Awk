@@ -183,7 +183,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "first\n"u8.ToArray(),
             [],
             AwkReadCompletion.MoreData));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -200,13 +200,13 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "a\nb|"u8.ToArray(),
             [2],
             AwkReadCompletion.MoreData));
-        host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             "c\n"u8.ToArray(),
             [],
             AwkReadCompletion.EndOfFile));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var program = "{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); " +
             "print NR \":\" record \"[\" terminator \"]\"; if(NR==1) RS=\"|\"}";
@@ -228,7 +228,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "first|second|"u8.ToArray(),
             [],
             AwkReadCompletion.MoreData));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -943,7 +943,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                     ? AwkReadCompletion.EndOfFile
                     : AwkReadCompletion.MoreData));
             for (var appendIndex = 0; appendIndex < appendsAfterBatch[index]; appendIndex++)
-                host.EnqueueAppendExitCode(0);
+                host.EnqueueAppendResult(AwkAppendResult.Accepted());
         }
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
@@ -990,7 +990,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                     : AwkReadCompletion.MoreData));
         }
 
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -1028,7 +1028,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                     : AwkReadCompletion.MoreData));
         }
 
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -1048,13 +1048,13 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "xfirst,"u8.ToArray(),
             [],
             AwkReadCompletion.MoreData));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             "xsecond"u8.ToArray(),
             [],
             AwkReadCompletion.EndOfFile));
-        host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -1107,8 +1107,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "next"u8.ToArray(),
             [],
             AwkReadCompletion.EndOfFile));
-        host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -1130,7 +1130,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "first,second;"u8.ToArray(),
             [],
             AwkReadCompletion.MoreData));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -1171,7 +1171,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "first paragraph\n\nsecond paragraph\n"u8.ToArray(),
             [],
             AwkReadCompletion.MoreData));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);

@@ -36,6 +36,8 @@ or environment dependencies.
   not leaked CLR exception text.
 - Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one
   status, and `CreatePipeAsync` accepts only a cancellation token.
+- Appends return `AwkAppendResult`, separately from command exit statuses. Only full acceptance
+  leaves output writable; terminal closure/failure must never cause payload or diagnostic replay.
 - Regex providers own engine allocation admission and engine-specific protection. Keep the
   existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
   Providers own match selection and scalar matching; Awk owns AWK translation, validated capture

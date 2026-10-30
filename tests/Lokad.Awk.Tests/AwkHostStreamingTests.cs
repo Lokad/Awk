@@ -10,8 +10,8 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
         var observedBeforeAppend = new List<string>();
         var host = new TestOperationVisitor([]);
         host.BeforeAppend = () => observedBeforeAppend.Add(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
-        host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -69,23 +69,23 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             return _commandCompletion.Task;
         }
 
-        public Task<AwkExitCode> AppendAsync(
+        public Task<AwkAppendResult> AppendAsync(
             AwkFileDescriptor fileDescriptor,
             ReadOnlyMemory<byte> content,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (fileDescriptor != PipeWriteDescriptor)
-                return Task.FromResult(AwkExitCode.Success);
+                return Task.FromResult(AwkAppendResult.Accepted());
 
             CommandWasRunningDuringAppend |= !_commandCompletion.Task.IsCompleted;
             if (WriteDescriptorClosed || content.Length > capacityBytes)
-                return Task.FromResult(new AwkExitCode(1));
+                return Task.FromResult(AwkAppendResult.DownstreamClosed());
 
             _bufferedBytes += content.Length;
             MaxBufferedBytes = Math.Max(MaxBufferedBytes, _bufferedBytes);
             _bufferedBytes = 0;
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
 
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)

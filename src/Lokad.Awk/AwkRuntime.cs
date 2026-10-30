@@ -105,12 +105,21 @@ internal static class AwkRuntime
         catch (AwkRuntimeException exception)
         {
             io.CancelCommandsForCleanup();
+            var canReport = exception is not AwkHostAppendException append || append.Descriptor != stdio.StdErr;
             try
             {
-                try { await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false); }
+                try
+                {
+                    if (canReport)
+                        await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
+                }
+                catch (AwkHostAppendException appendFailure) when (appendFailure.Descriptor == stdio.StdErr)
+                { canReport = false; }
                 catch (AwkRuntimeException) { /* Preserve the failure that triggered cleanup. */ }
             }
             finally { await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false); }
+            if (!canReport)
+                return AwkDiagnostics.FatalExitCode;
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
@@ -118,7 +127,7 @@ internal static class AwkRuntime
                     host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken),
                     cancellationToken)
                 .ConfigureAwait(false);
-            return appendStatus.Succeeded
+            return appendStatus.IsAccepted
                 ? failure.ExitCode
                 : AwkDiagnostics.FatalExitCode;
         }

@@ -5,7 +5,8 @@ direct filesystem, process, console, networking, reflection or native-loading ac
 Core disables unsafe C#; the host, parser and selected regex engine remain trusted code.
 The embedding boundary does not provide OS isolation.
 
-This guide covers 0.5.0. Version 0.3.0 retains the earlier quota/deadline APIs;
+This guide describes the development checkout. See the changelog for released APIs.
+Version 0.3.0 retains the earlier quota/deadline APIs;
 [migration notes](../CHANGELOG.md#040) describe their removal.
 
 ## Host authority
@@ -53,6 +54,21 @@ continues. Hosts may buffer physical I/O; append completion acknowledges the byt
 borrowed-buffer lifetime. There is no separate host callback for physical flushing. File
 `fflush` closes the current output descriptor while retaining the stream name for a later
 append-mode reopen. Output-pipe flush does not close the pipe or wait for its command.
+
+`AppendAsync` returns `Task<AwkAppendResult>`. Return `Accepted()` only after accepting the
+entire payload with the destination still open. `DownstreamClosed()` and `Failure(error)`
+are terminal and make no promise about an accepted prefix; Awk never retries the payload.
+Neither outcome retires the descriptor. For ordinary stdout, closure stops execution with
+status 2 and `awk: standard output: downstream closed`. Redirected files and pipes also
+stop with status 2, identifying their descriptor; command status is a separate result.
+Write failures report the filtered host cause. No later statements or END actions run;
+cleanup still awaits command users and closes owned descriptors. If stderr itself fails
+or closes, Awk returns status 2 without attempting another diagnostic to that destination.
+Help/version and diagnostic appends also require full acceptance and return status 2 on failure.
+
+Construct `AwkOperationError(kind, message)` with a safe, unprefixed message and a cause:
+`NotFound`, `PermissionDenied`, `NotSupported`, `IoFailure`, or `Unspecified`. Classification
+does not replace diagnostic filtering or turn cancellation/refused admission into I/O errors.
 
 `CloseDescriptorAsync` returns `AwkDescriptorCloseResult`. `Closed()` reports success and
 ends ownership. `Failure(error, descriptorRetired: true)` reports an expected close/final-flush

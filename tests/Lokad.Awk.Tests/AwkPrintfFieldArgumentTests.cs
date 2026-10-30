@@ -48,13 +48,13 @@ public sealed class AwkPrintfFieldArgumentTests
                 Assert.True(budget.Reserved > 0);
                 Assert.Equal(expected, System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
             }
-            host.Release.TrySetResult(AwkExitCode.Success);
+            host.Release.TrySetResult(AwkAppendResult.Accepted());
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             else Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
         }
         finally
         {
-            host.Release.TrySetResult(AwkExitCode.Success);
+            host.Release.TrySetResult(AwkAppendResult.Accepted());
             try { await run; } catch (OperationCanceledException) when (cancel) { }
             await io.CloseAsync();
             executor.Dispose();
@@ -84,8 +84,8 @@ public sealed class AwkPrintfFieldArgumentTests
         private readonly MockFileSystem _files = new();
         public ReadOnlyMemory<byte> Bytes { get; private set; }
         public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<AwkExitCode> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
+        public TaskCompletionSource<AwkAppendResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
         {
             Bytes = bytes;
             Entered.TrySetResult(true);

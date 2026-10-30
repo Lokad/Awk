@@ -637,7 +637,7 @@ public sealed class AwkPublicBoundaryTests
     [Fact]
     public void AwkOperationError_RequiresTextAndDefaultsToAHostSafeMessage()
     {
-        Assert.Throws<ArgumentException>(() => new AwkOperationError(string.Empty));
+        Assert.Throws<ArgumentException>(() => new AwkOperationError(AwkOperationErrorKind.IoFailure, string.Empty));
         Assert.Equal("Operation failed.", default(AwkOperationError).Message);
     }
 

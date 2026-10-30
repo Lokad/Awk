@@ -223,7 +223,7 @@ public sealed class AwkOpaquePipeTests
             if (descriptor.Id == 81) cancellation.Cancel();
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         };
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         Assert.True(Awk.TryParse(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{cmd=\"worker a:b\";print \"pipe\"|cmd;print close(cmd);print \"unreached\"}"), out var awk));
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>

@@ -98,7 +98,7 @@ public sealed class AwkOutputOwnershipTests
         public string Error { get; private set; } = "";
         public Func<Task>? PendingHeld { get; init; }
 
-        public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(content.Span);
             else if (descriptor == AwkFileDescriptor.StdOut)
@@ -109,7 +109,7 @@ public sealed class AwkOutputOwnershipTests
                     await pending().ConfigureAwait(false);
             }
             else return await Files.AppendAsync(descriptor, content, token).ConfigureAwait(false);
-            return AwkExitCode.Success;
+            return AwkAppendResult.Accepted();
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         { Opened++; return Files.OpenFileAsync(path, mode, token); }

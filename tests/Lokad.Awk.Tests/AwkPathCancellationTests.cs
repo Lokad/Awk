@@ -67,7 +67,7 @@ public sealed class AwkPathCancellationTests
         }
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) =>
             Files.RunCommandAsync(command, token);
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) =>
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token) =>
             Files.AppendAsync(descriptor, content, token);
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) =>
             Files.CloseDescriptorAsync(descriptor, token);

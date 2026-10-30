@@ -46,7 +46,7 @@ internal sealed class AwkRecordDescriptorReader
         {
             throw new AwkHostReadException(
                 descriptor,
-                new AwkOperationError(AwkHostBoundaryPolicy.ResolveError(
+                new AwkOperationError(result.Error.Kind, AwkHostBoundaryPolicy.ResolveError(
                     result.Error,
                     _exposeHostErrorDetails,
                     _maxHostErrorBytes)));

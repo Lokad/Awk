@@ -31,7 +31,7 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         throw new InvalidOperationException("Expected a pipe command.");
     }
 
-    public Task<AwkExitCode> AppendAsync(
+    public Task<AwkAppendResult> AppendAsync(
         AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -40,7 +40,7 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         Assert.Equal(pipe.Write, descriptor);
         Assert.True(pipe.WriteOpen);
         Writes.Add(content.ToArray());
-        return Task.FromResult(AwkExitCode.Success);
+        return Task.FromResult(AwkAppendResult.Accepted());
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken) =>

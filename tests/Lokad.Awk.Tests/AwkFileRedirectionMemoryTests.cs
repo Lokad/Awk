@@ -165,7 +165,7 @@ public sealed class AwkFileRedirectionMemoryTests
         public Action<AwkPath, AwkFileOpenMode>? OnOpen { get; init; }
         public Func<Task>? BeforeClose { get; init; }
 
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             if (descriptor == AwkFileDescriptor.StdOut)
@@ -175,7 +175,7 @@ public sealed class AwkFileRedirectionMemoryTests
             }
             else if (descriptor == AwkFileDescriptor.StdErr) _error.Append(Encoding.UTF8.GetString(content.Span));
             else Assert.Contains(descriptor, OpenDescriptors);
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)

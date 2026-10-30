@@ -14,7 +14,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         {
             ReadLinesOverride = (_, _) => readCount++ == 0
                 ? AwkReadResult.FromContent("one\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
-                : AwkReadResult.Failure(new AwkOperationError("Device read failed"))
+                : AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print}"));
 
@@ -33,7 +33,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         var host = new MockFileSystem
         {
             ReadLinesOverride = (_, _) =>
-                AwkReadResult.Failure(new AwkOperationError("Device read failed"))
+                AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/data.txt", "unread");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
@@ -55,7 +55,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         var host = new MockFileSystem
         {
             ReadLinesOverride = (_, _) =>
-                AwkReadResult.Failure(new AwkOperationError("Device read failed"))
+                AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/script.awk", "BEGIN{print \"unread\"}");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
@@ -92,7 +92,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     public void AwkReadResult_SeparatesEndOfFileFromFailure()
     {
         var endOfFile = AwkReadResult.EndOfFile;
-        var failure = AwkReadResult.Failure(new AwkOperationError("Device read failed"));
+        var failure = AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
 
         Assert.True(endOfFile.Success);
         Assert.True(endOfFile.ReachedEof);

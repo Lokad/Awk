@@ -111,7 +111,7 @@ public sealed class AwkCompiledWarningTests
         }
         finally
         {
-            host.Release.TrySetResult(AwkExitCode.Success);
+            host.Release.TrySetResult(AwkAppendResult.Accepted());
             cancellation.Cancel();
         }
     }
@@ -169,9 +169,9 @@ public sealed class AwkCompiledWarningTests
         private bool _first = true;
         public MockFileSystem Files { get; } = new();
         public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<AwkExitCode> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<AwkAppendResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
         {
             if (!_first) return Files.AppendAsync(descriptor, bytes, token);
             _first = false;
@@ -179,7 +179,7 @@ public sealed class AwkCompiledWarningTests
             return failure switch
             {
                 "throw" => throw new IOException("Private host exception must not escape."),
-                "reject" => Task.FromResult(AwkExitCode.FatalError),
+                "reject" => Task.FromResult(AwkAppendResult.Failure(default)),
                 _ => Release.Task.WaitAsync(token)
             };
         }

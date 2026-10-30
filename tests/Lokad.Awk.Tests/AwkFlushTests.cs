@@ -92,9 +92,9 @@ public sealed class AwkFlushTests
             }
             else
             {
-                host.Release.SetResult(completion == "success" ? AwkExitCode.Success : AwkExitCode.FatalError);
+                host.Release.SetResult(completion == "success" ? AwkAppendResult.Accepted() : AwkAppendResult.Failure(default));
                 if (completion == "success") Assert.Equal(AwkStatementFlow.Continue, await pending);
-                else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await pending);
+                else await Assert.ThrowsAnyAsync<AwkRuntimeException>(async () => await pending);
             }
             Assert.Equal(completion == "success", continued);
             Assert.Equal(completion != "success", output.HasPendingOutput);
@@ -103,7 +103,7 @@ public sealed class AwkFlushTests
         }
         finally
         {
-            host.Release.TrySetResult(AwkExitCode.FatalError);
+            host.Release.TrySetResult(AwkAppendResult.Failure(default));
             await io.CloseAsync();
         }
     }
@@ -112,9 +112,9 @@ public sealed class AwkFlushTests
     {
         private readonly MockFileSystem _files = new();
         public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<AwkExitCode> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<AwkAppendResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ReadOnlyMemory<byte> Content { get; private set; }
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             Content = content;
             Entered.TrySetResult(true);

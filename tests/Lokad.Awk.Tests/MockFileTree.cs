@@ -53,7 +53,7 @@ internal sealed class MockFileTree
 
     public void AddReadOpenError(string path, string message)
     {
-        _readOpenErrors[ParsePath(path)] = new AwkOperationError(message);
+        _readOpenErrors[ParsePath(path)] = new AwkOperationError(AwkOperationErrorKind.IoFailure, message);
     }
 
     public bool FileExists(string path)
@@ -81,7 +81,7 @@ internal sealed class MockFileTree
             return MockReadOpenResult.MissingFile.Instance;
 
         if (node is DirectoryNode)
-            return new MockReadOpenResult.Failure(new AwkOperationError("Is a directory"));
+            return new MockReadOpenResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Is a directory"));
 
         return new MockReadOpenResult.Opened(((FileNode)node).Content);
     }
@@ -99,10 +99,10 @@ internal sealed class MockFileTree
             return OperationFailedWrite();
 
         if (existing is FileNode existingFile && existingFile.Permission == AwkFileTreePermission.ReadOnly)
-            return new MockWriteOpenResult.Failure(new AwkOperationError("Permission denied"));
+            return new MockWriteOpenResult.Failure(new AwkOperationError(AwkOperationErrorKind.PermissionDenied, "Permission denied"));
 
         if (!hasExisting && parent.Permission == AwkFileTreePermission.ReadOnly)
-            return new MockWriteOpenResult.Failure(new AwkOperationError("Permission denied"));
+            return new MockWriteOpenResult.Failure(new AwkOperationError(AwkOperationErrorKind.PermissionDenied, "Permission denied"));
 
         var initialContent = mode == AwkFileOpenMode.WriteAppend && existing is FileNode file
             ? file.Content
@@ -116,7 +116,7 @@ internal sealed class MockFileTree
         });
 
         static MockWriteOpenResult.Failure OperationFailedWrite() =>
-            new MockWriteOpenResult.Failure(new AwkOperationError("Operation failed."));
+            new MockWriteOpenResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Operation failed."));
     }
 
     private DirectoryNode EnsureDirectory(

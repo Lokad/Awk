@@ -85,11 +85,11 @@ public sealed class AwkPipeFailureCancellationTests
             return Task.FromResult(AwkReadResult.FromContent("x\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
         }
 
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
         {
             if (descriptor.Id != 81) return Files.AppendAsync(descriptor, bytes, token);
             OnPipeActivity?.Invoke();
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>

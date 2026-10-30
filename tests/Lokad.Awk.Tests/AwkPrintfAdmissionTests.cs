@@ -35,8 +35,8 @@ public sealed class AwkPrintfAdmissionTests
     {
         var budget = new CooperativeTestBudget(128 << 10);
         var host = new TestOperationVisitor([]);
-        host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var script = "BEGIN{print \"before\";printf \"prefix%1000000c\",\"" + value +
             "\";print \"after\"}END{print \"end\"}";
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
@@ -79,8 +79,8 @@ public sealed class AwkPrintfAdmissionTests
     {
         var budget = new CooperativeTestBudget(1_200_000);
         var host = new TestOperationVisitor([]);
-        host.EnqueueAppendExitCode(0); // Earlier output.
-        host.EnqueueAppendExitCode(0); // Admission diagnostic.
+        host.EnqueueAppendResult(AwkAppendResult.Accepted()); // Earlier output.
+        host.EnqueueAppendResult(AwkAppendResult.Accepted()); // Admission diagnostic.
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{print \"before\";printf \"" + format + "\",1000000,1.25;print \"after\"}"], []));
         var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);

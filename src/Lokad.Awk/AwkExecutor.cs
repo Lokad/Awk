@@ -101,7 +101,7 @@ internal static class AwkExecutor
                     host.AppendAsync(descriptor, content, cancellationToken),
                     cancellationToken)
                 .ConfigureAwait(false);
-            return status.Succeeded
+            return status.IsAccepted
                 ? successExitCode
                 : AwkDiagnostics.FatalExitCode;
         }
@@ -230,6 +230,8 @@ internal static class AwkExecutor
         IAwkHost host, AwkFileDescriptor stderr, AwkRuntimeOptions options,
         AwkRuntimeException exception, CancellationToken cancellationToken)
     {
+        if (exception is AwkHostAppendException append && append.Descriptor == stderr)
+            return AwkDiagnostics.FatalExitCode;
         var failure = AwkDiagnostics.Runtime(exception);
         options.Counters.RecordHostCall();
         options.Counters.RecordOutputBytes(failure.Message.Length);
@@ -238,7 +240,7 @@ internal static class AwkExecutor
             var status = await AwkHostBoundaryPolicy.AwaitAsync(
                     host.AppendAsync(stderr, failure.Message, cancellationToken), cancellationToken)
                 .ConfigureAwait(false);
-            return status.Succeeded ? failure.ExitCode : AwkDiagnostics.FatalExitCode;
+            return status.IsAccepted ? failure.ExitCode : AwkDiagnostics.FatalExitCode;
         }
         catch (Exception)
         {

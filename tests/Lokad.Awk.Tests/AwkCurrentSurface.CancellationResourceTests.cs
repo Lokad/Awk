@@ -192,8 +192,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_StandardOutputAppendFailureFailsExecution()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAppendExitCode(7);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "destination failed")));
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{print \"x\"}"));
 
@@ -201,7 +201,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
-            "awk: file descriptor 1: append failed with status 7\n",
+            "awk: standard output: write failed: destination failed\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
     }
 
@@ -210,7 +210,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueOpenAwkFileDescriptor(3);
-        host.EnqueueAppendExitCode(9);
+        host.EnqueueAppendResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "destination failed")));
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
             host,
@@ -224,14 +224,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state,
             static _ => []);
 
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
+        var exception = await Assert.ThrowsAnyAsync<AwkRuntimeException>(
             () => io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
                 "/out.txt",
                 AwkOutputRedirectionKind.Write,
                 "x\n")));
 
         Assert.Equal(
-            "awk: file descriptor 3: append failed with status 9\n",
+            "awk: file descriptor 3: write failed: destination failed\n",
             AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(AwkDiagnosticId.HostIoFailure, exception.Id);
     }

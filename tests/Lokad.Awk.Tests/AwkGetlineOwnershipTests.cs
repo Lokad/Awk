@@ -146,7 +146,7 @@ public sealed class AwkGetlineOwnershipTests
         public bool Input { get; init; }
         public Func<Task>? Held { get; init; }
         public Func<Task>? PendingRead { get; init; }
-        public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(content.Span);
             else if (descriptor == AwkFileDescriptor.StdOut)
@@ -154,7 +154,7 @@ public sealed class AwkGetlineOwnershipTests
                 Output += Encoding.UTF8.GetString(content.Span);
                 if (content.Span.SequenceEqual("held\n"u8) && Held is { } held) await held().ConfigureAwait(false);
             }
-            return AwkExitCode.Success;
+            return AwkAppendResult.Accepted();
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token)
         { Opens++; return Task.FromResult(AwkOpenedFile.MissingFile()); }

@@ -35,3 +35,10 @@ internal sealed class AwkHostReadException : AwkRuntimeException
 
     public AwkOperationError Error { get; }
 }
+
+internal sealed class AwkHostAppendException(
+    AwkFileDescriptor descriptor, ReadOnlyMemory<byte> message)
+    : AwkRuntimeException(message, AwkDiagnosticId.HostIoFailure)
+{
+    public AwkFileDescriptor Descriptor { get; } = descriptor;
+}

@@ -400,7 +400,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         public byte[] Consumed { get; private set; } = [];
         public int BufferCapacity { get; private set; }
 
-        public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             if (IgnoreCancellation && (descriptor == AwkFileDescriptor.StdErr ||
                 descriptor == AwkFileDescriptor.StdOut && !HoldStandardOutput))
@@ -416,7 +416,7 @@ public sealed partial class AwkPrintStagingMemoryTests
                 {
                     await Allow.Task.ConfigureAwait(false);
                     Consumed = content.ToArray();
-                    return AwkExitCode.Success;
+                    return AwkAppendResult.Accepted();
                 }
                 else await Allow.Task.WaitAsync(token).ConfigureAwait(false);
                 return await Inner.AppendAsync(descriptor, content, token).ConfigureAwait(false);

@@ -59,6 +59,9 @@ shared admission and cleanup checks. `MockFileSystemTests` checks open-time effe
 Hosts return one command status. `AwkHostContractTests` checks synchronous failure before
 handoff and host endpoint retirement after a returned faulted/canceled task;
 partial/structured-close tests retain pending-failure, ownership and no-replay coverage.
+Append tests distinguish complete acceptance, downstream closure and typed failure for stdout,
+files and pipes. They cover pending-buffer funding through cancellation, one terminal diagnostic,
+failed stderr without retry and cleanup without running later statements or END actions.
 
 Use host-facing tests when the risk includes command quoting, pipelines, command substitution, descriptor wiring, working-directory behavior, source-file paths, or integration with other host tools. Do not duplicate plain language behavior here unless a host boundary is the point of the test.
 

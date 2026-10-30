@@ -210,13 +210,8 @@ internal static class AwkMessages
         return buffer;
     }
 
-    internal static ReadOnlyMemory<byte> FormatAppendError(AwkFileDescriptor descriptor, int status) =>
-        AwkUtf8Codec.Encode(
-            "awk: file descriptor " +
-            descriptor.Id +
-            ": append failed with status " +
-            status +
-            "\n");
+    internal static ReadOnlyMemory<byte> FormatAppendError(string destination, string detail) =>
+        AwkUtf8Codec.Encode("awk: " + destination + ": " + detail + "\n");
 
     internal static ReadOnlyMemory<byte> FormatPipeCreationError(
         AwkPipeCreationStatus status,

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Breaking host API:** `AppendAsync` now returns `Task<AwkAppendResult>`: acknowledge
+  complete output with `Accepted()`, or report terminal `DownstreamClosed()` / `Failure(error)`.
+  Command callbacks still return `AwkExitCode`. `AwkOperationError` now takes a cause enum
+  and a safe message. See the [host contract](docs/RUNTIME.md#host-authority) for migration
+  and output-failure behavior.
 - Reuse bounded record storage and a compact scalar cache while preserving owned escaping values.
 - Simplify immediate shared-memory charges while keeping pending reservations funded.
 - Use range-only searches and dense sparse-group publication in the source regex adapter.

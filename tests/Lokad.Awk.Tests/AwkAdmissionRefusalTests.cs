@@ -56,12 +56,19 @@ public sealed class AwkAdmissionRefusalTests
     {
         var budget = new CooperativeTestBudget(1 << 20) { RefuseNextAdmissionMinimumGrowth = 0 };
         var host = new TestOperationVisitor([]);
-        if (throwFromHost) host.BeforeAppend = () => throw new InvalidOperationException("private host failure");
-        else host.EnqueueAppendExitCode(2);
+        var attempted = new List<string>();
+        host.AppendOverride = (descriptor, content, _) =>
+        {
+            Assert.Equal(AwkFileDescriptor.StdErr, descriptor);
+            attempted.Add(System.Text.Encoding.UTF8.GetString(content.Span));
+            if (throwFromHost) throw new InvalidOperationException("private host failure");
+            return Task.FromResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "destination failed")));
+        };
         var tool = AwkTestHarness.ParseAwk(Command("BEGIN{print 42}", budget));
         Assert.Equal(2, (await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(throwFromHost ? "" : "awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("awk: memory limit exceeded\n", Assert.Single(attempted));
         Assert.Equal(1, budget.Refusals);
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, budget.Reserved);
@@ -141,11 +148,11 @@ public sealed class AwkAdmissionRefusalTests
         var refused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         budget.OnRefusal = () => refused.TrySetResult();
         var host = new TestOperationVisitor([]);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(90), new AwkFileDescriptor(91)));
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.RunCommandOverride = (command, token) =>
         {
             Assert.IsAssignableFrom<IMemoryScope>(command.MemoryBudget);

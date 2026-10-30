@@ -169,7 +169,7 @@ public sealed class AwkProgramTests
         var output = AwkTestHarness.CreateOutputSink();
         var host = new TestOperationVisitor([]);
         host.EnqueueOpenAwkFileDescriptor(3);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
             host,

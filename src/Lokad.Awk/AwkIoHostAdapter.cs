@@ -185,13 +185,16 @@ internal sealed class AwkIoHostAdapter(
     private Task<T> AwaitHostAsync<T>(Task<T> operation) =>
         AwkHostBoundaryPolicy.AwaitAsync(operation, cancellationToken);
 
-    private static void ThrowIfAppendFailed(AwkFileDescriptor descriptor, AwkExitCode status)
+    private void ThrowIfAppendFailed(AwkFileDescriptor descriptor, AwkAppendResult result)
     {
-        if (status.Succeeded)
+        if (result.IsAccepted)
             return;
 
-        throw new AwkRuntimeException(
-            AwkMessages.FormatAppendError(descriptor, status.Value),
-            AwkDiagnosticId.HostIoFailure);
+        var destination = descriptor == stdOut ? "standard output" :
+            descriptor == stdErr ? "standard error" : "file descriptor " + descriptor.Id;
+        var detail = result.Status == AwkAppendStatus.DownstreamClosed
+            ? "downstream closed"
+            : "write failed: " + ResolveError(result.Error);
+        throw new AwkHostAppendException(descriptor, AwkMessages.FormatAppendError(destination, detail));
     }
 }

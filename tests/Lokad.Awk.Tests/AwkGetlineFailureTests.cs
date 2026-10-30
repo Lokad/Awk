@@ -21,7 +21,7 @@ public sealed class AwkGetlineFailureTests
         var reads = 0;
         AwkReadResult Read() => afterRecord && reads++ == 0
             ? AwkReadResult.FromContent("007\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
-            : AwkReadResult.Failure(new AwkOperationError("Device read failed"));
+            : AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
         var host = new FailureHost(files);
         if (source == "pipe")
             host.PipeRead = Read;
@@ -68,7 +68,7 @@ bool readFailure)
             {
                 host.AddFile("/data", "unread");
                 host.ReadLinesOverride = (_, _) =>
-                    AwkReadResult.Failure(new AwkOperationError("Device read failed"));
+                    AwkReadResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"));
             }
             var appends = 0;
             host.AfterAppend = () => appends++;
@@ -140,7 +140,7 @@ bool readFailure)
                 ? Task.FromResult(read()) : _pipes.ReadLinesAsync(descriptor, count, token);
         }
 
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
             CancellationToken token) => _pipes.AppendAsync(descriptor, content, token);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode,
             CancellationToken token) => _pipes.OpenFileAsync(path, mode, token);

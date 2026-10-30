@@ -138,7 +138,7 @@ public sealed class AwkStdinBorrowingTests
         public Action? Before { get; init; }
         public Func<Task>? PendingRead { get; init; }
 
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(content.Span);
             else if (descriptor == AwkFileDescriptor.StdOut)
@@ -146,7 +146,7 @@ public sealed class AwkStdinBorrowingTests
                 Output += Encoding.UTF8.GetString(content.Span);
                 if (content.Span.SequenceEqual("before\n"u8)) Before?.Invoke();
             }
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
 
         public async Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)

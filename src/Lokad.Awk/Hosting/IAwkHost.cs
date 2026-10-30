@@ -36,9 +36,10 @@ public interface IAwkHost
     /// returned task incomplete to apply backpressure, for example when the descriptor is backed by
     /// a bounded pipe. The supplied memory is valid until the returned task completes;
     /// implementations that retain content beyond completion must copy it.
-    /// A nonzero result reports that the append was not accepted.
+    /// Accepted acknowledges the complete payload. DownstreamClosed and Failure are terminal
+    /// and do not guarantee complete acceptance; the payload must not be replayed.
     /// </summary>
-    Task<AwkExitCode> AppendAsync(
+    Task<AwkAppendResult> AppendAsync(
         AwkFileDescriptor fileDescriptor,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken);

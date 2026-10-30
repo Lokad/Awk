@@ -7,6 +7,144 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 {
     [Theory]
+    [InlineData("stdout", false, false)] [InlineData("stdout", false, true)]
+    [InlineData("stdout", true, false)] [InlineData("stdout", true, true)]
+    [InlineData("file", false, false)] [InlineData("file", false, true)]
+    [InlineData("file", true, false)] [InlineData("file", true, true)]
+    [InlineData("pipe", false, false)] [InlineData("pipe", false, true)]
+    [InlineData("pipe", true, false)] [InlineData("pipe", true, true)]
+    public async Task TerminalAppendStopsWithoutReplayAndCleansUp(string target, bool closed, bool governed)
+    {
+        var descriptor = target == "stdout" ? AwkFileDescriptor.StdOut : new AwkFileDescriptor(31);
+        var error = new AwkOperationError(AwkOperationErrorKind.PermissionDenied, "write denied");
+        var result = closed ? AwkAppendResult.DownstreamClosed() : AwkAppendResult.Failure(error);
+        var host = new TestOperationVisitor([]);
+        if (target == "file") host.EnqueueOpenAwkFileDescriptor(descriptor.Id);
+        if (target == "pipe")
+        {
+            host.EnqueueAwkPipeDescriptors(new(new(30), descriptor));
+            host.EnqueueCommandExitCode(17);
+        }
+        if (target != "stdout")
+            host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
+        var payloads = new List<byte[]>();
+        var diagnostics = new List<string>();
+        host.AppendOverride = (destination, content, _) =>
+        {
+            if (destination == AwkFileDescriptor.StdErr)
+            {
+                diagnostics.Add(System.Text.Encoding.UTF8.GetString(content.Span));
+                return Task.FromResult(AwkAppendResult.Accepted());
+            }
+            Assert.Equal(descriptor, destination);
+            payloads.Add(content.ToArray());
+            // The host could have accepted a prefix. The result deliberately supplies no retry offset.
+            return Task.FromResult(result);
+        };
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var redirection = target == "file" ? ">\"out\"" : target == "pipe" ? "|\"consumer a:b\"" : "";
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            "BEGIN{print \"payload\"" + redirection + ";print \"after\"} END{print \"end\"}"));
+
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("payload\n", System.Text.Encoding.UTF8.GetString(Assert.Single(payloads)));
+        var name = target == "stdout" ? "standard output" : "file descriptor 31";
+        Assert.Equal("awk: " + name + (closed ? ": downstream closed\n" : ": write failed: write denied\n"),
+            Assert.Single(diagnostics));
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task FailedDiagnosticDestinationIsNotWrittenAgain(bool closed, bool runtimeWarning)
+    {
+        var host = new TestOperationVisitor([]);
+        var writes = 0;
+        host.AppendOverride = (descriptor, _, _) =>
+        {
+            Assert.Equal(AwkFileDescriptor.StdErr, descriptor);
+            writes++;
+            return Task.FromResult(closed ? AwkAppendResult.DownstreamClosed() : AwkAppendResult.Failure(default));
+        };
+        var source = runtimeWarning ? "BEGIN{p=sprintf(\"%cq\",92);x=(\"q\"~p);print \"after\"}" :
+            "BEGIN{print \"\\q\";print \"after\"}";
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Equal(1, writes);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task PendingTerminalAppendRetainsBytesAndFundingUntilCompletion(bool closed, bool cancel)
+    {
+        var host = new TestOperationVisitor([]);
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(4 << 20);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<AwkAppendResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ReadOnlyMemory<byte> borrowed = default;
+        var writes = 0;
+        var diagnostics = new List<string>();
+        host.AppendOverride = (descriptor, bytes, _) =>
+        {
+            if (descriptor == AwkFileDescriptor.StdErr)
+            {
+                diagnostics.Add(System.Text.Encoding.UTF8.GetString(bytes.Span));
+                return Task.FromResult(AwkAppendResult.Accepted());
+            }
+            writes++;
+            borrowed = bytes;
+            entered.TrySetResult();
+            return release.Task; // Cancellation does not release the host's borrow.
+        };
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            "BEGIN{printf \"%0100000d\",0;print \"after\"}"));
+        var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved >= 100_000);
+            Assert.Equal(100_000, borrowed.Length);
+            Assert.True(borrowed.Span.IndexOfAnyExcept((byte)'0') < 0);
+        }
+        finally
+        {
+            release.TrySetResult(closed ? AwkAppendResult.DownstreamClosed() : AwkAppendResult.Failure(default));
+        }
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else
+        {
+            Assert.Equal(AwkExitCode.FatalError, await execution);
+            Assert.Equal(closed ? "awk: standard output: downstream closed\n" :
+                "awk: standard output: write failed: Operation failed.\n", Assert.Single(diagnostics));
+        }
+        Assert.Equal(1, writes);
+        if (cancel) Assert.Empty(diagnostics);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
+    [Fact]
+    public void HostResultsDoNotConfuseDefaultFailureWithAcceptance()
+    {
+        Assert.Equal(AwkAppendStatus.Failure, default(AwkAppendResult).Status);
+        Assert.False(default(AwkAppendResult).IsAccepted);
+        Assert.True(AwkAppendResult.Accepted().IsAccepted);
+        Assert.False(AwkAppendResult.DownstreamClosed().IsAccepted);
+        var error = new AwkOperationError(AwkOperationErrorKind.NotFound, "missing input");
+        Assert.Equal(AwkOperationErrorKind.NotFound, AwkAppendResult.Failure(error).Error.Kind);
+        Assert.Equal("missing input", AwkAppendResult.Failure(error).Error.Message);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AwkOperationError((AwkOperationErrorKind)99, "invalid"));
+    }
+
+    [Theory]
     [InlineData("", false)] [InlineData("", true)]
     [InlineData("--posix", false)] [InlineData("--posix", true)]
     [InlineData("--traditional", false)] [InlineData("--traditional", true)]
@@ -81,7 +219,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     public async Task Awk_HelpAppendFailureReturnsFatalStatus()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAppendExitCode(7);
+        host.EnqueueAppendResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "destination failed")));
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "--help"));
 
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -106,7 +244,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             closed.Add(descriptor);
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         };
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var script = input ? "BEGIN{\"worker\"|getline x;print \"after\"}" :
             "BEGIN{print \"payload\"|\"worker\";print \"after\"}";
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
@@ -163,8 +301,8 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         };
         if (input) host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        else host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        else host.EnqueueAppendResult(AwkAppendResult.Accepted());
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var script = input ? "BEGIN{\"worker\"|getline x;close(\"worker\");print \"after\"}" :
             "BEGIN{print \"payload\"|\"worker\";close(\"worker\");print \"after\"}";
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
@@ -191,9 +329,9 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeCreationResult(
             unsupported
-                ? AwkPipeCreationResult.NotSupported(new AwkOperationError("Pipes are disabled."))
-                : AwkPipeCreationResult.Failure(new AwkOperationError("Pipe allocation failed.")));
-        host.EnqueueAppendExitCode(0);
+                ? AwkPipeCreationResult.NotSupported(new AwkOperationError(AwkOperationErrorKind.NotSupported, "Pipes are disabled."))
+                : AwkPipeCreationResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Pipe allocation failed.")));
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{print \"payload\" | \"consumer a:b\\\\*.txt\"}"));
@@ -213,10 +351,10 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             new AwkFileDescriptor(20),
             new AwkFileDescriptor(21)));
         host.EnqueueCommandExitCode(0);
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
-        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{print \"payload\" | \"consumer\"; exit}"));

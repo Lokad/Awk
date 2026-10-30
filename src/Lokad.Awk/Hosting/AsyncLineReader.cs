@@ -60,7 +60,7 @@ internal sealed class AsyncLineReader
             {
                 throw new AwkHostReadException(
                     _descriptor,
-                    new AwkOperationError(AwkHostBoundaryPolicy.ResolveError(
+                    new AwkOperationError(result.Error.Kind, AwkHostBoundaryPolicy.ResolveError(
                         result.Error,
                         _exposeHostErrorDetails,
                         _maxHostErrorBytes)));

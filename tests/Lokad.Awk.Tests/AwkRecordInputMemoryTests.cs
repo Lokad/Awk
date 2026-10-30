@@ -121,7 +121,7 @@ public sealed class AwkRecordInputMemoryTests
         public Action? OnRead { get; init; }
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
-        public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             if (descriptor == AwkFileDescriptor.StdOut)
             {
@@ -130,7 +130,7 @@ public sealed class AwkRecordInputMemoryTests
                 if (PendingOutput is { } pending) await pending().ConfigureAwait(false);
             }
             if (descriptor == AwkFileDescriptor.StdErr) Error += Encoding.UTF8.GetString(content.Span);
-            return AwkExitCode.Success;
+            return AwkAppendResult.Accepted();
         }
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {

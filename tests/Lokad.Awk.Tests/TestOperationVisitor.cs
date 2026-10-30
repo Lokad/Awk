@@ -26,6 +26,9 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public Action? BeforeAppend { get; set; }
 
+    public Func<AwkFileDescriptor, ReadOnlyMemory<byte>, CancellationToken, Task<AwkAppendResult>>?
+        AppendOverride { get; set; }
+
     public Action? AfterOpenFile { get; set; }
 
     public Action? AfterCreatePipe { get; set; }
@@ -73,7 +76,7 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(operation.ExitCode);
     }
 
-    public Task<AwkExitCode> AppendAsync(
+    public Task<AwkAppendResult> AppendAsync(
         AwkFileDescriptor fileDescriptor,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
@@ -81,9 +84,13 @@ public sealed class TestOperationVisitor : IAwkHost
         BeforeAppend?.Invoke();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var operation = Dequeue<TestHostOperation.Append>("append exit codes");
-        _appends.Add(new AppendedContent(fileDescriptor, content.ToArray()));
-        return Task.FromResult(operation.ExitCode);
+        if (AppendOverride is { } append)
+            return append(fileDescriptor, content, cancellationToken);
+
+        var operation = Dequeue<TestHostOperation.Append>("append results");
+        if (operation.Result.IsAccepted)
+            _appends.Add(new AppendedContent(fileDescriptor, content.ToArray()));
+        return Task.FromResult(operation.Result);
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken)
@@ -142,9 +149,9 @@ public sealed class TestOperationVisitor : IAwkHost
         _operations.Enqueue(new TestHostOperation.CreatePipe(result));
     }
 
-    public void EnqueueAppendExitCode(int exitCode)
+    public void EnqueueAppendResult(AwkAppendResult result)
     {
-        _operations.Enqueue(new TestHostOperation.Append(new AwkExitCode(exitCode)));
+        _operations.Enqueue(new TestHostOperation.Append(result));
     }
 
     public void EnqueueOpenAwkFileDescriptor(int descriptor)
@@ -184,7 +191,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
         public sealed record CreatePipe(AwkPipeCreationResult Result) : TestHostOperation;
 
-        public sealed record Append(AwkExitCode ExitCode) : TestHostOperation;
+        public sealed record Append(AwkAppendResult Result) : TestHostOperation;
 
         public sealed record OpenFile(AwkFileDescriptor Descriptor) : TestHostOperation;
 

@@ -192,7 +192,7 @@ public sealed class AwkStructuredCloseTests
                 _failed = true;
                 if (BeforeFirstClose is { } before) await before();
                 if (RetiredFailure) Active.Remove(descriptor);
-                return AwkDescriptorCloseResult.Failure(new("storage unavailable"), RetiredFailure);
+                return AwkDescriptorCloseResult.Failure(new(AwkOperationErrorKind.IoFailure, "storage unavailable"), RetiredFailure);
             }
             Active.Remove(descriptor);
             return AwkDescriptorCloseResult.Closed();
@@ -200,17 +200,17 @@ public sealed class AwkStructuredCloseTests
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            if (FailReads) return Task.FromResult(AwkReadResult.Failure(new("read denied")));
+            if (FailReads) return Task.FromResult(AwkReadResult.Failure(new(AwkOperationErrorKind.PermissionDenied, "read denied")));
             return Task.FromResult(_inputs.Remove(descriptor, out var content)
                 ? AwkReadResult.FromContent(content, [], AwkReadCompletion.EndOfFile) : AwkReadResult.EndOfFile);
         }
-        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            if (descriptor == AwkFileDescriptor.StdErr && RejectStderr) return Task.FromResult(AwkExitCode.FatalError);
+            if (descriptor == AwkFileDescriptor.StdErr && RejectStderr) return Task.FromResult(AwkAppendResult.Failure(default));
             if (descriptor == AwkFileDescriptor.StdOut) Output.Append(Encoding.UTF8.GetString(content.Span));
             if (descriptor == AwkFileDescriptor.StdErr) Error.Append(Encoding.UTF8.GetString(content.Span));
-            return Task.FromResult(AwkExitCode.Success);
+            return Task.FromResult(AwkAppendResult.Accepted());
         }
         public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token)
         {
