@@ -9,6 +9,36 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task RecordNumericCellsReuseParsingWithoutMaterializingKeys(bool governed, bool repeat)
+    {
+        const int records = 128;
+        var source = repeat
+            ? "{for(i=0;i<8;i++)sum[$1]+=$2}END{print sum[\"k\"]}"
+            : "{sum[$1]+=$2;seen[$2]++}END{print sum[\"k\"],seen[\"0007\"]}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("k 0007\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
+            regexEngine: AwkUtf8RegexEngine.Instance);
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(repeat ? "7168\n" : "896 128\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.NumericFieldByteParses);
+        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+
+    [Theory]
     [InlineData(false, 0)] [InlineData(true, 0)]
     [InlineData(false, 17)] [InlineData(true, 17)]
     public async Task OrdinaryLocalUpdatesKeepNumericCellsByteNative(bool governed, int padding)

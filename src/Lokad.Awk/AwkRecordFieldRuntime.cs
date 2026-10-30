@@ -61,6 +61,9 @@ internal sealed class AwkRecordFieldRuntime
     public AwkValue GetFieldValue(AwkFieldIndex index) =>
         _frame.GetFieldValue(index, _splitCurrentFields, _createNumericByteText);
 
+    public double GetFieldNumber(AwkFieldIndex index, AwkNumberParsingMode mode) =>
+        _frame.GetFieldNumber(index, _splitCurrentFields, _createNumericByteText, mode);
+
     public bool TryGetUnmaterializedFieldByteLength(AwkFieldIndex index, bool byteMode, out int length) =>
         _frame.TryGetUnmaterializedFieldByteLength(index, _splitCurrentFields, byteMode, out length);
 

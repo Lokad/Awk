@@ -41,7 +41,7 @@ internal readonly struct AwkFieldText
 
     public AwkFieldTextKind Kind { get; }
 
-    // Zero means no cached scalar. The owning frame interprets this slot; byte views ignore it.
+    // Zero means no cached field data. The owning frame interprets this slot; byte views ignore it.
     internal int CacheSlot { get; }
 
     internal AwkFieldText WithCacheSlot(int slot) => new(Kind, _ownedText, _start, _length, slot);

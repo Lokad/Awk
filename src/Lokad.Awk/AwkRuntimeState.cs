@@ -551,13 +551,7 @@ internal sealed class AwkRuntimeState : IDisposable
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index == 0)
             return GetCurrentRecordValue().AsNumber(CancellationCheckpoint);
-        if (!_recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out var bytes))
-            return GetFieldValue(index).AsNumber(CancellationCheckpoint);
-
-        Counters.RecordNumericFieldByteParse();
-        var parsed = AwkNumberParser.Parse(bytes, NumberParsingMode, CancellationCheckpoint);
-        parsed.ThrowIfError();
-        return parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
+        return _recordFields.GetFieldNumber(new(index), NumberParsingMode);
     }
 
     internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
