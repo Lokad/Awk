@@ -9,6 +9,31 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task ImmediateRegexConsumersDoNotMaterializeInputText(bool governed, bool field)
+    {
+        const int records = 10000;
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("ABC0123 0007\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var source = field ? "$1~/^[A-Z]{3}[0-9]{4}$/{n++}END{print n}"
+            : "/^ABC0123/{n++} $0~/^ABC0123 0007$/{m++}END{print n,m}";
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(field ? "10000\n" : "10000 10000\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.BufferedInputRecords);
+        Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task BufferedRecordOwnershipContinuesAcrossInputChunkBoundaries(bool governed)
     {

@@ -200,6 +200,11 @@ Dirty records fund their captured `OFS` until reconstruction or replacement, ind
 the variable's current value. Zero- and one-field records do not retain an unused separator.
 Printing dirty text fields to stdout copies into owned output; escaping `$0` still owns its
 reconstructed text. Numeric fields retain reconstruction's formatting checkpoint.
+Main-input records can use bounded frame-owned UTF-8 buffers; larger records retain ordinary
+owned storage. Immediate synchronous text consumers may borrow record/field bytes. They do
+not retain views across record mutation, subsequent operands or suspension. Escaping values,
+dynamic regex subjects and capture searches retain immutable owned text. Provider handles
+stay pinned through matching, and record capacity remains funded until its owner ends.
 Using stdin aliases alongside main input can retain admitted read-ahead; hosts may reuse a read
 buffer only after its borrow is disposed. Cancellation alone does not end that borrow.
 Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a

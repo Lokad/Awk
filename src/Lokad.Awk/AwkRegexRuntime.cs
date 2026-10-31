@@ -106,7 +106,9 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             suppressInputStart: false).Recipe;
     }
 
-    public bool IsMatch(AwkRegex regex, AwkText input)
+    public bool IsMatch(AwkRegex regex, AwkText input) => IsMatch(regex, new AwkByteTextOperand(input));
+
+    public bool IsMatch(AwkRegex regex, AwkByteTextOperand input)
     {
         _throwIfCancellationRequested();
         var owner = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));

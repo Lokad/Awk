@@ -4,6 +4,21 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordOwnershipCases()
     {
+        yield return Passing("record-regex-immediate-fields-preserve-index-effects",
+            ["{i=1;print ($(i++)~/^left$/),i,($2~/^0007$/),typeof($2);$2=12.345;CONVFMT=\"%.2f\";print ($2~/^12[.]35$/);CONVFMT=\"%.3f\";print ($2~/^12[.]345$/)}"], [],
+            "1 2 1 strnum\n1\n1\n", "left 0007 tail\n");
+        yield return Passing("record-regex-numeric-zero-uses-current-convfmt",
+            ["BEGIN{$0=12.345;CONVFMT=\"%.2f\";print ($0~/^12[.]35$/);CONVFMT=\"%.3f\";print ($0~/^12[.]345$/)}"], [],
+            "1\n1\n");
+        yield return Passing("record-regex-dynamic-rhs-owns-earlier-subject",
+            ["function p(){getline;return \"^old 0007$\"}{print ($0~p()),$0;exit}"], [],
+            "1 new 0008\n", "old 0007\nnew 0008\n");
+        yield return Passing("record-regex-range-keeps-buffered-subject",
+            ["/^start$/,/^end$/{n++}END{print n}"], [],
+            "3\n", "skip\nstart\nmiddle\nend\nskip\n");
+        yield return Passing("record-regex-unicode-nul-and-mutation",
+            ["{print ($0~/é/),($2~/😀/),($3~/^a\\0b$/);$2=\"changed\";print ($0~/changed/),($2!~/😀/)}"], [],
+            "1 1 1\n1 1\n", "café 😀 a\0b\n");
         yield return Passing("input-record-escapes-survive-buffer-cycles",
             ["NR==1{r=$0;f=$2;a[$1]=$2}END{print r;print f,f+0,typeof(f),a[\"first\"],length(a)}"], [],
             "first 0007\n0007 7 strnum 0007 1\n", "first 0007\nnext 8\nthird 9\nlast 10\n");

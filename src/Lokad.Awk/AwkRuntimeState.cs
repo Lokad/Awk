@@ -503,6 +503,20 @@ internal sealed class AwkRuntimeState : IDisposable
         return CreateDeferredTextValue(text);
     }
 
+    internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.CurrentRecordByteOperand;
+
+    internal AwkByteTextOperand ResolveFieldByteOperand(int index)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index == 0 && _recordFields.TryGetBufferedRecordBytes(out var record))
+            return new(record);
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var field))
+            return new(field);
+        // Assigned numeric $0 must use current CONVFMT, rather than its cached record spelling.
+        return new(FormatStringByteText(index == 0 ? GetCurrentRecordValue() : GetFieldValue(index)));
+    }
+
     internal void AppendFieldByteText(AwkUtf8Builder destination, int index)
     {
         if (index < 0)
@@ -1094,6 +1108,9 @@ internal sealed class AwkRuntimeState : IDisposable
         _formattingRuntime.FormatStringByteText(value, retainedTextLease);
 
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
+        _regexRuntime.IsMatch(regex, input);
+
+    internal bool IsRegexMatch(AwkRegex regex, AwkByteTextOperand input) =>
         _regexRuntime.IsMatch(regex, input);
 
     public AwkLeasedRegexMatch MatchRegexValue(

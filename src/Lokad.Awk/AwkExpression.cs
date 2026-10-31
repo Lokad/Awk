@@ -264,6 +264,18 @@ internal abstract partial class AwkExpression
         context.State.FormatStringByteText(
             await EvaluateAsync(context).ConfigureAwait(false));
 
+    internal virtual bool TryResolveSynchronousByteText(AwkEvaluationContext context,
+        out AwkByteTextOperand operand)
+    {
+        if (this is AwkSynchronousExpression { SynchronousDepth: > 0 } synchronous)
+        {
+            operand = new(context.State.FormatStringByteText(synchronous.EvaluateSynchronous(context)));
+            return true;
+        }
+        operand = default;
+        return false;
+    }
+
     // Immediate text consumers own their copy before another operand can change the
     // record. Other evaluation paths still return ordinary owned/scalar values.
     internal virtual ValueTask AppendByteTextAsync(AwkEvaluationContext context, AwkUtf8Builder destination)

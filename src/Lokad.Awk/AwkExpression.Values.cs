@@ -25,6 +25,20 @@ internal abstract partial class AwkExpression
                 ? context.State.GetFieldNumber(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
+        internal override bool TryResolveSynchronousByteText(AwkEvaluationContext context,
+            out AwkByteTextOperand operand)
+        {
+            if (indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } index)
+            {
+                context.State.Checkpoint();
+                var fieldIndex = AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value;
+                operand = context.State.ResolveFieldByteOperand(fieldIndex);
+                return true; // The index has been evaluated; never evaluate it again for fallback.
+            }
+            operand = default;
+            return false;
+        }
+
         internal override async ValueTask AppendByteTextAsync(AwkEvaluationContext context, AwkUtf8Builder destination)
         {
             context.State.Checkpoint();
@@ -103,6 +117,14 @@ internal abstract partial class AwkExpression
     private sealed class FieldZeroExpression : AwkExpression
     {
         public static readonly FieldZeroExpression Instance = new();
+
+        internal override bool TryResolveSynchronousByteText(AwkEvaluationContext context,
+            out AwkByteTextOperand operand)
+        {
+            context.State.Checkpoint();
+            operand = context.State.ResolveFieldByteOperand(0);
+            return true;
+        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.GetCurrentRecordValue());

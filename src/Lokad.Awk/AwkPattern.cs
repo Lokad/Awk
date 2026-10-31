@@ -18,14 +18,14 @@ internal abstract class AwkPattern
     private sealed class RegexPattern(AwkRegex regex) : AwkPattern
     {
         public override ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>
-            ValueTask.FromResult(state.IsRegexMatch(regex, state.CurrentRecordByteText));
+            ValueTask.FromResult(state.IsRegexMatch(regex, state.CurrentRecordByteOperand));
     }
 
     private sealed class RangePattern(AwkRegex start, AwkRegex end) : AwkPattern
     {
         public override ValueTask<bool> MatchesAsync(AwkRuntimeState state)
         {
-            var line = state.CurrentRecordByteText;
+            var line = state.CurrentRecordByteOperand;
             var active = state.IsRangePatternActive(this);
             if (!active && state.IsRegexMatch(start, line))
             {

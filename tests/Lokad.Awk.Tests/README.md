@@ -160,6 +160,10 @@ storage tests cover child admission, replacement and retirement. Evaluation/getl
 checks retain ancestor keys through mutation and actual host completion, including cancellation
 and refused reconstruction. Counter checks cover owner reuse, byte-native aggregation and
 execution-local owners when a prepared program is reused.
+Immediate regex operands use stack-only byte views; dynamic RHS operands and capture searches
+keep owned text. Canonical record cases preserve numeric-$0/CONVFMT, field-index effects,
+Unicode/NUL, range subjects and getline mutation. Counter checks bound record/field
+materialization across input chunks; suspending-index tests consume each operand once.
 Record-value goldens preserve numeric-string origins and spelling across helpers, mutation,
 getline and reconstruction. Record ownership checks cover persistent escapes, admission
 refusal and pending/canceled helpers, including forced stack boundaries; setting checks

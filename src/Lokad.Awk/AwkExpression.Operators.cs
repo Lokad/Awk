@@ -439,11 +439,24 @@ internal abstract partial class AwkExpression
         AwkRegex regex,
         AwkRegexMatchPolarity polarity) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var matched = context.State.IsRegexMatch(regex, input);
-            return AwkValue.FromNumber(matched != (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
+            if (valueExpression.TryResolveSynchronousByteText(context, out var input))
+                return ValueTask.FromResult(Match(context, input));
+            var pending = valueExpression.ResolveByteTextAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(Match(context, new AwkByteTextOperand(pending.Result)))
+                : AwaitInputAsync(context, pending);
+        }
+
+        private AwkValue Match(AwkEvaluationContext context, AwkByteTextOperand input) =>
+            AwkValue.FromNumber(context.State.IsRegexMatch(regex, input) !=
+                (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
+
+        private async ValueTask<AwkValue> AwaitInputAsync(AwkEvaluationContext context, ValueTask<AwkText> pending)
+        {
+            var input = await pending.ConfigureAwait(false);
+            return Match(context, new AwkByteTextOperand(input));
         }
     }
 

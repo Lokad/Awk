@@ -491,6 +491,37 @@ public sealed class AwkExpressionCompletionTests
         }
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task LiteralRegexConsumesSuspendingFieldIndexOnce(bool failure)
+    {
+        var (state, _) = CreateState();
+        try
+        {
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("left 0007"));
+            var source = new ValueSource(2, pending: true);
+            var regex = state.CreateRegex(new AwkRegexPattern("^0008$"));
+            var expression = AwkExpression.RegexMatch(AwkExpression.FieldIndex(new SourceExpression(source)),
+                regex, AwkRegexMatchPolarity.Positive);
+            var pending = expression.EvaluateAsync(new AwkEvaluationContext(state));
+            await source.Started.Task;
+            Assert.False(pending.IsCompleted);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("new 0008"));
+            if (failure)
+            {
+                source.Fail(new AwkRuntimeException("index failed"u8.ToArray()));
+                await Assert.ThrowsAsync<AwkRuntimeException>(async () => await pending);
+            }
+            else
+            {
+                source.Complete();
+                Assert.Equal(1, (await pending).AsNumber());
+            }
+            Assert.Equal(1, source.Consumptions);
+        }
+        finally { state.Dispose(); }
+    }
+
     private static (AwkRuntimeState State, AwkRuntimeCounters Counters) CreateState()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

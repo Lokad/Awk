@@ -118,6 +118,22 @@ internal sealed class AwkFieldFrame(
         SplitPlan = default;
     }
 
+    internal AwkByteTextOperand RecordByteOperand
+    {
+        get
+        {
+            EnsureRecordText();
+            return _hasBufferedRecord ? new(_bufferedRecord.Span) : new(_recordText);
+        }
+    }
+
+    internal bool TryGetBufferedRecordBytes(out ReadOnlySpan<byte> bytes)
+    {
+        EnsureRecordText();
+        bytes = _hasBufferedRecord ? _bufferedRecord.Span : default;
+        return _hasBufferedRecord;
+    }
+
     public AwkText RecordAwkText
     {
         get
