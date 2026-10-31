@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("array-parameter-survives-global-file-actions",
+            ["function drain(a,line){while((getline line)>0)a[\"hits\"]++;return a[\"hits\"]}" +
+             "BEGIN{g[\"hits\"]=7;print drain(g)}BEGINFILE{a[\"file\"]++;g[\"seen\"]++}" +
+             "END{print a[\"file\"],g[\"hits\"],g[\"seen\"]}"],
+            [], "9\n1 9 1\n", "one\ntwo\n");
+
         yield return Passing("prepared-numeric-parameter-keeps-pending-field-index-evaluation",
             ["function score(x){return x+1}function fieldno(){getline;return 2}BEGIN{$0=\"old 0002\";print score($(fieldno())),$0;exit}"],
             [], "6 new 0005\n", "new 0005\n");

@@ -316,6 +316,9 @@ suspension and diagnostic guards. Long-function and cancellation checks distingu
 linear statement count from recursive preparation depth. Function-local synchronous
 returns remain isolated across nested calls and concurrent compiled-program reuse.
 
+Array-parameter counters cover bound aliases across reads, membership, updates and nested
+roots in both memory modes. A file-action golden keeps suspended caller aliases separate
+from globals.
 Array-function goldens cover missing-read insertion versus membership, numeric-string
 origins and spelling, composite operand order and short circuit. These semantic expectations
 apply equally to ordinary and prepared execution.
