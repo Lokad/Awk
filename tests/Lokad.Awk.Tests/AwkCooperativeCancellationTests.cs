@@ -5,14 +5,19 @@ public sealed class AwkCooperativeCancellationTests
 {
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
     public async Task MidflightCancellationStopsLoopsAndDelayedReadsWithFiniteMemory(
-bool observed, bool delayed)
+        bool observed, bool delayed, bool cachedField)
     {
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", "BEGIN{getline x<\"/input\";while(1){x++}}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var source = cachedField
+            ? "BEGIN{$0=\"7\";seed=$1+0;getline x<\"/input\";while(1){x+=($1+0)}}"
+            : "BEGIN{getline x<\"/input\";while(1){x++}}";
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -40,6 +45,7 @@ bool observed, bool delayed)
             if (observed)
             {
                 Assert.True(counters.CancellationChecks > 0);
+                if (cachedField) Assert.Equal(1, counters.NumericFieldByteParses);
                 Assert.InRange(counters.MemoryPeakLiveBytes, 1, 1 << 20);
             }
         }

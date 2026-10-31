@@ -112,7 +112,6 @@ internal sealed class AwkFieldFrame(
         Func<AwkText, AwkValue> createFieldValue,
         AwkNumberParsingMode mode)
     {
-        checkpoint?.Invoke();
         EnsureField(index, splitFields);
         if (!index.IsNamedField || index.Value > _fieldTexts.Count) return 0;
         var fieldIndex = index.Value - 1;
@@ -126,9 +125,11 @@ internal sealed class AwkFieldFrame(
         var parsed = AwkNumberParser.Parse(field.AsSpan(_recordText, checkpoint), mode, checkpoint);
         parsed.ThrowIfError();
         var number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
-        // Admit the normal initial buffer once. Numbers can use spare scalar-cache
-        // slots, but only actual scalar retention grows a populated cache.
-        if (_fieldValueCache.Count < _fieldValueCache.Capacity || _fieldValueCache.Capacity == 0)
+        // Spare slots and number payloads are already funded: this changes neither
+        // capacity nor retained text. Only the cold initial buffer needs admission.
+        if (_fieldValueCache.Count < _fieldValueCache.Capacity)
+            SetCachedFieldValue(fieldIndex, AwkValue.FromNumber(number), numericOnly: true);
+        else if (_fieldValueCache.Capacity == 0)
             CacheFieldValue(fieldIndex, AwkValue.FromNumber(number), numericOnly: true);
         return number;
     }
