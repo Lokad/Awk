@@ -96,10 +96,8 @@ internal abstract partial class AwkExpression
     public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>
         new LocalVariableExpression(name, slotId);
 
-    public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index, int globalIndex = -1) =>
-        index is AwkSimpleArrayIndex { Expression: DynamicFieldIndexExpression field }
-            ? new FieldArrayElementExpression(name, field, globalIndex)
-            : new ArrayElementExpression(name, index, globalIndex);
+    public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index, int globalIndex = -1,
+        Action? checkpoint = null) => new ArrayElementExpression(name, index, globalIndex, checkpoint);
 
     public static AwkExpression Number(double value) => new NumberExpression(value);
 
@@ -145,10 +143,8 @@ internal abstract partial class AwkExpression
         AwkRegexMatchPolarity polarity) =>
         new PrecompiledRegexMatchExpression(left, regex, polarity);
 
-    public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName, int globalIndex = -1) =>
-        index is AwkSimpleArrayIndex { Expression: DynamicFieldIndexExpression field }
-            ? new FieldArrayMembershipExpression(field, arrayName, globalIndex)
-            : new ArrayMembershipExpression(index, arrayName, globalIndex);
+    public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName, int globalIndex = -1,
+        Action? checkpoint = null) => new ArrayMembershipExpression(index, arrayName, globalIndex, checkpoint);
 
     public static AwkExpression LogicalAnd(AwkExpression left, AwkExpression right) =>
         CreateLogical(left, right, LogicalOperation.And);

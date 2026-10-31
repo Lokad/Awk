@@ -4,6 +4,13 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("array-readonly-helper-keeps-composite-spelling-and-missing-reads",
+            ["function key(n){return n}function value(a){return a[key(1),key(2)]}function has(a){return (key(1),key(2)) in a}BEGIN{print has(t),length(t);print \"[\"value(t)\"]\",length(t);t[1,2]=\"0007\";print \"[\"value(t)\"]\",value(t)==7,has(t)}"],
+            [], "0 0\n[] 1\n[0007] 0 1\n");
+        yield return Passing("array-readonly-helper-field-key-preserves-record-mutation",
+            ["function key(){getline;return 1}function value(a){return a[$(key())]}BEGIN{$0=\"old\";t[\"new\"]=\"0007\";print \"[\"value(t)\"]\",$0;exit}"],
+            [], "[0007] new\n", "new\n");
+
         yield return Passing("numeric-array-read-keeps-getline-field-key",
             ["function key(){getline;return 1}BEGIN{$0=\"old\";a[\"new\"]=7;print a[$(key())]*2,$0;exit}"],
             [], "14 new\n", "new\n");

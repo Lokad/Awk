@@ -237,70 +237,40 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldArrayElementExpression(AwkArrayName name, DynamicFieldIndexExpression fieldOperand, int globalIndex) : AwkSynchronousExpression
+    private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression,
+        int globalIndex, Action? checkpoint = null) : AwkSynchronousExpression
     {
-        internal override int SynchronousDepth => fieldOperand.SynchronousDepth is > 0 and < 16
-            ? fieldOperand.SynchronousDepth + 1 : 0;
-        internal override int SynchronousCallDepth => fieldOperand.SynchronousCallDepth;
+        private readonly (int Depth, int Calls) _shape = indexExpression.GetSynchronousShape(checkpoint);
+        internal override int SynchronousDepth => _shape.Depth > 0 ? _shape.Depth + 1 : 0;
+        internal override int SynchronousCallDepth => _shape.Calls;
 
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
         {
-            context.State.Checkpoint(); // Field expression, before its index.
-            return fieldOperand.IndexExpression is AwkSynchronousExpression index
-                ? context.State.GetArrayFieldValue(name, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value, globalIndex)
-                : throw new InvalidOperationException("Synchronous field index is required.");
+            expression = this;
+            if (remainingDepth <= 0) return false;
+            if (SynchronousDepth > 0) return true;
+            if (remainingDepth <= 1 || !indexExpression.TryPrepareFunctionCalls(functions,
+                remainingDepth - 1, out var index, preparationCheckpoint)) return false;
+            expression = new ArrayElementExpression(name, index, globalIndex, preparationCheckpoint);
+            return expression.SynchronousDepth is > 0 and <= 16;
         }
 
-        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context)
-        {
-            context.State.Checkpoint(); // Field expression, before its index.
-            return fieldOperand.IndexExpression is AwkSynchronousExpression index
-                ? context.State.GetArrayFieldNumber(name, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value, globalIndex)
-                : throw new InvalidOperationException("Synchronous field index is required.");
-        }
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            indexExpression.ReadSynchronous(context, name, globalIndex);
+
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
+            indexExpression.ReadNumberSynchronous(context, name, globalIndex);
 
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
-            context.State.Checkpoint(); // Array expression.
-            context.State.Checkpoint(); // Field expression, before its index.
-            var pending = fieldOperand.IndexExpression.ResolveNumberAsync(context);
-            return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(context.State.GetArrayFieldNumber(name, AwkFieldIndex.FromNumber(pending.Result).Value, globalIndex))
-                : AwaitNumericFieldIndexAsync(context, pending);
-        }
-
-        private async ValueTask<double> AwaitNumericFieldIndexAsync(AwkEvaluationContext context,
-            ValueTask<double> pending) =>
-            context.State.GetArrayFieldNumber(name, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, globalIndex);
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
             context.State.Checkpoint();
-            var index = AwkFieldIndex.FromNumber(await fieldOperand.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
-            return context.State.GetArrayFieldValue(name, index, globalIndex);
-        }
-    }
-
-    private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression, int globalIndex) : AwkExpression
-    {
-        public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
-        {
-            context.State.Checkpoint();
-            var pending = indexExpression.ResolveKeyAsync(context);
-            return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(context.State.GetArrayNumber(name, pending.Result, globalIndex))
-                : AwaitNumericKeyAsync(context, pending);
+            return indexExpression.ReadNumberAsync(context, name, globalIndex);
         }
 
-        private async ValueTask<double> AwaitNumericKeyAsync(AwkEvaluationContext context,
-            ValueTask<AwkArrayKey> pending) =>
-            context.State.GetArrayNumber(name, await pending.ConfigureAwait(false), globalIndex);
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return context.State.GetArrayAwkValue(name, key, globalIndex);
-        }
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            indexExpression.ReadAsync(context, name, globalIndex);
     }
 
     private sealed class NumberExpression(double number) : AwkSynchronousExpression

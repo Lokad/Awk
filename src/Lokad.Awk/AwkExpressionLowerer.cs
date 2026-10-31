@@ -123,7 +123,7 @@ internal static partial class AwkExpressionLowerer
                 return false;
 
             lowered = AwkExpression.ArrayElement(new AwkArrayName(target.Identifier), index,
-                scope.GetPreparedGlobalArrayIndex(target.Identifier));
+                scope.GetPreparedGlobalArrayIndex(target.Identifier), scope.Checkpoint);
             return true;
         }
 
@@ -768,7 +768,7 @@ internal static partial class AwkExpressionLowerer
 
                 lowered = AwkExpression.ArrayMembership(
                     membershipIndex,
-                    new AwkArrayName(arrayName.Identifier), scope.GetPreparedGlobalArrayIndex(arrayName.Identifier));
+                    new AwkArrayName(arrayName.Identifier), scope.GetPreparedGlobalArrayIndex(arrayName.Identifier), scope.Checkpoint);
                 return true;
             }
 

@@ -460,23 +460,31 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldArrayMembershipExpression(DynamicFieldIndexExpression field, AwkArrayName arrayName, int globalIndex) : AwkExpression
+    private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName,
+        int globalIndex, Action? checkpoint = null) : AwkSynchronousExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            context.State.Checkpoint(); // The field expression still has its ordinary checkpoint.
-            var index = AwkFieldIndex.FromNumber(await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
-            return AwkValue.FromNumber(context.State.ContainsArrayField(arrayName, index, globalIndex) ? 1 : 0);
-        }
-    }
+        private readonly (int Depth, int Calls) _shape = indexExpression.GetSynchronousShape(checkpoint);
+        internal override int SynchronousDepth => _shape.Depth > 0 ? _shape.Depth + 1 : 0;
+        internal override int SynchronousCallDepth => _shape.Calls;
 
-    private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName, int globalIndex) : AwkExpression
-    {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
         {
-            var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.ContainsArrayValue(arrayName, key, globalIndex) ? 1 : 0);
+            expression = this;
+            if (remainingDepth <= 0) return false;
+            if (SynchronousDepth > 0) return true;
+            if (remainingDepth <= 1 || !indexExpression.TryPrepareFunctionCalls(functions,
+                remainingDepth - 1, out var index, preparationCheckpoint)) return false;
+            expression = new ArrayMembershipExpression(index, arrayName, globalIndex, preparationCheckpoint);
+            return expression.SynchronousDepth is > 0 and <= 16;
         }
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            AwkValue.FromNumber(indexExpression.ContainsSynchronous(context, arrayName, globalIndex) ? 1 : 0);
+
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            AwkValue.FromNumber(await indexExpression.ContainsAsync(context, arrayName, globalIndex).ConfigureAwait(false) ? 1 : 0);
     }
 
     private sealed class TernaryExpression(

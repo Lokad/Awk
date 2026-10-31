@@ -9,6 +9,36 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, 0)] [InlineData(true, 0)]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 2)] [InlineData(true, 2)]
+    [InlineData(false, 3)] [InlineData(true, 3)]
+    public async Task ReadonlyArrayHelpersPrepareAcrossIndexForms(bool governed, int shape)
+    {
+        var key = shape is 1 or 5 ? "1,2" : "1";
+        var read = shape switch { 1 => "a[1,2]", 2 => "a[$1]", 3 => "(1 in a)", 4 => "a[key(1)]",
+            5 => "a[key(1),key(2)]", 6 => "a[$(key(1))]", 7 => "(key(1) in a)", _ => "a[1]" };
+        var source = "function key(n){return n}function step(x,a,t){t=(x*3+" + read + ")%101;return t}" +
+            "BEGIN{arg[" + key + "]=1}{x=$2;for(i=0;i<8;i++)x=step(x,arg);total+=x}END{print total}";
+        var host = new MockFileSystem();
+        host.SetStandardInput("1 7\n1 7\n");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var invocation = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("40\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.SynchronousFunctionRuns > 0);
+        Assert.Equal(0, counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
     public async Task NumericArrayOperandsReadStoredNumbers(bool governed, bool fieldKey)
