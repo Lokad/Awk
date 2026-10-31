@@ -9,8 +9,10 @@ Release development source
 for computational functions, five-argument calls and nested calls.
 Rows marked **※** measure
 Release development source
+[`377cf62`](https://github.com/Lokad/Awk/commit/377cf62b6292ed697a6215b542a4dc7e73c61b69)
+for ordinary/composite aggregation and retain
 [`6d279b5`](https://github.com/Lokad/Awk/commit/6d279b564f681e59fda47e7fb28d74b877d581b1)
-for numeric-field processing and ordinary/composite aggregation.
+for repeated numeric-field reads and numeric-wide processing.
 Rows marked **‖** retain
 Release development source
 [`9facac7`](https://github.com/Lokad/Awk/commit/9facac7d45566d24f3f6d919c3c84a759f3eebde)
@@ -55,20 +57,20 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Loop with repeated numeric field reads ※ | 25.08 | 9.770 | 3.097 | 3.15× | 0.52 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
-| Composite-key sum / sorted output (GNU) ※ | 24.00 | 3.576 | 1.330 | 2.69× | 1.83 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
 | Project three columns / output | 60.00 | 3.147 | 1.211 | 2.60× | 0.55 |
 | Loop with two-argument calls and local temporary ¶ | 8.00 | 10.732 | 4.274 | 2.51× | 0.55 |
+| Composite-key sum / sorted output (GNU) ※ | 24.00 | 3.463 | 1.408 | 2.46× | 1.83 |
 | Function with locals, loop and early return ‡ | 11.58 | 7.082 | 2.880 | 2.46× | 0.59 |
 | Project a column / output † | 60.00 | 2.332 | 0.974 | 2.39× | 1.18 |
 | Copy field / rebuild record § | 60.00 | 3.107 | 1.320 | 2.35× | 1.19 |
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 |
-| Keyed sum / sorted output (GNU) ※ | 24.00 | 2.729 | 1.180 | 2.31× | 0.52 |
 | Loop with two-argument calls | 8.00 | 8.335 | 3.741 | 2.23× | 0.59 |
 | ASCII substr/index/length/casing | 52.00 | 2.775 | 1.252 | 2.22× | 1.01 |
 | Branching function, two arguments | 8.00 | 8.812 | 3.997 | 2.20× | 0.62 |
 | Nested user calls ‡ | 8.00 | 3.167 | 1.452 | 2.18× | 0.52 |
 | Post-test arithmetic loop | 8.00 | 5.015 | 2.333 | 2.15× | 0.58 |
+| Keyed sum / sorted output (GNU) ※ | 24.00 | 2.606 | 1.223 | 2.13× | 0.52 |
 | Branching function, one argument | 8.00 | 7.855 | 3.708 | 2.12× | 0.61 |
 | Loop with unary arithmetic calls | 8.00 | 7.240 | 3.484 | 2.08× | 0.59 |
 | Five-part string concatenation | 20.00 | 2.788 | 1.350 | 2.07× | 1.39 |
@@ -109,8 +111,8 @@ effect of process startup. No shared admission.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Composite-key sum / sorted output (GNU) ※ | 384.00 | 59.541 | 9.720 | 6.13× | 27.27 |
-| Keyed sum / sorted output (GNU) ※ | 384.00 | 43.018 | 7.218 | 5.96× | 6.74 |
+| Composite-key sum / sorted output (GNU) ※ | 384.00 | 57.750 | 10.181 | 5.67× | 27.27 |
+| Keyed sum / sorted output (GNU) ※ | 384.00 | 41.752 | 7.453 | 5.60× | 6.74 |
 | Sum one numeric column ‖ | 401.40 | 41.043 | 7.409 | 5.54× | 13.19 |
 | Copy field / rebuild record § | 960.00 | 51.159 | 11.219 | 4.56× | 18.19 |
 | Loop with repeated field arguments ‖ | 401.40 | 226.210 | 53.017 | 4.27× | 13.26 |
@@ -120,11 +122,12 @@ effect of process startup. No shared admission.
 
 ## Shared-admission profiles
 
-Embedded execution only; no GNU timing or native-allocation claim. The five ERE/ordinary
-aggregation rows retain **4360424** measurements. The two composite rows measure
-[`5db44c2`](https://github.com/Lokad/Awk/commit/5db44c252ec720b0f640ba24e6c516b9ed244ad4),
-whose core source is identical to 9625a0f. These are separate profile runs, with their actual
-source revisions retained. Regex cases have 4,096 records; aggregation has 65,536 and 16 keys. The record-separator
+Embedded execution only; no GNU timing or native-allocation claim. The four ERE rows
+retain October 30 **4360424** measurements. Ordinary/composite aggregation profiles
+measure October 31 **377cf62**, in a separate default/shared pass using the same catalog
+fixtures as the larger-input comparison. These are separate profile runs; the ungoverned
+composite time can differ from the comparison table above. Regex cases have 4,096 records;
+aggregation has 65,536 and 16 keys. The record-separator
 case uses `([,;]+){1}` and verifies provider use; the byte-run RS row above uses a fast path.
 The existing thread-safe 512 MiB test budget supplies shared admission. Application budget
 implementations can cost differently. These are complete GNU/default public invocations,
@@ -136,9 +139,9 @@ using the same four-warmup/five-iteration measurement settings.
 | ERE field separator | 512 MiB | 8.144 | 3.630 |
 | Provider-backed ERE record separator | 512 MiB | 8.345 | 17.553 |
 | gsub and output | 512 MiB | 12.807 | 24.560 |
-| Aggregation, 65,536 records | 512 MiB | 53.796 | 8.740 |
-| Composite-key aggregation, 65,536 records | None | 47.243 | 27.270 |
-| Composite-key aggregation, 65,536 records | 512 MiB | 66.780 | 31.273 |
+| Aggregation, 65,536 records | 512 MiB | 60.160 | 8.741 |
+| Composite-key aggregation, 65,536 records | None | 56.503 | 27.269 |
+| Composite-key aggregation, 65,536 records | 512 MiB | 83.197 | 33.275 |
 
 ## Measurement contract
 
