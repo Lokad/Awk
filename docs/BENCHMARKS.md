@@ -1,6 +1,10 @@
 # Benchmarks
 
-Snapshot: **2026-10-30 UTC**, against **GNU awk 5.3.2**. Rows marked **‖** measure
+Snapshot: **2026-10-31 UTC**, against **GNU awk 5.3.2**. Rows marked **※** measure
+Release development source
+[`6d279b5`](https://github.com/Lokad/Awk/commit/6d279b564f681e59fda47e7fb28d74b877d581b1)
+for numeric-field processing and ordinary/composite aggregation.
+Rows marked **‖** retain
 Release development source
 [`9facac7`](https://github.com/Lokad/Awk/commit/9facac7d45566d24f3f6d919c3c84a759f3eebde)
 for repeated field calls and retain
@@ -10,13 +14,12 @@ Rows marked **¶** retain source
 [`4209c95`](https://github.com/Lokad/Awk/commit/4209c95fac69967bf6968c8b2619aefd7ad1bcfe).
 Rows marked **§** retain source
 [`810a378`](https://github.com/Lokad/Awk/commit/810a378625f55a1085402b748518628df87101f2).
-Rows marked **‡** retain source
-[`9625a0f`](https://github.com/Lokad/Awk/commit/9625a0fa17a3492f73b3ae5f681c6085ad99b940).
 Rows marked **†** retain source
 [`4360424`](https://github.com/Lokad/Awk/commit/43604247da2bdd88ec79a312617fc4d366c45e10).
 Other unmarked representative/larger rows retain
 [`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d).
-All were measured on the same UTC date; retained rows were **not rerun for the latest source**.
+Rows marked **※** were measured on October 31; other rows retain October 30 measurements
+and were **not rerun for the latest source**.
 Admission-profile revisions are stated below.
 All use the quiet Linux machine: SDK 10.0.401, .NET 10.0.12, interpreter, C locale and UTC.
 Package qualification is separate. Regex workloads use the source adapter with published
@@ -31,8 +34,8 @@ remain local.
 
 ## Representative processing
 
-All 44 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
-without shared admission. Most have 4,096 records; wide all-field and long-field cases have 256.
+All 46 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
+without shared admission. Most have 4,096 records; wide all-field, numeric-wide and long-field cases have 256.
 Join has 4,096 records per file. Rows are ordered by elapsed ratio. GNU-marked cases do not
 imply full GNU conformance; CSV requires GNU 5.3 or later.
 
@@ -44,17 +47,18 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
 | Function with locals, loop and early return ¶ | 11.58 | 9.079 | 2.619 | 3.47× | 0.59 |
 | ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
+| Loop with repeated numeric field reads ※ | 25.08 | 9.770 | 3.097 | 3.15× | 0.52 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
+| Composite-key sum / sorted output (GNU) ※ | 24.00 | 3.576 | 1.330 | 2.69× | 1.83 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
 | Copy field / rebuild record | 60.00 | 3.338 | 1.258 | 2.65× | 1.49 |
-| Composite-key sum / sorted output (GNU) ‡ | 24.00 | 3.054 | 1.164 | 2.62× | 1.83 |
 | Project three columns / output | 60.00 | 3.147 | 1.211 | 2.60× | 0.55 |
 | Loop with two-argument calls and local temporary ¶ | 8.00 | 10.732 | 4.274 | 2.51× | 0.55 |
 | Loop with five-argument calls § | 8.00 | 15.167 | 6.109 | 2.48× | 0.57 |
 | Project a column / output † | 60.00 | 2.332 | 0.974 | 2.39× | 1.18 |
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 |
-| Keyed sum / sorted output (GNU) † | 24.00 | 2.311 | 0.999 | 2.31× | 0.52 |
+| Keyed sum / sorted output (GNU) ※ | 24.00 | 2.729 | 1.180 | 2.31× | 0.52 |
 | Loop with two-argument calls | 8.00 | 8.335 | 3.741 | 2.23× | 0.59 |
 | ASCII substr/index/length/casing | 52.00 | 2.775 | 1.252 | 2.22× | 1.01 |
 | Branching function, two arguments | 8.00 | 8.812 | 3.997 | 2.20× | 0.62 |
@@ -77,6 +81,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Labeled printf | 24.00 | 3.667 | 2.367 | 1.55× | 0.53 |
 | CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 3.298 | 2.362 | 1.40× | 1.69 |
 | Field loop, 64 fields | 80.00 | 2.544 | 1.875 | 1.36× | 0.22 |
+| Sum every numeric field (128 columns) ※ | 101.00 | 4.174 | 3.374 | 1.24× | 0.28 |
 | Byte-run ERE record separator (GNU) | 36.00 | 1.212 | 1.132 | 1.07× | 0.96 |
 | Changed ASCII case | 580.00 | 2.627 | 2.489 | 1.06× | 2.97 |
 | Filter `$1` / occasionally print `$3`, 64 fields | 1,291.42 | 1.878 | 1.842 | 1.02× | 2.14 |
@@ -84,25 +89,29 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Filter `$2` after a 4 KiB field | 1,025.50 | 0.214 | 1.552 | 0.14× | 1.13 |
 
 Scalar summation isolates numeric field consumption from keyed updates. The repeated-field
-loop calls a helper eight times per record and updates 16 keys, exercising numeric reuse.
+loops update 16 keys eight times per record, with and without a helper. Numeric-wide
+reads each of its 128 fields once, contrasting reuse with one-pass processing.
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Array reads cover
 existing/new keys and alternating lookup tables; field search includes Unicode prefixes.
 
 ## Larger inputs
 
-65,536 records per case, per file for join; aggregations and the repeated-field loop retain 16 keys. Composite
+65,536 records per case, per file for join; numeric-wide has 4,096 records and 128 fields.
+Aggregations and repeated-field loops retain 16 keys. Composite
 aggregation uses two field components and the same input/output oracle as ordinary aggregation.
 These reduce the relative
 effect of process startup. No shared admission.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Composite-key sum / sorted output (GNU) ‡ | 384.00 | 47.576 | 8.366 | 5.69× | 27.27 |
-| Keyed sum / sorted output (GNU) | 384.00 | 34.823 | 6.160 | 5.65× | 7.45 |
+| Composite-key sum / sorted output (GNU) ※ | 384.00 | 59.541 | 9.720 | 6.13× | 27.27 |
+| Keyed sum / sorted output (GNU) ※ | 384.00 | 43.018 | 7.218 | 5.96× | 6.74 |
 | Sum one numeric column ‖ | 401.40 | 41.043 | 7.409 | 5.54× | 13.19 |
 | Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
 | Loop with repeated field arguments ‖ | 401.40 | 226.210 | 53.017 | 4.27× | 13.26 |
+| Loop with repeated numeric field reads ※ | 401.40 | 150.334 | 36.770 | 4.09× | 6.74 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
+| Sum every numeric field (128 columns) ※ | 1616.00 | 67.338 | 42.755 | 1.57× | 2.20 |
 
 ## Shared-admission profiles
 
