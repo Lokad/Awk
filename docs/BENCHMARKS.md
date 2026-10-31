@@ -97,26 +97,29 @@ effect of process startup. No shared admission.
 
 ## Shared-admission profiles
 
-All rows measure October 31 source [5e53a18] in a separate public-invocation pass on the
-same machine/catalog fixtures. They compare the existing thread-safe 512 MiB test budget
-with default execution; application budgets can cost differently. Times can differ from
-the independent comparison pass above. No GNU timing or native-allocation claim.
+Rows state their measured source/date; retained entries are not reruns of the latest source.
+They compare the existing thread-safe 512 MiB test budget with default execution through
+public invocation on the same machine/catalog fixtures. Application budgets can cost
+differently. No GNU timing or native-allocation claim.
 
-The comparison runner always supplies a live token for its 15-second invocation deadline.
-These profiles start with no caller token; governed execution creates its own live token.
-The published regex provider has a more expensive cancellable path, so the regex rows
-include that difference and do not isolate budget bookkeeping.
+The comparison runner supplies a live token for its 15-second invocation deadline.
+This table's independent snapshot starts with no caller token; governed execution creates
+its own live token. Published regex-provider costs differ between these token setups, so
+its regex rows do not isolate budget bookkeeping. The existing `--governed-profile` command
+supplies a live caller deadline in both modes and measures that distinct configuration.
 
-| Script | Shared admission | Lokad ms | Lokad allocated MiB |
-| --- | --- | ---: | ---: |
-| Aggregation, 65,536 records | None | 34.356 | 0.238 |
-| Aggregation, 65,536 records | 512 MiB | 50.208 | 2.241 |
-| Scalar sum, 65,536 records | None | 32.091 | 6.694 |
-| Scalar sum, 65,536 records | 512 MiB | 50.968 | 6.695 |
-| ERE boolean matching, 4,096 records | None | 2.168 | 0.191 |
-| ERE boolean matching, 4,096 records | 512 MiB | 4.125 | 7.505 |
-| Early fields, 65,536 wide records | None | 30.588 | 7.603 |
-| Early fields, 65,536 wide records | 512 MiB | 47.705 | 10.104 |
+| Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
+| --- | --- | ---: | ---: | --- |
+| Aggregation, 65,536 records | None | 34.021 | 0.238 | 10-31 / [e9c6ef5] |
+| Aggregation, 65,536 records | 512 MiB | 48.759 | 2.241 | 10-31 / [e9c6ef5] |
+| Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
+| Join, 65,536 records per file | 512 MiB | 171.680 | 29.366 | 10-31 / [e9c6ef5] |
+| Scalar sum, 65,536 records | None | 32.091 | 6.694 | 10-31 / [5e53a18] |
+| Scalar sum, 65,536 records | 512 MiB | 50.968 | 6.695 | 10-31 / [5e53a18] |
+| ERE boolean matching, 4,096 records | None | 2.168 | 0.191 | 10-31 / [5e53a18] |
+| ERE boolean matching, 4,096 records | 512 MiB | 4.125 | 7.505 | 10-31 / [5e53a18] |
+| Early fields, 65,536 wide records | None | 30.588 | 7.603 | 10-31 / [5e53a18] |
+| Early fields, 65,536 wide records | 512 MiB | 47.705 | 10.104 | 10-31 / [5e53a18] |
 
 ## Measurement contract
 
@@ -131,6 +134,10 @@ source revision stated above. Runtime correctness tests independently cover muta
 buffers. A host-storage change must not be attributed to an interpreter improvement.
 
 Host: Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; BenchmarkDotNet 0.15.8.
+Governed managed-allocation totals include the test budget's bookkeeping. Some processes
+show allocation variation with unchanged sources; paired observations and admitted peaks
+are distinct evidence, and allocation differences alone do not establish a core regression.
+
 Timing and allocation are separate passes with fixed warmup/measurement counts and BDN pilot
 calibration. Preflight checks stdout, stderr and exit; every measured invocation verifies output.
 Small improvement claims require bounded repeat confirmation beyond this single-launch snapshot.
@@ -189,3 +196,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [c510078]: https://github.com/Lokad/Awk/commit/c510078e748c209d90fc5f11a038081a264a0772
 
 [7d0684f]: https://github.com/Lokad/Awk/commit/7d0684f4d05b32c7d65a923f59a5938f758f36d6
+
+[e9c6ef5]: https://github.com/Lokad/Awk/commit/e9c6ef53e8498a2433158f9324651961929425e8
