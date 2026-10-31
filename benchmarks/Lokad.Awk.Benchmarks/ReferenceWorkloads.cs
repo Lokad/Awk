@@ -358,16 +358,16 @@ internal static class ReferenceWorkloads
                 expected.Append(rows * 93).Append('\n');
                 break;
             case "branching-calls":
-                // A multi-statement body exercises ordinary calls, separately from
-                // the prepared single-return function in multi-arg-loop.
+                // Contrast branching with the straight scalar-return pair. Use counters
+                // to establish preparation; multiple statements do not force ordinary calls.
                 program = "function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
                 fields = 1;
                 Repeat("7\n", "");
                 expected.Append(rows * 91).Append('\n');
                 break;
             case "branching-unary-calls":
-                // Contrast ordinary unary dispatch with both ordinary pairs and
-                // the prepared single-return unary function in loop-with-calls.
+                // Contrast branching unary calls with branching pairs and the straight
+                // scalar-return unary function in loop-with-calls.
                 program = "function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}";
                 fields = 1;
                 Repeat("7\n", "");

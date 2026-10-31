@@ -166,7 +166,8 @@ complete bodies without a statement-count cutoff. Host-capable or unsupported wo
 the ordinary interpreter path; cancellation, stack protection and admission still apply.
 Ordinary newline main input reuses two admitted buffers for small current records.
 Staging leaves the previous record intact until admission succeeds. Fields use scoped
-bytes; scalar escapes and provider subjects materialize immutable owned text. Plain
+bytes; scalar escapes and regex operands that survive later evaluation own their text.
+Immediate synchronous consumers may borrow record or field bytes. Plain
 getline keeps owned input, so nested reads cannot overwrite the current record. Larger
 records, CSV and other record separators keep their ordinary input path. Buffer capacity
 stays funded through active use and cleanup; this is an internal cache bound, not an input limit.

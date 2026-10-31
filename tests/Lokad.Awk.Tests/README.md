@@ -314,6 +314,10 @@ suspension and diagnostic guards. Long-function and cancellation checks distingu
 linear statement count from recursive preparation depth. Function-local synchronous
 returns remain isolated across nested calls and concurrent compiled-program reuse.
 
+Array-function goldens cover missing-read insertion versus membership, numeric-string
+origins and spelling, composite operand order and short circuit. These semantic expectations
+apply equally to ordinary and prepared execution.
+
 Record-input storage checks cover staged-buffer refusal/cancellation, bounded retention,
 owned fallback for oversized input, actual pending output and complete refunds. Record
 ownership goldens retain saved values, getline destinations, print operand order, captured

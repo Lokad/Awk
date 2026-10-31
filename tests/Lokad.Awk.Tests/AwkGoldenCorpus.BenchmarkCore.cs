@@ -5,6 +5,27 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Posix(Passing("function-array-read-missing-and-spelling",
+            ["function count(a,k,n){for(k in a)n++;return n} function f(a,k){return a[k]} BEGIN{a[\"hit\"]=\"0007\";print \"[\" f(a,\"hit\") \"]\",\"[\" f(a,\"missing\") \"]\",count(a),(\"absent\" in a)}"],
+            [], "[0007] [] 2 0\n"));
+        yield return Posix(Passing("function-array-membership-does-not-insert",
+            ["function count(a,k,n){for(k in a)n++;return n} function f(a,k){return (k in a)} BEGIN{a[\"hit\"]=0;print f(a,\"hit\")+f(a,\"missing\"),count(a),a[\"hit\"]}"],
+            [], "1 1 0\n"));
+        yield return Posix(Passing("function-array-composite-read-and-membership",
+            ["function count(a,k,n){for(k in a)n++;return n} function f(a,x,y){if((x,y) in a)return a[x,y];return -1} BEGIN{a[\"0007\",\"x\"]=9;print f(a,\"0007\",\"x\"),f(a,7,\"x\"),count(a)}"],
+            [], "9 -1 1\n"));
+        yield return Posix(Passing("function-array-read-short-circuit",
+            ["function count(a,k,n){for(k in a)n++;return n} function f(a,x){if(x&&(\"hit\" in a))return a[\"hit\"];return a[\"absent\"]} BEGIN{a[\"hit\"]=7;print f(a,1),count(a);print \"[\" f(a,0) \"]\",count(a)}"],
+            [], "7 1\n[] 2\n"));
+        yield return Posix(Passing("function-array-subscript-call-order",
+            ["function key(x){n++;return x} function f(a){return a[key(\"L\"),key(\"R\")]} BEGIN{a[\"L\",\"R\"]=7;print f(a),n}"],
+            [], "7 2\n"));
+        yield return Posix(Passing("function-array-read-numeric-string-origin",
+            ["function f(a,k){return a[k]} BEGIN{a[\"literal\"]=\"20\"} {a[\"input\"]=$1;print (f(a,\"literal\")<3),(f(a,\"input\")<3),f(a,\"input\")}"],
+            [], "1 0 0020\n", "0020\n"));
+        yield return Posix(Passing("benchmark-core-array-parameter-loop",
+            ["function step(x,a,t){t=(x*3+a[1])%101;return t} BEGIN{arg[1]=1} {x=$1;for(i=0;i<8;i++)x=step(x,arg);total+=x} END{print total}"],
+            [], "40\n", "7\n7\n"));
         yield return Posix(Passing("function-computation-call-condition",
             ["function inc(x){return x+1} function f(x,i){for(i=0;inc(i)<4;i++){if(i==1)continue;x+=i};return x} BEGIN{print f(7)}"], [], "9\n"));
         yield return Posix(Passing("function-computation-increment-values",
