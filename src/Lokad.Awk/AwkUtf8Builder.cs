@@ -103,6 +103,39 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
+    public void AppendRecord(ReadOnlySpan<AwkFieldText> fields, AwkText record,
+        AwkText separator, AwkText terminator, Action? checkpoint = null)
+    {
+        ThrowIfDisposed();
+        var between = separator.AsSpan(checkpoint);
+        var ending = terminator.AsSpan(checkpoint);
+        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, ending.Length);
+        for (var index = 0; index < fields.Length; index++)
+        {
+            if ((index & 1023) == 0) checkpoint?.Invoke();
+            if (index > 0) nextLength = AwkRuntimeMemory.CheckedAdd(nextLength, between.Length);
+            nextLength = AwkRuntimeMemory.CheckedAdd(nextLength, fields[index].ByteLength());
+        }
+        // Admit the complete record and terminator before copying. Failed/canceled
+        // copies cannot publish a prefix: Length changes only after all bytes are owned.
+        EnsureCapacity(nextLength);
+        var offset = Length;
+        for (var index = 0; index < fields.Length; index++)
+        {
+            if ((index & 1023) == 0) checkpoint?.Invoke();
+            if (index > 0)
+            {
+                AwkText.CopyBytes(between, _buffer.AsSpan(offset), checkpoint);
+                offset += between.Length;
+            }
+            var bytes = fields[index].AsSpan(record, checkpoint);
+            AwkText.CopyBytes(bytes, _buffer.AsSpan(offset), checkpoint);
+            offset += bytes.Length;
+        }
+        AwkText.CopyBytes(ending, _buffer.AsSpan(offset), checkpoint);
+        Length = nextLength;
+    }
+
     public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, AwkText terminator, Action? checkpoint = null)
     {
         ThrowIfDisposed();

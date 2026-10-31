@@ -67,6 +67,8 @@ internal abstract partial class AwkStatement
     public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions, AwkOutputTarget target)
     {
         ArgumentNullException.ThrowIfNull(expressions);
+        if (!target.IsRedirected && expressions.Count == 1 && expressions[0].IsCurrentRecord)
+            return new FieldPrintStatement(AwkExpression.Number(0));
         return !target.IsRedirected && expressions.Count == 1 && AwkExpression.TryGetFieldIndexExpression(expressions[0], out var index)
             ? new FieldPrintStatement(index)
             : new PrintStatement(AwkCollectionSnapshots.Copy(expressions), target);

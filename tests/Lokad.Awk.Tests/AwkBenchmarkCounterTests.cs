@@ -274,6 +274,26 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task RecordOnlyOutputAvoidsOwnedRecompositionButEscapingRecordsMaterialize()
+    {
+        const int records = 128;
+        var input = string.Concat(Enumerable.Repeat("0007 old café\n", records));
+        var printed = await RunAsync(["{$2=$1;print}"], input, false);
+        var escaped = await RunAsync(["{$2=$1;saved=$0;print saved}"], input, false);
+        foreach (var result in new[] { printed, escaped })
+        {
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal(string.Concat(Enumerable.Repeat("0007 0007 café\n", records)), result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(records, result.Counters.RecordsRead);
+            Assert.Equal(0, result.Counters.StringDecodes);
+            Assert.Equal(0, result.Counters.Utf8Encodes);
+        }
+        Assert.InRange(printed.Counters.AwkTextAllocations, records, records + 8);
+        Assert.True(escaped.Counters.AwkTextAllocations >= printed.Counters.AwkTextAllocations + records);
+    }
+
+    [Fact]
     internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput()
     {
         var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],

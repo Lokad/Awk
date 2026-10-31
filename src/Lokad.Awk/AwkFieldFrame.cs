@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Lokad.Awk;
 
@@ -61,6 +62,18 @@ internal sealed class AwkFieldFrame(
             EnsureRecordText();
             return _recordText;
         }
+    }
+
+    public bool TryGetRecomposedRecordFields(
+        out ReadOnlySpan<AwkFieldText> fields, out AwkText record, out AwkText separator)
+    {
+        // Only text has a stable spelling without reconstruction. Numeric fields must
+        // still freeze their CONVFMT spelling when $0 is first observed.
+        var available = !_recordTextIsCurrent && _numericFieldCount == 0;
+        fields = available ? CollectionsMarshal.AsSpan(_fieldTexts) : default;
+        record = _recordText;
+        separator = _recompositionSeparator;
+        return available;
     }
 
     public AwkValue GetRecordValue(

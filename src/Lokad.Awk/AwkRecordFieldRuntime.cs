@@ -51,6 +51,10 @@ internal sealed class AwkRecordFieldRuntime
 
     public AwkValue CurrentRecordValue => _frame.GetRecordValue(_createNumericByteText, _createStringByteText);
 
+    public bool TryGetRecomposedRecordFields(
+        out ReadOnlySpan<AwkFieldText> fields, out AwkText record, out AwkText separator) =>
+        _frame.TryGetRecomposedRecordFields(out fields, out record, out separator);
+
     public void PrepareOutputFieldSeparatorAssignment() => _frame.PrepareOutputFieldSeparatorAssignment();
 
     public void ResetRecord() => _frame.ResetRecord();

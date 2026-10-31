@@ -11,6 +11,8 @@ internal abstract partial class AwkExpression
     // The prepared program keeps literal text alive throughout execution.
     internal bool IsTextLiteral => this is LiteralExpression;
 
+    internal bool IsCurrentRecord => this is FieldZeroExpression;
+
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
 
     internal static int[] PrepareLiteralFieldIndices(AwkExpression[] arguments, int maximum)

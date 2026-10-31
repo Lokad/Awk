@@ -75,13 +75,63 @@ public sealed class AwkRecordOwnershipTests
         }};
         var script = "function size(x){return length(x)} BEGIN{$0=\"0007 old\";n=size($1);" +
             (recompose ? "$2=\"new\";" : "") + "print \"ready\";" +
-            (recompose ? "print $0" : "saved=$1") + ";print \"after\"}";
+            (recompose ? "saved=$0;print saved" : "saved=$1") + ";print \"after\"}";
         var exit = await Execute(script, host, budget);
         Assert.Equal(2, exit.Value);
         Assert.Equal("ready\n", host.Output);
         Assert.Equal("awk: memory limit exceeded\n", host.Error);
         Assert.Equal(1, budget.Refusals);
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task RefusedDirtyRecordOutputStopsBeforePublishingAnyRecordBytes()
+    {
+        var budget = new CooperativeTestBudget(32 << 20);
+        var host = new RecordHost { Observe = label =>
+        {
+            if (label == "ready") budget.RefuseNextAdmissionMinimumGrowth = 1;
+        }};
+        var exit = await Execute("BEGIN{FS=\":\";$0=sprintf(\"%20000s\",\"x\")\":old\";$2=\"É\";" +
+            "print \"ready\";print;print \"after\"}", host, budget);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("ready\n", host.Output);
+        Assert.Equal("awk: memory limit exceeded\n", host.Error);
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task DirectRecordOutputStaysFundedThroughActualPendingCompletion(bool cancel)
+    {
+        var budget = new CooperativeTestBudget(32 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expected = new string(' ', 999_999) + "x held\n";
+        var host = new RecordHost
+        {
+            PendingText = expected,
+            Pending = () => { entered.SetResult(); return release.Task; }
+        };
+        var execution = Execute("BEGIN{FS=\":\";$0=sprintf(\"%1000000s\",\"x\")\":old\";$2=\"held\";" +
+            "print;$0=\"new\";print \"after\"}", host, budget, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(budget.Reserved >= 2_000_000);
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved >= 2_000_000);
+        }
+        finally { release.TrySetResult(); }
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else Assert.Equal(0, (await execution).Value);
+        Assert.Equal(cancel ? expected : expected + "after\n", host.Output);
+        Assert.Equal("", host.Error);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -202,6 +252,7 @@ public sealed class AwkRecordOwnershipTests
     {
         public Action<string>? Observe { get; init; }
         public Func<Task>? Pending { get; init; }
+        public string PendingText { get; init; } = "held\n";
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
         public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
@@ -212,7 +263,7 @@ public sealed class AwkRecordOwnershipTests
             {
                 Output += text;
                 Observe?.Invoke(text.TrimEnd('\n'));
-                if (text == "held\n" && Pending is { } pending) await pending().ConfigureAwait(false);
+                if (text == PendingText && Pending is { } pending) await pending().ConfigureAwait(false);
             }
             return AwkAppendResult.Accepted();
         }

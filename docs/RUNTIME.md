@@ -190,6 +190,8 @@ or CONVFMT does not leave a separate formatter cache retaining the old text.
 Captured `close()` names remain funded across later argument evaluation and pending users.
 Dirty records fund their captured `OFS` until reconstruction or replacement, independently of
 the variable's current value. Zero- and one-field records do not retain an unused separator.
+Printing dirty text fields copies directly into owned output; escaping `$0` still owns its
+reconstructed text. Numeric fields retain reconstruction's formatting checkpoint.
 Using stdin aliases alongside main input can retain admitted read-ahead; hosts may reuse a read
 buffer only after its borrow is disposed. Cancellation alone does not end that borrow.
 Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a

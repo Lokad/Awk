@@ -4,6 +4,19 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldProjectionCases()
     {
+        yield return Passing("record-print-dirty-text-keeps-separator-and-owned-escape",
+            ["BEGIN{OFS=\"|\";ORS=\"!\"} {$2=\"É\";print;OFS=\":\";print $0;saved=$0;$1=\"new\";print;print saved}"], [],
+            "café|É|0007!café|É|0007!new:É:0007!café|É|0007!", "café old 0007\n");
+        yield return Passing("record-print-dirty-text-keeps-nf-cache-and-next-record",
+            ["{n=$1+0;NF=3;print;print typeof($1),$1;NF=0;print;NF=2;$2=\"last\";print}"], [],
+            "0007 old \nstrnum 0007\n\n last\ncafé tail \nstring café\n\n last\n", "0007 old\ncafé tail\n");
+        yield return Passing("record-print-numeric-field-freezes-convfmt-before-later-print",
+            ["BEGIN{CONVFMT=\"%.2f\";$0=\"a old\";$2=1.2345;print;CONVFMT=\"%.4f\";print $0;$1=\"b\";print}"], [],
+            "a 1.23\na 1.23\nb 1.2345\n");
+        yield return PassingWithExpectedFiles("record-print-dirty-text-before-getline-and-redirected-escape",
+            ["{$2=\"É\";print;saved=$0;print $0 > \"/out.txt\";close(\"/out.txt\");getline;print saved,$0;exit}", "/input.txt"],
+            [new("/input.txt", "café old tail\nnext fresh record\n")],
+            "café É tail\ncafé É tail next fresh record\n", [new("/out.txt", "café É tail\n")]);
         yield return Passing("field-copy-keeps-input-type-and-source-snapshot",
             ["{$2=$1;saved=$2;$1=\"changed\";print typeof($2),saved,$0}"], [],
             "strnum 0007 changed 0007 tail\nstring café changed café last\n", "0007 old tail\ncafé old last\n");

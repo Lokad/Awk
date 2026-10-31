@@ -162,6 +162,8 @@ Record-value goldens preserve numeric-string origins and spelling across helpers
 getline and reconstruction. Record ownership checks cover persistent escapes, admission
 refusal and pending/canceled helpers, including forced stack boundaries; setting checks
 verify FS/FPAT do not retain unrelated old record buffers.
+Direct record-output cases preserve captured separators, numeric formatting and owned
+escapes, with complete-append refusal/cancellation and funding through pending host users.
 `AwkMainInputOwnershipTests` covers sequential main files, main getline, nextfile/exit,
 refusal after open and funding through pending/canceled closes. Partial-close tests also
 suspend table retirement and logical flush, preserving every remaining stream and avoiding
