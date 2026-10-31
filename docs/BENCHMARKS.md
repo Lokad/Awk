@@ -1,6 +1,9 @@
 # Benchmarks
 
-Snapshot: **2026-10-31 UTC**, against **GNU awk 5.3.2**. Rows marked **‡** measure
+Snapshot: **2026-10-31 UTC**, against **GNU awk 5.3.2**. Rows marked **§** measure
+Release development source
+[`c510078`](https://github.com/Lokad/Awk/commit/c510078e748c209d90fc5f11a038081a264a0772)
+for record rebuilding. Rows marked **‡** measure
 Release development source
 [`0e73d92`](https://github.com/Lokad/Awk/commit/0e73d924efd5fb1a6873748a67e97e4ac5111a13)
 for computational functions, five-argument calls and nested calls.
@@ -20,7 +23,7 @@ Rows marked **†** retain source
 [`4360424`](https://github.com/Lokad/Awk/commit/43604247da2bdd88ec79a312617fc4d366c45e10).
 Other unmarked representative/larger rows retain
 [`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d).
-Rows marked **‡** or **※** were measured on October 31; other rows retain October 30 measurements
+Rows marked **§**, **‡** or **※** were measured on October 31; other rows retain October 30 measurements
 and were **not rerun for the latest source**.
 Admission-profile revisions are stated below.
 All use the quiet Linux machine: SDK 10.0.401, .NET 10.0.12, interpreter, C locale and UTC.
@@ -54,11 +57,11 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Numeric array sort (GNU) | 18.92 | 5.504 | 2.018 | 2.73× | 2.30 |
 | Composite-key sum / sorted output (GNU) ※ | 24.00 | 3.576 | 1.330 | 2.69× | 1.83 |
 | Two-file membership / join | 77.83 | 6.606 | 2.483 | 2.66× | 2.69 |
-| Copy field / rebuild record | 60.00 | 3.338 | 1.258 | 2.65× | 1.49 |
 | Project three columns / output | 60.00 | 3.147 | 1.211 | 2.60× | 0.55 |
 | Loop with two-argument calls and local temporary ¶ | 8.00 | 10.732 | 4.274 | 2.51× | 0.55 |
 | Function with locals, loop and early return ‡ | 11.58 | 7.082 | 2.880 | 2.46× | 0.59 |
 | Project a column / output † | 60.00 | 2.332 | 0.974 | 2.39× | 1.18 |
+| Copy field / rebuild record § | 60.00 | 3.107 | 1.320 | 2.35× | 1.19 |
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 |
 | Keyed sum / sorted output (GNU) ※ | 24.00 | 2.729 | 1.180 | 2.31× | 0.52 |
 | Loop with two-argument calls | 8.00 | 8.335 | 3.741 | 2.23× | 0.59 |
@@ -109,7 +112,7 @@ effect of process startup. No shared admission.
 | Composite-key sum / sorted output (GNU) ※ | 384.00 | 59.541 | 9.720 | 6.13× | 27.27 |
 | Keyed sum / sorted output (GNU) ※ | 384.00 | 43.018 | 7.218 | 5.96× | 6.74 |
 | Sum one numeric column ‖ | 401.40 | 41.043 | 7.409 | 5.54× | 13.19 |
-| Copy field / rebuild record | 960.00 | 53.699 | 10.767 | 4.99× | 22.90 |
+| Copy field / rebuild record § | 960.00 | 51.159 | 11.219 | 4.56× | 18.19 |
 | Loop with repeated field arguments ‖ | 401.40 | 226.210 | 53.017 | 4.27× | 13.26 |
 | Loop with repeated numeric field reads ※ | 401.40 | 150.334 | 36.770 | 4.09× | 6.74 |
 | Two-file membership / join | 1,386.30 | 121.835 | 31.088 | 3.92× | 35.99 |
