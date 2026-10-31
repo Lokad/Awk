@@ -13,6 +13,10 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData(false, 1)] [InlineData(true, 1)]
     [InlineData(false, 2)] [InlineData(true, 2)]
     [InlineData(false, 3)] [InlineData(true, 3)]
+    [InlineData(false, 4)] [InlineData(true, 4)]
+    [InlineData(false, 5)] [InlineData(true, 5)]
+    [InlineData(false, 6)] [InlineData(true, 6)]
+    [InlineData(false, 7)] [InlineData(true, 7)]
     public async Task ReadonlyArrayHelpersPrepareAcrossIndexForms(bool governed, int shape)
     {
         var key = shape is 1 or 5 ? "1,2" : "1";

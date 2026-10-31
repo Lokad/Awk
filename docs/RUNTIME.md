@@ -165,6 +165,9 @@ there is no separate prepared-call arity limit. Cancellation is checked during p
 and argument evaluation. Eligible scalar function blocks, branches and loops prepare as
 complete bodies without a statement-count cutoff. Host-capable or unsupported work keeps
 the ordinary interpreter path; cancellation, stack protection and admission still apply.
+Array reads and membership participate in this preparation for eligible literal, field
+and composite indices, including prepared calls within indices. Pending indices retain
+ordinary evaluation; field bytes remain borrowed only during synchronous consumption.
 Ordinary newline main input reuses two admitted buffers for small current records.
 Staging leaves the previous record intact until admission succeeds. Fields use scoped
 bytes; scalar escapes and regex operands that survive later evaluation own their text.

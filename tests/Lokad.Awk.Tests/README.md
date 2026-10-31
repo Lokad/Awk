@@ -142,6 +142,9 @@ General-arity preparation checks cover cancellation through action/loop preparat
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases
 preserve the ordinary path and keep storage funded through actual completion or cancellation.
+Readonly array-helper counters cover literal, field and composite keys, membership and
+prepared calls inside indices in both memory modes. Goldens preserve missing-read insertion,
+membership, original spelling and callee getline effects.
 Function-flow checks also cover nested returns and pending conditions/return values.
 Long-block goldens cover actions, branches and for/while/do bodies at several sizes.
 Artifact reuse and pending-argument cases after long loops check cancellation authority,
