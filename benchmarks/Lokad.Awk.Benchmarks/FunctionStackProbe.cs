@@ -8,12 +8,13 @@ internal static class FunctionStackProbe
 {
     public static async Task RunAsync()
     {
-        foreach (var shape in new[] { "return", "arguments", "mutual", "async", "limit", "error", "cancel", "raised-syntax", "prepared-chain", "prepared-async", "prepared-field-chain", "prepared-field-async", "prepared-four-chain", "prepared-four-async" })
+        foreach (var shape in new[] { "return", "arguments", "mutual", "async", "limit", "error", "cancel", "raised-syntax", "prepared-chain", "prepared-async", "prepared-field-chain", "prepared-field-async", "prepared-four-chain", "prepared-four-async", "prepared-control-chain", "prepared-control-async" })
             await RunCaseAsync(shape).ConfigureAwait(false);
     }
 
     private static async Task RunCaseAsync(string shape)
     {
+        var preparedChain = shape.StartsWith("prepared-", StringComparison.Ordinal);
         var nestedReturn = "f(n-1)";
         var additions = shape == "raised-syntax" ? 120 : 60;
         for (var index = 0; index < additions; index++)
@@ -21,6 +22,9 @@ internal static class FunctionStackProbe
         const string preparedFunctions = "function c1(x){return x+1} function c2(x){return c1(x)+1} function c3(x){return c2(x)+1} function c4(x){return c3(x)+1} ";
         const string preparedFieldFunctions = "function c1(x){return x+length($1)+NF+($2!=\"\")} function c2(x){return c1(x)+1} function c3(x){return c2(x)+1} function c4(x){return c3(x)+1} ";
         const string preparedFourFunctions = "function c1(a,b,c,d){return a+b+c+d} function c2(a,b,c,d){return c1(a,b,c,d)+1} function c3(a,b,c,d){return c2(a,b,c,d)+1} function c4(a,b,c,d){return c3(a,b,c,d)+1} ";
+        var preparedControlFunctions = "function c1(x){" +
+            string.Concat(Enumerable.Repeat("if(x){", 10)) + "return x+1" + new string('}', 10) +
+            ";return 0} function c2(x){return c1(x)+1} function c3(x){return c2(x)+1} function c4(x){return c3(x)+1} ";
         var source = shape switch
         {
             "return" or "raised-syntax" => "function f(n){if(n>1)return " + nestedReturn + ";return 1} BEGIN{print f(1000)}",
@@ -31,6 +35,8 @@ internal static class FunctionStackProbe
             "prepared-async" => preparedFunctions + "function f(n,v){getline v;if(n>1)return c4(f(n-1));return 1} BEGIN{print f(1000)}",
             "prepared-field-chain" => preparedFieldFunctions + "function f(n){if(n>1)return c4(f(n-1));return 1} BEGIN{$0=\"a bb\";print f(1000)}",
             "prepared-field-async" => preparedFieldFunctions + "function f(n,v){getline v;if(n>1)return c4(f(n-1));return 1} BEGIN{$0=\"a bb\";print f(1000)}",
+            "prepared-control-chain" => preparedControlFunctions + "function f(n){if(n>1)return c4(f(n-1));return 1} BEGIN{print f(1000)}",
+            "prepared-control-async" => preparedControlFunctions + "function f(n,v){getline v;if(n>1)return c4(f(n-1));return 1} BEGIN{print f(1000)}",
             "prepared-four-chain" => preparedFourFunctions + "function f(n){if(n>1)return c4(f(n-1),1,1,1);return 1} BEGIN{print f(1000)}",
             "prepared-four-async" => preparedFourFunctions + "function f(n,v){getline v;if(n>1)return c4(f(n-1),1,1,1);return 1} BEGIN{print f(1000)}",
             "limit" => "function f(n){if(n>1)return f(n-1);return 1} BEGIN{print f(1001)}",
@@ -44,7 +50,7 @@ internal static class FunctionStackProbe
             "arguments" => "7\n",
             "mutual" => "4\n",
             "async" => "1000\n",
-            "prepared-chain" or "prepared-async" => "3997\n",
+            "prepared-chain" or "prepared-async" or "prepared-control-chain" or "prepared-control-async" => "3997\n",
             "prepared-field-chain" or "prepared-field-async" => "6994\n",
             "prepared-four-chain" or "prepared-four-async" => "5995\n",
             _ => ""
@@ -69,7 +75,7 @@ internal static class FunctionStackProbe
             return AwkReadBuffer.FromContent("x\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { });
         }
         using var host = new ReferenceBenchmarkHost(workload, true,
-            shape is "async" or "cancel" or "prepared-async" or "prepared-field-async" or "prepared-four-async" ? ReadAsync : null);
+            shape is "async" or "cancel" or "prepared-async" or "prepared-field-async" or "prepared-four-async" or "prepared-control-async" ? ReadAsync : null);
         var invocation = AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []);
         AwkCompiledProgram compiled;
         if (shape == "raised-syntax")
@@ -85,7 +91,7 @@ internal static class FunctionStackProbe
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         // The recursive caller can retain 1,000 frames while the prepared chain adds four.
-        if (shape is "prepared-chain" or "prepared-async" or "prepared-field-chain" or "prepared-field-async" or "prepared-four-chain" or "prepared-four-async") limits = limits.WithMaxFunctionCallDepth(1004);
+        if (preparedChain) limits = limits.WithMaxFunctionCallDepth(1004);
         if (shape == "raised-syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(64L << 20) };
@@ -109,8 +115,7 @@ internal static class FunctionStackProbe
                 "; error " + Encoding.UTF8.GetString(result.Error) + "; reads " + reads);
         if (shape == "raised-syntax" && counters.FunctionStackSuspensions == 0)
             throw new InvalidOperationException("Raised syntax budget did not retain every call boundary.");
-        if (shape is "prepared-chain" or "prepared-async" or "prepared-field-chain" or "prepared-field-async" or "prepared-four-chain" or "prepared-four-async" &&
-            (counters.SynchronousFunctionRuns == 0))
+        if (preparedChain && counters.SynchronousFunctionRuns == 0)
             throw new InvalidOperationException("Prepared function chain did not use synchronous execution.");
         Console.WriteLine(JsonSerializer.Serialize(new
         {
