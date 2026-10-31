@@ -53,11 +53,11 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Mixed narrow-record processing | 60.00 | 3.707 | 1.867 | 1.99× | 0.60 | 10-30 / [a6a5a71] |
 | While loop and numeric arithmetic | 8.00 | 4.732 | 2.393 | 1.98× | 0.57 | 10-30 / [a6a5a71] |
 | printf | 24.00 | 3.390 | 1.722 | 1.97× | 0.52 | 10-30 / [a6a5a71] |
-| Alternate reads from two lookup arrays | 21.50 | 2.095 | 1.093 | 1.92× | 0.60 | 10-30 / [a6a5a71] |
 | Literal index search in a field | 70.00 | 2.294 | 1.226 | 1.87× | 0.58 | 10-30 / [a6a5a71] |
 | Field-key membership | 48.56 | 1.854 | 0.996 | 1.86× | 0.63 | 10-30 / [a6a5a71] |
 | Field-key reads, existing/new | 63.15 | 2.518 | 1.362 | 1.85× | 1.30 | 10-30 / [a6a5a71] |
 | Filter three fields | 24.00 | 2.182 | 1.210 | 1.80× | 0.54 | 10-30 / [a6a5a71] |
+| Alternate reads from two lookup arrays | 21.50 | 1.976 | 1.264 | 1.56× | 0.15 | 10-31 / [7d0684f] |
 | Labeled printf | 24.00 | 3.667 | 2.367 | 1.55× | 0.53 | 10-30 / [a6a5a71] |
 | CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 3.298 | 2.362 | 1.40× | 1.69 | 10-30 / [a6a5a71] |
 | Field loop, 64 fields | 80.00 | 2.544 | 1.875 | 1.36× | 0.22 | 10-30 / [a6a5a71] |
@@ -185,3 +185,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [9facac7]: https://github.com/Lokad/Awk/commit/9facac7d45566d24f3f6d919c3c84a759f3eebde
 [a6a5a71]: https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d
 [c510078]: https://github.com/Lokad/Awk/commit/c510078e748c209d90fc5f11a038081a264a0772
+
+[7d0684f]: https://github.com/Lokad/Awk/commit/7d0684f4d05b32c7d65a923f59a5938f758f36d6
