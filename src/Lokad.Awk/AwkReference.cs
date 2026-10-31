@@ -152,31 +152,15 @@ internal abstract record AwkReference
         return remainingDepth > 0 && TryGetSynchronousScalar(out _);
     }
 
-    private AwkResolvedReference GetSynchronousScalar() => TryGetSynchronousScalar(out var scalar)
-        ? scalar : throw new InvalidOperationException("Synchronous reference is required.");
-
     internal virtual void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
-        GetSynchronousScalar().AssignValue(context.State, value);
+        throw new InvalidOperationException("Synchronous reference is required.");
 
     internal virtual AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
-        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
-    {
-        var target = GetSynchronousScalar();
-        var previous = target.EvaluateNumber(context.State);
-        var right = value.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
-        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation));
-        target.AssignValue(context.State, result);
-        return result;
-    }
+        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation) =>
+        throw new InvalidOperationException("Synchronous reference is required.");
 
-    internal virtual AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
-    {
-        var target = GetSynchronousScalar();
-        var previous = target.EvaluateNumber(context.State);
-        var result = AwkValue.FromNumber(previous + delta);
-        target.AssignValue(context.State, result);
-        return post ? AwkValue.FromNumber(previous) : result;
-    }
+    internal virtual AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post) =>
+        throw new InvalidOperationException("Synchronous reference is required.");
 
     protected virtual ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
@@ -220,6 +204,25 @@ internal sealed record AwkScalarReference(AwkVariableName Variable) : AwkReferen
 
 internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable, int Index) : AwkReference
 {
+    private double ReadNumber(AwkRuntimeState state) =>
+        state.TryResolvePreparedGlobalNumber(Index, out var number)
+            ? number : state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint);
+
+    internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
+        context.State.AssignPreparedGlobalValue(Variable, Index, value);
+
+    internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
+        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation) =>
+        AssignCompound(context.State, ReadNumber(context.State), value.EvaluateSynchronous(context), operation);
+
+    internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
+    {
+        var previous = ReadNumber(context.State);
+        var result = AwkValue.FromNumber(previous + delta);
+        context.State.AssignPreparedGlobalValue(Variable, Index, result);
+        return post ? AwkValue.FromNumber(previous) : result;
+    }
+
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.PreparedGlobalScalar(Variable, Index));
 
@@ -269,6 +272,30 @@ internal sealed record AwkLocalScalarReference(
     AwkVariableName Variable,
     AwkFunctionLocalSlotId SlotId) : AwkReference
 {
+    private double ReadNumber(AwkRuntimeState state) =>
+        state.ResolveFunctionLocalValue(SlotId, Variable).AsNumber(state.CancellationCheckpoint);
+
+    internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
+        context.State.AssignFunctionLocalValue(SlotId, Variable, value);
+
+    internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
+        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var previous = ReadNumber(context.State);
+        var right = value.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation));
+        context.State.AssignFunctionLocalValue(SlotId, Variable, result);
+        return result;
+    }
+
+    internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
+    {
+        var previous = ReadNumber(context.State);
+        var result = AwkValue.FromNumber(previous + delta);
+        context.State.AssignFunctionLocalValue(SlotId, Variable, result);
+        return post ? AwkValue.FromNumber(previous) : result;
+    }
+
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.LocalScalar(Variable, SlotId));
 }
