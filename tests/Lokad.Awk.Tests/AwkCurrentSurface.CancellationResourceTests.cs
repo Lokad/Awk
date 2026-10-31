@@ -1018,6 +1018,48 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public async Task Awk_CancellationDuringRecordHeaderAdmissionPreservesPublishedState()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var options = memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+            new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(),
+            regexEngine: AwkUtf8RegexEngine.Instance));
+        var state = memory.Initialize(AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, cancellation.Token, options)).State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
+        Assert.Equal(1, state.FieldCount);
+        state.RecordNumber = 4;
+        state.FileRecordNumber = 3;
+        state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
+            AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 300))));
+        var host = new MockFileSystem();
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr, cancellation.Token, AwkRuntimeCounters.Disabled,
+            state.Limits, state, static _ => []);
+        var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
+            [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        using var executor = new AwkRuntimeActionExecutor(program, state);
+        var reserved = memory.Budget.Reserved;
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(
+                AwkText.FromSourceLiteralString("new"), AwkRecordTerminator.NewLine,
+                AwkRecordFieldSplittingMode.Ordinary)));
+        memory.Budget.OnGrowth = null;
+        Assert.Equal("keep", state.CurrentRecordByteText.AsString());
+        Assert.Equal(4, state.RecordNumber);
+        Assert.Equal(3, state.FileRecordNumber);
+        Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1, state.FieldCount);
+        Assert.Equal(reserved, memory.Budget.Reserved);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseForCleanupAsync();
+    }
+
+    [Fact]
     public void Awk_SubstitutionFieldReferenceMemoryLimitFailsBeforeExtendingFields()
     {
         // Admit the original field's value-type buffer while rejecting 30 fields.

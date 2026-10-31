@@ -58,6 +58,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
             // actions must be able to refund relinquished storage to the shared root.
             using (var admission = state.PreflightCurrentRecordAdmission(record))
             {
+                state.ThrowIfCancellationRequested();
                 state.Counters.RecordRecordRead();
                 state.AdvanceMainInputRecord(record.Terminator);
                 state.SetRecordFieldSplittingMode(record.FieldSplittingMode);

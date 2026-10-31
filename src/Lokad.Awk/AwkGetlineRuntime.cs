@@ -29,6 +29,7 @@ internal static class AwkGetlineRuntime
                     ? context.State.PreflightCurrentRecordAdmission(
                         result.RecordText, result.Terminator, result.FieldSplittingMode)
                     : default;
+                context.State.ThrowIfCancellationRequested();
                 if (source.ReadsMainInput)
                 {
                     context.State.AdvanceMainInputRecord(result.Terminator);

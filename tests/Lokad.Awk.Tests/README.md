@@ -121,6 +121,8 @@ Current-surface tests are for internals that are hard to observe through a golde
 Record-input memory cases check that header preflight ends before later actions: clearing
 a large value makes allowance available to a separate host user under shared pressure,
 while same-execution replacement, mutation refusal and pending-user cleanup remain covered.
+Budget-callback cancellation during main-input or getline admission preserves the prior
+record, counters and terminator, and cleanup still closes the admitted input.
 
 `AwkAdmissionRefusalTests` verifies command termination on any refused host admission,
 without retry or fallback, and reuse by later commands after actual cleanup. Lower-level

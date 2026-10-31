@@ -2,6 +2,53 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkGetlineDestinationTests
 {
+    [Fact]
+    public async Task CancellationDuringRecordAdmissionPreservesThePreviousRecordAndTerminator()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, cancellation.Token,
+            memory.Configure(CreateOptions(limits, AwkRuntimeCounters.Disabled)))).State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
+        Assert.Equal(1, state.FieldCount);
+        state.RecordNumber = 4;
+        state.FileRecordNumber = 3;
+        state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldWidths,
+            AwkValue.FromText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("1", 4096)))));
+        var host = new MockFileSystem();
+        host.AddFile("/data", "new\n");
+        using var output = AwkTestHarness.CreateOutputSink();
+        var io = CreateIo(host, state, limits, cancellation.Token);
+        var context = new AwkEvaluationContext(state, output, io);
+        var canceledAdmission = false;
+        memory.Budget.OnGrowth = bytes =>
+        {
+            // Tiny input/descriptor storage is admitted first; the large retained
+            // width plan makes the later current-record admission observable.
+            if (bytes < 16 << 10) return;
+            canceledAdmission = true;
+            cancellation.Cancel();
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => AwkGetlineRuntime.ExecuteAsync(
+            AwkGetlineTarget.CurrentRecord, AwkGetlineSource.Redirection(AwkExpression.Literal("data")),
+            context, new AwkExecutionContext(output, io), AwkPendingDiagnosticPolicy.Preserve).AsTask());
+        memory.Budget.OnGrowth = null;
+        Assert.True(canceledAdmission);
+        Assert.Equal("keep", state.CurrentRecordByteText.AsString());
+        Assert.Equal(4, state.RecordNumber);
+        Assert.Equal(3, state.FileRecordNumber);
+        Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
+        Assert.Equal(1, state.FieldCount);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseForCleanupAsync();
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]

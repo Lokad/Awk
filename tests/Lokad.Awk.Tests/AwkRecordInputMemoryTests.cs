@@ -4,6 +4,35 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordInputMemoryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HeaderAdmissionCancellationStopsLaterEffectsAndRefundsAfterCleanup(bool getline)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var canceledAdmission = false;
+        var host = new InputHost(budget, "new\n")
+        {
+            OnRead = () => budget.OnGrowth = bytes =>
+            {
+                if (bytes < (16 << 10)) return;
+                canceledAdmission = true;
+                cancellation.Cancel();
+            }
+        };
+        var setup = "FIELDWIDTHS=\"" + string.Join(' ', Enumerable.Repeat("1", 4096)) + "\";print \"before\";";
+        var script = getline ? "BEGIN{" + setup + "getline;print \"unreachable\"}END{print \"end\"}"
+            : "BEGIN{" + setup + "}{print \"unreachable\"}END{print \"end\"}";
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Execute(script, host, budget, cancellation.Token));
+        budget.OnGrowth = null;
+        Assert.True(canceledAdmission);
+        Assert.Equal("before\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(0, budget.Refusals);
+        AssertRefunded(budget);
+    }
+
     [Fact]
     public async Task LaterActionsReuseRelinquishedPayloadUnderSharedPressure()
     {
