@@ -2,12 +2,18 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkEvaluationContextTests
 {
+    public static IEnumerable<object[]> NestedBindingCases()
+    {
+        foreach (var finite in new[] { false, true })
+        foreach (var canceled in new[] { false, true })
+        foreach (var sameOutput in new[] { false, true })
+        foreach (var sameIo in new[] { false, true })
+            yield return [finite, canceled, sameOutput, sameIo];
+    }
+
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task PendingFailureRestoresTheEnclosingContext(bool finite, bool canceled)
+    [MemberData(nameof(NestedBindingCases))]
+    public async Task PendingFailureRestoresTheEnclosingContext(bool finite, bool canceled, bool sameOutput, bool sameIo)
     {
         using var memoryForState = CreateState(finite);
         var state = memoryForState.State;
@@ -18,11 +24,22 @@ public sealed class AwkEvaluationContextTests
         using (state.PushExecutionContext(firstOutput, firstIo))
         {
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var pending = AwaitInScopeAsync(state, secondOutput, secondIo, completion.Task);
+            var innerOutput = sameOutput ? firstOutput : secondOutput;
+            var innerIo = sameIo ? firstIo : secondIo;
+            var pending = AwaitInScopeAsync(state, innerOutput, innerIo, completion.Task);
             Assert.False(pending.IsCompleted);
             Assert.True(state.TryGetExecutionContext(out var active));
-            Assert.Same(secondOutput, active.Output);
-            Assert.Same(secondIo, active.Io);
+            Assert.Same(innerOutput, active.Output);
+            Assert.Same(innerIo, active.Io);
+            using (state.PushExecutionContext(firstOutput, firstIo))
+            {
+                Assert.True(state.TryGetExecutionContext(out var nested));
+                Assert.Same(firstOutput, nested.Output);
+                Assert.Same(firstIo, nested.Io);
+            }
+            Assert.True(state.TryGetExecutionContext(out var resumed));
+            Assert.Same(innerOutput, resumed.Output);
+            Assert.Same(innerIo, resumed.Io);
             if (canceled)
             {
                 completion.SetCanceled();

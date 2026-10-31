@@ -330,6 +330,8 @@ returns remain isolated across nested calls and concurrent compiled-program reus
 Nested-loop goldens also cover return through a host-capable function. Execution-context
 checks distinguish explicit snapshots from ambient bindings across suspension and verify
 that pending failure or cancellation restores the enclosing context in both memory modes.
+The binding matrix includes identical bindings and changes to either output, I/O, or both,
+with an intervening nested scope before the pending operation completes.
 
 Array-parameter counters cover bound aliases across reads, membership, updates and nested
 roots in both memory modes. A file-action golden keeps suspended caller aliases separate
