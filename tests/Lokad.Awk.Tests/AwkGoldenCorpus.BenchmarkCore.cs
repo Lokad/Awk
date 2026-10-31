@@ -5,6 +5,32 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        foreach (var count in new[] { 17, 64, 257 })
+        {
+            var steps = string.Join(';', Enumerable.Repeat("x=(x*3+1)%101", count));
+            foreach (var shape in new[] { "action", "for", "while", "do", "branch" })
+            {
+                var updates = shape is "for" or "while" or "do" ? count * 2 : count;
+                var total = 0;
+                foreach (var seed in new[] { 7, 9 })
+                {
+                    var value = seed;
+                    for (var step = 0; step < updates; step++) value = (value * 3 + 1) % 101;
+                    total += value;
+                }
+                var body = shape switch
+                {
+                    "for" => "for(i=0;i<2;i++){" + steps + "}",
+                    "while" => "i=0;while(i<2){" + steps + ";i++}",
+                    "do" => "i=0;do{" + steps + ";i++}while(i<2)",
+                    "branch" => "if(x>0){" + steps + "}else{x=0}",
+                    _ => steps
+                };
+                yield return Posix(Passing("linear-computation-" + shape + "-" + count,
+                    ["{x=$1;" + body + ";total+=x}END{print total}"], [],
+                    total.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n", "0007\n9\n"));
+            }
+        }
         yield return Posix(Passing("benchmark-core-repeated-field-number-loop",
             ["{for(i=0;i<8;i++)sum[$1]+=$2}END{for(k in sum)total+=sum[k];print total}"],
             [], "40\n", "k 0002\nk 0003\n"));

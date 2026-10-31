@@ -75,6 +75,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     [InlineData("complete", "return")] [InlineData("cancel", "return")] [InlineData("refuse", "return")]
     [InlineData("complete", "numeric-field")] [InlineData("cancel", "numeric-field")] [InlineData("refuse", "numeric-field")]
     [InlineData("complete", "field-index")] [InlineData("cancel", "field-index")] [InlineData("refuse", "field-index")]
+    [InlineData("complete", "long-loop")] [InlineData("cancel", "long-loop")] [InlineData("refuse", "long-loop")]
     public async Task OrdinaryFunctionResumesPendingArgumentConditionOrReturnOnce(string outcome, string position)
     {
         var host = new MockFileSystem();
@@ -92,6 +93,9 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         };
         var source = "function more(){getline;return $1} " + (position switch
         {
+            "long-loop" => "function score(a,b,c,d,e){return a+b+c+d+e} " +
+                "BEGIN{$0=\"7 row\";for(i=0;i<1;i++){" + string.Concat(Enumerable.Repeat("x++;", 64)) +
+                "}print \"ready\",x;result=score($1,more(),1,2,3);print result;exit}",
             "numeric-field" => "function score(a,b,c,d,e){return a+b+c+d+e} " +
                 "BEGIN{$0=\"7 row\";seed=$1+0;print \"ready\";for(i=0;i<1;i++)result=score($1,more(),1,2,3);print result;exit}",
             "field-index" => "function fieldno(){getline;return 1}function score(a,b,c,d,e){return a+b+c+d+e} " +
@@ -106,11 +110,12 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var budget = new CooperativeTestBudget(4 << 20);
         using var cancellation = new CancellationTokenSource();
+        var ready = position == "long-loop" ? "ready 64\n" : "ready\n";
         var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(ready, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.True(budget.Reserved > 0);
             if (outcome == "cancel")
             {
@@ -123,7 +128,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             resume.TrySetResult();
             if (outcome == "cancel") await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
             else Assert.Equal(outcome == "complete" ? AwkExitCode.Success : AwkExitCode.FatalError, await execution);
-            Assert.Equal(outcome == "complete" ? "ready\n17\ncompleted\n" : "ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(outcome == "complete" ? ready + "17\ncompleted\n" : ready, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(outcome == "refuse" ? "awk: memory limit exceeded\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);

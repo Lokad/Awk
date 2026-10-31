@@ -316,6 +316,48 @@ public sealed class AwkFrontendMemoryTests
         Assert.Equal(retained, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData("action")] [InlineData("for")] [InlineData("while")] [InlineData("do")]
+    public async Task LongPreparedArtifactDoesNotRetainItsConstructionToken(string shape)
+    {
+        const int count = 257;
+        var steps = string.Concat(Enumerable.Repeat("x++;", count));
+        var body = shape switch
+        {
+            "for" => "for(i=0;i<2;i++){" + steps + "}",
+            "while" => "i=0;while(i<2){" + steps + "i++}",
+            "do" => "i=0;do{" + steps + "i++}while(i<2);",
+            _ => steps
+        };
+        var source = "BEGIN{" + body + ";print x}";
+        var budget = new CooperativeTestBudget(8 << 20);
+        using var parent = budget.CreateScope();
+        using var construction = new CancellationTokenSource();
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            Command(source, parent), construction.Token, regexEngine: AwkUtf8RegexEngine.Instance);
+        construction.Cancel();
+        var retained = budget.Reserved;
+        Assert.True(retained > 0);
+        var foreign = new CooperativeTestBudget(0);
+        var options = AwkRuntimeOptions.Create(AwkTestHarness.CreatePolicy().WithMemoryBudget(foreign));
+        var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
+        var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
+        var expected = count * (shape == "action" ? 1 : 2);
+        Assert.All(results, result => Assert.Equal(0, result.Value));
+        Assert.All(hosts, host =>
+        {
+            Assert.Equal(expected.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+        });
+        Assert.Equal(0, foreign.Peak);
+        Assert.Equal(retained, budget.Reserved);
+        await compiled.DisposeAsync();
+        Assert.Equal(0, budget.Reserved);
+        Assert.True(parent.TryReserve(8 << 20, out var reusable));
+        reusable.Dispose();
+    }
+
     private static AwkCommandInvocation Command(string source, IMemoryBudget budget) =>
         new("awk", [source], [], AwkPath.Root, AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, budget);

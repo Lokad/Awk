@@ -135,6 +135,9 @@ reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 6
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases
 preserve the ordinary path and keep storage funded through actual completion or cancellation.
 Function-flow checks also cover nested returns and pending conditions/return values.
+Long-block goldens cover actions, branches and for/while/do bodies at several sizes.
+Artifact reuse and pending-argument cases after long loops check cancellation authority,
+actual-user funding, refusal and cleanup independently of preparation eligibility.
 Ordinary short/long function counters preserve numeric cells, bounded text allocation,
 zero text conversions and refunds. The reference catalog includes a complete function
 with local mutation, a loop and early returns, independently of prepared return shapes.
