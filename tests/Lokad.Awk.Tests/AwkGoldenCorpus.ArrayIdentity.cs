@@ -6,6 +6,14 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("array-cell-update-keeps-prior-value-through-same-key-write",
+            ["function rhs(a){a[\"x\"]=20;return 3} BEGIN{a[\"x\"]=5;a[\"x\"]+=rhs(a);print a[\"x\"]}"], [], "8\n"),
+        Passing("array-cell-update-reacquires-deleted-reinserted-key",
+            ["function rhs(a){delete a[\"x\"];a[\"x\"]=20;return 3} BEGIN{a[\"x\"]=5;a[\"x\"]+=rhs(a);print a[\"x\"],length(a)}"], [], "8 1\n"),
+        Passing("array-cell-update-reacquires-replaced-table",
+            ["function rhs(a){split(\"10 20\",a);return 3} BEGIN{a[1]=5;a[1]+=rhs(a);print a[1],a[2],length(a)}"], [], "8 20 2\n"),
+        Passing("array-cell-update-survives-growth-and-keeps-key-spelling",
+            ["function rhs(a,i){for(i=1;i<=200;i++)a[i]=i;return 3} {a[$1]=5;a[$1]+=rhs(a);print a[\"0007\"],a[7],length(a)}"], [], "8 7 201\n", "0007\n"),
         AwkGoldenCaseBuilder.Create("composite-key-missing-read-before-rhs",
             ["function rhs(p){print ((\"x\",\"y\") in p);return 3} BEGIN{a[\"other\"]=1;a[\"x\",\"y\"]+=rhs(a);print a[\"x\",\"y\"],length(a)}"], [])
             .WithStdOut("1\n3 2\n")

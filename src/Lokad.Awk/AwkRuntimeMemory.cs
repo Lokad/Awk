@@ -9,7 +9,8 @@ internal static class AwkRuntimeMemory
     private const int ByteArrayObjectBytes = 24;
     private const int StringObjectBytes = 24;
     private const int VariableSlotBytes = 24;
-    private const int ArrayEntryBytes = 64;
+    private const int ArrayEntryBytes = 48;
+    internal const int ArrayCellBytes = 48;
     private const int ArrayObjectBytes = 24;
     // Coarse owner estimate includes the identity and its dictionary object, including
     // empty children. Entry/bucket capacity is charged separately below.
@@ -80,7 +81,7 @@ internal static class AwkRuntimeMemory
 
     public static long EstimateUntypedArrayElementBytes(AwkArrayKey key) =>
         CheckedAdd(CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
-            CheckedAdd(VariableSlotBytes, EstimateUntypedScalarBytes()));
+            CheckedAdd(ArrayCellBytes, EstimateUntypedScalarBytes()));
 
     public static long EstimateSymbolMetadataBytes(int characterCount) =>
         CheckedAdd(
@@ -91,18 +92,24 @@ internal static class AwkRuntimeMemory
     // The existing coarse entry estimate covers buckets/entries and small headers.
     public static long EstimateArrayBackingBytes(int capacity) => CheckedMultiply(ArrayEntryBytes, capacity);
 
+    public static long EstimateArrayConstructionBytes(int capacity, int count) =>
+        CheckedAdd(EstimateArrayBackingBytes(capacity), CheckedMultiply(ArrayCellBytes, count));
+
+    public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkArrayCell cell) =>
+        EstimateArrayElementPayloadBytes(key, cell.Slot);
+
     public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkVariableSlot slot) =>
-        CheckedAdd(key.RetainedTextMemoryBytes, EstimateVariableSlotBytes(slot));
+        CheckedAdd(key.RetainedTextMemoryBytes, CheckedAdd(ArrayCellBytes, slot.RetainedTextMemoryBytes));
 
     public static long EstimateArrayElementBytes(AwkArrayKey key, AwkVariableSlot slot) =>
         CheckedAdd(
             CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
-            EstimateVariableSlotBytes(slot));
+            CheckedAdd(ArrayCellBytes, slot.RetainedTextMemoryBytes));
 
     public static long EstimateExternalArrayElementBytes(int keyByteLength, int valueByteLength) =>
         CheckedAdd(
             CheckedAdd(ArrayEntryBytes, EstimateTextBytes(keyByteLength)),
-            CheckedAdd(VariableSlotBytes, EstimateTextBytes(valueByteLength)));
+            CheckedAdd(ArrayCellBytes, EstimateTextBytes(valueByteLength)));
 
     public static long EstimateConcatenatedTextBytes(AwkText left, AwkText right, int byteLength) =>
         CheckedAdd(

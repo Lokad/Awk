@@ -53,8 +53,8 @@ internal sealed partial class AwkVariables
                     if (origin.IsScalar) copiedOrigin.Promote();
                     copy = AwkVariableSlot.FromUntypedScalar(copiedOrigin);
                 }
-                else copy = pair.Value;
-                destination.Slots.Add(pair.Key, copy);
+                else copy = pair.Value.Slot;
+                destination.Slots.Add(pair.Key, new(copy));
             }
             if (pending is null || !pending.TryPop(out var next)) break;
             source = next.Source;
@@ -70,11 +70,7 @@ internal sealed partial class AwkVariables
         return _arrays.TryGetArray(target.Name, out array);
     }
 
-    private long EstimateOwnedArrayBytes(AwkArrayTarget target, IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> slots) =>
-        target.IsNamed ? EstimateOwnedArrayBytes(target.Name, slots) :
-            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(slots, _checkpoint));
-
-    private void PublishArraySlots(AwkArrayTarget target, Dictionary<AwkArrayKey, AwkVariableSlot> slots)
+    private void PublishArraySlots(AwkArrayTarget target, Dictionary<AwkArrayKey, AwkArrayCell> slots)
     {
         if (target.IsNamed) _arrays.SetSlots(target.Name, slots);
         else if (target.TryGetArray(out var array)) array.ReplaceSlots(slots);
@@ -136,7 +132,7 @@ internal sealed partial class AwkVariables
             return;
         }
         using var construction = _memoryAccounting.AdmitMutation(
-            AwkRuntimeMemory.EstimateArrayBackingBytes(BoundArrayCapacity(values.Count)));
+            AwkRuntimeMemory.EstimateArrayConstructionBytes(BoundArrayCapacity(values.Count), values.Count));
         ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, createSlot), sourceMemoryLease, sourceRetainedTextBytes);
     }
 
@@ -148,12 +144,12 @@ internal sealed partial class AwkVariables
             return;
         }
         using var construction = _memoryAccounting.AdmitMutation(
-            AwkRuntimeMemory.EstimateArrayBackingBytes(BoundArrayCapacity(values.Count)));
+            AwkRuntimeMemory.EstimateArrayConstructionBytes(BoundArrayCapacity(values.Count), values.Count));
         ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, AwkVariableSlot.FromExternalText),
             AwkMemoryLease.Disabled, 0);
     }
 
-    internal void ReplaceMutableArraySlots(AwkArrayTarget target, Dictionary<AwkArrayKey, AwkVariableSlot> slots,
+    internal void ReplaceMutableArraySlots(AwkArrayTarget target, Dictionary<AwkArrayKey, AwkArrayCell> slots,
         AwkMemoryLease sourceMemoryLease, long transferredBytes)
     {
         if (target.IsNamed)
@@ -208,14 +204,15 @@ internal sealed partial class AwkVariables
     {
         ThrowIfDetached(parent);
         var slots = parent.Slots;
-        var found = slots.TryGetValue(key, out var slot);
+        var found = slots.TryGetValue(key, out var entry);
+        var slot = entry?.Slot ?? default;
         if (slot.TryGetArrayBinding(out var existing)) return existing;
         if (found && !slot.IsUntyped)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
 
         var growth = AwkRuntimeMemory.ArrayIdentityBytes;
         var estimatedGrowth = found ? growth : EstimateArrayInsertionGrowth(slots,
-            AwkRuntimeMemory.CheckedAdd(growth, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, default)));
+            AwkRuntimeMemory.CheckedAdd(growth, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, default(AwkVariableSlot))));
         using var admission = _memoryAccounting.AdmitMutation(estimatedGrowth);
         using var creation = ReserveMemoryMutation(growth, 0);
         var child = new AwkArrayIdentity(CreateArraySlots(0), parent);
@@ -264,6 +261,7 @@ internal sealed partial class AwkVariables
             origin.Detach();
         }
         slots.Remove(retainedKey);
+        slot.Detach();
         _memoryAccounting.ReleaseCommitted(oldBytes);
     }
 
@@ -285,6 +283,7 @@ internal sealed partial class AwkVariables
                 var slot = pair.Value;
                 if (slot.TryGetArrayBinding(out var child)) (pending ??= new()).Push(child);
                 if (slot.TryGetUntypedScalar(out var origin)) origin.Detach();
+                slot.Detach();
             }
             if (pending is null || !pending.TryPop(out var next)) break;
             slots = next.Slots;

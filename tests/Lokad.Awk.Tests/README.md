@@ -30,6 +30,8 @@ refusal/cancellation stops later effects and all execution owners refund.
 Repeated-update counters also distinguish retained keys from lookup-only copies. Composite
 key/owner snapshots survive pending RHS clear/rehash and special-array aliases without
 retaining dictionary entry references.
+Entry-cell cases cover same-key RHS writes, deletion/reinsertion, table replacement,
+payload retirement and refused insertion. Numeric footprint checks include cell storage.
 
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 

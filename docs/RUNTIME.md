@@ -163,8 +163,10 @@ complete bodies without a statement-count cutoff. Host-capable or unsupported wo
 the ordinary interpreter path; cancellation, stack protection and admission still apply.
 An array's stable identity stays funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
-Numeric updates capture their key and prior value before the RHS; commit uses the owner's
-current storage and resolves a detached target again without reevaluating its key.
+Numeric updates capture their key and prior value before the RHS. Live entry cells receive
+the result directly; retired or retyped entries use current storage without reevaluating
+the key. Captured cells and keys stay funded through pending users. Retirement clears a
+cell's payload before the containing array refunds it.
 Nested-array storage belongs to its parent. Captured path keys stay funded through later
 mutation and actual completion of pending host operations; deleting an entry does not
 authorize an unfunded write through a removed child.

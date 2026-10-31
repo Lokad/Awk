@@ -28,6 +28,12 @@ internal sealed class AwkRuntimeCounters
 
     public long BorrowedFieldTargetSnapshots { get; private set; }
     public long NumericArraySlotReads { get; private set; }
+    public long ArrayCellCommits { get; private set; }
+
+    public void RecordArrayCellCommit()
+    {
+        if (_enabled) lock (_sync) ArrayCellCommits++;
+    }
 
     public void RecordNumericArraySlotRead()
     {

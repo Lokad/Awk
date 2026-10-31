@@ -1228,7 +1228,13 @@ internal sealed class AwkRuntimeState : IDisposable
         var result = AwkValue.FromNumber(number);
         if (target.Array is { IsDetached: false } array)
         {
-            // Read the owner's current dictionary after the RHS, including suspension.
+            if (target.Cell is { } cell && cell.TrySetNumber(number))
+            {
+                Counters.RecordArrayCellCommit();
+                Counters.RecordBoundArrayUpdate();
+                return result;
+            }
+            // Retired/retyped entries retain the ordinary current-owner lookup.
             _variables.SetArrayValue(array, target.Key, result);
             Counters.RecordBoundArrayUpdate();
         }

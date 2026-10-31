@@ -181,7 +181,7 @@ internal sealed class AwkArrayRuntime
         {
             if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
             {
-                target = new(key, _variables.ReadArraySlotNumber(slot), array);
+                target = new(key, _variables.ReadArraySlotNumber(slot), array, slot);
                 return true;
             }
             target = default;
@@ -193,7 +193,7 @@ internal sealed class AwkArrayRuntime
             if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
             {
                 _state.BindGlobalArray(globalIndex, resolved);
-                target = new(key, _variables.ReadArraySlotNumber(slot), array);
+                target = new(key, _variables.ReadArraySlotNumber(slot), array, slot);
                 return true;
             }
         }
@@ -225,7 +225,7 @@ internal sealed class AwkArrayRuntime
         if (_variables.TryGetOrdinaryArray(resolved, out array) && array.Slots.TryGetValue(key, out var slot))
         {
             _state.BindGlobalArray(globalIndex, resolved);
-            return new(key, _variables.ReadArraySlotNumber(slot), array);
+            return new(key, _variables.ReadArraySlotNumber(slot), array, slot);
         }
         // Keep missing-read promotion/admission and special-array behavior in their
         // established order. The already-bound ordinary path above needs no second resolve.
@@ -494,11 +494,11 @@ internal sealed class AwkArrayRuntime
                     continue;
 
                 var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                slots[ordinalKey] = AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value));
+                slots[ordinalKey] = new(AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value)));
                 slots[MetadataKey(ordinalKey, MatchStartCaptureKeyPart)] =
-                    AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1));
+                    new(AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1)));
                 slots[MetadataKey(ordinalKey, MatchLengthCaptureKeyPart)] =
-                    AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Length));
+                    new(AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Length)));
             }
         }
 

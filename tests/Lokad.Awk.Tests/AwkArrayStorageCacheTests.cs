@@ -44,7 +44,7 @@ public sealed class AwkArrayStorageCacheTests
         Assert.Same(second, replacement);
         storage.Clear(name);
         Assert.True(storage.TryGetSlots(name, out var cleared));
-        Assert.Empty(Assert.IsType<Dictionary<AwkArrayKey, AwkVariableSlot>>(cleared));
+        Assert.Empty(Assert.IsType<Dictionary<AwkArrayKey, AwkArrayCell>>(cleared));
     }
 
     [Fact]
@@ -97,14 +97,14 @@ public sealed class AwkArrayStorageCacheTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<Dictionary<AwkArrayKey, AwkVariableSlot>> RetireCachedContainer(
+    private static WeakReference<Dictionary<AwkArrayKey, AwkArrayCell>> RetireCachedContainer(
         AwkArrayStorage storage, bool remove)
     {
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("scratch"), 1);
         var slots = Values(7);
         storage.SetSlots(name, slots);
         Assert.True(storage.TryGetSlots(name, out _));
-        var reference = new WeakReference<Dictionary<AwkArrayKey, AwkVariableSlot>>(slots);
+        var reference = new WeakReference<Dictionary<AwkArrayKey, AwkArrayCell>>(slots);
         if (remove)
             Assert.True(storage.Remove(name, out _));
         else
@@ -112,6 +112,6 @@ public sealed class AwkArrayStorageCacheTests
         return reference;
     }
 
-    private static Dictionary<AwkArrayKey, AwkVariableSlot> Values(int number) =>
-        new(AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = AwkVariableSlot.FromValue(AwkValue.FromNumber(number)) };
+    private static Dictionary<AwkArrayKey, AwkArrayCell> Values(int number) =>
+        new(AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = new(AwkVariableSlot.FromValue(AwkValue.FromNumber(number))) };
 }

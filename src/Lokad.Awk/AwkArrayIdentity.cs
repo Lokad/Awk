@@ -3,15 +3,15 @@ namespace Lokad.Awk;
 // Bind this owner, not its replaceable dictionary. RHS evaluation may clear/split it.
 internal sealed class AwkArrayIdentity
 {
-    private static readonly Dictionary<AwkArrayKey, AwkVariableSlot> DetachedSlots = new(AwkArrayKeyComparer.Instance);
-    public AwkArrayIdentity(Dictionary<AwkArrayKey, AwkVariableSlot> slots, AwkArrayIdentity? parent = null)
+    private static readonly Dictionary<AwkArrayKey, AwkArrayCell> DetachedSlots = new(AwkArrayKeyComparer.Instance);
+    public AwkArrayIdentity(Dictionary<AwkArrayKey, AwkArrayCell> slots, AwkArrayIdentity? parent = null)
     {
         Slots = slots;
         Parent = parent;
         AdoptChildren();
     }
 
-    public Dictionary<AwkArrayKey, AwkVariableSlot> Slots { get; private set; }
+    public Dictionary<AwkArrayKey, AwkArrayCell> Slots { get; private set; }
 
     public AwkArrayIdentity? Parent { get; private set; }
 
@@ -37,7 +37,7 @@ internal sealed class AwkArrayIdentity
         return false;
     }
 
-    public void ReplaceSlots(Dictionary<AwkArrayKey, AwkVariableSlot> replacement)
+    public void ReplaceSlots(Dictionary<AwkArrayKey, AwkArrayCell> replacement)
     {
         Slots = replacement;
         AdoptChildren();

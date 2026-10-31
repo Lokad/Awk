@@ -94,6 +94,8 @@ internal readonly struct AwkVariableSlot
     public static AwkVariableSlot FromExternalText(AwkText text) =>
         new(text, AwkVariableSlotKind.NumericString);
 
+    internal static AwkVariableSlot FromNumber(double value) => new(value);
+
     public static AwkVariableSlot FromValue(AwkValue value)
     {
         value = value.AsScalarCopy();

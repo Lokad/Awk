@@ -270,7 +270,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
         var state = context.State;
-        var heldKey = state.MemoryAccounting.ReserveTransient(target.Key.RetainedTextMemoryBytes);
+        var heldKey = state.MemoryAccounting.ReserveTransient(target.RetainedTargetBytes);
         try
         {
             var right = value.ResolveNumberAsync(context);

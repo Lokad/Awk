@@ -294,6 +294,21 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task RepeatedKeyedUpdatesCommitThroughLiveCells()
+    {
+        const int records = 128;
+        var input = string.Concat(Enumerable.Range(0, records).Select(i => $"k{i % 16} 2\n"));
+        var result = await RunAsync(["{sum[$1]+=$2} END{for(k in sum)total+=sum[k];print total}"], input, false);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("256\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(result.Counters.ArrayCellCommits, records - 16, records);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+        Assert.InRange(result.Counters.AwkTextAllocations, records, records + 32);
+    }
+
+    [Fact]
     internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput()
     {
         var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],
