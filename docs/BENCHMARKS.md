@@ -110,8 +110,8 @@ supplies a live caller deadline in both modes and measures that distinct configu
 
 | Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
 | --- | --- | ---: | ---: | --- |
-| Aggregation, 65,536 records | None | 33.661 | 0.238 | 10-31 / [02c27fd] |
-| Aggregation, 65,536 records | 512 MiB | 49.319 | 2.241 | 10-31 / [02c27fd] |
+| Aggregation, 65,536 records | None | 37.887 | 0.238 | 10-31 / [34d6c97] |
+| Aggregation, 65,536 records | 512 MiB | 56.873 | 2.241 | 10-31 / [34d6c97] |
 | Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
 | Join, 65,536 records per file | 512 MiB | 171.680 | 29.366 | 10-31 / [e9c6ef5] |
 | Scalar sum, 65,536 records | None | 32.091 | 6.694 | 10-31 / [5e53a18] |
@@ -199,4 +199,4 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 
 [e9c6ef5]: https://github.com/Lokad/Awk/commit/e9c6ef53e8498a2433158f9324651961929425e8
 
-[02c27fd]: https://github.com/Lokad/Awk/commit/02c27fd148b7b1691fbc887e98ef576a10122990
+[34d6c97]: https://github.com/Lokad/Awk/commit/34d6c97993973df4fb92fa043e6dd97c52df0ea4
