@@ -280,6 +280,9 @@ programs/inputs/expectations, exact versioned byte signatures, invalid UTF-8, an
 unexpected exit/stderr/output. `--reference-contracts` in benchmark tooling performs native
 requalification separately; known reference bugs cannot become equivalent performance cases.
 
+Use Release for full qualification, including allocation checks; Debug lowering does not
+provide the same compiler allocation elision. CI builds and tests Release on both OSes.
+
 Tests that force garbage collection or measure thread-local allocation should use
 `[Collection(AwkAllocationMeasurementCollection.Name)]` so unrelated collections cannot interfere with
 their measured loops. Keep their allocation ceilings unchanged when adding isolation.
