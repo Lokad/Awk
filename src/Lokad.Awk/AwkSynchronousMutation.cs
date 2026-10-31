@@ -3,45 +3,40 @@ namespace Lokad.Awk;
 internal abstract partial class AwkExpression
 {
     private sealed class SynchronousAssignmentExpression(
-        AwkResolvedReference target, AwkSynchronousExpression value) : AwkSynchronousExpression
+        AwkReference target, AwkSynchronousExpression value, Action? checkpoint = null) : AwkSynchronousExpression
     {
-        internal override int SynchronousDepth => value.SynchronousDepth + 1;
-        internal override int SynchronousCallDepth => value.SynchronousCallDepth;
+        private readonly (int Depth, int Calls) _targetShape = target.GetSynchronousShape(checkpoint);
+        internal override int SynchronousDepth => Math.Max(_targetShape.Depth, value.SynchronousDepth) + 1;
+        internal override int SynchronousCallDepth => Math.Max(_targetShape.Calls, value.SynchronousCallDepth);
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
             var result = value.EvaluateSynchronous(context);
-            target.AssignValue(context.State, result);
+            target.AssignValueSynchronous(context, result);
             return result.AsScalarCopy();
         }
     }
 
-    private sealed class SynchronousCompoundAssignmentExpression(AwkResolvedReference target,
-        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation) : AwkSynchronousExpression
+    private sealed class SynchronousCompoundAssignmentExpression(AwkReference target,
+        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation,
+        Action? checkpoint = null) : AwkSynchronousExpression
     {
-        internal override int SynchronousDepth => value.SynchronousDepth + 1;
-        internal override int SynchronousCallDepth => value.SynchronousCallDepth;
+        private readonly (int Depth, int Calls) _targetShape = target.GetSynchronousShape(checkpoint);
+        internal override int SynchronousDepth => Math.Max(_targetShape.Depth, value.SynchronousDepth) + 1;
+        internal override int SynchronousCallDepth => Math.Max(_targetShape.Calls, value.SynchronousCallDepth);
 
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
-        {
-            var state = context.State;
-            var previous = target.EvaluateNumber(state);
-            var right = value.EvaluateSynchronous(context).AsNumber(state.CancellationCheckpoint);
-            var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation));
-            target.AssignValue(state, result);
-            return result;
-        }
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            target.ApplyCompoundAssignmentSynchronous(context, value, operation);
     }
 
     private sealed class SynchronousIncrementExpression(
-        AwkResolvedReference target, int delta, bool post) : AwkSynchronousExpression
+        AwkReference target, int delta, bool post, Action? checkpoint = null) : AwkSynchronousExpression
     {
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
-        {
-            var previous = target.EvaluateNumber(context.State);
-            var value = AwkValue.FromNumber(previous + delta);
-            target.AssignValue(context.State, value);
-            return post ? AwkValue.FromNumber(previous) : value;
-        }
+        private readonly (int Depth, int Calls) _targetShape = target.GetSynchronousShape(checkpoint);
+        internal override int SynchronousDepth => _targetShape.Depth + 1;
+        internal override int SynchronousCallDepth => _targetShape.Calls;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            target.ApplyNumericUpdateSynchronous(context, delta, post);
     }
 }

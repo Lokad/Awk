@@ -4,6 +4,16 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("array-write-helper-keeps-rhs-before-key-and-origin",
+            ["function key(){order=order*10+1;return k}function rhs(){k=2;order=order*10+2;return \"0007\"}function set(a){a[key()]=rhs();return a[2]}BEGIN{k=1;print \"[\"set(a)\"]\",order,(1 in a),(2 in a)}"],
+            [], "[0007] 21 0 1\n");
+        yield return Passing("array-write-helper-composite-key-keeps-numeric-string-spelling",
+            ["function key(x){return x}function update(a,k){a[k,1]+=2;return a[k,1]}{a[$1,1]=$2;print update(a,key($1)),$1,((\"0007\",1) in a),((7,1) in a)}"],
+            [], "7 0007 1 0\n", "0007 0005\n");
+        yield return Passing("array-write-helper-increments-through-forwarded-alias",
+            ["function tick(a){return a[1]++}function outer(a){return tick(a)}BEGIN{print outer(a),a[1],++a[1],a[1]--,a[1],length(a)}"],
+            [], "0 1 2 2 1 1\n");
+
         yield return Passing("array-readonly-helper-keeps-composite-spelling-and-missing-reads",
             ["function key(n){return n}function value(a){return a[key(1),key(2)]}function has(a){return (key(1),key(2)) in a}BEGIN{print has(t),length(t);print \"[\"value(t)\"]\",length(t);t[1,2]=\"0007\";print \"[\"value(t)\"]\",value(t)==7,has(t)}"],
             [], "0 0\n[] 1\n[0007] 0 1\n");

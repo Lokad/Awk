@@ -3,6 +3,42 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task PreparedArrayWritesRefuseBeforeMutation(int operation)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner: owner);
+            var name = AwkArrayName.FromText("a");
+            state.SetArrayAwkValue(name, new("keep"), AwkValue.FromNumber(7));
+            var target = AwkReference.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.Literal("missing")));
+            var expression = operation switch
+            {
+                1 => AwkExpression.CompoundAssignment(target, AwkExpression.Number(1), AwkCompoundAssignmentOperation.Add),
+                2 => AwkExpression.PostIncrement(target),
+                3 => AwkExpression.PreDecrement(target),
+                _ => AwkExpression.Assignment(target, AwkExpression.Number(99))
+            };
+            Assert.True(expression.TryPrepareFunctionCalls(
+                new Dictionary<AwkFunctionName, AwkSynchronousFunction>(), 16, out var prepared));
+            budget.RefuseNextAdmissionMinimumGrowth = 1;
+            var error = Assert.Throws<AwkRuntimeException>(() => prepared.EvaluateSynchronous(new(state)));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.True(budget.Refusals > 0);
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+            Assert.False(state.ContainsArrayValue(name, new("missing")));
+            Assert.Equal(7, state.GetArrayAwkValue(name, new("keep")).AsNumber());
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(0, 3)]
     [InlineData(13, 16)]
     [InlineData(14, 0)]

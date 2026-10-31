@@ -142,6 +142,42 @@ internal abstract record AwkReference
             this is AwkPreparedGlobalScalarReference scalar && !AwkSpecialVariables.TryGetScalar(scalar.Variable, out _);
     }
 
+    internal virtual (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (0, 0);
+
+    internal virtual bool TryPrepareFunctionCalls(
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+        int remainingDepth, out AwkReference prepared, Action? checkpoint)
+    {
+        prepared = this;
+        return remainingDepth > 0 && TryGetSynchronousScalar(out _);
+    }
+
+    private AwkResolvedReference GetSynchronousScalar() => TryGetSynchronousScalar(out var scalar)
+        ? scalar : throw new InvalidOperationException("Synchronous reference is required.");
+
+    internal virtual void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
+        GetSynchronousScalar().AssignValue(context.State, value);
+
+    internal virtual AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
+        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var target = GetSynchronousScalar();
+        var previous = target.EvaluateNumber(context.State);
+        var right = value.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation));
+        target.AssignValue(context.State, result);
+        return result;
+    }
+
+    internal virtual AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
+    {
+        var target = GetSynchronousScalar();
+        var previous = target.EvaluateNumber(context.State);
+        var result = AwkValue.FromNumber(previous + delta);
+        target.AssignValue(context.State, result);
+        return post ? AwkValue.FromNumber(previous) : result;
+    }
+
     protected virtual ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
         Func<double, double> update,
@@ -239,6 +275,44 @@ internal sealed record AwkLocalScalarReference(
 
 internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, int GlobalIndex = -1) : AwkReference
 {
+    internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null)
+    {
+        var shape = IndexExpression.GetSynchronousShape(checkpoint);
+        return (shape.Depth + 1, shape.Calls);
+    }
+
+    internal override bool TryPrepareFunctionCalls(
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+        int remainingDepth, out AwkReference prepared, Action? checkpoint)
+    {
+        prepared = this;
+        if (remainingDepth <= 1 || !IndexExpression.TryPrepareFunctionCalls(functions,
+            remainingDepth - 1, out var index, checkpoint) || index.GetSynchronousShape(checkpoint).Depth == 0) return false;
+        if (!ReferenceEquals(index, IndexExpression)) prepared = new AwkArrayElementReference(Variable, index, GlobalIndex);
+        return true;
+    }
+
+    internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value)
+    {
+        // As in ordinary assignment, the RHS is already evaluated when the key is resolved.
+        using var heldValue = context.State.MemoryAccounting.RetainValue(value);
+        var index = IndexExpression.ResolveKeySynchronous(context);
+        context.State.SetArrayAwkValue(Variable, index, value, GlobalIndex);
+    }
+
+    internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
+        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var target = IndexExpression.PrepareUpdateSynchronous(context, Variable, GlobalIndex);
+        using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedTargetBytes);
+        return AssignCompound(context.State, target, value.ResolveNumberSynchronous(context), operation);
+    }
+
+    internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post) =>
+        ApplyNumeric(context.State, IndexExpression.PrepareUpdateSynchronous(context, Variable, GlobalIndex),
+            delta > 0 ? AwkNumericOperations.Increment : AwkNumericOperations.Decrement,
+            post ? AwkNumericUpdateResult.Previous : AwkNumericUpdateResult.Updated);
+
     public override async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
         // Plain assignment commonly inserts a new key; keep its owned-key path.

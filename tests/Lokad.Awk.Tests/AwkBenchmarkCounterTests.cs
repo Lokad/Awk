@@ -17,6 +17,54 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData(false, 5)] [InlineData(true, 5)]
     [InlineData(false, 6)] [InlineData(true, 6)]
     [InlineData(false, 7)] [InlineData(true, 7)]
+    [InlineData(false, 8)] [InlineData(true, 8)]
+    [InlineData(false, 9)] [InlineData(true, 9)]
+    public async Task ArrayMutationHelpersPrepareCompleteOperations(bool governed, int shape)
+    {
+        var key = shape switch { 6 => "1,2", 7 => "$1", 8 => "key(1)", _ => "1" };
+        var item = "a[" + key + "]";
+        var operation = shape switch
+        {
+            1 => item + "+=1;return " + item,
+            2 => "return " + item + "++",
+            3 => "return ++" + item,
+            4 => "return " + item + "--",
+            5 => "return --" + item,
+            9 => item + "+=rhs(a);return " + item,
+            _ => item + "=" + item + "+1;return " + item
+        };
+        var initialKey = shape == 6 ? "1,2" : "1";
+        var source = "function key(n){return n}function rhs(a){a[1]=20;return 3}" +
+            "function step(x,a){" + operation + "}BEGIN{a[" + initialKey + "]=7}" +
+            "{for(i=0;i<8;i++)sum+=step(0,a)}END{print sum,a[" + initialKey + "]}";
+        var expected = shape switch { 2 => "232 23\n", 4 => "-8 -9\n", 5 => "-24 -9\n", 9 => "520 55\n", _ => "248 23\n" };
+        var host = new MockFileSystem();
+        host.SetStandardInput("1\n1\n");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var invocation = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.SynchronousFunctionRuns > 0);
+        Assert.Equal(0, counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, 0)] [InlineData(true, 0)]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 2)] [InlineData(true, 2)]
+    [InlineData(false, 3)] [InlineData(true, 3)]
+    [InlineData(false, 4)] [InlineData(true, 4)]
+    [InlineData(false, 5)] [InlineData(true, 5)]
+    [InlineData(false, 6)] [InlineData(true, 6)]
+    [InlineData(false, 7)] [InlineData(true, 7)]
     public async Task ReadonlyArrayHelpersPrepareAcrossIndexForms(bool governed, int shape)
     {
         var key = shape is 1 or 5 ? "1,2" : "1";

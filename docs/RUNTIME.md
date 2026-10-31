@@ -168,6 +168,8 @@ the ordinary interpreter path; cancellation, stack protection and admission stil
 Array reads and membership participate in this preparation for eligible literal, field
 and composite indices, including prepared calls within indices. Pending indices retain
 ordinary evaluation; field bytes remain borrowed only during synchronous consumption.
+Eligible array assignments, compound updates and increments use the same preparation.
+Nested-array targets and host-capable indices retain ordinary execution and its guarantees.
 Ordinary newline main input reuses two admitted buffers for small current records.
 Staging leaves the previous record intact until admission succeeds. Fields use scoped
 bytes; scalar escapes and regex operands that survive later evaluation own their text.

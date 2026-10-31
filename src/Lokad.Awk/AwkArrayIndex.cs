@@ -76,6 +76,10 @@ internal abstract record AwkArrayIndex
     internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, int globalIndex = -1) =>
         ResolveKeyAsync(context);
 
+    internal virtual AwkArrayUpdateTarget PrepareUpdateSynchronous(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1) =>
+        context.State.PrepareArrayUpdate(array, ResolveKeySynchronous(context), globalIndex);
+
     internal virtual ValueTask<AwkArrayUpdateTarget> PrepareUpdateAsync(AwkEvaluationContext context,
         AwkArrayName array, int globalIndex = -1)
     {
@@ -185,6 +189,12 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
             : AwaitFieldUpdateAsync(context, array, globalIndex, index);
     }
 
+    internal override AwkArrayUpdateTarget PrepareUpdateSynchronous(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1) =>
+        AwkExpression.TryGetFieldIndexExpression(Expression, out _)
+            ? context.State.PrepareArrayFieldUpdate(array, ResolveFieldSynchronous(context), globalIndex)
+            : base.PrepareUpdateSynchronous(context, array, globalIndex);
+
     private static async ValueTask<AwkArrayUpdateTarget> AwaitFieldUpdateAsync(AwkEvaluationContext context,
         AwkArrayName array, int globalIndex, ValueTask<double> pending) =>
         context.State.PrepareArrayFieldUpdate(array, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, globalIndex);
@@ -239,18 +249,35 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
 
     internal override AwkArrayKey ResolveKeySynchronous(AwkEvaluationContext context)
     {
-        var separator = context.State.ResolveSubscriptSeparatorText();
-        using var heldSeparator = context.State.MemoryAccounting.ReserveTransient(separator.EstimatedRetainedMemoryBytes);
-        using var builder = new AwkUtf8Builder(context.State.MemoryAccounting);
-        for (var index = 0; index < Expressions.Count; index++)
-        {
-            if (index > 0) builder.Append(separator, context.State.CancellationCheckpoint);
-            if (!Expressions[index].TryResolveSynchronousByteText(context, out var operand))
-                throw new InvalidOperationException("Synchronous array index is required.");
-            builder.Append(operand.AsSpan(context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
-        }
+        using var builder = BuildKeySynchronous(context);
         return new AwkArrayKey(builder.CopyToAwkText(context.State.Counters, context.State.CancellationCheckpoint),
             context.State.CancellationCheckpoint);
+    }
+
+    internal override AwkArrayUpdateTarget PrepareUpdateSynchronous(AwkEvaluationContext context,
+        AwkArrayName array, int globalIndex = -1)
+    {
+        using var builder = BuildKeySynchronous(context);
+        return context.State.PrepareArrayUpdate(array, builder, globalIndex);
+    }
+
+    private AwkUtf8Builder BuildKeySynchronous(AwkEvaluationContext context)
+    {
+        var separator = context.State.ResolveSubscriptSeparatorText();
+        using var heldSeparator = context.State.MemoryAccounting.ReserveTransient(separator.EstimatedRetainedMemoryBytes);
+        var builder = new AwkUtf8Builder(context.State.MemoryAccounting);
+        try
+        {
+            for (var index = 0; index < Expressions.Count; index++)
+            {
+                if (index > 0) builder.Append(separator, context.State.CancellationCheckpoint);
+                if (!Expressions[index].TryResolveSynchronousByteText(context, out var operand))
+                    throw new InvalidOperationException("Synchronous array index is required.");
+                builder.Append(operand.AsSpan(context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
+            }
+            return builder;
+        }
+        catch { builder.Dispose(); throw; }
     }
 
     public override async ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context)
