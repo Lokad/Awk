@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("forwarded-input-keeps-origin-after-later-record-replacement",
+            ["function readold(x,y,z){return (x==\"0007\") \":\" (x==7) \":\" length(x)}function later(){$0=\"changed 9\";return 2}function relay(k,v,t){return readold(v,later(),t)}{print relay(\"k\",$2,0),$0;exit}"],
+            [], "1:1:4 changed 9\n", "k 0007\n");
+        yield return Passing("forwarded-scalars-snapshot-before-later-argument-mutation",
+            ["function later(){v=\"new\";return 2}function pair(a,b){print a,b;a=\"local\";return a}function relay(x){return pair(x,(x=\"changed\"))}BEGIN{v=\"0007\";print pair(v,later()),v;print relay(\"old\")}"],
+            [], "0007 2\nlocal new\nold changed\nlocal\n");
+        yield return Passing("forwarded-unused-input-keeps-deferred-numeric-error",
+            ["--non-decimal-data", "function consume(x,c){if(c)return x+0;return \"ok\"}function later(){print \"later\";return 0}function relay(x,c){return consume(x,later())}{print relay($1,0),$1}"],
+            [], "later\nok 0x1.5\n", "0x1.5\n");
         yield return Passing("prepared-nested-deep-paths-preserve-spelling-and-membership",
             ["function put(a,k,v){a[k][\"d0\"][\"d1\"][\"d2\"][\"d3\"][\"d4\"][\"d5\"][\"d6\"][\"d7\"][\"d8\"][\"d9\"][\"d10\"][\"d11\"][\"d12\"][\"d13\"][\"d14\"][\"d15\"][\"d16\"][\"d17\"][\"d18\"][\"d19\"][\"d20\"][\"d21\"][\"d22\"][\"d23\"][\"d24\"][\"d25\"][\"d26\"][\"d27\"][\"d28\"][\"d29\"][\"d30\"][\"leaf\"]+=v;return a[k][\"d0\"][\"d1\"][\"d2\"][\"d3\"][\"d4\"][\"d5\"][\"d6\"][\"d7\"][\"d8\"][\"d9\"][\"d10\"][\"d11\"][\"d12\"][\"d13\"][\"d14\"][\"d15\"][\"d16\"][\"d17\"][\"d18\"][\"d19\"][\"d20\"][\"d21\"][\"d22\"][\"d23\"][\"d24\"][\"d25\"][\"d26\"][\"d27\"][\"d28\"][\"d29\"][\"d30\"][\"leaf\"]}function has(a,k){return (\"leaf\" in a[k][\"d0\"][\"d1\"][\"d2\"][\"d3\"][\"d4\"][\"d5\"][\"d6\"][\"d7\"][\"d8\"][\"d9\"][\"d10\"][\"d11\"][\"d12\"][\"d13\"][\"d14\"][\"d15\"][\"d16\"][\"d17\"][\"d18\"][\"d19\"][\"d20\"][\"d21\"][\"d22\"][\"d23\"][\"d24\"][\"d25\"][\"d26\"][\"d27\"][\"d28\"][\"d29\"][\"d30\"])} {print put(t,$1,$2),has(t,$1),$1,$2}END{print length(t)}"], [], "2 1 0007 0002\n5 1 0007 0003\n1\n", "0007 0002\n0007 0003\n");
         yield return Passing("prepared-nested-composite-paths-keep-subsep-and-origins",

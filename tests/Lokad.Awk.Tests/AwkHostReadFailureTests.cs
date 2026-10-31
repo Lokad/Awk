@@ -7,6 +7,86 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ForwardedScalarStaysFundedAfterCallerAndRecordReplacement(bool cancel)
+    {
+        const int payloadLength = 32 * 1024;
+        var controlHeld = await RunAsync(retainArgument: false);
+        var retainedHeld = await RunAsync(retainArgument: true);
+        Assert.True(retainedHeld >= controlHeld + payloadLength / 2,
+            "The argument needed after the read must stay funded after its caller and record are replaced.");
+
+        async Task<long> RunAsync(bool retainArgument)
+        {
+            var host = new MockFileSystem();
+            host.SetStandardInput(new string('x', payloadLength) + "\nnext\n");
+            var delivered = 0;
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReadAsyncOverride = ReadAsync;
+            var source = "function consume(a,b,c,d,e){print length(a),b,c,d,e;return 1}" +
+                "function relay(x,scratch){return consume(" + (retainArgument ? "x" : "\"stub\"") +
+                ",(x=\"changed\"),($0=\"cleared\"),(getline scratch),42)}" +
+                "BEGIN{getline;print \"ready\";print relay($1);exit}";
+            var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
+            var budget = new CooperativeTestBudget(4 << 20);
+            using var cancellation = new CancellationTokenSource();
+            var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+            try
+            {
+                await Task.WhenAny(entered.Task, execution).WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.True(entered.Task.IsCompleted, host.GetOutput(AwkFileDescriptor.StdErr));
+                Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                var held = budget.Reserved;
+                if (cancel)
+                {
+                    cancellation.Cancel();
+                    await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                    Assert.False(execution.IsCompleted);
+                    Assert.True(budget.Reserved > 0);
+                }
+                resume.TrySetResult();
+                if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+                else Assert.Equal(AwkExitCode.Success, await execution);
+                Assert.Equal(cancel ? "ready\n" : "ready\n" + (retainArgument ? payloadLength : 4) + " changed cleared 1 42\n1\n",
+                    host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+                Assert.Equal(0, host.OpenFileCount);
+                Assert.Equal(0, budget.Reserved);
+                return held;
+            }
+            finally
+            {
+                cancellation.Cancel();
+                resume.TrySetResult();
+                try { await execution; } catch (OperationCanceledException) { }
+            }
+
+            async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+            {
+                if (host.GetOutput(AwkFileDescriptor.StdOut) != "ready\n")
+                {
+                    host.ReadAsyncOverride = null;
+                    try
+                    {
+                        var read = await host.ReadAsync(descriptor, Math.Min(maximum, payloadLength + 1 - delivered), token).ConfigureAwait(false);
+                        delivered += read.Content.Length;
+                        return read;
+                    }
+                    finally { host.ReadAsyncOverride = ReadAsync; }
+                }
+                using var registration = token.Register(() => canceled.TrySetResult());
+                entered.TrySetResult();
+                await resume.Task.ConfigureAwait(false);
+                host.ReadAsyncOverride = null;
+                return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
+            }
+        }
+    }
+
+    [Theory]
     [InlineData("complete", "global")] [InlineData("cancel", "global")] [InlineData("refuse", "global")]
     [InlineData("complete", "local")] [InlineData("cancel", "local")] [InlineData("refuse", "local")]
     [InlineData("complete", "field")] [InlineData("cancel", "field")] [InlineData("refuse", "field")]
