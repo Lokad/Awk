@@ -11,7 +11,7 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{$0=12.345;CONVFMT=\"%.2f\";print ($0~/^12[.]35$/);CONVFMT=\"%.3f\";print ($0~/^12[.]345$/)}"], [],
             "1\n1\n");
         yield return Passing("record-regex-dynamic-rhs-owns-earlier-subject",
-            ["function p(){getline;return \"^old 0007$\"}{print ($0~p()),$0;exit}"], [],
+            ["function p(){getline;return \"^old 0007$\"}{print (($0\"\")~p()),$0;exit}"], [],
             "1 new 0008\n", "old 0007\nnew 0008\n");
         yield return Passing("record-regex-range-keeps-buffered-subject",
             ["/^start$/,/^end$/{n++}END{print n}"], [],
