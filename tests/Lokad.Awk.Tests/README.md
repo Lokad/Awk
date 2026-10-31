@@ -329,6 +329,9 @@ linear statement count from recursive preparation depth. Function-local synchron
 returns remain isolated across nested calls and concurrent compiled-program reuse.
 Named-call counters cover direct targets in ordinary nested-array functions and prepared
 scalar functions. Forward and mutual calls preserve aliases, spelling and caller frames.
+Nested computational functions also cover prepared paths at different key cardinalities,
+deep/composite/mutating indices, membership ordering and argument-buffer elision. A focused
+capture check rejects asynchronous resolver entry and verifies detached-owner rebinding.
 Nested-loop goldens also cover return through a host-capable function. Execution-context
 checks distinguish explicit snapshots from ambient bindings across suspension and verify
 that pending failure or cancellation restores the enclosing context in both memory modes.

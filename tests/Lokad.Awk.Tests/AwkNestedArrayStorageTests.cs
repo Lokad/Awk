@@ -3,6 +3,46 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkNestedArrayStorageTests
 {
     [Fact]
+    public void PreparedCaptureUsesSynchronousResolversAndRebindsDetachedOwners()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
+        var name = AwkArrayName.FromText("a");
+        var row = new AwkArrayKey("row");
+        var leaf = new AwkArrayKey("leaf");
+        var original = state.GetSubarray(name, row, default);
+        state.SetArrayAwkValue(original, leaf, AwkValue.FromNumber(7));
+        var replacement = original;
+        var parent = new AwkArrayOperand.Element(new AwkArrayOperand.Named(name, default),
+            new SynchronousIndex(_ => row));
+        var path = new AwkArrayPath(parent, new SynchronousIndex(context =>
+        {
+            context.State.ClearArray(name);
+            replacement = context.State.GetSubarray(name, row, default);
+            context.State.SetArrayAwkValue(replacement, leaf, AwkValue.FromNumber(9));
+            return leaf;
+        }));
+        using (var captured = path.CaptureSynchronous(new(state)))
+        {
+            Assert.True(original.IsDetached);
+            Assert.NotSame(original, replacement);
+            Assert.Same(replacement, captured.ResolveOwner(state));
+            Assert.Equal(9, state.GetArrayAwkValue(captured.ResolveOwner(state), captured.Key).AsNumber());
+        }
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    private sealed record SynchronousIndex(Func<AwkEvaluationContext, AwkArrayKey> Resolve) : AwkArrayIndex
+    {
+        internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (1, 0);
+        internal override AwkArrayKey ResolveKeySynchronous(AwkEvaluationContext context) => Resolve(context);
+        public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) =>
+            throw new InvalidOperationException("Prepared capture entered an asynchronous resolver.");
+    }
+
+    [Fact]
     public void UntouchedElementArgumentsShareArrayPromotionButEarlierScalarCopiesDoNot()
     {
         using var memory = new CooperativeTestMemory(8 << 20);

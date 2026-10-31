@@ -92,7 +92,7 @@ internal abstract record AwkReference
             return AssignCompound(context, target, currentValue, await pending.ConfigureAwait(false), operation);
     }
 
-    private static AwkValue AssignCompound(
+    protected static AwkValue AssignCompound(
         AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
         AwkValue right, AwkCompoundAssignmentOperation operation)
     {
@@ -178,7 +178,7 @@ internal abstract record AwkReference
         Func<double, double> update, AwkNumericUpdateResult resultSelection) =>
         ApplyNumericUpdate(context, await pending.ConfigureAwait(false), update, resultSelection);
 
-    private static AwkValue ApplyNumericUpdate(
+    protected static AwkValue ApplyNumericUpdate(
         AwkEvaluationContext context, AwkResolvedReference target,
         Func<double, double> update, AwkNumericUpdateResult resultSelection)
     {

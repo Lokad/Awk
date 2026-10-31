@@ -9,12 +9,56 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, 16, false)] [InlineData(true, 16, false)]
+    [InlineData(false, 1024, false)] [InlineData(true, 1024, false)]
+    [InlineData(false, 16, true)] [InlineData(true, 16, true)]
+    [InlineData(false, 1024, true)] [InlineData(true, 1024, true)]
+    public async Task NestedComputationsPrepareCallsWithExistingArgumentStorage(bool governed, int keys, bool wideArguments)
+    {
+        const int records = 2048;
+        var sums = new int[keys];
+        var expected = 0;
+        var input = new StringBuilder();
+        for (var row = 0; row < records; row++)
+        {
+            var key = row % keys;
+            var value = row % 97;
+            input.Append('k').Append(key).Append(' ').Append(value).Append('\n');
+            sums[key] += value;
+            expected += sums[key];
+        }
+        var host = new MockFileSystem();
+        host.SetStandardInput(input.ToString());
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var parameters = wideArguments ? "a,k,v,p,q" : "a,k,v";
+        var forwarded = wideArguments ? "a,k,v,p,q" : "a,k,v";
+        var arguments = wideArguments ? "a,$1,$2,0,0" : "a,$1,$2";
+        var source = "function outer(" + parameters + "){return add(" + forwarded + ")}function add(" + parameters +
+            "){a[k][\"sum\"]+=v;a[k][\"count\"]++;return a[k][\"sum\"]}{total+=outer(" + arguments + ")}END{print total,length(a)}";
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(expected + " " + keys + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.SynchronousFunctionRuns > 0);
+        if (wideArguments) Assert.True(counters.FunctionArgumentBufferRents > 0);
+        else Assert.Equal(0, counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, counters.FunctionNameLookups);
+        Assert.True(counters.IndexedLocalArrayAccesses > 0);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task KnownNamedCallsDoNotResolveTargetsDuringExecution(bool governed, bool ordinary)
     {
         var source = ordinary
-            ? "function outer(a,k,v){return add(a,k,v)}function add(a,k,v){a[k][\"sum\"]+=v;return a[k][\"sum\"]}{print outer(a,$1,$2)}"
+            ? "function outer(a,k,v){return add(a,k,v)}function add(a,k,v){print \"called\";a[k][\"sum\"]+=v;return a[k][\"sum\"]}{print outer(a,$1,$2)}"
             : "function outer(x){return add(x)}function add(x){return x+1}{print outer($2)}";
         var host = new MockFileSystem();
         host.SetStandardInput("0007 0002\n0007 0003\n");
@@ -23,7 +67,7 @@ public sealed class AwkBenchmarkCounterTests
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
             CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
-        Assert.Equal(ordinary ? "2\n5\n" : "3\n4\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(ordinary ? "called\n2\ncalled\n5\n" : "3\n4\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.FunctionNameLookups);
         if (ordinary) Assert.Equal(0, counters.SynchronousFunctionRuns);

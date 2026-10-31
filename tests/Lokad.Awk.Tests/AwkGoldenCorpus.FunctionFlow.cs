@@ -4,6 +4,23 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("prepared-nested-deep-paths-preserve-spelling-and-membership",
+            ["function put(a,k,v){a[k][\"d0\"][\"d1\"][\"d2\"][\"d3\"][\"d4\"][\"d5\"][\"d6\"][\"d7\"][\"d8\"][\"d9\"][\"d10\"][\"d11\"][\"d12\"][\"d13\"][\"d14\"][\"d15\"][\"d16\"][\"d17\"][\"d18\"][\"d19\"][\"d20\"][\"d21\"][\"d22\"][\"d23\"][\"d24\"][\"d25\"][\"d26\"][\"d27\"][\"d28\"][\"d29\"][\"d30\"][\"leaf\"]+=v;return a[k][\"d0\"][\"d1\"][\"d2\"][\"d3\"][\"d4\"][\"d5\"][\"d6\"][\"d7\"][\"d8\"][\"d9\"][\"d10\"][\"d11\"][\"d12\"][\"d13\"][\"d14\"][\"d15\"][\"d16\"][\"d17\"][\"d18\"][\"d19\"][\"d20\"][\"d21\"][\"d22\"][\"d23\"][\"d24\"][\"d25\"][\"d26\"][\"d27\"][\"d28\"][\"d29\"][\"d30\"][\"leaf\"]}function has(a,k){return (\"leaf\" in a[k][\"d0\"][\"d1\"][\"d2\"][\"d3\"][\"d4\"][\"d5\"][\"d6\"][\"d7\"][\"d8\"][\"d9\"][\"d10\"][\"d11\"][\"d12\"][\"d13\"][\"d14\"][\"d15\"][\"d16\"][\"d17\"][\"d18\"][\"d19\"][\"d20\"][\"d21\"][\"d22\"][\"d23\"][\"d24\"][\"d25\"][\"d26\"][\"d27\"][\"d28\"][\"d29\"][\"d30\"])} {print put(t,$1,$2),has(t,$1),$1,$2}END{print length(t)}"], [], "2 1 0007 0002\n5 1 0007 0003\n1\n", "0007 0002\n0007 0003\n");
+        yield return Passing("prepared-nested-composite-paths-keep-subsep-and-origins",
+            ["function touch(a,k){a[k,2][\"leaf\"]+=3;return a[k,2][\"leaf\"]}BEGIN{SUBSEP=\":\";print touch(t,\"0007\"),touch(t,\"0007\"),t[\"0007:2\"][\"leaf\"];print (\"leaf\" in t[\"0007\",2]),length(t)}"], [], "3 6 6\n1 1\n");
+        yield return Passing("prepared-nested-later-index-sees-earlier-child-and-updates",
+            ["function bump(a,k){a[k][\"leaf\"]++;return \"leaf\"}function touch(a,k){return ++a[k][bump(a,k)]}BEGIN{print touch(t,\"r\"),touch(t,\"r\"),t[\"r\"][\"leaf\"]}"], [], "2 4 4\n");
+        yield return AwkGoldenCaseBuilder.Create("prepared-nested-compound-captures-prior-before-mutating-rhs",
+                ["function touch(a,k){a[k][\"leaf\"]+=rhs(a,k);return a[k][\"leaf\"]}function rhs(a,k,i){for(i=0;i<200;i++)a[k][\"x\"i]=i;a[k][\"leaf\"]+=10;return 3}BEGIN{t[\"r\"][\"leaf\"]=7;print touch(t,\"r\"),t[\"r\"][\"leaf\"],length(t[\"r\"])}"], [])
+            .WithStdOut("10 10 201\n")
+            .WithNondeterminismNote("Lokad preserves its qualified prior-value-before-RHS compound order; GNU awk 5.3.2 produced 20 20 201.").Build();
+        yield return Passing("prepared-nested-simple-assignment-keeps-rhs-before-indices",
+            ["function key(){order=order*10+1;return \"leaf\"}function rhs(){order=order*10+2;return \"0007\"}function set(a,k){a[k][key()]=rhs();return a[k][\"leaf\"]}BEGIN{print \"[\"set(t,\"r\")\"]\",order;print (t[\"r\"][\"leaf\"]==7),(\"missing\" in t[\"r\"]),length(t[\"r\"])}"], [], "[0007] 21\n0 0 1\n");
+        yield return Passing("nested-suspending-index-keeps-current-record-and-ordinary-flow",
+            ["function at(){getline;return $1}function score(a){a[\"row\"][at()]++;return a[\"row\"][\"new\"]}BEGIN{$0=\"old\";print score(t),$0;exit}"], [], "1 new\n", "new\n");
+        yield return Passing("prepared-nested-membership-keeps-key-before-array-context",
+            ["function key(){order=order*10+1;return \"v\"}function root(){order=order*10+2;return \"r\"}function has(a){return (key() in a[root()])}BEGIN{print has(t),order,length(t),length(t[\"r\"]);print t[\"r\"][\"v\"]==0,length(t[\"r\"])}"], [], "0 12 1 0\n1 1\n");
+
         yield return Passing("forward-nested-array-calls-keep-aliases-and-spelling",
             ["function outer(a,k,v){return add(a,k,v)}function add(a,k,v){a[k][\"sum\"]+=v;a[k][\"count\"]++;return a[k][\"sum\"]}{print outer(a,$1,$2),$1,$2}END{print length(a),a[\"0007\"][\"sum\"],a[\"0007\"][\"count\"]}"],
             [], "2 0007 0002\n5 0007 0003\n1 5 2\n", "0007 0002\n0007 0003\n");

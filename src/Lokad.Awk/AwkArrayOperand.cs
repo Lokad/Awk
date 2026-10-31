@@ -6,6 +6,10 @@ internal abstract record AwkArrayOperand
 {
     public abstract ValueTask<AwkArrayIdentity> ResolveAsync(AwkEvaluationContext context);
     public abstract ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context);
+    internal abstract AwkArrayIdentity ResolveSynchronous(AwkEvaluationContext context);
+    internal abstract (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null);
+    internal abstract bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+        int remainingDepth, out AwkArrayOperand prepared, Action? checkpoint);
 
     internal sealed record Named(AwkArrayName Name, AwkArrayBinding Binding) : AwkArrayOperand
     {
@@ -14,36 +18,58 @@ internal abstract record AwkArrayOperand
 
         public override ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(new AwkArrayTarget(Name));
+
+        internal override AwkArrayIdentity ResolveSynchronous(AwkEvaluationContext context) =>
+            context.State.ResolveOrdinaryArray(Name, Binding);
+
+        internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (1, 0);
+
+        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkArrayOperand prepared, Action? checkpoint)
+        {
+            checkpoint?.Invoke();
+            prepared = this;
+            return remainingDepth > 0;
+        }
     }
 
-    internal sealed record Element(AwkArrayOperand Parent, AwkArrayIndex Index) : AwkArrayOperand
+    internal sealed record Element : AwkArrayOperand
     {
-        private readonly AwkArrayPath? _path = Parent is Named ? null : new(Parent, Index);
+        internal AwkArrayPath Path { get; }
 
-        public override async ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context)
-        {
-            if (Parent is Named named)
-            {
-                var key = await Index.ResolveKeyAsync(context).ConfigureAwait(false);
-                return new(context.State.GetArrayAwkValue(named.Name, key, named.Binding));
-            }
-            using var target = await NestedPath.CaptureAsync(context).ConfigureAwait(false);
-            return new(context.State.GetArrayAwkValue(target.ResolveOwner(context.State), target.Key));
-        }
-        public override async ValueTask<AwkArrayIdentity> ResolveAsync(AwkEvaluationContext context)
+        public Element(AwkArrayOperand parent, AwkArrayIndex index) : this(new AwkArrayPath(parent, index)) { }
+
+        private Element(AwkArrayPath path) => Path = path;
+
+        public override async ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context) =>
+            new(await Path.ReadAsync(context).ConfigureAwait(false));
+
+        public override ValueTask<AwkArrayIdentity> ResolveAsync(AwkEvaluationContext context)
         {
             context.State.Checkpoint();
-            if (Parent is Named named)
-            {
-                // The first index is evaluated before the root acquires array type;
-                // subsequent indices observe the children already created before them.
-                var firstKey = await Index.ResolveKeyAsync(context).ConfigureAwait(false);
-                return context.State.GetSubarray(named.Name, firstKey, named.Binding);
-            }
-            using var target = await NestedPath.CaptureAsync(context).ConfigureAwait(false);
-            return context.State.GetSubarray(target.ResolveOwner(context.State), target.Key);
+            return Path.ResolveAsync(context);
         }
 
-        private AwkArrayPath NestedPath => _path ?? throw new InvalidOperationException("A named parent has no nested path.");
+        internal override AwkArrayIdentity ResolveSynchronous(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint();
+            return Path.ResolveSynchronous(context);
+        }
+
+        internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null)
+        {
+            var shape = Path.GetSynchronousShape(checkpoint);
+            return (shape.Depth > 0 ? shape.Depth + 1 : 0, shape.Calls);
+        }
+
+        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkArrayOperand prepared, Action? checkpoint)
+        {
+            prepared = this;
+            if (remainingDepth <= 1 || !Path.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var path, checkpoint))
+                return false;
+            if (!ReferenceEquals(path, Path)) prepared = new Element(path);
+            return true;
+        }
     }
 }
