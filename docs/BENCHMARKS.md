@@ -1,6 +1,10 @@
 # Benchmarks
 
-Snapshot: **2026-10-31 UTC**, against **GNU awk 5.3.2**. Rows marked **※** measure
+Snapshot: **2026-10-31 UTC**, against **GNU awk 5.3.2**. Rows marked **‡** measure
+Release development source
+[`0e73d92`](https://github.com/Lokad/Awk/commit/0e73d924efd5fb1a6873748a67e97e4ac5111a13)
+for computational functions, five-argument calls and nested calls.
+Rows marked **※** measure
 Release development source
 [`6d279b5`](https://github.com/Lokad/Awk/commit/6d279b564f681e59fda47e7fb28d74b877d581b1)
 for numeric-field processing and ordinary/composite aggregation.
@@ -12,13 +16,11 @@ for repeated field calls and retain
 for scalar summation.
 Rows marked **¶** retain source
 [`4209c95`](https://github.com/Lokad/Awk/commit/4209c95fac69967bf6968c8b2619aefd7ad1bcfe).
-Rows marked **§** retain source
-[`810a378`](https://github.com/Lokad/Awk/commit/810a378625f55a1085402b748518628df87101f2).
 Rows marked **†** retain source
 [`4360424`](https://github.com/Lokad/Awk/commit/43604247da2bdd88ec79a312617fc4d366c45e10).
 Other unmarked representative/larger rows retain
 [`a6a5a71`](https://github.com/Lokad/Awk/commit/a6a5a7136fedf066361de1aaef8f18bcccf3ae9d).
-Rows marked **※** were measured on October 31; other rows retain October 30 measurements
+Rows marked **‡** or **※** were measured on October 31; other rows retain October 30 measurements
 and were **not rerun for the latest source**.
 Admission-profile revisions are stated below.
 All use the quiet Linux machine: SDK 10.0.401, .NET 10.0.12, interpreter, C locale and UTC.
@@ -27,8 +29,8 @@ Package qualification is separate. Regex workloads use the source adapter with p
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** is Lokad elapsed divided by
 GNU elapsed; higher is slower. Managed allocations include parsing, execution and host storage,
-not retained/peak memory or GNU allocations. Four warmups, five 500 ms measured iterations and
-one launch with standard BDN outlier filtering; source/binary/output and quiet checks pass.
+not retained/peak memory or GNU allocations. Four warmups, five measured iterations targeting
+500 ms and one launch with standard BDN outlier filtering; source/binary/output and quiet checks pass.
 This is a snapshot, not evidence of a speedup over another revision. Raw results and dispersion
 remain local.
 
@@ -45,7 +47,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | ERE field separator † | 48.00 | 7.633 | 1.649 | 4.63× | 3.19 |
 | Loop with repeated field arguments ‖ | 25.08 | 15.430 | 4.008 | 3.85× | 0.95 |
 | ERE boolean matching † | 32.00 | 3.500 | 0.927 | 3.78× | 7.59 |
-| Function with locals, loop and early return ¶ | 11.58 | 9.079 | 2.619 | 3.47× | 0.59 |
+| Loop with five-argument calls ‡ | 8.00 | 19.884 | 5.710 | 3.48× | 0.57 |
 | ERE capture arrays (GNU) † | 28.00 | 23.846 | 7.324 | 3.26× | 34.40 |
 | Loop with repeated numeric field reads ※ | 25.08 | 9.770 | 3.097 | 3.15× | 0.52 |
 | Text function with branches and local temporary | 62.00 | 4.509 | 1.651 | 2.73× | 2.12 |
@@ -55,18 +57,18 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Copy field / rebuild record | 60.00 | 3.338 | 1.258 | 2.65× | 1.49 |
 | Project three columns / output | 60.00 | 3.147 | 1.211 | 2.60× | 0.55 |
 | Loop with two-argument calls and local temporary ¶ | 8.00 | 10.732 | 4.274 | 2.51× | 0.55 |
-| Loop with five-argument calls § | 8.00 | 15.167 | 6.109 | 2.48× | 0.57 |
+| Function with locals, loop and early return ‡ | 11.58 | 7.082 | 2.880 | 2.46× | 0.59 |
 | Project a column / output † | 60.00 | 2.332 | 0.974 | 2.39× | 1.18 |
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 |
 | Keyed sum / sorted output (GNU) ※ | 24.00 | 2.729 | 1.180 | 2.31× | 0.52 |
 | Loop with two-argument calls | 8.00 | 8.335 | 3.741 | 2.23× | 0.59 |
 | ASCII substr/index/length/casing | 52.00 | 2.775 | 1.252 | 2.22× | 1.01 |
 | Branching function, two arguments | 8.00 | 8.812 | 3.997 | 2.20× | 0.62 |
+| Nested user calls ‡ | 8.00 | 3.167 | 1.452 | 2.18× | 0.52 |
 | Post-test arithmetic loop | 8.00 | 5.015 | 2.333 | 2.15× | 0.58 |
 | Branching function, one argument | 8.00 | 7.855 | 3.708 | 2.12× | 0.61 |
 | Loop with unary arithmetic calls | 8.00 | 7.240 | 3.484 | 2.08× | 0.59 |
 | Five-part string concatenation | 20.00 | 2.788 | 1.350 | 2.07× | 1.39 |
-| Nested user calls § | 8.00 | 3.100 | 1.503 | 2.06× | 0.52 |
 | Literal field separator | 48.00 | 2.071 | 1.007 | 2.06× | 0.57 |
 | Sum one numeric column ‖ | 25.08 | 2.438 | 1.191 | 2.05× | 0.88 |
 | For loop and numeric arithmetic | 8.00 | 4.797 | 2.396 | 2.00× | 0.57 |
