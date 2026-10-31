@@ -60,6 +60,17 @@ internal readonly struct AwkFieldText
             _ => 0
         };
 
+    internal bool IsWholeRecord(int byteLength) =>
+        Kind == AwkFieldTextKind.RecordSlice && _start == 0 && _length == byteLength;
+
+    internal ReadOnlySpan<byte> AsSpan(ReadOnlySpan<byte> recordBytes, Action? checkpoint = null) =>
+        Kind switch
+        {
+            AwkFieldTextKind.Owned => _ownedText.AsSpan(checkpoint),
+            AwkFieldTextKind.RecordSlice => recordBytes.Slice(_start, _length),
+            _ => ReadOnlySpan<byte>.Empty
+        };
+
     public ReadOnlySpan<byte> AsSpan(AwkText recordText, Action? checkpoint = null) =>
         Kind switch
         {

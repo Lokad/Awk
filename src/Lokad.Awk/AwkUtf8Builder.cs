@@ -82,7 +82,10 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    public AwkUtf8Builder Append(ReadOnlySpan<AwkFieldText> segments, AwkText record, Action? checkpoint = null)
+    public AwkUtf8Builder Append(ReadOnlySpan<AwkFieldText> segments, AwkText record, Action? checkpoint = null) =>
+        Append(segments, record.AsSpan(checkpoint), checkpoint);
+
+    public AwkUtf8Builder Append(ReadOnlySpan<AwkFieldText> segments, ReadOnlySpan<byte> record, Action? checkpoint = null)
     {
         ThrowIfDisposed();
         var nextLength = Length;
@@ -103,7 +106,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    public void AppendRecord(ReadOnlySpan<AwkFieldText> fields, AwkText record,
+    public void AppendRecord(ReadOnlySpan<AwkFieldText> fields, ReadOnlySpan<byte> record,
         AwkText separator, AwkText terminator, Action? checkpoint = null)
     {
         ThrowIfDisposed();

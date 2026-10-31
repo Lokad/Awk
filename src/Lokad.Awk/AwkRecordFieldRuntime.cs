@@ -40,6 +40,11 @@ internal sealed class AwkRecordFieldRuntime
         _splitCurrentFields = SplitCurrentFields;
     }
 
+    internal AwkRecordStorage InputRecordStorage => _frame.InputRecordStorage;
+
+    internal void SetBufferedRecord(ReadOnlyMemory<byte> bytes) =>
+        _frame.SetBufferedRecord(bytes, _fieldSplitter.CaptureRecordPlan());
+
     public AwkText CurrentRecordByteText => _frame.RecordAwkText;
 
     public bool CannotReportRegexDiagnostics => AwkFieldSplitter.SupportsIncrementalFields(_frame.SplitPlan);
@@ -52,7 +57,7 @@ internal sealed class AwkRecordFieldRuntime
     public AwkValue CurrentRecordValue => _frame.GetRecordValue(_createNumericByteText, _createStringByteText);
 
     public bool TryGetRecomposedRecordFields(
-        out ReadOnlySpan<AwkFieldText> fields, out AwkText record, out AwkText separator) =>
+        out ReadOnlySpan<AwkFieldText> fields, out ReadOnlySpan<byte> record, out AwkText separator) =>
         _frame.TryGetRecomposedRecordFields(out fields, out record, out separator);
 
     public void PrepareOutputFieldSeparatorAssignment() => _frame.PrepareOutputFieldSeparatorAssignment();
@@ -74,7 +79,7 @@ internal sealed class AwkRecordFieldRuntime
     public bool TryGetUnmaterializedFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes) =>
         _frame.TryGetUnmaterializedFieldBytes(index, _splitCurrentFields, out bytes);
 
-    public bool TryGetUnmaterializedFieldText(AwkFieldIndex index, out AwkFieldText field, out AwkText record) =>
+    public bool TryGetUnmaterializedFieldText(AwkFieldIndex index, out AwkFieldText field, out ReadOnlySpan<byte> record) =>
         _frame.TryGetUnmaterializedFieldText(index, _splitCurrentFields, out field, out record);
 
     public void SetCurrentRecord(AwkText line)

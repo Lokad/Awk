@@ -22,6 +22,18 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) RegexCoordinateBytes += bytes;
     }
 
+    public long BufferedInputRecords { get; private set; }
+    public long InputRecordBufferReuses { get; private set; }
+    public void RecordBufferedInputRecord(bool reused)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            BufferedInputRecords++;
+            if (reused) InputRecordBufferReuses++;
+        }
+    }
+
     public long RecordsRead { get; private set; }
 
     public long ArrayContainerCacheHits { get; private set; }

@@ -48,8 +48,12 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
             state,
             io);
 
-    public async ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkText record)
+    public async ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkInputRecordResult record)
     {
+        using var admission = state.PreflightCurrentRecordAdmission(record);
+        state.Counters.RecordRecordRead();
+        state.AdvanceMainInputRecord(record.Terminator);
+        state.SetRecordFieldSplittingMode(record.FieldSplittingMode);
         using var phase = state.EnterActionPhase(AwkActionPhase.Main);
         using var execution = state.PushExecutionContext(_output, io);
         try

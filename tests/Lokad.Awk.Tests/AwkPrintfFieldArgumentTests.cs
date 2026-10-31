@@ -32,7 +32,7 @@ public sealed class AwkPrintfFieldArgumentTests
         var expected = fieldList ? "before 7\n" : "before:0007\n";
         var program = new AwkProgram([], [new(null, [statement])], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
         using var executor = new AwkRuntimeActionExecutor(program, state);
-        var run = executor.ProcessRecordAsync(state, io, AwkText.FromSourceLiteralString("before 7")).AsTask();
+        var run = executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("before 7"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary)).AsTask();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));

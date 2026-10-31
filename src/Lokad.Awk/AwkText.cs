@@ -898,7 +898,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         return bytes;
     }
 
-    private static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes, Action? checkpoint)
+    internal static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
         var remaining = bytes;
         long nextCheckpoint = 0;

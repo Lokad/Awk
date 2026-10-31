@@ -201,18 +201,22 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     // Reuse the complete splitters' scanners for prefix reads and their checkpoints.
+    public int ExtendRecordFields(AwkText line, AwkFieldSeparatorSpec separator, int position,
+        int targetCount, List<AwkFieldText> fields) =>
+        ExtendRecordFields(line.AsSpan(throwIfCancellationRequested), separator, position, targetCount, fields);
+
     public int ExtendRecordFields(
-        AwkText line, AwkFieldSeparatorSpec separator, int position, int targetCount,
+        ReadOnlySpan<byte> line, AwkFieldSeparatorSpec separator, int position, int targetCount,
         List<AwkFieldText> fields)
     {
-        if (line.ByteLength == 0)
+        if (line.Length == 0)
             return -1;
         if (separator.UsesWhitespaceSemantics)
         {
             var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters, position);
             while (fields.Count < targetCount && scanner.MoveNext(out var field, out _))
                 fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
-            return scanner.Position == line.ByteLength ? -1 : scanner.Position;
+            return scanner.Position == line.Length ? -1 : scanner.Position;
         }
 
         var literal = separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
@@ -220,6 +224,19 @@ internal sealed class AwkByteFieldSplitter(
         while (fields.Count < targetCount && literalScanner.MoveNext(out var field, out _))
             fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
         return literalScanner.Completed ? -1 : literalScanner.Position;
+    }
+
+    internal List<AwkFieldText> SplitRecordByteFields(ReadOnlySpan<byte> line,
+        AwkFieldSeparatorSpec separator, List<AwkFieldText>? fieldBuffer)
+    {
+        throwIfCancellationRequested();
+        if (line.IsEmpty) return [];
+        if (separator.UsesWhitespaceSemantics)
+            return ScanWhitespaceFields<RecordListFieldSink, List<AwkFieldText>>(line,
+                new RecordListFieldSink(0, fieldBuffer));
+        var literal = separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
+        return ScanSingleByteFields<RecordListFieldSink, List<AwkFieldText>>(line, literal,
+            new RecordListFieldSink(CountSingleByteFields(line, literal), fieldBuffer));
     }
 
     public List<AwkFieldText> SplitRecordFieldsBySeparator(
@@ -459,6 +476,10 @@ internal sealed class AwkByteFieldSplitter(
             new RecordListFieldSink());
 
     private TFields ScanWhitespaceFields<TSink, TFields>(AwkText line, TSink sink)
+        where TSink : struct, IFieldSink<TFields> =>
+        ScanWhitespaceFields<TSink, TFields>(line.AsSpan(throwIfCancellationRequested), sink);
+
+    private TFields ScanWhitespaceFields<TSink, TFields>(ReadOnlySpan<byte> line, TSink sink)
         where TSink : struct, IFieldSink<TFields>
     {
         var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters);
@@ -483,10 +504,11 @@ internal sealed class AwkByteFieldSplitter(
         return sink.Complete();
     }
 
-    private TFields ScanSingleByteFields<TSink, TFields>(
-        AwkText line,
-        byte separator,
-        TSink sink)
+    private TFields ScanSingleByteFields<TSink, TFields>(AwkText line, byte separator, TSink sink)
+        where TSink : struct, IFieldSink<TFields> =>
+        ScanSingleByteFields<TSink, TFields>(line.AsSpan(throwIfCancellationRequested), separator, sink);
+
+    private TFields ScanSingleByteFields<TSink, TFields>(ReadOnlySpan<byte> line, byte separator, TSink sink)
         where TSink : struct, IFieldSink<TFields>
     {
         var scanner = new AwkSingleByteFieldScanner(line, separator, throwIfCancellationRequested);
@@ -680,9 +702,13 @@ internal sealed class AwkByteFieldSplitter(
         Regex
     }
 
-    private struct AwkWhitespaceFieldScanner(AwkText line, Action checkpoint,
+    private ref struct AwkWhitespaceFieldScanner(ReadOnlySpan<byte> content, Action checkpoint,
         AwkRuntimeCounters counters, int position = 0)
     {
+        private readonly ReadOnlySpan<byte> _content = content;
+        public AwkWhitespaceFieldScanner(AwkText line, Action checkpoint, AwkRuntimeCounters counters, int position = 0)
+            : this(line.AsSpan(checkpoint), checkpoint, counters, position) { }
+
         private int _position = position;
         private long _nextCheckpoint;
 
@@ -692,16 +718,15 @@ internal sealed class AwkByteFieldSplitter(
 
         public bool MoveNext(out AwkByteRange field, out AwkByteRange precedingSeparator)
         {
-            var content = line.AsSpan(checkpoint);
             var separatorStart = _position;
-            while (_position < content.Length && IsDefaultFieldWhitespace(content[_position]))
+            while (_position < _content.Length && IsDefaultFieldWhitespace(_content[_position]))
             {
                 CheckProgress();
                 _position++;
             }
 
             precedingSeparator = new AwkByteRange(separatorStart, _position - separatorStart);
-            if (_position >= content.Length)
+            if (_position >= _content.Length)
             {
                 TrailingSeparator = precedingSeparator;
                 field = default;
@@ -709,12 +734,12 @@ internal sealed class AwkByteFieldSplitter(
             }
 
             var fieldStart = _position;
-            while (_position < content.Length && !IsDefaultFieldWhitespace(content[_position]))
+            while (_position < _content.Length && !IsDefaultFieldWhitespace(_content[_position]))
             {
                 CheckProgress();
                 // Never search beyond the next existing cancellation boundary.
-                var end = (int)Math.Min(content.Length, _nextCheckpoint);
-                var length = content[_position..end].IndexOfAny((byte)' ', (byte)'\t', (byte)'\n');
+                var end = (int)Math.Min(_content.Length, _nextCheckpoint);
+                var length = _content[_position..end].IndexOfAny((byte)' ', (byte)'\t', (byte)'\n');
                 counters.RecordWhitespaceFieldSearch(length < 0 ? end - _position : length + 1);
                 if (length >= 0)
                 {
@@ -785,8 +810,12 @@ internal sealed class AwkByteFieldSplitter(
         }
     }
 
-    private struct AwkSingleByteFieldScanner(AwkText line, byte separator, Action checkpoint, int position = 0)
+    private ref struct AwkSingleByteFieldScanner(ReadOnlySpan<byte> content, byte separator, Action checkpoint, int position = 0)
     {
+        private readonly ReadOnlySpan<byte> _content = content;
+        public AwkSingleByteFieldScanner(AwkText line, byte separator, Action checkpoint, int position = 0)
+            : this(line.AsSpan(checkpoint), separator, checkpoint, position) { }
+
         private int _position = position;
         private bool _completed;
 
@@ -802,13 +831,12 @@ internal sealed class AwkByteFieldSplitter(
                 return false;
             }
 
-            var content = line.AsSpan(checkpoint);
             var next = -1;
-            for (var searchOffset = _position; searchOffset < content.Length;)
+            for (var searchOffset = _position; searchOffset < _content.Length;)
             {
                 checkpoint();
-                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, content.Length - searchOffset);
-                var found = content.Slice(searchOffset, length).IndexOf(separator);
+                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, _content.Length - searchOffset);
+                var found = _content.Slice(searchOffset, length).IndexOf(separator);
                 if (found >= 0)
                 {
                     next = searchOffset - _position + found;
@@ -818,8 +846,8 @@ internal sealed class AwkByteFieldSplitter(
             }
             if (next < 0)
             {
-                field = new AwkByteRange(_position, content.Length - _position);
-                trailingSeparator = new AwkByteRange(content.Length, 0);
+                field = new AwkByteRange(_position, _content.Length - _position);
+                trailingSeparator = new AwkByteRange(_content.Length, 0);
                 _completed = true;
                 return true;
             }

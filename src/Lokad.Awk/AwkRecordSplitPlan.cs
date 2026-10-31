@@ -37,3 +37,9 @@ internal readonly record struct AwkRecordSplitPlan
         _ => Separator.UsesWhitespaceSemantics ? 0 : AwkRuntimeMemory.EstimateTextBytes(Separator.ByteText)
     };
 }
+
+internal enum AwkRecordFieldSplittingMode
+{
+    Ordinary,
+    Paragraph
+}

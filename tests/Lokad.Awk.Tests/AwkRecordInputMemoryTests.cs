@@ -100,6 +100,108 @@ public sealed class AwkRecordInputMemoryTests
         AssertRefunded(budget);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task BufferedCurrentRecordStaysFundedThroughActualPendingOutput(bool cancel)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var appends = 0;
+        var host = new InputHost(budget, "a 0007\nb 8\na 10\n")
+        {
+            PendingOutput = () =>
+            {
+                if (++appends != 1) return Task.CompletedTask;
+                entered.SetResult();
+                return release.Task;
+            }
+        };
+        var execution = Execute("{sum[$1]+=$2}END{print sum[\"a\"];print \"done\"}", host, budget, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var held = budget.Reserved;
+            Assert.True(held > 0);
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.Equal(held, budget.Reserved);
+        }
+        finally { release.TrySetResult(); }
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else Assert.Equal(0, (await execution).Value);
+        Assert.Equal(cancel ? "17\n" : "17\ndone\n", host.Output);
+        Assert.Equal("", host.Error);
+        AssertRefunded(budget);
+    }
+
+    [Fact]
+    public async Task RefusedLargerInputStopsBeforeLaterRecordAndEndEffects()
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        var reads = 0;
+        var host = new InputHost(budget, "keep 7\n", new string('x', 3000) + " 9\n")
+        {
+            OnRead = () => { if (++reads == 2) budget.RefuseNextAdmissionMinimumGrowth = 1; }
+        };
+        var exit = await Execute("{print $1}END{print \"end\"}", host, budget);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("keep\n", host.Output);
+        Assert.Equal("awk: memory limit exceeded\n", host.Error);
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        AssertRefunded(budget);
+    }
+
+    [Fact]
+    public void MainInputResultKeepsItsCompactTransport()
+    {
+        Assert.Equal(32, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkInputRecordResult>());
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void InactiveBufferGrowthFailurePreservesTheCurrentRecord(bool cancel)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var cancellation = new CancellationTokenSource();
+        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled,
+            cancellation.Token.ThrowIfCancellationRequested);
+        Assert.True(storage.TryStage("old 0007"u8));
+        var original = storage.Content;
+        if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
+        else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var next = Encoding.UTF8.GetBytes(new string('x', 3000));
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => storage.TryStage(next));
+        else Assert.Throws<AwkRuntimeException>(() => storage.TryStage(next));
+        Assert.Equal("old 0007", Encoding.UTF8.GetString(storage.Content.Span));
+        Assert.Equal(original, storage.Content);
+        storage.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void RecordBufferRetentionIsBoundedAndOversizedInputKeepsTheOwnedPath()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
+        foreach (var count in new[] { 1, 32, 4096, 128, 2048, 1, 4096, 16 })
+        {
+            var bytes = Encoding.UTF8.GetBytes(new string('x', count));
+            Assert.True(storage.TryStage(bytes));
+            Assert.True(storage.Content.Span.SequenceEqual(bytes));
+            Assert.InRange(memory.Budget.Reserved, 1, 8192);
+        }
+        var held = memory.Budget.Reserved;
+        var last = storage.Content;
+        Assert.False(storage.TryStage(new byte[8192]));
+        Assert.Equal(last, storage.Content);
+        Assert.Equal(held, memory.Budget.Reserved);
+        storage.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     private static Task<AwkExitCode> Execute(string script, InputHost host, CooperativeTestBudget budget,
         CancellationToken token = default) =>
         AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))

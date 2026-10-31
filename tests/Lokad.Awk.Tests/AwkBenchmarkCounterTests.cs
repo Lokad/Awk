@@ -9,6 +9,29 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task BufferedRecordOwnershipContinuesAcrossInputChunkBoundaries(bool governed)
+    {
+        const int records = 10000;
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("k 0007\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var command = AwkTestHarness.BuildInvocation("awk", "{sum[$1]+=$2}END{print sum[\"k\"]}");
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("70000\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.BufferedInputRecords);
+        Assert.True(counters.InputRecordBufferReuses >= records - 4);
+        Assert.InRange(counters.AwkTextAllocations, 0, 16);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
     public async Task RecordNumericCellsReuseParsingWithoutMaterializingKeys(bool governed, bool repeat)
@@ -30,7 +53,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(repeat ? "7168\n" : "896 128\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.NumericFieldByteParses);
-        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
+        Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(records, counters.BufferedInputRecords);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -123,7 +147,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         // Input records still own text; repeated hits need no new retained key copies.
-        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
+        Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(records, counters.BufferedInputRecords);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -148,8 +173,9 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        // Record and final key storage remain owned; component-only field copies do not.
-        Assert.InRange(counters.AwkTextAllocations, records, records * 3);
+        // Record payload stays at the frame owner; only retained keys materialize text.
+        Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(records, counters.BufferedInputRecords);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -289,7 +315,8 @@ public sealed class AwkBenchmarkCounterTests
             Assert.Equal(0, result.Counters.StringDecodes);
             Assert.Equal(0, result.Counters.Utf8Encodes);
         }
-        Assert.InRange(printed.Counters.AwkTextAllocations, records, records + 8);
+        Assert.InRange(printed.Counters.AwkTextAllocations, 0, 8);
+        Assert.Equal(records, printed.Counters.BufferedInputRecords);
         Assert.True(escaped.Counters.AwkTextAllocations >= printed.Counters.AwkTextAllocations + records);
     }
 
@@ -307,7 +334,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.InRange(result.Counters.ArrayCellCommits, records - 16, records);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
-        Assert.InRange(result.Counters.AwkTextAllocations, records, records + 32);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(records, result.Counters.BufferedInputRecords);
     }
 
     [Fact]
@@ -639,7 +667,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(3, result.Counters.RecordsRead);
         Assert.Equal(9, result.Counters.FieldsMaterialized);
-        Assert.Equal(3, result.Counters.AwkTextAllocations);
+        Assert.Equal(0, result.Counters.AwkTextAllocations);
+        Assert.Equal(3, result.Counters.BufferedInputRecords);
         Assert.Equal(0, result.Counters.SmallValuePrintRuns);
         Assert.Equal(3, result.Counters.FieldListPrintRuns);
         Assert.Equal(0, result.Counters.StringDecodes);

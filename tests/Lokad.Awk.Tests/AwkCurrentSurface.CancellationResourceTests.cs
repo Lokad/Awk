@@ -987,22 +987,26 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
             AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 300))));
+        var host = new MockFileSystem();
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
+            state.Limits, state, static _ => []);
+        var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
+            [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        using var executor = new AwkRuntimeActionExecutor(program, state);
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
-        var processor = new AwkRecordProcessor(state);
-        var actionEntered = false;
 
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
         {
             var record = AwkText.FromSourceLiteralString("new");
             var terminator = AwkRecordTerminator.NewLine;
-            await (paragraph
-                ? processor.ProcessParagraphAsync(record, terminator, ApplyRecordAsync)
-                : processor.ProcessAsync(record, terminator, ApplyRecordAsync));
+            await executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(record, terminator,
+                paragraph ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary));
         });
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.False(actionEntered);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("keep", state.CurrentRecordByteText.AsString());
         Assert.Equal(4, state.RecordNumber);
         Assert.Equal(3, state.FileRecordNumber);
@@ -1011,12 +1015,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(1, state.FieldCount);
 
-        ValueTask<AwkStatementFlow> ApplyRecordAsync(AwkText record)
-        {
-            actionEntered = true;
-            state.SetCurrentRecord(record);
-            return ValueTask.FromResult(AwkStatementFlow.Continue);
-        }
     }
 
     [Fact]

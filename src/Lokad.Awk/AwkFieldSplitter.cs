@@ -130,6 +130,14 @@ internal sealed class AwkFieldSplitter(
         (plan.Separator.UsesWhitespaceSemantics ||
          (plan.RecordMode == AwkRecordFieldSplittingMode.Ordinary && plan.Separator.ByteText.ByteLength == 1));
 
+    internal int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, int position,
+        int targetCount, List<AwkFieldText> fields) =>
+        _byteSplitter.ExtendRecordFields(line, plan.Separator, position, targetCount, fields);
+
+    internal List<AwkFieldText> SplitRecordByteFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan,
+        List<AwkFieldText>? fieldBuffer) =>
+        _byteSplitter.SplitRecordByteFields(line, plan.Separator, fieldBuffer);
+
     public int ExtendRecordFields(AwkText line, AwkRecordSplitPlan plan, int position,
         int targetCount, List<AwkFieldText> fields) =>
         _byteSplitter.ExtendRecordFields(line, plan.Separator, position, targetCount, fields);

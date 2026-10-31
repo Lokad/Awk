@@ -122,17 +122,23 @@ public sealed class AwkCooperativeMemoryTests
         state.RecordNumber = 4;
         state.FileRecordNumber = 3;
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
+        var host = new MockFileSystem();
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
+            state.Limits, state, static _ => []);
+        var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
+            [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        using var executor = new AwkRuntimeActionExecutor(program, state);
         var previousCharge = budget.Reserved;
         Assert.True(budget.TryReserve(limit - previousCharge, out var otherConsumer));
         using (otherConsumer)
         {
-            var entered = false;
-            var processor = new AwkRecordProcessor(state);
-            var error = Assert.Throws<AwkRuntimeException>(() => processor.ProcessAsync(
-                AwkText.FromSourceLiteralString(new string('x', 8_192)), AwkRecordTerminator.NewLine,
-                record => { entered = true; state.SetCurrentRecord(record); return ValueTask.FromResult(AwkStatementFlow.Continue); }));
+            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
+                await executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(
+                    AwkText.FromSourceLiteralString(new string('x', 8_192)), AwkRecordTerminator.NewLine,
+                    AwkRecordFieldSplittingMode.Ordinary)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.False(entered);
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("keep", state.CurrentRecordByteText.AsString());
             Assert.Equal(4, state.RecordNumber);
             Assert.Equal(3, state.FileRecordNumber);

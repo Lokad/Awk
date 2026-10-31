@@ -161,6 +161,12 @@ there is no separate prepared-call arity limit. Cancellation is checked during p
 and argument evaluation. Eligible scalar function blocks, branches and loops prepare as
 complete bodies without a statement-count cutoff. Host-capable or unsupported work keeps
 the ordinary interpreter path; cancellation, stack protection and admission still apply.
+Ordinary newline main input reuses two admitted buffers for small current records.
+Staging leaves the previous record intact until admission succeeds. Fields use scoped
+bytes; scalar escapes and provider subjects materialize immutable owned text. Plain
+getline keeps owned input, so nested reads cannot overwrite the current record. Larger
+records, CSV and other record separators keep their ordinary input path. Buffer capacity
+stays funded through active use and cleanup; this is an internal cache bound, not an input limit.
 An array's stable identity stays funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
 Numeric updates capture their key and prior value before the RHS. Live entry cells receive

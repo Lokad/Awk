@@ -59,7 +59,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _scanCheckpoint = scanCheckpoint ?? state.CancellationCheckpoint;
     }
 
-    public async ValueTask<AwkInputRecordResult> ReadAsync()
+    public ValueTask<AwkInputRecordResult> ReadAsync() => ReadAsync(null);
+
+    internal async ValueTask<AwkInputRecordResult> ReadAsync(AwkRecordStorage? storage)
     {
         _discardedParagraphLeader = false;
         while (true)
@@ -76,6 +78,13 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 {
                     var length = newline >= 0 ? newline + 1 : bytes.Length;
                     var line = AwkRecordLine.SplitDefaultNewline(bytes[..length]);
+                    if (storage is not null && storage.TryStage(line.RecordBytes.Span))
+                    {
+                        _state.ThrowIfCancellationRequested();
+                        _reader.Advance(length);
+                        _hasConsumedDescriptorBytes = true;
+                        return AwkInputRecordResult.Buffered(storage, line.Terminator);
+                    }
                     var record = AwkText.CopyHostBytes(line.RecordBytes.Span, _state.Counters,
                         _state.MemoryAccounting, _state.CancellationCheckpoint);
                     _state.ThrowIfCancellationRequested();
@@ -87,7 +96,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             }
 
             PreserveBorrowedInput();
-            var result = TryReadBuffered(separator);
+            var result = TryReadBuffered(separator, storage);
             if (result.Status != BufferedReadStatus.NeedMoreData)
             {
                 CommitBufferedConsumption();
@@ -153,7 +162,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             }
         }
 
-        BufferedReadResult TryReadBuffered(RecordSeparator separator)
+        BufferedReadResult TryReadBuffered(RecordSeparator separator, AwkRecordStorage? recordStorage)
         {
             var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
             if (_bufferStart == buffer.Length)
@@ -172,7 +181,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             return separator switch
             {
                 CsvSeparator => TryReadCsvRecord(content),
-                NewlineSeparator => TryReadNewlineRecord(content),
+                NewlineSeparator => TryReadNewlineRecord(content, recordStorage),
                 ParagraphSeparator => TryReadParagraph(content),
                 SingleByteSeparator singleByte => TryReadSingleByte(content, singleByte),
                 ByteSetSeparator byteSet => TryReadByteSet(content, byteSet),
@@ -206,7 +215,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
             }
 
-            BufferedReadResult TryReadNewlineRecord(ReadOnlySpan<byte> content)
+            BufferedReadResult TryReadNewlineRecord(ReadOnlySpan<byte> content, AwkRecordStorage? storage)
             {
                 var scanStart = GetRelativeScanStart(content);
                 var candidate = content[scanStart..];
@@ -216,7 +225,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (separatorIndex < 0)
                 {
                     MarkScannedThroughEnd(0);
-                    return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
+                    return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary, storage);
                 }
 
                 var recordLength = separatorIndex;
@@ -227,7 +236,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     content[..recordLength],
                     separatorIndex + 1,
                     AwkRecordTerminator.NewLine,
-                    AwkRecordFieldSplittingMode.Ordinary);
+                    AwkRecordFieldSplittingMode.Ordinary, storage);
             }
 
             BufferedReadResult TryReadSingleByte(
@@ -870,13 +879,13 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     private BufferedReadResult FinalRecordOrNeedMore(
         ReadOnlySpan<byte> content,
-        AwkRecordFieldSplittingMode fieldSplittingMode) =>
+        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null) =>
         _descriptorReachedEof
             ? ConsumeRecord(
                 content,
                 content.Length,
                 AwkRecordTerminator.Empty,
-                fieldSplittingMode)
+                fieldSplittingMode, storage)
             : BufferedReadResult.NeedMoreData;
 
     private int GetRelativeScanStart(ReadOnlySpan<byte> content) =>
@@ -907,16 +916,15 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         ReadOnlySpan<byte> recordBytes,
         int consumedLength,
         AwkRecordTerminator terminator,
-        AwkRecordFieldSplittingMode fieldSplittingMode)
+        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null)
     {
-        var record = CreateText(recordBytes);
+        var record = storage is not null && storage.TryStage(recordBytes)
+            ? AwkInputRecordResult.Buffered(storage, terminator)
+            : AwkInputRecordResult.Record(CreateText(recordBytes), terminator, fieldSplittingMode);
         _bufferStart += consumedLength;
         _hasConsumedDescriptorBytes |= consumedLength > 0;
         ResetSeparatorSearch();
-        return BufferedReadResult.FromRecord(AwkInputRecordResult.Record(
-            record,
-            terminator,
-            fieldSplittingMode));
+        return BufferedReadResult.FromRecord(record);
     }
 
     private AwkText CreateText(ReadOnlySpan<byte> content) =>
@@ -1330,17 +1338,17 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 internal readonly record struct AwkInputRecordResult
 {
     private readonly AwkInputRecordResultKind _kind;
-    private readonly AwkText? _recordText;
+    private readonly object? _recordContent;
 
     private AwkInputRecordResult(
         AwkInputRecordResultKind kind,
-        AwkText recordText,
+        object recordContent,
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode,
         bool clearsRecordTerminator = false)
     {
         _kind = kind;
-        _recordText = recordText;
+        _recordContent = recordContent;
         Terminator = terminator;
         FieldSplittingMode = fieldSplittingMode;
         ClearsRecordTerminator = clearsRecordTerminator;
@@ -1350,7 +1358,23 @@ internal readonly record struct AwkInputRecordResult
 
     public bool ClearsRecordTerminator { get; }
 
-    public AwkText RecordText => _recordText ?? AwkText.Empty;
+    // Buffered results are private to the main-input handoff until the next staged read.
+    // Getline uses the owned read entry; ordinary scalar values never carry this owner.
+    public AwkText RecordText => _recordContent switch
+    {
+        AwkText text => text,
+        null => AwkText.Empty,
+        _ => throw new InvalidOperationException("A buffered record must be admitted into its frame.")
+    };
+
+    internal bool TryGetStorage([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkRecordStorage? storage)
+    {
+        storage = _recordContent as AwkRecordStorage;
+        return storage is not null;
+    }
+
+    internal static AwkInputRecordResult Buffered(AwkRecordStorage storage, AwkRecordTerminator terminator) =>
+        new(AwkInputRecordResultKind.Record, storage, terminator, AwkRecordFieldSplittingMode.Ordinary);
 
     public AwkRecordTerminator Terminator { get; }
 

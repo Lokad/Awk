@@ -302,3 +302,9 @@ fallthrough returns, numeric-string origins, aliases, omitted/excess arguments, 
 suspension and diagnostic guards. Long-function and cancellation checks distinguish
 linear statement count from recursive preparation depth. Function-local synchronous
 returns remain isolated across nested calls and concurrent compiled-program reuse.
+
+Record-input storage checks cover staged-buffer refusal/cancellation, bounded retention,
+owned fallback for oversized input, actual pending output and complete refunds. Record
+ownership goldens retain saved values, getline destinations, print operand order, captured
+separators and dirty records across buffer reuse. Counters distinguish buffered records
+from materialized AwkText; input result/value/field/cache layouts stay compact.

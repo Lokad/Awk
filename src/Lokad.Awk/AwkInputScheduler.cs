@@ -26,7 +26,6 @@ internal sealed class AwkInputScheduler(
     private OwnedInputDescriptor _ownedDescriptor;
     private ReadOnlyMemory<byte> _ownedInputDisplay;
     private readonly AwkMemoryLease _inputDisplayMemory = state.MemoryAccounting.CreateTransientLease();
-    private readonly AwkRecordProcessor _recordProcessor = new(state);
     private OpenMainInput? _currentInput;
     private long _nextArgvIndex = 1;
     private bool _selectedInputSource;
@@ -39,7 +38,9 @@ internal sealed class AwkInputScheduler(
             input.Cursor.PreserveBorrowedInput(releaseDescriptor: true);
     }
 
-    public async ValueTask<AwkInputRecordResult> ReadAsync()
+    public ValueTask<AwkInputRecordResult> ReadAsync() => ReadAsync(null);
+
+    private async ValueTask<AwkInputRecordResult> ReadAsync(AwkRecordStorage? storage)
     {
         if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInBeginFile);
@@ -55,7 +56,7 @@ internal sealed class AwkInputScheduler(
             var input = _currentInput ??
                 throw new InvalidOperationException("Main input was not initialized after a successful open.");
             if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
-            var record = await input.Cursor.ReadAsync().ConfigureAwait(false);
+            var record = await input.Cursor.ReadAsync(storage).ConfigureAwait(false);
             if (record.HasRecord)
             {
                 state.Checkpoint();
@@ -243,25 +244,13 @@ internal sealed class AwkInputScheduler(
 
     public async Task ProcessRemainingInputAsync()
     {
-        Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync =
-            record => actionExecutor.ProcessRecordAsync(state, io, record);
         while (!state.ExitRequested)
         {
-            var input = await ReadAsync().ConfigureAwait(false);
+            var input = await ReadAsync(state.InputRecordStorage).ConfigureAwait(false);
             if (!input.HasRecord)
                 return;
 
-            var flow = input.FieldSplittingMode == AwkRecordFieldSplittingMode.Paragraph
-                ? await _recordProcessor.ProcessParagraphAsync(
-                        input.RecordText,
-                        input.Terminator,
-                        processRecordAsync)
-                    .ConfigureAwait(false)
-                : await _recordProcessor.ProcessAsync(
-                        input.RecordText,
-                        input.Terminator,
-                        processRecordAsync)
-                    .ConfigureAwait(false);
+            var flow = await actionExecutor.ProcessRecordAsync(state, io, input).ConfigureAwait(false);
             if (flow == AwkStatementFlow.ExitProgram)
             {
                 await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);

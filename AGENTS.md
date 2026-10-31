@@ -32,6 +32,9 @@ or environment dependencies.
 - Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
   split completion, staged field changes and reconstruction. Escaping scalar values own their text;
   byte views do not interpret cache slots.
+- Current-record payload buffers belong to their frame. Main-input staging writes the inactive
+  buffer; getline keeps owned input. Escaping values own text, and raw field spans stay synchronous.
+  Preserve record/counter/terminator preflights and funding through actual users and cleanup.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
 - Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one

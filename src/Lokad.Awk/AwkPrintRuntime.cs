@@ -12,7 +12,7 @@ internal static class AwkPrintRuntime
         Span<AwkValue> values = [default, default, default, default];
         Span<AwkFieldText> segments = [AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty,
             AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty];
-        var record = AwkText.Empty;
+        ReadOnlySpan<byte> record = default;
         var borrowed = 0;
         for (var index = 0; index < fields.Length; index++)
         {

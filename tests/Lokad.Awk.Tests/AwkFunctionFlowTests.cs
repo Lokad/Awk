@@ -24,7 +24,7 @@ public sealed class AwkFunctionFlowTests
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, counters, limits, state, static _ => []);
         using var executor = new AwkRuntimeActionExecutor(program, state);
-        var record = AwkText.FromString("row");
+        var record = AwkInputRecordResult.Record(AwkText.FromString("row"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
         var expectedFlow = skipFile ? AwkStatementFlow.NextFile : AwkStatementFlow.Continue;
 
         Assert.Equal(expectedFlow, await executor.ProcessRecordAsync(state, io, record));

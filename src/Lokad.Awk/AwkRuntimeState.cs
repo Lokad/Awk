@@ -207,6 +207,8 @@ internal sealed class AwkRuntimeState : IDisposable
         set => AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(value));
     }
 
+    internal AwkRecordStorage InputRecordStorage => _recordFields.InputRecordStorage;
+
     public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
 
     public int FieldCount => _recordFields.FieldCount;
@@ -565,7 +567,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
         _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
 
-    internal bool TryPreparePrintField(int index, out AwkFieldText field, out AwkText record)
+    internal bool TryPreparePrintField(int index, out AwkFieldText field, out ReadOnlySpan<byte> record)
     {
         if (!_recordFields.TryGetUnmaterializedFieldText(new(index), out field, out record)) return false;
         var bytes = field.AsSpan(record, CancellationCheckpoint);
@@ -958,6 +960,10 @@ internal sealed class AwkRuntimeState : IDisposable
         SetRecordTerminator(terminator);
     }
 
+    internal AwkMemoryMutationAdmission PreflightCurrentRecordAdmission(AwkInputRecordResult record) =>
+        PreflightCurrentRecordAdmission(record.TryGetStorage(out _) ? AwkText.Empty : record.RecordText,
+            record.Terminator, record.FieldSplittingMode);
+
     public AwkMemoryMutationAdmission PreflightCurrentRecordAdmission(
         AwkText record, AwkRecordTerminator terminator, AwkRecordFieldSplittingMode mode)
     {
@@ -1027,6 +1033,12 @@ internal sealed class AwkRuntimeState : IDisposable
             SetArgvIndex(argvIndex);
         }
         SetErrno(AwkErrno.None);
+    }
+
+    internal void SetCurrentRecord(AwkInputRecordResult record)
+    {
+        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage.Content);
+        else SetCurrentRecord(record.RecordText);
     }
 
     public void SetCurrentRecord(AwkText line)
@@ -1339,5 +1351,9 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkEvaluationContext context) =>
         _arrayRuntime.SnapshotKeyValuesAsync(name, context);
 
-    public void Dispose() => _regexRuntime.Dispose();
+    public void Dispose()
+    {
+        try { _regexRuntime.Dispose(); }
+        finally { _recordFields.ResetRecord(); }
+    }
 }
