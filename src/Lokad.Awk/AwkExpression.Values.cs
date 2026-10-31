@@ -251,6 +251,28 @@ internal abstract partial class AwkExpression
                 : throw new InvalidOperationException("Synchronous field index is required.");
         }
 
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint(); // Field expression, before its index.
+            return fieldOperand.IndexExpression is AwkSynchronousExpression index
+                ? context.State.GetArrayFieldNumber(name, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value, globalIndex)
+                : throw new InvalidOperationException("Synchronous field index is required.");
+        }
+
+        public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint(); // Array expression.
+            context.State.Checkpoint(); // Field expression, before its index.
+            var pending = fieldOperand.IndexExpression.ResolveNumberAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(context.State.GetArrayFieldNumber(name, AwkFieldIndex.FromNumber(pending.Result).Value, globalIndex))
+                : AwaitNumericFieldIndexAsync(context, pending);
+        }
+
+        private async ValueTask<double> AwaitNumericFieldIndexAsync(AwkEvaluationContext context,
+            ValueTask<double> pending) =>
+            context.State.GetArrayFieldNumber(name, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, globalIndex);
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             context.State.Checkpoint();
@@ -261,6 +283,19 @@ internal abstract partial class AwkExpression
 
     private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression, int globalIndex) : AwkExpression
     {
+        public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint();
+            var pending = indexExpression.ResolveKeyAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(context.State.GetArrayNumber(name, pending.Result, globalIndex))
+                : AwaitNumericKeyAsync(context, pending);
+        }
+
+        private async ValueTask<double> AwaitNumericKeyAsync(AwkEvaluationContext context,
+            ValueTask<AwkArrayKey> pending) =>
+            context.State.GetArrayNumber(name, await pending.ConfigureAwait(false), globalIndex);
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);

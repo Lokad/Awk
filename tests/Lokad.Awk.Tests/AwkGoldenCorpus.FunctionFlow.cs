@@ -4,6 +4,10 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("numeric-array-read-keeps-getline-field-key",
+            ["function key(){getline;return 1}BEGIN{$0=\"old\";a[\"new\"]=7;print a[$(key())]*2,$0;exit}"],
+            [], "14 new\n", "new\n");
+
         yield return Passing("array-parameter-survives-global-file-actions",
             ["function drain(a,line){while((getline line)>0)a[\"hits\"]++;return a[\"hits\"]}" +
              "BEGIN{g[\"hits\"]=7;print drain(g)}BEGINFILE{a[\"file\"]++;g[\"seen\"]++}" +

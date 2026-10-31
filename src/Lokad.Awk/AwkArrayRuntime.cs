@@ -153,6 +153,31 @@ internal sealed class AwkArrayRuntime
         return result;
     }
 
+    public double GetNumber(AwkArrayName name, AwkArrayKey index, int globalIndex)
+    {
+        return _state.TryGetBoundArray(name, globalIndex, out var array)
+            ? _variables.GetArrayNumber(array, index)
+            : GetAwkValue(name, index, globalIndex).AsNumber(_state.CancellationCheckpoint);
+    }
+
+    public bool TryGetBorrowedNumber(AwkArrayName name, ReadOnlySpan<byte> index, out double number,
+        int globalIndex)
+    {
+        if (_state.TryGetBoundArray(name, globalIndex, out var array))
+        {
+            if (_variables.TryGetArrayKeySlot(array, index, out _, out var slot))
+            {
+                number = _variables.ReadArraySlotNumber(slot);
+                return true;
+            }
+            number = 0;
+            return false;
+        }
+        var found = TryGetBorrowedAwkValue(name, index, out var value, globalIndex);
+        number = found ? value.AsNumber(_state.CancellationCheckpoint) : 0;
+        return found;
+    }
+
     public bool TryGetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value,
         int globalIndex = -1)
     {

@@ -9,6 +9,31 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task NumericArrayOperandsReadStoredNumbers(bool governed, bool fieldKey)
+    {
+        var key = fieldKey ? "$1" : "\"k\"";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("k\n", 128)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var invocation = AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{a[\"k\"]=7}{s+=a[" + key + "]*2}END{print s,a[\"k\"]}");
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("1792 7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.NumericArraySlotReads > 0);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, 0)] [InlineData(true, 0)]
     [InlineData(false, 1)] [InlineData(true, 1)]
     [InlineData(false, 2)] [InlineData(true, 2)]

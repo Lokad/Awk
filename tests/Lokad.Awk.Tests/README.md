@@ -319,6 +319,8 @@ returns remain isolated across nested calls and concurrent compiled-program reus
 Array-parameter counters cover bound aliases across reads, membership, updates and nested
 roots in both memory modes. A file-action golden keeps suspended caller aliases separate
 from globals.
+Numeric array counters cover stored-number reads through literal and borrowed field keys;
+pending-index and refusal checks preserve owner resolution, prior values and refunds.
 Array-function goldens cover missing-read insertion versus membership, numeric-string
 origins and spelling, composite operand order and short circuit. These semantic expectations
 apply equally to ordinary and prepared execution.

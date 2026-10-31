@@ -1178,6 +1178,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1) =>
         _arrayRuntime.GetAwkValue(name, index, globalIndex);
 
+    internal double GetArrayNumber(AwkArrayName name, AwkArrayKey index, int globalIndex) =>
+        _arrayRuntime.GetNumber(name, index, globalIndex);
+
     internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, int globalIndex = -1) =>
         _arrayRuntime.ResolveOrdinaryArray(name, globalIndex);
 
@@ -1213,6 +1216,17 @@ internal sealed class AwkRuntimeState : IDisposable
             return value;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return GetArrayAwkValue(name, ToArrayKey(field), globalIndex);
+    }
+
+    internal double GetArrayFieldNumber(AwkArrayName name, int index, int globalIndex)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+            _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, globalIndex))
+            return number;
+        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        return GetArrayNumber(name, ToArrayKey(field), globalIndex);
     }
 
     public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index, int globalIndex = -1)

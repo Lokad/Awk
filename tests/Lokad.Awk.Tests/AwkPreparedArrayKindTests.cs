@@ -169,6 +169,66 @@ public sealed class AwkPreparedArrayKindTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData(false, 0)] [InlineData(true, 0)]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 2)] [InlineData(true, 2)]
+    public async Task NumericReadsResolveTheirOwnerAfterPendingIndices(bool field, int outcome)
+    {
+        var state = State();
+        state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), 0);
+        state.SetCurrentRecord(AwkText.FromString("old"));
+        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var index = new PendingKey(completion.Task);
+        var operand = field ? AwkExpression.FieldIndex(index) : index;
+        var expression = AwkExpression.ArrayElement(Array, AwkArrayIndex.Simple(operand), 0);
+        var pending = expression.ResolveNumberAsync(new(state));
+        Assert.False(pending.IsCompleted);
+
+        state.ClearArray(Array);
+        state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(9));
+        state.SetCurrentRecord(AwkText.FromString("k"));
+        if (outcome == 0)
+        {
+            completion.SetResult(field ? AwkValue.FromNumber(1) : AwkValue.FromText("k"));
+            Assert.Equal(9, await pending);
+        }
+        else if (outcome == 1)
+        {
+            completion.SetException(new AwkRuntimeException(Lokad.Awk.AwkMessages.ErrorMemoryLimit));
+            await Assert.ThrowsAsync<AwkRuntimeException>(() => pending.AsTask());
+        }
+        else
+        {
+            completion.SetCanceled(new CancellationToken(true));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.AsTask());
+        }
+        Assert.Equal(1, index.Entries);
+        Assert.Equal(9, state.GetArrayAwkValue(Array, Key).AsNumber());
+        Assert.False(state.ContainsArrayValue(Array, new("old")));
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public async Task NumericReadRefusalDoesNotInsertTheMissingElement()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(Options()))).State;
+        state.InitializeGlobalReadSlots(1);
+        state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), 0);
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var expression = AwkExpression.ArrayElement(Array, AwkArrayIndex.Simple(AwkExpression.Literal("missing")), 0);
+
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => expression.ResolveNumberAsync(new(state)).AsTask());
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.False(state.ContainsArrayValue(Array, new("missing")));
+        Assert.Equal(7, state.GetArrayAwkValue(Array, Key).AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public async Task ParsedArrayArgumentsAndSpecialArraysKeepTheirOriginalPaths()
     {
@@ -196,6 +256,12 @@ public sealed class AwkPreparedArrayKindTests
 
     private sealed class PendingKey(Task<AwkValue> completion) : AwkExpression
     {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => new(completion);
+        public int Entries { get; private set; }
+
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            Entries++;
+            return new(completion);
+        }
     }
 }
