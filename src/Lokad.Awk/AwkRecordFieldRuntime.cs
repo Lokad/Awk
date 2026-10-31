@@ -52,7 +52,7 @@ internal sealed class AwkRecordFieldRuntime
     internal bool TryGetBufferedRecordBytes(out ReadOnlySpan<byte> bytes) =>
         _frame.TryGetBufferedRecordBytes(out bytes);
 
-    public bool CannotReportRegexDiagnostics => AwkFieldSplitter.SupportsIncrementalFields(_frame.SplitPlan);
+    public bool CannotReportRegexDiagnostics => _frame.SupportsIncrementalFields;
 
     public int FieldCount =>
         _frame.GetFieldCount(_splitCurrentFields);

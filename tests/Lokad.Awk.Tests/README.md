@@ -118,6 +118,10 @@ Use property-style tests for broad invariants such as malformed-program robustne
 
 Current-surface tests are for internals that are hard to observe through a golden case: cancellation, injected clock/time-zone/random services, resource-limit thresholds, direct runtime services, and batching helpers. Prefer moving ordinary user-visible behavior to the golden corpus.
 
+Paragraph/literal field checks keep the admitted separator snapshot when FS changes before
+first access, across separate actions. Counters preserve byte-native field completion,
+record/field totals and refunds in both memory modes.
+
 Record-input memory cases check that header preflight ends before later actions: clearing
 a large value makes allowance available to a separate host user under shared pressure,
 while same-execution replacement, mutation refusal and pending-user cleanup remain covered.

@@ -11,6 +11,31 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task ParagraphFieldSnapshotsStayByteNativeAcrossSeparateActions(bool governed)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInput("a:b\nc:d\n\nx,y\nz,w\n");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var invocation = AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{RS=\"\";FS=\":\"}{FS=\",\"}{first=$1}{count=NF;second=$2}{print first,second,count}");
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("a b 4\nx y 4\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, counters.RecordsRead);
+        Assert.Equal(8, counters.FieldsMaterialized);
+        Assert.True(counters.SynchronousActionRuns > 0);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PreparedScalarMutationsKeepCallerSpellingAndPriorGlobalValue(bool governed)
     {
         var host = new MockFileSystem();

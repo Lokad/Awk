@@ -29,6 +29,11 @@ internal readonly record struct AwkRecordSplitPlan
     public AwkRegexCaseSensitivity CaseSensitivity { get; }
     public AwkRecordFieldSplittingMode RecordMode { get; }
 
+    public bool SupportsIncrementalFields =>
+        Mode == AwkFieldSplittingMode.FieldSeparator &&
+        (Separator.UsesWhitespaceSemantics ||
+         (RecordMode == AwkRecordFieldSplittingMode.Ordinary && Separator.ByteText.ByteLength == 1));
+
     public long RetainedMemoryBytes => Mode switch
     {
         AwkFieldSplittingMode.FieldPattern => AwkRuntimeMemory.EstimateTextBytes(FieldPattern),

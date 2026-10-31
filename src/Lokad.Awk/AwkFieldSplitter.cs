@@ -125,11 +125,6 @@ internal sealed class AwkFieldSplitter(
                 _fieldSplittingMode, _fieldSeparator, AwkText.Empty, [], resolveRegexCaseSensitivity(), recordMode)
         };
 
-    public static bool SupportsIncrementalFields(AwkRecordSplitPlan plan) =>
-        plan.Mode == AwkFieldSplittingMode.FieldSeparator &&
-        (plan.Separator.UsesWhitespaceSemantics ||
-         (plan.RecordMode == AwkRecordFieldSplittingMode.Ordinary && plan.Separator.ByteText.ByteLength == 1));
-
     internal int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, int position,
         int targetCount, List<AwkFieldText> fields) =>
         _byteSplitter.ExtendRecordFields(line, plan.Separator, position, targetCount, fields);
