@@ -41,7 +41,6 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Unicode length/substr / output | 60.00 | 3.904 | 1.669 | 2.34× | 1.78 | 10-30 / [a6a5a71] |
 | Loop with two-argument calls | 8.00 | 8.335 | 3.741 | 2.23× | 0.59 | 10-30 / [a6a5a71] |
 | ASCII substr/index/length/casing | 52.00 | 2.775 | 1.252 | 2.22× | 1.01 | 10-30 / [a6a5a71] |
-| Sum one numeric column | 25.08 | 2.286 | 1.032 | 2.21× | 0.47 | 10-31 / [5e53a18] |
 | Branching function, two arguments | 8.00 | 8.812 | 3.997 | 2.20× | 0.62 | 10-30 / [a6a5a71] |
 | Nested user calls | 8.00 | 3.167 | 1.452 | 2.18× | 0.52 | 10-31 / [0e73d92] |
 | Post-test arithmetic loop | 8.00 | 5.015 | 2.333 | 2.15× | 0.58 | 10-30 / [a6a5a71] |
@@ -58,6 +57,7 @@ imply full GNU conformance; CSV requires GNU 5.3 or later.
 | Field-key membership | 48.56 | 1.854 | 0.996 | 1.86× | 0.63 | 10-30 / [a6a5a71] |
 | Field-key reads, existing/new | 63.15 | 2.518 | 1.362 | 1.85× | 1.30 | 10-30 / [a6a5a71] |
 | Filter three fields | 24.00 | 2.182 | 1.210 | 1.80× | 0.54 | 10-30 / [a6a5a71] |
+| Sum one numeric column | 25.08 | 1.807 | 1.016 | 1.78× | 0.07 | 10-31 / [bf2975d] |
 | Alternate reads from two lookup arrays | 21.50 | 1.976 | 1.264 | 1.56× | 0.15 | 10-31 / [7d0684f] |
 | Labeled printf | 24.00 | 3.667 | 2.367 | 1.55× | 0.53 | 10-30 / [a6a5a71] |
 | CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 3.298 | 2.362 | 1.40× | 1.69 | 10-30 / [a6a5a71] |
@@ -87,8 +87,8 @@ effect of process startup. No shared admission.
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | ERE boolean matching | 512.00 | 53.869 | 4.930 | 10.93× | 112.19 | 10-31 / [5e53a18] |
 | Composite-key sum / sorted output (GNU) | 384.00 | 47.593 | 8.766 | 5.43× | 20.77 | 10-31 / [5e53a18] |
-| Sum one numeric column | 401.40 | 33.329 | 6.317 | 5.28× | 6.69 | 10-31 / [5e53a18] |
 | Keyed sum / sorted output (GNU) | 384.00 | 34.566 | 6.634 | 5.21× | 0.24 | 10-31 / [5e53a18] |
+| Sum one numeric column | 401.40 | 29.337 | 6.213 | 4.72× | 0.19 | 10-31 / [bf2975d] |
 | Copy field / rebuild record | 960.00 | 51.159 | 11.219 | 4.56× | 18.19 | 10-31 / [c510078] |
 | Loop with repeated field arguments | 401.40 | 226.210 | 53.017 | 4.27× | 13.26 | 10-30 / [9facac7] |
 | Loop with repeated numeric field reads | 401.40 | 150.334 | 36.770 | 4.09× | 6.74 | 10-31 / [6d279b5] |
@@ -119,8 +119,8 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Aggregation, 65,536 records | 512 MiB | 48.193 | 2.241 | 10-31 / [feec315] |
 | Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
 | Join, 65,536 records per file | 512 MiB | 171.680 | 29.366 | 10-31 / [e9c6ef5] |
-| Scalar sum, 65,536 records | None | 32.091 | 6.694 | 10-31 / [5e53a18] |
-| Scalar sum, 65,536 records | 512 MiB | 50.968 | 6.695 | 10-31 / [5e53a18] |
+| Scalar sum, 65,536 records | None | 27.684 | 0.193 | 10-31 / [bf2975d] |
+| Scalar sum, 65,536 records | 512 MiB | 43.064 | 0.195 | 10-31 / [bf2975d] |
 | ERE boolean matching, 4,096 records | None | 2.168 | 0.191 | 10-31 / [5e53a18] |
 | ERE boolean matching, 4,096 records | 512 MiB | 4.125 | 7.505 | 10-31 / [5e53a18] |
 | Early fields, 65,536 wide records | None | 30.588 | 7.603 | 10-31 / [5e53a18] |
@@ -205,3 +205,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [e9c6ef5]: https://github.com/Lokad/Awk/commit/e9c6ef53e8498a2433158f9324651961929425e8
 
 [feec315]: https://github.com/Lokad/Awk/commit/feec315bcd80e97823faa15e4f8ad1f3325f7efb
+
+[bf2975d]: https://github.com/Lokad/Awk/commit/bf2975d36cd1c9f67e80ec75252ab5da37a68395
