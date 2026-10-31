@@ -148,6 +148,8 @@ membership, original spelling and callee getline effects.
 Array-mutation counters cover complete plain/compound/increment helpers, field/composite
 keys and nested calls. Focused prepared-write refusal checks preserve existing entries,
 reject insertion before mutation and verify refunds; pending writes retain ordinary coverage.
+Prepared scalar-reference checks retain the prior global value when a RHS changes it,
+caller field spelling, zero text conversions and complete shared-budget refunds.
 Function-flow checks also cover nested returns and pending conditions/return values.
 Long-block goldens cover actions, branches and for/while/do bodies at several sizes.
 Artifact reuse and pending-argument cases after long loops check cancellation authority,

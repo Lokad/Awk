@@ -4,6 +4,13 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return AwkGoldenCaseBuilder.Create("prepared-scalar-reference-keeps-prior-global-value-and-field-origin",
+            ["function rhs(){g+=10;return 2}function f(x,t){t=x;t+=rhs();t++;g+=rhs();return t}BEGIN{g=7}{n+=f($1);last=$1}END{print n,g,last}"], [])
+            .WithStandardInput("0007\n0007\n")
+            .WithStdOut("20 31 0007\n")
+            .WithNondeterminismNote("Lokad preserves its qualified prior-value-before-RHS compound assignment order; GNU awk 5.3.2 produced 20 51 0007.")
+            .Build();
+
         yield return Passing("array-write-helper-keeps-rhs-before-key-and-origin",
             ["function key(){order=order*10+1;return k}function rhs(){k=2;order=order*10+2;return \"0007\"}function set(a){a[key()]=rhs();return a[2]}BEGIN{k=1;print \"[\"set(a)\"]\",order,(1 in a),(2 in a)}"],
             [], "[0007] 21 0 1\n");
