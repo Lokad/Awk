@@ -327,6 +327,8 @@ fallthrough returns, numeric-string origins, aliases, omitted/excess arguments, 
 suspension and diagnostic guards. Long-function and cancellation checks distinguish
 linear statement count from recursive preparation depth. Function-local synchronous
 returns remain isolated across nested calls and concurrent compiled-program reuse.
+Named-call counters cover direct targets in ordinary nested-array functions and prepared
+scalar functions. Forward and mutual calls preserve aliases, spelling and caller frames.
 Nested-loop goldens also cover return through a host-capable function. Execution-context
 checks distinguish explicit snapshots from ambient bindings across suspension and verify
 that pending failure or cancellation restores the enclosing context in both memory modes.

@@ -8,28 +8,30 @@ namespace Lokad.Awk;
 
 internal sealed class AwkUserFunction
 {
-    private readonly AwkStatement[] _statements;
-    private readonly AwkSynchronousFunction? _synchronous;
+    // Preparation finishes before the program is published to any execution.
+    private AwkStatement[] _statements = [];
+    private AwkSynchronousFunction? _synchronous;
+
+    internal AwkUserFunction(AwkFunctionName name, AwkFunctionLocalLayout localLayout)
+    {
+        FunctionName = name;
+        LocalLayout = localLayout;
+    }
 
     public AwkUserFunction(
         AwkFunctionName name,
         AwkFunctionLocalLayout localLayout,
         IReadOnlyList<AwkStatement> statements)
-        : this(name, localLayout, AwkCollectionSnapshots.Copy(statements), null)
+        : this(name, localLayout)
     {
+        PrepareBody(statements);
     }
 
-    private AwkUserFunction(AwkFunctionName name, AwkFunctionLocalLayout localLayout,
-        AwkStatement[] statements, AwkSynchronousFunction? synchronous)
-    {
-        FunctionName = name;
-        LocalLayout = localLayout;
-        _statements = statements;
-        _synchronous = synchronous;
-    }
+    internal void PrepareBody(IReadOnlyList<AwkStatement> statements) =>
+        _statements = AwkCollectionSnapshots.Copy(statements);
 
-    internal AwkUserFunction WithSynchronousFunction(AwkSynchronousFunction function) =>
-        new(FunctionName, LocalLayout, _statements, function);
+    internal void PrepareSynchronousFunction(AwkSynchronousFunction function) =>
+        _synchronous = function;
 
     internal bool TryPrepareSynchronousBody(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,

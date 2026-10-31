@@ -76,7 +76,8 @@ internal abstract partial class AwkExpression
             AwkBuiltins.EvaluateAsync(definition, arguments, context);
     }
 
-    private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) : AwkExpression
+    private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments,
+        AwkUserFunction? target) : AwkExpression
     {
         internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
             int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
@@ -111,6 +112,8 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
+            if (target is { } prepared)
+                return prepared.InvokeAsync(arguments, context);
             if (context.State.TryGetUserFunction(name, out var function))
                 return function.InvokeAsync(arguments, context);
 

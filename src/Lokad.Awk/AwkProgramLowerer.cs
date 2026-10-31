@@ -51,18 +51,34 @@ internal static partial class AwkProgramLowerer
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
             checkpoint?.Invoke();
-            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex], mode, checkpoint, globalReads);
+            var functionSyntax = syntax.Functions[functionIndex];
+            var functionDefinition = BindFunctionSignature(functionSyntax, mode, checkpoint);
             if (!functionDefinition.Succeeded)
             {
                 return AwkLoweringResult.Failure(functionDefinition.Diagnostics);
             }
 
             var function = functionDefinition.Value;
-            functions[function.FunctionName] = function;
+            if (!functions.TryAdd(function.FunctionName, function))
+                return AwkLoweringResult.Failure([new AwkDiagnostic(functionSyntax.Span,
+                    "Duplicate function definition `" + function.Name + "'.", AwkDiagnosticId.BindInvalidProgram)]);
+        }
+
+        // All named targets have one identity, including forward and recursive calls.
+        for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
+        {
+            checkpoint?.Invoke();
+            var functionSyntax = syntax.Functions[functionIndex];
+            var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
+            var body = AwkStatementLowerer.LowerList(functionSyntax.BodyStatements,
+                AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions));
+            if (!body.Succeeded)
+                return AwkLoweringResult.Failure(body.Diagnostics);
+            function.PrepareBody(body.Value);
         }
 
         var synchronousFunctions = AwkSynchronousFunction.Prepare(functions, checkpoint);
-        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, synchronousFunctions);
+        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, synchronousFunctions, functions);
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
         {
             checkpoint?.Invoke();
@@ -100,9 +116,8 @@ internal static partial class AwkProgramLowerer
         checkpoint?.Invoke();
         return AwkLoweringResult.SuccessResult(program);
 
-        static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
-            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode, Action? checkpoint,
-            AwkGlobalReadLayout globalReads)
+        static AwkLoweringOutcome<AwkUserFunction> BindFunctionSignature(
+            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode, Action? checkpoint)
         {
             if (functionSyntax.Name.Length == 0 || AwkCompatibilityNames.IsReservedFunction(functionSyntax.Name, mode))
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
@@ -115,17 +130,8 @@ internal static partial class AwkProgramLowerer
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(parameterBinding.Diagnostics);
 
             var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters, checkpoint);
-            var body = AwkStatementLowerer.LowerList(
-                functionSyntax.BodyStatements,
-                AwkLoweringScope.Function(localLayout, mode, checkpoint, globalReads));
-            if (!body.Succeeded)
-            {
-                return AwkLoweringOutcome<AwkUserFunction>.Failure(body.Diagnostics);
-            }
-
-            var statements = body.Value;
             return AwkLoweringOutcome<AwkUserFunction>.Success(
-                new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout, statements));
+                new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout));
         }
 
         static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule, AwkLoweringScope scope)

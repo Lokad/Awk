@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("forward-nested-array-calls-keep-aliases-and-spelling",
+            ["function outer(a,k,v){return add(a,k,v)}function add(a,k,v){a[k][\"sum\"]+=v;a[k][\"count\"]++;return a[k][\"sum\"]}{print outer(a,$1,$2),$1,$2}END{print length(a),a[\"0007\"][\"sum\"],a[\"0007\"][\"count\"]}"],
+            [], "2 0007 0002\n5 0007 0003\n1 5 2\n", "0007 0002\n0007 0003\n");
+        yield return Passing("mutual-nested-array-calls-keep-callee-and-caller-frames",
+            ["function left(n,a){if(n==0){a[\"leaf\"][\"hits\"]++;return 1}return right(n-1,a)+1}function right(n,a){if(n==0){a[\"leaf\"][\"hits\"]++;return 1}return left(n-1,a)+1}BEGIN{print left(5,t),right(4,t),t[\"leaf\"][\"hits\"]}"],
+            [], "6 5 2\n");
         yield return Passing("complete-cpu-loop-return-through-host-capable-function",
             ["function f(n,i,j){print \"enter\";for(i=0;i<4;i++){j=0;do{j++;if(j==2)continue;if(i==2)return n+i+j}while(j<3)}return -1}BEGIN{print f(7)}"],
             [], "enter\n10\n");

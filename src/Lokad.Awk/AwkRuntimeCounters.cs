@@ -233,6 +233,12 @@ internal sealed class AwkRuntimeCounters
     public long SynchronousExpressionRuns { get; private set; }
     public long SynchronousFunctionRuns { get; private set; }
 
+    public long FunctionNameLookups { get; private set; }
+    public void RecordFunctionNameLookup()
+    {
+        if (_enabled) lock (_sync) FunctionNameLookups++;
+    }
+
     public long BoundScalarArguments { get; private set; }
 
     public long BoundScalarLengths { get; private set; }

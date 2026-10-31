@@ -44,7 +44,7 @@ internal sealed class AwkSynchronousFunction(
         foreach (var (name, function) in prepared)
         {
             checkpoint?.Invoke();
-            functions[name] = functions[name].WithSynchronousFunction(function);
+            functions[name].PrepareSynchronousFunction(function);
         }
         return prepared;
     }

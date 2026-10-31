@@ -401,8 +401,11 @@ internal sealed class AwkRuntimeState : IDisposable
             FunctionNames());
     }
 
-    public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function) =>
-        _functions.TryGetUserFunction(name, out function);
+    public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function)
+    {
+        Counters.RecordFunctionNameLookup();
+        return _functions.TryGetUserFunction(name, out function);
+    }
 
     public void PushFunctionFrame(
         AwkFunctionLocalLayout layout,

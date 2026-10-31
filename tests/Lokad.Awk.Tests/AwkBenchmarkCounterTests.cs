@@ -9,6 +9,32 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task KnownNamedCallsDoNotResolveTargetsDuringExecution(bool governed, bool ordinary)
+    {
+        var source = ordinary
+            ? "function outer(a,k,v){return add(a,k,v)}function add(a,k,v){a[k][\"sum\"]+=v;return a[k][\"sum\"]}{print outer(a,$1,$2)}"
+            : "function outer(x){return add(x)}function add(x){return x+1}{print outer($2)}";
+        var host = new MockFileSystem();
+        host.SetStandardInput("0007 0002\n0007 0003\n");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(ordinary ? "2\n5\n" : "3\n4\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.FunctionNameLookups);
+        if (ordinary) Assert.Equal(0, counters.SynchronousFunctionRuns);
+        else Assert.True(counters.SynchronousFunctionRuns > 0);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ParagraphFieldSnapshotsStayByteNativeAcrossSeparateActions(bool governed)

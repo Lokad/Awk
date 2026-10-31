@@ -615,7 +615,10 @@ internal static partial class AwkExpressionLowerer
                 arguments.Add(argument);
             }
 
-            lowered = AwkExpression.FunctionCall(new AwkFunctionName(target.Identifier), arguments);
+            var name = new AwkFunctionName(target.Identifier);
+            AwkUserFunction? function = null;
+            scope.Functions?.TryGetValue(name, out function);
+            lowered = AwkExpression.FunctionCall(name, arguments, function);
             return true;
         }
 

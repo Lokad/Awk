@@ -158,8 +158,9 @@ internal abstract partial class AwkExpression
         AwkExpression whenFalse) =>
         new TernaryExpression(condition, whenTrue, whenFalse);
 
-    public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) =>
-        new FunctionCallExpression(name, AwkCollectionSnapshots.Copy(arguments));
+    public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments,
+        AwkUserFunction? target = null) =>
+        new FunctionCallExpression(name, AwkCollectionSnapshots.Copy(arguments), target);
 
     public static AwkExpression ScalarArgument(AwkExpression value) => new ScalarArgumentExpression(value);
 
