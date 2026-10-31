@@ -7,6 +7,55 @@ public sealed class AwkEvaluationContextTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
+    public async Task PendingFailureRestoresTheEnclosingContext(bool finite, bool canceled)
+    {
+        using var memoryForState = CreateState(finite);
+        var state = memoryForState.State;
+        var firstIo = CreateIo(state);
+        var secondIo = CreateIo(state);
+        using var firstOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var secondOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using (state.PushExecutionContext(firstOutput, firstIo))
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var pending = AwaitInScopeAsync(state, secondOutput, secondIo, completion.Task);
+            Assert.False(pending.IsCompleted);
+            Assert.True(state.TryGetExecutionContext(out var active));
+            Assert.Same(secondOutput, active.Output);
+            Assert.Same(secondIo, active.Io);
+            if (canceled)
+            {
+                completion.SetCanceled();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+                Assert.True(pending.IsCanceled);
+            }
+            else
+            {
+                completion.SetException(new InvalidOperationException("pending failure"));
+                var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => pending);
+                Assert.Equal("pending failure", failure.Message);
+            }
+            Assert.True(state.TryGetExecutionContext(out var restored));
+            Assert.Same(firstOutput, restored.Output);
+            Assert.Same(firstIo, restored.Io);
+        }
+        Assert.False(state.TryGetExecutionContext(out _));
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await firstIo.CloseAsync();
+        await secondIo.CloseAsync();
+    }
+
+    private static async Task AwaitInScopeAsync(AwkRuntimeState state, AwkOutputSink output, AwkIo io, Task completion)
+    {
+        using var scope = state.PushExecutionContext(output, io);
+        await completion.ConfigureAwait(false);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task ExplicitBindingsAreSnapshotsWhileAmbientBindingsFollowScopes(bool explicitBindings, bool finite)
     {
         using var memoryForState = CreateState(finite);

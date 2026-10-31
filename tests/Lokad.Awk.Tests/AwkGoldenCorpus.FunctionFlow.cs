@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("complete-cpu-loop-return-through-host-capable-function",
+            ["function f(n,i,j){print \"enter\";for(i=0;i<4;i++){j=0;do{j++;if(j==2)continue;if(i==2)return n+i+j}while(j<3)}return -1}BEGIN{print f(7)}"],
+            [], "enter\n10\n");
+        yield return Passing("complete-cpu-nested-loops-preserve-break-continue-and-spelling",
+            ["{saved=$1;for(i=0;i<3;i++){j=0;while(j<4){j++;if(j==2)continue;if(j==4)break;a[$1]+=i+j}}}END{print a[\"0007\"],saved}"],
+            [], "18 0007\n", "0007\n");
         yield return AwkGoldenCaseBuilder.Create("prepared-scalar-reference-keeps-prior-global-value-and-field-origin",
             ["function rhs(){g+=10;return 2}function f(x,t){t=x;t+=rhs();t++;g+=rhs();return t}BEGIN{g=7}{n+=f($1);last=$1}END{print n,g,last}"], [])
             .WithStandardInput("0007\n0007\n")

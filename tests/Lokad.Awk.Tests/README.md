@@ -323,6 +323,9 @@ fallthrough returns, numeric-string origins, aliases, omitted/excess arguments, 
 suspension and diagnostic guards. Long-function and cancellation checks distinguish
 linear statement count from recursive preparation depth. Function-local synchronous
 returns remain isolated across nested calls and concurrent compiled-program reuse.
+Nested-loop goldens also cover return through a host-capable function. Execution-context
+checks distinguish explicit snapshots from ambient bindings across suspension and verify
+that pending failure or cancellation restores the enclosing context in both memory modes.
 
 Array-parameter counters cover bound aliases across reads, membership, updates and nested
 roots in both memory modes. A file-action golden keeps suspended caller aliases separate
