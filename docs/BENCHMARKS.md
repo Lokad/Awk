@@ -164,7 +164,9 @@ may succeed without running measurements.
 Optional `--render-report PATH_TO_JSON` writes standalone Markdown beside a comparison
 artifact using Lokad.Awk/awk. Raw JSON retains its GNU/Lokad statistic for existing tooling.
 Existing `--governed-profile` cases cover calls, projection and aggregation with a 512 MiB
-thread-safe test budget, including default-mode call/aggregation controls. Its paired
+thread-safe test budget, including default-mode call/aggregation controls.
+Shared-mode managed allocations include test-budget bookkeeping and have shown variation
+between processes. Compare paired observations; Awk-owned admitted peaks are measured separately. Its paired
 default/shared `fs-regex`, `dynamic-pattern`, `substitution` and `rs-engine` scenarios
 exercise the provider boundary with the existing medium fixtures. `rs-regex` uses a byte-run
 fast path; `rs-engine` uses equivalent `([,;]+){1}` separators and checks provider use before
