@@ -34,16 +34,16 @@ internal abstract partial class AwkExpression
                 TryGetLiteralFieldIndex(valueExpression, out source);
         }
 
-        internal override bool TryGetLocalAssignment(
-            out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
         {
-            if (target is AwkLocalScalarReference scalar)
-            {
-                local = (scalar.Variable, scalar.SlotId);
-                value = valueExpression;
-                return true;
-            }
-            return base.TryGetLocalAssignment(out local, out value);
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 || !target.TryGetSynchronousScalar(out var location) ||
+                !valueExpression.TryPrepareFunctionCalls(functions, remainingDepth - 1,
+                    out var value, preparationCheckpoint)) return false;
+            expression = new SynchronousAssignmentExpression(location, value);
+            return expression.SynchronousDepth <= 16;
         }
 
         internal override AwkExpression PrepareSynchronousCallAction(
@@ -99,6 +99,18 @@ internal abstract partial class AwkExpression
         AwkExpression valueExpression,
         AwkCompoundAssignmentOperation operation) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 || !target.TryGetSynchronousScalar(out var location) ||
+                !valueExpression.TryPrepareFunctionCalls(functions, remainingDepth - 1,
+                    out var value, preparationCheckpoint)) return false;
+            expression = new SynchronousCompoundAssignmentExpression(location, value, operation);
+            return expression.SynchronousDepth <= 16;
+        }
+
         internal override AwkExpression PrepareSynchronousCallAction(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
             valueExpression.TryPrepareFunctionCalls(functions, 16, out var value, preparationCheckpoint) && !ReferenceEquals(value, valueExpression)
@@ -130,6 +142,16 @@ internal abstract partial class AwkExpression
 
     private sealed class PreIncrementExpression(AwkReference target) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 0 || !target.TryGetSynchronousScalar(out var location)) return false;
+            expression = new SynchronousIncrementExpression(location, 1, false);
+            return true;
+        }
+
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
             TryPrepareSynchronousIncrement(target, out action);
 
@@ -139,12 +161,32 @@ internal abstract partial class AwkExpression
 
     private sealed class PreDecrementExpression(AwkReference target) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 0 || !target.TryGetSynchronousScalar(out var location)) return false;
+            expression = new SynchronousIncrementExpression(location, -1, false);
+            return true;
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyDecrementAsync(context);
     }
 
     private sealed class PostIncrementExpression(AwkReference target) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 0 || !target.TryGetSynchronousScalar(out var location)) return false;
+            expression = new SynchronousIncrementExpression(location, 1, true);
+            return true;
+        }
+
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
             TryPrepareSynchronousIncrement(target, out action);
 
@@ -154,6 +196,16 @@ internal abstract partial class AwkExpression
 
     private sealed class PostDecrementExpression(AwkReference target) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 0 || !target.TryGetSynchronousScalar(out var location)) return false;
+            expression = new SynchronousIncrementExpression(location, -1, true);
+            return true;
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyPostDecrementAsync(context);
     }

@@ -323,14 +323,6 @@ internal abstract partial class AwkExpression
         return false;
     }
 
-    internal virtual bool TryGetLocalAssignment(
-        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
-    {
-        local = default;
-        value = AwkSynchronousExpression.Unavailable;
-        return false;
-    }
-
     /// <summary>Evaluates this expression after the cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 

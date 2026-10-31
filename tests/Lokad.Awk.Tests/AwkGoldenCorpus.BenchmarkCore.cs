@@ -5,6 +5,18 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Posix(Passing("function-computation-call-condition",
+            ["function inc(x){return x+1} function f(x,i){for(i=0;inc(i)<4;i++){if(i==1)continue;x+=i};return x} BEGIN{print f(7)}"], [], "9\n"));
+        yield return Posix(Passing("function-computation-increment-values",
+            ["function f(x,i,t){t=x++;t+=--x;t+=x--;t+=++x;return t*10+x} BEGIN{print f(\"0007\")}"], [], "287\n"));
+        yield return Posix(Passing("function-computation-short-circuit",
+            ["function f(x){if(!x&&++x)return x;return x?x++:-x} BEGIN{print f(0)+f(7)}"], [], "8\n"));
+        yield return Posix(Passing("function-computation-empty-return",
+            ["function f(x){if(x){x++;return};x=99} BEGIN{print \"[\" f(7) \"]\"}"], [], "[]\n"));
+        yield return Posix(Passing("function-computation-fallthrough",
+            ["function f(x){x++;if(x<4)x++} BEGIN{print \"[\" f(7) \"]\"}"], [], "[]\n"));
+        yield return Posix(Passing("function-computation-nested-loop-flow",
+            ["function f(x,i,j){for(i=0;i<3;i++){j=0;do{j++;if(j==2)continue;if(j==4)break;x+=i+j}while(j<8)};return x} BEGIN{print f(7)}"], [], "25\n"));
         foreach (var count in new[] { 17, 64, 257 })
         {
             var steps = string.Join(';', Enumerable.Repeat("x=(x*3+1)%101", count));

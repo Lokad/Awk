@@ -196,18 +196,51 @@ internal abstract partial class AwkExpression
 
     private sealed class NumberConversionExpression(AwkExpression expression) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression prepared, Action? checkpoint = null)
+        {
+            prepared = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 || !expression.TryPrepareFunctionCalls(functions,
+                remainingDepth - 1, out var value, checkpoint)) return false;
+            prepared = new SynchronousUnaryExpression(value, UnaryOperation.Number);
+            return prepared.SynchronousDepth <= 16;
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
     }
 
     private sealed class NegateExpression(AwkExpression expression) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression prepared, Action? checkpoint = null)
+        {
+            prepared = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 || !expression.TryPrepareFunctionCalls(functions,
+                remainingDepth - 1, out var value, checkpoint)) return false;
+            prepared = new SynchronousUnaryExpression(value, UnaryOperation.Negate);
+            return prepared.SynchronousDepth <= 16;
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkValue.FromNumber(-(await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
     }
 
     private sealed class NotExpression(AwkExpression expression) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression prepared, Action? checkpoint = null)
+        {
+            prepared = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 || !expression.TryPrepareFunctionCalls(functions,
+                remainingDepth - 1, out var value, checkpoint)) return false;
+            prepared = new SynchronousUnaryExpression(value, UnaryOperation.Not);
+            return prepared.SynchronousDepth <= 16;
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy() ? 0 : 1);
     }
@@ -218,6 +251,18 @@ internal abstract partial class AwkExpression
         AwkComparison comparison) : AwkExpression
     {
         protected AwkComparison Comparison => comparison;
+
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? checkpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 ||
+                !left.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var first, checkpoint) ||
+                !right.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var second, checkpoint)) return false;
+            expression = new SynchronousComparisonExpression(first, second, comparison);
+            return expression.SynchronousDepth <= 16;
+        }
 
         internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
         {
@@ -347,6 +392,18 @@ internal abstract partial class AwkExpression
         AwkExpression right,
         LogicalOperation operation) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? checkpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 ||
+                !left.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var first, checkpoint) ||
+                !right.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var second, checkpoint)) return false;
+            expression = new SynchronousLogicalExpression(first, second, operation);
+            return expression.SynchronousDepth <= 16;
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var leftTruthy = (await left.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy();
@@ -414,6 +471,19 @@ internal abstract partial class AwkExpression
         AwkExpression whenTrue,
         AwkExpression whenFalse) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? checkpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 1 ||
+                !condition.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var test, checkpoint) ||
+                !whenTrue.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var yes, checkpoint) ||
+                !whenFalse.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var no, checkpoint)) return false;
+            expression = new SynchronousTernaryExpression(test, yes, no);
+            return expression.SynchronousDepth <= 16;
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             (await condition.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy()
                 ? await whenTrue.EvaluateAsync(context).ConfigureAwait(false)

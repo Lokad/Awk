@@ -291,3 +291,10 @@ Every new awk feature, compatibility decision, or diagnostic needs a golden case
 Numeric field checks cover bounded one-pass wide storage, parse reuse in spare record-cache
 slots, warmed/full capacity, text origins and slot remapping. Cached-field infinite loops
 remain cancellable with counters enabled or disabled; cold cache refusal stays fatal.
+
+Whole-function preparation checks compare bound scalar blocks/branches/loops against
+independently lowered ordinary functions. They preserve flow, short circuit, empty and
+fallthrough returns, numeric-string origins, aliases, omitted/excess arguments, host
+suspension and diagnostic guards. Long-function and cancellation checks distinguish
+linear statement count from recursive preparation depth. Function-local synchronous
+returns remain isolated across nested calls and concurrent compiled-program reuse.

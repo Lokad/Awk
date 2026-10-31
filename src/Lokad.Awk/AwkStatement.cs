@@ -194,26 +194,18 @@ internal abstract partial class AwkStatement
     internal virtual AwkStatement PrepareSynchronousCalls(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) => this;
 
-    internal virtual bool TryGetLocalAssignment(
-        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
+    internal virtual bool TryPrepareComputation(
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+        int remainingDepth, out AwkStatementPreparation prepared, Action? checkpoint)
     {
-        local = default;
-        value = AwkSynchronousExpression.Unavailable;
+        prepared = default;
         return false;
     }
 
-    internal virtual bool TryGetReturnExpression(out AwkExpression expression)
-    {
-        expression = AwkSynchronousExpression.Unavailable;
-        return false;
-    }
-
-    internal virtual bool TryGetGuardedReturn(out AwkSynchronousExpression condition, out AwkExpression expression)
-    {
-        condition = AwkSynchronousExpression.Unavailable;
-        expression = AwkSynchronousExpression.Unavailable;
-        return false;
-    }
+    // Only completely prepared computational functions enter here. Actual host work
+    // continues through ExecuteAsync; a return value belongs to the invoking function.
+    internal virtual AwkStatementFlow ExecuteComputation(AwkEvaluationContext context, ref AwkValue returned) =>
+        throw new InvalidOperationException("The statement was not prepared for computation.");
 
     /// <summary>Executes this statement and returns the control-flow request visible to its enclosing block.</summary>
     public abstract ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context);
@@ -226,6 +218,17 @@ internal abstract partial class AwkStatement
     private sealed class NoOpStatement : AwkStatement
     {
         public static readonly NoOpStatement Instance = new();
+
+        internal override bool TryPrepareComputation(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkStatementPreparation prepared, Action? checkpoint)
+        {
+            prepared = new(this, 1, 0);
+            return remainingDepth > 0;
+        }
+
+        internal override AwkStatementFlow ExecuteComputation(AwkEvaluationContext context, ref AwkValue returned) =>
+            AwkStatementFlow.Continue;
 
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
         {

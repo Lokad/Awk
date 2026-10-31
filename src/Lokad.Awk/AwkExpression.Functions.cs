@@ -81,9 +81,7 @@ internal abstract partial class AwkExpression
         internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
             int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
         {
-            if (remainingDepth > 0 && functions.TryGetValue(name, out var function) &&
-                (function.Layout.SlotCount == arguments.Count ||
-                    (function.HasLocalAssignment && arguments.Count < function.Layout.SlotCount)))
+            if (remainingDepth > 0 && functions.TryGetValue(name, out var function))
             {
                 preparationCheckpoint?.Invoke();
                 var operands = new AwkSynchronousExpression[arguments.Count];

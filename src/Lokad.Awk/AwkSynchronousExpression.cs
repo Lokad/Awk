@@ -87,6 +87,8 @@ internal abstract partial class AwkExpression
     {
         internal override int SynchronousDepth { get; } = 1 + Math.Max(left.SynchronousDepth, right.SynchronousDepth);
 
+        internal override int SynchronousCallDepth => Math.Max(left.SynchronousCallDepth, right.SynchronousCallDepth);
+
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
             var leftValue = left.EvaluateSynchronous(context);

@@ -16,7 +16,11 @@ public sealed class AwkFunctionStorageTests
         var name = AwkFunctionName.FromText("score");
         var layout = new AwkFunctionLocalLayout(Enumerable.Range(0, count)
             .Select(index => AwkVariableName.FromText("p" + index)).ToArray());
-        var functions = new Dictionary<AwkFunctionName, AwkSynchronousFunction> { [name] = new(layout, value) };
+        var functions = new Dictionary<AwkFunctionName, AwkSynchronousFunction>
+        {
+            [name] = new(layout, [AwkStatement.Return(AwkOptionalExpression.Some(value))],
+                value.SynchronousDepth, value.SynchronousCallDepth)
+        };
         var call = AwkExpression.FunctionCall(name, Enumerable.Repeat<AwkExpression>(probe, count).ToArray());
         var body = AwkStatement.Expression(AwkExpression.Assignment(AwkReference.Scalar(AwkVariableName.FromText("n")), call));
         if (preCanceled) cancellation.Cancel();

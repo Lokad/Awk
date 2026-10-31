@@ -53,14 +53,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("if(x)return 1;return 2", true)]
-    [InlineData("if(x)return;return 2", false)]
-    [InlineData("if(x){x++;return 1}return 2", false)]
-    [InlineData("if(x)return 1;else return 2", false)]
-    [InlineData("if(x){if(x)return 1}return 2", false)]
-    [InlineData("if(x)return 1;return", false)]
-    [InlineData("if(x)return 1;return 2;x++", false)]
+    [InlineData("if(x)return;return 2", true)]
+    [InlineData("if(x){x++;return 1}return 2", true)]
+    [InlineData("if(x)return 1;else return 2", true)]
+    [InlineData("if(x){if(x)return 1}return 2", true)]
+    [InlineData("if(x)return 1;return", true)]
+    [InlineData("if(x)return 1;return 2;x++", true)]
     [InlineData("if((getline line)>0)return 1;return 2", false)]
-    public void ConditionalReturnsPrepareOnlyTheCompleteSupportedShape(string body, bool expected)
+    public void ConditionalReturnsPrepareCompleteComputationalBodies(string body, bool expected)
     {
         var function = Bind("function choose(x){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("choose")];
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };

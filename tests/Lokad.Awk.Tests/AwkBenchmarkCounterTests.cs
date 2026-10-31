@@ -39,12 +39,15 @@ public sealed class AwkBenchmarkCounterTests
 
 
     [Theory]
-    [InlineData(false, 0)] [InlineData(true, 0)]
-    [InlineData(false, 17)] [InlineData(true, 17)]
-    public async Task OrdinaryLocalUpdatesKeepNumericCellsByteNative(bool governed, int padding)
+    [InlineData(false, 0, false)] [InlineData(true, 0, false)]
+    [InlineData(false, 17, false)] [InlineData(true, 17, false)]
+    [InlineData(false, 0, true)] [InlineData(true, 0, true)]
+    [InlineData(false, 17, true)] [InlineData(true, 17, true)]
+    public async Task LocalUpdatesKeepNumericCellsByteNative(bool governed, int padding, bool prepared)
     {
         const int records = 128;
-        var source = "function score(x,a,b,c,d,t,i){t=x+a;" +
+        var source = "function score(x,a,b,c,d,t,i){" +
+            (prepared ? "" : "switch(x){default:break};") + "t=x+a;" +
             string.Concat(Enumerable.Repeat("t+=0;", padding)) +
             "for(i=0;i<b;i++){if(i==c)continue;t=(t*3+d)%101;if(t==0)return d};return t} " +
             "{total+=score($1,2,4,1,3)} END{print total}";
@@ -60,7 +63,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("10240\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.SynchronousFunctionRuns);
+        Assert.Equal(prepared ? records : 0, counters.SynchronousFunctionRuns);
         Assert.InRange(counters.AwkTextAllocations, records, records + 32);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
@@ -480,17 +483,17 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData("BEGIN{i=0;while(i<3){i++;if(i==2)break}print i}", "2\n")]
-    [InlineData("BEGIN{i=0;while(i<3){i++;continue}print i}", "3\n")]
-    [InlineData("function f(){while(1)return 7} BEGIN{print f()}", "7\n")]
-    [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n")]
-    internal async Task ParsedWhileFlowAndOutputKeepOrdinaryExecution(string source, string expected)
+    [InlineData("BEGIN{i=0;while(i<3){i++;if(i==2)break}print i}", "2\n", 0)]
+    [InlineData("BEGIN{i=0;while(i<3){i++;continue}print i}", "3\n", 0)]
+    [InlineData("function f(){while(1)return 7} BEGIN{print f()}", "7\n", 1)]
+    [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n", 0)]
+    internal async Task ParsedWhileFlowAndOutputKeepBehavior(string source, string expected, int preparedLoops)
     {
         var result = await RunAsync([source], "", false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, result.Counters.SynchronousLoopRuns);
+        Assert.Equal(preparedLoops, result.Counters.SynchronousLoopRuns);
     }
 
     [Fact]
@@ -1693,6 +1696,44 @@ bool nestedArguments)
         Assert.Equal(0, counters.FormattingStringInteropInputs);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
         Assert.Equal(1, counters.OutputSinkCreations);
+    }
+
+    [Theory]
+    [InlineData("for", false)] [InlineData("for", true)]
+    [InlineData("while", false)] [InlineData("while", true)]
+    [InlineData("do", false)] [InlineData("do", true)]
+    public async Task CompleteComputationalFunctionsPrepareTheirControlFlow(string loop, bool breaks)
+    {
+        var steps = "if(i==1){i++;continue};" + (breaks ? "if(i==2)break;" : "") +
+            "t=(t*3+1)%101;if(t==0)return t;i++";
+        var body = loop switch
+        {
+            "for" => "for(i=0;i<4;){" + steps + "}",
+            "while" => "i=0;while(i<4){" + steps + "}",
+            _ => "i=0;do{" + steps + "}while(i<4);"
+        };
+        var source = "function score(x,t,i){t=x;" + body + ";return t}{total+=score($1)}END{print total}";
+        var expected = 0;
+        foreach (var seed in new[] { 0, 7 })
+        {
+            var value = seed;
+            for (var index = 0; index < 4; index++)
+            {
+                if (index == 1) continue;
+                if (breaks && index == 2) break;
+                value = (value * 3 + 1) % 101;
+                if (value == 0) break;
+            }
+            expected += value;
+        }
+        var result = await RunAsync([source], "0\n0007\n", false);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(expected.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+        Assert.Equal(0, result.FileSystem.OpenFileCount);
+        Assert.Equal(2, result.Counters.SynchronousFunctionRuns);
     }
 
     private static Task<BenchmarkRunResult> RunAsync(

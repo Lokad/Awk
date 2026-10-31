@@ -23,16 +23,16 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("t=x;if(t)return t+1;return t-1", true)]
-    [InlineData("t=x;if(t){x++;return t}return 0", false)]
-    [InlineData("t=x;if(t)return;return 0", false)]
-    [InlineData("t=x;if(t)return t;return", false)]
-    [InlineData("t=x;if(t)return t;return 0;t++", false)]
-    [InlineData("t=x;u=x;if(t)return t;return 0", false)]
-    [InlineData("global=x;if(x)return x;return 0", false)]
-    [InlineData("t+=x;if(t)return t;return 0", false)]
+    [InlineData("t=x;if(t){x++;return t}return 0", true)]
+    [InlineData("t=x;if(t)return;return 0", true)]
+    [InlineData("t=x;if(t)return t;return", true)]
+    [InlineData("t=x;if(t)return t;return 0;t++", true)]
+    [InlineData("t=x;u=x;if(t)return t;return 0", true)]
+    [InlineData("global=x;if(x)return x;return 0", true)]
+    [InlineData("t+=x;if(t)return t;return 0", true)]
     [InlineData("t=x;if((getline line)>0)return t;return 0", false)]
     [InlineData("t=step(x);if(t)return t;return 0", false)]
-    public void LocalConditionalReturnsPrepareOnlyTheCompleteSupportedShape(string body, bool expected)
+    public void LocalConditionalReturnsPrepareCompleteComputationalBodies(string body, bool expected)
     {
         var function = Bind("function step(x,t,u){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("step")];
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
@@ -143,8 +143,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(4, 1, true)]
     [InlineData(5, 1, true)]
     [InlineData(65, 1, true)]
-    [InlineData(2, 3, false)]
-    public void LocalConditionalReturnCallsSupportOmittedLocalsAndRejectExcessArguments(int slots, int arguments, bool expected)
+    [InlineData(2, 3, true)]
+    public void LocalConditionalReturnCallsSupportOmittedLocalsAndExcessArguments(int slots, int arguments, bool expected)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
         var function = Bind("function step(" + parameters + "){x=1;if(x)return x;return 0} BEGIN{}")

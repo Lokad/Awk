@@ -318,8 +318,12 @@ public sealed class AwkFrontendMemoryTests
 
     [Theory]
     [InlineData("action")] [InlineData("for")] [InlineData("while")] [InlineData("do")]
+    [InlineData("function-action")] [InlineData("function-for")]
+    [InlineData("function-while")] [InlineData("function-do")]
     public async Task LongPreparedArtifactDoesNotRetainItsConstructionToken(string shape)
     {
+        var function = shape.StartsWith("function-", StringComparison.Ordinal);
+        if (function) shape = shape[9..];
         const int count = 257;
         var steps = string.Concat(Enumerable.Repeat("x++;", count));
         var body = shape switch
@@ -329,7 +333,9 @@ public sealed class AwkFrontendMemoryTests
             "do" => "i=0;do{" + steps + "i++}while(i<2);",
             _ => steps
         };
-        var source = "BEGIN{" + body + ";print x}";
+        var source = function
+            ? "function f(x,i){" + body + ";return x} BEGIN{print f(0)}"
+            : "BEGIN{" + body + ";print x}";
         var budget = new CooperativeTestBudget(8 << 20);
         using var parent = budget.CreateScope();
         using var construction = new CancellationTokenSource();

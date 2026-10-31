@@ -20,6 +20,9 @@ internal readonly struct AwkCondition(AwkExpression expression)
         return expression.SynchronousDepth > 0;
     }
 
+    internal bool EvaluateComputation(AwkEvaluationContext context) =>
+        ((AwkSynchronousExpression)Expression).EvaluateSynchronous(context).IsTruthy();
+
     internal AwkCondition PrepareSynchronousCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
         Expression.TryPrepareFunctionCalls(functions, 16, out var prepared, preparationCheckpoint) ? new(prepared) : this;
 }

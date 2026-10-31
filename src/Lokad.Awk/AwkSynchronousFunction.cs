@@ -2,49 +2,23 @@ namespace Lokad.Awk;
 
 // Immutable compilation metadata under the existing program owner. Recursive and
 // host-dependent functions retain their ordinary executor.
-internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkSynchronousExpression body)
+internal sealed class AwkSynchronousFunction(
+    AwkFunctionLocalLayout layout, AwkStatement[] body, int depth, int calls)
 {
-    private readonly AwkSynchronousExpression _condition = AwkSynchronousExpression.Unavailable;
-    private readonly AwkSynchronousExpression _alternative = body;
-    private readonly AwkSynchronousExpression _prefix = AwkSynchronousExpression.Unavailable;
-    private readonly (AwkVariableName Name, AwkFunctionLocalSlotId Slot) _local;
-
-    private AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkSynchronousExpression body,
-        AwkSynchronousExpression condition, AwkSynchronousExpression alternative,
-        (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, AwkSynchronousExpression prefix) : this(layout, body)
-    {
-        _condition = condition;
-        _alternative = alternative;
-        _local = local;
-        _prefix = prefix;
-    }
-
     public AwkFunctionLocalLayout Layout { get; } = layout;
-    public AwkSynchronousExpression Body { get; } = body;
-    internal bool HasLocalAssignment => _prefix.SynchronousDepth > 0;
-    internal int SynchronousDepth => Math.Max(_prefix.SynchronousDepth, Math.Max(Body.SynchronousDepth,
-        Math.Max(_condition.SynchronousDepth, _alternative.SynchronousDepth)));
-    internal int SynchronousCallDepth => Math.Max(_prefix.SynchronousCallDepth, Math.Max(Body.SynchronousCallDepth,
-        Math.Max(_condition.SynchronousCallDepth, _alternative.SynchronousCallDepth)));
+    internal int SynchronousDepth { get; } = depth;
+    internal int SynchronousCallDepth { get; } = calls;
 
     public AwkValue EvaluateBody(AwkEvaluationContext context)
     {
-        var state = context.State;
-        state.Counters.RecordSynchronousFunction();
-        if (HasLocalAssignment)
-        {
-            state.Checkpoint(); // Assignment statement in the function block.
-            state.Checkpoint(); // Assignment expression, before its value.
-            state.AssignFunctionLocalValue(_local.Slot, _local.Name, _prefix.EvaluateSynchronous(context));
-        }
-        var selected = Body;
-        if (_condition.SynchronousDepth > 0)
-        {
-            state.Checkpoint(); // If statement, before its condition.
-            if (!_condition.EvaluateSynchronous(context).IsTruthy()) selected = _alternative;
-        }
-        state.Checkpoint(); // Return statement checkpoint in its enclosing block.
-        return selected.EvaluateSynchronous(context).AsScalarCopy();
+        context.State.Counters.RecordSynchronousFunction();
+        var value = AwkValue.Unassigned();
+        var flow = AwkStatementBlockExecutor.ExecuteComputation(body, context, ref value);
+        if (flow == AwkStatementFlow.ReturnFunction) return value.AsScalarCopy();
+        if (flow is AwkStatementFlow.BreakLoop or AwkStatementFlow.ContinueLoop)
+            throw new AwkRuntimeException(flow == AwkStatementFlow.BreakLoop
+                ? AwkMessages.ErrorBreakOutsideLoop : AwkMessages.ErrorContinueOutsideLoop);
+        return AwkValue.Unassigned();
     }
 
     public static IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? Prepare(
@@ -59,15 +33,9 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
             {
                 checkpoint?.Invoke();
                 if (prepared.ContainsKey(name) ||
-                    !function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative,
-                        out var local, out var prefix) ||
-                    !expression.TryPrepareFunctionCalls(prepared, 16, out var body, checkpoint)) continue;
-                var initial = AwkSynchronousExpression.Unavailable;
-                if (prefix.HasValue && !prefix.Value.TryPrepareFunctionCalls(prepared, 16, out initial, checkpoint)) continue;
-                var otherwise = body;
-                if (condition.SynchronousDepth > 0 && (condition.SynchronousDepth > 16 ||
-                    !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise, checkpoint))) continue;
-                var candidate = new AwkSynchronousFunction(function.LocalLayout, body, condition, otherwise, local, initial);
+                    !function.TryPrepareSynchronousBody(prepared, out var body, out var depth,
+                        out var calls, checkpoint)) continue;
+                var candidate = new AwkSynchronousFunction(function.LocalLayout, body, depth, calls);
                 if (candidate.SynchronousDepth > 16 || candidate.SynchronousCallDepth >= 4) continue;
                 prepared.Add(name, candidate);
             }

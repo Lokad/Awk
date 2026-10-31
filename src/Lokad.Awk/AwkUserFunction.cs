@@ -31,27 +31,11 @@ internal sealed class AwkUserFunction
     internal AwkUserFunction WithSynchronousFunction(AwkSynchronousFunction function) =>
         new(FunctionName, LocalLayout, _statements, function);
 
-    internal bool TryGetSynchronousReturnBody(out AwkExpression expression,
-        out AwkSynchronousExpression condition, out AwkExpression alternative,
-        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkOptionalExpression prefix)
-    {
-        expression = AwkSynchronousExpression.Unavailable;
-        condition = AwkSynchronousExpression.Unavailable;
-        alternative = AwkSynchronousExpression.Unavailable;
-        local = default;
-        prefix = AwkOptionalExpression.None;
-        var start = 0;
-        if (_statements.Length >= 2 && _statements[0].TryGetLocalAssignment(out local, out var value))
-        {
-            prefix = AwkOptionalExpression.Some(value);
-            start = 1;
-        }
-        if (_statements.Length - start == 1)
-            return _statements[start].TryGetReturnExpression(out expression);
-        return _statements.Length - start == 2 &&
-            _statements[start].TryGetGuardedReturn(out condition, out expression) &&
-            _statements[start + 1].TryGetReturnExpression(out alternative);
-    }
+    internal bool TryPrepareSynchronousBody(
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+        out AwkStatement[] body, out int depth, out int calls, Action? checkpoint) =>
+        AwkStatementBlockExecutor.TryPrepareComputation(_statements, functions, 16,
+            out body, out depth, out calls, checkpoint);
 
     public AwkFunctionName FunctionName { get; }
 
@@ -193,7 +177,7 @@ internal sealed class AwkUserFunction
 
             if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
                 state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
-                (!prepared.HasLocalAssignment || state.FieldsCannotReportRegexDiagnostics) &&
+                state.FieldsCannotReportRegexDiagnostics &&
                 !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())
                 return prepared.EvaluateBody(context);
 

@@ -16,7 +16,7 @@ internal sealed class AwkSynchronousFor(
     {
         var state = context.State;
         return state.LintMode == AwkLintMode.Off &&
-            (!HasPreparedCalls || (state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+            (!HasPreparedCalls || (state.FieldsCannotReportRegexDiagnostics && state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
                 System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())) &&
             context.TryGetExecutionContext(out var execution) && !execution.Output.HasPendingOutput;
     }

@@ -396,8 +396,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("function f(x,y,z){return x+y+z}", "f(1,2,4)", true, false)]
     [InlineData("function f(w,x,y,z){return w+x+y+z}", "f(1,1,1,4)", true, false)]
     [InlineData("function f(v,w,x,y,z){return v+w+x+y+z}", "f(1,1,1,1,3)", true, true)]
-    [InlineData("function f(x,y){return x+y}", "f(7)", false, false)]
-    [InlineData("function f(x){return x}", "f(7,2)", false, true)]
+    [InlineData("function f(x,y){return x+y}", "f(7)", true, false)]
+    [InlineData("function f(x){return x}", "f(7,2)", true, false)]
     public async Task CompletePreparedCallActionsUseInlineOrAdmittedArgumentStorage(
         string function, string call, bool prepared, bool rents)
     {
@@ -725,7 +725,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var origin = new AwkUntypedScalar();
         Assert.True(AwkIdentifier.TryParse("a", out var identifier));
         var value = array ? AwkValue.FromGlobalArrayReference(identifier) : AwkValue.FromUntypedScalar(origin);
-        var function = new AwkSynchronousFunction(layout, new FixedReturnExpression(value));
+        var name = AwkFunctionName.FromText("result");
+        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
+        {
+            [name] = new(name, layout, [AwkStatement.Return(AwkOptionalExpression.Some(new FixedReturnExpression(value)))])
+        };
+        var prepared = AwkSynchronousFunction.Prepare(functions, null) ??
+            throw new InvalidOperationException("Expected a prepared function.");
+        var function = prepared[name];
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
@@ -826,18 +833,20 @@ public sealed partial class AwkPreparedFunctionRegionTests
         }
         var functions = program.Functions.ToDictionary(pair => pair.Key, pair => pair.Value);
         if (ordinary)
-            foreach (var (name, function) in program.Functions)
-                if (function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative, out var local, out var prefix))
-                {
-                    var statements = new List<AwkStatement>();
-                    if (prefix.HasValue)
-                        statements.Add(AwkStatement.Assignment(AwkReference.LocalScalar(local.Name, local.Slot), prefix.Value));
-                    if (condition.SynchronousDepth > 0)
-                        statements.Add(AwkStatement.If(new(condition), [AwkStatement.Return(AwkOptionalExpression.Some(expression))]));
-                    statements.Add(AwkStatement.Return(AwkOptionalExpression.Some(
-                        condition.SynchronousDepth > 0 ? alternative : expression)));
-                    functions[name] = new(name, function.LocalLayout, statements);
-                }
+        {
+            var reads = new AwkGlobalReadLayout(program.GlobalNames, null);
+            var syntax = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue)
+                { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None).Syntax;
+            foreach (var definition in syntax.Functions)
+            {
+                var name = AwkFunctionName.FromText(definition.Name);
+                var layout = program.Functions[name].LocalLayout;
+                var body = AwkStatementLowerer.LowerList(definition.BodyStatements,
+                    AwkLoweringScope.Function(layout, globalReads: reads));
+                Assert.True(body.Succeeded);
+                functions[name] = new(name, layout, body.Value);
+            }
+        }
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = limitsOverride ?? AwkRuntimeLimits.CreateDefault();
         if (functionDepth > 0) limits = limits.WithMaxFunctionCallDepth(functionDepth);

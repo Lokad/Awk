@@ -23,16 +23,16 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("t=x+1;return t", true)]
-    [InlineData("t=x+1;return", false)]
-    [InlineData("t=x+1;return t;t++", false)]
-    [InlineData("t+=x;return t", false)]
-    [InlineData("t++;return t", false)]
-    [InlineData("global=x;return global", false)]
+    [InlineData("t=x+1;return", true)]
+    [InlineData("t=x+1;return t;t++", true)]
+    [InlineData("t+=x;return t", true)]
+    [InlineData("t++;return t", true)]
+    [InlineData("global=x;return global", true)]
     [InlineData("a[x]=1;return x", false)]
     [InlineData("$1=x;return x", false)]
     [InlineData("t=(getline line);return t", false)]
     [InlineData("t=step(x);return t", false)]
-    public void LocalAssignmentReturnsPrepareOnlyCompleteBoundedShape(string body, bool expected)
+    public void LocalAssignmentReturnsPrepareCompleteBoundedBodies(string body, bool expected)
     {
         var function = Bind("function step(x,t){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("step")];
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
@@ -140,9 +140,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(4, 1, true)]
     [InlineData(5, 1, true)]
     [InlineData(65, 1, true)]
-    [InlineData(2, 3, false)]
+    [InlineData(2, 3, true)]
     [InlineData(2, 2, true)]
-    public void LocalAssignmentReturnCallsSupportOmittedLocalsAndRejectExcessArguments(int slots, int arguments, bool expected)
+    public void LocalAssignmentReturnCallsSupportOmittedLocalsAndExcessArguments(int slots, int arguments, bool expected)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
         var function = Bind("function step(" + parameters + "){x=1;return x} BEGIN{}").Functions[AwkFunctionName.FromText("step")];
