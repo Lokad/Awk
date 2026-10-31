@@ -118,6 +118,10 @@ Use property-style tests for broad invariants such as malformed-program robustne
 
 Current-surface tests are for internals that are hard to observe through a golden case: cancellation, injected clock/time-zone/random services, resource-limit thresholds, direct runtime services, and batching helpers. Prefer moving ordinary user-visible behavior to the golden corpus.
 
+Record-input memory cases check that header preflight ends before later actions: clearing
+a large value makes allowance available to a separate host user under shared pressure,
+while same-execution replacement, mutation refusal and pending-user cleanup remain covered.
+
 `AwkAdmissionRefusalTests` verifies command termination on any refused host admission,
 without retry or fallback, and reuse by later commands after actual cleanup. Lower-level
 memory tests inspect unchanged reservations and refunds after false; that primitive contract

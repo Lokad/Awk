@@ -59,6 +59,9 @@ Hosts return structured outcomes and honor the [buffer lifetime contract](../REA
 Unexpected host exceptions become generic awk diagnostics. Policy/admission failures produce
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
+Record-header preflight ends after record/counter/terminator publication. Later actions
+can return relinquished storage to the shared budget for host and nested users; actual
+retained values and pending operations keep their own funding.
 
 `ReadAsync(descriptor, maxBytes, token)` returns `ValueTask<AwkReadBuffer>`, a disposable
 borrow of at most the requested bytes. `MoreData` requires a nonempty buffer; EOF and failure

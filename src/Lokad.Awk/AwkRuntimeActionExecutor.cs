@@ -50,15 +50,19 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
 
     public async ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkInputRecordResult record)
     {
-        using var admission = state.PreflightCurrentRecordAdmission(record);
-        state.Counters.RecordRecordRead();
-        state.AdvanceMainInputRecord(record.Terminator);
-        state.SetRecordFieldSplittingMode(record.FieldSplittingMode);
         using var phase = state.EnterActionPhase(AwkActionPhase.Main);
         using var execution = state.PushExecutionContext(_output, io);
         try
         {
-            state.SetCurrentRecord(record);
+            // Header preflight ends once its actual owners are published. Later
+            // actions must be able to refund relinquished storage to the shared root.
+            using (var admission = state.PreflightCurrentRecordAdmission(record))
+            {
+                state.Counters.RecordRecordRead();
+                state.AdvanceMainInputRecord(record.Terminator);
+                state.SetRecordFieldSplittingMode(record.FieldSplittingMode);
+                state.SetCurrentRecord(record);
+            }
             for (var index = 0; index < _program.MainActions.Length; index++)
             {
                 var action = _program.MainActions[index];

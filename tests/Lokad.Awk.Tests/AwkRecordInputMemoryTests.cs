@@ -4,6 +4,85 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordInputMemoryTests
 {
+    [Fact]
+    public async Task LaterActionsReuseRelinquishedPayloadUnderSharedPressure()
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        IMemoryReservation? pressure = null;
+        var host = new InputHost(budget, "row\n")
+        {
+            PendingOutput = () =>
+            {
+                if (pressure is null)
+                {
+                    Assert.True(budget.TryReserve(budget.Limit - budget.Reserved - (32 << 10), out var reserved));
+                    pressure = reserved;
+                }
+                return Task.CompletedTask;
+            }
+        };
+        try
+        {
+            var exit = await Execute("BEGIN{pad=sprintf(\"%100000s\",\"\")}{print \"held\";pad=\"\";need=sprintf(\"%25000s\",\"\");print length(need);exit}", host, budget);
+            Assert.Equal(0, exit.Value);
+            Assert.Equal("held\n25000\n", host.Output);
+            Assert.Equal("", host.Error);
+            Assert.Equal(0, budget.Refusals);
+        }
+        finally { pressure?.Dispose(); }
+        AssertRefunded(budget);
+    }
+
+    [Fact]
+    public async Task LaterHostUsersCanFundTheirBufferAfterMainPayloadIsRelinquished()
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        IMemoryReservation? pressure = null;
+        var appends = 0;
+        var host = new InputHost(budget, "row\n")
+        {
+            PendingOutput = () =>
+            {
+                if (++appends == 1)
+                {
+                    Assert.True(budget.TryReserve(budget.Limit - budget.Reserved - (32 << 10), out var reserved));
+                    pressure = reserved;
+                }
+                else
+                {
+                    Assert.True(budget.TryReserve(50000, out var buffer));
+                    using (buffer) { } // The host's completed use returns its borrowed root allowance.
+                }
+                return Task.CompletedTask;
+            }
+        };
+        try
+        {
+            var exit = await Execute("BEGIN{pad=sprintf(\"%100000s\",\"\")}{print \"held\";pad=\"\";print \"released\";exit}", host, budget);
+            Assert.Equal(0, exit.Value);
+            Assert.Equal("held\nreleased\n", host.Output);
+            Assert.Equal("", host.Error);
+            Assert.Equal(0, budget.Refusals);
+        }
+        finally { pressure?.Dispose(); }
+        AssertRefunded(budget);
+    }
+
+    [Fact]
+    public async Task RelinquishedBeginPayloadRefundsBeforeLaterMainActions()
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var host = new InputHost(budget, "row\n");
+        var exit = await Execute("BEGIN{pad=sprintf(\"%100000s\",\"\")}{print \"held\";pad=\"\";print \"released\";exit}", host, budget);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("held\nreleased\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(2, host.OutputAdmission.Count);
+        Assert.True(host.OutputAdmission[0] - host.OutputAdmission[1] >= 90000,
+            "Relinquished scalar capacity remains charged across later actions: " + string.Join(",", host.OutputAdmission));
+        AssertRefunded(budget);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
