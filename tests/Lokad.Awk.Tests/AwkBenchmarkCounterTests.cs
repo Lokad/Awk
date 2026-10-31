@@ -293,11 +293,13 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(escaped.Counters.AwkTextAllocations >= printed.Counters.AwkTextAllocations + records);
     }
 
-    [Fact]
-    public async Task RepeatedKeyedUpdatesCommitThroughLiveCells()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RepeatedKeyedUpdatesCommitThroughLiveCells(bool ordinal)
     {
         const int records = 128;
-        var input = string.Concat(Enumerable.Range(0, records).Select(i => $"k{i % 16} 2\n"));
+        var input = string.Concat(Enumerable.Range(0, records).Select(i =>
+            (ordinal ? "" : "k") + (i % 16).ToString(System.Globalization.CultureInfo.InvariantCulture) + " 2\n"));
         var result = await RunAsync(["{sum[$1]+=$2} END{for(k in sum)total+=sum[k];print total}"], input, false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("256\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));

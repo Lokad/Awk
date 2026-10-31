@@ -222,10 +222,10 @@ internal sealed class AwkArrayRuntime
         if (_state.TryGetBoundArray(name, globalIndex, out var array))
             return _variables.PrepareArrayUpdate(array, key);
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        if (_variables.TryGetOrdinaryArray(resolved, out array) && array.Slots.TryGetValue(key, out var slot))
+        if (_variables.TryGetOrdinaryArray(resolved, out array))
         {
             _state.BindGlobalArray(globalIndex, resolved);
-            return new(key, _variables.ReadArraySlotNumber(slot), array, slot);
+            return _variables.PrepareArrayUpdate(array, key);
         }
         // Keep missing-read promotion/admission and special-array behavior in their
         // established order. The already-bound ordinary path above needs no second resolve.
@@ -235,7 +235,9 @@ internal sealed class AwkArrayRuntime
             resolved = _variableRuntime.ResolveArrayReadName(name);
             _variables.TryGetOrdinaryArray(resolved, out array);
         }
-        return new(key, previous, array);
+        AwkArrayCell? cell = null;
+        if (array is not null) array.Slots.TryGetValue(key, out cell);
+        return new(key, previous, array, cell);
     }
 
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)

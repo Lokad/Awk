@@ -21,13 +21,6 @@ internal sealed class AwkArrayCell(AwkVariableSlot slot)
     // The owner preflights storage changes before calling this method.
     public void SetSlot(AwkVariableSlot value) => Slot = value;
 
-    public bool TrySetNumber(double number)
-    {
-        if (!IsAttached || Slot.Kind != AwkVariableSlotKind.Number) return false;
-        Slot = AwkVariableSlot.FromNumber(number);
-        return true;
-    }
-
     public void Detach()
     {
         Slot = default;

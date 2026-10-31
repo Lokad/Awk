@@ -20,7 +20,6 @@ public sealed class AwkArrayCellTests
         var text = ReplaceAndRetire(variables, array, key, clear);
         Assert.Equal(5, target.Previous);
         Assert.False(cell.IsAttached);
-        Assert.False(cell.TrySetNumber(8));
         Assert.Equal(0, cell.RetainedTextMemoryBytes);
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         Assert.False(text.TryGetTarget(out _));

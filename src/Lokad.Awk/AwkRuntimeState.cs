@@ -1228,7 +1228,7 @@ internal sealed class AwkRuntimeState : IDisposable
         var result = AwkValue.FromNumber(number);
         if (target.Array is { IsDetached: false } array)
         {
-            if (target.Cell is { } cell && cell.TrySetNumber(number))
+            if (_variables.TrySetCapturedArrayNumber(target.Cell, number))
             {
                 Counters.RecordArrayCellCommit();
                 Counters.RecordBoundArrayUpdate();
