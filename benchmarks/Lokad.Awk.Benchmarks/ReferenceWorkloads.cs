@@ -18,7 +18,7 @@ internal static class ReferenceWorkloads
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
-        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -41,6 +41,28 @@ internal static class ReferenceWorkloads
 
     public static ReferenceWorkload Create(string name, string scale)
     {
+        if (name is "nested-array-calls-16" or "nested-array-calls-1024")
+        {
+            var keys = name == "nested-array-calls-16" ? 16 : 1024;
+            // Bound the largest total within ordinary integral print formatting.
+            var count = scale switch { "small" => 16, "medium" => 4096, "large" => 16384, _ => throw new ArgumentException("Unknown scale.") };
+            var nestedInput = new StringBuilder();
+            var sums = new long[keys];
+            long total = 0;
+            for (var row = 0; row < count; row++)
+            {
+                var key = row % keys;
+                var value = row % 97;
+                nestedInput.Append('k').Append(key.ToString(CultureInfo.InvariantCulture)).Append(' ')
+                    .Append(value.ToString(CultureInfo.InvariantCulture)).Append('\n');
+                sums[key] += value;
+                total += sums[key];
+            }
+            return new(name, scale, count, 2,
+                "function outer(a,k,v){return add(a,k,v)}function add(a,k,v){a[k][\"sum\"]+=v;a[k][\"count\"]++;return a[k][\"sum\"]}{total+=outer(a,$1,$2)}END{print total,length(a)}",
+                Bytes(nestedInput.ToString()), [], Bytes(total.ToString(CultureInfo.InvariantCulture) + " " + Math.Min(keys, count) + "\n"));
+        }
+
         if (name is "scalar-sum" or "field-call-loop" or "field-number-loop")
         {
             var scalarRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };

@@ -14,8 +14,9 @@ output and quiet checks pass. This comparison is a snapshot; raw results remain 
 
 ## Representative processing
 
-All 46 [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs),
-without shared admission. Most have 4,096 records; wide all-field, numeric-wide and long-field cases have 256.
+The GNU table covers 46 [workload families](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
+without shared admission. Two additional nested-call families have current default/shared
+profiles below. Most have 4,096 records; wide all-field, numeric-wide and long-field cases have 256.
 Join has 4,096 records per file. Rows are ordered by elapsed ratio. GNU-marked cases do not
 imply full GNU conformance; CSV requires GNU 5.3 or later.
 
@@ -110,8 +111,12 @@ supplies a live caller deadline in both modes and measures that distinct configu
 
 | Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
 | --- | --- | ---: | ---: | --- |
-| Aggregation, 65,536 records | None | 37.887 | 0.238 | 10-31 / [34d6c97] |
-| Aggregation, 65,536 records | 512 MiB | 56.873 | 2.241 | 10-31 / [34d6c97] |
+| Nested-array calls, 16 keys / 4,096 records (GNU) | None | 7.426 | 2.209 | 10-31 / [feec315] |
+| Nested-array calls, 16 keys / 4,096 records (GNU) | 512 MiB | 10.350 | 4.147 | 10-31 / [feec315] |
+| Nested-array calls, 1,024 keys / 4,096 records (GNU) | None | 8.344 | 2.802 | 10-31 / [feec315] |
+| Nested-array calls, 1,024 keys / 4,096 records (GNU) | 512 MiB | 10.734 | 4.741 | 10-31 / [feec315] |
+| Aggregation, 65,536 records | None | 33.729 | 0.238 | 10-31 / [feec315] |
+| Aggregation, 65,536 records | 512 MiB | 48.193 | 2.241 | 10-31 / [feec315] |
 | Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
 | Join, 65,536 records per file | 512 MiB | 171.680 | 29.366 | 10-31 / [e9c6ef5] |
 | Scalar sum, 65,536 records | None | 32.091 | 6.694 | 10-31 / [5e53a18] |
@@ -199,4 +204,4 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 
 [e9c6ef5]: https://github.com/Lokad/Awk/commit/e9c6ef53e8498a2433158f9324651961929425e8
 
-[34d6c97]: https://github.com/Lokad/Awk/commit/34d6c97993973df4fb92fa043e6dd97c52df0ea4
+[feec315]: https://github.com/Lokad/Awk/commit/feec315bcd80e97823faa15e4f8ad1f3325f7efb
