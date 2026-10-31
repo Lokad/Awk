@@ -477,24 +477,39 @@ internal sealed class AwkFunctionCallStack(
         bool promote = false)
     {
         if (TryPeekLocalFrame(out var frame) && TryGetLocalSlot(frame, name, out var slotId, out var slot))
+            return TryGetBoundArray(frame, slotId, slot, out array, promote);
+        array = null;
+        return false;
+    }
+
+    public bool TryGetBoundArray(AwkFunctionLocalSlotId slotId, [NotNullWhen(true)] out AwkArrayIdentity? array,
+        bool promote = false)
+    {
+        if (TryPeekLocalFrame(out var frame) && TryGetLocalSlot(frame, slotId, out var slot))
+            return TryGetBoundArray(frame, slotId, slot, out array, promote);
+        array = null;
+        return false;
+    }
+
+    private bool TryGetBoundArray(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
+        AwkFunctionLocalSlot slot, [NotNullWhen(true)] out AwkArrayIdentity? array, bool promote)
+    {
+        if (slot.Value.TryGetArrayBinding(out array)) return true;
+        if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
-            if (slot.Value.TryGetArrayBinding(out array)) return true;
-            if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+            array = findArray?.Invoke(slot.ArrayName);
+            if (array is not null)
             {
-                array = findArray?.Invoke(slot.ArrayName);
-                if (array is not null)
-                {
-                    // The existing array owner funds its storage; this is a non-owning alias.
-                    frame.GetSlot(slotId.Index) = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName, array);
-                    return true;
-                }
-            }
-            if (promote && slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped &&
-                slot.Value.TryGetUntypedScalar(out var origin) && origin.Parent is not null && promoteArrayOrigin is not null)
-            {
-                array = promoteArrayOrigin(origin);
+                // The existing array owner funds its storage; this is a non-owning alias.
+                frame.GetSlot(slotId.Index) = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName, array);
                 return true;
             }
+        }
+        if (promote && slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped &&
+            slot.Value.TryGetUntypedScalar(out var origin) && origin.Parent is not null && promoteArrayOrigin is not null)
+        {
+            array = promoteArrayOrigin(origin);
+            return true;
         }
         array = null;
         return false;

@@ -44,7 +44,7 @@ internal static class AwkLValueLowerer
 
             return AwkLValueLoweringResult.Valid(
                 AwkReference.ArrayElement(new AwkArrayName(target.Identifier), index,
-                    scope.GetPreparedGlobalArrayIndex(target.Identifier)));
+                    scope.GetArrayBinding(target.Identifier)));
         }
 
         static AwkLValueLoweringResult LowerField(

@@ -48,8 +48,13 @@ internal sealed class AwkLoweringScope
         return false;
     }
 
-    internal int GetPreparedGlobalArrayIndex(AwkIdentifier identifier) =>
-        !_hasFunctionLocals && TryGetGlobalReadIndex(new AwkVariableName(identifier), out var index) ? index : -1;
+    internal AwkArrayBinding GetArrayBinding(AwkIdentifier identifier)
+    {
+        var name = new AwkVariableName(identifier);
+        if (TryGetFunctionLocalSlot(name, out var slot)) return AwkArrayBinding.Local(slot);
+        return !_hasFunctionLocals && TryGetGlobalReadIndex(name, out var index)
+            ? AwkArrayBinding.Global(index) : default;
+    }
 
     public AwkCompatibilityMode CompatibilityMode { get; }
 

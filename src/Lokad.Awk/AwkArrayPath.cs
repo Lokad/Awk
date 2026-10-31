@@ -40,7 +40,7 @@ internal sealed class AwkArrayPath
             heldKeys.ReserveAdditional(key.RetainedTextMemoryBytes);
             keys[index] = key;
         }
-        var array = state.FindSubarray(_root.Name, keys[0], _root.GlobalIndex);
+        var array = state.FindSubarray(_root.Name, keys[0], _root.Binding);
         for (var index = 1; index < keys.Length - 1 && array is not null; index++)
         {
             state.Checkpoint();
@@ -66,7 +66,7 @@ internal sealed class AwkArrayPath
                 keys[index] = key;
                 if (index == keys.Length - 1) break;
                 array = index == 0
-                    ? state.GetSubarray(_root.Name, key, _root.GlobalIndex)
+                    ? state.GetSubarray(_root.Name, key, _root.Binding)
                     : state.GetSubarray(array is { IsDetached: false } live
                         ? live : ResolveOwner(state, keys, index), key);
             }
@@ -78,7 +78,7 @@ internal sealed class AwkArrayPath
 
     internal AwkArrayIdentity ResolveOwner(AwkRuntimeState state, AwkArrayKey[] keys, int count)
     {
-        var array = state.GetSubarray(_root.Name, keys[0], _root.GlobalIndex);
+        var array = state.GetSubarray(_root.Name, keys[0], _root.Binding);
         for (var index = 1; index < count; index++)
         {
             state.Checkpoint();

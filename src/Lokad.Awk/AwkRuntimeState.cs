@@ -736,11 +736,18 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal bool TryGetBoundArray(AwkArrayName name, int index,
+    internal bool TryGetBoundArray(AwkArrayName name, AwkArrayBinding binding,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        if (TryGetBoundGlobalArray(index, out array)) return true;
-        if (!name.IsFunctionLocal && _functions.TryGetBoundArray(new(name.Identifier), out array, promote: true))
+        if (binding.TryGetGlobalIndex(out var index) && TryGetBoundGlobalArray(index, out array)) return true;
+        if (!name.IsFunctionLocal && binding.TryGetLocalSlot(out var slot) &&
+            _functions.TryGetBoundArray(slot, out array, promote: true))
+        {
+            Counters.RecordIndexedLocalArrayAccess();
+            Counters.RecordBoundLocalArrayAccess();
+            return true;
+        }
+        if (!name.IsFunctionLocal && _functions.TryGetBoundArray(new AwkVariableName(name.Identifier), out array, promote: true))
         {
             Counters.RecordBoundLocalArrayAccess();
             return true;
@@ -749,9 +756,9 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal void BindGlobalArray(int index, AwkArrayName resolvedName)
+    internal void BindGlobalArray(AwkArrayBinding binding, AwkArrayName resolvedName)
     {
-        if (index < 0 || _functions.IsInsideFunction) return;
+        if (!binding.TryGetGlobalIndex(out var index) || _functions.IsInsideFunction) return;
         if (_globalReadSlots is { } slots && (uint)index < (uint)slots.Length &&
             _variables.TryGetOrdinaryArray(resolvedName, out var array))
             slots[index] = new(0, array);
@@ -1178,23 +1185,23 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetByteText(name, index);
 
-    public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1) =>
-        _arrayRuntime.GetAwkValue(name, index, globalIndex);
+    public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
+        _arrayRuntime.GetAwkValue(name, index, binding);
 
-    internal double GetArrayNumber(AwkArrayName name, AwkArrayKey index, int globalIndex) =>
-        _arrayRuntime.GetNumber(name, index, globalIndex);
+    internal double GetArrayNumber(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding) =>
+        _arrayRuntime.GetNumber(name, index, binding);
 
-    internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, int globalIndex = -1) =>
-        _arrayRuntime.ResolveOrdinaryArray(name, globalIndex);
+    internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, AwkArrayBinding binding = default) =>
+        _arrayRuntime.ResolveOrdinaryArray(name, binding);
 
     internal AwkArrayIdentity GetSubarray(AwkArrayIdentity parent, AwkArrayKey key) =>
         _variables.GetSubarray(parent, key);
 
-    internal AwkArrayIdentity GetSubarray(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
-        _arrayRuntime.GetSubarray(name, key, globalIndex);
+    internal AwkArrayIdentity GetSubarray(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
+        _arrayRuntime.GetSubarray(name, key, binding);
 
-    internal AwkArrayIdentity? FindSubarray(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
-        _arrayRuntime.FindSubarray(name, key, globalIndex);
+    internal AwkArrayIdentity? FindSubarray(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
+        _arrayRuntime.FindSubarray(name, key, binding);
 
     internal AwkArrayIdentity? FindSubarray(AwkArrayIdentity parent, AwkArrayKey key) => _variables.FindSubarray(parent, key);
 
@@ -1210,34 +1217,34 @@ internal sealed class AwkRuntimeState : IDisposable
     internal ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(AwkArrayIdentity array,
         AwkEvaluationContext context) => _arrayRuntime.SnapshotKeyValuesAsync(array, context);
 
-    public AwkValue GetArrayFieldValue(AwkArrayName name, int index, int globalIndex = -1)
+    public AwkValue GetArrayFieldValue(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, globalIndex))
+            _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding))
             return value;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return GetArrayAwkValue(name, ToArrayKey(field), globalIndex);
+        return GetArrayAwkValue(name, ToArrayKey(field), binding);
     }
 
-    internal double GetArrayFieldNumber(AwkArrayName name, int index, int globalIndex)
+    internal double GetArrayFieldNumber(AwkArrayName name, int index, AwkArrayBinding binding)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, globalIndex))
+            _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding))
             return number;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return GetArrayNumber(name, ToArrayKey(field), globalIndex);
+        return GetArrayNumber(name, ToArrayKey(field), binding);
     }
 
-    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index, int globalIndex = -1)
+    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, globalIndex))
+            _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, binding))
             return key;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return ToArrayKey(field);
@@ -1246,28 +1253,28 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetElementRuntimeKind(name, index);
 
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, int globalIndex = -1)
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, globalIndex))
+            _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, binding))
         {
             Counters.RecordBorrowedFieldTargetSnapshot();
             return target;
         }
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return PrepareArrayUpdate(name, ToArrayKey(field), globalIndex);
+        return PrepareArrayUpdate(name, ToArrayKey(field), binding);
     }
 
-    internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, int globalIndex) =>
-        _arrayRuntime.ResolveKey(name, builder, globalIndex);
+    internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
+        _arrayRuntime.ResolveKey(name, builder, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, int globalIndex) =>
-        _arrayRuntime.PrepareUpdate(name, builder, globalIndex);
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
+        _arrayRuntime.PrepareUpdate(name, builder, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, int globalIndex) =>
-        _arrayRuntime.PrepareUpdate(name, key, globalIndex);
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
+        _arrayRuntime.PrepareUpdate(name, key, binding);
 
     internal AwkValue CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
     {
@@ -1291,18 +1298,18 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>
         _arrayRuntime.TryPeekAwkValue(name, index, out value);
 
-    public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1) =>
-        _arrayRuntime.ContainsValue(name, index, globalIndex);
+    public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
+        _arrayRuntime.ContainsValue(name, index, binding);
 
-    public bool ContainsArrayField(AwkArrayName name, int index, int globalIndex = -1)
+    public bool ContainsArrayField(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         // The dictionary consumes the borrowed bytes before this synchronous call returns.
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
-            return _arrayRuntime.ContainsValue(name, bytes, globalIndex);
+            return _arrayRuntime.ContainsValue(name, bytes, binding);
         var value = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return ContainsArrayValue(name, ToArrayKey(value), globalIndex);
+        return ContainsArrayValue(name, ToArrayKey(value), binding);
     }
 
     public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)
@@ -1322,8 +1329,8 @@ internal sealed class AwkRuntimeState : IDisposable
         _arrayRuntime.SetString(name, index, value);
     }
 
-    public void SetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, int globalIndex = -1) =>
-        _arrayRuntime.SetAwkValue(name, index, value, globalIndex);
+    public void SetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, AwkArrayBinding binding = default) =>
+        _arrayRuntime.SetAwkValue(name, index, value, binding);
 
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.DeleteValue(name, index);

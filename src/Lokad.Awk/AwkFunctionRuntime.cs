@@ -44,6 +44,9 @@ internal sealed class AwkFunctionRuntime
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function) =>
         _functions.TryGetValue(name, out function);
 
+    public bool TryGetBoundArray(AwkFunctionLocalSlotId slot, [NotNullWhen(true)] out AwkArrayIdentity? array,
+        bool promote = false) => _calls.TryGetBoundArray(slot, out array, promote);
+
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
         _calls.PushFrame(layout, arguments);
 

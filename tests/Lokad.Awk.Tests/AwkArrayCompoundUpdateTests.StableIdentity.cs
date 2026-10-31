@@ -24,7 +24,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var key = composite ? new AwkArrayKey("left" + (char)28 + "right") : Key;
         var index = composite ? AwkArrayIndex.Composite([
             AwkExpression.Literal("left"), AwkExpression.Literal("right")]) : Index;
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7), 0);
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7), AwkArrayBinding.Global(0));
         var source = new ValueSource(3, pending: true);
         var right = new EffectExpression(source, () =>
         {
@@ -38,7 +38,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
                         state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
             }
         });
-        var target = AwkReference.ArrayElement(name, index, 0);
+        var target = AwkReference.ArrayElement(name, index, AwkArrayBinding.Global(0));
         var pending = target.ApplyCompoundAssignmentAsync(new(state), right, AwkCompoundAssignmentOperation.Add);
         Assert.False(pending.IsCompleted);
         Assert.False(state.ContainsArrayValue(name, key));
@@ -57,7 +57,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         else
         {
             Assert.Equal(10, (await pending).AsNumber());
-            Assert.Equal(10, state.GetArrayAwkValue(name, key, 0).AsNumber());
+            Assert.Equal(10, state.GetArrayAwkValue(name, key, AwkArrayBinding.Global(0)).AsNumber());
             Assert.Equal(1, state.Counters.BoundArrayUpdates);
         }
         if (replacement == 1) Assert.Equal("20", state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(2)).AsString());

@@ -262,6 +262,13 @@ internal sealed class AwkRuntimeCounters
 
     public long BoundLocalArrayAccesses { get; private set; }
 
+    public long IndexedLocalArrayAccesses { get; private set; }
+
+    public void RecordIndexedLocalArrayAccess()
+    {
+        if (_enabled) lock (_sync) IndexedLocalArrayAccesses++;
+    }
+
     public long BoundArrayUpdates { get; private set; }
 
     public long ArrayNameResolutions { get; private set; }

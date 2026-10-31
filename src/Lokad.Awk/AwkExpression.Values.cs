@@ -238,7 +238,7 @@ internal abstract partial class AwkExpression
     }
 
     private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression,
-        int globalIndex, Action? checkpoint = null) : AwkSynchronousExpression
+        AwkArrayBinding binding, Action? checkpoint = null) : AwkSynchronousExpression
     {
         private readonly (int Depth, int Calls) _shape = indexExpression.GetSynchronousShape(checkpoint);
         internal override int SynchronousDepth => _shape.Depth > 0 ? _shape.Depth + 1 : 0;
@@ -253,24 +253,24 @@ internal abstract partial class AwkExpression
             if (SynchronousDepth > 0) return true;
             if (remainingDepth <= 1 || !indexExpression.TryPrepareFunctionCalls(functions,
                 remainingDepth - 1, out var index, preparationCheckpoint)) return false;
-            expression = new ArrayElementExpression(name, index, globalIndex, preparationCheckpoint);
+            expression = new ArrayElementExpression(name, index, binding, preparationCheckpoint);
             return expression.SynchronousDepth is > 0 and <= 16;
         }
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            indexExpression.ReadSynchronous(context, name, globalIndex);
+            indexExpression.ReadSynchronous(context, name, binding);
 
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
-            indexExpression.ReadNumberSynchronous(context, name, globalIndex);
+            indexExpression.ReadNumberSynchronous(context, name, binding);
 
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
             context.State.Checkpoint();
-            return indexExpression.ReadNumberAsync(context, name, globalIndex);
+            return indexExpression.ReadNumberAsync(context, name, binding);
         }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            indexExpression.ReadAsync(context, name, globalIndex);
+            indexExpression.ReadAsync(context, name, binding);
     }
 
     private sealed class NumberExpression(double number) : AwkSynchronousExpression

@@ -7,10 +7,10 @@ internal abstract record AwkArrayOperand
     public abstract ValueTask<AwkArrayIdentity> ResolveAsync(AwkEvaluationContext context);
     public abstract ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context);
 
-    internal sealed record Named(AwkArrayName Name, int GlobalIndex) : AwkArrayOperand
+    internal sealed record Named(AwkArrayName Name, AwkArrayBinding Binding) : AwkArrayOperand
     {
         public override ValueTask<AwkArrayIdentity> ResolveAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveOrdinaryArray(Name, GlobalIndex));
+            ValueTask.FromResult(context.State.ResolveOrdinaryArray(Name, Binding));
 
         public override ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(new AwkArrayTarget(Name));
@@ -25,7 +25,7 @@ internal abstract record AwkArrayOperand
             if (Parent is Named named)
             {
                 var key = await Index.ResolveKeyAsync(context).ConfigureAwait(false);
-                return new(context.State.GetArrayAwkValue(named.Name, key, named.GlobalIndex));
+                return new(context.State.GetArrayAwkValue(named.Name, key, named.Binding));
             }
             using var target = await NestedPath.CaptureAsync(context).ConfigureAwait(false);
             return new(context.State.GetArrayAwkValue(target.ResolveOwner(context.State), target.Key));
@@ -38,7 +38,7 @@ internal abstract record AwkArrayOperand
                 // The first index is evaluated before the root acquires array type;
                 // subsequent indices observe the children already created before them.
                 var firstKey = await Index.ResolveKeyAsync(context).ConfigureAwait(false);
-                return context.State.GetSubarray(named.Name, firstKey, named.GlobalIndex);
+                return context.State.GetSubarray(named.Name, firstKey, named.Binding);
             }
             using var target = await NestedPath.CaptureAsync(context).ConfigureAwait(false);
             return context.State.GetSubarray(target.ResolveOwner(context.State), target.Key);

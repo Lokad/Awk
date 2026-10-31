@@ -123,7 +123,7 @@ internal static partial class AwkExpressionLowerer
                 return false;
 
             lowered = AwkExpression.ArrayElement(new AwkArrayName(target.Identifier), index,
-                scope.GetPreparedGlobalArrayIndex(target.Identifier), scope.Checkpoint);
+                scope.GetArrayBinding(target.Identifier), scope.Checkpoint);
             return true;
         }
 
@@ -771,7 +771,7 @@ internal static partial class AwkExpressionLowerer
 
                 lowered = AwkExpression.ArrayMembership(
                     membershipIndex,
-                    new AwkArrayName(arrayName.Identifier), scope.GetPreparedGlobalArrayIndex(arrayName.Identifier), scope.Checkpoint);
+                    new AwkArrayName(arrayName.Identifier), scope.GetArrayBinding(arrayName.Identifier), scope.Checkpoint);
                 return true;
             }
 
@@ -1024,7 +1024,7 @@ internal static partial class AwkExpressionLowerer
         scope.Checkpoint?.Invoke();
         if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var name) && !scope.IsReservedVariable(name.Name))
         {
-            operand = new AwkArrayOperand.Named(new(name.Identifier), scope.GetPreparedGlobalArrayIndex(name.Identifier));
+            operand = new AwkArrayOperand.Named(new(name.Identifier), scope.GetArrayBinding(name.Identifier));
             return true;
         }
         if (scope.CompatibilityMode == AwkCompatibilityMode.GnuDefault &&

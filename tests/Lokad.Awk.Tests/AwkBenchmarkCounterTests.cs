@@ -221,6 +221,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(shape < 2 ? "40\n" : "952 112\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.BoundLocalArrayAccesses > 0);
+        Assert.True(counters.IndexedLocalArrayAccesses > 0);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, host.OpenFileCount);

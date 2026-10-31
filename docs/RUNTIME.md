@@ -159,7 +159,8 @@ before allocation or mutation. Estimates are coarse, not a process-heap cap or p
 Lowering's name-to-ordinal table is temporary; prepared execution retains its count and
 bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
-remain execution-owned.
+remain execution-owned. Array parameter operations read the current frame slot; aliases
+repaired by mutation are not cached separately in prepared code.
 Prepared calls use the existing argument-storage admission for larger argument lists;
 there is no separate prepared-call arity limit. Cancellation is checked during preparation
 and argument evaluation. Eligible scalar function blocks, branches and loops prepare as

@@ -1290,7 +1290,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         AwkExpression.Match(
             AwkExpression.Literal("abcd"),
             AwkExpression.Literal("(ab)(cd)"),
-            new AwkArrayOperand.Named(arrayName, -1));
+            new AwkArrayOperand.Named(arrayName, default));
 
     private static void SetMatchState(AwkRuntimeState state, int start, int length)
     {

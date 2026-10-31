@@ -96,8 +96,8 @@ internal abstract partial class AwkExpression
     public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>
         new LocalVariableExpression(name, slotId);
 
-    public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index, int globalIndex = -1,
-        Action? checkpoint = null) => new ArrayElementExpression(name, index, globalIndex, checkpoint);
+    public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index, AwkArrayBinding binding = default,
+        Action? checkpoint = null) => new ArrayElementExpression(name, index, binding, checkpoint);
 
     public static AwkExpression Number(double value) => new NumberExpression(value);
 
@@ -143,8 +143,8 @@ internal abstract partial class AwkExpression
         AwkRegexMatchPolarity polarity) =>
         new PrecompiledRegexMatchExpression(left, regex, polarity);
 
-    public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName, int globalIndex = -1,
-        Action? checkpoint = null) => new ArrayMembershipExpression(index, arrayName, globalIndex, checkpoint);
+    public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName, AwkArrayBinding binding = default,
+        Action? checkpoint = null) => new ArrayMembershipExpression(index, arrayName, binding, checkpoint);
 
     public static AwkExpression LogicalAnd(AwkExpression left, AwkExpression right) =>
         CreateLogical(left, right, LogicalOperation.And);
@@ -204,8 +204,8 @@ internal abstract partial class AwkExpression
         AwkOptionalIdentifier separatorArrayName,
         bool isRegexLiteral = false,
         bool usesDefaultSeparator = false) =>
-        Split(value, new AwkArrayOperand.Named(arrayName, -1), separator,
-            separatorArrayName.HasValue ? new AwkArrayOperand.Named(new(separatorArrayName.Value), -1) : null,
+        Split(value, new AwkArrayOperand.Named(arrayName, default), separator,
+            separatorArrayName.HasValue ? new AwkArrayOperand.Named(new(separatorArrayName.Value), default) : null,
             isRegexLiteral, usesDefaultSeparator);
 
     public static AwkExpression Split(AwkExpression value, AwkArrayOperand array, AwkExpression separator,
@@ -217,17 +217,17 @@ internal abstract partial class AwkExpression
         AwkArrayName arrayName,
         AwkExpression pattern,
         AwkOptionalIdentifier separatorArrayName) =>
-        Patsplit(value, new AwkArrayOperand.Named(arrayName, -1), pattern,
-            separatorArrayName.HasValue ? new AwkArrayOperand.Named(new(separatorArrayName.Value), -1) : null);
+        Patsplit(value, new AwkArrayOperand.Named(arrayName, default), pattern,
+            separatorArrayName.HasValue ? new AwkArrayOperand.Named(new(separatorArrayName.Value), default) : null);
 
     public static AwkExpression Patsplit(AwkExpression value, AwkArrayOperand array, AwkExpression pattern,
         AwkArrayOperand? separators) => new PatsplitExpression(value, array, pattern, separators);
 
     public static AwkExpression Asort(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
-        Asort(new AwkArrayOperand.Named(sourceArrayName, -1), new AwkArrayOperand.Named(destinationArrayName, -1), order);
+        Asort(new AwkArrayOperand.Named(sourceArrayName, default), new AwkArrayOperand.Named(destinationArrayName, default), order);
 
     public static AwkExpression Asorti(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
-        Asorti(new AwkArrayOperand.Named(sourceArrayName, -1), new AwkArrayOperand.Named(destinationArrayName, -1), order);
+        Asorti(new AwkArrayOperand.Named(sourceArrayName, default), new AwkArrayOperand.Named(destinationArrayName, default), order);
 
     public static AwkExpression Asort(AwkArrayOperand source, AwkArrayOperand? destination, AwkExpression order) =>
         new SortArrayExpression(source, destination, order, keys: false);

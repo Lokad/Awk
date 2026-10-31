@@ -14,8 +14,8 @@ internal abstract record AwkReference
     public static AwkReference LocalScalar(AwkVariableName variable, AwkFunctionLocalSlotId slotId) =>
         new AwkLocalScalarReference(variable, slotId);
 
-    public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression, int globalIndex = -1) =>
-        new AwkArrayElementReference(variable, indexExpression, globalIndex);
+    public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression, AwkArrayBinding binding = default) =>
+        new AwkArrayElementReference(variable, indexExpression, binding);
 
     public static AwkReference Field(AwkExpression fieldIndexExpression) =>
         new AwkFieldReference(fieldIndexExpression);
@@ -300,7 +300,7 @@ internal sealed record AwkLocalScalarReference(
         ValueTask.FromResult(AwkResolvedReference.LocalScalar(Variable, SlotId));
 }
 
-internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, int GlobalIndex = -1) : AwkReference
+internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, AwkArrayBinding Binding = default) : AwkReference
 {
     internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null)
     {
@@ -315,7 +315,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         prepared = this;
         if (remainingDepth <= 1 || !IndexExpression.TryPrepareFunctionCalls(functions,
             remainingDepth - 1, out var index, checkpoint) || index.GetSynchronousShape(checkpoint).Depth == 0) return false;
-        if (!ReferenceEquals(index, IndexExpression)) prepared = new AwkArrayElementReference(Variable, index, GlobalIndex);
+        if (!ReferenceEquals(index, IndexExpression)) prepared = new AwkArrayElementReference(Variable, index, Binding);
         return true;
     }
 
@@ -324,19 +324,19 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         // As in ordinary assignment, the RHS is already evaluated when the key is resolved.
         using var heldValue = context.State.MemoryAccounting.RetainValue(value);
         var index = IndexExpression.ResolveKeySynchronous(context);
-        context.State.SetArrayAwkValue(Variable, index, value, GlobalIndex);
+        context.State.SetArrayAwkValue(Variable, index, value, Binding);
     }
 
     internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
         AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
     {
-        var target = IndexExpression.PrepareUpdateSynchronous(context, Variable, GlobalIndex);
+        var target = IndexExpression.PrepareUpdateSynchronous(context, Variable, Binding);
         using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedTargetBytes);
         return AssignCompound(context.State, target, value.ResolveNumberSynchronous(context), operation);
     }
 
     internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post) =>
-        ApplyNumeric(context.State, IndexExpression.PrepareUpdateSynchronous(context, Variable, GlobalIndex),
+        ApplyNumeric(context.State, IndexExpression.PrepareUpdateSynchronous(context, Variable, Binding),
             delta > 0 ? AwkNumericOperations.Increment : AwkNumericOperations.Decrement,
             post ? AwkNumericUpdateResult.Previous : AwkNumericUpdateResult.Updated);
 
@@ -345,19 +345,19 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         // Plain assignment commonly inserts a new key; keep its owned-key path.
         using var heldValue = context.State.MemoryAccounting.RetainValue(value);
         var index = await IndexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-        context.State.SetArrayAwkValue(Variable, index, value, GlobalIndex);
+        context.State.SetArrayAwkValue(Variable, index, value, Binding);
     }
 
     protected override async ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context)
     {
-        var index = await IndexExpression.ResolveTargetKeyAsync(context, Variable, GlobalIndex).ConfigureAwait(false);
+        var index = await IndexExpression.ResolveTargetKeyAsync(context, Variable, Binding).ConfigureAwait(false);
         return AwkResolvedReference.ArrayElement(Variable, index);
     }
 
     public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
-        var target = IndexExpression.PrepareUpdateAsync(context, Variable, GlobalIndex);
+        var target = IndexExpression.PrepareUpdateAsync(context, Variable, Binding);
         return target.IsCompletedSuccessfully
             ? ApplyCompoundForTarget(context, target.Result, value, operation)
             : AwaitCompoundTargetAsync(context, target, value, operation);
@@ -401,7 +401,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
     protected override ValueTask<AwkValue> ApplyNumericUpdateAsync(AwkEvaluationContext context,
         Func<double, double> update, AwkNumericUpdateResult resultSelection)
     {
-        var pending = IndexExpression.PrepareUpdateAsync(context, Variable, GlobalIndex);
+        var pending = IndexExpression.PrepareUpdateAsync(context, Variable, Binding);
         return pending.IsCompletedSuccessfully
             ? ValueTask.FromResult(ApplyNumeric(context.State, pending.Result, update, resultSelection))
             : AwaitNumericTarget(context.State, pending, update, resultSelection);
