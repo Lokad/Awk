@@ -61,7 +61,7 @@ internal abstract record AwkReference
         {
             heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
             var currentValue = target.ReadNumber(context.State);
-            var right = value.EvaluateAsync(context);
+            var right = value.ResolveNumberAsync(context);
             if (!right.IsCompletedSuccessfully)
                 return AwaitCompoundValueAsync(context, target, currentValue, right, operation, heldKey);
             var result = AssignCompound(context, target, currentValue, right.Result, operation);
@@ -79,13 +79,13 @@ internal abstract record AwkReference
         using var target = await pending.ConfigureAwait(false);
         using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
         var currentValue = target.ReadNumber(context.State);
-        var rightValue = await value.EvaluateAsync(context).ConfigureAwait(false);
+        var rightValue = await value.ResolveNumberAsync(context).ConfigureAwait(false);
         return AssignCompound(context, target, currentValue, rightValue, operation);
     }
 
     private static async ValueTask<AwkValue> AwaitCompoundValueAsync(
         AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
-        ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
+        ValueTask<double> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
     {
         using (target)
         using (heldKey)
@@ -94,11 +94,10 @@ internal abstract record AwkReference
 
     protected static AwkValue AssignCompound(
         AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
-        AwkValue right, AwkCompoundAssignmentOperation operation)
+        double right, AwkCompoundAssignmentOperation operation)
     {
-        var rightValue = right.AsNumber(context.State.CancellationCheckpoint);
         var result = AwkValue.FromNumber(
-            AwkNumericOperations.ApplyCompoundAssignment(currentValue, rightValue, operation));
+            AwkNumericOperations.ApplyCompoundAssignment(currentValue, right, operation));
         target.AssignValue(context.State, result);
         return result;
     }
@@ -213,7 +212,7 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
 
     internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
         AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation) =>
-        AssignCompound(context.State, ReadNumber(context.State), value.EvaluateSynchronous(context), operation);
+        AssignCompound(context.State, ReadNumber(context.State), value.ResolveNumberSynchronous(context), operation);
 
     internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
     {
@@ -237,21 +236,21 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
     {
         var state = context.State;
         var current = state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint);
-        var right = value.EvaluateAsync(context);
+        var right = value.ResolveNumberAsync(context);
         return right.IsCompletedSuccessfully
             ? ValueTask.FromResult(AssignCompound(state, current, right.Result, operation))
             : AwaitCompoundValueAsync(state, current, right, operation);
     }
 
     private async ValueTask<AwkValue> AwaitCompoundValueAsync(
-        AwkRuntimeState state, double current, ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation) =>
+        AwkRuntimeState state, double current, ValueTask<double> pending, AwkCompoundAssignmentOperation operation) =>
         AssignCompound(state, current, await pending.ConfigureAwait(false), operation);
 
     private AwkValue AssignCompound(
-        AwkRuntimeState state, double current, AwkValue right, AwkCompoundAssignmentOperation operation)
+        AwkRuntimeState state, double current, double right, AwkCompoundAssignmentOperation operation)
     {
         var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(
-            current, right.AsNumber(state.CancellationCheckpoint), operation));
+            current, right, operation));
         state.AssignPreparedGlobalValue(Variable, Index, result);
         return result;
     }
@@ -282,7 +281,7 @@ internal sealed record AwkLocalScalarReference(
         AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
     {
         var previous = ReadNumber(context.State);
-        var right = value.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+        var right = value.ResolveNumberSynchronous(context);
         var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation));
         context.State.AssignFunctionLocalValue(SlotId, Variable, result);
         return result;

@@ -113,7 +113,7 @@ internal sealed record AwkNestedArrayElementReference : AwkReference
         using var target = AwkResolvedReference.NestedArrayElement(_path.CaptureSynchronous(context));
         using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
         var previous = target.ReadNumber(context.State);
-        return AssignCompound(context, target, previous, value.EvaluateSynchronous(context), operation);
+        return AssignCompound(context, target, previous, value.ResolveNumberSynchronous(context), operation);
     }
 
     internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post) =>

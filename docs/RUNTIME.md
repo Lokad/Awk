@@ -185,6 +185,8 @@ Numeric updates capture their key and prior value before the RHS. Live entry cel
 the result directly; retired or retyped entries use current storage without reevaluating
 the key. Captured cells and keys stay funded through pending users. Retirement clears a
 cell's payload before the containing array refunds it.
+Numeric update operands use the interpreter's number evaluator, so reading a field for
+arithmetic need not create owned text. Later text reads still preserve its input spelling.
 Nested-array storage belongs to its parent. Captured path keys stay funded through later
 mutation and actual completion of pending host operations; deleting an entry does not
 authorize an unfunded write through a removed child.

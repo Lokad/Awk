@@ -128,7 +128,7 @@ internal abstract partial class AwkExpression
                     var state = context.State;
                     state.Checkpoint();
                     var previous = location.EvaluateNumber(state);
-                    var right = value.EvaluateSynchronous(context).AsNumber(state.CancellationCheckpoint);
+                    var right = value.ResolveNumberSynchronous(context);
                     location.AssignValue(state, AwkValue.FromNumber(
                         AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation)));
                 };

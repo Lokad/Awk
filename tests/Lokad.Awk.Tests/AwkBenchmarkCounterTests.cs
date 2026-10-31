@@ -9,6 +9,49 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData("global", false)] [InlineData("global", true)]
+    [InlineData("local", false)] [InlineData("local", true)]
+    [InlineData("ordinary-local", false)] [InlineData("ordinary-local", true)]
+    [InlineData("field", false)] [InlineData("field", true)]
+    [InlineData("nested", false)] [InlineData("nested", true)]
+    public async Task NumericUpdatesConsumeFieldRhsWithoutOwnedTransport(string target, bool governed)
+    {
+        const int records = 128;
+        foreach (var (operation, expected) in new[] { ("+", 10), ("-", 6), ("*", 16), ("/", 4), ("%", 0), ("^", 64) })
+        {
+            var source = target switch
+            {
+                "local" => "function update(x){x" + operation + "=$2;return x}{total+=update(8)}",
+                "ordinary-local" => "function update(x){switch(x){default:break}x" + operation + "=$2;return x}{total+=update(8)}",
+                "field" => "{$1" + operation + "=$2;total+=$1}",
+                "nested" => "{a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]" + operation + "=$2;total+=a[\"row\"][\"sum\"]}",
+                _ => "{x=8;x" + operation + "=$2;total+=x}"
+            };
+            var host = new MockFileSystem();
+            host.SetStandardInput(string.Concat(Enumerable.Repeat("8 0002\n", records)));
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+                AwkTestHarness.BuildInvocation("awk", source + " END{print total}"), CancellationToken.None,
+                regexEngine: AwkUtf8RegexEngine.Instance);
+            var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(0, exit.Value);
+            Assert.Equal((records * expected).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
+                host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.True(counters.NumericFieldByteParses >= records);
+            // Rewriting a field may own the prior record and its replacement. Other
+            // targets need neither a retained field value nor a text on every record.
+            Assert.InRange(counters.AwkTextAllocations, 0, target == "field" ? 2 * records + 32 : 32);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
+    [Theory]
     [InlineData(false, 16, false)] [InlineData(true, 16, false)]
     [InlineData(false, 1024, false)] [InlineData(true, 1024, false)]
     [InlineData(false, 16, true)] [InlineData(true, 16, true)]
