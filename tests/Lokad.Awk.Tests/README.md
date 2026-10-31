@@ -284,3 +284,7 @@ keys/prior values through RHS mutation, and the existing nested-path/virtual-arr
 Numeric preparation does not replace missing-read, membership, refusal or cleanup assertions.
 
 Every new awk feature, compatibility decision, or diagnostic needs a golden case unless the behavior is only observable at a narrower structural layer. Parser and runtime refactors should state which duplicate current-surface or end-to-end tests were removed, narrowed, or intentionally retained.
+
+Numeric field checks cover bounded one-pass wide storage, parse reuse in spare record-cache
+slots, warmed/full capacity, text origins and slot remapping. Cached-field infinite loops
+remain cancellable with counters enabled or disabled; cold cache refusal stays fatal.

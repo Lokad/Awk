@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reuse numeric field interpretations in spare record-cache slots while preserving
+  original text. The initial buffer uses shared admission; numeric-only reads do not
+  enlarge a populated cache.
 - **Breaking regex-provider API:** replace stateless UTF-16 matching with `CreateSearch`
   over a borrowed immutable UTF-8 subject. Scoped `Match` takes absolute byte offsets;
   `AwkRegexCaptureRange` contains only participation and byte index/length. Dispose each
