@@ -106,6 +106,8 @@ Arithmetic forwarding calls a function that prints a literal; text forwarding pr
 original field value. The integer rows use `int($1)` directly and through a function;
 the binary row sums `(atan2($1,$2)>0)`, with `0007` in each input field. Startup rows
 prepare and execute one named call with no input.
+The AND case uses `0007 0003`; the long function performs 64 integer updates per record.
+The square-root case uses positive inputs and retains ordinary diagnostic boundaries.
 
 The comparison runner supplies a live token for its 15-second invocation deadline.
 This table's independent snapshot starts with no caller token; governed execution creates
@@ -139,16 +141,22 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Text forwarding with field output, 4,096 records | 512 MiB | 6.520 | 1.333 | 11-01 / [10d9918] |
 | Nested-array call startup, no input | None | 0.073 | 0.158 | 11-01 / [10d9918] |
 | Nested-array call startup, no input | 512 MiB | 0.085 | 0.160 | 11-01 / [10d9918] |
-| Integer field conversion, 4,096 records | None | 2.534 | 0.071 | 11-01 / [7da72c5] |
-| Integer field conversion, 4,096 records | 512 MiB | 3.563 | 0.385 | 11-01 / [7da72c5] |
-| Forwarded integer conversion, 4,096 records | None | 3.326 | 0.091 | 11-01 / [7da72c5] |
-| Forwarded integer conversion, 4,096 records | 512 MiB | 4.668 | 0.405 | 11-01 / [7da72c5] |
+| Integer field conversion, 4,096 records | None | 2.183 | 0.071 | 11-01 / [766104d] |
+| Integer field conversion, 4,096 records | 512 MiB | 2.981 | 0.385 | 11-01 / [766104d] |
+| Forwarded integer conversion, 4,096 records | None | 2.555 | 0.091 | 11-01 / [766104d] |
+| Forwarded integer conversion, 4,096 records | 512 MiB | 3.350 | 0.405 | 11-01 / [766104d] |
 | atan2 on two fields, 4,096 records | None | 2.971 | 0.081 | 11-01 / [7da72c5] |
 | atan2 on two fields, 4,096 records | 512 MiB | 4.050 | 0.488 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | None | 3.626 | 0.514 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | 512 MiB | 5.037 | 0.516 | 11-01 / [7da72c5] |
-| Integer-forwarding startup, no input | None | 0.032 | 0.079 | 11-01 / [7da72c5] |
-| Integer-forwarding startup, no input | 512 MiB | 0.092 | 0.081 | 11-01 / [7da72c5] |
+| Integer-forwarding startup, no input | None | 0.027 | 0.079 | 11-01 / [766104d] |
+| Integer-forwarding startup, no input | 512 MiB | 0.031 | 0.081 | 11-01 / [766104d] |
+| Forwarded bitwise AND, 4,096 records | None | 3.006 | 0.101 | 11-01 / [766104d] |
+| Forwarded bitwise AND, 4,096 records | 512 MiB | 3.882 | 0.509 | 11-01 / [766104d] |
+| Function with 64 integer updates, 4,096 records | None | 23.744 | 0.808 | 11-01 / [766104d] |
+| Function with 64 integer updates, 4,096 records | 512 MiB | 30.341 | 20.809 | 11-01 / [766104d] |
+| Square-root function, 4,096 records | None | 2.789 | 0.091 | 11-01 / [766104d] |
+| Square-root function, 4,096 records | 512 MiB | 3.709 | 0.405 | 11-01 / [766104d] |
 
 ## Measurement contract
 
@@ -238,3 +246,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [10d9918]: https://github.com/Lokad/Awk/commit/10d99188af3d2733b5eb3f5e4c88b74018c56697
 
 [7da72c5]: https://github.com/Lokad/Awk/commit/7da72c50fc06b1e9239b615d4286965f9c461e66
+
+[766104d]: https://github.com/Lokad/Awk/commit/766104d4a52d5c677fabdc263197bc9364e9775d
