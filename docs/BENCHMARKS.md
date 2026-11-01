@@ -103,7 +103,9 @@ They compare the existing thread-safe 512 MiB test budget with default execution
 public invocation on the same machine/catalog fixtures. Application budgets can cost
 differently. No GNU timing or native-allocation claim.
 Arithmetic forwarding calls a function that prints a literal; text forwarding prints the
-original field value. The startup case prepares and executes one nested-array call.
+original field value. The integer rows use `int($1)` directly and through a function;
+the binary row sums `(atan2($1,$2)>0)`, with `0007` in each input field. Startup rows
+prepare and execute one named call with no input.
 
 The comparison runner supplies a live token for its 15-second invocation deadline.
 This table's independent snapshot starts with no caller token; governed execution creates
@@ -125,8 +127,8 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Aggregation, 65,536 records | 512 MiB | 50.748 | 2.241 | 11-01 / [10d9918] |
 | Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
 | Join, 65,536 records per file | 512 MiB | 171.680 | 29.366 | 10-31 / [e9c6ef5] |
-| Scalar sum, 65,536 records | None | 28.106 | 0.193 | 11-01 / [10d9918] |
-| Scalar sum, 65,536 records | 512 MiB | 43.523 | 0.195 | 11-01 / [10d9918] |
+| Scalar sum, 65,536 records | None | 32.970 | 0.193 | 11-01 / [7da72c5] |
+| Scalar sum, 65,536 records | 512 MiB | 46.107 | 0.195 | 11-01 / [7da72c5] |
 | ERE boolean matching, 4,096 records | None | 2.168 | 0.191 | 10-31 / [5e53a18] |
 | ERE boolean matching, 4,096 records | 512 MiB | 4.125 | 7.505 | 10-31 / [5e53a18] |
 | Early fields, 65,536 wide records | None | 30.588 | 7.603 | 10-31 / [5e53a18] |
@@ -137,6 +139,16 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Text forwarding with field output, 4,096 records | 512 MiB | 6.520 | 1.333 | 11-01 / [10d9918] |
 | Nested-array call startup, no input | None | 0.073 | 0.158 | 11-01 / [10d9918] |
 | Nested-array call startup, no input | 512 MiB | 0.085 | 0.160 | 11-01 / [10d9918] |
+| Integer field conversion, 4,096 records | None | 2.534 | 0.071 | 11-01 / [7da72c5] |
+| Integer field conversion, 4,096 records | 512 MiB | 3.563 | 0.385 | 11-01 / [7da72c5] |
+| Forwarded integer conversion, 4,096 records | None | 3.326 | 0.091 | 11-01 / [7da72c5] |
+| Forwarded integer conversion, 4,096 records | 512 MiB | 4.668 | 0.405 | 11-01 / [7da72c5] |
+| atan2 on two fields, 4,096 records | None | 2.971 | 0.081 | 11-01 / [7da72c5] |
+| atan2 on two fields, 4,096 records | 512 MiB | 4.050 | 0.488 | 11-01 / [7da72c5] |
+| Text forwarding with retained spelling/type, 4,096 records | None | 3.626 | 0.514 | 11-01 / [7da72c5] |
+| Text forwarding with retained spelling/type, 4,096 records | 512 MiB | 5.037 | 0.516 | 11-01 / [7da72c5] |
+| Integer-forwarding startup, no input | None | 0.032 | 0.079 | 11-01 / [7da72c5] |
+| Integer-forwarding startup, no input | 512 MiB | 0.092 | 0.081 | 11-01 / [7da72c5] |
 
 ## Measurement contract
 
@@ -224,3 +236,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [508228d]: https://github.com/Lokad/Awk/commit/508228dfe77a15b341d3784919dbc5fc8159d435
 
 [10d9918]: https://github.com/Lokad/Awk/commit/10d99188af3d2733b5eb3f5e4c88b74018c56697
+
+[7da72c5]: https://github.com/Lokad/Awk/commit/7da72c50fc06b1e9239b615d4286965f9c461e66
