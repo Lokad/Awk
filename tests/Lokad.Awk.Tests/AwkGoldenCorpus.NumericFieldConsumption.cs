@@ -4,6 +4,16 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> NumericFieldConsumptionCases()
     {
+        foreach (var count in new[] { 16, 17, 64 })
+        {
+            var steps = string.Concat(Enumerable.Repeat("sum+=int($1);", count));
+            yield return Passing("numeric-computation-flat-" + count,
+                ["{" + steps + "print sum,$1,typeof($1)}"], [],
+                (7 * count) + " 0007 strnum\n", "0007\n");
+        }
+        yield return Passing("numeric-computation-loop-forms",
+            ["{for(i=0;i<2;i++)a+=int($1);i=0;while(i++<2)b+=int($1);i=0;do{c+=int($1)}while(++i<2);print a,b,c,$1}"],
+            [], "14 14 14 0007\n", "0007\n");
         yield return Passing("numeric-field-consumption-prefix-and-spelling",
             ["{a[\"x\"]+=$2;print a[\"x\"],$2,typeof($2)}"], [], "7 007 strnum\n12 5tail string\n12 café string\n", "k 007\nk 5tail\nk café\n");
         yield return Passing("numeric-field-consumption-operations",

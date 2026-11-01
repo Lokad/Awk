@@ -146,8 +146,9 @@ public sealed partial class AwkSynchronousRegionTests
 
     [Theory]
     [InlineData(16, 1)]
-    [InlineData(17, 0)]
-    public async Task DoWhileBodyBoundKeepsMandatoryFirstIteration(int count, int expectedPrepared)
+    [InlineData(17, 1)]
+    [InlineData(64, 1)]
+    public async Task LongDoWhileBodyKeepsMandatoryFirstIteration(int count, int expectedPrepared)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForState = State(counters);

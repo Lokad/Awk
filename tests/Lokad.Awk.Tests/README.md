@@ -150,6 +150,8 @@ Numeric builtin checks cover direct and forwarded field arguments, later-argumen
 deferred errors and actual pending/canceled operands with complete refunds.
 Preparation counters cover complete numeric builtin bodies; warning-producing fallbacks keep
 their diagnostic boundary before later caller effects, including failed/pending/canceled appends.
+Preparation-entry counters cover absent, unused and called functions across flat blocks and
+all loop forms. Long-preparation checks preserve cancellation and conditional-depth guards.
 General-arity preparation checks cover cancellation through action/loop preparation and
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases

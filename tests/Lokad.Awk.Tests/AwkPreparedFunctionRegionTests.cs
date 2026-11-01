@@ -165,9 +165,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(16, true)]
-    [InlineData(17, false)]
-    public async Task PureScalarActionsKeepStatementBoundWithoutFunctions(int count, bool prepared)
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(64)]
+    public async Task LongScalarActionsPrepareWithoutFunctions(int count)
     {
         var program = Bind("{" + string.Join(';', Enumerable.Repeat("x++", count)) + "}");
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -178,7 +179,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         await program.MainActions[0].ExecuteAsync(state, io, output);
         Assert.Equal(count, state.ResolveVariableValue(AwkVariableName.FromText("x")).AsNumber());
-        Assert.Equal(prepared ? 1 : 0, counters.SynchronousActionRuns);
+        Assert.Equal(1, counters.SynchronousActionRuns);
         await io.CloseAsync();
     }
 
@@ -369,9 +370,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(16, true)]
-    [InlineData(17, false)]
-    public async Task ScalarCallActionsStopAtTheirStatementBound(int count, bool prepared)
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(64)]
+    public async Task LongScalarCallActionsPrepare(int count)
     {
         var program = Bind(Functions + " BEGIN{" + string.Join(';', Enumerable.Repeat("total=inc(7)", count)) + "}");
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -383,7 +385,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         await program.BeginActions[0].ExecuteAsync(state, io, output);
         Assert.Equal(8, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
-        Assert.Equal(prepared ? 1 : 0, counters.SynchronousActionRuns);
+        Assert.Equal(1, counters.SynchronousActionRuns);
         Assert.Equal(count, counters.SynchronousFunctionRuns);
         Assert.False(state.IsInsideFunction);
         await io.CloseAsync();

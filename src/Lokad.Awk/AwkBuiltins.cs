@@ -688,7 +688,7 @@ internal static partial class AwkBuiltins
         AwkBuiltinDefinition definition,
         IReadOnlyList<AwkExpression> arguments,
         AwkEvaluationContext context) =>
-        EvaluateAsyncCore(definition, AwkBuiltins.Name(definition.Id), arguments, context);
+        EvaluateAsyncCore(definition, definition.Name, arguments, context);
 
     private static ValueTask<AwkValue> EvaluateAsyncCore(
         AwkBuiltinDefinition definition,
@@ -702,7 +702,7 @@ internal static partial class AwkBuiltins
 
     internal static void ValidateInvocation(AwkBuiltinDefinition definition, int argumentCount,
         AwkEvaluationContext context) =>
-        ValidateInvocationCore(definition, Name(definition.Id), argumentCount, context);
+        ValidateInvocationCore(definition, definition.Name, argumentCount, context);
 
     private static void ValidateInvocationCore(AwkBuiltinDefinition definition, string name, int argumentCount,
         AwkEvaluationContext context)

@@ -21,10 +21,13 @@ internal sealed class AwkSynchronousFunction(
         return AwkValue.Unassigned();
     }
 
-    public static IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? Prepare(
+    internal static IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> Empty { get; } =
+        System.Collections.ObjectModel.ReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>.Empty;
+
+    public static IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> Prepare(
         Dictionary<AwkFunctionName, AwkUserFunction> functions, Action? checkpoint)
     {
-        if (functions.Count == 0) return null;
+        if (functions.Count == 0) return Empty;
         var prepared = new Dictionary<AwkFunctionName, AwkSynchronousFunction>();
         for (var pass = 0; pass < 4; pass++)
         {

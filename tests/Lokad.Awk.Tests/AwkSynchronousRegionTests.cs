@@ -231,24 +231,37 @@ public sealed partial class AwkSynchronousRegionTests
     }
 
     [Theory]
-    [InlineData(15, true)]
-    [InlineData(16, false)]
-    public void ConditionalPreparationBoundsStatementsBeforeInspectingBody(int count, bool eligible)
+    [InlineData("action")] [InlineData("conditional")]
+    [InlineData("for")] [InlineData("while")] [InlineData("do")]
+    public void LongPreparationObservesCancellationBeforeInspectingTheEntireBody(string shape)
     {
+        const int count = 4096;
+        using var cancellation = new CancellationTokenSource();
         var probe = new PreparationProbe();
-        var condition = new AwkCondition(AwkExpression.Number(1));
-        var statement = AwkStatement.If(condition, Enumerable.Repeat<AwkStatement>(probe, count).ToArray());
-        Assert.Equal(eligible, AwkStatementBlockExecutor.TryPrepareActions([statement], null) is not null);
-        Assert.Equal(eligible ? count : 0, probe.Preparations);
-    }
-
-    [Fact]
-    public void ConditionalPreparationSharesStatementBudgetWithFollowingStatements()
-    {
-        var condition = new AwkCondition(AwkExpression.Number(1));
-        var statements = Enumerable.Repeat(AwkStatement.NoOp(), 16).ToArray();
-        statements[0] = AwkStatement.If(condition, [AwkStatement.NoOp()]);
-        Assert.Null(AwkStatementBlockExecutor.TryPrepareActions(statements, null));
+        var body = Enumerable.Repeat<AwkStatement>(probe, count).ToArray();
+        var condition = new AwkCondition(AwkExpression.Number(0));
+        void Checkpoint()
+        {
+            if (probe.Preparations >= 32) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        void Prepare()
+        {
+            switch (shape)
+            {
+                case "for": AwkSynchronousFor.TryPrepare(AwkStatement.NoOp(), condition,
+                    AwkStatement.NoOp(), body, preparationCheckpoint: Checkpoint); break;
+                case "while": AwkStatement.While(condition, body, preparationCheckpoint: Checkpoint); break;
+                case "do": AwkStatement.DoWhile(body, condition, preparationCheckpoint: Checkpoint); break;
+                default:
+                    var statements = shape == "conditional" ? [AwkStatement.If(condition, body)] : body;
+                    AwkStatementBlockExecutor.TryPrepareActions(statements, null, Checkpoint);
+                    break;
+            }
+        }
+        var error = Assert.Throws<OperationCanceledException>(Prepare);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.InRange(probe.Preparations, 1, count - 1);
     }
 
     private static async Task<ConditionalResult> RunConditional(bool forceLegacy, int boundary = 0, bool failMemory = false)
@@ -317,21 +330,6 @@ public sealed partial class AwkSynchronousRegionTests
         var result = new Result(state.ResolveVariableValue(name).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), counters.SynchronousLoopRuns, state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
         return result;
-    }
-
-    [Theory]
-    [InlineData(16, true)]
-    [InlineData(17, false)]
-    public void PreparationBoundsBodyWorkBeforeInspectingStatements(int count, bool eligible)
-    {
-        var header = new PreparationProbe();
-        var condition = new AwkCondition(AwkExpression.Number(1));
-        var statement = AwkStatement.Assignment(
-            AwkReference.PreparedGlobalScalar(AwkVariableName.FromText("x"), 0), AwkExpression.Number(1));
-        var prepared = AwkSynchronousFor.TryPrepare(header, condition, header,
-            Enumerable.Repeat(statement, count).ToArray());
-        Assert.Equal(eligible, prepared is not null);
-        Assert.Equal(eligible ? 2 : 0, header.Preparations);
     }
 
     private sealed class PreparationProbe : AwkStatement

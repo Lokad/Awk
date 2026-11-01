@@ -396,7 +396,7 @@ internal static class AwkStatementLowerer
                     return false;
                 }
 
-                statement = AwkStatement.While(condition, body);
+                statement = AwkStatement.While(condition, body, scope.SynchronousFunctions, scope.Checkpoint);
                 return true;
             }
 
@@ -413,7 +413,7 @@ internal static class AwkStatementLowerer
                     return false;
                 }
 
-                statement = AwkStatement.DoWhile(body, condition);
+                statement = AwkStatement.DoWhile(body, condition, scope.SynchronousFunctions, scope.Checkpoint);
                 return true;
             }
 

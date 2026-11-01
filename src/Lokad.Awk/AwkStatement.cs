@@ -141,11 +141,13 @@ internal abstract partial class AwkStatement
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null, Action? preparationCheckpoint = null) =>
         new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body), synchronousFunctions, preparationCheckpoint);
 
-    public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body) =>
-        new WhileStatement(condition, AwkCollectionSnapshots.Copy(body));
+    public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null) =>
+        new WhileStatement(condition, AwkCollectionSnapshots.Copy(body), functions, preparationCheckpoint);
 
-    public static AwkStatement DoWhile(IReadOnlyList<AwkStatement> body, AwkCondition condition) =>
-        new DoWhileStatement(AwkCollectionSnapshots.Copy(body), condition);
+    public static AwkStatement DoWhile(IReadOnlyList<AwkStatement> body, AwkCondition condition,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null) =>
+        new DoWhileStatement(AwkCollectionSnapshots.Copy(body), condition, functions, preparationCheckpoint);
 
     public static AwkStatement Switch(
         AwkExpression value,
@@ -190,7 +192,7 @@ internal abstract partial class AwkStatement
     // Only whole actions use this entry, under AwkAction's policy/stack/field guards.
     // Loop-body preparation keeps the scalar entry, excluding nested loops.
     internal virtual bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-        ref int remainingStatements, out Action<AwkEvaluationContext> action) =>
+        out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null) =>
         TryPrepareSynchronousAction(out action);
 
     internal virtual AwkStatement PrepareSynchronousCalls(
