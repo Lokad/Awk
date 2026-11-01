@@ -102,6 +102,8 @@ Rows state their measured source/date; retained entries are not reruns of the la
 They compare the existing thread-safe 512 MiB test budget with default execution through
 public invocation on the same machine/catalog fixtures. Application budgets can cost
 differently. No GNU timing or native-allocation claim.
+Arithmetic forwarding calls a function that prints a literal; text forwarding prints the
+original field value. The startup case prepares and executes one nested-array call.
 
 The comparison runner supplies a live token for its 15-second invocation deadline.
 This table's independent snapshot starts with no caller token; governed execution creates
@@ -111,24 +113,30 @@ supplies a live caller deadline in both modes and measures that distinct configu
 
 | Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
 | --- | --- | ---: | ---: | --- |
-| Nested-array calls, 16 keys / 4,096 records (GNU) | None | 6.748 | 2.209 | 11-01 / [508228d] |
-| Nested-array calls, 16 keys / 4,096 records (GNU) | 512 MiB | 9.963 | 2.836 | 11-01 / [508228d] |
-| Nested-array calls, 1,024 keys / 4,096 records (GNU) | None | 6.899 | 2.802 | 11-01 / [508228d] |
-| Nested-array calls, 1,024 keys / 4,096 records (GNU) | 512 MiB | 11.375 | 3.429 | 11-01 / [508228d] |
-| Loop with five-argument calls, 4,096 records | None | 15.232 | 0.567 | 11-01 / [508228d] |
-| Loop with five-argument calls, 4,096 records | 512 MiB | 21.674 | 9.818 | 11-01 / [508228d] |
+| Nested-array calls, 16 keys / 4,096 records (GNU) | None | 7.544 | 1.804 | 11-01 / [10d9918] |
+| Nested-array calls, 16 keys / 4,096 records (GNU) | 512 MiB | 9.531 | 2.430 | 11-01 / [10d9918] |
+| Nested-array calls, 1,024 keys / 4,096 records (GNU) | None | 8.138 | 2.398 | 11-01 / [10d9918] |
+| Nested-array calls, 1,024 keys / 4,096 records (GNU) | 512 MiB | 9.876 | 3.023 | 11-01 / [10d9918] |
+| Loop with five-argument calls, 4,096 records | None | 16.759 | 0.568 | 11-01 / [10d9918] |
+| Loop with five-argument calls, 4,096 records | 512 MiB | 21.463 | 9.819 | 11-01 / [10d9918] |
 | Nested user calls, 4,096 records | None | 2.811 | 0.517 | 11-01 / [508228d] |
 | Nested user calls, 4,096 records | 512 MiB | 4.470 | 0.519 | 11-01 / [508228d] |
-| Aggregation, 65,536 records | None | 33.729 | 0.238 | 10-31 / [feec315] |
-| Aggregation, 65,536 records | 512 MiB | 48.193 | 2.241 | 10-31 / [feec315] |
+| Aggregation, 65,536 records | None | 36.441 | 0.238 | 11-01 / [10d9918] |
+| Aggregation, 65,536 records | 512 MiB | 50.748 | 2.241 | 11-01 / [10d9918] |
 | Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
 | Join, 65,536 records per file | 512 MiB | 171.680 | 29.366 | 10-31 / [e9c6ef5] |
-| Scalar sum, 65,536 records | None | 27.684 | 0.193 | 10-31 / [bf2975d] |
-| Scalar sum, 65,536 records | 512 MiB | 43.064 | 0.195 | 10-31 / [bf2975d] |
+| Scalar sum, 65,536 records | None | 28.106 | 0.193 | 11-01 / [10d9918] |
+| Scalar sum, 65,536 records | 512 MiB | 43.523 | 0.195 | 11-01 / [10d9918] |
 | ERE boolean matching, 4,096 records | None | 2.168 | 0.191 | 10-31 / [5e53a18] |
 | ERE boolean matching, 4,096 records | 512 MiB | 4.125 | 7.505 | 10-31 / [5e53a18] |
 | Early fields, 65,536 wide records | None | 30.588 | 7.603 | 10-31 / [5e53a18] |
 | Early fields, 65,536 wide records | 512 MiB | 47.705 | 10.104 | 10-31 / [5e53a18] |
+| Arithmetic forwarding with literal output, 4,096 records | None | 4.628 | 0.801 | 11-01 / [10d9918] |
+| Arithmetic forwarding with literal output, 4,096 records | 512 MiB | 5.396 | 0.927 | 11-01 / [10d9918] |
+| Text forwarding with field output, 4,096 records | None | 4.707 | 1.207 | 11-01 / [10d9918] |
+| Text forwarding with field output, 4,096 records | 512 MiB | 6.520 | 1.333 | 11-01 / [10d9918] |
+| Nested-array call startup, no input | None | 0.073 | 0.158 | 11-01 / [10d9918] |
+| Nested-array call startup, no input | 512 MiB | 0.085 | 0.160 | 11-01 / [10d9918] |
 
 ## Measurement contract
 
@@ -214,3 +222,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [bf2975d]: https://github.com/Lokad/Awk/commit/bf2975d36cd1c9f67e80ec75252ab5da37a68395
 
 [508228d]: https://github.com/Lokad/Awk/commit/508228dfe77a15b341d3784919dbc5fc8159d435
+
+[10d9918]: https://github.com/Lokad/Awk/commit/10d99188af3d2733b5eb3f5e4c88b74018c56697
