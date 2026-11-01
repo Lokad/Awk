@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("builtin-computation-prepares-long-function-body",
+            ["function score(x,total){" + string.Concat(Enumerable.Repeat("total+=int(x);", 64)) +
+             "return total}{print score($1),$1}"], [], "448 0007\n", "0007\n");
+        yield return Passing("builtin-computation-keeps-later-argument-mutation",
+            ["function score(x,y){return and(x,y)}function later(){$0=\"new 99\";return 3}BEGIN{$0=\"0007 old\";print score($1,later()),$0}"],
+            [], "3 new 99\n");
         yield return Passing("numeric-builtin-field-input-keeps-original-spelling",
             ["{print int($1),sqrt($2),$1,$2,typeof($1);print and($1,$3),(atan2($1,$2)>0)}"],
             [], "7 3 0007 0009 strnum\n3 1\n", "0007 0009 0003\n");

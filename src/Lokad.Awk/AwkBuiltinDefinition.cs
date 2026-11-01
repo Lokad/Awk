@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -170,6 +171,18 @@ internal sealed class AwkBuiltinDefinition(
 
     internal bool ConsumesArithmeticInputs => implementation.ConsumesArithmeticInputs;
 
+    internal bool TryGetComputation(
+        [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
+    {
+        if (implementation is AwkBuiltinImplementation.SyncBuiltinImplementation { CanPrepareComputation: true } synchronous)
+        {
+            computation = synchronous;
+            return true;
+        }
+        computation = null;
+        return false;
+    }
+
     public ValueTask<AwkValue> EvaluateAsync(
         IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context) =>
         implementation.EvaluateAsync(arguments, context);
@@ -177,8 +190,9 @@ internal sealed class AwkBuiltinDefinition(
 
 internal abstract class AwkBuiltinImplementation
 {
-    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
-        new SyncBuiltinImplementation(evaluator, arithmeticInputs);
+    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false,
+        bool canPrepareComputation = false) =>
+        new SyncBuiltinImplementation(evaluator, arithmeticInputs, canPrepareComputation);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
@@ -191,9 +205,22 @@ internal abstract class AwkBuiltinImplementation
     public abstract ValueTask<AwkValue> EvaluateAsync(
         IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context);
 
-    private sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, bool arithmeticInputs) : AwkBuiltinImplementation
+    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, bool arithmeticInputs,
+        bool canPrepareComputation) : AwkBuiltinImplementation
     {
         internal override bool ConsumesArithmeticInputs => arithmeticInputs;
+        internal bool CanPrepareComputation => canPrepareComputation;
+
+        internal AwkValue EvaluatePrepared(IReadOnlyList<AwkExpression> originalArguments,
+            IReadOnlyList<AwkSynchronousExpression> operands, AwkEvaluationContext context)
+        {
+            using var buffer = AwkValueBuffer.Rent(operands.Count, context.State.MemoryAccounting);
+            for (var index = 0; index < operands.Count; index++)
+                buffer.Set(index, arithmeticInputs
+                    ? operands[index].EvaluateArithmeticArgumentSynchronous(context)
+                    : operands[index].EvaluateSynchronous(context));
+            return evaluator(new AwkBuiltinContext(originalArguments, buffer.Values, operands.Count, context));
+        }
 
         private ValueTask<AwkValue> EvaluateArgument(AwkExpression argument, AwkEvaluationContext context) =>
             arithmeticInputs ? argument.EvaluateArithmeticArgumentAsync(context) : argument.EvaluateAsync(context);

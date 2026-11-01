@@ -5,6 +5,57 @@ public sealed class AwkCompiledWarningTests
     private const string Warning = "awk: warning: escape sequence `\\q' treated as plain `q'\n";
 
     [Theory]
+    [InlineData("reject")]
+    [InlineData("pending")]
+    [InlineData("cancel")]
+    public async Task FunctionMathWarningCompletesBeforeLaterEffects(string outcome)
+    {
+        var host = new WarningHost(outcome);
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var command = AwkTestHarness.BuildInvocation("awk",
+            "function score(x){sqrt(x);return 7}function later(){print \"after\" > \"/after\";return 8}BEGIN{print score(-1),later()}");
+        var execution = AwkTestHarness.ParseAwk(command).ExecuteAsync(host,
+            AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+        try
+        {
+            await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(AwkFileDescriptor.StdErr, host.FirstDescriptor);
+            Assert.Equal("awk: warning: sqrt: received negative argument -1\n", AwkUtf8Codec.Decode(host.FirstBytes));
+            Assert.False(host.Files.FileExists("/after"));
+            Assert.Equal("", host.Files.GetOutput(AwkFileDescriptor.StdOut));
+            if (outcome == "reject") Assert.Equal(2, (await execution).Value);
+            else
+            {
+                Assert.False(execution.IsCompleted);
+                Assert.True(budget.Reserved > 0);
+                if (outcome == "cancel")
+                {
+                    cancellation.Cancel();
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+                }
+                else
+                {
+                    host.Release.TrySetResult(AwkAppendResult.Accepted());
+                    Assert.Equal(AwkExitCode.Success, await execution);
+                    Assert.Equal("after\n", host.Files.ReadFile("/after"));
+                    Assert.Equal("7 8\n", host.Files.GetOutput(AwkFileDescriptor.StdOut));
+                }
+            }
+            if (outcome != "pending") Assert.False(host.Files.FileExists("/after"));
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(0, host.Files.OpenFileCount);
+            Assert.Equal("", host.Files.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        finally
+        {
+            host.Release.TrySetResult(AwkAppendResult.Accepted());
+            cancellation.Cancel();
+            try { await execution; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     public async Task EveryCompiledEntryEmitsWarningsOnceOnFreshConcurrentHosts(int entry)
@@ -170,11 +221,15 @@ public sealed class AwkCompiledWarningTests
         public MockFileSystem Files { get; } = new();
         public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<AwkAppendResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public AwkFileDescriptor FirstDescriptor { get; private set; }
+        public byte[] FirstBytes { get; private set; } = [];
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token)
         {
             if (!_first) return Files.AppendAsync(descriptor, bytes, token);
             _first = false;
+            FirstDescriptor = descriptor;
+            FirstBytes = bytes.ToArray();
             Entered.TrySetResult(true);
             return failure switch
             {

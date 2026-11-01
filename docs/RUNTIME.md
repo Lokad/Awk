@@ -166,6 +166,8 @@ forwarded parameters. Text-sensitive uses and conversion errors retain their ord
 representations; numeric errors still occur at actual use.
 Numeric builtin definitions share that consumption rule with argument evaluation and user
 function preparation. Argument buffers remain funded through pending operands and cleanup.
+Eligible synchronous builtins prepare through the same interpreter. Builtins that can queue
+diagnostics keep statement execution so warning acceptance precedes later effects.
 Prepared calls use the existing argument-storage admission for larger argument lists;
 there is no separate prepared-call arity limit. Cancellation is checked during preparation
 and argument evaluation. Eligible scalar function blocks, branches and loops prepare as

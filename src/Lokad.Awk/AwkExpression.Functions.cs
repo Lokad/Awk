@@ -72,8 +72,45 @@ internal abstract partial class AwkExpression
 
     private sealed class BuiltinCallExpression(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
+        {
+            expression = AwkSynchronousExpression.Unavailable;
+            if (remainingDepth <= 0 || !definition.TryGetComputation(out var computation) ||
+                !definition.Arity.Accepts(arguments.Count)) return false;
+            var operands = new AwkSynchronousExpression[arguments.Count];
+            var depth = 0;
+            var calls = 0;
+            for (var index = 0; index < operands.Length; index++)
+            {
+                preparationCheckpoint?.Invoke();
+                if (!arguments[index].TryPrepareFunctionCalls(functions, remainingDepth - 1,
+                        out operands[index], preparationCheckpoint)) return false;
+                depth = Math.Max(depth, operands[index].SynchronousDepth);
+                calls = Math.Max(calls, operands[index].SynchronousCallDepth);
+            }
+            if (depth >= 16 || calls >= 4) return false;
+            expression = new SynchronousBuiltinCall(definition, computation, arguments, operands, depth + 1, calls);
+            return true;
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkBuiltins.EvaluateAsync(definition, arguments, context);
+    }
+
+    private sealed class SynchronousBuiltinCall(AwkBuiltinDefinition definition,
+        AwkBuiltinImplementation.SyncBuiltinImplementation computation,
+        IReadOnlyList<AwkExpression> originalArguments, AwkSynchronousExpression[] operands,
+        int depth, int calls) : AwkSynchronousExpression
+    {
+        internal override int SynchronousDepth => depth;
+        internal override int SynchronousCallDepth => calls;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            AwkBuiltins.ValidateInvocation(definition, originalArguments.Count, context);
+            return computation.EvaluatePrepared(originalArguments, operands, context);
+        }
     }
 
     private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments,
