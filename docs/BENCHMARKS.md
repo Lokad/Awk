@@ -119,6 +119,10 @@ its own live token. Published regex-provider costs differ between these token se
 its regex rows do not isolate budget bookkeeping. The existing `--governed-profile` command
 supplies a live caller deadline in both modes and measures that distinct configuration.
 
+Nested integer output formats two `int(int($1))` arguments; wide formatting repeats
+`$1+0` 65 times. Both use 4,096 records containing `0007`. Shared integer startup
+varies across roughly 34–77 microseconds; its median is sensitive to that variation.
+
 | Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
 | --- | --- | ---: | ---: | --- |
 | Nested-array calls, 16 keys / 4,096 records (GNU) | None | 7.544 | 1.804 | 11-01 / [10d9918] |
@@ -145,20 +149,20 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Text forwarding with field output, 4,096 records | 512 MiB | 6.520 | 1.333 | 11-01 / [10d9918] |
 | Nested-array call startup, no input | None | 0.073 | 0.158 | 11-01 / [10d9918] |
 | Nested-array call startup, no input | 512 MiB | 0.085 | 0.160 | 11-01 / [10d9918] |
-| Integer field conversion, 4,096 records | None | 1.989 | 0.071 | 11-01 / [98014bc] |
-| Integer field conversion, 4,096 records | 512 MiB | 2.856 | 0.385 | 11-01 / [98014bc] |
+| Integer field conversion, 4,096 records | None | 1.980 | 0.071 | 11-01 / [b329690] |
+| Integer field conversion, 4,096 records | 512 MiB | 2.715 | 0.073 | 11-01 / [b329690] |
 | Forwarded integer conversion, 4,096 records | None | 2.555 | 0.091 | 11-01 / [766104d] |
 | Forwarded integer conversion, 4,096 records | 512 MiB | 3.350 | 0.405 | 11-01 / [766104d] |
 | atan2 on two fields, 4,096 records | None | 2.971 | 0.081 | 11-01 / [7da72c5] |
 | atan2 on two fields, 4,096 records | 512 MiB | 4.050 | 0.488 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | None | 3.626 | 0.514 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | 512 MiB | 5.037 | 0.516 | 11-01 / [7da72c5] |
-| Integer-forwarding startup, no input | None | 0.025 | 0.079 | 11-01 / [1ac9634] |
-| Integer-forwarding startup, no input | 512 MiB | 0.029 | 0.081 | 11-01 / [1ac9634] |
-| Forwarded bitwise AND, 4,096 records | None | 3.006 | 0.101 | 11-01 / [766104d] |
-| Forwarded bitwise AND, 4,096 records | 512 MiB | 3.882 | 0.509 | 11-01 / [766104d] |
-| Function with 64 integer updates, 4,096 records | None | 23.744 | 0.808 | 11-01 / [766104d] |
-| Function with 64 integer updates, 4,096 records | 512 MiB | 30.341 | 20.809 | 11-01 / [766104d] |
+| Integer-forwarding startup, no input | None | 0.026 | 0.079 | 11-01 / [b329690] |
+| Integer-forwarding startup, no input | 512 MiB | 0.064 | 0.081 | 11-01 / [b329690] |
+| Forwarded bitwise AND, 4,096 records | None | 2.722 | 0.101 | 11-01 / [b329690] |
+| Forwarded bitwise AND, 4,096 records | 512 MiB | 3.504 | 0.103 | 11-01 / [b329690] |
+| Function with 64 integer updates, 4,096 records | None | 19.025 | 0.808 | 11-01 / [b329690] |
+| Function with 64 integer updates, 4,096 records | 512 MiB | 19.988 | 0.809 | 11-01 / [b329690] |
 | Square-root function, 4,096 records | None | 2.896 | 0.091 | 11-01 / [98014bc] |
 | Square-root function, 4,096 records | 512 MiB | 3.722 | 0.405 | 11-01 / [98014bc] |
 | Loop with four integer field conversions, 4,096 records | None | 3.765 | 0.092 | 11-01 / [98014bc] |
@@ -175,10 +179,14 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Do-while integer processing, 4,096 records | 512 MiB | 3.578 | 0.718 | 11-01 / [1ac9634] |
 | Compare two files, 5,000 records per file | None | 7.416 | 1.887 | 11-01 / [1ac9634] |
 | Compare two files, 5,000 records per file | 512 MiB | 10.424 | 2.041 | 11-01 / [1ac9634] |
-| Arithmetic loop, 4,096 records | None | 5.216 | 0.521 | 11-01 / [1ac9634] |
-| Arithmetic loop, 4,096 records | 512 MiB | 6.464 | 0.522 | 11-01 / [1ac9634] |
+| Arithmetic loop, 4,096 records | None | 5.277 | 0.521 | 11-01 / [b329690] |
+| Arithmetic loop, 4,096 records | 512 MiB | 6.477 | 0.522 | 11-01 / [b329690] |
 | Square-root condition, 4,096 records | None | 2.489 | 0.086 | 11-01 / [1ac9634] |
 | Square-root condition, 4,096 records | 512 MiB | 3.443 | 0.712 | 11-01 / [1ac9634] |
+| Nested integer arguments with printf, 4,096 records | None | 4.389 | 0.769 | 11-01 / [b329690] |
+| Nested integer arguments with printf, 4,096 records | 512 MiB | 5.399 | 2.114 | 11-01 / [b329690] |
+| printf with 65 numeric arguments, 4,096 records | None | 24.530 | 1.225 | 11-01 / [b329690] |
+| printf with 65 numeric arguments, 4,096 records | 512 MiB | 25.354 | 1.228 | 11-01 / [b329690] |
 
 ## Measurement contract
 
@@ -274,3 +282,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [98014bc]: https://github.com/Lokad/Awk/commit/98014bc1fb439cb6ffc77665740ace981ea8571a
 
 [1ac9634]: https://github.com/Lokad/Awk/commit/1ac963428950de122cf7026ea5cac934c4f68d5d
+
+[b329690]: https://github.com/Lokad/Awk/commit/b329690d1c5301b9af5287ca8043a34f2a7ecc4f
