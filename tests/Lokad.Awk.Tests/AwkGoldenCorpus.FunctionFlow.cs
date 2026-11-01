@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("builtin-computation-keeps-array-target-across-rhs-growth",
+            ["function rhs(a,k,i){for(i=1;i<=200;i++)a[i]=i;return 3}function touch(a,k){a[k]=5;a[k]+=int(rhs(a,k));return a[k]}{print touch(t,$1),t[\"0007\"],t[7],length(t),$1}"],
+            [], "8 8 7 201 0007\n", "0007\n");
         yield return Passing("builtin-computation-prepares-long-function-body",
             ["function score(x,total){" + string.Concat(Enumerable.Repeat("total+=int(x);", 64)) +
              "return total}{print score($1),$1}"], [], "448 0007\n", "0007\n");
