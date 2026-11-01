@@ -190,15 +190,33 @@ public sealed class AwkRuntimeStartupTests
     public void DefaultOptionsDoNotCopyRandomState()
     {
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithTimeZone(TimeZoneInfo.Utc);
-        _ = AwkRuntimeOptions.Create(policy).CreateRandomGenerator();
+        const int count = 64;
+        var references = new AwkRandomGenerator[count];
+        var generators = new AwkRandomGenerator[count];
+        for (var index = 0; index < count; index++)
+        {
+            references[index] = new AwkRandomGenerator();
+            generators[index] = AwkRuntimeOptions.Create(policy).CreateRandomGenerator();
+        }
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var reference = new AwkRandomGenerator();
+        for (var index = 0; index < count; index++)
+            references[index] = new AwkRandomGenerator();
         var generatorBytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
         before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < count; index++)
+            generators[index] = AwkRuntimeOptions.Create(policy).CreateRandomGenerator();
+        // A batch amortizes one-time runtime costs. Fewer allocations are valid;
+        // the upper bound still rejects an extra generator/state copy per options.
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, generatorBytes + count * 1024);
+        for (var index = 0; index < count; index++)
+        {
+            Assert.Equal(references[index].NextDouble(), generators[index].NextDouble());
+            if (index > 0) Assert.NotSame(generators[0], generators[index]);
+        }
+        var reference = new AwkRandomGenerator();
         var options = AwkRuntimeOptions.Create(policy);
         var generator = options.CreateRandomGenerator();
-        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, generatorBytes, generatorBytes + 1024);
         for (var index = 0; index < 32; index++)
             Assert.Equal(reference.NextDouble(), generator.NextDouble());
         Assert.Equal(new AwkRandomSeed(1), generator.Seed(new AwkRandomSeed(7)));
