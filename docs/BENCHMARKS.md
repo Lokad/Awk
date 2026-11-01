@@ -109,6 +109,9 @@ prepare and execute one named call with no input.
 The AND case uses `0007 0003`; the long function performs 64 integer updates per record.
 The square-root case uses positive inputs and retains ordinary diagnostic boundaries.
 Integer-loop processing performs four conversions per record; the long action performs 64.
+Numeric filters test `$1 > 0`, a numeric helper or `int($1)`, then sum positive inputs.
+Do-while processing performs two integer updates per record. File comparison retains 5,000
+keys, with every tenth right-hand value changed; the expected result is 500 differences.
 
 The comparison runner supplies a live token for its 15-second invocation deadline.
 This table's independent snapshot starts with no caller token; governed execution creates
@@ -150,8 +153,8 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | atan2 on two fields, 4,096 records | 512 MiB | 4.050 | 0.488 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | None | 3.626 | 0.514 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | 512 MiB | 5.037 | 0.516 | 11-01 / [7da72c5] |
-| Integer-forwarding startup, no input | None | 0.028 | 0.079 | 11-01 / [98014bc] |
-| Integer-forwarding startup, no input | 512 MiB | 0.030 | 0.081 | 11-01 / [98014bc] |
+| Integer-forwarding startup, no input | None | 0.025 | 0.079 | 11-01 / [1ac9634] |
+| Integer-forwarding startup, no input | 512 MiB | 0.029 | 0.081 | 11-01 / [1ac9634] |
 | Forwarded bitwise AND, 4,096 records | None | 3.006 | 0.101 | 11-01 / [766104d] |
 | Forwarded bitwise AND, 4,096 records | 512 MiB | 3.882 | 0.509 | 11-01 / [766104d] |
 | Function with 64 integer updates, 4,096 records | None | 23.744 | 0.808 | 11-01 / [766104d] |
@@ -162,6 +165,20 @@ supplies a live caller deadline in both modes and measures that distinct configu
 | Loop with four integer field conversions, 4,096 records | 512 MiB | 5.195 | 1.344 | 11-01 / [98014bc] |
 | Action with 64 integer updates, 4,096 records | None | 18.558 | 0.877 | 11-01 / [98014bc] |
 | Action with 64 integer updates, 4,096 records | 512 MiB | 29.378 | 20.879 | 11-01 / [98014bc] |
+| Numeric field filter and integer sum, 4,096 records | None | 2.264 | 0.082 | 11-01 / [1ac9634] |
+| Numeric field filter and integer sum, 4,096 records | 512 MiB | 3.069 | 0.396 | 11-01 / [1ac9634] |
+| Numeric field filter and helper sum, 4,096 records | None | 2.358 | 0.101 | 11-01 / [1ac9634] |
+| Numeric field filter and helper sum, 4,096 records | 512 MiB | 3.149 | 0.103 | 11-01 / [1ac9634] |
+| Integer condition and sum, 4,096 records | None | 2.274 | 0.086 | 11-01 / [1ac9634] |
+| Integer condition and sum, 4,096 records | 512 MiB | 3.183 | 0.713 | 11-01 / [1ac9634] |
+| Do-while integer processing, 4,096 records | None | 2.660 | 0.092 | 11-01 / [1ac9634] |
+| Do-while integer processing, 4,096 records | 512 MiB | 3.578 | 0.718 | 11-01 / [1ac9634] |
+| Compare two files, 5,000 records per file | None | 7.416 | 1.887 | 11-01 / [1ac9634] |
+| Compare two files, 5,000 records per file | 512 MiB | 10.424 | 2.041 | 11-01 / [1ac9634] |
+| Arithmetic loop, 4,096 records | None | 5.216 | 0.521 | 11-01 / [1ac9634] |
+| Arithmetic loop, 4,096 records | 512 MiB | 6.464 | 0.522 | 11-01 / [1ac9634] |
+| Square-root condition, 4,096 records | None | 2.489 | 0.086 | 11-01 / [1ac9634] |
+| Square-root condition, 4,096 records | 512 MiB | 3.443 | 0.712 | 11-01 / [1ac9634] |
 
 ## Measurement contract
 
@@ -255,3 +272,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [766104d]: https://github.com/Lokad/Awk/commit/766104d4a52d5c677fabdc263197bc9364e9775d
 
 [98014bc]: https://github.com/Lokad/Awk/commit/98014bc1fb439cb6ffc77665740ace981ea8571a
+
+[1ac9634]: https://github.com/Lokad/Awk/commit/1ac963428950de122cf7026ea5cac934c4f68d5d
