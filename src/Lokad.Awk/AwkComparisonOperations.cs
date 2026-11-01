@@ -9,20 +9,34 @@ internal static class AwkComparisonOperations
         AwkRuntimeState state)
     {
         if (left.TryGetNumber(out var leftNumber) && right.TryGetNumber(out var rightNumber))
-        {
-            return comparison switch
-            {
-                AwkComparison.GreaterOrEqual => leftNumber >= rightNumber,
-                AwkComparison.GreaterThan => leftNumber > rightNumber,
-                AwkComparison.LessOrEqual => leftNumber <= rightNumber,
-                AwkComparison.LessThan => leftNumber < rightNumber,
-                AwkComparison.Equal => leftNumber == rightNumber,
-                AwkComparison.NotEqual => leftNumber != rightNumber,
-                _ => throw new ArgumentOutOfRangeException(nameof(comparison))
-            };
-        }
+            return EvaluateNumbers(leftNumber, rightNumber, comparison);
 
         return EvaluateTextComparison(Compare(left, right, state), comparison);
+    }
+
+    internal static bool Evaluate(AwkComparisonOperand left, AwkComparisonOperand right,
+        AwkComparison comparison, AwkRuntimeState state)
+    {
+        if (!left.IsBorrowed && !right.IsBorrowed)
+            return Evaluate(left.Value, right.Value, comparison, state);
+        if (left.Value.TryGetNumber(out var first) && right.Value.TryGetNumber(out var second))
+            return EvaluateNumbers(first, second, comparison);
+        state.Counters.RecordByteTextComparison();
+        return EvaluateTextComparison(state.CompareByteText(left.Text(state), right.Text(state)), comparison);
+    }
+
+    private static bool EvaluateNumbers(double leftNumber, double rightNumber, AwkComparison comparison)
+    {
+        return comparison switch
+        {
+            AwkComparison.GreaterOrEqual => leftNumber >= rightNumber,
+            AwkComparison.GreaterThan => leftNumber > rightNumber,
+            AwkComparison.LessOrEqual => leftNumber <= rightNumber,
+            AwkComparison.LessThan => leftNumber < rightNumber,
+            AwkComparison.Equal => leftNumber == rightNumber,
+            AwkComparison.NotEqual => leftNumber != rightNumber,
+            _ => throw new ArgumentOutOfRangeException(nameof(comparison))
+        };
     }
 
     internal static bool EvaluateTextComparison(int result, AwkComparison comparison) =>

@@ -61,7 +61,7 @@ internal static class AwkStatementBlockExecutor
         {
             preparationCheckpoint?.Invoke();
             var statement = statements[index].PrepareSynchronousCalls(functions, preparationCheckpoint);
-            if (!statement.TryPrepareTopLevelSynchronousAction(conditionalDepth,
+            if (!statement.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions,
                     out actions[index], preparationCheckpoint)) return false;
         }
         execute = PrepareExecution(actions);

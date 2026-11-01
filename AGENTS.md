@@ -32,6 +32,9 @@ or environment dependencies.
 - Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
   split completion, staged field changes and reconstruction. Escaping scalar values own their text;
   byte views do not interpret cache slots.
+- Numeric-only cache entries may hold input classification without text. Full value reads
+  must still own original spelling. Comparison views require a proven record-preserving RHS;
+  dirty reconstruction and potentially invalidating operands retain owned capture.
 - Current-record payload buffers belong to their frame. Main-input staging writes the inactive
   buffer; getline keeps owned input. Escaping values own text, and raw field spans stay synchronous.
   Preserve record/counter/terminator preflights and funding through actual users and cleanup.

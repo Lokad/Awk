@@ -40,13 +40,13 @@ internal abstract partial class AwkStatement
         }
 
         internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
         {
             action = static _ => { };
-            if (conditionalDepth <= 0 || !condition.TryGetSynchronousExpression(out var test) ||
-                !AwkStatementBlockExecutor.TryPrepareActions(body, null, conditionalDepth - 1,
+            if (conditionalDepth <= 0 || !condition.PrepareSynchronousCalls(functions, preparationCheckpoint).TryGetSynchronousExpression(out var test) ||
+                !AwkStatementBlockExecutor.TryPrepareActions(body, functions, conditionalDepth - 1,
                     out var yes, preparationCheckpoint) ||
-                !AwkStatementBlockExecutor.TryPrepareActions(elseBody, null, conditionalDepth - 1,
+                !AwkStatementBlockExecutor.TryPrepareActions(elseBody, functions, conditionalDepth - 1,
                     out var no, preparationCheckpoint)) return false;
             action = PrepareConditional(test, yes, no);
             return true;
@@ -108,10 +108,10 @@ internal abstract partial class AwkStatement
         private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions, preparationCheckpoint);
 
         internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
         {
             if (_synchronous is not { } prepared)
-                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, out action, preparationCheckpoint);
+                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions, out action, preparationCheckpoint);
             action = context => prepared.Execute(context);
             return true;
         }
@@ -209,10 +209,10 @@ internal abstract partial class AwkStatement
             NoOp(), condition, NoOp(), body, functions, preparationCheckpoint);
 
         internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
         {
             if (_synchronous is not { } prepared)
-                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, out action, preparationCheckpoint);
+                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions, out action, preparationCheckpoint);
             action = context => prepared.Execute(context);
             return true;
         }
@@ -279,6 +279,16 @@ internal abstract partial class AwkStatement
     {
         private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
             NoOp(), condition, NoOp(), body, functions, preparationCheckpoint);
+
+        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
+        {
+            if (_synchronous is not { } prepared)
+                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions, out action, preparationCheckpoint);
+            action = context => prepared.ExecuteDoWhile(context);
+            return true;
+        }
 
         internal override bool TryPrepareComputation(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,

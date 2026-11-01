@@ -5,6 +5,7 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousAssignmentExpression(
         AwkReference target, AwkSynchronousExpression value, Action? checkpoint = null) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes { get; } = target.TryGetSynchronousScalar(out _) && value.PreservesRecordBytes;
         private readonly (int Depth, int Calls) _targetShape = target.GetSynchronousShape(checkpoint);
         internal override int SynchronousDepth => Math.Max(_targetShape.Depth, value.SynchronousDepth) + 1;
         internal override int SynchronousCallDepth => Math.Max(_targetShape.Calls, value.SynchronousCallDepth);
@@ -21,6 +22,7 @@ internal abstract partial class AwkExpression
         AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation,
         Action? checkpoint = null) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes { get; } = target.TryGetSynchronousScalar(out _) && value.PreservesRecordBytes;
         private readonly (int Depth, int Calls) _targetShape = target.GetSynchronousShape(checkpoint);
         internal override int SynchronousDepth => Math.Max(_targetShape.Depth, value.SynchronousDepth) + 1;
         internal override int SynchronousCallDepth => Math.Max(_targetShape.Calls, value.SynchronousCallDepth);
@@ -32,6 +34,7 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousIncrementExpression(
         AwkReference target, int delta, bool post, Action? checkpoint = null) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes { get; } = target.TryGetSynchronousScalar(out _);
         private readonly (int Depth, int Calls) _targetShape = target.GetSynchronousShape(checkpoint);
         internal override int SynchronousDepth => _targetShape.Depth + 1;
         internal override int SynchronousCallDepth => _targetShape.Calls;

@@ -7,6 +7,7 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousUnaryExpression(
         AwkSynchronousExpression value, UnaryOperation operation) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes { get; } = value.PreservesRecordBytes;
         internal override int SynchronousDepth => value.SynchronousDepth + 1;
         internal override int SynchronousCallDepth => value.SynchronousCallDepth;
 
@@ -25,6 +26,7 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousTernaryExpression(AwkSynchronousExpression condition,
         AwkSynchronousExpression yes, AwkSynchronousExpression no) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes { get; } = condition.PreservesRecordBytes && yes.PreservesRecordBytes && no.PreservesRecordBytes;
         internal override int SynchronousDepth => 1 + Math.Max(condition.SynchronousDepth,
             Math.Max(yes.SynchronousDepth, no.SynchronousDepth));
         internal override int SynchronousCallDepth => Math.Max(condition.SynchronousCallDepth,
@@ -43,6 +45,7 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousLogicalExpression(AwkSynchronousExpression left,
         AwkSynchronousExpression right, LogicalOperation operation) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes { get; } = left.PreservesRecordBytes && right.PreservesRecordBytes;
         internal override int SynchronousDepth { get; } = 1 + Math.Max(left.SynchronousDepth, right.SynchronousDepth);
         internal override int SynchronousCallDepth { get; } = Math.Max(left.SynchronousCallDepth, right.SynchronousCallDepth);
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)

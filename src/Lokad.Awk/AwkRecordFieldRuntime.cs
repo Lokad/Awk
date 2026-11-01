@@ -81,6 +81,9 @@ internal sealed class AwkRecordFieldRuntime
     public AwkValue GetFieldArithmeticArgument(AwkFieldIndex index, AwkNumberParsingMode mode) =>
         _frame.GetFieldArithmeticArgument(index, _splitCurrentFields, _createNumericByteText, mode);
 
+    internal AwkComparisonOperand GetFieldComparison(AwkFieldIndex index, AwkNumberParsingMode mode) =>
+        _frame.GetFieldComparison(index, _splitCurrentFields, _createNumericByteText, mode);
+
     public bool TryGetUnmaterializedFieldByteLength(AwkFieldIndex index, bool byteMode, out int length) =>
         _frame.TryGetUnmaterializedFieldByteLength(index, _splitCurrentFields, byteMode, out length);
 

@@ -9,6 +9,7 @@ internal abstract partial class AwkExpression
 {
     private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => indexExpression is AwkSynchronousExpression index && index.PreservesRecordBytes;
         public AwkExpression IndexExpression => indexExpression;
 
         internal override int SynchronousDepth => indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } index
@@ -18,6 +19,11 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             indexExpression is AwkSynchronousExpression index
                 ? ResolveField(context, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
+                : throw new InvalidOperationException("Synchronous field index is required.");
+
+        protected override AwkComparisonOperand EvaluateComparisonSynchronousCore(AwkEvaluationContext context) =>
+            indexExpression is AwkSynchronousExpression index
+                ? context.State.GetFieldComparison(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
@@ -113,6 +119,7 @@ internal abstract partial class AwkExpression
 
     private sealed class FieldCountExpression : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => true;
         public static readonly FieldCountExpression Instance = new();
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
@@ -181,6 +188,7 @@ internal abstract partial class AwkExpression
     private sealed class LiteralExpression(string literal,
         AwkRegexPatternOrigin patternOrigin = AwkRegexPatternOrigin.Runtime) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => true;
         private readonly AwkText _literalText = AwkText.FromSourceLiteralString(literal);
 
         public AwkText LiteralText => _literalText;
@@ -193,6 +201,7 @@ internal abstract partial class AwkExpression
 
     private sealed class VariableExpression(AwkVariableName name) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => true;
         internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument) =>
             state.TryResolveArrayArgument(name, out argument);
 
@@ -209,6 +218,7 @@ internal abstract partial class AwkExpression
 
     private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => true;
         internal bool IsBoundScalarFor(AwkRuntimeState state, AwkIdentifier identifier) =>
             name.Identifier == identifier && state.HasBoundGlobalScalar(index);
 
@@ -241,6 +251,7 @@ internal abstract partial class AwkExpression
         AwkVariableName name,
         AwkFunctionLocalSlotId slotId) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => true;
         internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
         {
             if (state.HasPreparedLocalScalarArgument(slotId))
@@ -299,6 +310,7 @@ internal abstract partial class AwkExpression
 
     private sealed class NumberExpression(double number) : AwkSynchronousExpression
     {
+        internal override bool PreservesRecordBytes => true;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             AwkValue.FromNumber(number);
 

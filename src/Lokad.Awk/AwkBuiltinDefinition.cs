@@ -209,6 +209,8 @@ internal abstract class AwkBuiltinImplementation
         bool canPrepareComputation) : AwkBuiltinImplementation
     {
         internal override bool ConsumesArithmeticInputs => arithmeticInputs;
+        // Qualification requires no queued diagnostics or record mutation; operands
+        // still establish their own record-view safety during preparation.
         internal bool CanPrepareComputation => canPrepareComputation;
 
         internal AwkValue EvaluatePrepared(IReadOnlyList<AwkExpression> originalArguments,

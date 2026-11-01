@@ -164,6 +164,9 @@ repaired by mutation are not cached separately in prepared code.
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.
+Prepared comparisons can reuse field classification and scoped record bytes. Values that
+escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
+keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Numeric builtin definitions share that consumption rule with argument evaluation and user
 function preparation. Argument buffers remain funded through pending operands and cleanup.
 Eligible synchronous builtins prepare through the same interpreter. Builtins that can queue

@@ -611,6 +611,13 @@ internal sealed class AwkRuntimeState : IDisposable
             _ = GetFieldValue(index);
     }
 
+    internal AwkComparisonOperand GetFieldComparison(int index)
+    {
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        return index == 0 ? new(GetCurrentRecordValue()) :
+            _recordFields.GetFieldComparison(new(index), NumberParsingMode);
+    }
+
     internal bool CompareFieldLiteral(int index, AwkText literal, AwkComparison comparison)
     {
         if (index < 0)
@@ -658,6 +665,9 @@ internal sealed class AwkRuntimeState : IDisposable
             AwkText.CompareBytes(FormatStringByteText(left).AsSpan(CancellationCheckpoint), bytes,
                 CancellationCheckpoint), comparison);
     }
+
+    internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right) =>
+        _stringRuntime.Compare(left.AsSpan(CancellationCheckpoint), right.AsSpan(CancellationCheckpoint), IsCaseInsensitive);
 
     public int IndexOfStringUnits(AwkText source, AwkText value) =>
         _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);

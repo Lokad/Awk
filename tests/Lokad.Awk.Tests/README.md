@@ -152,6 +152,9 @@ Preparation counters cover complete numeric builtin bodies; warning-producing fa
 their diagnostic boundary before later caller effects, including failed/pending/canceled appends.
 Preparation-entry counters cover absent, unused and called functions across flat blocks and
 all loop forms. Long-preparation checks preserve cancellation and conditional-depth guards.
+Field-comparison checks cover numeric/text classification, arithmetic cache reuse and owned
+escapes. Dirty reconstruction, symbolic NF writes, pending RHS replacement, refusal and
+deferred-error checks preserve ordering, funding and actual completion.
 General-arity preparation checks cover cancellation through action/loop preparation and
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases

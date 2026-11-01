@@ -81,6 +81,7 @@ internal abstract partial class AwkExpression
             var operands = new AwkSynchronousExpression[arguments.Count];
             var depth = 0;
             var calls = 0;
+            var preservesRecord = true;
             for (var index = 0; index < operands.Length; index++)
             {
                 preparationCheckpoint?.Invoke();
@@ -88,9 +89,10 @@ internal abstract partial class AwkExpression
                         out operands[index], preparationCheckpoint)) return false;
                 depth = Math.Max(depth, operands[index].SynchronousDepth);
                 calls = Math.Max(calls, operands[index].SynchronousCallDepth);
+                preservesRecord &= operands[index].PreservesRecordBytes;
             }
             if (depth >= 16 || calls >= 4) return false;
-            expression = new SynchronousBuiltinCall(definition, computation, arguments, operands, depth + 1, calls);
+            expression = new SynchronousBuiltinCall(definition, computation, arguments, operands, depth + 1, calls, preservesRecord);
             return true;
         }
 
@@ -101,8 +103,10 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousBuiltinCall(AwkBuiltinDefinition definition,
         AwkBuiltinImplementation.SyncBuiltinImplementation computation,
         IReadOnlyList<AwkExpression> originalArguments, AwkSynchronousExpression[] operands,
-        int depth, int calls) : AwkSynchronousExpression
+        int depth, int calls, bool preservesRecord) : AwkSynchronousExpression
     {
+        // Qualified computational builtins preserve record bytes; operands must too.
+        internal override bool PreservesRecordBytes => preservesRecord;
         internal override int SynchronousDepth => depth;
         internal override int SynchronousCallDepth => calls;
 

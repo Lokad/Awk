@@ -86,6 +86,17 @@ internal readonly struct AwkValue
         // Preserve bounded initialization and post-cancellation inspection reads.
         // Long text must check before lazy materialization, then within parsing.
         var span = text.AsSpan(text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? checkpoint : null);
+        return FromParsedText(text, span, mode, input, checkpoint);
+    }
+
+    // Classification only: the field frame keeps spelling and ownership separately.
+    // This value must not escape as a text scalar.
+    internal static AwkValue ClassifyInput(ReadOnlySpan<byte> bytes, AwkNumberParsingMode mode, Action? checkpoint) =>
+        FromParsedText(AwkText.Empty, bytes, mode, input: true, checkpoint);
+
+    private static AwkValue FromParsedText(AwkText text, ReadOnlySpan<byte> span,
+        AwkNumberParsingMode mode, bool input, Action? checkpoint)
+    {
         var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
         // Text may still be printed or sliced. GNU diagnoses this only when numeric conversion/type is requested.
         if (parsed.Status == AwkNumberParseStatus.MissingHexExponent)
@@ -272,6 +283,8 @@ internal readonly struct AwkValue
         number = _number;
         return HasComparisonNumber;
     }
+
+    internal bool HasInputConversionError => _kind == AwkValueKind.NonDecimalConversionErrorInput;
 
     public bool IsNumberValue => _kind == AwkValueKind.Number;
 

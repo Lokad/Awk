@@ -215,6 +215,31 @@ internal sealed class AwkFieldFrame(
         AwkNumberParsingMode mode) =>
         ReadFieldArithmetic(index, splitFields, createFieldValue, mode, deferError: true);
 
+    internal AwkComparisonOperand GetFieldComparison(AwkFieldIndex index,
+        Func<AwkText, List<AwkFieldText>> splitFields, Func<AwkText, AwkValue> createFieldValue,
+        AwkNumberParsingMode mode)
+    {
+        EnsureField(index, splitFields);
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+            return new(AwkValue.FromText(string.Empty));
+        var fieldIndex = index.Value - 1;
+        var field = _fieldTexts[fieldIndex];
+        // A later $0 read can retire dirty record slices while reconstructing it.
+        // Clean input storage survives all prepared computational operands.
+        if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
+            return new(GetFieldValue(index, splitFields, createFieldValue));
+        var bytes = field.AsSpan(RecordBytes(), checkpoint);
+        var value = field.CacheSlot != 0 ? _fieldValueCache[field.CacheSlot - 1].Value : default;
+        // Arithmetic caches a Number. Input classification uses its existing
+        // numeric-string/text kinds, so no extra cache tag or entry size is needed.
+        if (field.CacheSlot == 0 || value.IsNumberValue)
+        {
+            value = ClassifyFieldBytes(bytes, mode);
+            CacheInputClassification(fieldIndex, value);
+        }
+        return new(value, bytes);
+    }
+
     private AwkValue ReadFieldArithmetic(
         AwkFieldIndex index,
         Func<AwkText, List<AwkFieldText>> splitFields,
@@ -226,7 +251,13 @@ internal sealed class AwkFieldFrame(
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
         if (field.CacheSlot != 0)
-            return _fieldValueCache[field.CacheSlot - 1].Value;
+        {
+            var cached = _fieldValueCache[field.CacheSlot - 1];
+            if (!cached.IsNumericOnly || cached.Value.IsNumberValue) return cached.Value;
+            if (deferError && cached.Value.HasInputConversionError)
+                return GetFieldValue(index, splitFields, createFieldValue);
+            return AwkValue.FromNumber(cached.Value.AsNumber(checkpoint));
+        }
         if (field.Kind == AwkFieldTextKind.Owned)
             return GetFieldValue(index, splitFields, createFieldValue);
 
@@ -245,6 +276,21 @@ internal sealed class AwkFieldFrame(
         else if (_fieldValueCache.Capacity == 0)
             CacheFieldValue(fieldIndex, AwkValue.FromNumber(number), numericOnly: true);
         return AwkValue.FromNumber(number);
+    }
+
+    private AwkValue ClassifyFieldBytes(ReadOnlySpan<byte> bytes, AwkNumberParsingMode mode)
+    {
+        counters.RecordNumericFieldByteParse();
+        return AwkValue.ClassifyInput(bytes, mode, checkpoint);
+    }
+
+    private void CacheInputClassification(int fieldIndex, AwkValue value)
+    {
+        // Spare slots are already funded; only the cold initial buffer needs admission.
+        if (_fieldTexts[fieldIndex].CacheSlot != 0 || _fieldValueCache.Count < _fieldValueCache.Capacity)
+            SetCachedFieldValue(fieldIndex, value, numericOnly: true);
+        else if (_fieldValueCache.Capacity == 0)
+            CacheFieldValue(fieldIndex, value, numericOnly: true);
     }
 
     private void CacheFieldValue(int index, AwkValue value, bool numericOnly)

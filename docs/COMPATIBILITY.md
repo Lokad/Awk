@@ -176,7 +176,7 @@ The record-handling boundaries to account for are:
 - Empty FS splits characters in default mode; POSIX/traditional modes keep a nonempty record
   whole, subject to paragraph LF splitting. Literal single-scalar FS remains case-sensitive,
   including non-ASCII characters.
-- Direct and SYMTAB access share NF state. The classified GNU 5.2.1 stale indirect-write
+- Direct and SYMTAB access share NF state. The classified GNU stale indirect-write
   behavior is not reproduced.
 
 Evidence: [record cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs),
