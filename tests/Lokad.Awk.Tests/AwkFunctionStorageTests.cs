@@ -1,7 +1,7 @@
 namespace Lokad.Awk.Tests;
 
 [Collection(AwkAllocationMeasurementCollection.Name)]
-public sealed class AwkFunctionStorageTests
+public sealed partial class AwkFunctionStorageTests
 {
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]

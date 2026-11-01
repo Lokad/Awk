@@ -47,6 +47,11 @@ internal sealed class AwkFunctionFrame
 
     public bool UsesInlineSlots => Layout.SlotCount is 1 or 2;
 
+    public int SlotCapacity => _slots.Length;
+
+    // Only the call stack retires backing from an inactive, cleared frame.
+    public void DiscardSlotBuffer() => _slots = [];
+
     public ref AwkFunctionLocalSlot GetSlot(int index) =>
         ref (UsesInlineSlots
             ? ref (index == 0 ? ref _firstSlot : ref _secondSlot)
@@ -62,26 +67,29 @@ internal sealed class AwkFunctionFrame
 
     public void Initialize(long id, AwkFunctionLocalLayout layout, bool pooled)
     {
+        var slots = _slots;
+        if (pooled)
+            slots = layout.SlotCount <= 2 ? [] : ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
+        else if (layout.SlotCount > 2 && slots.Length == 0)
+            slots = new AwkFunctionLocalSlot[layout.SlotCount];
         Id = id;
         Layout = layout;
-        _slots = layout.SlotCount <= 2
-            ? []
-            : pooled ? ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount)
-            : new AwkFunctionLocalSlot[layout.SlotCount];
+        _slots = slots;
     }
 
-    public AwkFunctionLocalSlot[] Reset()
+    public AwkFunctionLocalSlot[] Reset(bool retainSlotBuffer)
     {
         var slots = _slots;
+        if (retainSlotBuffer) Array.Clear(slots);
         Layout = AwkFunctionLocalLayout.Empty;
-        _slots = [];
+        if (!retainSlotBuffer) _slots = [];
         _firstSlot = default;
         _secondSlot = default;
         HasReturnValue = false;
         ReturnValue = AwkValue.Unassigned();
         RetainedMemoryBytes = 0;
         Id = 0;
-        return slots;
+        return retainSlotBuffer ? [] : slots;
     }
 }
 

@@ -654,7 +654,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var frameBytes = AwkRuntimeMemory.EstimateFunctionFrameBytes() +
-            (multiple ? 2 : 1) * AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(
+            (multiple ? 2 : 1) * AwkRuntimeMemory.EstimateFunctionLocalPayloadBytes(
                 AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(AwkValue.FromNumber(7))));
         var fill = budget.Limit - state.MemoryAccounting.CurrentCommittedBytes - frameBytes;
         state.MemoryAccounting.ReserveAndCommit(fill);

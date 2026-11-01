@@ -203,7 +203,9 @@ stays funded through active executions, including when disposal prevents further
 An open command funds its command/environment snapshot; it does not retain charges for
 unrelated records or completed writes. Closing it releases that snapshot after command completion.
 Function argument/slot buffers are admitted before allocation. Cached frames and alias-index
-capacity remain funded until execution ends; unwinding releases active locals and their payloads.
+capacity remain funded until execution ends. Governed frames reuse cleared slot backing for
+matching layouts and retire incompatible inactive backing before admission. Unwinding releases
+active scalar payloads and clears references; retained backing keeps its own funding.
 Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
 loop body or comparator clears its original owner. These scoped estimates can temporarily count
 shared text twice; Awk does not track object aliases.

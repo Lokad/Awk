@@ -40,12 +40,14 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.False(stack.TryAssignLocal(slot, AwkValue.FromNumber(99)));
             Assert.Throws<AwkRuntimeException>(() => stack.SetReturnValue(AwkValue.FromNumber(99)));
             Assert.False(stack.TryConsumeReturnValue(out _));
-            stack.PushFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(3))]);
+            // Owned payload is refunded; numeric inline storage stays in the cached frame.
+            stack.PushFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumericString("003"))]);
             var nestedBytes = memory.CurrentCommittedBytes;
             try
             {
                 Assert.True(stack.TryResolveLocalValue(name, out var nested));
                 Assert.Equal(3, nested.Value.AsNumber());
+                Assert.Equal("003", nested.Value.ByteText.AsString());
                 using (stack.EnterGlobalBindings())
                 {
                     Assert.False(stack.TryResolveLocal(name, out _));

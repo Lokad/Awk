@@ -141,7 +141,8 @@ publication. References into scalar storage must be reacquired after preparation
 covering redirected reads/writes and main input before resolution or host opens.
 
 `AwkFunctionStorageTests` covers pre-admission of large argument/frame buffers, funded
-frame/alias caches, setup cancellation and final refunds.
+frame/alias caches, warm backing reuse, incompatible-layout retirement, cleared payloads,
+setup refusal/cancellation and final refunds.
 General-arity preparation checks cover cancellation through action/loop preparation and
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases

@@ -29,7 +29,6 @@ internal static class AwkRuntimeMemory
     private const int ArraySortEntryBytes = 96;
     // Frame object, inline slots and amortized backing of active/recycled reference stacks.
     private const int FunctionFrameBytes = 320;
-    private const int FunctionLocalEntryBytes = 64;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
     private const int RuntimeDiagnosticBytes = 64;
@@ -119,16 +118,12 @@ internal static class AwkRuntimeMemory
     public static long EstimateFunctionFrameBytes() =>
         FunctionFrameBytes;
 
-    public static long EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot slot) =>
+    public static long EstimateFunctionLocalPayloadBytes(AwkFunctionLocalSlot slot) =>
         slot.Kind != AwkFunctionLocalSlotKind.ArrayAlias
-            ? CheckedAdd(FunctionLocalEntryBytes, EstimateVariableSlotBytes(slot.Value))
-            : FunctionLocalEntryBytes;
+            ? slot.Value.RetainedTextMemoryBytes : 0;
 
-    // Size the already-evaluated argument without constructing a local slot first.
-    // Untyped scalar storage may be conservatively retained even when copying empties it.
-    public static long EstimateFunctionArgumentSlotBytes(AwkFunctionArgument argument) =>
-        argument.Kind == AwkFunctionArgumentKind.Array ? FunctionLocalEntryBytes :
-            CheckedAdd(FunctionLocalEntryBytes + VariableSlotBytes, argument.Value.RetainedTextMemoryBytes);
+    public static long EstimateFunctionSlotBufferBytes(int capacity) =>
+        EstimateArrayBufferBytes(capacity, 64);
 
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));

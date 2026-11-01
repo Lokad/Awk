@@ -58,33 +58,45 @@ internal sealed class AwkFunctionCallStack(
         if (_frames.Count >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
 
-        // Values are already evaluated in the caller. Estimate their slots without creating
-        // the frame or its buffers; rejected admission must precede those allocations.
+        // Slot capacity belongs to the cached frame; only active text belongs to this call.
         var localBytes = 0L;
-        if (memoryAccounting.IsEnabled)
+        var governed = memoryAccounting.IsEnabled;
+        var bufferBytes = 0L;
+        var newFrame = _recycledFrames.Count == 0;
+        if (governed)
         {
+            var capacity = layout.SlotCount > 2 ? layout.SlotCount : 0;
+            var cached = newFrame ? null : _recycledFrames.Peek();
+            if (cached is not null && cached.SlotCapacity != capacity)
+            {
+                // Normal layout retirement, before admission. Never evict/retry after refusal.
+                var retiredBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(cached.SlotCapacity);
+                cached.DiscardSlotBuffer();
+                memoryAccounting.ReleaseCommitted(retiredBytes);
+            }
+            if (capacity > 0 && (cached is null || cached.SlotCapacity == 0))
+                bufferBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(capacity);
             var supplied = Math.Min(layout.SlotCount, arguments.Length);
-            localBytes = AwkRuntimeMemory.CheckedMultiply(layout.SlotCount - supplied,
-                (int)AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot.MissingScalar()));
             for (var index = 0; index < supplied; index++)
             {
                 if ((index & 63) == 63) checkpoint?.Invoke();
-                localBytes = AwkRuntimeMemory.CheckedAdd(localBytes,
-                    AwkRuntimeMemory.EstimateFunctionArgumentSlotBytes(arguments[index]));
+                if (arguments[index].Kind != AwkFunctionArgumentKind.Array)
+                    localBytes = AwkRuntimeMemory.CheckedAdd(localBytes, arguments[index].Value.RetainedTextMemoryBytes);
             }
         }
-        var newFrame = _recycledFrames.Count == 0;
         var retainedBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
         // Keep synchronous staging local: no lease object on every ordinary call.
-        var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(retainedBytes, localBytes);
+        var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(retainedBytes,
+            AwkRuntimeMemory.CheckedAdd(bufferBytes, localBytes));
         memoryAccounting.ReserveAndCommit(unpublishedBytes);
         AwkFunctionFrame? frame = null;
         var potentialAliasesRegistered = false;
         try
         {
+            if (newFrame || bufferBytes > 0) checkpoint?.Invoke();
             if (newFrame)
             {
-                if (memoryAccounting.IsEnabled)
+                if (governed)
                 {
                     // The coarse frame charge covers both reference stacks. Prepare the
                     // recycle capacity now so failure/unwind needs no new admission/allocation.
@@ -95,7 +107,8 @@ internal sealed class AwkFunctionCallStack(
                 unpublishedBytes -= retainedBytes; // Retained with the execution's frame cache.
             }
             else frame = _recycledFrames.Pop();
-            frame.Initialize(++_nextFrameId, layout, pooled: !memoryAccounting.IsEnabled);
+            frame.Initialize(++_nextFrameId, layout, pooled: !governed);
+            unpublishedBytes -= bufferBytes; // Backing remains funded at this cached frame.
             for (var index = 0; index < layout.SlotCount; index++)
             {
                 if ((index & 63) == 63) checkpoint?.Invoke();
@@ -204,8 +217,9 @@ internal sealed class AwkFunctionCallStack(
             }
         }
 
-        memoryAccounting.ReleaseCommitted(frame.RetainedMemoryBytes);
+        var payloadBytes = frame.RetainedMemoryBytes;
         RecycleFrame(frame);
+        memoryAccounting.ReleaseCommitted(payloadBytes);
     }
 
     public void SetReturnValue(AwkValue value)
@@ -655,7 +669,7 @@ internal sealed class AwkFunctionCallStack(
 
     private void RecycleFrame(AwkFunctionFrame frame)
     {
-        var slots = frame.Reset();
+        var slots = frame.Reset(retainSlotBuffer: memoryAccounting.IsEnabled);
         if (slots.Length > 0 && !memoryAccounting.IsEnabled)
             ArrayPool<AwkFunctionLocalSlot>.Shared.Return(slots, clearArray: true);
         _recycledFrames.Push(frame);
@@ -778,7 +792,7 @@ internal sealed class AwkFunctionCallStack(
     }
 
     private static long EstimateLocalSlotBytes(AwkFunctionLocalSlot slot) =>
-        AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(slot);
+        AwkRuntimeMemory.EstimateFunctionLocalPayloadBytes(slot);
 
     private enum AwkFunctionLocalProjection
     {
