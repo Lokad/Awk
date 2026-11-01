@@ -59,6 +59,8 @@ or environment dependencies.
   Derive scalar language coordinates only when requested; do not restore core UTF-16 bookkeeping.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
   output and capture arrays should not partially mutate on failure.
+- Governed argument reuse keeps at most one cleared inactive array at execution state.
+  Keep its capacity funded; never reuse active/pending buffers or evict/retry after refusal.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 

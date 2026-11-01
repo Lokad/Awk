@@ -149,7 +149,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var retained = printf ? host.BufferCapacity :
             AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
         Assert.True(duringWrite >= baseline + retained);
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(3), state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(string.Empty, output.ToString());
     }
@@ -238,7 +238,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             host.Allow.TrySetResult();
             await io.CloseForCleanupAsync();
         }
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(3), state.MemoryAccounting.CurrentCommittedBytes);
         if (!cancel) Assert.Equal("1.25|2.25|3.25!", host.Inner.ReadFile("/result"));
         Assert.Equal(0, host.Inner.OpenFileCount);
     }
@@ -336,7 +336,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("kept:", output.ToString());
         Assert.False(host.FileExists("/result"));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }

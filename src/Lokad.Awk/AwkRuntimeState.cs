@@ -52,6 +52,8 @@ internal sealed class AwkRuntimeState : IDisposable
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _recordSeparatorCaseSensitivity;
     private long _recordSeparatorVersion;
+    private AwkValue[]? _inactiveArguments;
+    private AwkMemoryLease? _inactiveArgumentMemory;
 
     internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -1409,9 +1411,58 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkEvaluationContext context) =>
         _arrayRuntime.SnapshotKeyValuesAsync(name, context);
 
+    internal AwkValueBuffer RentGovernedArguments(int count)
+    {
+        if (_inactiveArguments is { } values && _inactiveArgumentMemory is { } memory && values.Length == count)
+        {
+            _inactiveArguments = null;
+            _inactiveArgumentMemory = null;
+            Counters.RecordGovernedArgumentBuffer(reused: true);
+            return new AwkValueBuffer(values, memory, this);
+        }
+
+        // Normal arity retirement, before admission. Refusal never triggers eviction/retry.
+        RetireInactiveArguments();
+        var lease = MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateAwkValueArrayBytes(count));
+        try
+        {
+            var buffer = new AwkValueBuffer(new AwkValue[count], lease, this);
+            Counters.RecordGovernedArgumentBuffer(reused: false);
+            return buffer;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal void ReturnArguments(AwkValue[] values, AwkMemoryLease memory)
+    {
+        // The buffer is cleared and has no pending users. Only capacity can remain live.
+        memory.Release(memory.Bytes - AwkRuntimeMemory.EstimateAwkValueArrayBytes(values.Length));
+        if (_inactiveArguments is null)
+        {
+            _inactiveArguments = values;
+            _inactiveArgumentMemory = memory;
+        }
+        else memory.Dispose();
+    }
+
+    private void RetireInactiveArguments()
+    {
+        _inactiveArguments = null;
+        _inactiveArgumentMemory?.Dispose();
+        _inactiveArgumentMemory = null;
+    }
+
     public void Dispose()
     {
         try { _regexRuntime.Dispose(); }
-        finally { _recordFields.ResetRecord(); }
+        finally
+        {
+            try { _recordFields.ResetRecord(); }
+            finally { RetireInactiveArguments(); }
+        }
     }
 }

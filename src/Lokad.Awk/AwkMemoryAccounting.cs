@@ -149,6 +149,8 @@ internal sealed class AwkMemoryLease : IDisposable
 
     public static AwkMemoryLease Disabled { get; } = new();
 
+    internal long Bytes => _byteCount;
+
     public void ReserveAdditional(long byteCount)
     {
         var accounting = _accounting;

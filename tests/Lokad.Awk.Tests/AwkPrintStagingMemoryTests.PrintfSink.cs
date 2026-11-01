@@ -17,7 +17,7 @@ public sealed partial class AwkPrintStagingMemoryTests
 
         Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("", output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.PrintfSinkFormats);
         await output.FlushAsync(io);

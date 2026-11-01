@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkBuiltinArgumentMemoryTests
+public sealed partial class AwkBuiltinArgumentMemoryTests
 {
     private const int Limit = 1 << 20;
 
@@ -39,7 +39,7 @@ public sealed class AwkBuiltinArgumentMemoryTests
         completion.SetResult(AwkValue.FromNumber(pendingIndex + 7));
         Assert.Equal(24, (await pending).AsNumber());
         Assert.Equal(1, evaluations);
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(3), state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -83,7 +83,7 @@ public sealed class AwkBuiltinArgumentMemoryTests
         var retry = await invocation.EvaluateAsync(context);
         Assert.Equal(1, retry.AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(name).AsNumber());
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
     }
 
     [Theory]
@@ -116,7 +116,7 @@ public sealed class AwkBuiltinArgumentMemoryTests
                 operand.Allow.TrySetResult();
                 Assert.Equal(2, (await pending.WaitAsync(TimeSpan.FromSeconds(10))).AsNumber());
             }
-            Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally

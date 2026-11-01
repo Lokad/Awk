@@ -218,6 +218,11 @@ Function argument/slot buffers are admitted before allocation. Cached frames and
 capacity remain funded until execution ends. Governed frames reuse cleared slot backing for
 matching layouts and retire incompatible inactive backing before admission. Unwinding releases
 active scalar payloads and clears references; retained backing keeps its own funding.
+Governed builtin/print/printf staging retains at most one cleared, funded argument array
+per execution. Matching arity reuses it; incompatible inactive capacity retires before new
+admission. Active and pending buffers remain separate. Payload charges end when consumption
+finishes; inactive capacity refunds at retirement or execution completion. Default execution
+continues to use the BCL array pool.
 Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
 loop body or comparator clears its original owner. These scoped estimates can temporarily count
 shared text twice; Awk does not track object aliases.

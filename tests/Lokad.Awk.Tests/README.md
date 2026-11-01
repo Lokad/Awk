@@ -148,6 +148,10 @@ forwarding, with deferred-error text funded through record replacement and pendi
 Counter checks compare ordinary/prepared numeric inputs and text-sensitive controls at multiple arities.
 Numeric builtin checks cover direct and forwarded field arguments, later-argument mutation,
 deferred errors and actual pending/canceled operands with complete refunds.
+Argument-storage checks cover cleared funded reuse, nested active buffers, pending success/
+fault/cancellation through actual completion, arity-change refusal before public effects
+and final owner refunds. Counters distinguish governed reuse from new argument arrays;
+print/printf lifetime checks preserve formatting and host-buffer funding.
 Preparation counters cover complete numeric builtin bodies; warning-producing fallbacks keep
 their diagnostic boundary before later caller effects, including failed/pending/canceled appends.
 Preparation-entry counters cover absent, unused and called functions across flat blocks and

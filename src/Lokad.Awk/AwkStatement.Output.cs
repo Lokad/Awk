@@ -61,7 +61,7 @@ internal abstract partial class AwkStatement
             }
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             using var heldTarget = RetainOutputTarget(resolvedTarget, state.MemoryAccounting);
-            using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryAccounting);
+            using var buffer = AwkValueBuffer.Rent(expressions.Length, state);
             var values = buffer.Values;
             for (var index = 0; index < expressions.Length; index++)
                 buffer.Set(index, await expressions[index].EvaluateAsync(context).ConfigureAwait(false));
@@ -141,7 +141,7 @@ internal abstract partial class AwkStatement
                 }
                 else
                 {
-                    using var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting);
+                    using var buffer = AwkValueBuffer.Rent(arguments.Length, state);
                     var resolvedArguments = buffer.Values;
                     for (var i = 0; i < arguments.Length; i++)
                         buffer.Set(i, await arguments[i].EvaluateAsync(context).ConfigureAwait(false));

@@ -216,7 +216,7 @@ internal abstract class AwkBuiltinImplementation
         internal AwkValue EvaluatePrepared(IReadOnlyList<AwkExpression> originalArguments,
             IReadOnlyList<AwkSynchronousExpression> operands, AwkEvaluationContext context)
         {
-            using var buffer = AwkValueBuffer.Rent(operands.Count, context.State.MemoryAccounting);
+            using var buffer = AwkValueBuffer.Rent(operands.Count, context.State);
             for (var index = 0; index < operands.Count; index++)
                 buffer.Set(index, arithmeticInputs
                     ? operands[index].EvaluateArithmeticArgumentSynchronous(context)
@@ -237,7 +237,7 @@ internal abstract class AwkBuiltinImplementation
                     new AwkBuiltinContext(arguments, [], argumentCount, context)));
             }
 
-            var buffer = AwkValueBuffer.Rent(argumentCount, context.State.MemoryAccounting);
+            var buffer = AwkValueBuffer.Rent(argumentCount, context.State);
             var values = buffer.Values;
             try
             {
