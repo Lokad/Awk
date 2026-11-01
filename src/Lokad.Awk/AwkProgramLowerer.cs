@@ -64,6 +64,8 @@ internal static partial class AwkProgramLowerer
                     "Duplicate function definition `" + function.Name + "'.", AwkDiagnosticId.BindInvalidProgram)]);
         }
 
+        AwkParameterConsumption.Prepare(syntax, functions, checkpoint);
+
         // All named targets have one identity, including forward and recursive calls.
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {

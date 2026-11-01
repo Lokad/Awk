@@ -25,6 +25,24 @@ internal abstract partial class AwkExpression
                 ? context.State.GetFieldNumber(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
+        protected override AwkValue EvaluateArithmeticArgumentSynchronousCore(AwkEvaluationContext context) =>
+            indexExpression is AwkSynchronousExpression index
+                ? context.State.GetFieldArithmeticArgument(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
+                : throw new InvalidOperationException("Synchronous field index is required.");
+
+        internal override ValueTask<AwkValue> EvaluateArithmeticArgumentAsync(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint();
+            var pending = indexExpression.ResolveNumberAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(context.State.GetFieldArithmeticArgument(AwkFieldIndex.FromNumber(pending.Result).Value))
+                : AwaitArithmeticArgumentIndexAsync(context, pending);
+        }
+
+        private static async ValueTask<AwkValue> AwaitArithmeticArgumentIndexAsync(
+            AwkEvaluationContext context, ValueTask<double> pending) =>
+            context.State.GetFieldArithmeticArgument(AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value);
+
         internal override bool TryResolveSynchronousByteText(AwkEvaluationContext context,
             out AwkByteTextOperand operand)
         {
@@ -107,6 +125,12 @@ internal abstract partial class AwkExpression
     private sealed class FieldNfExpression : AwkExpression
     {
         public static readonly FieldNfExpression Instance = new();
+
+        internal override ValueTask<AwkValue> EvaluateArithmeticArgumentAsync(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint();
+            return ValueTask.FromResult(context.State.GetFieldArithmeticArgument(context.State.FieldCount));
+        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.FieldCount == 0

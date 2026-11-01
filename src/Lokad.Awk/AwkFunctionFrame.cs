@@ -7,6 +7,12 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionLocalLayout
 {
     private readonly Dictionary<AwkVariableName, AwkFunctionLocalSlotId> _slotsByName;
+    private bool[] _arithmeticInputs = [];
+
+    internal void PrepareArithmeticInputs(bool[] inputs) => _arithmeticInputs = inputs;
+
+    internal bool ConsumesArithmeticInput(int index) =>
+        (uint)index < (uint)_arithmeticInputs.Length && _arithmeticInputs[index];
 
     public static AwkFunctionLocalLayout Empty { get; } = new([]);
 

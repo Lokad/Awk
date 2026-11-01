@@ -21,6 +21,15 @@ internal abstract class AwkSynchronousExpression : AwkExpression
         return EvaluateSynchronousCore(context);
     }
 
+    internal AwkValue EvaluateArithmeticArgumentSynchronous(AwkEvaluationContext context)
+    {
+        context.State.Checkpoint();
+        return EvaluateArithmeticArgumentSynchronousCore(context);
+    }
+
+    protected virtual AwkValue EvaluateArithmeticArgumentSynchronousCore(AwkEvaluationContext context) =>
+        EvaluateSynchronousCore(context);
+
     internal double ResolveNumberSynchronous(AwkEvaluationContext context)
     {
         context.State.Checkpoint();

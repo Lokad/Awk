@@ -308,6 +308,9 @@ internal abstract partial class AwkExpression
         return EvaluateCoreAsync(context);
     }
 
+    internal virtual ValueTask<AwkValue> EvaluateArithmeticArgumentAsync(AwkEvaluationContext context) =>
+        EvaluateAsync(context);
+
     internal virtual ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
     {
         var pending = EvaluateAsync(context);

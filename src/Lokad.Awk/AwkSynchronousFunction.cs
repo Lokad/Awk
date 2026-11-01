@@ -89,7 +89,7 @@ internal abstract partial class AwkExpression
             {
                 var operand = _operands[0];
                 var argument = operand.TryResolveArrayArgument(state, out var alias)
-                    ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                    ? alias : AwkFunctionArgument.FromValue(EvaluateArgument(operand, 0, context));
                 state.ThrowIfCancellationRequested();
                 state.PushFunctionFrame(_function.Layout, [argument]);
             }
@@ -98,6 +98,10 @@ internal abstract partial class AwkExpression
             try { return _function.EvaluateBody(context); }
             finally { state.PopFunctionFrame(); }
         }
+
+        private AwkValue EvaluateArgument(AwkSynchronousExpression operand, int index, AwkEvaluationContext context) =>
+            _function.Layout.ConsumesArithmeticInput(index)
+                ? operand.EvaluateArithmeticArgumentSynchronous(context) : operand.EvaluateSynchronous(context);
 
         // Keep the staging cells out of the common frame used by unary and general calls.
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -113,7 +117,7 @@ internal abstract partial class AwkExpression
                 {
                     var operand = _operands[index];
                     arguments[index] = operand.TryResolveArrayArgument(state, out var alias)
-                        ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                        ? alias : AwkFunctionArgument.FromValue(EvaluateArgument(operand, index, context));
                     var bytes = arguments[index].Value.RetainedTextMemoryBytes;
                     if (state.MemoryAccounting.IsEnabled && bytes > 0)
                     {
@@ -141,7 +145,7 @@ internal abstract partial class AwkExpression
                     arguments[index] = alias;
                     continue;
                 }
-                var value = operand.EvaluateSynchronous(context);
+                var value = EvaluateArgument(operand, index, context);
                 buffer.Retain(value);
                 arguments[index] = AwkFunctionArgument.FromValue(value);
             }

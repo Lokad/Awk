@@ -143,6 +143,9 @@ covering redirected reads/writes and main input before resolution or host opens.
 `AwkFunctionStorageTests` covers pre-admission of large argument/frame buffers, funded
 frame/alias caches, warm backing reuse, incompatible-layout retirement, cleared payloads,
 setup refusal/cancellation and final refunds.
+`AwkParameterConsumptionTests` covers conservative arithmetic/observable use and transitive
+forwarding, with deferred-error text funded through record replacement and pending cancellation.
+Counter checks compare ordinary/prepared numeric inputs and text-sensitive controls at multiple arities.
 General-arity preparation checks cover cancellation through action/loop preparation and
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases

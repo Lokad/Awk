@@ -161,6 +161,9 @@ bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
 remain execution-owned. Array parameter operations read the current frame slot; aliases
 repaired by mutation are not cached separately in prepared code.
+Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
+forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
+representations; numeric errors still occur at actual use.
 Prepared calls use the existing argument-storage admission for larger argument lists;
 there is no separate prepared-call arity limit. Cancellation is checked during preparation
 and argument evaluation. Eligible scalar function blocks, branches and loops prepare as

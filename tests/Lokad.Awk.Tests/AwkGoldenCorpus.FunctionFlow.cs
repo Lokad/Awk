@@ -4,6 +4,22 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("arithmetic-parameter-keeps-before-later-record-replacement",
+            ["function later(){$0=\"other 99\";return 2}function add(x,y){return x+y}BEGIN{$0=\"0007 old\";print add($1,later()),$0}"],
+            [], "9 other 99\n");
+        yield return Passing("mixed-parameter-keeps-key-truth-and-spelling",
+            ["function observe(a,x){a[x]++;print \"[\"x\"]\",length(x),(x==7),(x<10),typeof(x);return x+1}{print observe(t,$1),$1;print (\"0007\" in t),(7 in t)}"],
+            [], "[0007] 4 1 1 strnum\n8 0007\n1 0\n", "0007\n");
+        yield return Passing("forwarded-arithmetic-error-stays-deferred-through-record-replacement",
+            ["--non-decimal-data", "function later(){print \"later\";$0=\"new\";return 0}function use(x,y){if(y)return x+1;return 0}function outer(x,y){return use(x,y)}{print outer($1,later()),$0;exit}"],
+            [], "later\n0 new\n", "0x1.5\n");
+        yield return AwkGoldenCaseBuilder.Create("forwarded-arithmetic-error-occurs-only-after-later-argument",
+                ["--non-decimal-data", "function later(){print \"later\";$0=\"new\";return 1}function use(x,y){if(y)return x+1;return 0}function outer(x,y){return use(x,y)}{print outer($1,later());print \"unreachable\"}"], [])
+            .WithStandardInput("0x1.5\n").WithStdOut("later\n")
+            .WithStdErr("awk: hexadecimal floating point constants require an exponent\n").ExitsWith(2).Build();
+        yield return Passing("ordinary-arithmetic-parameter-keeps-nonnumeric-input",
+            ["function add(x){print \"called\";return x+1}{print add($1),$1}"],
+            [], "called\n1 abc\n", "abc\n");
         yield return Passing("forwarded-input-keeps-origin-after-later-record-replacement",
             ["function readold(x,y,z){return (x==\"0007\") \":\" (x==7) \":\" length(x)}function later(){$0=\"changed 9\";return 2}function relay(k,v,t){return readold(v,later(),t)}{print relay(\"k\",$2,0),$0;exit}"],
             [], "1:1:4 changed 9\n", "k 0007\n");

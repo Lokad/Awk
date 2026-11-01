@@ -6,7 +6,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkBenchmarkCounterTests
+public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData("global", false)] [InlineData("global", true)]
@@ -89,6 +89,8 @@ public sealed class AwkBenchmarkCounterTests
         else Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.FunctionNameLookups);
         Assert.True(counters.IndexedLocalArrayAccesses > 0);
+        Assert.True(counters.NumericFieldByteParses >= records);
+        Assert.InRange(counters.AwkTextAllocations, 0, records + 64); // Keys still own spelling; arithmetic values do not.
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -420,7 +422,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("10240\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(prepared ? records : 0, counters.SynchronousFunctionRuns);
-        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
+        Assert.InRange(counters.AwkTextAllocations, prepared ? 0 : records, prepared ? 32 : records + 32);
+        if (prepared) Assert.True(counters.NumericFieldByteParses >= records);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -894,7 +897,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    internal async Task ParsedNestedCallsReusePreparedNumericInput()
+    internal async Task ParsedNestedCallsKeepArithmeticInputsByteNative()
     {
         const string source = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
         var result = await RunAsync([source], "7\n7\n7\n7\n",
@@ -902,8 +905,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(8, result.Counters.PreparedNumericSlotReads);
-        Assert.Equal(8, result.Counters.ScalarLocalValueReads);
+        Assert.True(result.Counters.NumericFieldByteParses >= 4);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, 8);
         Assert.Equal(12, result.Counters.InlineFunctionFrames);
         Assert.Equal(3, result.Counters.FieldListBufferReuses);
         Assert.Equal(4,

@@ -69,7 +69,7 @@ internal sealed class AwkUserFunction
                 var argument = expression.TryGetVariableName(out var variableName) &&
                     state.TryResolveArrayArgument(variableName, out var arrayArgument)
                     ? arrayArgument
-                    : AwkFunctionArgument.FromValue(await expression.EvaluateAsync(context).ConfigureAwait(false));
+                    : AwkFunctionArgument.FromValue(await EvaluateArgumentAsync(expression, 0, context).ConfigureAwait(false));
                 PushArguments([argument], context);
             }
             else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state))
@@ -86,7 +86,7 @@ internal sealed class AwkUserFunction
                         continue;
                     }
 
-                    var value = await argument.EvaluateAsync(context).ConfigureAwait(false);
+                    var value = await EvaluateArgumentAsync(argument, index, context).ConfigureAwait(false);
                     buffer.Retain(value);
                     values[index] = AwkFunctionArgument.FromValue(value);
                 }
@@ -107,6 +107,10 @@ internal sealed class AwkUserFunction
             }
         }
     }
+
+    private ValueTask<AwkValue> EvaluateArgumentAsync(AwkExpression expression, int index, AwkEvaluationContext context) =>
+        LocalLayout.ConsumesArithmeticInput(index)
+            ? expression.EvaluateArithmeticArgumentAsync(context) : expression.EvaluateAsync(context);
 
     public async ValueTask<AwkValue> InvokeValuesAsync(
         IReadOnlyList<AwkValue> arguments,

@@ -205,19 +205,37 @@ internal sealed class AwkFieldFrame(
         AwkFieldIndex index,
         Func<AwkText, List<AwkFieldText>> splitFields,
         Func<AwkText, AwkValue> createFieldValue,
-        AwkNumberParsingMode mode)
+        AwkNumberParsingMode mode) =>
+        ReadFieldArithmetic(index, splitFields, createFieldValue, mode, deferError: false).AsNumber(checkpoint);
+
+    public AwkValue GetFieldArithmeticArgument(
+        AwkFieldIndex index,
+        Func<AwkText, List<AwkFieldText>> splitFields,
+        Func<AwkText, AwkValue> createFieldValue,
+        AwkNumberParsingMode mode) =>
+        ReadFieldArithmetic(index, splitFields, createFieldValue, mode, deferError: true);
+
+    private AwkValue ReadFieldArithmetic(
+        AwkFieldIndex index,
+        Func<AwkText, List<AwkFieldText>> splitFields,
+        Func<AwkText, AwkValue> createFieldValue,
+        AwkNumberParsingMode mode, bool deferError)
     {
         EnsureField(index, splitFields);
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return 0;
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return AwkValue.FromNumber(0);
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
         if (field.CacheSlot != 0)
-            return _fieldValueCache[field.CacheSlot - 1].Value.AsNumber(checkpoint);
+            return _fieldValueCache[field.CacheSlot - 1].Value;
         if (field.Kind == AwkFieldTextKind.Owned)
-            return GetFieldValue(index, splitFields, createFieldValue).AsNumber(checkpoint);
+            return GetFieldValue(index, splitFields, createFieldValue);
 
         counters.RecordNumericFieldByteParse();
         var parsed = AwkNumberParser.Parse(field.AsSpan(RecordBytes(), checkpoint), mode, checkpoint);
+        // Capturing an argument must not diagnose a conversion in an untaken callee branch.
+        // The uncommon error retains its ordinary owned spelling and deferred-error behavior.
+        if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent)
+            return GetFieldValue(index, splitFields, createFieldValue);
         parsed.ThrowIfError();
         var number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
         // Spare slots and number payloads are already funded: this changes neither
@@ -226,7 +244,7 @@ internal sealed class AwkFieldFrame(
             SetCachedFieldValue(fieldIndex, AwkValue.FromNumber(number), numericOnly: true);
         else if (_fieldValueCache.Capacity == 0)
             CacheFieldValue(fieldIndex, AwkValue.FromNumber(number), numericOnly: true);
-        return number;
+        return AwkValue.FromNumber(number);
     }
 
     private void CacheFieldValue(int index, AwkValue value, bool numericOnly)
