@@ -152,6 +152,10 @@ Argument-storage checks cover cleared funded reuse, nested active buffers, pendi
 fault/cancellation through actual completion, arity-change refusal before public effects
 and final owner refunds. Counters distinguish governed reuse from new argument arrays;
 print/printf lifetime checks preserve formatting and host-buffer funding.
+`AwkArgumentStorageTests` covers both typed stores, nested user operands in caller scope,
+pending success/fault/cancellation, payload clearing/final refunds and cancellation requested
+by cold admission before large value/user-argument arrays. User-call counters cover ordinary/
+prepared bodies at 5, 9 and 65 arguments without changing their binding or activation phases.
 Preparation counters cover complete numeric builtin bodies; warning-producing fallbacks keep
 their diagnostic boundary before later caller effects, including failed/pending/canceled appends.
 Preparation-entry counters cover absent, unused and called functions across flat blocks and

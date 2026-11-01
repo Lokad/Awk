@@ -68,11 +68,11 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
             Assert.False(pending.IsCompleted);
             var held = state.MemoryAccounting.CurrentCommittedBytes;
             Assert.True(held >= baseline + text.RetainedTextMemoryBytes);
+            using (var nested = AwkValueBuffer.Rent(2, state))
+                nested.Set(0, AwkValue.FromNumber(99));
             // A cancellation request is not completion of a non-cooperating operand.
             if (outcome == "cancel") cancellation.Cancel();
             Assert.False(pending.IsCompleted);
-            using (var nested = AwkValueBuffer.Rent(2, state))
-                nested.Set(0, AwkValue.FromNumber(99));
             Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= held);
 
             if (outcome == "success")

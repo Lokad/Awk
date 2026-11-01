@@ -52,8 +52,8 @@ internal sealed class AwkRuntimeState : IDisposable
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _recordSeparatorCaseSensitivity;
     private long _recordSeparatorVersion;
-    private AwkValue[]? _inactiveArguments;
-    private AwkMemoryLease? _inactiveArgumentMemory;
+    private AwkArgumentStorage<AwkValue>? _valueArgumentStorage;
+    private AwkArgumentStorage<AwkFunctionArgument>? _functionArgumentStorage;
 
     internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -1411,49 +1411,32 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkEvaluationContext context) =>
         _arrayRuntime.SnapshotKeyValuesAsync(name, context);
 
-    internal AwkValueBuffer RentGovernedArguments(int count)
+    internal AwkArgumentBuffer<AwkValue> RentValueArguments(int count)
     {
-        if (_inactiveArguments is { } values && _inactiveArgumentMemory is { } memory && values.Length == count)
-        {
-            _inactiveArguments = null;
-            _inactiveArgumentMemory = null;
-            Counters.RecordGovernedArgumentBuffer(reused: true);
-            return new AwkValueBuffer(values, memory, this);
-        }
-
-        // Normal arity retirement, before admission. Refusal never triggers eviction/retry.
-        RetireInactiveArguments();
-        var lease = MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateAwkValueArrayBytes(count));
-        try
-        {
-            var buffer = new AwkValueBuffer(new AwkValue[count], lease, this);
-            Counters.RecordGovernedArgumentBuffer(reused: false);
-            return buffer;
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
+        if (count == 0 || !MemoryAccounting.IsEnabled)
+            return AwkArgumentBuffer<AwkValue>.RentPooled(count);
+        _valueArgumentStorage ??= new(MemoryAccounting, AwkRuntimeMemory.EstimateAwkValueArrayBytes);
+        var buffer = _valueArgumentStorage.Rent(count, CancellationCheckpoint, out var reused);
+        Counters.RecordGovernedArgumentBuffer(reused);
+        return buffer;
     }
 
-    internal void ReturnArguments(AwkValue[] values, AwkMemoryLease memory)
+    internal AwkArgumentBuffer<AwkFunctionArgument> RentFunctionArguments(int count)
     {
-        // The buffer is cleared and has no pending users. Only capacity can remain live.
-        memory.Release(memory.Bytes - AwkRuntimeMemory.EstimateAwkValueArrayBytes(values.Length));
-        if (_inactiveArguments is null)
-        {
-            _inactiveArguments = values;
-            _inactiveArgumentMemory = memory;
-        }
-        else memory.Dispose();
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (count == 0) return AwkArgumentBuffer<AwkFunctionArgument>.RentPooled(0);
+        var buffer = MemoryAccounting.IsEnabled
+            ? RentGovernedFunctionArguments(count) : AwkArgumentBuffer<AwkFunctionArgument>.RentPooled(count);
+        Counters.RecordFunctionArgumentBufferRent();
+        return buffer;
     }
 
-    private void RetireInactiveArguments()
+    private AwkArgumentBuffer<AwkFunctionArgument> RentGovernedFunctionArguments(int count)
     {
-        _inactiveArguments = null;
-        _inactiveArgumentMemory?.Dispose();
-        _inactiveArgumentMemory = null;
+        _functionArgumentStorage ??= new(MemoryAccounting, AwkRuntimeMemory.EstimateFunctionArgumentArrayBytes);
+        var buffer = _functionArgumentStorage.Rent(count, CancellationCheckpoint, out var reused);
+        Counters.RecordGovernedFunctionArgumentBuffer(reused);
+        return buffer;
     }
 
     public void Dispose()
@@ -1462,7 +1445,11 @@ internal sealed class AwkRuntimeState : IDisposable
         finally
         {
             try { _recordFields.ResetRecord(); }
-            finally { RetireInactiveArguments(); }
+            finally
+            {
+                _valueArgumentStorage?.Dispose();
+                _functionArgumentStorage?.Dispose();
+            }
         }
     }
 }

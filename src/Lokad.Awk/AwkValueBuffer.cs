@@ -1,18 +1,12 @@
-using System.Buffers;
-
 namespace Lokad.Awk;
 
-internal readonly struct AwkValueBuffer(
-    AwkValue[]? values,
-    AwkMemoryLease? lease,
-    AwkRuntimeState? owner) : IDisposable
+internal readonly struct AwkValueBuffer(AwkArgumentBuffer<AwkValue> buffer) : IDisposable
 {
-    public AwkValue[] Values => values ??
-        throw new InvalidOperationException("The default value buffer has no array.");
+    public AwkValue[] Values => buffer.Values;
 
     public void Set(int index, AwkValue value)
     {
-        lease?.ReserveAdditional(value.RetainedTextMemoryBytes);
+        buffer.Retain(value);
         Values[index] = value;
     }
 
@@ -20,25 +14,8 @@ internal readonly struct AwkValueBuffer(
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         ArgumentNullException.ThrowIfNull(state);
-        if (count == 0)
-            return new AwkValueBuffer([], AwkMemoryLease.Disabled, owner: null);
-        return state.MemoryAccounting.IsEnabled
-            ? state.RentGovernedArguments(count)
-            : new AwkValueBuffer(ArrayPool<AwkValue>.Shared.Rent(count), AwkMemoryLease.Disabled, owner: null);
+        return new(state.RentValueArguments(count));
     }
 
-    public void Dispose()
-    {
-        if (values is { Length: > 0 })
-        {
-            if (owner is not null && lease is not null)
-            {
-                Array.Clear(values);
-                owner.ReturnArguments(values, lease);
-                return;
-            }
-            ArrayPool<AwkValue>.Shared.Return(values, clearArray: true);
-        }
-        lease?.Dispose();
-    }
+    public void Dispose() => buffer.Dispose();
 }

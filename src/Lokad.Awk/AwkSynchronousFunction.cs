@@ -137,7 +137,7 @@ internal abstract partial class AwkExpression
         private void PushRentedArguments(AwkEvaluationContext context)
         {
             var state = context.State;
-            using var buffer = AwkUserFunction.RentedFunctionArguments.Rent(_operands.Length, state);
+            using var buffer = state.RentFunctionArguments(_operands.Length);
             var arguments = buffer.Values;
             for (var index = 0; index < _operands.Length; index++)
             {

@@ -337,6 +337,19 @@ internal sealed class AwkRuntimeCounters
     public long GovernedArgumentBufferAllocations { get; private set; }
     public long GovernedArgumentBufferReuses { get; private set; }
 
+    public long GovernedFunctionArgumentBufferAllocations { get; private set; }
+    public long GovernedFunctionArgumentBufferReuses { get; private set; }
+
+    public void RecordGovernedFunctionArgumentBuffer(bool reused)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            if (reused) GovernedFunctionArgumentBufferReuses++;
+            else GovernedFunctionArgumentBufferAllocations++;
+        }
+    }
+
     public void RecordGovernedArgumentBuffer(bool reused)
     {
         if (!_enabled) return;
