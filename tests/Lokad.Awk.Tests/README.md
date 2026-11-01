@@ -225,6 +225,8 @@ admission/cancellation lifetimes and the ordinary borrowed newline path.
 `AwkRecordCursorContextTests` runs canonical record cases with stdin, files and pipes,
 different host batch sizes, shared admission and the example provider. A focused counter
 check guards against copying or decoding every shrinking unread tail.
+`AwkNewlineCursorCompletionTests` covers ready/pending completion, separator selection across
+suspension, cancellation-token identity, explicit retry and bounded continuation lifetime for long records.
 `AwkRecordInputMemoryTests` covers provider admission refusal before record effects, borrowed
 UTF-8 view invalidation and pending/canceled output lifetimes.
 The concrete provider is the published NuGet package, compiled with the source in `examples/`.

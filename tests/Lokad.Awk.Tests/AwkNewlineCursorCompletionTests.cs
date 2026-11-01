@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkNewlineCursorCompletionTests
+public sealed partial class AwkNewlineCursorCompletionTests
 {
     public static IEnumerable<object[]> Modes()
     {
