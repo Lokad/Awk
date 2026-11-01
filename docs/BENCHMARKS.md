@@ -120,8 +120,9 @@ its regex rows do not isolate budget bookkeeping. The existing `--governed-profi
 supplies a live caller deadline in both modes and measures that distinct configuration.
 
 Nested integer output formats two `int(int($1))` arguments; wide formatting repeats
-`$1+0` 65 times. Both use 4,096 records containing `0007`. Shared integer startup
-varies across roughly 34–77 microseconds; its median is sensitive to that variation.
+`$1+0` 65 times. Both use 4,096 records containing `0007`. The ordinary five-argument loop includes
+a switch boundary; the prepared loop uses the same computation. Startup timing varies
+substantially across processes; its medians do not establish a causal default/shared difference.
 
 | Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
 | --- | --- | ---: | ---: | --- |
@@ -129,8 +130,8 @@ varies across roughly 34–77 microseconds; its median is sensitive to that vari
 | Nested-array calls, 16 keys / 4,096 records (GNU) | 512 MiB | 9.531 | 2.430 | 11-01 / [10d9918] |
 | Nested-array calls, 1,024 keys / 4,096 records (GNU) | None | 8.138 | 2.398 | 11-01 / [10d9918] |
 | Nested-array calls, 1,024 keys / 4,096 records (GNU) | 512 MiB | 9.876 | 3.023 | 11-01 / [10d9918] |
-| Loop with five-argument calls, 4,096 records | None | 16.759 | 0.568 | 11-01 / [10d9918] |
-| Loop with five-argument calls, 4,096 records | 512 MiB | 21.463 | 9.819 | 11-01 / [10d9918] |
+| Loop with five-argument calls, 4,096 records | None | 16.927 | 0.568 | 11-01 / [200fe9d] |
+| Loop with five-argument calls, 4,096 records | 512 MiB | 17.101 | 0.570 | 11-01 / [200fe9d] |
 | Nested user calls, 4,096 records | None | 2.811 | 0.517 | 11-01 / [508228d] |
 | Nested user calls, 4,096 records | 512 MiB | 4.470 | 0.519 | 11-01 / [508228d] |
 | Aggregation, 65,536 records | None | 36.441 | 0.238 | 11-01 / [10d9918] |
@@ -157,12 +158,12 @@ varies across roughly 34–77 microseconds; its median is sensitive to that vari
 | atan2 on two fields, 4,096 records | 512 MiB | 4.050 | 0.488 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | None | 3.626 | 0.514 | 11-01 / [7da72c5] |
 | Text forwarding with retained spelling/type, 4,096 records | 512 MiB | 5.037 | 0.516 | 11-01 / [7da72c5] |
-| Integer-forwarding startup, no input | None | 0.026 | 0.079 | 11-01 / [b329690] |
-| Integer-forwarding startup, no input | 512 MiB | 0.064 | 0.081 | 11-01 / [b329690] |
+| Integer-forwarding startup, no input | None | 0.040 | 0.079 | 11-01 / [200fe9d] |
+| Integer-forwarding startup, no input | 512 MiB | 0.029 | 0.081 | 11-01 / [200fe9d] |
 | Forwarded bitwise AND, 4,096 records | None | 2.722 | 0.101 | 11-01 / [b329690] |
 | Forwarded bitwise AND, 4,096 records | 512 MiB | 3.504 | 0.103 | 11-01 / [b329690] |
-| Function with 64 integer updates, 4,096 records | None | 19.025 | 0.808 | 11-01 / [b329690] |
-| Function with 64 integer updates, 4,096 records | 512 MiB | 19.988 | 0.809 | 11-01 / [b329690] |
+| Function with 64 integer updates, 4,096 records | None | 18.985 | 0.808 | 11-01 / [200fe9d] |
+| Function with 64 integer updates, 4,096 records | 512 MiB | 19.291 | 0.809 | 11-01 / [200fe9d] |
 | Square-root function, 4,096 records | None | 2.896 | 0.091 | 11-01 / [98014bc] |
 | Square-root function, 4,096 records | 512 MiB | 3.722 | 0.405 | 11-01 / [98014bc] |
 | Loop with four integer field conversions, 4,096 records | None | 3.765 | 0.092 | 11-01 / [98014bc] |
@@ -187,6 +188,12 @@ varies across roughly 34–77 microseconds; its median is sensitive to that vari
 | Nested integer arguments with printf, 4,096 records | 512 MiB | 5.399 | 2.114 | 11-01 / [b329690] |
 | printf with 65 numeric arguments, 4,096 records | None | 24.530 | 1.225 | 11-01 / [b329690] |
 | printf with 65 numeric arguments, 4,096 records | 512 MiB | 25.354 | 1.228 | 11-01 / [b329690] |
+| Function with locals, branches and loop, 4,096 records | None | 6.410 | 0.185 | 11-01 / [200fe9d] |
+| Function with locals, branches and loop, 4,096 records | 512 MiB | 6.726 | 0.186 | 11-01 / [200fe9d] |
+| Ordinary five-argument call loop, 4,096 records | None | 20.415 | 0.579 | 11-01 / [200fe9d] |
+| Ordinary five-argument call loop, 4,096 records | 512 MiB | 22.052 | 0.581 | 11-01 / [200fe9d] |
+| Two-argument loop with local temporary, 4,096 records | None | 10.773 | 0.549 | 11-01 / [200fe9d] |
+| Two-argument loop with local temporary, 4,096 records | 512 MiB | 16.487 | 0.676 | 11-01 / [200fe9d] |
 
 ## Measurement contract
 
@@ -284,3 +291,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [1ac9634]: https://github.com/Lokad/Awk/commit/1ac963428950de122cf7026ea5cac934c4f68d5d
 
 [b329690]: https://github.com/Lokad/Awk/commit/b329690d1c5301b9af5287ca8043a34f2a7ecc4f
+
+[200fe9d]: https://github.com/Lokad/Awk/commit/200fe9decb9714ad41a7518644ad88b933fe5ff9
