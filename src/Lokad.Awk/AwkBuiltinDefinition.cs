@@ -168,6 +168,8 @@ internal sealed class AwkBuiltinDefinition(
             ? ArgumentRoles[index]
             : AwkBuiltinArgumentRole.ScalarExpression;
 
+    internal bool ConsumesArithmeticInputs => implementation.ConsumesArithmeticInputs;
+
     public ValueTask<AwkValue> EvaluateAsync(
         IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context) =>
         implementation.EvaluateAsync(arguments, context);
@@ -175,20 +177,27 @@ internal sealed class AwkBuiltinDefinition(
 
 internal abstract class AwkBuiltinImplementation
 {
-    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator) =>
-        new SyncBuiltinImplementation(evaluator);
+    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
+        new SyncBuiltinImplementation(evaluator, arithmeticInputs);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
 
     public static AwkBuiltinImplementation MetadataOnly { get; } = new MetadataBuiltinImplementation();
 
+    internal virtual bool ConsumesArithmeticInputs => false;
+
     /// <summary>Evaluates the built-in while preserving lazy argument semantics required by its implementation.</summary>
     public abstract ValueTask<AwkValue> EvaluateAsync(
         IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context);
 
-    private sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator) : AwkBuiltinImplementation
+    private sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, bool arithmeticInputs) : AwkBuiltinImplementation
     {
+        internal override bool ConsumesArithmeticInputs => arithmeticInputs;
+
+        private ValueTask<AwkValue> EvaluateArgument(AwkExpression argument, AwkEvaluationContext context) =>
+            arithmeticInputs ? argument.EvaluateArithmeticArgumentAsync(context) : argument.EvaluateAsync(context);
+
         public override ValueTask<AwkValue> EvaluateAsync(
             IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context)
         {
@@ -205,7 +214,7 @@ internal abstract class AwkBuiltinImplementation
             {
                 for (var index = 0; index < argumentCount; index++)
                 {
-                    var pending = arguments[index].EvaluateAsync(context);
+                    var pending = EvaluateArgument(arguments[index], context);
                     if (!pending.IsCompletedSuccessfully)
                         return EvaluateRemainingAsync(arguments, context, buffer, argumentCount, index, pending);
 
@@ -235,7 +244,7 @@ internal abstract class AwkBuiltinImplementation
                 {
                     buffer.Set(currentIndex, await pending.ConfigureAwait(false));
                     for (var index = currentIndex + 1; index < argumentCount; index++)
-                        buffer.Set(index, await arguments[index].EvaluateAsync(context).ConfigureAwait(false));
+                        buffer.Set(index, await EvaluateArgument(arguments[index], context).ConfigureAwait(false));
 
                     return evaluator(new AwkBuiltinContext(arguments, values, argumentCount, context));
                 }

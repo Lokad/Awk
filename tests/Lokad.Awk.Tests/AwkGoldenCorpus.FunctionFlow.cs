@@ -4,6 +4,22 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("numeric-builtin-field-input-keeps-original-spelling",
+            ["{print int($1),sqrt($2),$1,$2,typeof($1);print and($1,$3),(atan2($1,$2)>0)}"],
+            [], "7 3 0007 0009 strnum\n3 1\n", "0007 0009 0003\n");
+        yield return Passing("numeric-builtin-forwarding-keeps-text-consumers",
+            ["function numeric(x){return int(x)}function opaque(x){n=int(x);return x}function convert(x){return strtonum(x)}{print numeric($1),opaque($1),convert($1),length($1),typeof($1)}"],
+            [], "0 0x10 16 4 string\n", "0x10\n");
+        yield return Passing("numeric-builtin-field-capture-precedes-later-record-mutation",
+            ["function later(){$0=\"new 99\";print \"later\";return 3}BEGIN{$0=\"0007 old\";print and($1,later()),$0}"],
+            [], "later\n3 new 99\n");
+        yield return Passing("numeric-builtin-error-stays-deferred-in-untaken-callee",
+            ["--non-decimal-data", "function use(x,z){if(z)return int(x);return \"kept\"}{print use($1,0),$1}"],
+            [], "kept 0x1.5\n", "0x1.5\n");
+        yield return AwkGoldenCaseBuilder.Create("numeric-builtin-error-follows-later-argument-effects",
+                ["--non-decimal-data", "function later(){print \"later\";$0=\"new\";return 3}{print and($1,later());print \"unreachable\"}"], [])
+            .WithStandardInput("0x1.5\n").WithStdOut("later\n")
+            .WithStdErr("awk: hexadecimal floating point constants require an exponent\n").ExitsWith(2).Build();
         yield return Passing("arithmetic-parameter-keeps-before-later-record-replacement",
             ["function later(){$0=\"other 99\";return 2}function add(x,y){return x+y}BEGIN{$0=\"0007 old\";print add($1,later()),$0}"],
             [], "9 other 99\n");

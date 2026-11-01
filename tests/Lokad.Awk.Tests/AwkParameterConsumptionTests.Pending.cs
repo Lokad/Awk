@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkParameterConsumptionTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task DeferredErrorTextStaysFundedThroughRecordReplacementAndActualPendingRead(bool cancel)
+    [InlineData(false, 0)] [InlineData(true, 0)]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 2)] [InlineData(true, 2)]
+    public async Task DeferredErrorTextStaysFundedThroughRecordReplacementAndActualPendingRead(bool cancel, int consumption)
     {
         const int payload = 32_768;
         var numeric = await Run("0007");
@@ -35,8 +37,11 @@ public sealed partial class AwkParameterConsumptionTests
                 if (reads == 1) host.ReadAsyncOverride = Read;
                 return result;
             }
-            var source = "function replace(){$0=\"new:9\";return 0}" +
-                "function choose(x,ignored,line){getline line;if(line)return x+1;return 0}" +
+            var source = consumption == 2
+                ? "function later(line){$0=\"new:9\";getline line;return 0}" +
+                  "BEGIN{FS=\":\";getline;print \"ready\";print and($1,later());exit}END{print \"end\"}"
+                : "function replace(){$0=\"new:9\";return 0}" +
+                "function choose(x,ignored,line){getline line;if(line)return " + (consumption == 1 ? "int(x)" : "x+1") + ";return 0}" +
                 "BEGIN{FS=\":\";getline;print \"ready\";print choose($1,replace());exit}END{print \"end\"}";
             var budget = new CooperativeTestBudget(8 << 20);
             using var cancellation = new CancellationTokenSource();
@@ -59,9 +64,11 @@ public sealed partial class AwkParameterConsumptionTests
                 }
                 resume.TrySetResult();
                 if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
-                else Assert.Equal(AwkExitCode.Success, await execution);
-                Assert.Equal(cancel ? "ready\n" : "ready\n0\nend\n", host.GetOutput(AwkFileDescriptor.StdOut));
-                Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+                var error = consumption == 2 && suffix == "0x1.5";
+                if (!cancel) Assert.Equal(error ? 2 : 0, (await execution).Value);
+                Assert.Equal(cancel || error ? "ready\n" : "ready\n0\nend\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.Equal(!cancel && error ? "awk: hexadecimal floating point constants require an exponent\n" : "",
+                    host.GetOutput(AwkFileDescriptor.StdErr));
                 Assert.Equal(0, host.OpenFileCount);
                 Assert.Equal(0, budget.Reserved);
                 return retained;

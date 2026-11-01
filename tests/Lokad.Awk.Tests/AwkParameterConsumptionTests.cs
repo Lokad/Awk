@@ -4,6 +4,13 @@ public sealed partial class AwkParameterConsumptionTests
 {
     [Theory]
     [InlineData("function f(x){return x+1}", "f", "1")]
+    [InlineData("function f(x){return int(x)}", "f", "1")]
+    [InlineData("function f(x){return g(x)}function g(x){return sqrt(x)}", "f", "1")]
+    [InlineData("function f(x,y){return atan2(x,y)}", "f", "11")]
+    [InlineData("function f(x,y,z){return and(x,y,z)}", "f", "111")]
+    [InlineData("function f(x){return strtonum(x)}", "f", "0")]
+    [InlineData("function f(x){n=int(x);return x}", "f", "0")]
+    [InlineData("function f(x){return int(x)+length(x)}", "f", "0")]
     [InlineData("function f(x){return x}", "f", "0")]
     [InlineData("function f(x){if(x)return x+1;return 0}", "f", "0")]
     [InlineData("function f(x){saved=x;return x+1}", "f", "0")]

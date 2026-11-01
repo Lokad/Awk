@@ -98,16 +98,25 @@ internal static class AwkParameterConsumption
                             break;
                         case AwkExpressionKind.FunctionCall:
                             if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
-                                !layout.TryGetSlot(new(target.Identifier), out _) &&
-                                ranges.TryGetValue(AwkFunctionName.FromText(target.Name), out var callee))
+                                !layout.TryGetSlot(new(target.Identifier), out _))
                             {
-                                for (var i = 1; i < children.Count; i++)
-                                    expressions.Push((children[i], i - 1 < callee.Count ? callee.Start + i - 1 : Observable));
+                                if (ranges.TryGetValue(AwkFunctionName.FromText(target.Name), out var callee))
+                                {
+                                    for (var i = 1; i < children.Count; i++)
+                                        expressions.Push((children[i], i - 1 < callee.Count ? callee.Start + i - 1 : Observable));
+                                }
+                                else
+                                {
+                                    var arithmeticInputs = AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
+                                        builtin.ConsumesArithmeticInputs;
+                                    for (var i = 1; i < children.Count; i++)
+                                        expressions.Push((children[i], arithmeticInputs ? Arithmetic : Observable));
+                                }
                             }
                             else foreach (var child in children) expressions.Push((child, Observable));
                             break;
                         default:
-                            // Array roots/keys, comparisons, truth, unknown/builtin calls and
+                            // Array roots/keys, comparisons, truth, unknown calls and
                             // every unrecognized future construct retain the original value.
                             foreach (var child in children) expressions.Push((child, Observable));
                             break;

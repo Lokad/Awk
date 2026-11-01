@@ -77,24 +77,24 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Substr)] = PosixFunctionAsync(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
             [Name(AwkBuiltinId.ToLower)] = PosixFunctionAsync(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
             [Name(AwkBuiltinId.ToUpper)] = PosixFunctionAsync(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
-            [Name(AwkBuiltinId.Int)] = PosixFunction(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt),
-            [Name(AwkBuiltinId.Sqrt)] = PosixFunction(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt),
-            [Name(AwkBuiltinId.Sin)] = PosixFunction(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin),
-            [Name(AwkBuiltinId.Cos)] = PosixFunction(AwkBuiltinId.Cos, AwkArity.Exact(1), EvaluateCos),
-            [Name(AwkBuiltinId.Exp)] = PosixFunction(AwkBuiltinId.Exp, AwkArity.Exact(1), EvaluateExp),
-            [Name(AwkBuiltinId.Log)] = PosixFunction(AwkBuiltinId.Log, AwkArity.Exact(1), EvaluateLog),
-            [Name(AwkBuiltinId.Atan2)] = PosixFunction(AwkBuiltinId.Atan2, AwkArity.Exact(2), EvaluateAtan2),
+            [Name(AwkBuiltinId.Int)] = PosixFunction(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Sqrt)] = PosixFunction(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Sin)] = PosixFunction(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Cos)] = PosixFunction(AwkBuiltinId.Cos, AwkArity.Exact(1), EvaluateCos, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Exp)] = PosixFunction(AwkBuiltinId.Exp, AwkArity.Exact(1), EvaluateExp, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Log)] = PosixFunction(AwkBuiltinId.Log, AwkArity.Exact(1), EvaluateLog, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Atan2)] = PosixFunction(AwkBuiltinId.Atan2, AwkArity.Exact(2), EvaluateAtan2, arithmeticInputs: true),
             [Name(AwkBuiltinId.Rand)] = PosixFunction(AwkBuiltinId.Rand, AwkArity.Exact(0), EvaluateRand),
-            [Name(AwkBuiltinId.Srand)] = PosixFunction(AwkBuiltinId.Srand, AwkArity.Range(0, 1), EvaluateSrand),
+            [Name(AwkBuiltinId.Srand)] = PosixFunction(AwkBuiltinId.Srand, AwkArity.Range(0, 1), EvaluateSrand, arithmeticInputs: true),
             [Name(AwkBuiltinId.Systime)] = GnuFunction(AwkBuiltinId.Systime, AwkArity.Exact(0), EvaluateSystime),
             [Name(AwkBuiltinId.Mktime)] = GnuFunction(AwkBuiltinId.Mktime, AwkArity.Range(1, 2), EvaluateMktime),
             [Name(AwkBuiltinId.Strftime)] = GnuFunction(AwkBuiltinId.Strftime, AwkArity.Range(0, 3), EvaluateStrftime),
-            [Name(AwkBuiltinId.And)] = GnuFunction(AwkBuiltinId.And, AwkArity.AtLeast(2), EvaluateAnd),
-            [Name(AwkBuiltinId.Or)] = GnuFunction(AwkBuiltinId.Or, AwkArity.AtLeast(2), EvaluateOr),
-            [Name(AwkBuiltinId.Xor)] = GnuFunction(AwkBuiltinId.Xor, AwkArity.AtLeast(2), EvaluateXor),
-            [Name(AwkBuiltinId.Compl)] = GnuFunction(AwkBuiltinId.Compl, AwkArity.Exact(1), EvaluateCompl),
-            [Name(AwkBuiltinId.Lshift)] = GnuFunction(AwkBuiltinId.Lshift, AwkArity.Exact(2), EvaluateLshift),
-            [Name(AwkBuiltinId.Rshift)] = GnuFunction(AwkBuiltinId.Rshift, AwkArity.Exact(2), EvaluateRshift),
+            [Name(AwkBuiltinId.And)] = GnuFunction(AwkBuiltinId.And, AwkArity.AtLeast(2), EvaluateAnd, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Or)] = GnuFunction(AwkBuiltinId.Or, AwkArity.AtLeast(2), EvaluateOr, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Xor)] = GnuFunction(AwkBuiltinId.Xor, AwkArity.AtLeast(2), EvaluateXor, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Compl)] = GnuFunction(AwkBuiltinId.Compl, AwkArity.Exact(1), EvaluateCompl, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Lshift)] = GnuFunction(AwkBuiltinId.Lshift, AwkArity.Exact(2), EvaluateLshift, arithmeticInputs: true),
+            [Name(AwkBuiltinId.Rshift)] = GnuFunction(AwkBuiltinId.Rshift, AwkArity.Exact(2), EvaluateRshift, arithmeticInputs: true),
             [Name(AwkBuiltinId.Sprintf)] = PosixFunction(AwkBuiltinId.Sprintf, AwkArity.AtLeast(1), EvaluateSprintf),
             [Name(AwkBuiltinId.Strtonum)] = GnuFunction(AwkBuiltinId.Strtonum, AwkArity.Exact(1), EvaluateStrtonum),
             [Name(AwkBuiltinId.Gensub)] = GnuFunction(AwkBuiltinId.Gensub, AwkArity.Range(3, 4), EvaluateGensub),
@@ -581,13 +581,13 @@ internal static partial class AwkBuiltins
         static AwkBuiltinDefinition PosixFunction(
             AwkBuiltinId id,
             AwkArity arity,
-            AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinCompatibility.Posix, [], evaluator);
+            AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
+            Function(id, arity, AwkBuiltinCompatibility.Posix, [], evaluator, arithmeticInputs);
         static AwkBuiltinDefinition GnuFunction(
             AwkBuiltinId id,
             AwkArity arity,
-            AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinCompatibility.Gnu, [], evaluator);
+            AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
+            Function(id, arity, AwkBuiltinCompatibility.Gnu, [], evaluator, arithmeticInputs);
         static AwkBuiltinDefinition PosixFunctionWithLowering(
             AwkBuiltinId id,
             AwkArity arity,
@@ -744,7 +744,7 @@ internal static partial class AwkBuiltins
         AwkArity arity,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-        AwkBuiltinEvaluator evaluator) =>
+        AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
         Function(
             id,
             arity,
@@ -752,7 +752,8 @@ internal static partial class AwkBuiltins
             argumentRoles,
             evaluator,
             AwkStatementKind.Unknown,
-            AwkBuiltinLoweringKind.Ordinary);
+            AwkBuiltinLoweringKind.Ordinary,
+            arithmeticInputs);
 
     private static AwkBuiltinDefinition Function(
         AwkBuiltinId id,
@@ -761,7 +762,7 @@ internal static partial class AwkBuiltins
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkBuiltinEvaluator evaluator,
         AwkStatementKind statementKind,
-        AwkBuiltinLoweringKind loweringKind) =>
+        AwkBuiltinLoweringKind loweringKind, bool arithmeticInputs = false) =>
         new(
             id,
             Name(id),
@@ -771,7 +772,7 @@ internal static partial class AwkBuiltins
             statementKind,
             loweringKind,
             argumentRoles,
-            AwkBuiltinImplementation.Sync(evaluator));
+            AwkBuiltinImplementation.Sync(evaluator, arithmeticInputs));
 
     private static AwkBuiltinDefinition FunctionAsync(
         AwkBuiltinId id,

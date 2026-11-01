@@ -146,6 +146,8 @@ setup refusal/cancellation and final refunds.
 `AwkParameterConsumptionTests` covers conservative arithmetic/observable use and transitive
 forwarding, with deferred-error text funded through record replacement and pending cancellation.
 Counter checks compare ordinary/prepared numeric inputs and text-sensitive controls at multiple arities.
+Numeric builtin checks cover direct and forwarded field arguments, later-argument mutation,
+deferred errors and actual pending/canceled operands with complete refunds.
 General-arity preparation checks cover cancellation through action/loop preparation and
 reuse after the compilation token is canceled. Counter cases exercise 5, 9 and 65 arguments;
 goldens cover caller order, aliases, spelling and omitted locals. Pending-argument host cases
