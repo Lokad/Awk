@@ -53,6 +53,9 @@ internal sealed class AwkFunctionCallStack(
         (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
         frame.GetSlot(slotId.Index).Kind == AwkFunctionLocalSlotKind.Scalar;
 
+    public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) =>
+        TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount;
+
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
     {
         if (_frames.Count >= maxFunctionCallDepth)
@@ -332,6 +335,22 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
+        return TryResolveArrayArgument(frame, slotId, slot, out argument);
+    }
+
+    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionArgument argument)
+    {
+        if (!TryPeekLocalFrame(out var frame) || !TryGetLocalSlot(frame, slotId, out var slot))
+        {
+            argument = default;
+            return false;
+        }
+        return TryResolveArrayArgument(frame, slotId, slot, out argument);
+    }
+
+    private bool TryResolveArrayArgument(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
+        AwkFunctionLocalSlot slot, out AwkFunctionArgument argument)
+    {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
             argument = slot.ArrayName.Text.Length == 0 && slot.Value.TryGetArrayBinding(out var array)
@@ -366,7 +385,7 @@ internal sealed class AwkFunctionCallStack(
 
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
         {
-            var localArrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
+            var localArrayName = AwkArrayName.FunctionLocal(frame.Layout.Parameters[slotId.Index].Identifier, frame.Id);
             using var allocationPeak = memoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
             var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
             ReplaceLocalSlot(

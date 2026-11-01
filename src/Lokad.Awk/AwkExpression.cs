@@ -347,6 +347,15 @@ internal abstract partial class AwkExpression
         return false;
     }
 
+    // Binding knowledge belongs to a reference, independently of whether its caller suspends.
+    internal virtual bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
+    {
+        if (TryGetVariableName(out var name))
+            return state.TryResolveArrayArgument(name, out argument);
+        argument = default;
+        return false;
+    }
+
     /// <summary>Returns the scalar variable name only when this expression is exactly a variable reference.</summary>
     public virtual bool TryGetVariableName(out AwkVariableName name)
     {

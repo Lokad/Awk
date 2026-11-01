@@ -65,8 +65,7 @@ internal sealed class AwkUserFunction
             if (arguments.Count == 1)
             {
                 var expression = arguments[0];
-                var argument = expression.TryGetVariableName(out var variableName) &&
-                    state.TryResolveArrayArgument(variableName, out var arrayArgument)
+                var argument = expression.TryResolveArrayArgument(state, out var arrayArgument)
                     ? arrayArgument
                     : AwkFunctionArgument.FromValue(await EvaluateArgumentAsync(expression, 0, context).ConfigureAwait(false));
                 PushArguments([argument], context);
@@ -78,8 +77,7 @@ internal sealed class AwkUserFunction
                 {
                     if ((index & 63) == 0) state.CancellationCheckpoint();
                     var argument = arguments[index];
-                    if (argument.TryGetVariableName(out var variableName) &&
-                        state.TryResolveArrayArgument(variableName, out var arrayArgument))
+                    if (argument.TryResolveArrayArgument(state, out var arrayArgument))
                     {
                         values[index] = arrayArgument;
                         continue;

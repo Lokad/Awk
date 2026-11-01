@@ -259,7 +259,7 @@ internal abstract partial class AwkExpression
                 argument = default;
                 return false;
             }
-            return state.TryResolveArrayArgument(name, out argument);
+            return state.TryResolveArrayArgument(slotId, name, out argument);
         }
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>

@@ -701,6 +701,16 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
         _variableRuntime.TryResolveArrayArgument(name, out argument);
 
+    internal bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, AwkVariableName name,
+        out AwkFunctionArgument argument)
+    {
+        if (!_functions.HasLocalSlot(slotId))
+            return TryResolveArrayArgument(name, out argument);
+        var resolved = _functions.TryResolveArrayArgument(slotId, out argument);
+        if (resolved) Counters.RecordIndexedLocalArrayArgument();
+        return resolved;
+    }
+
     internal bool HasPreparedLocalScalarArgument(AwkFunctionLocalSlotId slotId)
     {
         if (!_functions.HasScalarLocal(slotId)) return false;

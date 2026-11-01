@@ -224,6 +224,9 @@ incompatible inactive capacity retires before new admission. Active/pending buff
 separate. Payload charges end at consumption; capacity refunds at retirement or completion.
 Cold admission checks cancellation before allocation. Default execution uses the BCL pool;
 caller scope, argument order and callee frame activation are unchanged.
+Ordinary and prepared user calls share reference binding. Bound local arrays avoid resolving
+their parameter names again, while hidden or absent local bindings retain global resolution.
+Scalar values are still captured before later operands; arrays retain their alias semantics.
 Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
 loop body or comparator clears its original owner. These scoped estimates can temporarily count
 shared text twice; Awk does not track object aliases.

@@ -306,6 +306,13 @@ internal sealed class AwkRuntimeCounters
 
     public long BoundLocalScalarArguments { get; private set; }
 
+    public long IndexedLocalArrayArguments { get; private set; }
+
+    public void RecordIndexedLocalArrayArgument()
+    {
+        if (_enabled) lock (_sync) IndexedLocalArrayArguments++;
+    }
+
     public void RecordBoundLocalScalarArgument()
     {
         if (_enabled) lock (_sync) BoundLocalScalarArguments++;

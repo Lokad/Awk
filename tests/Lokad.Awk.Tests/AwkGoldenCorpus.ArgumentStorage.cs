@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("argument-binding-ordinary-global-and-local-scalars",
+            ["function leaf(x){switch(0){default:break}return x+0}function wrap(x){return leaf(x)}BEGIN{x=\"0007\";print wrap(x),x;for(i=0;i<3;i++)print leaf(++x);print x}"],
+            [], "7 0007\n8\n9\n10\n10\n");
+        yield return Passing("argument-binding-ordinary-actual-and-omitted-local-arrays",
+            ["function leaf(a,k,v){switch(0){default:break}a[k]+=v;return a[k]}function forward(a,k,v){return leaf(a,k,v)}function local(k,v,a){return leaf(a,k,v)}BEGIN{for(i=1;i<=3;i++)print forward(a,\"key\",i);print length(a),a[\"key\"];print local(\"key\",7),local(\"key\",9);print a[\"key\"]}"],
+            [], "1\n3\n6\n1 6\n7 9\n6\n");
+        yield return Passing("argument-binding-global-actions-hide-scalar-caller",
+            ["function leaf(a){switch(0){default:break}return a[\"k\"]}function scan(x,line){getline line;return x}BEGINFILE{print leaf(x)}BEGIN{x[\"k\"]=\"global\";print scan(\"local\"),x[\"k\"]}"],
+            [], "global\nlocal global\n", "payload\n");
+        yield return Passing("argument-binding-ordinary-calls-see-symbol-table-assignment",
+            ["function leaf(x){switch(0){default:break}return x+0}BEGIN{x=7;print leaf(x);SYMTAB[\"x\"]=\"0009\";print leaf(x),x}"],
+            [], "7\n9 0009\n");
         yield return Passing("argument-storage-large-calls-evaluate-in-caller-order",
             ["function total(a,b,c,d,e,t){t=a+b+c+d+e;return t}BEGIN{for(i=0;i<3;i++)print total(++x,++x,++x,++x,++x),x}"],
             [], "15 5\n40 10\n65 15\n");

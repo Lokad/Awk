@@ -62,6 +62,9 @@ or environment dependencies.
 - Governed argument staging shares one implementation for its two concrete buffer types.
   Execution state owns one cleared inactive array per type. Keep capacity funded; never reuse
   active/pending buffers or evict/retry after refusal. Check cancellation after cold admission.
+- Ordinary and prepared user calls share reference-argument binding. Keep dynamic scalar
+  guards and caller scope; known local slots use the same array conversion as name lookup,
+  with name fallback when local bindings are hidden or unavailable.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 

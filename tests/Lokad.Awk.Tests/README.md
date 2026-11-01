@@ -156,6 +156,10 @@ print/printf lifetime checks preserve formatting and host-buffer funding.
 pending success/fault/cancellation, payload clearing/final refunds and cancellation requested
 by cold admission before large value/user-argument arrays. User-call counters cover ordinary/
 prepared bodies at 5, 9 and 65 arguments without changing their binding or activation phases.
+`AwkArgumentBindingTests` covers untouched globals, symbol-table changes, hidden caller slots,
+name fallback and real pending getline operands through cancellation and final refunds.
+Shared-binding counters cover ordinary/prepared scalar, array and omitted-local forwarding
+in both memory modes; goldens preserve spelling, aliases, caller scope and later mutation.
 Preparation counters cover complete numeric builtin bodies; warning-producing fallbacks keep
 their diagnostic boundary before later caller effects, including failed/pending/canceled appends.
 Preparation-entry counters cover absent, unused and called functions across flat blocks and

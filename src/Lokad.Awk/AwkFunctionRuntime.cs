@@ -37,6 +37,8 @@ internal sealed class AwkFunctionRuntime
 
     public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) => _calls.HasScalarLocal(slotId);
 
+    public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) => _calls.HasLocalSlot(slotId);
+
     // Borrow the program snapshot; callers keep the table immutable throughout execution.
     public void InitializeFunctions(IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions) =>
         _functions = functions;
@@ -79,6 +81,9 @@ internal sealed class AwkFunctionRuntime
 
     public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
         _calls.TryResolveArrayArgument(name, out argument);
+
+    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionArgument argument) =>
+        _calls.TryResolveArrayArgument(slotId, out argument);
 
     public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName) =>
         _calls.TryResolveOrPromoteArrayName(name, out arrayName);
