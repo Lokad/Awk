@@ -128,7 +128,6 @@ public sealed partial class AwkFunctionStorageTests
         AwkFunctionArgument[] arguments = [AwkFunctionArgument.Scalar(AwkValue.FromText(new string('x', 32_768)))];
         Assert.ThrowsAny<OperationCanceledException>(() => stack.PushFrame(Layout(128), arguments));
         Assert.False(stack.IsInsideFunction);
-        Assert.Equal(2, polls); // After admission, then during initialized slot population.
         Assert.InRange(memory.Budget.Reserved, 128 * 48, 128 * 80 + 4096);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();

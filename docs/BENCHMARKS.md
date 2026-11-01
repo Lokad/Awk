@@ -111,10 +111,14 @@ supplies a live caller deadline in both modes and measures that distinct configu
 
 | Script | Shared admission | Lokad ms | Lokad allocated MiB | Measured UTC / source |
 | --- | --- | ---: | ---: | --- |
-| Nested-array calls, 16 keys / 4,096 records (GNU) | None | 7.426 | 2.209 | 10-31 / [feec315] |
-| Nested-array calls, 16 keys / 4,096 records (GNU) | 512 MiB | 10.350 | 4.147 | 10-31 / [feec315] |
-| Nested-array calls, 1,024 keys / 4,096 records (GNU) | None | 8.344 | 2.802 | 10-31 / [feec315] |
-| Nested-array calls, 1,024 keys / 4,096 records (GNU) | 512 MiB | 10.734 | 4.741 | 10-31 / [feec315] |
+| Nested-array calls, 16 keys / 4,096 records (GNU) | None | 6.748 | 2.209 | 11-01 / [508228d] |
+| Nested-array calls, 16 keys / 4,096 records (GNU) | 512 MiB | 9.963 | 2.836 | 11-01 / [508228d] |
+| Nested-array calls, 1,024 keys / 4,096 records (GNU) | None | 6.899 | 2.802 | 11-01 / [508228d] |
+| Nested-array calls, 1,024 keys / 4,096 records (GNU) | 512 MiB | 11.375 | 3.429 | 11-01 / [508228d] |
+| Loop with five-argument calls, 4,096 records | None | 15.232 | 0.567 | 11-01 / [508228d] |
+| Loop with five-argument calls, 4,096 records | 512 MiB | 21.674 | 9.818 | 11-01 / [508228d] |
+| Nested user calls, 4,096 records | None | 2.811 | 0.517 | 11-01 / [508228d] |
+| Nested user calls, 4,096 records | 512 MiB | 4.470 | 0.519 | 11-01 / [508228d] |
 | Aggregation, 65,536 records | None | 33.729 | 0.238 | 10-31 / [feec315] |
 | Aggregation, 65,536 records | 512 MiB | 48.193 | 2.241 | 10-31 / [feec315] |
 | Join, 65,536 records per file | None | 112.729 | 21.363 | 10-31 / [e9c6ef5] |
@@ -184,7 +188,8 @@ exercise the provider boundary with the existing medium fixtures. `rs-regex` use
 fast path; `rs-engine` uses equivalent `([,;]+){1}` separators and checks provider use before
 timing. Medium arithmetic
 cases compare GNU/default, POSIX and governed POSIX execution. Keep transfers/builds outside measurement
-windows. Preserve the full correctness suite and confirm promising changes once in both source orders.
+windows. Preserve the full correctness suite. Use one paired comparison and, when it could change the
+decision, one reverse-order confirmation.
 
 Refresh all families at declared milestones. Replace affected rows after qualification,
 identifying their actual measured revision/date if others are retained. Keep this document
@@ -207,3 +212,5 @@ See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](C
 [feec315]: https://github.com/Lokad/Awk/commit/feec315bcd80e97823faa15e4f8ad1f3325f7efb
 
 [bf2975d]: https://github.com/Lokad/Awk/commit/bf2975d36cd1c9f67e80ec75252ab5da37a68395
+
+[508228d]: https://github.com/Lokad/Awk/commit/508228dfe77a15b341d3784919dbc5fc8159d435
