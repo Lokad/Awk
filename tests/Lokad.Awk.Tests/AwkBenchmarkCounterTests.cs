@@ -733,14 +733,14 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    internal async Task ParsedFieldArrayReadsUseExistingBoundedAction()
+    internal async Task ParsedFieldArrayReadsStayByteNative()
     {
         var result = await RunAsync(["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b)}"],
             "café\nmissing\ncafé\n", false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("20 2 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(3, result.Counters.SynchronousActionRuns);
+        Assert.Equal(3, result.Counters.BoundRegionRuns);
         Assert.Equal(3, result.Counters.FieldsMaterialized);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);

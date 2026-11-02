@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
-// Stage B lowering starts with ordinary scalar computation. Unsupported constructs
+// Stage B lowering covers ordinary scalar/flat-array computation. Unsupported constructs
 // remain an explicit migration boundary; there are no arity/block-size/script guards.
 internal sealed class AwkRegionCompiler
 {
@@ -11,11 +11,13 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionOperand> _operands = [];
     private readonly List<AwkRegionVariable> _variables = [];
     private readonly List<AwkRegionConstant> _constants = [];
+    private readonly List<AwkRegionArrayAccess> _arrays = [];
     private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
     private readonly Stack<Loop> _loops = [];
     private int _numbers;
     private int _values;
+    private int _targets;
     private int _straightLine;
 
     private AwkRegionCompiler(AwkLoweringScope scope) => _scope = scope;
@@ -31,7 +33,8 @@ internal sealed class AwkRegionCompiler
             return false;
         }
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
-            compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._numbers, compiler._values);
+            compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._arrays.ToArray(),
+            compiler._numbers, compiler._values, compiler._targets);
         return true;
     }
 
@@ -157,6 +160,10 @@ internal sealed class AwkRegionCompiler
                 if (!double.IsFinite(field) || field < 0 || field > int.MaxValue) return false;
                 result = Operand(AwkRegionOperandKind.Field, (int)field);
                 return true;
+            case AwkExpressionKind.ArrayElement:
+                if (!ArrayAccess(syntax, out var access)) return false;
+                result = Operand(AwkRegionOperandKind.ArrayElement, access);
+                return true;
             case AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
                 return Assignment(syntax, out result);
             case AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
@@ -184,24 +191,69 @@ internal sealed class AwkRegionCompiler
     private bool Assignment(AwkExpressionSyntax syntax, out int result)
     {
         result = 0;
-        if (!Variable(syntax.Children[0], out var target)) return false;
         var token = syntax.OperatorTokens[0].Kind;
         if (token == AwkTokenKind.Equal)
         {
             if (!Expression(syntax.Children[1], out var right)) return false;
             result = CaptureValue(right);
+            if (Variable(syntax.Children[0], out var variable))
+                Emit(new(AwkRegionInstructionKind.Assign, variable, result));
+            else
+            {
+                // Ordinary assignment evaluates its RHS before the subscript.
+                if (!ArrayAccess(syntax.Children[0], out var access)) return false;
+                Emit(new(AwkRegionInstructionKind.ArrayAssign, access, result));
+            }
         }
         else
         {
             if (!AwkAssignmentOperators.TryGetCompoundOperation(token, out var operation)) return false;
-            var left = CaptureNumber(Operand(AwkRegionOperandKind.Variable, target));
+            if (!PrepareTarget(syntax.Children[0], out var target, out var left)) return false;
             if (!Expression(syntax.Children[1], out var right)) return false;
             var number = _numbers++;
             Emit(new(AwkRegionInstructionKind.Compound, number, NumericRegister(left), NumericRegister(right), (int)operation));
             result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+            Store(target, result);
         }
-        Emit(new(AwkRegionInstructionKind.Assign, target, result));
         return true;
+    }
+
+    private bool ArrayAccess(AwkExpressionSyntax syntax, out int index)
+    {
+        index = 0;
+        if (syntax.Children.Count != 2 || !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(syntax, out var array) ||
+            _scope.IsReservedVariable(array.Name) || !Expression(syntax.Children[1], out var key)) return false;
+        // Nested subscript reads happen now, not recursively inside a later operand.
+        if (_operands[key].Kind == AwkRegionOperandKind.ArrayElement) key = CaptureValue(key);
+        index = _arrays.Count;
+        _arrays.Add(new(new(array.Identifier), _scope.GetArrayBinding(array.Identifier), key));
+        return true;
+    }
+
+    private bool PrepareTarget(AwkExpressionSyntax syntax, out PreparedTarget target, out int prior)
+    {
+        if (Variable(syntax, out var variable))
+        {
+            target = new(variable, -1);
+            prior = CaptureNumber(Operand(AwkRegionOperandKind.Variable, variable));
+            return true;
+        }
+        target = default;
+        prior = 0;
+        if (!ArrayAccess(syntax, out var access)) return false;
+        var captured = _targets++;
+        var number = _numbers++;
+        Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, access, number));
+        prior = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        target = new(access, captured);
+        return true;
+    }
+
+    private void Store(PreparedTarget target, int value)
+    {
+        Emit(target.Capture >= 0
+            ? new(AwkRegionInstructionKind.ArrayCommit, target.Capture, NumericRegister(value), target.Binding)
+            : new(AwkRegionInstructionKind.Assign, target.Binding, value));
     }
 
     private bool Unary(AwkExpressionSyntax syntax, out int result)
@@ -210,13 +262,12 @@ internal sealed class AwkRegionCompiler
         var token = syntax.OperatorTokens[0].Kind;
         if (token is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus or AwkTokenKind.PostfixPlusPlus or AwkTokenKind.PostfixMinusMinus)
         {
-            if (!Variable(syntax.Children[0], out var target)) return false;
-            var prior = CaptureNumber(Operand(AwkRegionOperandKind.Variable, target));
+            if (!PrepareTarget(syntax.Children[0], out var target, out var prior)) return false;
             var number = _numbers++;
             var decrement = token is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
             Emit(new(AwkRegionInstructionKind.Arithmetic, number, NumericRegister(prior), NumericRegister(Constant(decrement ? -1 : 1)), (int)AwkNumericOperation.Add));
             var updated = Operand(AwkRegionOperandKind.NumberTemporary, number);
-            Emit(new(AwkRegionInstructionKind.Assign, target, updated));
+            Store(target, updated);
             result = syntax.Kind == AwkExpressionKind.Postfix ? prior : updated;
             return true;
         }
@@ -337,7 +388,7 @@ internal sealed class AwkRegionCompiler
 
     private void Discard(int operand)
     {
-        if (_operands[operand].Kind is AwkRegionOperandKind.Variable or AwkRegionOperandKind.Field)
+        if (_operands[operand].Kind is AwkRegionOperandKind.Variable or AwkRegionOperandKind.Field or AwkRegionOperandKind.ArrayElement)
             Emit(new(AwkRegionInstructionKind.Discard, Left: operand));
     }
 
@@ -388,4 +439,6 @@ internal sealed class AwkRegionCompiler
         internal List<int> Breaks { get; } = [];
         internal List<int> Continues { get; } = [];
     }
+
+    private readonly record struct PreparedTarget(int Binding, int Capture);
 }

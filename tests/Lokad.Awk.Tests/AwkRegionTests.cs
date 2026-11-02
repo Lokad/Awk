@@ -1,8 +1,7 @@
 namespace Lokad.Awk.Tests;
 
-// Migration checks for the common region representation. Public boundary and full
-// record-driver coverage follow its integration; this class does not qualify an engine.
-public sealed class AwkRegionTests
+// Storage/migration checks. Ordinary behavior belongs to the public golden corpus.
+public sealed partial class AwkRegionTests
 {
     public static IEnumerable<object[]> ComputationCases()
     {
@@ -142,7 +141,6 @@ public sealed class AwkRegionTests
 
     [Theory]
     [InlineData("print 1")]
-    [InlineData("a[1]+=1")]
     [InlineData("x=length")]
     [InlineData("x=sin(1)")]
     public void UnmigratedConstructIsExplicit(string body)

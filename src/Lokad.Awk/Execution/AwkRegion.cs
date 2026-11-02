@@ -4,15 +4,17 @@ namespace Lokad.Awk;
 // The syntax compiler emits operands once; execution does not revisit expression trees.
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
-    AwkRegionVariable[] variables, AwkRegionConstant[] constants, int numberCount, int valueCount)
+    AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkRegionArrayAccess[] arrays,
+    int numberCount, int valueCount, int targetCount)
 {
     internal int NumberCount => numberCount;
     internal int ValueCount => valueCount;
+    internal int TargetCount => targetCount;
     internal int InstructionCount => instructions.Length;
 
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
     {
-        storage.Prepare(numberCount, valueCount);
+        storage.Prepare(numberCount, valueCount, targetCount);
         InitializeConstants(state, storage.Numbers);
         try { return Run(state, storage, 0, null).Flow; }
         finally { storage.ClearValues(); }
@@ -21,7 +23,7 @@ internal sealed class AwkRegion(
     internal ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkRegionStorage storage,
         AwkOutputSink output, AwkIo io)
     {
-        storage.Prepare(numberCount, valueCount);
+        storage.Prepare(numberCount, valueCount, targetCount);
         InitializeConstants(state, storage.Numbers);
         state.Counters.RecordBoundRegionRun();
         try
@@ -115,6 +117,28 @@ internal sealed class AwkRegion(
                     else
                         state.AssignVariableValue(variable.Name, value);
                     break;
+                case AwkRegionInstructionKind.ArrayPrepare:
+                    var access = arrays[instruction.Left];
+                    var key = operands[access.Key];
+                    var target = key.Kind == AwkRegionOperandKind.Field
+                        ? state.PrepareArrayFieldUpdate(access.Name, key.Index, access.Binding)
+                        : state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding);
+                    storage.StoreTarget(instruction.Target, target);
+                    numbers[instruction.Right] = target.Previous;
+                    break;
+                case AwkRegionInstructionKind.ArrayCommit:
+                    state.ThrowIfCancellationRequested();
+                    state.CommitArrayUpdate(arrays[instruction.Right].Name,
+                        storage.Targets[instruction.Target], numbers[instruction.Left]);
+                    storage.ReleaseTarget(instruction.Target);
+                    break;
+                case AwkRegionInstructionKind.ArrayAssign:
+                    var assigned = arrays[instruction.Target];
+                    var assignedKey = Key(assigned);
+                    var assignedValue = Value(instruction.Left);
+                    state.ThrowIfCancellationRequested();
+                    state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                    break;
                 case AwkRegionInstructionKind.Jump:
                     position = instruction.Target - 1;
                     break;
@@ -144,6 +168,11 @@ internal sealed class AwkRegion(
                     return ReadVariable(variable).AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ValueTemporary:
                     return storage.Values[operand.Index].AsNumber(state.CancellationCheckpoint);
+                case AwkRegionOperandKind.ArrayElement:
+                    var access = arrays[operand.Index];
+                    return operands[access.Key] is { Kind: AwkRegionOperandKind.Field } field
+                        ? state.GetArrayFieldNumber(access.Name, field.Index, access.Binding)
+                        : state.GetArrayNumber(access.Name, Key(access), access.Binding);
                 default: throw new InvalidOperationException("Unknown bound region operand.");
             }
         }
@@ -157,9 +186,17 @@ internal sealed class AwkRegion(
                 AwkRegionOperandKind.Variable => ReadVariable(variables[operand.Index]),
                 AwkRegionOperandKind.Field => state.GetFieldValue(operand.Index),
                 AwkRegionOperandKind.ValueTemporary => storage.Values[operand.Index],
+                AwkRegionOperandKind.ArrayElement => ReadArray(arrays[operand.Index]),
                 _ => throw new InvalidOperationException("Unknown bound region operand.")
             };
         }
+
+        AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] is { Kind: AwkRegionOperandKind.Field } field
+            ? state.GetArrayFieldKey(access.Name, field.Index, access.Binding) : state.ToArrayKey(Value(access.Key));
+
+        AwkValue ReadArray(AwkRegionArrayAccess access) => operands[access.Key] is { Kind: AwkRegionOperandKind.Field } field
+            ? state.GetArrayFieldValue(access.Name, field.Index, access.Binding)
+            : state.GetArrayAwkValue(access.Name, Key(access), access.Binding);
 
         AwkValue ReadVariable(AwkRegionVariable variable) => variable.GlobalIndex >= 0
             ? state.ResolvePreparedGlobalValue(variable.Name, variable.GlobalIndex)
@@ -172,13 +209,15 @@ internal sealed class AwkRegion(
     private readonly record struct RegionResult(int Position, bool NeedsFlush, AwkStatementFlow Flow = AwkStatementFlow.Continue);
 }
 
-internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary }
+internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary, ArrayElement }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
+internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key);
 internal enum AwkRegionInstructionKind : byte
 {
-    Poll, StatementBoundary, Number, Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign, Jump, JumpIfFalse, Flow
+    Poll, StatementBoundary, Number, Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
+    ArrayPrepare, ArrayCommit, ArrayAssign, Jump, JumpIfFalse, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);

@@ -9,6 +9,7 @@ internal sealed class AwkRegionStorage : IDisposable
     private readonly AwkMemoryLease _payload;
     private double[] _numbers = [];
     private AwkValue[] _values = [];
+    private AwkArrayUpdateTarget[] _targets = [];
     private bool _disposed;
 
     internal AwkRegionStorage(AwkRuntimeState state)
@@ -20,24 +21,51 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal double[] Numbers => _numbers;
     internal AwkValue[] Values => _values;
+    internal AwkArrayUpdateTarget[] Targets => _targets;
 
-    internal void Prepare(int numbers, int values)
+    internal void Prepare(int numbers, int values, int targets = 0)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (numbers <= _numbers.Length && values <= _values.Length) return;
-        var nextNumbers = Math.Max(numbers, _numbers.Length);
-        var nextValues = Math.Max(values, _values.Length);
-        var bytes = checked((long)nextNumbers * sizeof(double) + 24 + AwkRuntimeMemory.EstimateAwkValueArrayBytes(nextValues));
+        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length) return;
+        var growNumbers = numbers > _numbers.Length;
+        var growValues = values > _values.Length;
+        var growTargets = targets > _targets.Length;
+        // Unchanged buffers keep their current funding. Admit only the new buffers
+        // alongside the old buffers that remain live until publication below.
+        var bytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(numbers) : 0,
+            AwkRuntimeMemory.CheckedAdd(growValues ? AwkRuntimeMemory.EstimateAwkValueArrayBytes(values) : 0,
+                growTargets ? AwkRuntimeMemory.EstimateArrayUpdateTargetArrayBytes(targets) : 0));
+        var replacedBytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(_numbers.Length) : 0,
+            AwkRuntimeMemory.CheckedAdd(growValues ? AwkRuntimeMemory.EstimateAwkValueArrayBytes(_values.Length) : 0,
+                growTargets ? AwkRuntimeMemory.EstimateArrayUpdateTargetArrayBytes(_targets.Length) : 0));
         using var staging = _state.MemoryAccounting.ReserveTransient(bytes);
         _state.ThrowIfCancellationRequested();
-        var numeric = nextNumbers == _numbers.Length ? _numbers : new double[nextNumbers];
-        var scalar = nextValues == _values.Length ? _values : new AwkValue[nextValues];
+        var numeric = growNumbers ? new double[numbers] : _numbers;
+        var scalar = growValues ? new AwkValue[values] : _values;
+        var captured = growTargets ? new AwkArrayUpdateTarget[targets] : _targets;
         ClearValues();
-        var oldBytes = _capacity.Bytes;
         _numbers = numeric;
         _values = scalar;
-        if (oldBytes > 0) _capacity.Release(oldBytes);
+        _targets = captured;
+        if (replacedBytes > 0) _capacity.Release(replacedBytes);
         staging.MoveTo(_capacity, bytes);
+    }
+
+    internal void StoreTarget(int index, AwkArrayUpdateTarget target)
+    {
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? _targets[index].RetainedTargetBytes : 0;
+        var nextBytes = _state.MemoryAccounting.IsEnabled ? target.RetainedTargetBytes : 0;
+        if (nextBytes > oldBytes) _payload.ReserveAdditional(nextBytes - oldBytes);
+        _state.ThrowIfCancellationRequested();
+        _targets[index] = target;
+        if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
+    }
+
+    internal void ReleaseTarget(int index)
+    {
+        var bytes = _state.MemoryAccounting.IsEnabled ? _targets[index].RetainedTargetBytes : 0;
+        _targets[index] = default;
+        if (bytes > 0) _payload.Release(bytes);
     }
 
     internal void StoreValue(int index, AwkValue value)
@@ -54,6 +82,7 @@ internal sealed class AwkRegionStorage : IDisposable
     internal void ClearValues()
     {
         Array.Clear(_values);
+        Array.Clear(_targets);
         if (_payload.Bytes > 0) _payload.Release(_payload.Bytes);
     }
 
@@ -64,6 +93,7 @@ internal sealed class AwkRegionStorage : IDisposable
         ClearValues();
         _numbers = [];
         _values = [];
+        _targets = [];
         _payload.Dispose();
         _capacity.Dispose();
     }

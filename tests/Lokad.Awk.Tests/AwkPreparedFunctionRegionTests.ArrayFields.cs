@@ -91,16 +91,20 @@ public sealed partial class AwkPreparedFunctionRegionTests
         _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
         var host = new MockFileSystem(); var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        var region = Assert.IsType<AwkRegion>(program.MainActions[0].Region);
+        using var scratch = new AwkRegionStorage(state);
+        scratch.Prepare(region.NumberCount, region.ValueCount, region.TargetCount);
+        using var execution = state.PushExecutionContext(output, io);
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await program.MainActions[0].ExecuteAsync(state, io, output));
+            await region.ExecuteAsync(state, scratch, output, io));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, budget.Refusals);
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(4, state.ResolveVariableValue(total).AsNumber());
         Assert.Equal(firstExists, state.ContainsArrayValue(a, new("missing")));
         Assert.False(state.ContainsArrayValue(b, new("missing")));
-        Assert.Equal(1, counters.SynchronousActionRuns);
+        Assert.Equal(1, counters.BoundRegionRuns);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
@@ -143,24 +147,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(true)]
     public async Task FieldArrayActionsPreserveState(bool missing)
     {
-        {
-            var prepared = await RunFieldArrayAction(false, missing);
-            var ordinary = await RunFieldArrayAction(true, missing);
-            Assert.Equal(ordinary, prepared with { Prepared = 0 });
-            Assert.Equal(0, ordinary.Prepared);
-            {
-                Assert.Equal(1, prepared.Prepared);
-                Assert.Equal(missing ? 4 : 14, prepared.Total);
-            }
-        }
+        var result = await RunFieldArrayAction(missing);
+        Assert.Equal(missing ? 4 : 14, result.Total);
+        Assert.Equal(missing, result.FirstMiss);
+        Assert.Equal(missing, result.SecondMiss);
+        Assert.Equal("", result.Error);
+        Assert.Equal(1, result.Prepared);
     }
 
-    private static async Task<FieldArrayResult> RunFieldArrayAction(bool ordinary, bool missing)
+    private static async Task<FieldArrayResult> RunFieldArrayAction(bool missing)
     {
         var program = Bind("{total+=a[$1]+b[$1]}");
-        var statements = program.MainActions[0].Statements;
-        var action = ordinary ? new AwkAction(null, statements.Select(s => (AwkStatement)new OrdinaryStatement(s)).ToArray())
-            : program.MainActions[0];
+        var action = program.MainActions[0];
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(counters, limits);
@@ -176,7 +174,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var error = "";
         try { await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), counters.SynchronousActionRuns, error);
+        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), counters.BoundRegionRuns, error);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         return result;
@@ -211,7 +209,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.False(state.ContainsArrayValue(a, new("missing")));
         Assert.False(state.ContainsArrayValue(b, new("missing")));
         Assert.Same(record, state.CurrentRecordByteText);
-        Assert.Equal(1, counters.SynchronousActionRuns);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }

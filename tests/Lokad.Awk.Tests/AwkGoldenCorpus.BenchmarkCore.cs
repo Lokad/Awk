@@ -5,6 +5,23 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return AwkGoldenCaseBuilder.Create("array-bound-update-captures-prior-before-nested-same-key-update",
+            ["BEGIN{a[1]=4}{prior=a[1]++;outer=(a[1]+=(a[1]+=3));after=a[1];copy=a[1];a[1];unseen=a[2]}END{print prior,outer,after,copy,length(a),(3 in a)}"], [])
+            .WithStandardInput("row\n").WithStdOut("4 13 13 13 2 0\n")
+            .WithNondeterminismNote("Lokad retains its qualified prior-value-before-RHS compound-update order.")
+            .Build();
+        yield return Passing("array-bound-update-keeps-field-key-through-record-mutation",
+            ["BEGIN{a[\"0007\"]=10}{old=a[$1]++;result=(a[$1]+=(NF=0));after=a[old];missing=a[99]}END{print old,result,a[\"0007\"],NF,length(a)}"],
+            [], "10 11 11 0 3\n", "0007 tail\n");
+        yield return Passing("array-bound-update-plain-assignment-evaluates-rhs-before-subscript",
+            ["BEGIN{i=1;a[1]=5;a[2]=9}{x=(a[(i=2)]=(i=7));sum=a[2]+a[1]}END{print i,x,a[1],a[2],sum}"],
+            [], "2 7 5 7 12\n", "row\n");
+        yield return Passing("array-bound-update-nested-subscript-read-order-and-insertion",
+            ["BEGIN{b[1]=2;a[2]=5}{i=1;x=(a[b[i++]]+=i);y=b[1];reads=a[b[77]]}END{print i,x,y,length(a),length(b)}"],
+            [], "2 7 2 2 2\n", "row\n");
+        yield return Passing("array-bound-update-preserves-text-spelling-and-numeric-conversion",
+            ["BEGIN{a[1]=\"0007\"}{same=(a[1]==$1);number=a[1]+0;spelling=a[1]}END{print same,number,spelling}"],
+            [], "1 7 0007\n", "0007\n");
         yield return Passing("numeric-constants-remain-local-to-repeated-actions",
             ["{first=3}{second=5;total+=first*second}END{print total}"], [], "30\n", "a\nb\n");
         yield return Passing("region-foundation-scalar-capture-and-short-circuit",
@@ -134,13 +151,13 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("local-assignment-return-keeps-text-and-array-aliases",
             ["function keep(x,t){t=x;return t} function count(a,t){t=length(a);return t} BEGIN{t=91;a[1]=7;print keep(\"café\"),keep(\"007\"),\"[\" keep(missing) \"]\",count(a),t}"],
             [], "café 007 [] 1 91\n");
-        yield return Passing("field-array-region-keeps-hits-misses-and-utf8-keys",
+        yield return Passing("field-array-bound-update-keeps-hits-misses-and-utf8-keys",
             ["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b),a[\"missing\"]+0}"],
             [], "20 2 2 0\n", "café\nmissing\ncafé\n");
-        yield return Passing("field-array-region-keeps-aliases-and-local-indices",
+        yield return Passing("field-array-bound-update-keeps-aliases-and-local-indices",
             ["function read(a,x){return a[$x]+a[$(x+1)]} BEGIN{a[\"007\"]=2;a[\"tail\"]=3;b[\"007\"]=7;b[\"tail\"]=11} {s+=read(a,1);t+=read(b,1)} END{print s,t}"],
             [], "10 36\n", "007 tail\n007 tail\n");
-        yield return Passing("field-array-region-keeps-left-before-right-effects",
+        yield return Passing("field-array-bound-update-keeps-left-before-right-effects",
             ["function change(){a[\"k\"]=99;$0=\"other\";return 1} BEGIN{a[\"k\"]=7;b[\"other\"]=3;$0=\"k\";n=a[$1]+b[$(change())];print n,a[\"k\"],$0}"],
             [], "10 99 other\n");
         yield return Passing("field-target-snapshot-keeps-hits-misses-and-utf8-keys",
