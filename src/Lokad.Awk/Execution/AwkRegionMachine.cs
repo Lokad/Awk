@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 // One computation loop. Saved callers belong to existing function frames; only
 // actual pending host/legacy operations allocate an asynchronous continuation.
-internal struct AwkRegionMachine
+internal partial struct AwkRegionMachine
 {
     private readonly AwkRuntimeState _state;
     private readonly AwkOutputSink? _output;
@@ -35,45 +35,6 @@ internal struct AwkRegionMachine
         _cursor.Region.Initialize(_state, _cursor.Storage);
         if (_cursor.Region.IsFunction) _state.Counters.RecordBoundFunctionRun();
         else _state.Counters.RecordBoundRegionRun();
-    }
-
-    internal bool Run()
-    {
-        while (!_finished)
-        {
-            if (_pending != Pending.None)
-            {
-                if (!TryCompletePending()) return false;
-                continue;
-            }
-            var result = _cursor.Region.Run(_state, _cursor.Storage, _cursor.Position, _output);
-            _cursor = _cursor with { Position = result.Position };
-            switch (result.Boundary)
-            {
-                case AwkRegionBoundary.Flush:
-                    if (_output is not { } output || _io is not { } io)
-                        throw new InvalidOperationException("Flush requires a host context.");
-                    _flush = output.FlushAsync(io);
-                    _pending = Pending.Flush;
-                    break;
-                case AwkRegionBoundary.Call:
-                    EnterCall(_cursor.Region.Call(result.Index), result.Destination);
-                    break;
-                case AwkRegionBoundary.HostStatement:
-                    _hostFlow = _cursor.Region.HostStatement(result.Index).ExecuteAsync(Context);
-                    _pending = Pending.HostFlow;
-                    break;
-                case AwkRegionBoundary.HostExpression:
-                    _destination = result.Destination;
-                    _hostValue = _cursor.Region.HostExpression(result.Index).EvaluateAsync(Context);
-                    _pending = Pending.HostValue;
-                    break;
-                default:
-                    Finish(result.Flow);
-                    break;
-            }
-        }
-        return true;
     }
 
     private void EnterCall(AwkRegionCall call, int destination)
@@ -142,7 +103,7 @@ internal struct AwkRegionMachine
 
     private void Finish(AwkStatementFlow flow)
     {
-        if (_cursor.Frame is not { } frame)
+        if (_cursor.Frame is null)
         {
             Flow = flow;
             _finished = true;
@@ -155,6 +116,20 @@ internal struct AwkRegionMachine
         }
         var value = flow == AwkStatementFlow.ReturnFunction && _state.TryConsumeFunctionReturnValue(out var returned)
             ? returned : AwkValue.Unassigned();
+        Return(value);
+    }
+
+    private void Return(AwkValue value)
+    {
+        if (_cursor.Frame is not { } frame)
+        {
+            // An unmigrated caller still owns the root function frame. Its result
+            // remains funded there until that caller finishes the invocation.
+            _state.SetFunctionReturnValue(value);
+            Flow = AwkStatementFlow.ReturnFunction;
+            _finished = true;
+            return;
+        }
         if (frame.Continuation is not { } continuation)
             throw new InvalidOperationException("A called function requires a caller.");
         // Escaping data is funded before the callee's locals/captures retire.

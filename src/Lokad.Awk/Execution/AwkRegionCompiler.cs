@@ -95,9 +95,8 @@ internal sealed class AwkRegionCompiler
                         if (!Expression(returning, out var operand)) return false;
                         returned = CaptureValue(operand);
                     }
-                    Emit(new(AwkRegionInstructionKind.Return, Left: returned));
                     Emit(new(AwkRegionInstructionKind.StatementBoundary));
-                    Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)AwkStatementFlow.ReturnFunction));
+                    Emit(new(AwkRegionInstructionKind.Return, Left: returned));
                     break;
                 case AwkStatementKind.Print:
                 case AwkStatementKind.Printf:
