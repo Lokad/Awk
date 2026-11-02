@@ -79,10 +79,11 @@ internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArray
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
-    Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
+    Value, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,
-    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
+    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, HostStatement, HostExpression, Return,
+    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);

@@ -317,6 +317,9 @@ still own their original spelling.
 The same pending-host matrix covers concatenation prefixes and ordinary rule conditions.
 Counter checks retain short-circuit behavior, byte comparisons and the lazy concatenation
 copy bound while execution preparation changes.
+Predicate goldens cover mixed `&&`/`||`/`!`, call order, loop tests, NaN/signed zero and
+string-origin comparisons. Text comparisons must not parse decimal input as numbers when
+the other operand is known to be a string; nondecimal conversion behavior stays covered.
 
 ## Benchmarks
 

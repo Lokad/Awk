@@ -148,6 +148,22 @@ internal partial struct AwkRegionMachine
                     numbers[instruction.Target] = AwkComparisonOperations.Evaluate(
                         ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, state) ? 1 : 0;
                     break;
+                case AwkRegionInstructionKind.CompareText:
+                    if (state.NumberParsingMode != AwkNumberParsingMode.Decimal)
+                    {
+                        // Preserve deferred invalid-input diagnostics and their
+                        // operand ordering under the nondecimal compatibility modes.
+                        numbers[instruction.Target] = AwkComparisonOperations.Evaluate(
+                            ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, state) ? 1 : 0;
+                    }
+                    else
+                    {
+                        state.Counters.RecordByteTextComparison();
+                        numbers[instruction.Target] = AwkComparisonOperations.EvaluateTextComparison(
+                            state.CompareByteText(TextOperand(instruction.Left), TextOperand(instruction.Right)),
+                            (AwkComparison)instruction.Detail) ? 1 : 0;
+                    }
+                    break;
                 case AwkRegionInstructionKind.Not:
                     numbers[instruction.Target] = Value(instruction.Left).IsTruthy() ? 0 : 1;
                     break;
@@ -297,6 +313,15 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.JumpIfFalse:
                     if (!Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
                     break;
+                case AwkRegionInstructionKind.JumpIfTrue:
+                    if (Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
+                    break;
+                case AwkRegionInstructionKind.JumpIfZero:
+                    if (numbers[instruction.Left] == 0) position = instruction.Target - 1;
+                    break;
+                case AwkRegionInstructionKind.JumpIfNonzero:
+                    if (numbers[instruction.Left] != 0) position = instruction.Target - 1;
+                    break;
                 case AwkRegionInstructionKind.Flow:
                     state.ThrowIfCancellationRequested();
                     Finish((AwkStatementFlow)instruction.Detail);
@@ -366,6 +391,18 @@ internal partial struct AwkRegionMachine
                 return new(state.CreateDeferredTextValue(literals[operand.Index]));
             }
             return new(Value(index));
+        }
+
+        AwkByteTextOperand TextOperand(int index)
+        {
+            var operand = operands[index];
+            if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
+            if (operand.Kind == AwkRegionOperandKind.Literal)
+            {
+                state.Counters.RecordDeferredComparisonLiteral();
+                return new(literals[operand.Index]);
+            }
+            return new(state.FormatStringByteText(Value(index)));
         }
 
         static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;

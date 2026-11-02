@@ -16,7 +16,7 @@ public sealed class AwkRegionFieldTests
         var action = operation switch
         {
             "concat" => "{i=1;text=($i \":\" read());print text,$0,i;next}",
-            "condition" => "read()>0{print $0,i;next}",
+            "condition" => "(i=0)||(read()>0&&!(0||0)){print $0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;

@@ -241,7 +241,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public void SetRangePatternActive(AwkPattern pattern, bool active) =>
         _rangePatterns.SetActive(pattern, active);
 
-    private AwkNumberParsingMode NumberParsingMode =>
+    internal AwkNumberParsingMode NumberParsingMode =>
         CompatibilityMode switch
         {
             AwkCompatibilityMode.Posix => AwkNumberParsingMode.HexadecimalInput,

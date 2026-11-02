@@ -37,24 +37,24 @@ internal sealed class AwkRegionCompiler
     {
         var compiler = new AwkRegionCompiler(scope);
         compiler.Label();
-        var skipped = -1;
+        List<int>? skipped = null;
         if (condition is not null)
         {
-            if (!compiler.Expression(condition, out var test))
+            skipped = [];
+            if (!compiler.Branch(condition, whenTrue: false, skipped))
             {
                 region = null;
                 return false;
             }
-            skipped = compiler.Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: test));
         }
         if (!compiler.Statements(statements))
         {
             region = null;
             return false;
         }
-        if (skipped >= 0)
+        if (skipped is not null)
         {
-            compiler.Patch(skipped, compiler.Label());
+            compiler.PatchBranches(skipped, compiler.Label());
             // A false condition can still have queued diagnostics. Preserve the
             // action boundary even when none of its statements executes.
             compiler.Emit(new(AwkRegionInstructionKind.StatementBoundary));
@@ -94,11 +94,11 @@ internal sealed class AwkRegionCompiler
                     }
                     break;
                 case AwkStatementKind.If:
-                    if (!statement.Expression.TryGetValue(out var condition) || !Expression(condition, out var test)) return false;
-                    var otherwise = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: test));
+                    var otherwise = new List<int>();
+                    if (!statement.Expression.TryGetValue(out var condition) || !Branch(condition, whenTrue: false, otherwise)) return false;
                     if (!Statements(statement.BodyStatements)) return false;
                     var done = Emit(new(AwkRegionInstructionKind.Jump));
-                    Patch(otherwise, Label());
+                    PatchBranches(otherwise, Label());
                     if (!Statements(statement.ElseStatements)) return false;
                     Patch(done, Label());
                     break;
@@ -164,14 +164,13 @@ internal sealed class AwkRegionCompiler
         }
 
         var start = Label();
-        var conditionJump = -1;
+        var conditionJumps = new List<int>();
         if (statement.Kind != AwkStatementKind.DoWhile)
         {
             var condition = header is null ? statement.Expression : header.Parts[1].Expression;
             if (condition.TryGetValue(out var expression))
             {
-                if (!Expression(expression, out var value)) return false;
-                conditionJump = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: value));
+                if (!Branch(expression, whenTrue: false, conditionJumps)) return false;
             }
         }
         var loop = new Loop();
@@ -187,12 +186,11 @@ internal sealed class AwkRegionCompiler
         }
         if (statement.Kind == AwkStatementKind.DoWhile)
         {
-            if (!statement.Expression.TryGetValue(out var condition) || !Expression(condition, out var value)) return false;
-            conditionJump = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: value));
+            if (!statement.Expression.TryGetValue(out var condition) || !Branch(condition, whenTrue: false, conditionJumps)) return false;
         }
         Emit(new(AwkRegionInstructionKind.Jump, start));
         var end = Label();
-        if (conditionJump >= 0) Patch(conditionJump, end);
+        PatchBranches(conditionJumps, end);
         foreach (var position in loop.Breaks) Patch(position, end);
         return true;
     }
@@ -246,13 +244,13 @@ internal sealed class AwkRegionCompiler
             case AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1:
                 return Unary(syntax, out result);
             case AwkExpressionKind.Conditional when syntax.Children.Count == 3:
-                if (!Expression(syntax.Children[0], out var test)) return false;
-                var alternate = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: test));
+                var alternate = new List<int>();
+                if (!Branch(syntax.Children[0], whenTrue: false, alternate)) return false;
                 var target = _values++;
                 if (!Expression(syntax.Children[1], out var first, argument)) return false;
                 Emit(new(AwkRegionInstructionKind.Value, target, first, Detail: argument ? 1 : 0));
                 var end = Emit(new(AwkRegionInstructionKind.Jump));
-                Patch(alternate, Label());
+                PatchBranches(alternate, Label());
                 if (!Expression(syntax.Children[2], out var second, argument)) return false;
                 Emit(new(AwkRegionInstructionKind.Value, target, second, Detail: argument ? 1 : 0));
                 Patch(end, Label());
@@ -550,7 +548,7 @@ internal sealed class AwkRegionCompiler
         if (token is AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe)
         {
             var number = _numbers++;
-            var alternative = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: left));
+            var alternative = EmitBranch(left, whenTrue: false);
             if (token == AwkTokenKind.PipePipe)
             {
                 Emit(new(AwkRegionInstructionKind.MoveNumber, number, NumericRegister(Constant(1))));
@@ -590,15 +588,59 @@ internal sealed class AwkRegionCompiler
         if ((int)arithmetic < 0 && (int)comparison < 0) return false;
         // Immediate operands are consumed in source order inside one operation.
         // A computed RHS needs an owned capture before its operations can run.
+        var stringComparison = _operands[left].Kind == AwkRegionOperandKind.Literal;
         left = (int)arithmetic >= 0 ? CaptureNumber(left) : IsImmediateRead(syntax.Children[1]) ? left : CaptureValue(left);
         if (!Expression(syntax.Children[1], out var operand)) return false;
         var target = _numbers++;
         if ((int)arithmetic >= 0)
             Emit(new(AwkRegionInstructionKind.Arithmetic, target, NumericRegister(left), NumericRegister(operand), (int)arithmetic));
         else
-            Emit(new(AwkRegionInstructionKind.Compare, target, left, operand, (int)comparison));
+            Emit(new(stringComparison || _operands[operand].Kind == AwkRegionOperandKind.Literal
+                ? AwkRegionInstructionKind.CompareText : AwkRegionInstructionKind.Compare,
+                target, left, operand, (int)comparison));
         result = Operand(AwkRegionOperandKind.NumberTemporary, target);
         return true;
+    }
+
+    private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations)
+    {
+        _scope.CheckCancellation();
+        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
+        while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
+        {
+            _scope.CheckCancellation();
+            syntax = syntax.Children[0];
+        }
+        if (syntax.Kind == AwkExpressionKind.Unary && syntax.Children.Count == 1 &&
+            syntax.OperatorTokens.Count == 1 && syntax.OperatorTokens[0].Kind == AwkTokenKind.Bang)
+            return Branch(syntax.Children[0], !whenTrue, destinations);
+        if (syntax.Kind == AwkExpressionKind.Binary && syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 &&
+            syntax.OperatorTokens[0].Kind is AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe)
+        {
+            var conjunction = syntax.OperatorTokens[0].Kind == AwkTokenKind.AmpersandAmpersand;
+            if (conjunction != whenTrue)
+                return Branch(syntax.Children[0], whenTrue, destinations) && Branch(syntax.Children[1], whenTrue, destinations);
+            var bypass = new List<int>();
+            if (!Branch(syntax.Children[0], !whenTrue, bypass) || !Branch(syntax.Children[1], whenTrue, destinations)) return false;
+            PatchBranches(bypass, Label());
+            return true;
+        }
+        if (!Expression(syntax, out var value)) return false;
+        destinations.Add(EmitBranch(value, whenTrue));
+        return true;
+    }
+
+    private int EmitBranch(int operand, bool whenTrue)
+    {
+        var source = _operands[operand];
+        return source.Kind == AwkRegionOperandKind.NumberTemporary
+            ? Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfNonzero : AwkRegionInstructionKind.JumpIfZero, Left: source.Index))
+            : Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfTrue : AwkRegionInstructionKind.JumpIfFalse, Left: operand));
+    }
+
+    private void PatchBranches(List<int> positions, int target)
+    {
+        foreach (var position in positions) Patch(position, target);
     }
 
     private bool IsImmediateRead(AwkExpressionSyntax syntax)
