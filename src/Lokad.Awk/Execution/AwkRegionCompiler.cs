@@ -453,8 +453,19 @@ internal sealed class AwkRegionCompiler
             Emit(new(AwkRegionInstructionKind.BuiltinArgument, start + index, operand,
                 Detail: definition.ConsumesArithmeticInputs ? 1 : 0));
         }
+        // Fold the final uninterrupted captures into the invocation. Earlier
+        // captures stay before any intervening computation, mutation or call.
+        // This applies to every scalar builtin, independently of syntax shape.
+        var firstPending = _code.Count;
+        while (firstPending > 0 && _code[firstPending - 1] is { Kind: AwkRegionInstructionKind.BuiltinArgument } capture &&
+            capture.Target >= start && capture.Target < start + count)
+            firstPending--;
+        var pendingArguments = firstPending == _code.Count ? [] : new int[_code.Count - firstPending];
+        for (var index = 0; index < pendingArguments.Length; index++)
+            pendingArguments[index] = _code[firstPending + index].Left;
+        _code.RemoveRange(firstPending, pendingArguments.Length);
         var site = _builtins.Count;
-        _builtins.Add(new(implementation, start, count));
+        _builtins.Add(new(implementation, start, count, pendingArguments));
         var returned = _values++;
         Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);

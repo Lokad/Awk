@@ -345,12 +345,25 @@ internal partial struct AwkRegionMachine
                             ? state.GetFieldArithmeticArgument(FieldOrdinal(input)) : Value(instruction.Left), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
-                    state.ThrowIfCancellationRequested();
+                {
                     var builtin = builtins[instruction.Left];
+                    var pendingArguments = builtin.PendingArguments;
+                    var firstPending = builtin.Start + builtin.Count - pendingArguments.Length;
+                    for (var index = 0; index < pendingArguments.Length; index++)
+                    {
+                        if ((index & 63) == 63) state.ThrowIfCancellationRequested();
+                        var pendingOperand = operands[pendingArguments[index]];
+                        storage.StoreValue(firstPending + index,
+                            builtin.Implementation.ConsumesArithmeticInputs && IsField(pendingOperand)
+                                ? state.GetFieldArithmeticArgument(FieldOrdinal(pendingOperand)) : Value(pendingArguments[index]),
+                            preserveOrigin: true);
+                    }
+                    state.ThrowIfCancellationRequested();
                     storage.StoreValue(instruction.Target,
                         builtin.Implementation.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context));
                     storage.ReleaseValues(builtin.Start, builtin.Count);
                     break;
+                }
                 case AwkRegionInstructionKind.HostStatement:
                     _cursor = _cursor with { Position = position + 1 };
                     _hostFlow = region.HostStatements[instruction.Left].ExecuteAsync(Context);
