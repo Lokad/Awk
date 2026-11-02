@@ -184,7 +184,7 @@ internal sealed class AwkRegionStorage : IDisposable
     }
 
     internal string PrepareFormattedString(AwkValue value, out long retainedBytes) =>
-        AwkFormattingRuntime.PreparePrintfFormat(value, _state, _payload, out retainedBytes);
+        AwkFormattingRuntime.PrepareStringValue(value, _state, _payload, out retainedBytes);
 
     internal void ReleaseFormattedString(long retainedBytes)
     {

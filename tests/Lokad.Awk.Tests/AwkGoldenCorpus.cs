@@ -17,6 +17,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(CsvCases(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.CommandLine),
         .. Tagged(ComputedFieldCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
         .. Tagged(BoundConditionCases(), AwkGoldenTag.Expression),
+        .. Tagged(RedirectedOutputCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Function),
         .. Tagged(FieldLengthCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
         .. Tagged(FieldProjectionCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression, AwkGoldenTag.Io),
         .. Tagged(FieldLiteralComparisonCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),

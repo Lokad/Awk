@@ -46,7 +46,7 @@ internal sealed class AwkFormattingRuntime(
             resolveVariable(AwkFormattingVariable.ConversionFormat).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
     }
 
-    internal static string PreparePrintfFormat(AwkValue value, AwkRuntimeState state, AwkMemoryLease lease, out long retainedBytes)
+    internal static string PrepareStringValue(AwkValue value, AwkRuntimeState state, AwkMemoryLease lease, out long retainedBytes)
     {
         retainedBytes = 0;
         var before = lease.Bytes;

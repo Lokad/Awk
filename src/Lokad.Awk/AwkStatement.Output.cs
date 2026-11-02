@@ -59,13 +59,15 @@ internal abstract partial class AwkStatement
                 AwkPrintRuntime.AppendSmall(execution.Output, [first, second, third, fourth], expressions.Length, state);
                 return AwkStatementFlow.Continue;
             }
-            var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
-            using var heldTarget = RetainOutputTarget(resolvedTarget, state.MemoryAccounting);
+            var targetValue = await EvaluateOutputTargetAsync(target, context).ConfigureAwait(false);
+            using var heldTargetValue = state.MemoryAccounting.RetainValue(targetValue);
+            using var heldTarget = target.IsRedirected ? state.MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
             using var buffer = AwkValueBuffer.Rent(expressions.Length, state);
             var values = buffer.Values;
             for (var index = 0; index < expressions.Length; index++)
                 buffer.Set(index, await expressions[index].EvaluateAsync(context).ConfigureAwait(false));
 
+            var resolvedTarget = ResolveOutputTarget(target, targetValue, state, heldTarget);
             await EmitPrintAsync(
                     execution.Output,
                     execution.Io,
@@ -118,8 +120,10 @@ internal abstract partial class AwkStatement
         {
             var state = context.State;
             var execution = RequireExecutionContext(context);
-            var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
-            using var heldTarget = RetainOutputTarget(resolvedTarget, state.MemoryAccounting);
+            var targetValue = await EvaluateOutputTargetAsync(target, context).ConfigureAwait(false);
+            using var heldTargetValue = state.MemoryAccounting.RetainValue(targetValue);
+            using var heldTarget = target.IsRedirected ? state.MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
+            var resolvedTarget = AwkOptionalResolvedOutputRedirection.None;
             var formatValue = await format.EvaluateAsync(context).ConfigureAwait(false);
             using var heldFormatValue = format.IsTextLiteral ? AwkMemoryLease.Disabled : state.MemoryAccounting.RetainValue(formatValue);
             AwkUtf8Builder? formatted = null;
@@ -133,8 +137,9 @@ internal abstract partial class AwkStatement
                         state.PreflightPrintfField(_fieldIndices[index]);
                     }
                     var fields = new AwkPrintfFieldArguments(_fieldIndices, state);
+                    resolvedTarget = ResolveOutputTarget(target, targetValue, state, heldTarget);
                     using var heldFormat = state.MemoryAccounting.CreateTransientLease();
-                    var formatText = AwkFormattingRuntime.PreparePrintfFormat(formatValue, state, heldFormat, out _);
+                    var formatText = AwkFormattingRuntime.PrepareStringValue(formatValue, state, heldFormat, out _);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, fields, state))
                         return AwkStatementFlow.Continue;
                     formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
@@ -148,8 +153,9 @@ internal abstract partial class AwkStatement
                         buffer.Set(i, await arguments[i].EvaluateAsync(context).ConfigureAwait(false));
 
                     var values = new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state);
+                    resolvedTarget = ResolveOutputTarget(target, targetValue, state, heldTarget);
                     using var heldFormat = state.MemoryAccounting.CreateTransientLease();
-                    var formatText = AwkFormattingRuntime.PreparePrintfFormat(formatValue, state, heldFormat, out _);
+                    var formatText = AwkFormattingRuntime.PrepareStringValue(formatValue, state, heldFormat, out _);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, values, state))
                         return AwkStatementFlow.Continue;
                     formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
@@ -167,11 +173,6 @@ internal abstract partial class AwkStatement
         }
     }
 
-    private static AwkMemoryLease RetainOutputTarget(
-        AwkOptionalResolvedOutputRedirection target, AwkMemoryAccounting memory) =>
-        memory.ReserveTransient(target.TryGetValue(out var redirection)
-            ? AwkRuntimeMemory.EstimateUtf16StringBytes(redirection.Path.Text.Length) : 0);
-
     private static async Task EmitOutputAsync(
         AwkOutputSink output,
         AwkIo io,
@@ -187,17 +188,28 @@ internal abstract partial class AwkStatement
         await io.WriteAsync(new AwkRedirectedOutput(redirection.Path, redirection.Kind, content)).ConfigureAwait(false);
     }
 
-    private static async ValueTask<AwkOptionalResolvedOutputRedirection> ResolveOutputTargetAsync(
+    private static async ValueTask<AwkValue> EvaluateOutputTargetAsync(
         AwkOutputTarget target,
         AwkEvaluationContext context)
     {
         if (!target.TryGetRedirection(out var redirection))
-            return AwkOptionalResolvedOutputRedirection.None;
+            return AwkValue.Unassigned();
 
-        var path = new AwkRedirectionPath(await redirection.Target.ResolveStringAsync(context).ConfigureAwait(false));
+        var value = await redirection.Target.EvaluateAsync(context).ConfigureAwait(false);
         if (redirection.Kind == AwkOutputRedirectionKind.Coprocess)
+        {
+            using var held = context.State.MemoryAccounting.CreateTransientLease();
+            _ = AwkFormattingRuntime.PrepareStringValue(value, context.State, held, out _);
             throw new AwkRuntimeException(AwkMessages.ErrorUnsupportedCoprocess, AwkDiagnosticId.UnsupportedPolicy);
+        }
+        return value;
+    }
 
-        return AwkOptionalResolvedOutputRedirection.Specified(new AwkResolvedOutputRedirection(path, redirection.Kind));
+    private static AwkOptionalResolvedOutputRedirection ResolveOutputTarget(
+        AwkOutputTarget target, AwkValue captured, AwkRuntimeState state, AwkMemoryLease held)
+    {
+        if (!target.TryGetRedirection(out var redirection)) return AwkOptionalResolvedOutputRedirection.None;
+        var path = new AwkRedirectionPath(AwkFormattingRuntime.PrepareStringValue(captured, state, held, out _));
+        return AwkOptionalResolvedOutputRedirection.Specified(new(path, redirection.Kind));
     }
 }
