@@ -37,6 +37,7 @@ internal sealed class AwkRegionCompiler
 
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements)
     {
+        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
         foreach (var statement in statements)
         {
             _scope.CheckCancellation();
@@ -290,13 +291,16 @@ internal sealed class AwkRegionCompiler
         return true;
     }
 
-    private static bool IsImmediateRead(AwkExpressionSyntax syntax) => syntax.Kind switch
+    private bool IsImmediateRead(AwkExpressionSyntax syntax)
     {
-        AwkExpressionKind.Number or AwkExpressionKind.Variable => true,
-        AwkExpressionKind.Field => syntax.Children.Count == 1 && syntax.Children[0].Kind == AwkExpressionKind.Number,
-        AwkExpressionKind.Group => syntax.Children.Count == 1 && IsImmediateRead(syntax.Children[0]),
-        _ => false
-    };
+        while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
+        {
+            _scope.CheckCancellation();
+            syntax = syntax.Children[0];
+        }
+        return syntax.Kind is AwkExpressionKind.Number or AwkExpressionKind.Variable ||
+            syntax.Kind == AwkExpressionKind.Field && syntax.Children.Count == 1 && syntax.Children[0].Kind == AwkExpressionKind.Number;
+    }
 
     private bool Variable(AwkExpressionSyntax syntax, out int index)
     {
