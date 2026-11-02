@@ -18,21 +18,15 @@ internal sealed class AwkExecutionContextStack
 
     public AwkExecutionContextScope Push(AwkOutputSink output, AwkIo io)
     {
+        // The command already owns these services. Reentrant actions need a new
+        // scope only when they actually override a service.
+        if (_contexts.TryPeek(out var active) && ReferenceEquals(active.Output, output) && ReferenceEquals(active.Io, io))
+            return default;
         _contexts.Push(new AwkExecutionContext(output, io));
         return new AwkExecutionContextScope(this);
     }
 
-    public bool TryGet(out AwkExecutionContext context)
-    {
-        if (_contexts.Count > 0)
-        {
-            context = _contexts.Peek();
-            return true;
-        }
-
-        context = default;
-        return false;
-    }
+    public bool TryGet(out AwkExecutionContext context) => _contexts.TryPeek(out context);
 
     internal void Pop()
     {

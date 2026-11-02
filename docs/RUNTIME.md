@@ -174,7 +174,8 @@ escape still own their spelling; dirty reconstruction and potentially invalidati
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Interpreter preparation binds operands, scalar/array locations and function targets.
 Covered computation, branches, loops, calls and rule conditions share a driver that suspends
-for actual pending host work. File/start/end phases use separate funded scratch when they
+for actual pending host work. Command-wide host services are reused by record/actions;
+reentrant scopes retain only actual service overrides and restore them after pending work. File/start/end phases use separate funded scratch when they
 interrupt a caller through `getline`; default and single-value output retain the ordinary
 flush/diagnostic contract. Multi-value output stages operands before formatting and keeps
 fixed-field lists byte-native across arities. Rebuilding `$0` or mutating/suspending operands
