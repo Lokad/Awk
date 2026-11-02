@@ -80,4 +80,23 @@ public sealed class AwkIncomingFrameTests
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault());
         return fixture.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, fixture.Configure(options)));
     }
+
+    [Fact]
+    public void ActiveLocalWriteCanceledByAdmissionPreservesPriorValue()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token, true);
+        var state = fixture.State;
+        var name = AwkVariableName.FromText("x");
+        state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(7))]);
+        var before = fixture.Budget.Reserved;
+        var payload = AwkValue.FromText(new string('x', 4096));
+        fixture.Budget.OnGrowth = _ => cancellation.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => state.AssignFunctionLocalValue(new(0), name, payload));
+        Assert.Equal(7, state.ResolveFunctionLocalValue(new(0), name).AsNumber());
+        Assert.Equal(before, fixture.Budget.Reserved);
+        state.PopFunctionFrame();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
 }

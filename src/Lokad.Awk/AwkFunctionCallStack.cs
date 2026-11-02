@@ -667,6 +667,7 @@ internal sealed class AwkFunctionCallStack(
 
             try
             {
+                if (growth > 0) checkpoint?.Invoke();
                 frame.GetSlot(slotId.Index) = newSlot;
             }
             catch
