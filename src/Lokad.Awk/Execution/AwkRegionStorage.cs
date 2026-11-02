@@ -28,9 +28,15 @@ internal sealed class AwkRegionStorage : IDisposable
     internal AwkArrayUpdateTarget[] Targets => _targets;
     internal AwkUtf8Builder[] Builders => _builders;
 
-    internal void Prepare(int numbers, int values, int targets = 0, int builders = 0, int incoming = 0, int texts = 0)
+    internal void Prepare(AwkRegionStorageLayout layout)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var numbers = layout.Numbers;
+        var values = layout.Values;
+        var targets = layout.Targets;
+        var builders = layout.Builders;
+        var incoming = layout.Incoming;
+        var texts = layout.Texts;
         if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length) return;
         var growNumbers = numbers > _numbers.Length;
         var growValues = values > _values.Length;

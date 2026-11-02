@@ -55,7 +55,7 @@ public sealed partial class AwkRegionTests
         var state = fixture.State;
         var region = Compile("a[(component=1),2]+=(later=9)", state);
         using var storage = new AwkRegionStorage(state);
-        storage.Prepare(region.NumberCount, region.ValueCount, region.TargetCount, region.BuilderCount);
+        storage.Prepare(region.Layout);
         var before = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -80,7 +80,7 @@ public sealed partial class AwkRegionTests
         state.SetArrayAwkValue(array, new AwkArrayKey("keep"), AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromString(new string('x', 4096) + " tail"));
         using var storage = new AwkRegionStorage(state);
-        storage.Prepare(region.NumberCount, region.ValueCount, region.TargetCount, region.BuilderCount);
+        storage.Prepare(region.Layout);
         fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1024;
         Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
         Assert.Equal(7, state.GetArrayAwkValue(array, new AwkArrayKey("keep")).AsNumber());

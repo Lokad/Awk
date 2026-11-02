@@ -88,8 +88,8 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            _numbers, _values, _texts, _targets, _builderSeparators.Count,
-            _calls.ToArray(), _incomingCalls, _hostStatements.ToArray(), _hostExpressions.ToArray(),
+            new(_numbers, _values, _texts, _targets, _builderSeparators.Count, _incomingCalls),
+            _calls.ToArray(), _hostStatements.ToArray(), _hostExpressions.ToArray(),
             _builtins.ToArray(), _kind);
         return true;
     }

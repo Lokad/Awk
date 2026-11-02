@@ -210,7 +210,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.InitializeFunctions(functions);
         state.PushFunctionFrame(function.LocalLayout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(7))]);
         var storage = state.CurrentFunctionFrame.GetRegionStorage(state);
-        storage.Prepare(region.NumberCount, region.ValueCount, region.TargetCount, region.BuilderCount);
+        storage.Prepare(region.Layout);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         try

@@ -93,7 +93,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var region = Assert.IsType<AwkRegion>(program.MainActions[0].Region);
         using var scratch = new AwkRegionStorage(state);
-        scratch.Prepare(region.NumberCount, region.ValueCount, region.TargetCount);
+        scratch.Prepare(region.Layout);
         using var execution = state.PushExecutionContext(output, io);
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>

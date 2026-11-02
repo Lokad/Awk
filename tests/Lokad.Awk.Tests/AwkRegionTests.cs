@@ -129,7 +129,7 @@ public sealed partial class AwkRegionTests
         using var fixture = State(CancellationToken.None, true);
         var storage = new AwkRegionStorage(fixture.State);
         storage.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => storage.Prepare(128, 128));
+        Assert.Throws<ObjectDisposedException>(() => storage.Prepare(new(128, 128)));
     }
 
     [Fact]

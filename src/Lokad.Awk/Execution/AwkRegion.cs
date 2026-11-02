@@ -5,16 +5,12 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
-    int numberCount, int valueCount, int textCount, int targetCount, int builderCount,
-    AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
+    AwkRegionStorageLayout layout, AwkRegionCall[] calls, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
     AwkRegionBuiltin[] builtins, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
-    internal int NumberCount => numberCount;
-    internal int ValueCount => valueCount;
-    internal int TargetCount => targetCount;
-    internal int BuilderCount => builderCount;
+    internal AwkRegionStorageLayout Layout => layout;
     internal int InstructionCount => instructions.Length;
 
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
@@ -45,7 +41,7 @@ internal sealed class AwkRegion(
 
     internal void Initialize(AwkRuntimeState state, AwkRegionStorage storage)
     {
-        storage.Prepare(numberCount, valueCount, targetCount, builderCount, incomingCount, textCount);
+        storage.Prepare(layout);
         InitializeConstants(state, storage.Numbers);
     }
 
@@ -73,6 +69,8 @@ internal sealed class AwkRegion(
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
+internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
+    int Targets = 0, int Builders = 0, int Incoming = 0);
 internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
