@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 // The syntax compiler emits operands once; execution does not revisit expression trees.
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
-    AwkRegionVariable[] variables, double[] constants, int numberCount, int valueCount)
+    AwkRegionVariable[] variables, AwkRegionConstant[] constants, int numberCount, int valueCount)
 {
     internal int NumberCount => numberCount;
     internal int ValueCount => valueCount;
@@ -13,6 +13,7 @@ internal sealed class AwkRegion(
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
     {
         storage.Prepare(numberCount, valueCount);
+        InitializeConstants(state, storage.Numbers);
         try { return Run(state, storage, 0, null).Flow; }
         finally { storage.ClearValues(); }
     }
@@ -21,6 +22,7 @@ internal sealed class AwkRegion(
         AwkOutputSink output, AwkIo io)
     {
         storage.Prepare(numberCount, valueCount);
+        InitializeConstants(state, storage.Numbers);
         state.Counters.RecordBoundRegionRun();
         try
         {
@@ -30,6 +32,16 @@ internal sealed class AwkRegion(
             return ValueTask.FromResult(result.Flow);
         }
         catch { storage.ClearValues(); throw; }
+    }
+
+    private void InitializeConstants(AwkRuntimeState state, double[] numbers)
+    {
+        for (var index = 0; index < constants.Length; index++)
+        {
+            if ((index & 127) == 127) state.ThrowIfCancellationRequested();
+            var constant = constants[index];
+            numbers[constant.Register] = constant.Number;
+        }
     }
 
     private async ValueTask<AwkStatementFlow> ResumeAsync(AwkRuntimeState state, AwkRegionStorage storage,
@@ -71,11 +83,11 @@ internal sealed class AwkRegion(
                     break;
                 case AwkRegionInstructionKind.Arithmetic:
                     numbers[instruction.Target] = AwkNumericOperations.Apply(
-                        Number(instruction.Left), Number(instruction.Right), (AwkNumericOperation)instruction.Detail);
+                        numbers[instruction.Left], numbers[instruction.Right], (AwkNumericOperation)instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Compound:
                     numbers[instruction.Target] = AwkNumericOperations.ApplyCompoundAssignment(
-                        Number(instruction.Left), Number(instruction.Right), (AwkCompoundAssignmentOperation)instruction.Detail);
+                        numbers[instruction.Left], numbers[instruction.Right], (AwkCompoundAssignmentOperation)instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Compare:
                     numbers[instruction.Target] = AwkComparisonOperations.Evaluate(
@@ -85,7 +97,7 @@ internal sealed class AwkRegion(
                     numbers[instruction.Target] = Value(instruction.Left).IsTruthy() ? 0 : 1;
                     break;
                 case AwkRegionInstructionKind.Negate:
-                    numbers[instruction.Target] = -Number(instruction.Left);
+                    numbers[instruction.Target] = -numbers[instruction.Left];
                     break;
                 case AwkRegionInstructionKind.Truth:
                     numbers[instruction.Target] = Value(instruction.Left).IsTruthy() ? 1 : 0;
@@ -123,7 +135,6 @@ internal sealed class AwkRegion(
             var operand = operands[index];
             switch (operand.Kind)
             {
-                case AwkRegionOperandKind.Number: return constants[operand.Index];
                 case AwkRegionOperandKind.NumberTemporary: return numbers[operand.Index];
                 case AwkRegionOperandKind.Field: return state.GetFieldNumber(operand.Index);
                 case AwkRegionOperandKind.Variable:
@@ -142,7 +153,6 @@ internal sealed class AwkRegion(
             var operand = operands[index];
             return operand.Kind switch
             {
-                AwkRegionOperandKind.Number => AwkValue.FromNumber(constants[operand.Index]),
                 AwkRegionOperandKind.NumberTemporary => AwkValue.FromNumber(numbers[operand.Index]),
                 AwkRegionOperandKind.Variable => ReadVariable(variables[operand.Index]),
                 AwkRegionOperandKind.Field => state.GetFieldValue(operand.Index),
@@ -162,9 +172,10 @@ internal sealed class AwkRegion(
     private readonly record struct RegionResult(int Position, bool NeedsFlush, AwkStatementFlow Flow = AwkStatementFlow.Continue);
 }
 
-internal enum AwkRegionOperandKind : byte { Number, Variable, Field, NumberTemporary, ValueTemporary }
+internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex);
+internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, Number, Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign, Jump, JumpIfFalse, Flow

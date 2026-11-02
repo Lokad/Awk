@@ -10,7 +10,8 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionInstruction> _code = [];
     private readonly List<AwkRegionOperand> _operands = [];
     private readonly List<AwkRegionVariable> _variables = [];
-    private readonly List<double> _constants = [];
+    private readonly List<AwkRegionConstant> _constants = [];
+    private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
     private readonly Stack<Loop> _loops = [];
     private int _numbers;
@@ -195,7 +196,7 @@ internal sealed class AwkRegionCompiler
             var left = CaptureNumber(Operand(AwkRegionOperandKind.Variable, target));
             if (!Expression(syntax.Children[1], out var right)) return false;
             var number = _numbers++;
-            Emit(new(AwkRegionInstructionKind.Compound, number, left, right, (int)operation));
+            Emit(new(AwkRegionInstructionKind.Compound, number, NumericRegister(left), NumericRegister(right), (int)operation));
             result = Operand(AwkRegionOperandKind.NumberTemporary, number);
         }
         Emit(new(AwkRegionInstructionKind.Assign, target, result));
@@ -212,7 +213,7 @@ internal sealed class AwkRegionCompiler
             var prior = CaptureNumber(Operand(AwkRegionOperandKind.Variable, target));
             var number = _numbers++;
             var decrement = token is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
-            Emit(new(AwkRegionInstructionKind.Arithmetic, number, prior, Constant(decrement ? -1 : 1), (int)AwkNumericOperation.Add));
+            Emit(new(AwkRegionInstructionKind.Arithmetic, number, NumericRegister(prior), NumericRegister(Constant(decrement ? -1 : 1)), (int)AwkNumericOperation.Add));
             var updated = Operand(AwkRegionOperandKind.NumberTemporary, number);
             Emit(new(AwkRegionInstructionKind.Assign, target, updated));
             result = syntax.Kind == AwkExpressionKind.Postfix ? prior : updated;
@@ -222,7 +223,7 @@ internal sealed class AwkRegionCompiler
         if (token == AwkTokenKind.Plus) { result = CaptureNumber(operand); return true; }
         var destination = _numbers++;
         if (token == AwkTokenKind.Minus)
-            Emit(new(AwkRegionInstructionKind.Negate, destination, operand));
+            Emit(new(AwkRegionInstructionKind.Negate, destination, NumericRegister(operand)));
         else if (token == AwkTokenKind.Bang)
             Emit(new(AwkRegionInstructionKind.Not, destination, operand));
         else return false;
@@ -281,8 +282,10 @@ internal sealed class AwkRegionCompiler
         left = (int)arithmetic >= 0 ? CaptureNumber(left) : IsImmediateRead(syntax.Children[1]) ? left : CaptureValue(left);
         if (!Expression(syntax.Children[1], out var operand)) return false;
         var target = _numbers++;
-        Emit(new((int)arithmetic >= 0 ? AwkRegionInstructionKind.Arithmetic : AwkRegionInstructionKind.Compare,
-            target, left, operand, (int)arithmetic >= 0 ? (int)arithmetic : (int)comparison));
+        if ((int)arithmetic >= 0)
+            Emit(new(AwkRegionInstructionKind.Arithmetic, target, NumericRegister(left), NumericRegister(operand), (int)arithmetic));
+        else
+            Emit(new(AwkRegionInstructionKind.Compare, target, left, operand, (int)comparison));
         result = Operand(AwkRegionOperandKind.NumberTemporary, target);
         return true;
     }
@@ -313,7 +316,7 @@ internal sealed class AwkRegionCompiler
 
     private int CaptureNumber(int operand)
     {
-        if (_operands[operand].Kind is AwkRegionOperandKind.Number or AwkRegionOperandKind.NumberTemporary) return operand;
+        if (_operands[operand].Kind == AwkRegionOperandKind.NumberTemporary) return operand;
         var target = _numbers++;
         Emit(new(AwkRegionInstructionKind.Number, target, operand));
         return Operand(AwkRegionOperandKind.NumberTemporary, target);
@@ -321,7 +324,7 @@ internal sealed class AwkRegionCompiler
 
     private int CaptureValue(int operand)
     {
-        if (_operands[operand].Kind is AwkRegionOperandKind.Number or AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary)
+        if (_operands[operand].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary)
             return operand;
         var target = _values++;
         Emit(new(AwkRegionInstructionKind.Value, target, operand));
@@ -336,10 +339,17 @@ internal sealed class AwkRegionCompiler
 
     private int Constant(double value)
     {
-        var index = _constants.Count;
-        _constants.Add(value);
-        return Operand(AwkRegionOperandKind.Number, index);
+        var bits = BitConverter.DoubleToInt64Bits(value);
+        if (!_constantRegisters.TryGetValue(bits, out var register))
+        {
+            register = _numbers++;
+            _constantRegisters.Add(bits, register);
+            _constants.Add(new(register, value));
+        }
+        return Operand(AwkRegionOperandKind.NumberTemporary, register);
     }
+
+    private int NumericRegister(int operand) => _operands[CaptureNumber(operand)].Index;
 
     private int Operand(AwkRegionOperandKind kind, int index)
     {
