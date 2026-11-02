@@ -3,6 +3,72 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task NumericAndValueReturnsKeepPendingOwnersAndOriginalSpelling(bool governed, bool legacyBody, bool cancel)
+    {
+        var source = "function read(v){" + (legacyBody ? "switch(0){default:break}" : "") +
+            "getline v<\"/side\";return v}{sum+=read();saved=read();print sum,saved;next}";
+        var host = new MockFileSystem();
+        host.SetStandardInput("row\n");
+        host.AddFile("/side", "0007\n0011\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = Read;
+        async ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            if (descriptor != AwkFileDescriptor.StdIn)
+            {
+                using var registration = token.Register(() => canceled.TrySetResult());
+                entered.TrySetResult();
+                await release.Task.ConfigureAwait(false);
+            }
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false); }
+            finally { host.ReadAsyncOverride = Read; }
+        }
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+        var run = AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+            cancellation.Token, options);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var held = budget.Reserved;
+            if (governed) Assert.True(held > 0);
+            if (cancel)
+            {
+                cancellation.Cancel();
+                await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(run.IsCompleted);
+                Assert.Equal(held, budget.Reserved);
+            }
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(cancel ? "" : "7 0011\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, counters.FunctionArgumentBufferRents);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            release.TrySetResult();
+            try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task NumericGlobalArgumentsUseTheirBoundLocationWithoutIntermediateValues(bool governed)
     {

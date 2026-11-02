@@ -110,7 +110,7 @@ internal readonly record struct AwkRegionCursor
     internal int Position { get; init; }
     internal AwkFunctionFrame? Frame { get; }
 }
-internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, int Destination);
+internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, AwkRegionOperand Destination);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation Implementation,
     int Start, int Count, int[] PendingArguments);
 internal readonly record struct AwkRegionStringCall(AwkBuiltinId Id, int First, int Second = -1, int Third = -1);

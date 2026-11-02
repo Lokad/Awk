@@ -160,6 +160,26 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
+    internal void StoreNumber(int index, AwkValue value)
+    {
+        value = value.AsScalarCopy();
+        var bytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        if (bytes == 0)
+        {
+            _numbers[index] = value.AsNumber(_state.CancellationCheckpoint);
+            return;
+        }
+        // A legacy producer can return fresh text without a retained value slot.
+        // Fund the conversion's actual user, then retire it before the caller runs.
+        _payload.ReserveAdditional(bytes);
+        try
+        {
+            _state.ThrowIfCancellationRequested();
+            _numbers[index] = value.AsNumber(_state.CancellationCheckpoint);
+        }
+        finally { _payload.Release(bytes); }
+    }
+
     internal void ReleaseValue(int index)
     {
         var bytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;

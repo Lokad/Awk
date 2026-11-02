@@ -48,7 +48,7 @@ internal partial struct AwkRegionMachine
         }
     }
 
-    private void EnterCall(AwkRegionCall call, int destination)
+    private void EnterCall(AwkRegionCall call, AwkRegionOperand destination)
     {
         var frame = _cursor.Storage.IncomingFrame(call.Slot);
         frame.Continuation = new(_cursor, destination);
@@ -124,18 +124,23 @@ internal partial struct AwkRegionMachine
 
     private void CompleteValue(AwkValue value)
     {
-        var legacy = _pending == Pending.LegacyValue;
+        _hostValue = default;
         _pending = Pending.None;
         _state.ThrowIfCancellationRequested();
-        if (legacy)
-        {
-            if (_legacyFrame is not { Continuation: { } continuation })
-                throw new InvalidOperationException("A called function requires a caller.");
-            continuation.Caller.Storage.StoreValue(continuation.Destination, value);
-            _state.PopFunctionFrame();
-            _legacyFrame = null;
-        }
-        else _cursor.Storage.StoreValue(_destination, value);
+        if (_legacyFrame is not { Continuation: { } continuation })
+            throw new InvalidOperationException("A called function requires a caller.");
+        StoreReturnValue(continuation, value);
+        _state.PopFunctionFrame();
+        _legacyFrame = null;
+    }
+
+    private void StoreReturnValue(AwkRegionContinuation continuation, AwkValue value)
+    {
+        var destination = continuation.Destination;
+        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
+            continuation.Caller.Storage.StoreNumber(destination.Index, value);
+        else
+            continuation.Caller.Storage.StoreValue(destination.Index, value);
     }
 
     private void Finish(AwkStatementFlow flow)
@@ -169,8 +174,9 @@ internal partial struct AwkRegionMachine
         }
         if (frame.Continuation is not { } continuation)
             throw new InvalidOperationException("A called function requires a caller.");
-        // Escaping data is funded before the callee's locals/captures retire.
-        continuation.Caller.Storage.StoreValue(continuation.Destination, value);
+        // Escaping data is funded, or an immediate numeric consumer completes,
+        // before the callee's locals/captures retire.
+        StoreReturnValue(continuation, value);
         _state.PopFunctionFrame();
         _cursor = continuation.Caller;
     }

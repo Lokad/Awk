@@ -183,7 +183,9 @@ format storage retires after formatting, before the host receives owned output b
 File and one-way pipe output retain their prepared target and reusable payload buffer
 until the host write actually finishes, including when it ignores cancellation. Formatting
 preflights before file creation or truncation; authorization remains at the host boundary.
-Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
+Immediate numeric consumers of function returns write directly to numeric scratch; other
+returns preserve their value kind and spelling. Text remains funded through conversion,
+including after a genuinely pending host operation. Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Scalar string operations consume prebound operands directly. Stable synchronous reads keep
 their existing owners; captures remain funded before intervening computation, array reads or

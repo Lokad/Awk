@@ -363,7 +363,8 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Call:
                     _cursor = _cursor with { Position = position + 1 };
-                    EnterCall(calls[instruction.Left], instruction.Target);
+                    EnterCall(calls[instruction.Left], new(instruction.Detail == 0
+                        ? AwkRegionOperandKind.ValueTemporary : AwkRegionOperandKind.NumberTemporary, instruction.Target));
                     goto Resume;
                 case AwkRegionInstructionKind.BuiltinArgument:
                     var input = operands[instruction.Left];

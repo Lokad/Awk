@@ -1002,6 +1002,16 @@ internal sealed class AwkRegionCompiler
         var source = _operands[operand];
         if (source.Kind == AwkRegionOperandKind.NumberTemporary) return operand;
         var target = _numbers++;
+        if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count > 0 &&
+            _code[^1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
+        {
+            // Conversion is the immediate consumer: no script work moves across
+            // it. Keep the value with its funded callee until conversion finishes.
+            _code[^1] = call with { Target = target, Detail = 1 };
+            if (source.Index == _values - 1) _values--;
+            _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
+            return operand;
+        }
         var kind = source.Kind switch
         {
             AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
