@@ -324,6 +324,9 @@ the other operand is known to be a string; nondecimal conversion behavior stays 
 input. It preserves caller prefixes/locals through reentrant file phases and keeps pending
 users funded through cancellation. A print fallback case prevents replaying earlier operands;
 untyped conditional-print origins retain their existing canonical expectations.
+Bound output counters cover 2–65 fields, grouped indices, original UTF8/spelling and zero
+owned text allocation for fixed-field lists in both memory modes. Mutation/formatting goldens
+and pending-call checks keep earlier operands owned through later record changes or suspension.
 
 ## Benchmarks
 

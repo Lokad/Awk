@@ -17,6 +17,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<int> _builderSeparators = [];
     private readonly List<AwkRegionCall> _calls = [];
     private readonly List<AwkRegionBuiltin> _builtins = [];
+    private readonly List<AwkRegionPrint> _prints = [];
     private readonly List<AwkStatement> _hostStatements = [];
     private readonly List<AwkExpression> _hostExpressions = [];
     private int _activeCalls;
@@ -28,6 +29,7 @@ internal sealed class AwkRegionCompiler
     private int _numbers;
     private int _values;
     private int _texts;
+    private int _printSegments;
     private int _targets;
     private int _straightLine;
 
@@ -88,9 +90,9 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, _builderSeparators.Count, _incomingCalls),
+            new(_numbers, _values, _texts, _targets, _builderSeparators.Count, _incomingCalls, _printSegments),
             _calls.ToArray(), _hostStatements.ToArray(), _hostExpressions.ToArray(),
-            _builtins.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _kind);
         return true;
     }
 
@@ -168,7 +170,11 @@ internal sealed class AwkRegionCompiler
                     if (!output.Output.Expression.TryGetValue(out var printed)) return false;
                     if (printed.Kind == AwkExpressionKind.Group && printed.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
                         printed = list;
-                    if (printed.Kind == AwkExpressionKind.ExpressionList) goto case AwkStatementKind.Printf;
+                    if (printed.Kind == AwkExpressionKind.ExpressionList)
+                    {
+                        if (!PrintList(printed.Children)) return false;
+                        break;
+                    }
                     if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
                     var printKind = _operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField
                         ? AwkRegionInstructionKind.PrintField : AwkRegionInstructionKind.PrintValue;
@@ -474,19 +480,18 @@ internal sealed class AwkRegionCompiler
     private bool Field(AwkExpressionSyntax syntax, out int operand)
     {
         operand = 0;
-        if (syntax.Kind != AwkExpressionKind.Field || syntax.Children.Count != 1) return false;
-        var index = syntax.Children[0];
-        if (index.Kind == AwkExpressionKind.Number &&
-            AwkExpressionLowerer.TryReadSwitchConstant(index, _scope, out var constant))
+        while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
         {
-            var number = constant.AsNumber();
-            if (double.IsFinite(number) && number >= 0 && number <= int.MaxValue)
-            {
-                operand = Operand(AwkRegionOperandKind.Field, (int)number);
-                return true;
-            }
+            _scope.CheckCancellation();
+            syntax = syntax.Children[0];
         }
-        if (!Expression(index, out var value)) return false;
+        if (syntax.Kind != AwkExpressionKind.Field || syntax.Children.Count != 1) return false;
+        if (TryFixedField(syntax, out var field))
+        {
+            operand = Operand(AwkRegionOperandKind.Field, field);
+            return true;
+        }
+        if (!Expression(syntax.Children[0], out var value)) return false;
         var validated = _numbers++;
         Emit(new(AwkRegionInstructionKind.FieldIndex, validated, NumericRegister(value)));
         operand = Operand(AwkRegionOperandKind.DynamicField, validated);
@@ -499,13 +504,63 @@ internal sealed class AwkRegionCompiler
         // computed destination must first own the RHS before evaluating its index.
         if (syntax.Kind != AwkExpressionKind.Assignment || syntax.Children.Count != 2 ||
             syntax.OperatorTokens.Count != 1 || syntax.OperatorTokens[0].Kind != AwkTokenKind.Equal ||
-            syntax.Children[0] is not { Kind: AwkExpressionKind.Field, Children.Count: 1 } destination ||
-            destination.Children[0].Kind != AwkExpressionKind.Number ||
-            !AwkExpressionLowerer.TryReadSwitchConstant(destination.Children[0], _scope, out var constant)) return false;
-        var number = constant.AsNumber();
-        if (!double.IsFinite(number) || number < 1 || number > int.MaxValue ||
+            !TryFixedField(syntax.Children[0], out var destination) || destination == 0 ||
             !Field(syntax.Children[1], out var source)) return false;
-        Emit(new(AwkRegionInstructionKind.CopyField, (int)number, source));
+        Emit(new(AwkRegionInstructionKind.CopyField, destination, source));
+        return true;
+    }
+
+    private bool TryFixedField(AwkExpressionSyntax syntax, out int field)
+    {
+        field = 0;
+        while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
+        {
+            _scope.CheckCancellation();
+            syntax = syntax.Children[0];
+        }
+        if (syntax.Kind != AwkExpressionKind.Field || syntax.Children.Count != 1) return false;
+        var index = syntax.Children[0];
+        while (index.Kind == AwkExpressionKind.Group && index.Children.Count == 1)
+        {
+            _scope.CheckCancellation();
+            index = index.Children[0];
+        }
+        if (index.Kind != AwkExpressionKind.Number || !AwkExpressionLowerer.TryReadSwitchConstant(index, _scope, out var constant)) return false;
+        var number = constant.AsNumber();
+        if (!double.IsFinite(number) || number < 0 || number > int.MaxValue) return false;
+        field = (int)number;
+        return true;
+    }
+
+    private bool PrintList(IReadOnlyList<AwkExpressionSyntax> arguments)
+    {
+        if (arguments.Count < 2) return false;
+        var fields = new int[arguments.Count];
+        for (var index = 0; index < fields.Length; index++)
+        {
+            // $0 can reconstruct and retire record slices. Such a list owns its
+            // earlier values rather than carrying views across reconstruction.
+            if (TryFixedField(arguments[index], out fields[index]) && fields[index] != 0) continue;
+            fields = [];
+            break;
+        }
+        var values = _values;
+        var texts = _texts;
+        var segments = _printSegments;
+        _values = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_values, arguments.Count));
+        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)arguments.Count + 2));
+        _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Count));
+        if (fields.Length == 0)
+        {
+            for (var index = 0; index < arguments.Count; index++)
+            {
+                if (!Expression(arguments[index], out var value, preserveOrigin: true)) return false;
+                Emit(new(AwkRegionInstructionKind.Value, values + index, value, Detail: 1));
+            }
+        }
+        var site = _prints.Count;
+        _prints.Add(new(values, texts, segments, arguments.Count, fields));
+        Emit(new(AwkRegionInstructionKind.PrintList, Left: site));
         return true;
     }
 

@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordOwnershipCases()
     {
+        yield return Passing("print-values-format-after-later-operand-effects",
+            ["function change(){OFS=\"|\";ORS=\"!\\n\";OFMT=\"%.3f\";$0=\"new row\";return 2.5}{print $1,1.25,change(),$1}"],
+            [], "0007|1.250|2.500|new!\n", "0007 old\n");
+        yield return Passing("print-values-retain-untyped-conditional-origin-until-formatting",
+            ["BEGIN{printf \"%s\\n\",typeof(a[1])}BEGIN{print (1?a[1]:7),0}BEGIN{printf \"%s\\n\",typeof(a[1])}"],
+            [], "untyped\n 0\nunassigned\n");
+        yield return Passing("print-field-list-owns-values-before-record-reconstruction",
+            ["{saved=$1;$2=1.23456;OFMT=\"%.2f\";print $1,$2,$3,$4,$5,$0}"],
+            [], "0007 1.23 café tail last 0007 1.23456 café tail last\n", "0007 old café tail last\n");
         yield return Passing("record-regex-immediate-fields-preserve-index-effects",
             ["{i=1;print ($(i++)~/^left$/),i,($2~/^0007$/),typeof($2);$2=12.345;CONVFMT=\"%.2f\";print ($2~/^12[.]35$/);CONVFMT=\"%.3f\";print ($2~/^12[.]345$/)}"], [],
             "1 2 1 strnum\n1\n1\n", "left 0007 tail\n");

@@ -13,6 +13,8 @@ internal sealed class AwkRegionStorage : IDisposable
     private AwkArrayUpdateTarget[] _targets = [];
     private AwkUtf8Builder[] _builders = [];
     private AwkFunctionFrame?[] _incoming = [];
+    private AwkFieldText[] _printSegments = [];
+    private bool[] _borrowedPrintFields = [];
     private bool _disposed;
 
     internal AwkRegionStorage(AwkRuntimeState state)
@@ -27,6 +29,8 @@ internal sealed class AwkRegionStorage : IDisposable
     internal AwkText[] Texts => _texts;
     internal AwkArrayUpdateTarget[] Targets => _targets;
     internal AwkUtf8Builder[] Builders => _builders;
+    internal AwkFieldText[] PrintSegments => _printSegments;
+    internal bool[] BorrowedPrintFields => _borrowedPrintFields;
 
     internal void Prepare(AwkRegionStorageLayout layout)
     {
@@ -37,13 +41,15 @@ internal sealed class AwkRegionStorage : IDisposable
         var builders = layout.Builders;
         var incoming = layout.Incoming;
         var texts = layout.Texts;
-        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length) return;
+        var segments = layout.PrintSegments;
+        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length && segments <= _printSegments.Length) return;
         var growNumbers = numbers > _numbers.Length;
         var growValues = values > _values.Length;
         var growTargets = targets > _targets.Length;
         var growBuilders = builders > _builders.Length;
         var growIncoming = incoming > _incoming.Length;
         var growTexts = texts > _texts.Length;
+        var growSegments = segments > _printSegments.Length;
         // Unchanged buffers keep their current funding. Admit only the new buffers
         // alongside the old buffers that remain live until publication below.
         var bytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(numbers) : 0,
@@ -55,6 +61,7 @@ internal sealed class AwkRegionStorage : IDisposable
                 AwkRuntimeMemory.CheckedMultiply(builders - _builders.Length, AwkRuntimeMemory.Utf8BuilderObjectBytes)));
         if (growIncoming) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateFunctionFrameArrayBytes(incoming));
         if (growTexts) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkTextArrayBytes(texts));
+        if (growSegments) bytes = AwkRuntimeMemory.CheckedAdd(bytes, PrintSegmentBytes(segments));
         var replacedBytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(_numbers.Length) : 0,
             AwkRuntimeMemory.CheckedAdd(growValues ? AwkRuntimeMemory.EstimateAwkValueArrayBytes(_values.Length) : 0,
                 growTargets ? AwkRuntimeMemory.EstimateArrayUpdateTargetArrayBytes(_targets.Length) : 0));
@@ -62,12 +69,15 @@ internal sealed class AwkRegionStorage : IDisposable
             replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateUtf8BuilderArrayBytes(_builders.Length));
         if (growIncoming) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateFunctionFrameArrayBytes(_incoming.Length));
         if (growTexts) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateAwkTextArrayBytes(_texts.Length));
+        if (growSegments) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, PrintSegmentBytes(_printSegments.Length));
         using var staging = _state.MemoryAccounting.ReserveTransient(bytes);
         _state.ThrowIfCancellationRequested();
         var numeric = growNumbers ? new double[numbers] : _numbers;
         var scalar = growValues ? new AwkValue[values] : _values;
         var captured = growTargets ? new AwkArrayUpdateTarget[targets] : _targets;
         var frames = growIncoming ? new AwkFunctionFrame?[incoming] : _incoming;
+        var printFields = growSegments ? new AwkFieldText[segments] : _printSegments;
+        var borrowedFields = growSegments ? new bool[segments] : _borrowedPrintFields;
         var formatted = _texts;
         if (growTexts)
         {
@@ -92,9 +102,14 @@ internal sealed class AwkRegionStorage : IDisposable
         _builders = keyBuffers;
         _incoming = frames;
         _texts = formatted;
+        _printSegments = printFields;
+        _borrowedPrintFields = borrowedFields;
         if (replacedBytes > 0) _capacity.Release(replacedBytes);
         staging.MoveTo(_capacity, bytes);
     }
+
+    private static long PrintSegmentBytes(int count) => AwkRuntimeMemory.CheckedAdd(
+        AwkRuntimeMemory.EstimateFieldTextArrayBytes(count), AwkRuntimeMemory.EstimateBooleanArrayBytes(count));
 
     internal void BeginCall(AwkRegionCall call) =>
         _incoming[call.Slot] = _state.PrepareFunctionFrame(call.Function.LocalLayout, call.Arguments);
@@ -178,6 +193,29 @@ internal sealed class AwkRegionStorage : IDisposable
         if (bytes > 0) _payload.Release(bytes);
     }
 
+    internal void MoveValueToText(int valueIndex, int textIndex, AwkText text)
+    {
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.CheckedAdd(
+            _values[valueIndex].RetainedTextMemoryBytes, _texts[textIndex].EstimatedRetainedMemoryBytes) : 0;
+        var nextBytes = _state.MemoryAccounting.IsEnabled ? text.EstimatedRetainedMemoryBytes : 0;
+        if (nextBytes > oldBytes)
+        {
+            _payload.ReserveAdditional(nextBytes - oldBytes);
+            _state.ThrowIfCancellationRequested();
+        }
+        _texts[textIndex] = text;
+        _values[valueIndex] = default;
+        if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
+    }
+
+    internal void ReleasePrint(AwkRegionPrint print)
+    {
+        // Segment references must retire before the text owner's funding does.
+        Array.Clear(_printSegments, print.Segments, print.Count);
+        Array.Clear(_borrowedPrintFields, print.Segments, print.Count);
+        ReleaseTexts(print.Texts, print.Count + 2);
+    }
+
     internal void ClearValues()
     {
         for (var index = 0; index < _incoming.Length; index++)
@@ -189,6 +227,8 @@ internal sealed class AwkRegionStorage : IDisposable
         Array.Clear(_values);
         Array.Clear(_targets);
         Array.Fill(_texts, AwkText.Empty);
+        Array.Clear(_printSegments);
+        Array.Clear(_borrowedPrintFields);
         foreach (var builder in _builders) builder.Clear();
         if (_payload.Bytes > 0) _payload.Release(_payload.Bytes);
     }
@@ -205,6 +245,8 @@ internal sealed class AwkRegionStorage : IDisposable
         foreach (var builder in _builders) builder.Dispose();
         _builders = [];
         _incoming = [];
+        _printSegments = [];
+        _borrowedPrintFields = [];
         _payload.Dispose();
         _capacity.Dispose();
     }

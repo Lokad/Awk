@@ -33,7 +33,7 @@ internal static class AwkRuntimeMemory
     private const int FunctionFrameBytes = 512;
     // Standalone phase/action scratch owner, its two leases and the enclosing
     // scoped lease. Backing arrays and live payload are admitted separately.
-    internal const int ScopedRegionStorageBytes = 192;
+    internal const int ScopedRegionStorageBytes = 208;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
     private const int RuntimeDiagnosticBytes = 64;
@@ -142,6 +142,9 @@ internal static class AwkRuntimeMemory
     public static long EstimateDoubleArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, sizeof(double));
 
+    internal static long EstimateBooleanArrayBytes(int count) =>
+        CheckedAdd(EstimateArrayBufferBytes(count, sizeof(bool)), 7) & ~7L;
+
     public static long EstimateUtf8BuilderArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);
 
@@ -200,6 +203,9 @@ internal static class AwkRuntimeMemory
     public static long EstimateFieldTextListBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
             EstimateArrayBufferBytes(Math.Max(4, count), FieldTextBytes));
+
+    internal static long EstimateFieldTextArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, FieldTextBytes);
 
     // A compact cached scalar includes its field backlink; presence lives in the descriptor.
     public static long EstimateFieldValueListBytes(int capacity) =>

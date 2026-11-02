@@ -19,6 +19,7 @@ internal partial struct AwkRegionMachine
         AwkStatement[] hostStatements;
         AwkExpression[] hostExpressions;
         AwkRegionBuiltin[] builtins;
+        AwkRegionPrint[] prints;
         AwkFunctionFrame? frame;
         double[] numbers;
     Resume:
@@ -36,6 +37,7 @@ internal partial struct AwkRegionMachine
         hostStatements = region.HostStatements;
         hostExpressions = region.HostExpressions;
         builtins = region.Builtins;
+        prints = region.Prints;
         numbers = storage.Numbers;
         for (var position = _cursor.Position; position < instructions.Length; position++)
         {
@@ -121,6 +123,10 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.PrintValue:
                     AwkPrintRuntime.AppendSingle(output ?? throw new InvalidOperationException("Print requires an output sink."),
                         Value(instruction.Left), state);
+                    break;
+                case AwkRegionInstructionKind.PrintList:
+                    AwkRegionPrinting.Append(state, storage,
+                        output ?? throw new InvalidOperationException("Print requires an output sink."), prints[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.KeyBegin:
                     storage.Builders[instruction.Target].Clear();
