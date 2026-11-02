@@ -37,8 +37,15 @@ internal partial struct AwkRegionMachine
     internal void Initialize()
     {
         _cursor.Region.Initialize(_state, _cursor.Storage);
-        if (_cursor.Region.IsFunction) _state.Counters.RecordBoundFunctionRun();
-        else _state.Counters.RecordBoundRegionRun();
+        if (_state.Counters.IsEnabled)
+        {
+            switch (_cursor.Region.Kind)
+            {
+                case AwkRegionKind.Function: _state.Counters.RecordBoundFunctionRun(); break;
+                case AwkRegionKind.Phase: _state.Counters.RecordBoundPhaseRun(); break;
+                default: _state.Counters.RecordBoundRegionRun(); break;
+            }
+        }
     }
 
     private void EnterCall(AwkRegionCall call, int destination)

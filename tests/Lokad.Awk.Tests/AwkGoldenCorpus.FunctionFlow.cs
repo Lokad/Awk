@@ -2,8 +2,18 @@ namespace Lokad.Awk.Tests;
 
 internal static partial class AwkGoldenCorpus
 {
+    internal static AwkGoldenCase ReentrantPhaseScratchCase => Passing(
+        "file-phases-preserve-caller-text-and-locals-during-getline",
+        ["function decorate(x){return \"[\" x \"]\"}function pull(v,x){getline x;return v \":\" x}BEGINFILE{print decorate(FILENAME)}ENDFILE{print \"end\"}{saved=$1 \"/\" pull($2);print saved,$0;next}END{print NR,FNR}", "/first", "/second"],
+        [new("/first", "0007 old\n"), new("/second", "second line\n")],
+        "[/first]\nend\n[/second]\n0007/old:second line \nend\n2 1\n");
+
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return ReentrantPhaseScratchCase;
+        yield return Passing("print-unmigrated-operand-does-not-replay-earlier-effects",
+            ["function once(){calls++;return \"[\"}{print once() substr($0,1,1);print calls}"],
+            [], "[r\n1\n", "row\n");
         yield return Passing("literal-return-keeps-string-origin-and-spelling",
             ["function text(){return \"0007\"}{value=text();x=value+0;print typeof(value),value,x,($1==\"A\")}"],
             [], "string 0007 7 1\n", "A\n");

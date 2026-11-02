@@ -41,6 +41,8 @@ internal readonly struct AwkAction
     {
         if (_region is { } region)
         {
+            using var header = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.ScopedRegionStorageBytes);
+            state.ThrowIfCancellationRequested();
             using var storage = new AwkRegionStorage(state);
             using var context = state.PushExecutionContext(output, io);
             return await region.ExecuteAsync(state, storage, output, io).ConfigureAwait(false);

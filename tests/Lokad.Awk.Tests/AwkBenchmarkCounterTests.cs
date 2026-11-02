@@ -1043,14 +1043,15 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task BoundScalarArgumentsKeepUnboundAliasesAndReadSpelling()
+    public async Task BoundCallsKeepUnboundAliasesAndReadSpelling()
     {
         const string source = "function second(a,x){return x} function id(x){return x} BEGIN{r=second(a,1)} BEGIN{print r;a[\"k\"]=7} BEGIN{r=second(a,2)} BEGIN{print r,a[\"k\"];s=\"007\"} BEGIN{r=id(s);t=id(s)} BEGIN{print r,t,s==7;s=9} BEGIN{r=id(s)} END{print r}";
         var result = await RunAsync([source], "", false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n2 7\n007 007 0\n9\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(3, result.Counters.BoundScalarArguments);
+        Assert.Equal(5, result.Counters.BoundFunctionRuns);
+        Assert.Equal(8, result.Counters.BoundPhaseRuns);
     }
 
     [Fact]
@@ -1090,7 +1091,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(1, result.Counters.SynchronousExpressionRuns);
         Assert.Equal(3, result.Counters.BoundRegionRuns);
         Assert.InRange(result.Counters.AwkTextAllocations, 0, 8);
         Assert.Equal(0, result.Counters.StringDecodes);
@@ -1104,7 +1104,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(1, result.Counters.SynchronousExpressionRuns);
         Assert.Equal(2, result.Counters.SynchronousActionRuns + result.Counters.BoundRegionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
     }
@@ -1607,7 +1606,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var expectedOutput = new string('x', 64) + "\n";
         Assert.Equal(expectedOutput, interpreter.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(64, interpreter.Counters.ConcatenationBytesCopied);
-        Assert.Equal(1, interpreter.Counters.ConcatenationArgumentBufferRents);
+        Assert.Equal(0, interpreter.Counters.ConcatenationArgumentBufferRents);
     }
 
     [Fact]

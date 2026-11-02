@@ -31,6 +31,9 @@ internal static class AwkRuntimeMemory
     // Frame/inline slots, its reusable region owner and leases, plus amortized
     // active/recycled reference stacks. Scratch/slot backing is charged separately.
     private const int FunctionFrameBytes = 512;
+    // Standalone phase/action scratch owner, its two leases and the enclosing
+    // scoped lease. Backing arrays and live payload are admitted separately.
+    internal const int ScopedRegionStorageBytes = 192;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
     private const int RuntimeDiagnosticBytes = 64;

@@ -18,6 +18,11 @@ internal sealed class AwkRuntimeCounters
 
     public long BoundRegionRuns { get; private set; }
     public long BoundFunctionRuns { get; private set; }
+    public long BoundPhaseRuns { get; private set; }
+    internal void RecordBoundPhaseRun()
+    {
+        if (_enabled) lock (_sync) BoundPhaseRuns++;
+    }
     internal void RecordBoundFunctionRun()
     {
         if (_enabled) lock (_sync) BoundFunctionRuns++;

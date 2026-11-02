@@ -114,6 +114,14 @@ internal partial struct AwkRegionMachine
                         state.Counters, state.MemoryAccounting, state.CancellationCheckpoint)));
                     storage.ReleaseTexts(instruction.Left, instruction.Right);
                     break;
+                case AwkRegionInstructionKind.PrintField:
+                    state.AppendFieldPrint(output ?? throw new InvalidOperationException("Print requires an output sink."),
+                        FieldOrdinal(operands[instruction.Left]));
+                    break;
+                case AwkRegionInstructionKind.PrintValue:
+                    AwkPrintRuntime.AppendSingle(output ?? throw new InvalidOperationException("Print requires an output sink."),
+                        Value(instruction.Left), state);
+                    break;
                 case AwkRegionInstructionKind.KeyBegin:
                     storage.Builders[instruction.Target].Clear();
                     // Only the snapshot's original bytes are consumed.

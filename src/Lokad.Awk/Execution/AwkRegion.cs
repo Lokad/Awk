@@ -7,9 +7,10 @@ internal sealed class AwkRegion(
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     int numberCount, int valueCount, int textCount, int targetCount, int builderCount,
     AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
-    AwkRegionBuiltin[] builtins, bool isFunction)
+    AwkRegionBuiltin[] builtins, AwkRegionKind kind)
 {
-    internal bool IsFunction => isFunction;
+    internal bool IsFunction => kind == AwkRegionKind.Function;
+    internal AwkRegionKind Kind => kind;
     internal int NumberCount => numberCount;
     internal int ValueCount => valueCount;
     internal int TargetCount => targetCount;
@@ -71,6 +72,7 @@ internal sealed class AwkRegion(
 
 }
 
+internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
@@ -82,7 +84,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,
-    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, HostStatement, HostExpression, Return,
+    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, HostStatement, HostExpression, Return,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow
 }
 internal readonly record struct AwkRegionInstruction(

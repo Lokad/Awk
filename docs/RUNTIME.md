@@ -169,7 +169,9 @@ escape still own their spelling; dirty reconstruction and potentially invalidati
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Interpreter preparation binds operands, scalar/array locations and function targets.
 Covered computation, branches, loops, calls and rule conditions share a driver that suspends
-for actual pending host work. Preparation has no flat block-size or argument-count cutoff;
+for actual pending host work. File/start/end phases use separate funded scratch when they
+interrupt a caller through `getline`; default and single-value output retain the ordinary
+flush/diagnostic contract. Preparation has no flat block-size or argument-count cutoff;
 managed stack protection still applies. There is no public execution-engine selector.
 Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.

@@ -7,6 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRegionCompiler
 {
     private readonly AwkLoweringScope _scope;
+    private readonly AwkRegionKind _kind;
     private readonly List<AwkRegionInstruction> _code = [];
     private readonly List<AwkRegionOperand> _operands = [];
     private readonly List<AwkRegionVariable> _variables = [];
@@ -30,40 +31,66 @@ internal sealed class AwkRegionCompiler
     private int _targets;
     private int _straightLine;
 
-    private AwkRegionCompiler(AwkLoweringScope scope) => _scope = scope;
+    private AwkRegionCompiler(AwkLoweringScope scope, AwkRegionKind kind) => (_scope, _kind) = (scope, kind);
 
     internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
-        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region, AwkExpressionSyntax? condition = null)
+        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region) =>
+        new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record)
+            .Compile(statements, null, defaultPrint: false, out region);
+
+    internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkRegion? region)
     {
-        var compiler = new AwkRegionCompiler(scope);
-        compiler.Label();
+        AwkExpressionSyntax? condition = null;
+        if (rule.Kind == AwkRuleKind.Main && rule.PatternTokens.Count != 0)
+        {
+            if (rule.PatternSyntax is not AwkSinglePatternSyntax { Expression: { } expression })
+            {
+                region = null;
+                return false;
+            }
+            condition = expression;
+        }
+        return new AwkRegionCompiler(scope, rule.Kind == AwkRuleKind.Main ? AwkRegionKind.Record : AwkRegionKind.Phase)
+            .Compile(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, out region);
+    }
+
+    private bool Compile(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
+        bool defaultPrint, [NotNullWhen(true)] out AwkRegion? region)
+    {
+        Label();
         List<int>? skipped = null;
         if (condition is not null)
         {
             skipped = [];
-            if (!compiler.Branch(condition, whenTrue: false, skipped))
+            if (!Branch(condition, whenTrue: false, skipped))
             {
                 region = null;
                 return false;
             }
         }
-        if (!compiler.Statements(statements))
+        if (!Statements(statements))
         {
             region = null;
             return false;
         }
+        if (defaultPrint)
+        {
+            Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
+            Emit(new(AwkRegionInstructionKind.StatementBoundary));
+        }
         if (skipped is not null)
         {
-            compiler.PatchBranches(skipped, compiler.Label());
+            PatchBranches(skipped, Label());
             // A false condition can still have queued diagnostics. Preserve the
             // action boundary even when none of its statements executes.
-            compiler.Emit(new(AwkRegionInstructionKind.StatementBoundary));
+            Emit(new(AwkRegionInstructionKind.StatementBoundary));
         }
-        region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
-            compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._literals.ToArray(), compiler._arrays.ToArray(),
-            compiler._numbers, compiler._values, compiler._texts, compiler._targets, compiler._builderSeparators.Count,
-            compiler._calls.ToArray(), compiler._incomingCalls, compiler._hostStatements.ToArray(), compiler._hostExpressions.ToArray(),
-            compiler._builtins.ToArray(), scope.IsFunction);
+        region = new(_code.ToArray(), _operands.ToArray(),
+            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
+            _numbers, _values, _texts, _targets, _builderSeparators.Count,
+            _calls.ToArray(), _incomingCalls, _hostStatements.ToArray(), _hostExpressions.ToArray(),
+            _builtins.ToArray(), _kind);
         return true;
     }
 
@@ -131,6 +158,22 @@ internal sealed class AwkRegionCompiler
                     Emit(new(AwkRegionInstructionKind.Return, Left: returned));
                     break;
                 case AwkStatementKind.Print:
+                    if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;
+                    if (output.Redirection.HasValue) goto case AwkStatementKind.Printf;
+                    if (output.Output.IsEmpty)
+                    {
+                        Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
+                        break;
+                    }
+                    if (!output.Output.Expression.TryGetValue(out var printed)) return false;
+                    if (printed.Kind == AwkExpressionKind.Group && printed.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
+                        printed = list;
+                    if (printed.Kind == AwkExpressionKind.ExpressionList) goto case AwkStatementKind.Printf;
+                    if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
+                    var printKind = _operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField
+                        ? AwkRegionInstructionKind.PrintField : AwkRegionInstructionKind.PrintValue;
+                    Emit(new(printKind, Left: printValue));
+                    break;
                 case AwkStatementKind.Printf:
                 case AwkStatementKind.Getline:
                     // Migration boundary: retain the existing host primitive and its
@@ -195,7 +238,7 @@ internal sealed class AwkRegionCompiler
         return true;
     }
 
-    private bool Expression(AwkExpressionSyntax syntax, out int result, bool argument = false)
+    private bool Expression(AwkExpressionSyntax syntax, out int result, bool preserveOrigin = false)
     {
         _scope.CheckCancellation();
         result = 0;
@@ -203,7 +246,7 @@ internal sealed class AwkRegionCompiler
         switch (syntax.Kind)
         {
             case AwkExpressionKind.Group when syntax.Children.Count == 1:
-                return Expression(syntax.Children[0], out result, argument);
+                return Expression(syntax.Children[0], out result, preserveOrigin);
             case AwkExpressionKind.Number:
                 if (!AwkExpressionLowerer.TryReadSwitchConstant(syntax, _scope, out var number)) return false;
                 result = Constant(number.AsNumber());
@@ -226,7 +269,7 @@ internal sealed class AwkRegionCompiler
                     // A reusable key buffer must be consumed before another access
                     // can reuse it. The captured scalar preserves its own spelling.
                     var captured = _values++;
-                    Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access, Detail: argument ? 1 : 0));
+                    Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access, Detail: preserveOrigin ? 1 : 0));
                     FinishKey(access);
                     result = Operand(AwkRegionOperandKind.ValueTemporary, captured);
                 }
@@ -247,12 +290,12 @@ internal sealed class AwkRegionCompiler
                 var alternate = new List<int>();
                 if (!Branch(syntax.Children[0], whenTrue: false, alternate)) return false;
                 var target = _values++;
-                if (!Expression(syntax.Children[1], out var first, argument)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, target, first, Detail: argument ? 1 : 0));
+                if (!Expression(syntax.Children[1], out var first, preserveOrigin)) return false;
+                Emit(new(AwkRegionInstructionKind.Value, target, first, Detail: preserveOrigin ? 1 : 0));
                 var end = Emit(new(AwkRegionInstructionKind.Jump));
                 PatchBranches(alternate, Label());
-                if (!Expression(syntax.Children[2], out var second, argument)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, target, second, Detail: argument ? 1 : 0));
+                if (!Expression(syntax.Children[2], out var second, preserveOrigin)) return false;
+                Emit(new(AwkRegionInstructionKind.Value, target, second, Detail: preserveOrigin ? 1 : 0));
                 Patch(end, Label());
                 result = Operand(AwkRegionOperandKind.ValueTemporary, target);
                 return true;
@@ -289,7 +332,7 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.BeginCall, Left: call));
         for (var index = 1; index < syntax.Children.Count; index++)
         {
-            if (!Expression(syntax.Children[index], out var value, argument: true)) return false;
+            if (!Expression(syntax.Children[index], out var value, preserveOrigin: true)) return false;
             Emit(new(AwkRegionInstructionKind.Argument, call, value, index - 1,
                 syntax.Children[index].Kind == AwkExpressionKind.Group ? 1 : 0));
         }
