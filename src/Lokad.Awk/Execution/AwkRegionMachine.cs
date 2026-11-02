@@ -7,6 +7,9 @@ internal partial struct AwkRegionMachine
     private readonly AwkRuntimeState _state;
     private readonly AwkOutputSink? _output;
     private readonly AwkIo? _io;
+    // An unmigrated caller owns this frame's pop. Lookup and unwind ownership are
+    // separate: direct calls instead carry their owned frame in the cursor.
+    private readonly AwkFunctionFrame? _rootFrame;
     private AwkRegionCursor _cursor;
     private Pending _pending;
     private Task _flush;
@@ -23,6 +26,7 @@ internal partial struct AwkRegionMachine
         _state = state;
         _output = output;
         _io = io;
+        _rootFrame = region.IsFunction ? state.CurrentFunctionFrame : null;
         _cursor = new(region, storage, 0, null);
         _flush = Task.CompletedTask;
     }

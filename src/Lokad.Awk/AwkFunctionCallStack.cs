@@ -268,11 +268,7 @@ internal sealed class AwkFunctionCallStack(
     public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number)
     {
         if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
-        {
-            ref readonly var slot = ref frame.GetSlot(slotId.Index);
-            if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
-                return slot.Value.TryGetNumber(out number);
-        }
+            return frame.TryReadNumber(slotId.Index, out number);
 
         number = 0;
         return false;

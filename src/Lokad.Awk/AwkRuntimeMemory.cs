@@ -28,8 +28,9 @@ internal static class AwkRuntimeMemory
     internal const int ListBufferOverheadBytes = ListObjectBytes + ByteArrayObjectBytes;
     private const int AwkArrayKeyBytes = 32;
     private const int ArraySortEntryBytes = 96;
-    // Frame object, inline slots and amortized backing of active/recycled reference stacks.
-    private const int FunctionFrameBytes = 320;
+    // Frame/inline slots, its reusable region owner and leases, plus amortized
+    // active/recycled reference stacks. Scratch/slot backing is charged separately.
+    private const int FunctionFrameBytes = 512;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
     private const int RuntimeDiagnosticBytes = 64;

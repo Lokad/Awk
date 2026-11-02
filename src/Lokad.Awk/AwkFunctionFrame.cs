@@ -62,6 +62,14 @@ internal sealed class AwkFunctionFrame
             ? ref (index == 0 ? ref _firstSlot : ref _secondSlot)
             : ref _slots[index]);
 
+    internal bool TryReadNumber(int index, out double number)
+    {
+        ref readonly var slot = ref GetSlot(index);
+        if (slot.Kind == AwkFunctionLocalSlotKind.Scalar) return slot.Value.TryGetNumber(out number);
+        number = 0;
+        return false;
+    }
+
     public bool HasReturnValue { get; set; }
 
     public AwkValue ReturnValue { get; set; } = AwkValue.Unassigned();

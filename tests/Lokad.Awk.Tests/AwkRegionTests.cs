@@ -141,7 +141,6 @@ public sealed partial class AwkRegionTests
 
     [Theory]
     [InlineData("x=length")]
-    [InlineData("x=sin(1)")]
     public void UnmigratedConstructIsExplicit(string body)
     {
         var parsed = AwkParser.Parse("{" + body + "}");

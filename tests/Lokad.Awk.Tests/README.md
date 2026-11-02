@@ -6,6 +6,9 @@ The awk suite is intentionally split by boundary. New coverage should start in t
 cancellation and funded-frame cleanup. `AwkIncomingFrameTests` checks caller visibility,
 alias activation and admission before publication. During execution migration, preserve
 semantic assertions and measure removed transport rather than pinning old preparation routes.
+Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
+wide arities, with native field inputs and no retired argument-buffer activity. Pending
+call checks keep earlier builtin arguments alive across actual host suspension.
 
 ## Golden Corpus
 

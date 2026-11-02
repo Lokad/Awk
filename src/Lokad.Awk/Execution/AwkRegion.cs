@@ -6,7 +6,8 @@ internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkRegionArrayAccess[] arrays,
     int numberCount, int valueCount, int targetCount, int builderCount,
-    AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions, bool isFunction)
+    AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
+    AwkRegionBuiltin[] builtins, bool isFunction)
 {
     internal bool IsFunction => isFunction;
     internal int NumberCount => numberCount;
@@ -64,6 +65,7 @@ internal sealed class AwkRegion(
     internal AwkRegionCall[] Calls => calls;
     internal AwkStatement[] HostStatements => hostStatements;
     internal AwkExpression[] HostExpressions => hostExpressions;
+    internal AwkRegionBuiltin[] Builtins => builtins;
 
 
 }
@@ -78,7 +80,8 @@ internal enum AwkRegionInstructionKind : byte
     Poll, StatementBoundary, MoveNumber, FieldNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber,
-    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, BeginCall, Argument, Call, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
+    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,
+    BeginCall, Argument, Call, BuiltinArgument, Builtin, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
@@ -103,3 +106,4 @@ internal readonly record struct AwkRegionCursor
     internal AwkFunctionFrame? Frame { get; }
 }
 internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, int Destination);
+internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation Implementation, int Start, int Count);

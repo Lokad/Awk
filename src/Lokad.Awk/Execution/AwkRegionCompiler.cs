@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
-// Stage B lowering covers ordinary scalar/named-array computation. Unmigrated constructs
+// Lowering covers scalar/array computation, direct calls and synchronous builtins. Unmigrated constructs
 // remain an explicit migration boundary; there are no arity/block-size/script guards.
 internal sealed class AwkRegionCompiler
 {
@@ -14,6 +14,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionArrayAccess> _arrays = [];
     private readonly List<int> _builderSeparators = [];
     private readonly List<AwkRegionCall> _calls = [];
+    private readonly List<AwkRegionBuiltin> _builtins = [];
     private readonly List<AwkStatement> _hostStatements = [];
     private readonly List<AwkExpression> _hostExpressions = [];
     private int _activeCalls;
@@ -42,7 +43,8 @@ internal sealed class AwkRegionCompiler
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
             compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._arrays.ToArray(),
             compiler._numbers, compiler._values, compiler._targets, compiler._builderSeparators.Count,
-            compiler._calls.ToArray(), compiler._incomingCalls, compiler._hostStatements.ToArray(), compiler._hostExpressions.ToArray(), scope.IsFunction);
+            compiler._calls.ToArray(), compiler._incomingCalls, compiler._hostStatements.ToArray(), compiler._hostExpressions.ToArray(),
+            compiler._builtins.ToArray(), scope.IsFunction);
         return true;
     }
 
@@ -232,6 +234,7 @@ internal sealed class AwkRegionCompiler
     {
         result = 0;
         if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target)) return false;
+        if (_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _)) return false;
         if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline))
         {
             if (!AwkExpressionLowerer.TryLower(syntax, _scope, out var expression)) return false;
@@ -242,6 +245,11 @@ internal sealed class AwkRegionCompiler
             result = Operand(AwkRegionOperandKind.ValueTemporary, value);
             return true;
         }
+        if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
+            AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
+            target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1) &&
+            builtin.TryGetComputation(out var implementation))
+            return Builtin(syntax, builtin, implementation, out result);
         if (_scope.Functions is not { } functions ||
             !functions.TryGetValue(new AwkFunctionName(target.Identifier), out var function)) return false;
         var slot = _activeCalls++;
@@ -258,6 +266,28 @@ internal sealed class AwkRegionCompiler
         var returned = _values++;
         Emit(new(AwkRegionInstructionKind.Call, returned, call));
         _activeCalls--;
+        result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
+        return true;
+    }
+
+    private bool Builtin(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
+        AwkBuiltinImplementation.SyncBuiltinImplementation implementation, out int result)
+    {
+        result = 0;
+        var count = syntax.Children.Count - 1;
+        var start = _values;
+        _values = checked(_values + count);
+        for (var index = 0; index < count; index++)
+        {
+            if (!Expression(syntax.Children[index + 1], out var operand)) return false;
+            Emit(new(AwkRegionInstructionKind.BuiltinArgument, start + index, operand,
+                Detail: definition.ConsumesArithmeticInputs ? 1 : 0));
+        }
+        var site = _builtins.Count;
+        _builtins.Add(new(implementation, start, count));
+        var returned = _values++;
+        Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
+        for (var index = 0; index < count; index++) Emit(new(AwkRegionInstructionKind.ReleaseValue, start + index));
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
         return true;
     }

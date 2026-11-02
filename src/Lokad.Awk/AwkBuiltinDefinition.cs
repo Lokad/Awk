@@ -10,6 +10,7 @@ internal readonly struct AwkBuiltinContext
     private readonly IReadOnlyList<AwkExpression>? _expressions;
     private readonly AwkValue[]? _values;
     private readonly int _valueCount;
+    private readonly int _valueStart;
     private readonly bool _argumentsAreEvaluated;
 
     public AwkBuiltinContext(
@@ -19,6 +20,7 @@ internal readonly struct AwkBuiltinContext
         _expressions = arguments;
         _values = [];
         _valueCount = 0;
+        _valueStart = 0;
         _argumentsAreEvaluated = false;
         Evaluation = evaluationContext;
     }
@@ -27,11 +29,13 @@ internal readonly struct AwkBuiltinContext
         IReadOnlyList<AwkExpression>? expressions,
         AwkValue[] evaluatedArguments,
         int argumentCount,
-        AwkEvaluationContext evaluationContext)
+        AwkEvaluationContext evaluationContext,
+        int argumentStart = 0)
     {
         _expressions = expressions;
         _values = evaluatedArguments;
         _valueCount = argumentCount;
+        _valueStart = argumentStart;
         _argumentsAreEvaluated = true;
         Evaluation = evaluationContext;
     }
@@ -45,14 +49,13 @@ internal readonly struct AwkBuiltinContext
     public AwkValue GetValue(int index) =>
         _argumentsAreEvaluated
             ? (_values ?? throw new InvalidOperationException(
-                "Evaluated builtin arguments are unavailable."))[index]
+                "Evaluated builtin arguments are unavailable."))[_valueStart + index]
             : throw new InvalidOperationException(
                 "Unevaluated awk builtin arguments require asynchronous evaluation.");
 
     public ValueTask<AwkValue> GetValueAsync(int index) =>
         _argumentsAreEvaluated
-            ? ValueTask.FromResult((_values ?? throw new InvalidOperationException(
-                "Evaluated builtin arguments are unavailable."))[index])
+            ? ValueTask.FromResult(GetValue(index))
             : (_expressions ?? throw new InvalidOperationException(
                 "Unevaluated builtin arguments are unavailable."))[index].EvaluateAsync(Evaluation);
 
@@ -209,9 +212,12 @@ internal abstract class AwkBuiltinImplementation
         bool canPrepareComputation) : AwkBuiltinImplementation
     {
         internal override bool ConsumesArithmeticInputs => arithmeticInputs;
-        // Qualification requires no queued diagnostics or record mutation; operands
-        // still establish their own record-view safety during preparation.
+        // These builtins do not queue diagnostics or mutate records themselves.
+        // Operand effects and their retained values belong to the executing caller.
         internal bool CanPrepareComputation => canPrepareComputation;
+
+        internal AwkValue EvaluateBound(AwkValue[] values, int start, int count, AwkEvaluationContext context) =>
+            evaluator(new AwkBuiltinContext(null, values, count, context, start));
 
         internal AwkValue EvaluatePrepared(IReadOnlyList<AwkExpression> originalArguments,
             IReadOnlyList<AwkSynchronousExpression> operands, AwkEvaluationContext context)

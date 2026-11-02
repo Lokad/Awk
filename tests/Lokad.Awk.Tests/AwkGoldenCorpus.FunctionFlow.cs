@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("nested-builtin-arguments-survive-record-replacement",
+            ["function later(){getline;return 1}{v=and($1,int($2),later());print v,$0}"],
+            [], "1 new row\n", "7 3\nnew row\n");
         yield return Passing("call-numeric-staging-keeps-string-bearing-values-distinct",
             ["function identity(p){return p}{x=$1;a=identity(x);x+=0;b=identity(x);print typeof(a),a,typeof(b),b,$1}"],
             [], "strnum 0007 number 7 0007\n", "0007\n");

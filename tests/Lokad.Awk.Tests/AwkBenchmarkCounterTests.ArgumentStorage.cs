@@ -50,8 +50,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(prepared ? "896\n" : "338\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(governed ? 1 : 0, counters.GovernedArgumentBufferAllocations);
-        Assert.True(governed ? counters.GovernedArgumentBufferReuses >= records - 1 : counters.GovernedArgumentBufferReuses == 0);
+        Assert.Equal(governed && !prepared ? 1 : 0, counters.GovernedArgumentBufferAllocations);
+        Assert.True(governed && !prepared ? counters.GovernedArgumentBufferReuses >= records - 1 : counters.GovernedArgumentBufferReuses == 0);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);

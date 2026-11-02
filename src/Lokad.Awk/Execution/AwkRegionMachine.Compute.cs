@@ -17,12 +17,15 @@ internal partial struct AwkRegionMachine
         AwkRegionCall[] calls;
         AwkStatement[] hostStatements;
         AwkExpression[] hostExpressions;
+        AwkRegionBuiltin[] builtins;
+        AwkFunctionFrame? frame;
         double[] numbers;
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
         region = _cursor.Region;
         storage = _cursor.Storage;
+        frame = _cursor.Frame ?? _rootFrame;
         instructions = region.Instructions;
         operands = region.Operands;
         variables = region.Variables;
@@ -30,6 +33,7 @@ internal partial struct AwkRegionMachine
         calls = region.Calls;
         hostStatements = region.HostStatements;
         hostExpressions = region.HostExpressions;
+        builtins = region.Builtins;
         numbers = storage.Numbers;
         for (var position = _cursor.Position; position < instructions.Length; position++)
         {
@@ -61,7 +65,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.LocalNumber:
                 {
                     var local = variables[instruction.Left];
-                    numbers[instruction.Target] = state.TryResolveFunctionLocalNumber(new(local.LocalIndex), out var number)
+                    numbers[instruction.Target] = TryLocalNumber(local.LocalIndex, out var number)
                         ? number : state.ResolveFunctionLocalValue(new(local.LocalIndex), local.Name).AsNumber(state.CancellationCheckpoint);
                     break;
                 }
@@ -211,7 +215,7 @@ internal partial struct AwkRegionMachine
                         var source = variables[operand.Index];
                         var number = 0d;
                         var numeric = source.LocalIndex >= 0
-                            ? state.TryResolveFunctionLocalNumber(new(source.LocalIndex), out number)
+                            ? TryLocalNumber(source.LocalIndex, out number)
                             : source.GlobalIndex >= 0 && state.TryResolvePreparedGlobalNumber(source.GlobalIndex, out number);
                         if (numeric)
                         {
@@ -229,6 +233,17 @@ internal partial struct AwkRegionMachine
                     _cursor = _cursor with { Position = position + 1 };
                     EnterCall(calls[instruction.Left], instruction.Target);
                     goto Resume;
+                case AwkRegionInstructionKind.BuiltinArgument:
+                    var input = operands[instruction.Left];
+                    storage.StoreValue(instruction.Target,
+                        instruction.Detail != 0 && input.Kind == AwkRegionOperandKind.Field
+                            ? state.GetFieldArithmeticArgument(input.Index) : Value(instruction.Left), preserveOrigin: true);
+                    break;
+                case AwkRegionInstructionKind.Builtin:
+                    var builtin = builtins[instruction.Left];
+                    storage.StoreValue(instruction.Target,
+                        builtin.Implementation.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context));
+                    break;
                 case AwkRegionInstructionKind.HostStatement:
                     _cursor = _cursor with { Position = position + 1 };
                     _hostFlow = hostStatements[instruction.Left].ExecuteAsync(Context);
@@ -259,6 +274,14 @@ internal partial struct AwkRegionMachine
         }
         Finish(AwkStatementFlow.Continue);
         goto Resume;
+
+        bool TryLocalNumber(int index, out double number)
+        {
+            if (frame is null) throw new InvalidOperationException("A bound local requires an active function frame.");
+            if (!frame.TryReadNumber(index, out number)) return false;
+            state.Counters.RecordNumericLocalRead();
+            return true;
+        }
 
         AwkValue Value(int index)
         {

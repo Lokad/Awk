@@ -45,12 +45,16 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task PendingReadKeepsExplicitCallersUntilCompletionOrCancellation(bool governed, bool cancel)
+    [InlineData(false, false, false)] [InlineData(false, true, false)]
+    [InlineData(true, false, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(false, true, true)]
+    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    public async Task PendingReadKeepsExplicitCallersUntilCompletionOrCancellation(bool governed, bool cancel, bool legacyRoot)
     {
-        const string source = "function leaf(x,y){y=(getline value<\"/side\");return x+value}" +
-            "function outer(x){return leaf(x)+1}{result=outer($1);print result,$1;next}";
+        var source = "function leaf(x,y){y=(getline value<\"/side\");return x+value}" +
+            "function outer(x){return and(x,leaf(x))+17}" + (legacyRoot
+                ? "BEGIN{$0=\"0007 row\";result=outer($1);print result,$1;exit}"
+                : "{result=outer($1);print result,$1;next}");
         var host = new MockFileSystem();
         host.SetStandardInput("0007 row\n");
         host.AddFile("/side", "11\n");
