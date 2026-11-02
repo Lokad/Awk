@@ -40,21 +40,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Fact]
-    public void TopLevelLoopPreparationKeepsNestedLoopsExcluded()
-    {
-        foreach (var source in new[] { "{for(i=0;i<1;i++)x++}", "{while(i<1)i++}" })
-        {
-            var loop = Bind(source).MainActions[0].Statements[0];
-            Assert.NotNull(AwkStatementBlockExecutor.TryPrepareActions([loop], null));
-            Assert.False(loop.TryPrepareSynchronousAction(out _));
-            var condition = new AwkCondition(AwkExpression.Number(1));
-            Assert.Null(AwkStatementBlockExecutor.TryPrepareActions(
-                [AwkStatement.For(AwkStatement.NoOp(), condition, AwkStatement.NoOp(), [loop])], null));
-            Assert.Null(AwkStatementBlockExecutor.TryPrepareActions([AwkStatement.While(condition, [loop])], null));
-        }
-    }
-
-    [Fact]
     public async Task TopLevelLoopActionsKeepExistingPolicyAndCapturedFieldBoundaries()
     {
         foreach (var loop in new[] { "for(i=0;i<3;i++)total+=$1", "i=0;while(i<3){total+=$1;i++}" })
@@ -78,7 +63,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.Equal(6, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
                 Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
                 Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-                Assert.Equal(boundary == "default" ? 1 : 0, counters.SynchronousActionRuns);
+                Assert.Equal(1, counters.BoundRegionRuns);
                 Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
                 await io.CloseAsync();
             }
@@ -159,7 +144,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(capturedRegex ? "left" : "left,right",
             state.ResolveVariableValue(AwkVariableName.FromText("x")).AsString());
         Assert.Equal(2, state.ResolveVariableValue(AwkVariableName.FromText("y")).AsNumber());
-        Assert.Equal(capturedRegex ? 0 : 1, counters.SynchronousActionRuns);
+        Assert.Equal(1, counters.BoundRegionRuns);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         await io.CloseAsync();
     }
@@ -168,6 +153,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(16)]
     [InlineData(17)]
     [InlineData(64)]
+    [InlineData(257)]
     public async Task LongScalarActionsPrepareWithoutFunctions(int count)
     {
         var program = Bind("{" + string.Join(';', Enumerable.Repeat("x++", count)) + "}");
@@ -179,7 +165,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         await program.MainActions[0].ExecuteAsync(state, io, output);
         Assert.Equal(count, state.ResolveVariableValue(AwkVariableName.FromText("x")).AsNumber());
-        Assert.Equal(1, counters.SynchronousActionRuns);
+        Assert.Equal(1, counters.BoundRegionRuns);
         await io.CloseAsync();
     }
 

@@ -7,6 +7,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
 {
     private readonly AwkProgram _program;
     private readonly AwkOutputSink _output;
+    private readonly AwkRegionStorage _regionStorage;
 
     public AwkRuntimeActionExecutor(
         AwkProgram program,
@@ -14,6 +15,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     {
         _program = program;
         _output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        _regionStorage = new(state);
     }
 
     public bool HasBeginFileActions => _program.BeginFileActions.Length > 0;
@@ -48,12 +50,14 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
             state,
             io);
 
-    public async ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkInputRecordResult record)
+    public ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkInputRecordResult record)
     {
-        using var phase = state.EnterActionPhase(AwkActionPhase.Main);
-        using var execution = state.PushExecutionContext(_output, io);
+        var phase = state.EnterActionPhase(AwkActionPhase.Main);
+        var execution = default(AwkExecutionContextScope);
+        var pending = false;
         try
         {
+            execution = state.PushExecutionContext(_output, io);
             // Header preflight ends once its actual owners are published. Later
             // actions must be able to refund relinquished storage to the shared root.
             using (var admission = state.PreflightCurrentRecordAdmission(record))
@@ -64,31 +68,88 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
                 state.SetRecordFieldSplittingMode(record.FieldSplittingMode);
                 state.SetCurrentRecord(record);
             }
-            for (var index = 0; index < _program.MainActions.Length; index++)
-            {
-                var action = _program.MainActions[index];
-                if (!await action.MatchesAsync(state).ConfigureAwait(false))
-                    continue;
-
-                var flow = await action.ExecuteAsync(state, io, _output).ConfigureAwait(false);
-                if (flow is AwkStatementFlow.ExitProgram or AwkStatementFlow.NextFile)
-                    return flow;
-                if (flow == AwkStatementFlow.NextRecord)
-                    return AwkStatementFlow.Continue;
-            }
-
-            return AwkStatementFlow.Continue;
-
+            var result = RunMainActions(state, io);
+            if (result.IsCompletedSuccessfully)
+                return ValueTask.FromResult(RecordFlow(result.Result));
+            pending = true;
+            return CompleteRecordAsync(result, phase, execution);
         }
         catch (AwkFunctionFlowSignal signal)
         {
-            return signal.Flow == AwkStatementFlow.NextRecord ? AwkStatementFlow.Continue : signal.Flow;
+            return ValueTask.FromResult(RecordFlow(signal.Flow));
+        }
+        finally
+        {
+            if (!pending)
+            {
+                execution.Dispose();
+                phase.Dispose();
+            }
+        }
+    }
+
+    private static async ValueTask<AwkStatementFlow> CompleteRecordAsync(ValueTask<AwkStatementFlow> pending,
+        AwkActionPhaseScope phase, AwkExecutionContextScope execution)
+    {
+        try { return RecordFlow(await pending.ConfigureAwait(false)); }
+        catch (AwkFunctionFlowSignal signal) { return RecordFlow(signal.Flow); }
+        finally
+        {
+            execution.Dispose();
+            phase.Dispose();
+        }
+    }
+
+    private static AwkStatementFlow RecordFlow(AwkStatementFlow flow) =>
+        flow == AwkStatementFlow.NextRecord ? AwkStatementFlow.Continue : flow;
+
+    // Completed operations stay in this loop. Only an actual pending match/action
+    // transfers its index and scope to the asynchronous continuation below.
+    private ValueTask<AwkStatementFlow> RunMainActions(AwkRuntimeState state, AwkIo io)
+    {
+        for (var index = 0; index < _program.MainActions.Length; index++)
+        {
+            var matches = _program.MainActions[index].MatchesAsync(state);
+            if (!matches.IsCompletedSuccessfully)
+                return ResumeMainActionsAsync(state, io, index, matches, default, true);
+            if (!matches.Result) continue;
+            var action = ExecuteMainAction(state, io, index);
+            if (!action.IsCompletedSuccessfully)
+                return ResumeMainActionsAsync(state, io, index, default, action, false);
+            if (action.Result != AwkStatementFlow.Continue) return action;
+        }
+        return ValueTask.FromResult(AwkStatementFlow.Continue);
+    }
+
+    private ValueTask<AwkStatementFlow> ExecuteMainAction(AwkRuntimeState state, AwkIo io, int index)
+    {
+        var action = _program.MainActions[index];
+        return action.Region is { } region
+            ? region.ExecuteAsync(state, _regionStorage, _output, io)
+            : action.ExecuteAsync(state, io, _output);
+    }
+
+    private async ValueTask<AwkStatementFlow> ResumeMainActionsAsync(AwkRuntimeState state, AwkIo io,
+        int index, ValueTask<bool> match, ValueTask<AwkStatementFlow> action, bool waitingForMatch)
+    {
+        while (true)
+        {
+            if (!waitingForMatch || await match.ConfigureAwait(false))
+            {
+                if (waitingForMatch) action = ExecuteMainAction(state, io, index);
+                var flow = await action.ConfigureAwait(false);
+                if (flow != AwkStatementFlow.Continue) return flow;
+            }
+            if (++index == _program.MainActions.Length) return AwkStatementFlow.Continue;
+            match = _program.MainActions[index].MatchesAsync(state);
+            waitingForMatch = true;
         }
     }
 
     public void Dispose()
     {
-        _output.Dispose();
+        try { _output.Dispose(); }
+        finally { _regionStorage.Dispose(); }
     }
 
     private async ValueTask<AwkStatementFlow> ExecutePhaseActionsAsync(

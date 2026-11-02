@@ -8,6 +8,57 @@ public sealed class AwkCompiledWarningTests
     [InlineData("reject")]
     [InlineData("pending")]
     [InlineData("cancel")]
+    public async Task BoundRegionResumesAfterDiagnosticAppendBeforeLaterActions(string outcome)
+    {
+        var host = new WarningHost(outcome);
+        host.Files.SetStandardInput("row\n");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var command = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk",
+            ["-v", "pattern=\\\\q", "{FS=pattern;effect=1}{print effect>\"/after\"}END{print \"end\"}"]));
+        var execution = AwkExecutor.ExecuteAsync(host, command, cancellation.Token,
+            Options(counters) with { MemoryBudget = budget });
+        try
+        {
+            await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(AwkFileDescriptor.StdErr, host.FirstDescriptor);
+            Assert.Contains("escape sequence", AwkUtf8Codec.Decode(host.FirstBytes));
+            Assert.Equal(1, counters.BoundRegionRuns);
+            Assert.False(host.Files.FileExists("/after"));
+            if (outcome == "reject") Assert.Equal(2, (await execution).Value);
+            else if (outcome == "cancel")
+            {
+                Assert.False(execution.IsCompleted);
+                Assert.True(budget.Reserved > 0);
+                cancellation.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+            }
+            else
+            {
+                Assert.False(execution.IsCompleted);
+                Assert.True(budget.Reserved > 0);
+                host.Release.TrySetResult(AwkAppendResult.Accepted());
+                Assert.Equal(AwkExitCode.Success, await execution);
+                Assert.Equal("1\n", host.Files.ReadFile("/after"));
+                Assert.Equal("end\n", host.Files.GetOutput(AwkFileDescriptor.StdOut));
+            }
+            if (outcome != "pending") Assert.False(host.Files.FileExists("/after"));
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(0, host.Files.OpenFileCount);
+        }
+        finally
+        {
+            host.Release.TrySetResult(AwkAppendResult.Accepted());
+            cancellation.Cancel();
+            try { await execution; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
+    [InlineData("reject")]
+    [InlineData("pending")]
+    [InlineData("cancel")]
     public async Task FunctionMathWarningCompletesBeforeLaterEffects(string outcome)
     {
         var host = new WarningHost(outcome);

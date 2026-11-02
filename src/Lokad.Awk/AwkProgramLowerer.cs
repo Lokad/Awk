@@ -260,6 +260,8 @@ internal static partial class AwkProgramLowerer
 
             if (rule.PatternTokens.Count == 0)
             {
+                if (rule.HasExplicitAction && AwkRegionCompiler.TryCompile(rule.ActionStatements, scope, out var region))
+                    return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, region));
                 return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements, scope.SynchronousFunctions, scope.Checkpoint));
             }
 

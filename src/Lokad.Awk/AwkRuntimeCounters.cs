@@ -16,6 +16,12 @@ internal sealed class AwkRuntimeCounters
 
     public bool IsEnabled => _enabled;
 
+    public long BoundRegionRuns { get; private set; }
+    public void RecordBoundRegionRun()
+    {
+        if (_enabled) lock (_sync) BoundRegionRuns++;
+    }
+
     public long RegexCoordinateBytes { get; private set; }
     public void RecordRegexCoordinateBytes(int bytes)
     {

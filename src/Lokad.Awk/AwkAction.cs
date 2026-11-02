@@ -8,6 +8,15 @@ internal readonly struct AwkAction
     private readonly AwkPattern? _pattern;
     private readonly AwkStatement[]? _statements;
     private readonly Action<AwkEvaluationContext>? _synchronous;
+    private readonly AwkRegion? _region;
+
+    internal AwkAction(AwkPattern? pattern, AwkRegion region)
+    {
+        _pattern = pattern;
+        _region = region;
+    }
+
+    internal AwkRegion? Region => _region;
 
     public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements,
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null)
@@ -30,6 +39,12 @@ internal readonly struct AwkAction
         AwkIo io,
         AwkOutputSink output)
     {
+        if (_region is { } region)
+        {
+            using var storage = new AwkRegionStorage(state);
+            using var context = state.PushExecutionContext(output, io);
+            return await region.ExecuteAsync(state, storage, output, io).ConfigureAwait(false);
+        }
         var statements = Statements;
         if (statements.Length == 0)
             return AwkStatementFlow.Continue;

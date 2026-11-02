@@ -5,6 +5,18 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("region-foundation-scalar-capture-and-short-circuit",
+            ["{x=1;a=x+(x=7);b=(x==(x=3));c=x++;d=++x;e=0&&(x=99);f=1||(x=99);g=(0?(x=77):x)}END{print x,a,b,c,d,e,f,g}"],
+            [], "5 8 0 3 5 0 1 5\n", "record\n");
+        yield return Passing("region-foundation-number-string-origins-and-nf-capture",
+            ["BEGIN{text=\"20\"}{literal=(text<3);input=($1<3);saved=$1;value=(NF=$2)}END{print literal,input,saved,value,NF+0,$0}"],
+            [], "1 0 0007 0001 1 0007\n", "0007 0001 tail\n");
+        yield return Passing("region-foundation-nested-loop-control",
+            ["{s=0;for(i=0;i<4;i++){if(i==1)continue;j=0;do{j++;if(j==2)break;s+=i+j}while(j<3)}while(s<10){s++;if(s==9)break}}END{print s,i,j}"],
+            [], "9 4 2\n", "record\n");
+        yield return Passing("region-foundation-comparison-before-record-invalidation",
+            ["{saved=$1;equal=($1==(NF=0));after=NF}END{print saved,equal,after}"],
+            [], "0007 0 0\n", "0007 tail\n");
         yield return Posix(Passing("function-array-read-missing-and-spelling",
             ["function count(a,k,n){for(k in a)n++;return n} function f(a,k){return a[k]} BEGIN{a[\"hit\"]=\"0007\";print \"[\" f(a,\"hit\") \"]\",\"[\" f(a,\"missing\") \"]\",count(a),(\"absent\" in a)}"],
             [], "[0007] [] 2 0\n"));
