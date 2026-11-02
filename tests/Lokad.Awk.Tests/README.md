@@ -9,6 +9,10 @@ semantic assertions and measure removed transport rather than pinning old prepar
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.
+Standard `printf` cases also retain its captured format and earlier arguments across
+pending calls. Field counters distinguish parsed descriptors from owned text; encoding
+counters observe actual UTF-16 conversion. Publication tests use storage admission and
+owned-result creation instead of treating encoding counts as execution-phase markers.
 
 ## Golden Corpus
 

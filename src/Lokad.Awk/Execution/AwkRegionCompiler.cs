@@ -18,6 +18,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionCall> _calls = [];
     private readonly List<AwkRegionBuiltin> _builtins = [];
     private readonly List<AwkRegionPrint> _prints = [];
+    private readonly List<AwkRegionPrintf> _printfs = [];
     private readonly List<AwkStatement> _hostStatements = [];
     private readonly List<AwkExpression> _hostExpressions = [];
     private int _activeCalls;
@@ -92,7 +93,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, _builderSeparators.Count, _incomingCalls, _printSegments),
             _calls.ToArray(), _hostStatements.ToArray(), _hostExpressions.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _kind);
         return true;
     }
 
@@ -181,6 +182,12 @@ internal sealed class AwkRegionCompiler
                     Emit(new(printKind, Left: printValue));
                     break;
                 case AwkStatementKind.Printf:
+                    if (AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted) && !formatted.Redirection.HasValue)
+                    {
+                        if (!formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput)) return false;
+                        break;
+                    }
+                    goto case AwkStatementKind.Getline;
                 case AwkStatementKind.Getline:
                     // Migration boundary: retain the existing host primitive and its
                     // operand semantics until I/O operand lowering moves in Stage C.
@@ -561,6 +568,40 @@ internal sealed class AwkRegionCompiler
         var site = _prints.Count;
         _prints.Add(new(values, texts, segments, arguments.Count, fields));
         Emit(new(AwkRegionInstructionKind.PrintList, Left: site));
+        return true;
+    }
+
+    private bool Printf(AwkExpressionSyntax syntax)
+    {
+        if (syntax.Kind == AwkExpressionKind.Group && syntax.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
+            syntax = list;
+        IReadOnlyList<AwkExpressionSyntax> arguments = syntax.Kind == AwkExpressionKind.ExpressionList ? syntax.Children : [syntax];
+        if (arguments.Count == 0 || !Expression(arguments[0], out var format, preserveOrigin: true)) return false;
+        var formatSlot = _values++;
+        // Capture the value before arguments; numeric formatting uses CONVFMT
+        // after their effects. The captured text survives record/variable writes.
+        Emit(new(AwkRegionInstructionKind.Value, formatSlot, format, Detail: 1));
+        var count = arguments.Count - 1;
+        var fields = new int[count];
+        for (var index = 0; index < count; index++)
+        {
+            if (TryFixedField(arguments[index + 1], out fields[index]) && fields[index] != 0) continue;
+            fields = [];
+            break;
+        }
+        var values = _values;
+        if (fields.Length == 0)
+        {
+            _values = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_values, count));
+            for (var index = 0; index < count; index++)
+            {
+                if (!Expression(arguments[index + 1], out var value, preserveOrigin: true)) return false;
+                Emit(new(AwkRegionInstructionKind.Value, values + index, value, Detail: 1));
+            }
+        }
+        var site = _printfs.Count;
+        _printfs.Add(new(formatSlot, values, count, fields));
+        Emit(new(AwkRegionInstructionKind.Printf, Left: site));
         return true;
     }
 

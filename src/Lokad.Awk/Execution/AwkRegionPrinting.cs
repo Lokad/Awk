@@ -2,6 +2,43 @@ namespace Lokad.Awk;
 
 internal static class AwkRegionPrinting
 {
+    internal static void Printf(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrintf print)
+    {
+        var formatBytes = 0L;
+        try
+        {
+            if (print.Fields.Length != 0)
+            {
+                for (var index = 0; index < print.Fields.Length; index++)
+                {
+                    if ((index & 63) == 0) state.ThrowIfCancellationRequested();
+                    state.PreflightPrintfField(print.Fields[index]);
+                }
+            }
+            var format = storage.PrepareFormattedString(storage.Values[print.Format], out formatBytes);
+            if (print.Fields.Length != 0)
+                AppendPrintf(state, output, format, new AwkPrintfFieldArguments(print.Fields, state));
+            else
+                AppendPrintf(state, output, format, new AwkValueArrayPrintfArguments(storage.Values, print.Count, state, print.Values));
+        }
+        finally
+        {
+            if (print.Fields.Length == 0) storage.ReleaseValues(print.Values, print.Count);
+            storage.ReleaseFormattedString(formatBytes);
+            storage.ReleaseValue(print.Format);
+        }
+    }
+
+    private static void AppendPrintf<TArguments>(AwkRuntimeState state, AwkOutputSink output, string format, TArguments arguments)
+        where TArguments : IPrintfArguments
+    {
+        if (output.TryFormatPrintf(format, arguments, state)) return;
+        using var formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
+        AwkFormattingRuntime.FormatPrintfToBuilder(formatted, format, arguments, state);
+        state.ThrowIfCancellationRequested();
+        output.Append(formatted.AsMemory());
+    }
+
     internal static void Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrint print)
     {
         var fields = storage.PrintSegments.AsSpan(print.Segments, print.Count);

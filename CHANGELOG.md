@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prepare standard `printf` operands in the common interpreter, retaining values across
+  pending calls and borrowing literal field arguments without an arity cutoff.
+- Correct numeric `printf` format conversion to use `CONVFMT` after argument effects,
+  while preserving the previously captured format value.
 - Reuse numeric field interpretations in spare record-cache slots while preserving
   original text. The initial buffer uses shared admission; numeric-only reads do not
   enlarge a populated cache.

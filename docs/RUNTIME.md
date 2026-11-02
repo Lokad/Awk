@@ -177,6 +177,9 @@ flush/diagnostic contract. Multi-value output stages operands before formatting 
 fixed-field lists byte-native across arities. Rebuilding `$0` or mutating/suspending operands
 retain owned captures. Preparation has no flat block-size or argument-count cutoff;
 managed stack protection still applies. There is no public execution-engine selector.
+Standard `printf` uses the same argument ownership and retains field byte views across
+arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
+format storage retires after formatting, before the host receives owned output bytes.
 Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Concatenation preserves operand formatting order and lazy text composition. Computed fields

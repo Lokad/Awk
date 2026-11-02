@@ -4,7 +4,7 @@ public sealed class AwkRegionFieldTests
 {
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi" })
+        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf" })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -18,6 +18,7 @@ public sealed class AwkRegionFieldTests
             "concat" => "{i=1;text=($i \":\" read());print text,$0,i;next}",
             "condition" => "(i=0)||(read()>0&&!(0||0)){print $0,i;next}",
             "multi" => "{i=1;print $i,read(),$i;next}",
+            "printf" => "{i=1;fmt=\"[%s][%d][%s]\\n\";printf fmt,$i,read(),$i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
@@ -71,6 +72,7 @@ public sealed class AwkRegionFieldTests
                 "concat" => "0007:11 100 old 2\n",
                 "condition" => "100 old 2\n",
                 "multi" => "0007 11 old\n",
+                "printf" => "[0007][11][old]\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

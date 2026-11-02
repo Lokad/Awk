@@ -1,7 +1,7 @@
 namespace Lokad.Awk;
 
 // Calls and returns change explicit cursors in this loop; only actual host/legacy
-// operations cross the suspension boundary. No call-boundary result transport.
+// operations cross the suspension boundary. Calls do not reenter an async driver.
 internal partial struct AwkRegionMachine
 {
     internal bool Run()
@@ -20,6 +20,7 @@ internal partial struct AwkRegionMachine
         AwkExpression[] hostExpressions;
         AwkRegionBuiltin[] builtins;
         AwkRegionPrint[] prints;
+        AwkRegionPrintf[] printfs;
         AwkFunctionFrame? frame;
         double[] numbers;
     Resume:
@@ -38,6 +39,7 @@ internal partial struct AwkRegionMachine
         hostExpressions = region.HostExpressions;
         builtins = region.Builtins;
         prints = region.Prints;
+        printfs = region.Printfs;
         numbers = storage.Numbers;
         for (var position = _cursor.Position; position < instructions.Length; position++)
         {
@@ -127,6 +129,10 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.PrintList:
                     AwkRegionPrinting.Append(state, storage,
                         output ?? throw new InvalidOperationException("Print requires an output sink."), prints[instruction.Left]);
+                    break;
+                case AwkRegionInstructionKind.Printf:
+                    AwkRegionPrinting.Printf(state, storage,
+                        output ?? throw new InvalidOperationException("Printf requires an output sink."), printfs[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.KeyBegin:
                     storage.Builders[instruction.Target].Clear();

@@ -6,7 +6,7 @@ internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
-    AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionKind kind)
+    AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
@@ -65,8 +65,7 @@ internal sealed class AwkRegion(
     internal AwkExpression[] HostExpressions => hostExpressions;
     internal AwkRegionBuiltin[] Builtins => builtins;
     internal AwkRegionPrint[] Prints => prints;
-
-
+    internal AwkRegionPrintf[] Printfs => printfs;
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
@@ -83,7 +82,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,
-    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, HostStatement, HostExpression, Return,
+    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, HostExpression, Return,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow
 }
 internal readonly record struct AwkRegionInstruction(
@@ -111,3 +110,4 @@ internal readonly record struct AwkRegionCursor
 internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, int Destination);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation Implementation, int Start, int Count);
 internal sealed record AwkRegionPrint(int Values, int Texts, int Segments, int Count, int[] Fields);
+internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields);

@@ -24,8 +24,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, result);
         Assert.Equal(string.Concat(Enumerable.Repeat(expected, records)), host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(governed && printf ? 1 : 0, counters.GovernedArgumentBufferAllocations);
-        Assert.Equal(governed && printf ? records - 1 : 0, counters.GovernedArgumentBufferReuses);
+        Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
+        Assert.Equal(0, counters.GovernedArgumentBufferReuses);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }

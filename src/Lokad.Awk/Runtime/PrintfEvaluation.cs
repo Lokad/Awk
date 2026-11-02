@@ -727,19 +727,20 @@ internal interface IPrintfArguments
 internal readonly struct AwkValueArrayPrintfArguments(
     AwkValue[] arguments,
     int count,
-    AwkRuntimeState state) : IPrintfArguments
+    AwkRuntimeState state,
+    int start = 0) : IPrintfArguments
 {
     public int Count => count;
 
     public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index) =>
-        state.FormatStringByteText(arguments[index].ForceScalar());
+        state.FormatStringByteText(arguments[start + index].ForceScalar());
 
-    public double GetNumber(int index) => arguments[index].ForceScalar().AsNumber(state.CancellationCheckpoint);
+    public double GetNumber(int index) => arguments[start + index].ForceScalar().AsNumber(state.CancellationCheckpoint);
 
     public bool IsNumeric(int index) =>
-        arguments[index].IsNumberValue || arguments[index].IsNumericStringValue;
+        arguments[start + index].IsNumberValue || arguments[start + index].IsNumericStringValue;
 }
 
 internal readonly struct AwkBuiltinContextPrintfArguments(
