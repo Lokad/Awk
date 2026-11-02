@@ -309,6 +309,12 @@ checks. `AwkSourceCancellationTests` bounds post-cancel source copying and prese
 read ownership. `AwkVersionTests` compares brief output with the actual assembly metadata,
 excluding build details.
 
+Computed-field counters also cover numeric-cache reuse and borrowed array keys through bound
+variables, arithmetic and user calls. `AwkRegionFieldTests` preserves simple/compound target
+ordering across genuinely pending host reads, cancellation and actual owner cleanup in both
+memory modes. Discarded fixed-field copies retain record-backed storage; escaping results
+still own their original spelling.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

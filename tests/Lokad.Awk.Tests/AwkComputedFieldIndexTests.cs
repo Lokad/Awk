@@ -26,7 +26,8 @@ public sealed class AwkComputedFieldIndexTests
         Assert.Equal(test.ExpectedExitCode, (await awk.ExecuteAsync(host, policy, CancellationToken.None)).Value);
         Assert.Equal(test.ExpectedStdOut, host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(test.ExpectedStdErr, host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, reads);
+        if (test.StandardInput is "" or "unread\n") Assert.Equal(0, reads);
+        else Assert.True(reads > 0);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

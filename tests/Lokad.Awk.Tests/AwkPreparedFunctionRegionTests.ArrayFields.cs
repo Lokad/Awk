@@ -135,7 +135,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         await program.MainActions[0].ExecuteAsync(state, io, output);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
-        Assert.Equal(boundary == "default" ? 1 : 0, counters.SynchronousActionRuns);
+        Assert.Equal(1, counters.BoundRegionRuns);
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

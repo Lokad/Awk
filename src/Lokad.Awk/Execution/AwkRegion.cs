@@ -71,16 +71,16 @@ internal sealed class AwkRegion(
 
 }
 
-internal enum AwkRegionOperandKind : byte { Variable, Field, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
+internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key);
 internal enum AwkRegionInstructionKind : byte
 {
-    Poll, StatementBoundary, MoveNumber, FieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
+    Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
-    AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber,
+    AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
 }

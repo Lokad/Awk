@@ -68,8 +68,12 @@ internal sealed class AwkRegionCompiler
                     if (!Statements(statement.BodyStatements)) return false;
                     break;
                 case AwkStatementKind.Expression:
-                    if (!statement.Expression.TryGetValue(out var expression) || !Expression(expression, out var value)) return false;
-                    Discard(value);
+                    if (!statement.Expression.TryGetValue(out var expression)) return false;
+                    if (!CopyField(expression))
+                    {
+                        if (!Expression(expression, out var value)) return false;
+                        Discard(value);
+                    }
                     break;
                 case AwkStatementKind.If:
                     if (!statement.Expression.TryGetValue(out var condition) || !Expression(condition, out var test)) return false;
@@ -198,12 +202,7 @@ internal sealed class AwkRegionCompiler
                 result = Operand(AwkRegionOperandKind.Variable, variable);
                 return true;
             case AwkExpressionKind.Field when syntax.Children.Count == 1:
-                if (syntax.Children[0].Kind != AwkExpressionKind.Number) return false;
-                if (!AwkExpressionLowerer.TryReadSwitchConstant(syntax.Children[0], _scope, out var ordinal)) return false;
-                var field = ordinal.AsNumber();
-                if (!double.IsFinite(field) || field < 0 || field > int.MaxValue) return false;
-                result = Operand(AwkRegionOperandKind.Field, (int)field);
-                return true;
+                return Field(syntax, out result);
             case AwkExpressionKind.ArrayElement:
                 if (!ArrayAccess(syntax, out var access)) return false;
                 if (_operands[_arrays[access].Key].Kind == AwkRegionOperandKind.KeyBuilder)
@@ -314,6 +313,8 @@ internal sealed class AwkRegionCompiler
             result = CaptureValue(right);
             if (Variable(syntax.Children[0], out var variable))
                 Assign(variable, result);
+            else if (Field(syntax.Children[0], out var field))
+                Emit(new(AwkRegionInstructionKind.AssignField, field, result));
             else
             {
                 // Ordinary assignment evaluates its RHS before the subscript.
@@ -377,8 +378,14 @@ internal sealed class AwkRegionCompiler
     {
         if (Variable(syntax, out var variable))
         {
-            target = new(variable, -1);
+            target = new(Operand(AwkRegionOperandKind.Variable, variable), -1);
             prior = CaptureNumber(Operand(AwkRegionOperandKind.Variable, variable));
+            return true;
+        }
+        if (Field(syntax, out var field))
+        {
+            target = new(field, -1);
+            prior = CaptureNumber(field);
             return true;
         }
         target = default;
@@ -389,15 +396,56 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, access, number));
         FinishKey(access);
         prior = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        target = new(access, captured);
+        target = new(Operand(AwkRegionOperandKind.ArrayElement, access), captured);
         return true;
     }
 
     private void Store(PreparedTarget target, int value)
     {
+        var operand = _operands[target.Operand];
         if (target.Capture >= 0)
-            Emit(new(AwkRegionInstructionKind.ArrayCommit, target.Capture, NumericRegister(value), target.Binding));
-        else Assign(target.Binding, value);
+            Emit(new(AwkRegionInstructionKind.ArrayCommit, target.Capture, NumericRegister(value), operand.Index));
+        else if (operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
+            Emit(new(AwkRegionInstructionKind.AssignField, target.Operand, value));
+        else Assign(operand.Index, value);
+    }
+
+    private bool Field(AwkExpressionSyntax syntax, out int operand)
+    {
+        operand = 0;
+        if (syntax.Kind != AwkExpressionKind.Field || syntax.Children.Count != 1) return false;
+        var index = syntax.Children[0];
+        if (index.Kind == AwkExpressionKind.Number &&
+            AwkExpressionLowerer.TryReadSwitchConstant(index, _scope, out var constant))
+        {
+            var number = constant.AsNumber();
+            if (double.IsFinite(number) && number >= 0 && number <= int.MaxValue)
+            {
+                operand = Operand(AwkRegionOperandKind.Field, (int)number);
+                return true;
+            }
+        }
+        if (!Expression(index, out var value)) return false;
+        var validated = _numbers++;
+        Emit(new(AwkRegionInstructionKind.FieldIndex, validated, NumericRegister(value)));
+        operand = Operand(AwkRegionOperandKind.DynamicField, validated);
+        return true;
+    }
+
+    private bool CopyField(AwkExpressionSyntax syntax)
+    {
+        // A discarded move to a fixed location can keep record-backed text. A
+        // computed destination must first own the RHS before evaluating its index.
+        if (syntax.Kind != AwkExpressionKind.Assignment || syntax.Children.Count != 2 ||
+            syntax.OperatorTokens.Count != 1 || syntax.OperatorTokens[0].Kind != AwkTokenKind.Equal ||
+            syntax.Children[0] is not { Kind: AwkExpressionKind.Field, Children.Count: 1 } destination ||
+            destination.Children[0].Kind != AwkExpressionKind.Number ||
+            !AwkExpressionLowerer.TryReadSwitchConstant(destination.Children[0], _scope, out var constant)) return false;
+        var number = constant.AsNumber();
+        if (!double.IsFinite(number) || number < 1 || number > int.MaxValue ||
+            !Field(syntax.Children[1], out var source)) return false;
+        Emit(new(AwkRegionInstructionKind.CopyField, (int)number, source));
+        return true;
     }
 
     private void Assign(int variable, int value)
@@ -537,6 +585,7 @@ internal sealed class AwkRegionCompiler
         var kind = source.Kind switch
         {
             AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
+            AwkRegionOperandKind.DynamicField => AwkRegionInstructionKind.DynamicFieldNumber,
             AwkRegionOperandKind.Literal => AwkRegionInstructionKind.LiteralNumber,
             AwkRegionOperandKind.ValueTemporary => AwkRegionInstructionKind.ValueNumber,
             AwkRegionOperandKind.ArrayElement => AwkRegionInstructionKind.ArrayNumber,
@@ -563,7 +612,7 @@ internal sealed class AwkRegionCompiler
 
     private void Discard(int operand)
     {
-        if (_operands[operand].Kind is AwkRegionOperandKind.Variable or AwkRegionOperandKind.Field or AwkRegionOperandKind.ArrayElement)
+        if (_operands[operand].Kind is AwkRegionOperandKind.Variable or AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement)
             Emit(new(AwkRegionInstructionKind.Discard, Left: operand));
     }
 
@@ -615,5 +664,5 @@ internal sealed class AwkRegionCompiler
         internal List<int> Continues { get; } = [];
     }
 
-    private readonly record struct PreparedTarget(int Binding, int Capture);
+    private readonly record struct PreparedTarget(int Operand, int Capture);
 }

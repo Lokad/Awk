@@ -61,6 +61,12 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.FieldNumber:
                     numbers[instruction.Target] = state.GetFieldNumber(instruction.Left);
                     break;
+                case AwkRegionInstructionKind.FieldIndex:
+                    numbers[instruction.Target] = AwkFieldIndex.FromNumber(numbers[instruction.Left]).Value;
+                    break;
+                case AwkRegionInstructionKind.DynamicFieldNumber:
+                    numbers[instruction.Target] = state.GetFieldNumber((int)numbers[instruction.Left]);
+                    break;
                 case AwkRegionInstructionKind.LiteralNumber:
                     numbers[instruction.Target] = state.CreateByteTextValue(literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
@@ -87,8 +93,9 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.ArrayNumber:
                 {
                     var numeric = arrays[instruction.Left];
-                    numbers[instruction.Target] = operands[numeric.Key] is { Kind: AwkRegionOperandKind.Field } field
-                        ? state.GetArrayFieldNumber(numeric.Name, field.Index, numeric.Binding)
+                    var field = operands[numeric.Key];
+                    numbers[instruction.Target] = IsField(field)
+                        ? state.GetArrayFieldNumber(numeric.Name, FieldOrdinal(field), numeric.Binding)
                         : state.GetArrayNumber(numeric.Name, Key(numeric), numeric.Binding);
                     break;
                 }
@@ -109,8 +116,8 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.KeyAppend:
                     var component = operands[instruction.Left];
-                    if (component.Kind == AwkRegionOperandKind.Field)
-                        state.AppendFieldByteText(storage.Builders[instruction.Target], component.Index);
+                    if (IsField(component))
+                        state.AppendFieldByteText(storage.Builders[instruction.Target], FieldOrdinal(component));
                     else
                         storage.Builders[instruction.Target].Append(state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
                     break;
@@ -178,12 +185,22 @@ internal partial struct AwkRegionMachine
                     state.ThrowIfCancellationRequested();
                     state.AssignVariableValue(variables[instruction.Target].Name, AwkValue.FromNumber(numbers[instruction.Left]));
                     break;
+                case AwkRegionInstructionKind.AssignField:
+                    var fieldValue = Value(instruction.Left);
+                    state.ThrowIfCancellationRequested();
+                    state.AssignFieldValue(FieldOrdinal(operands[instruction.Target]), fieldValue);
+                    break;
+                case AwkRegionInstructionKind.CopyField:
+                    state.ThrowIfCancellationRequested();
+                    if (!state.TryCopyInputField(FieldOrdinal(operands[instruction.Left]), instruction.Target))
+                        state.AssignFieldValue(instruction.Target, Value(instruction.Left));
+                    break;
                 case AwkRegionInstructionKind.ArrayPrepare:
                     var access = arrays[instruction.Left];
                     var key = operands[access.Key];
                     var target = key.Kind switch
                     {
-                        AwkRegionOperandKind.Field => state.PrepareArrayFieldUpdate(access.Name, key.Index, access.Binding),
+                        AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(key), access.Binding),
                         AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index], access.Binding),
                         _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
                     };
@@ -230,8 +247,8 @@ internal partial struct AwkRegionMachine
                     }
                     AwkFunctionArgument argument;
                     if (instruction.Detail == 0 && operand.Kind == AwkRegionOperandKind.Variable && TryArrayArgument(variables[operand.Index], out argument)) { }
-                    else argument = AwkFunctionArgument.FromValue(call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right) && operand.Kind == AwkRegionOperandKind.Field
-                        ? state.GetFieldArithmeticArgument(operand.Index) : Value(instruction.Left));
+                    else argument = AwkFunctionArgument.FromValue(call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right) && IsField(operand)
+                        ? state.GetFieldArithmeticArgument(FieldOrdinal(operand)) : Value(instruction.Left));
                     state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
                     break;
                 case AwkRegionInstructionKind.Call:
@@ -241,8 +258,8 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.BuiltinArgument:
                     var input = operands[instruction.Left];
                     storage.StoreValue(instruction.Target,
-                        instruction.Detail != 0 && input.Kind == AwkRegionOperandKind.Field
-                            ? state.GetFieldArithmeticArgument(input.Index) : Value(instruction.Left), preserveOrigin: true);
+                        instruction.Detail != 0 && IsField(input)
+                            ? state.GetFieldArithmeticArgument(FieldOrdinal(input)) : Value(instruction.Left), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
                     state.ThrowIfCancellationRequested();
@@ -298,7 +315,7 @@ internal partial struct AwkRegionMachine
                 AwkRegionOperandKind.NumberTemporary => AwkValue.FromNumber(numbers[operand.Index]),
                 AwkRegionOperandKind.Variable => ReadVariable(variables[operand.Index]),
                 AwkRegionOperandKind.Literal => state.CreateByteTextValue(literals[operand.Index]),
-                AwkRegionOperandKind.Field => operand.Index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(operand.Index),
+                AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => ReadField(FieldOrdinal(operand)),
                 AwkRegionOperandKind.ValueTemporary => storage.Values[operand.Index],
                 AwkRegionOperandKind.ArrayElement => ReadArray(arrays[operand.Index]),
                 _ => throw new InvalidOperationException("Unknown bound region operand.")
@@ -307,14 +324,14 @@ internal partial struct AwkRegionMachine
 
         AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
         {
-            { Kind: AwkRegionOperandKind.Field } field => state.GetArrayFieldKey(access.Name, field.Index, access.Binding),
+            { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldKey(access.Name, FieldOrdinal(field), access.Binding),
             { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index], access.Binding),
             _ => state.ToArrayKey(Value(access.Key))
         };
 
         AwkValue ReadArray(AwkRegionArrayAccess access) => operands[access.Key] switch
         {
-            { Kind: AwkRegionOperandKind.Field } field => state.GetArrayFieldValue(access.Name, field.Index, access.Binding),
+            { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldOrdinal(field), access.Binding),
             { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index], access.Binding),
             _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
         };
@@ -328,7 +345,11 @@ internal partial struct AwkRegionMachine
             ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.LocalIndex), variable.Name, out argument)
             : state.TryResolveArrayArgument(variable.Name, out argument);
 
-        AwkComparisonOperand ComparisonOperand(int index) => operands[index] is { Kind: AwkRegionOperandKind.Field } field
-            ? state.GetFieldComparison(field.Index) : new(Value(index));
+        AwkComparisonOperand ComparisonOperand(int index) => IsField(operands[index])
+            ? state.GetFieldComparison(FieldOrdinal(operands[index])) : new(Value(index));
+
+        static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;
+        int FieldOrdinal(AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];
+        AwkValue ReadField(int index) => index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(index);
     }
 }

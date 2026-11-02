@@ -30,7 +30,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("global=x;return global", true)]
     [InlineData("a[x]=1;return x", true)]
     [InlineData("a[x]=(getline y);return x", true)]
-    [InlineData("$1=x;return x", false)]
+    [InlineData("$1=x;return x", true)]
     [InlineData("t=(getline line);return t", true)]
     [InlineData("t=step(x);return t", true)]
     public void LocalAssignmentReturnsPrepareCompleteBoundedBodies(string body, bool expected)

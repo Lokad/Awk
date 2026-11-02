@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ComputedFieldCases()
     {
+        yield return Passing("computed-field-simple-assignment-captures-rhs-before-index",
+            ["function choose(){i++;return i}function rhs(){i=2;return \"0007\"}{i=1;$(choose())=rhs();print i,NF,$0,typeof($3)}"],
+            [], "3 3 a b 0007 string\n", "a b\n");
+        yield return Passing("computed-field-compound-captures-prior-and-destination",
+            ["function rhs(){i=2;$1=100;return 5}{i=1;r=($i+=rhs());print i,r,$0;before=$i++;print before,$0}"],
+            [], "2 15 15 20\n20 15 21\n", "10 20\n");
+        yield return Passing("computed-field-record-assignment-and-split-snapshot",
+            ["function replace(){$0=\"0007:old\";FS=\" \";i=1;return $i}{FS=\":\";saved=replace();$2=saved;print saved,$0;print typeof(saved),typeof($2)}"],
+            [], "0007 0007 0007\nstrnum strnum\n", "ignored\n");
         (string Name, string Statement)[] operations =
         [
             ("print", "print $n"), ("numeric", "print $n+1"),
