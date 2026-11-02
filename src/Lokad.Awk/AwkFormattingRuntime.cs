@@ -46,6 +46,36 @@ internal sealed class AwkFormattingRuntime(
             resolveVariable(AwkFormattingVariable.ConversionFormat).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
     }
 
+    internal static string PreparePrintfFormat(AwkValue value, AwkRuntimeState state, AwkMemoryLease lease, out long retainedBytes)
+    {
+        retainedBytes = 0;
+        var before = lease.Bytes;
+        try
+        {
+            // Numeric conversion may create native text. Reuse this owner's
+            // lease until decoding finishes; no separate per-call lease or cache.
+            var text = state.FormatStringByteText(value, lease);
+            var nativeBytes = lease.Bytes - before;
+            // Valid UTF-8 has at most one UTF-16 code unit per byte. Admit before
+            // decoding, then retain only the actual string until formatting ends.
+            var bound = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateUtf16StringBytes(text.ByteLength) : 0;
+            if (bound > 0) lease.ReserveAdditional(bound);
+            state.ThrowIfCancellationRequested();
+            var converted = text.AsString(state.Counters, state.CancellationCheckpoint);
+            retainedBytes = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateUtf16StringBytes(converted.Length) : 0;
+            if (bound > retainedBytes) lease.Release(bound - retainedBytes);
+            if (nativeBytes > 0) lease.Release(nativeBytes);
+            return converted;
+        }
+        catch
+        {
+            var added = lease.Bytes - before;
+            if (added > 0) lease.Release(added);
+            retainedBytes = 0;
+            throw;
+        }
+    }
+
     public static AwkText FormatPrintfStrictByteText<TArguments>(
         string formatText,
         TArguments arguments,

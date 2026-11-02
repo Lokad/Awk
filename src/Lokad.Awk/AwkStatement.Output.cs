@@ -120,9 +120,8 @@ internal abstract partial class AwkStatement
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             using var heldTarget = RetainOutputTarget(resolvedTarget, state.MemoryAccounting);
-            var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
-            using var heldFormat = format.IsTextLiteral ? AwkMemoryLease.Disabled : state.MemoryAccounting.ReserveTransient(
-                AwkRuntimeMemory.EstimateUtf16StringBytes(formatText.Length));
+            var formatValue = await format.EvaluateAsync(context).ConfigureAwait(false);
+            using var heldFormatValue = format.IsTextLiteral ? AwkMemoryLease.Disabled : state.MemoryAccounting.RetainValue(formatValue);
             AwkUtf8Builder? formatted = null;
             try
             {
@@ -134,6 +133,8 @@ internal abstract partial class AwkStatement
                         state.PreflightPrintfField(_fieldIndices[index]);
                     }
                     var fields = new AwkPrintfFieldArguments(_fieldIndices, state);
+                    using var heldFormat = state.MemoryAccounting.CreateTransientLease();
+                    var formatText = AwkFormattingRuntime.PreparePrintfFormat(formatValue, state, heldFormat, out _);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, fields, state))
                         return AwkStatementFlow.Continue;
                     formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
@@ -147,6 +148,8 @@ internal abstract partial class AwkStatement
                         buffer.Set(i, await arguments[i].EvaluateAsync(context).ConfigureAwait(false));
 
                     var values = new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state);
+                    using var heldFormat = state.MemoryAccounting.CreateTransientLease();
+                    var formatText = AwkFormattingRuntime.PreparePrintfFormat(formatValue, state, heldFormat, out _);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, values, state))
                         return AwkStatementFlow.Continue;
                     formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);

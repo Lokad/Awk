@@ -4,6 +4,16 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> PrintfByteTextCases()
     {
+        yield return Passing("printf-format-snapshot-before-argument-effects",
+            ["function change(){fmt=\"%d\";CONVFMT=\"%.1f\";$0=\"new changed\";return $1}" +
+                "BEGIN{fmt=\"[%s][%s]\\n\";$0=\"0007 old\";printf fmt,$1,change();print fmt}"],
+            [], "[0007][new]\n%d\n");
+        yield return Passing("printf-numeric-format-conversion-after-arguments",
+            ["BEGIN{CONVFMT=\"%.2f\";printf 1.25,(CONVFMT=\"%.1f\");print \"|\",CONVFMT}"],
+            [], "1.2| %.1f\n");
+        yield return Passing("printf-numeric-format-conversion-after-arguments-redirected",
+            ["BEGIN{CONVFMT=\"%.2f\";printf 1.25,(CONVFMT=\"%.1f\")>\"out\";close(\"out\");getline x<\"out\";print x}"],
+            [], "1.2\n");
         foreach (var option in new[] { "default", "--posix", "--traditional", "-b", "--characters-as-bytes" })
         {
             string[] flags = option == "default" ? [] : [option];
