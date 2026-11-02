@@ -32,6 +32,32 @@ public sealed class AwkOpaquePipeTests
 
     [Theory]
     [MemberData(nameof(Commands))]
+    public async Task PreparedOutputKeepsOpaqueNamesFlushAndCommandStatus(string command)
+    {
+        foreach (var printf in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+        {
+            var files = new MockFileSystem();
+            var host = new AwkEmptyPipeTestHost(files) { CommandStatus = 17 };
+            var budget = new CooperativeTestBudget(8 << 20);
+            var output = printf ? "printf \"%s\\n\",\"one\"|cmd" : "print \"one\"|cmd";
+            var source = "BEGIN{cmd=" + Literal(command) + ";" + output + "}BEGIN{print fflush(cmd);print close(cmd)}";
+            var policy = AwkTestHarness.CreatePolicy();
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
+            Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+            Assert.Equal("0\n17\n", files.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(files.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal("one\n", Encoding.UTF8.GetString(host.Writes.SelectMany(bytes => bytes).ToArray()));
+            Assert.Equal(command, Assert.Single(host.Commands).CommandName);
+            Assert.Equal(0, host.OpenPipeCount);
+            Assert.Equal(0, files.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Commands))]
     public async Task InputClosePreservesOpaqueCommandAndStatus(string command)
     {
         foreach (var status in new[] { 0, 17 })

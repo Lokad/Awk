@@ -6,6 +6,9 @@
   pending calls and borrowing literal field arguments without an arity cutoff.
 - Correct numeric `printf` format conversion to use `CONVFMT` after argument effects,
   while preserving the previously captured format value.
+- Prepare file and pipe output in the common interpreter, retaining payloads and target
+  storage through actual host completion. Numeric target conversion now uses `CONVFMT`
+  after argument effects while the target value is captured beforehand.
 - Reuse numeric field interpretations in spare record-cache slots while preserving
   original text. The initial buffer uses shared admission; numeric-only reads do not
   enlarge a populated cache.

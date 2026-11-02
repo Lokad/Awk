@@ -12,7 +12,7 @@ internal partial struct AwkRegionMachine
     private readonly AwkFunctionFrame? _rootFrame;
     private AwkRegionCursor _cursor;
     private Pending _pending;
-    private Task _flush;
+    private Task _hostCompletion;
     private ValueTask<AwkStatementFlow> _hostFlow;
     private ValueTask<AwkValue> _hostValue;
     private int _destination;
@@ -28,7 +28,7 @@ internal partial struct AwkRegionMachine
         _io = io;
         _rootFrame = region.IsFunction ? state.CurrentFunctionFrame : null;
         _cursor = new(region, storage, 0, null);
-        _flush = Task.CompletedTask;
+        _hostCompletion = Task.CompletedTask;
     }
 
     private AwkEvaluationContext Context => _output is { } output && _io is { } io
@@ -76,9 +76,9 @@ internal partial struct AwkRegionMachine
         switch (_pending)
         {
             case Pending.Flush:
-                if (!_flush.IsCompletedSuccessfully) return false;
-                _pending = Pending.None;
-                _state.ThrowIfCancellationRequested();
+            case Pending.Output:
+                if (!_hostCompletion.IsCompletedSuccessfully) return false;
+                CompleteHostOperation();
                 break;
             case Pending.HostFlow:
                 if (!_hostFlow.IsCompletedSuccessfully) return false;
@@ -94,6 +94,28 @@ internal partial struct AwkRegionMachine
                 break;
         }
         return true;
+    }
+
+    private void BeginWrite(AwkRegionOutput output)
+    {
+        if (_io is not { } io) throw new InvalidOperationException("Redirection requires a host context.");
+        var storage = _cursor.Storage;
+        var target = storage.PreparedOutputTarget(output);
+        _state.ThrowIfCancellationRequested();
+        _destination = output.Value;
+        _pending = Pending.Output;
+        _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].AsMemory()));
+    }
+
+    private void CompleteHostOperation()
+    {
+        if (_pending == Pending.Output)
+        {
+            _cursor.Storage.Builders[0].Clear();
+            _cursor.Storage.ReleaseValue(_destination);
+        }
+        _pending = Pending.None;
+        _state.ThrowIfCancellationRequested();
     }
 
     private void CompleteValue(AwkValue value)
@@ -174,9 +196,9 @@ internal partial struct AwkRegionMachine
                 switch (machine._pending)
                 {
                     case Pending.Flush:
-                        await machine._flush.ConfigureAwait(false);
-                        machine._pending = Pending.None;
-                        machine._state.ThrowIfCancellationRequested();
+                    case Pending.Output:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompleteHostOperation();
                         break;
                     case Pending.HostFlow:
                         var flow = await machine._hostFlow.ConfigureAwait(false);
@@ -195,5 +217,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, HostFlow, HostValue, LegacyValue }
+    private enum Pending : byte { None, Flush, Output, HostFlow, HostValue, LegacyValue }
 }

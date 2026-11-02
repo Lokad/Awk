@@ -241,6 +241,11 @@ internal sealed class AwkText : IEquatable<AwkText>
     public string AsString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
+    // A host-boundary preparation has already decoded and funded this cache.
+    // Reading it during the pending operation must not repeat conversion work.
+    internal string PreparedString => _byteLength == 0 ? string.Empty :
+        Volatile.Read(ref _cachedString) ?? throw new InvalidOperationException("Text must be decoded before its prepared string is used.");
+
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         checkpoint?.Invoke();

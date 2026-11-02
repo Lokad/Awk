@@ -13,6 +13,10 @@ Standard `printf` cases also retain its captured format and earlier arguments ac
 pending calls. Field counters distinguish parsed descriptors from owned text; encoding
 counters observe actual UTF-16 conversion. Publication tests use storage admission and
 owned-result creation instead of treating encoding counts as execution-phase markers.
+Redirected-output cases cover numeric target conversion after argument effects, captured
+names, field views across arities, and pending writes inside calls with live caller keys.
+Refusal/format failures preserve existing files and avoid creating new outputs. Prepared
+pipe cases retain opaque command names, logical flush and command close status.
 
 ## Golden Corpus
 

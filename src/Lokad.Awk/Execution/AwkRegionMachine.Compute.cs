@@ -16,11 +16,7 @@ internal partial struct AwkRegionMachine
         AwkText[] literals;
         AwkRegionArrayAccess[] arrays;
         AwkRegionCall[] calls;
-        AwkStatement[] hostStatements;
-        AwkExpression[] hostExpressions;
         AwkRegionBuiltin[] builtins;
-        AwkRegionPrint[] prints;
-        AwkRegionPrintf[] printfs;
         AwkFunctionFrame? frame;
         double[] numbers;
     Resume:
@@ -35,11 +31,7 @@ internal partial struct AwkRegionMachine
         literals = region.Literals;
         arrays = region.Arrays;
         calls = region.Calls;
-        hostStatements = region.HostStatements;
-        hostExpressions = region.HostExpressions;
         builtins = region.Builtins;
-        prints = region.Prints;
-        printfs = region.Printfs;
         numbers = storage.Numbers;
         for (var position = _cursor.Position; position < instructions.Length; position++)
         {
@@ -54,7 +46,7 @@ internal partial struct AwkRegionMachine
                     {
                         if (_io is not { } io) throw new InvalidOperationException("Flush requires a host context.");
                         _cursor = _cursor with { Position = position + 1 };
-                        _flush = output.FlushAsync(io);
+                        _hostCompletion = output.FlushAsync(io);
                         _pending = Pending.Flush;
                         goto Resume;
                     }
@@ -127,13 +119,31 @@ internal partial struct AwkRegionMachine
                         Value(instruction.Left), state);
                     break;
                 case AwkRegionInstructionKind.PrintList:
+                {
+                    var print = region.Prints[instruction.Left];
                     AwkRegionPrinting.Append(state, storage,
-                        output ?? throw new InvalidOperationException("Print requires an output sink."), prints[instruction.Left]);
+                        output ?? throw new InvalidOperationException("Print requires an output sink."), print);
+                    if (print.Output.IsRedirected)
+                    {
+                        _cursor = _cursor with { Position = position + 1 };
+                        BeginWrite(print.Output);
+                        goto Resume;
+                    }
                     break;
+                }
                 case AwkRegionInstructionKind.Printf:
+                {
+                    var print = region.Printfs[instruction.Left];
                     AwkRegionPrinting.Printf(state, storage,
-                        output ?? throw new InvalidOperationException("Printf requires an output sink."), printfs[instruction.Left]);
+                        output ?? throw new InvalidOperationException("Printf requires an output sink."), print);
+                    if (print.Output.IsRedirected)
+                    {
+                        _cursor = _cursor with { Position = position + 1 };
+                        BeginWrite(print.Output);
+                        goto Resume;
+                    }
                     break;
+                }
                 case AwkRegionInstructionKind.KeyBegin:
                     storage.Builders[instruction.Target].Clear();
                     // Only the snapshot's original bytes are consumed.
@@ -315,13 +325,13 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.HostStatement:
                     _cursor = _cursor with { Position = position + 1 };
-                    _hostFlow = hostStatements[instruction.Left].ExecuteAsync(Context);
+                    _hostFlow = region.HostStatements[instruction.Left].ExecuteAsync(Context);
                     _pending = Pending.HostFlow;
                     goto Resume;
                 case AwkRegionInstructionKind.HostExpression:
                     _cursor = _cursor with { Position = position + 1 };
                     _destination = instruction.Target;
-                    _hostValue = hostExpressions[instruction.Left].EvaluateAsync(Context);
+                    _hostValue = region.HostExpressions[instruction.Left].EvaluateAsync(Context);
                     _pending = Pending.HostValue;
                     goto Resume;
                 case AwkRegionInstructionKind.Return:

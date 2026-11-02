@@ -3,6 +3,29 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPrintfAdmissionTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task RedirectedFormattingFailureDoesNotCreateOrTruncateOutput(bool refusal, bool existingFile)
+    {
+        var budget = new CooperativeTestBudget(refusal ? 128 << 10 : 8 << 20);
+        var host = new MockFileSystem();
+        if (existingFile) host.AddFile("/out", "keep");
+        var output = refusal ? "printf \"prefix%1000000c\",65>\"/out\"" : "printf \"prefix%d%d\",7>\"/out\"";
+        var script = "BEGIN{print \"before\"}BEGIN{" + output + ";print \"after\"}END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(refusal ? "awk: memory limit exceeded\n" : "awk: not enough arguments to satisfy format string\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        if (existingFile) Assert.Equal("keep", host.ReadFile("/out"));
+        else Assert.False(host.FileExists("/out"));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("x")] [InlineData("é")] [InlineData("😀")]
     public async Task LiteralRunRefusalPreservesEarlierOutput(string scalar)
     {

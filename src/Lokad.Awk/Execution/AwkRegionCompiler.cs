@@ -33,6 +33,7 @@ internal sealed class AwkRegionCompiler
     private int _printSegments;
     private int _targets;
     private int _straightLine;
+    private bool _usesOutputBuilder;
 
     private AwkRegionCompiler(AwkLoweringScope scope, AwkRegionKind kind) => (_scope, _kind) = (scope, kind);
 
@@ -91,7 +92,7 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, _builderSeparators.Count, _incomingCalls, _printSegments),
+            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments),
             _calls.ToArray(), _hostStatements.ToArray(), _hostExpressions.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _kind);
         return true;
@@ -162,10 +163,18 @@ internal sealed class AwkRegionCompiler
                     break;
                 case AwkStatementKind.Print:
                     if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;
-                    if (output.Redirection.HasValue) goto case AwkStatementKind.Printf;
+                    if (output.Redirection.TryGetValue(out var printRedirection) && printRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
+                        goto case AwkStatementKind.Getline;
+                    if (!OutputTarget(output.Redirection, out var printTarget)) return false;
                     if (output.Output.IsEmpty)
                     {
-                        Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
+                        if (printTarget.IsRedirected)
+                        {
+                            var recordPrint = AllocatePrint(1, [], printTarget);
+                            Emit(new(AwkRegionInstructionKind.Value, recordPrint.Values, Operand(AwkRegionOperandKind.Field, 0), Detail: 1));
+                            EmitPrint(recordPrint);
+                        }
+                        else Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
                         break;
                     }
                     if (!output.Output.Expression.TryGetValue(out var printed)) return false;
@@ -173,7 +182,12 @@ internal sealed class AwkRegionCompiler
                         printed = list;
                     if (printed.Kind == AwkExpressionKind.ExpressionList)
                     {
-                        if (!PrintList(printed.Children)) return false;
+                        if (!PrintList(printed.Children, printTarget)) return false;
+                        break;
+                    }
+                    if (printTarget.IsRedirected)
+                    {
+                        if (!PrintList([printed], printTarget)) return false;
                         break;
                     }
                     if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
@@ -182,12 +196,12 @@ internal sealed class AwkRegionCompiler
                     Emit(new(printKind, Left: printValue));
                     break;
                 case AwkStatementKind.Printf:
-                    if (AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted) && !formatted.Redirection.HasValue)
-                    {
-                        if (!formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput)) return false;
-                        break;
-                    }
-                    goto case AwkStatementKind.Getline;
+                    if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted)) return false;
+                    if (formatted.Redirection.TryGetValue(out var printfRedirection) && printfRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
+                        goto case AwkStatementKind.Getline;
+                    if (!OutputTarget(formatted.Redirection, out var printfTarget) ||
+                        !formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
+                    break;
                 case AwkStatementKind.Getline:
                     // Migration boundary: retain the existing host primitive and its
                     // operand semantics until I/O operand lowering moves in Stage C.
@@ -539,9 +553,37 @@ internal sealed class AwkRegionCompiler
         return true;
     }
 
-    private bool PrintList(IReadOnlyList<AwkExpressionSyntax> arguments)
+    private bool OutputTarget(AwkSyntaxOptional<AwkOutputRedirectionSyntax> syntax, out AwkRegionOutput output)
     {
-        if (arguments.Count < 2) return false;
+        output = default;
+        if (!syntax.TryGetValue(out var redirection)) return true;
+        if (!redirection.Target.Expression.TryGetValue(out var target) || !Expression(target, out var value)) return false;
+        var captured = _values++;
+        Emit(new(AwkRegionInstructionKind.Value, captured, value));
+        output = new(captured, redirection.Kind);
+        _usesOutputBuilder = true;
+        return true;
+    }
+
+    private AwkRegionPrint AllocatePrint(int count, int[] fields, AwkRegionOutput output)
+    {
+        var print = new AwkRegionPrint(_values, _texts, _printSegments, count, fields, output);
+        _values = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_values, count));
+        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)count + 2));
+        _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, count));
+        return print;
+    }
+
+    private void EmitPrint(AwkRegionPrint print)
+    {
+        var site = _prints.Count;
+        _prints.Add(print);
+        Emit(new(AwkRegionInstructionKind.PrintList, Left: site));
+    }
+
+    private bool PrintList(IReadOnlyList<AwkExpressionSyntax> arguments, AwkRegionOutput output)
+    {
+        if (arguments.Count == 0) return false;
         var fields = new int[arguments.Count];
         for (var index = 0; index < fields.Length; index++)
         {
@@ -551,27 +593,20 @@ internal sealed class AwkRegionCompiler
             fields = [];
             break;
         }
-        var values = _values;
-        var texts = _texts;
-        var segments = _printSegments;
-        _values = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_values, arguments.Count));
-        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)arguments.Count + 2));
-        _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Count));
+        var print = AllocatePrint(arguments.Count, fields, output);
         if (fields.Length == 0)
         {
             for (var index = 0; index < arguments.Count; index++)
             {
                 if (!Expression(arguments[index], out var value, preserveOrigin: true)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, values + index, value, Detail: 1));
+                Emit(new(AwkRegionInstructionKind.Value, print.Values + index, value, Detail: 1));
             }
         }
-        var site = _prints.Count;
-        _prints.Add(new(values, texts, segments, arguments.Count, fields));
-        Emit(new(AwkRegionInstructionKind.PrintList, Left: site));
+        EmitPrint(print);
         return true;
     }
 
-    private bool Printf(AwkExpressionSyntax syntax)
+    private bool Printf(AwkExpressionSyntax syntax, AwkRegionOutput output)
     {
         if (syntax.Kind == AwkExpressionKind.Group && syntax.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
             syntax = list;
@@ -600,7 +635,7 @@ internal sealed class AwkRegionCompiler
             }
         }
         var site = _printfs.Count;
-        _printfs.Add(new(formatSlot, values, count, fields));
+        _printfs.Add(new(formatSlot, values, count, fields, output));
         Emit(new(AwkRegionInstructionKind.Printf, Left: site));
         return true;
     }

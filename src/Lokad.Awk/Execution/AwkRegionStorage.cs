@@ -191,6 +191,26 @@ internal sealed class AwkRegionStorage : IDisposable
         if (retainedBytes > 0) _payload.Release(retainedBytes);
     }
 
+    internal void PrepareOutputTarget(AwkRegionOutput output)
+    {
+        var value = _values[output.Value];
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        var before = _payload.Bytes;
+        var text = _state.FormatStringByteText(value, _payload);
+        var funded = AwkRuntimeMemory.CheckedAdd(oldBytes, _payload.Bytes - before);
+        var nextBytes = _state.MemoryAccounting.IsEnabled ? text.EstimatedRetainedMemoryBytes : 0;
+        if (nextBytes > funded) _payload.ReserveAdditional(nextBytes - funded);
+        _state.ThrowIfCancellationRequested();
+        // Native text owns the decoded cache too. Transfer the captured/temporary
+        // claim once, retaining both through the actual pending write.
+        _values[output.Value] = _state.CreateDeferredTextValue(text);
+        if (funded > nextBytes) _payload.Release(funded - nextBytes);
+        _ = text.AsString(_state.Counters, _state.CancellationCheckpoint);
+    }
+
+    internal AwkResolvedOutputRedirection PreparedOutputTarget(AwkRegionOutput output) =>
+        new(new AwkRedirectionPath(_values[output.Value].ByteText.PreparedString), output.Kind);
+
     internal void ReleaseTexts(int start, int count)
     {
         var bytes = 0L;

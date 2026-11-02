@@ -180,6 +180,9 @@ managed stack protection still applies. There is no public execution-engine sele
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.
+File and one-way pipe output retain their prepared target and reusable payload buffer
+until the host write actually finishes, including when it ignores cancellation. Formatting
+preflights before file creation or truncation; authorization remains at the host boundary.
 Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Concatenation preserves operand formatting order and lazy text composition. Computed fields

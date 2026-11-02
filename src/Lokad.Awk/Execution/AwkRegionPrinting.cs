@@ -15,11 +15,12 @@ internal static class AwkRegionPrinting
                     state.PreflightPrintfField(print.Fields[index]);
                 }
             }
+            if (print.Output.IsRedirected) storage.PrepareOutputTarget(print.Output);
             var format = storage.PrepareFormattedString(storage.Values[print.Format], out formatBytes);
             if (print.Fields.Length != 0)
-                AppendPrintf(state, output, format, new AwkPrintfFieldArguments(print.Fields, state));
+                AppendPrintf(state, storage, output, print.Output, format, new AwkPrintfFieldArguments(print.Fields, state));
             else
-                AppendPrintf(state, output, format, new AwkValueArrayPrintfArguments(storage.Values, print.Count, state, print.Values));
+                AppendPrintf(state, storage, output, print.Output, format, new AwkValueArrayPrintfArguments(storage.Values, print.Count, state, print.Values));
         }
         finally
         {
@@ -29,9 +30,18 @@ internal static class AwkRegionPrinting
         }
     }
 
-    private static void AppendPrintf<TArguments>(AwkRuntimeState state, AwkOutputSink output, string format, TArguments arguments)
+    private static void AppendPrintf<TArguments>(AwkRuntimeState state, AwkRegionStorage storage,
+        AwkOutputSink output, AwkRegionOutput target, string format, TArguments arguments)
         where TArguments : IPrintfArguments
     {
+        if (target.IsRedirected)
+        {
+            var redirected = storage.Builders[0];
+            redirected.Clear();
+            AwkFormattingRuntime.FormatPrintfToBuilder(redirected, format, arguments, state);
+            state.ThrowIfCancellationRequested();
+            return;
+        }
         if (output.TryFormatPrintf(format, arguments, state)) return;
         using var formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
         AwkFormattingRuntime.FormatPrintfToBuilder(formatted, format, arguments, state);
@@ -60,9 +70,12 @@ internal static class AwkRegionPrinting
         }
         else if (print.Count <= 4) state.Counters.RecordSmallValuePrint();
 
+        if (print.Output.IsRedirected) storage.PrepareOutputTarget(print.Output);
+
         // Every argument has been evaluated. Preserve separator/terminator and
         // per-value formatting order, including untyped scalar effects and OFMT.
-        var separator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator);
+        var separator = print.Count > 1 ? state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator)
+            : AwkValue.FromText(AwkText.Empty);
         var terminator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         storage.StoreText(print.Texts + print.Count, state.FormatStringByteText(separator));
         storage.StoreText(print.Texts + print.Count + 1, state.FormatStringByteText(terminator));
@@ -75,7 +88,14 @@ internal static class AwkRegionPrinting
             fields[index] = AwkFieldText.FromOwned(text);
         }
         state.ThrowIfCancellationRequested();
-        output.AppendRecord(fields, record, storage.Texts[print.Texts + print.Count], storage.Texts[print.Texts + print.Count + 1]);
+        if (print.Output.IsRedirected)
+        {
+            var redirected = storage.Builders[0];
+            redirected.Clear();
+            redirected.AppendRecord(fields, record, storage.Texts[print.Texts + print.Count],
+                storage.Texts[print.Texts + print.Count + 1], state.CancellationCheckpoint);
+        }
+        else output.AppendRecord(fields, record, storage.Texts[print.Texts + print.Count], storage.Texts[print.Texts + print.Count + 1]);
         storage.ReleasePrint(print);
     }
 }
