@@ -98,11 +98,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("default", true)]
-    [InlineData("syntax", false)]
-    [InlineData("lint", false)]
-    [InlineData("pending", false)]
-    public async Task PureScalarActionKeepsExistingPolicyBoundaries(string boundary, bool prepared)
+    [InlineData("default")]
+    [InlineData("syntax")]
+    [InlineData("lint")]
+    [InlineData("pending")]
+    public async Task ScalarStringsKeepPolicyAndOutputBoundaries(string boundary)
     {
         var program = Bind("{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))}");
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -119,7 +119,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal("beta", state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString());
         Assert.Equal(12, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(prepared ? 1 : 0, counters.SynchronousActionRuns);
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }

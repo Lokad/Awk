@@ -98,6 +98,31 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Value:
                     storage.StoreValue(instruction.Target, Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
+                case AwkRegionInstructionKind.Length:
+                {
+                    var lengthOperand = operands[instruction.Left];
+                    if (IsField(lengthOperand))
+                    {
+                        numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
+                        break;
+                    }
+                    if (instruction.Detail != 0 && lengthOperand.Kind == AwkRegionOperandKind.Variable)
+                    {
+                        var named = variables[lengthOperand.Index];
+                        if (named.LocalIndex < 0 && named.GlobalIndex >= 0 && state.HasBoundGlobalScalar(named.GlobalIndex))
+                            state.Counters.RecordBoundScalarLength();
+                        else if (state.TryGetExistingArrayCount(new(named.Name.Identifier), out var count))
+                        {
+                            numbers[instruction.Target] = count;
+                            break;
+                        }
+                    }
+                    var lengthValue = Value(instruction.Left);
+                    numbers[instruction.Target] = lengthValue.TryGetArrayBinding(out var lengthArray) ? lengthArray.Slots.Count :
+                        lengthValue.TryGetArrayName(out var arrayName) && state.TryGetExistingArrayCount(arrayName, out var arrayCount)
+                            ? arrayCount : state.CountStringUnits(state.FormatStringByteText(lengthValue));
+                    break;
+                }
                 case AwkRegionInstructionKind.ReleaseValue:
                     storage.ReleaseValue(instruction.Target);
                     break;

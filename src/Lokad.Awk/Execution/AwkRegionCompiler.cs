@@ -303,6 +303,9 @@ internal sealed class AwkRegionCompiler
                 _literals.Add(AwkText.FromSourceLiteralString(literal));
                 return true;
             case AwkExpressionKind.Variable:
+                if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier) &&
+                    AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length))
+                    return Length(null, out result);
                 if (!Variable(syntax, out var variable)) return false;
                 result = Operand(AwkRegionOperandKind.Variable, variable);
                 return true;
@@ -359,6 +362,9 @@ internal sealed class AwkRegionCompiler
             return AwkGetlineLowerer.TryResolveExpressionCallParts(syntax, out var parts) &&
                 Getline(parts, isExpression: true, out result);
         }
+        if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Length) &&
+            target.HasDelimitedCall && syntax.Children.Count is 1 or 2)
+            return Length(syntax.Children.Count == 1 ? null : syntax.Children[1], out result);
         if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
             AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
             target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1) &&
@@ -381,6 +387,19 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.Call, returned, call));
         _activeCalls--;
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
+        return true;
+    }
+
+    private bool Length(AwkExpressionSyntax? argument, out int result)
+    {
+        result = 0;
+        int value;
+        if (argument is null) value = Operand(AwkRegionOperandKind.Field, 0);
+        else if (!Expression(argument, out value, preserveOrigin: true)) return false;
+        var number = _numbers++;
+        Emit(new(AwkRegionInstructionKind.Length, number, value,
+            Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
+        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
         return true;
     }
 

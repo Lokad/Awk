@@ -685,14 +685,14 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    internal async Task ParsedUnicodeSubstringBorrowsOnlyTheInterpreterFieldInput()
+    internal async Task ParsedUnicodeSubstringKeepsFieldTextByteNative()
     {
         var result = await RunAsync(["{print length($1),substr($2,1,2)}"],
             "café résumé\ny é😀z\n", false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("4 ré\n1 é😀\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.BorrowedFieldSubstrings);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, 12);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }

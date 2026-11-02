@@ -143,15 +143,6 @@ public sealed partial class AwkRegionTests
         Assert.Equal(0, BitConverter.DoubleToInt64Bits(fixture.State.ResolveVariableValue(AwkVariableName.FromText("positive")).AsNumber()));
     }
 
-    [Theory]
-    [InlineData("x=length")]
-    public void UnmigratedConstructIsExplicit(string body)
-    {
-        var parsed = AwkParser.Parse("{" + body + "}");
-        Assert.Empty(parsed.Errors);
-        Assert.False(AwkRegionCompiler.TryCompile(parsed.Syntax.Rules[0].ActionStatements, AwkLoweringScope.Global, out _));
-    }
-
     private static AwkRegion Compile(string body, AwkRuntimeState state)
     {
         var parsed = AwkParser.Parse("{" + body + "}");

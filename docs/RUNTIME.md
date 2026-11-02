@@ -187,6 +187,7 @@ Numeric builtins share the arithmetic-input consumption rule. Values, arguments,
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Ordinary scalar builtins use the same evaluated argument storage, including string operations
 and functions that can report warnings. Statement temporaries retire after their final users.
+`length` counts fields without owning their text and distinguishes scalar text from array aliases.
 Prepared `getline` captures the source before its destination and retains both through the
 actual read. Main-input reads can reenter file phases without overwriting caller scratch.
 EOF and recoverable errors preserve the ordinary status, `RT` and `ERRNO` behavior.
