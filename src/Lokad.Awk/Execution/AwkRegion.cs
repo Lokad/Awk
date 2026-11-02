@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
-    int numberCount, int valueCount, int targetCount, int builderCount,
+    int numberCount, int valueCount, int textCount, int targetCount, int builderCount,
     AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
     AwkRegionBuiltin[] builtins, bool isFunction)
 {
@@ -44,7 +44,7 @@ internal sealed class AwkRegion(
 
     internal void Initialize(AwkRuntimeState state, AwkRegionStorage storage)
     {
-        storage.Prepare(numberCount, valueCount, targetCount, builderCount, incomingCount);
+        storage.Prepare(numberCount, valueCount, targetCount, builderCount, incomingCount, textCount);
         InitializeConstants(state, storage.Numbers);
     }
 
@@ -82,7 +82,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,
-    BeginCall, Argument, Call, BuiltinArgument, Builtin, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
+    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);

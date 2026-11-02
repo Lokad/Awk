@@ -4,17 +4,18 @@ public sealed class AwkRegionFieldTests
 {
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var compound in new[] { false, true })
+        foreach (var operation in new[] { "simple", "compound", "concat" })
         foreach (var cancel in new[] { false, true })
-        foreach (var governed in new[] { false, true }) yield return [compound, cancel, governed];
+        foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
 
     [Theory]
     [MemberData(nameof(PendingFieldWrites))]
-    public async Task SuspendedFieldWritesPreserveTargetOrderingAndActualPendingOwnership(bool compound, bool cancel, bool governed)
+    public async Task SuspendedFieldsPreserveTargetOrderingTextAndActualPendingOwnership(string operation, bool cancel, bool governed)
     {
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" +
-            "{i=1;$i" + (compound ? "+=" : "=") + "read();print $0,i;next}";
+            (operation == "concat" ? "{i=1;text=($i \":\" read());print text,$0,i;next}" :
+                "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}");
         var host = new MockFileSystem();
         host.SetStandardInput("0007 old\n");
         host.AddFile("/side", "11\n");
@@ -59,7 +60,13 @@ public sealed class AwkRegionFieldTests
             resume.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
-            Assert.Equal(cancel ? "" : compound ? "18 old 2\n" : "100 11 2\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            var expected = operation switch
+            {
+                "compound" => "18 old 2\n",
+                "concat" => "0007:11 100 old 2\n",
+                _ => "100 11 2\n"
+            };
+            Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);

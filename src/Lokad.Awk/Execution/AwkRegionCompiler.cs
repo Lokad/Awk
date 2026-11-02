@@ -26,6 +26,7 @@ internal sealed class AwkRegionCompiler
     private readonly Stack<Loop> _loops = [];
     private int _numbers;
     private int _values;
+    private int _texts;
     private int _targets;
     private int _straightLine;
 
@@ -43,7 +44,7 @@ internal sealed class AwkRegionCompiler
         }
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
             compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._literals.ToArray(), compiler._arrays.ToArray(),
-            compiler._numbers, compiler._values, compiler._targets, compiler._builderSeparators.Count,
+            compiler._numbers, compiler._values, compiler._texts, compiler._targets, compiler._builderSeparators.Count,
             compiler._calls.ToArray(), compiler._incomingCalls, compiler._hostStatements.ToArray(), compiler._hostExpressions.ToArray(),
             compiler._builtins.ToArray(), scope.IsFunction);
         return true;
@@ -220,6 +221,8 @@ internal sealed class AwkRegionCompiler
                 return Assignment(syntax, out result);
             case AwkExpressionKind.FunctionCall:
                 return Call(syntax, out result);
+            case AwkExpressionKind.Concatenation when syntax.Children.Count == 2:
+                return Concatenation(syntax, out result);
             case AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
                 return Binary(syntax, out result);
             case AwkExpressionKind.Unary when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1:
@@ -445,6 +448,37 @@ internal sealed class AwkRegionCompiler
         if (!double.IsFinite(number) || number < 1 || number > int.MaxValue ||
             !Field(syntax.Children[1], out var source)) return false;
         Emit(new(AwkRegionInstructionKind.CopyField, (int)number, source));
+        return true;
+    }
+
+    private bool Concatenation(AwkExpressionSyntax syntax, out int result)
+    {
+        result = 0;
+        var parts = new List<AwkExpressionSyntax>();
+        var pending = new Stack<AwkExpressionSyntax>();
+        pending.Push(syntax);
+        while (pending.TryPop(out var part))
+        {
+            _scope.CheckCancellation();
+            if (part.Kind == AwkExpressionKind.Concatenation && part.Children.Count == 2)
+            {
+                pending.Push(part.Children[1]);
+                pending.Push(part.Children[0]);
+            }
+            else parts.Add(part);
+        }
+        var start = _texts;
+        _texts += parts.Count;
+        for (var index = 0; index < parts.Count; index++)
+        {
+            if (!Expression(parts[index], out var value)) return false;
+            // Formatting belongs to this operand, before later work can mutate
+            // CONVFMT or its source. Nested concatenations use separate slots.
+            Emit(new(AwkRegionInstructionKind.ConcatArgument, start + index, value));
+        }
+        var target = _values++;
+        Emit(new(AwkRegionInstructionKind.ConcatValue, target, start, parts.Count));
+        result = Operand(AwkRegionOperandKind.ValueTemporary, target);
         return true;
     }
 

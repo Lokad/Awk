@@ -105,6 +105,15 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.ReleaseValue:
                     storage.ReleaseValue(instruction.Target);
                     break;
+                case AwkRegionInstructionKind.ConcatArgument:
+                    storage.StoreText(instruction.Target, state.FormatStringByteText(Value(instruction.Left)));
+                    break;
+                case AwkRegionInstructionKind.ConcatValue:
+                    storage.StoreValue(instruction.Target, state.CreateDeferredTextValue(AwkText.Concat(
+                        storage.Texts.AsSpan(instruction.Left, instruction.Right),
+                        state.Counters, state.MemoryAccounting, state.CancellationCheckpoint)));
+                    storage.ReleaseTexts(instruction.Left, instruction.Right);
+                    break;
                 case AwkRegionInstructionKind.KeyBegin:
                     storage.Builders[instruction.Target].Clear();
                     // Only the snapshot's original bytes are consumed.

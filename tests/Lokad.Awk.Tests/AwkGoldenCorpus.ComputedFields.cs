@@ -13,6 +13,12 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("computed-field-record-assignment-and-split-snapshot",
             ["function replace(){$0=\"0007:old\";FS=\" \";i=1;return $i}{FS=\":\";saved=replace();$2=saved;print saved,$0;print typeof(saved),typeof($2)}"],
             [], "0007 0007 0007\nstrnum strnum\n", "ignored\n");
+        yield return Passing("computed-field-concat-formats-before-following-effects",
+            ["function change(){CONVFMT=\"%.2f\";$0=\"new record\";return \":\"}{CONVFMT=\"%.1f\";x=1.25;text=(x change() x);print text,$0;next}"],
+            [], "1.2:1.25 new record\n", "ignored\n");
+        yield return Passing("computed-field-nested-concat-keeps-separate-prefixes",
+            ["function decorate(s){return \"[\" s \"]\"}{text=($1 \"/\" decorate($2 \"-\" $1) \"/\" $1);print text}"],
+            [], "0007/[é-0007]/0007\n", "0007 é\n");
         (string Name, string Statement)[] operations =
         [
             ("print", "print $n"), ("numeric", "print $n+1"),
