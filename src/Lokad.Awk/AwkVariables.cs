@@ -387,6 +387,15 @@ internal sealed partial class AwkVariables
     internal void SetOrdinaryScalarNumber(AwkGlobalSlotId id, double number) =>
         SetScalarSlot(id, AwkVariableSlot.FromNumber(number));
 
+    // Input counters use existing scalar owners. A script may replace a counter
+    // with text, so only the already-numeric case bypasses value conversion.
+    internal void IncrementRecordCounter(AwkGlobalSlotId id)
+    {
+        var prior = GetScalarSlot(id).State.Slot;
+        var number = prior.TryGetNumber(out var numeric) ? numeric : CreateValue(prior).AsNumber(_checkpoint);
+        SetScalarSlot(id, AwkVariableSlot.FromNumber(Math.Truncate(number) + 1));
+    }
+
     public void InitializeArrayValues(AwkArrayName name, IReadOnlyList<KeyValuePair<AwkArrayKey, AwkValue>> values)
     {
         var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(values.Count);

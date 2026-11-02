@@ -58,16 +58,8 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         try
         {
             execution = state.PushExecutionContext(_output, io);
-            // Header preflight ends once its actual owners are published. Later
-            // actions must be able to refund relinquished storage to the shared root.
-            using (var admission = state.PreflightCurrentRecordAdmission(record))
-            {
-                state.ThrowIfCancellationRequested();
-                state.Counters.RecordRecordRead();
-                state.AdvanceMainInputRecord(record.Terminator);
-                state.SetRecordFieldSplittingMode(record.FieldSplittingMode);
-                state.SetCurrentRecord(record);
-            }
+            state.PublishInputRecord(record, readsMainInput: true);
+            state.Counters.RecordRecordRead();
             var result = RunMainActions(state, io);
             if (result.IsCompletedSuccessfully)
                 return ValueTask.FromResult(RecordFlow(result.Result));

@@ -1024,7 +1024,11 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
             return;
 
-        var value = CreateByteTextValue(terminator.ByteText);
+        SetRecordTerminatorValue(CreateByteTextValue(terminator.ByteText));
+    }
+
+    private void SetRecordTerminatorValue(AwkValue value)
+    {
         // RT is a known scalar with no assignment callback effects. Function-local
         // names retain their ordinary resolution; storage still owns admission.
         if (_functions.IsInsideFunction)
@@ -1035,40 +1039,51 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
-        using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(terminator));
-        RecordNumber = Math.Truncate(RecordNumber) + 1;
-        FileRecordNumber = Math.Truncate(FileRecordNumber) + 1;
-        SetRecordTerminator(terminator);
+        var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
+        var value = hasTerminator ? CreateByteTextValue(terminator.ByteText) : default;
+        using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(value));
+        ThrowIfCancellationRequested();
+        AdvanceInputCounters();
+        if (hasTerminator) SetRecordTerminatorValue(value);
     }
 
-    internal AwkMemoryMutationAdmission PreflightCurrentRecordAdmission(AwkInputRecordResult record) =>
-        PreflightCurrentRecordAdmission(record.TryGetStorage(out _) ? AwkText.Empty : record.RecordText,
-            record.Terminator, record.FieldSplittingMode);
-
-    public AwkMemoryMutationAdmission PreflightCurrentRecordAdmission(
-        AwkText record, AwkRecordTerminator terminator, AwkRecordFieldSplittingMode mode)
+    // Main input and record-target getline share one preparation/admission.
+    // Keep the allowance until every header/record owner has published; release
+    // it before actions so relinquished payload can fund later users.
+    internal void PublishInputRecord(AwkInputRecordResult record, bool readsMainInput)
     {
-        var terminatorGrowth = EstimateRecordTerminatorMemoryGrowth(terminator);
-        if (MemoryAccounting.IsEnabled)
-        {
-            return MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
-                _recordFields.EstimateRecordMemoryGrowth(record, mode), terminatorGrowth));
-        }
-        return default;
+        var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
+        var terminator = hasTerminator ? CreateByteTextValue(record.Terminator.ByteText) : default;
+        using var admission = MemoryAccounting.IsEnabled
+            ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
+                _recordFields.EstimateRecordMemoryGrowth(record.TryGetStorage(out _) ? AwkText.Empty : record.RecordText,
+                    record.FieldSplittingMode), EstimateRecordTerminatorMemoryGrowth(terminator)))
+            : default;
+        ThrowIfCancellationRequested();
+        if (readsMainInput) AdvanceInputCounters();
+        if (hasTerminator) SetRecordTerminatorValue(terminator);
+        SetRecordFieldSplittingMode(record.FieldSplittingMode);
+        SetCurrentRecord(record);
     }
 
-    private long EstimateRecordTerminatorMemoryGrowth(AwkRecordTerminator terminator)
+    private void AdvanceInputCounters()
     {
-        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
-            return 0;
-        if (!MemoryAccounting.IsEnabled)
+        if (!_functions.IsInsideFunction)
         {
-            ThrowIfCancellationRequested();
-            return 0;
+            _variables.IncrementRecordCounter(_recordNumberSlot);
+            _variables.IncrementRecordCounter(_fileRecordNumberSlot);
         }
-        return _variables.EstimateScalarValueMemoryGrowth(
-            RecordTerminatorVariableName, AwkValue.FromText(terminator.ByteText, NumberParsingMode, CancellationCheckpoint));
+        else
+        {
+            // Getline inside a function retains local special-name resolution.
+            RecordNumber = Math.Truncate(RecordNumber) + 1;
+            FileRecordNumber = Math.Truncate(FileRecordNumber) + 1;
+        }
     }
+
+    private long EstimateRecordTerminatorMemoryGrowth(AwkValue value) =>
+        MemoryAccounting.IsEnabled && AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode)
+            ? _variables.EstimateScalarValueMemoryGrowth(RecordTerminatorVariableName, value) : 0;
 
     public void SetErrno(AwkErrno errno)
     {

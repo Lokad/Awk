@@ -25,10 +25,12 @@ internal static class AwkGetlineRuntime
         {
             if (result.HasRecord)
             {
-                using var admission = target.IsCurrentRecord
-                    ? context.State.PreflightCurrentRecordAdmission(
-                        result.RecordText, result.Terminator, result.FieldSplittingMode)
-                    : default;
+                if (target.IsCurrentRecord)
+                {
+                    context.State.PublishInputRecord(AwkInputRecordResult.Record(result.RecordText,
+                        result.Terminator, result.FieldSplittingMode), source.ReadsMainInput);
+                    return;
+                }
                 context.State.ThrowIfCancellationRequested();
                 if (source.ReadsMainInput)
                 {

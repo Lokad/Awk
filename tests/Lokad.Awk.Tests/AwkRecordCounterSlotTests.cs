@@ -142,6 +142,69 @@ public sealed class AwkRecordCounterSlotTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RecordPublicationRefusalPreservesTheEntireHeaderAndRecord(bool mainInput)
+    {
+        const long limit = 1 << 20;
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, limit);
+        var state = memory.State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep fields"));
+        state.RecordNumber = 4;
+        state.FileRecordNumber = 3;
+        state.SetRecordTerminator(AwkRecordTerminator.FromAsciiByte((byte)','));
+        Assert.True(memory.Budget.TryReserve(limit - memory.Budget.Reserved, out var otherConsumer));
+        using (otherConsumer)
+        {
+            var record = AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("new"),
+                AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(new string('x', 8192))),
+                AwkRecordFieldSplittingMode.Ordinary);
+
+            var error = Assert.Throws<AwkRuntimeException>(() => state.PublishInputRecord(record, mainInput));
+
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal("keep fields", state.CurrentRecordByteText.AsString());
+            Assert.Equal(4, state.RecordNumber);
+            Assert.Equal(3, state.FileRecordNumber);
+            Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
+            Assert.Equal(limit, memory.Budget.Reserved);
+        }
+    }
+
+    [Theory]
+    [InlineData(AwkCompatibilityMode.GnuDefault)]
+    [InlineData(AwkCompatibilityMode.Posix)]
+    [InlineData(AwkCompatibilityMode.Traditional)]
+    internal void RepeatedPublicationReusesNativeTextAndPreservesCounterConversions(AwkCompatibilityMode mode)
+    {
+        using var memory = CreateState(mode, 1 << 20);
+        var state = memory.State;
+        var record = AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("row 0007"),
+            AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.RecordNumber, AwkValue.FromText("-2.8tail"));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromText("0007"));
+        state.PublishInputRecord(record, readsMainInput: true);
+        var retained = memory.Budget.Reserved;
+        var texts = state.Counters.AwkTextAllocations;
+        var decodes = state.Counters.StringDecodes;
+        var encodes = state.Counters.Utf8Encodes;
+        var values = state.Counters.ValuesCreated;
+
+        const int records = 1024;
+        for (var index = 0; index < records; index++) state.PublishInputRecord(record, readsMainInput: true);
+
+        Assert.Equal(records - 1, state.RecordNumber);
+        Assert.Equal(records + 8, state.FileRecordNumber);
+        Assert.Equal("row 0007", state.CurrentRecordByteText.AsString());
+        Assert.Equal(texts, state.Counters.AwkTextAllocations);
+        Assert.Equal(decodes, state.Counters.StringDecodes);
+        Assert.Equal(encodes, state.Counters.Utf8Encodes);
+        Assert.InRange(state.Counters.ValuesCreated - values, 0, records * 2 + 16);
+        Assert.Equal(retained, memory.Budget.Reserved);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private static CooperativeTestMemory CreateState(AwkCompatibilityMode mode, long memory)
     {
 

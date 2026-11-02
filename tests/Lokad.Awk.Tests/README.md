@@ -75,6 +75,10 @@ conformance. The core package remains independent of the concrete provider.
 
 ## End-to-End Host Tests
 
+Record-publication checks preserve combined header/record refusal and cancellation, counter
+conversion and function-local special names. Repeated-publication counters verify native text
+reuse and bounded retained storage without pinning historical cancellation-check counts.
+
 CSV goldens use pinned GNU 5.3.2 outcomes. `AwkCsvHostTests` checks byte/chunk boundaries,
 reused host buffers, stdin/files/pipes, pending cancellation, refusal, strict UTF-8 and refunds;
 prepared counter checks preserve byte-native processing and linear record scans. CSV decoding

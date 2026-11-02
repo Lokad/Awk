@@ -60,6 +60,8 @@ Unexpected host exceptions become generic awk diagnostics. Policy/admission fail
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 Record publication checks cancellation after admission, before changing the record or counters.
+Main input and record-target `getline` share header/record publication: terminator preparation
+is reused for admission and assignment; numeric input counters update their existing slots.
 Record-header preflight ends after record/counter/terminator publication. Later actions
 can return relinquished storage to the shared budget for host and nested users; actual
 retained values and pending operations keep their own funding.
