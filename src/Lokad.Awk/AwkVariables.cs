@@ -382,6 +382,11 @@ internal sealed partial class AwkVariables
     public AwkGlobalSlotId GetOrCreateScalarSlot(AwkVariableName name) =>
         GetOrCreateScalarSlotCore(name);
 
+    // Prepared ordinary-global ordinals exclude every special variable. Keep the
+    // existing slot mutation owner, including retirement of old text and origins.
+    internal void SetOrdinaryScalarNumber(AwkGlobalSlotId id, double number) =>
+        SetScalarSlot(id, AwkVariableSlot.FromNumber(number));
+
     public void InitializeArrayValues(AwkArrayName name, IReadOnlyList<KeyValuePair<AwkArrayKey, AwkValue>> values)
     {
         var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(values.Count);

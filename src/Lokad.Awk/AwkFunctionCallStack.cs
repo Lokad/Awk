@@ -151,6 +151,12 @@ internal sealed class AwkFunctionCallStack(
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
     }
 
+    internal void StageNumber(AwkFunctionFrame frame, int index, double number)
+    {
+        if ((uint)index < (uint)frame.Layout.SlotCount)
+            frame.GetSlot(index) = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
+    }
+
     internal void ActivateFrame(AwkFunctionFrame frame)
     {
         if (_frames.Count >= maxFunctionCallDepth)
@@ -622,7 +628,7 @@ internal sealed class AwkFunctionCallStack(
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
         TryAssignLocal(slotId, AwkVariableSlot.FromValue(value));
 
-    private bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
+    internal bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
     {
         if (!TryPeekLocalFrame(out var frame))
             return false;

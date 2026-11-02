@@ -49,9 +49,40 @@ internal partial struct AwkRegionMachine
                         goto Resume;
                     }
                     break;
-                case AwkRegionInstructionKind.Number:
-                    numbers[instruction.Target] = Number(instruction.Left);
+                case AwkRegionInstructionKind.MoveNumber:
+                    numbers[instruction.Target] = numbers[instruction.Left];
                     break;
+                case AwkRegionInstructionKind.FieldNumber:
+                    numbers[instruction.Target] = state.GetFieldNumber(instruction.Left);
+                    break;
+                case AwkRegionInstructionKind.ValueNumber:
+                    numbers[instruction.Target] = storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint);
+                    break;
+                case AwkRegionInstructionKind.LocalNumber:
+                {
+                    var local = variables[instruction.Left];
+                    numbers[instruction.Target] = state.TryResolveFunctionLocalNumber(new(local.LocalIndex), out var number)
+                        ? number : state.ResolveFunctionLocalValue(new(local.LocalIndex), local.Name).AsNumber(state.CancellationCheckpoint);
+                    break;
+                }
+                case AwkRegionInstructionKind.GlobalNumber:
+                {
+                    var global = variables[instruction.Left];
+                    numbers[instruction.Target] = state.TryResolvePreparedGlobalNumber(global.GlobalIndex, out var number)
+                        ? number : state.ResolvePreparedGlobalValue(global.Name, global.GlobalIndex).AsNumber(state.CancellationCheckpoint);
+                    break;
+                }
+                case AwkRegionInstructionKind.VariableNumber:
+                    numbers[instruction.Target] = state.ResolveVariableValue(variables[instruction.Left].Name).AsNumber(state.CancellationCheckpoint);
+                    break;
+                case AwkRegionInstructionKind.ArrayNumber:
+                {
+                    var numeric = arrays[instruction.Left];
+                    numbers[instruction.Target] = operands[numeric.Key] is { Kind: AwkRegionOperandKind.Field } field
+                        ? state.GetArrayFieldNumber(numeric.Name, field.Index, numeric.Binding)
+                        : state.GetArrayNumber(numeric.Name, Key(numeric), numeric.Binding);
+                    break;
+                }
                 case AwkRegionInstructionKind.Value:
                     storage.StoreValue(instruction.Target, Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
@@ -116,6 +147,28 @@ internal partial struct AwkRegionMachine
                     else
                         state.AssignVariableValue(variable.Name, value);
                     break;
+                case AwkRegionInstructionKind.AssignLocalNumber:
+                {
+                    state.ThrowIfCancellationRequested();
+                    var local = variables[instruction.Target];
+                    var number = numbers[instruction.Left];
+                    if (!state.TryAssignFunctionLocalNumber(new(local.LocalIndex), number))
+                        state.AssignFunctionLocalValue(new(local.LocalIndex), local.Name, AwkValue.FromNumber(number));
+                    break;
+                }
+                case AwkRegionInstructionKind.AssignGlobalNumber:
+                {
+                    state.ThrowIfCancellationRequested();
+                    var global = variables[instruction.Target];
+                    var number = numbers[instruction.Left];
+                    if (!state.TryAssignPreparedGlobalNumber(global.GlobalIndex, number))
+                        state.AssignPreparedGlobalValue(global.Name, global.GlobalIndex, AwkValue.FromNumber(number));
+                    break;
+                }
+                case AwkRegionInstructionKind.AssignVariableNumber:
+                    state.ThrowIfCancellationRequested();
+                    state.AssignVariableValue(variables[instruction.Target].Name, AwkValue.FromNumber(numbers[instruction.Left]));
+                    break;
                 case AwkRegionInstructionKind.ArrayPrepare:
                     var access = arrays[instruction.Left];
                     var key = operands[access.Key];
@@ -148,6 +201,24 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Argument:
                     var call = calls[instruction.Target];
                     var operand = operands[instruction.Left];
+                    if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
+                    {
+                        state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, numbers[operand.Index]);
+                        break;
+                    }
+                    if (operand.Kind == AwkRegionOperandKind.Variable)
+                    {
+                        var source = variables[operand.Index];
+                        var number = 0d;
+                        var numeric = source.LocalIndex >= 0
+                            ? state.TryResolveFunctionLocalNumber(new(source.LocalIndex), out number)
+                            : source.GlobalIndex >= 0 && state.TryResolvePreparedGlobalNumber(source.GlobalIndex, out number);
+                        if (numeric)
+                        {
+                            state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, number);
+                            break;
+                        }
+                    }
                     AwkFunctionArgument argument;
                     if (instruction.Detail == 0 && operand.Kind == AwkRegionOperandKind.Variable && TryArrayArgument(variables[operand.Index], out argument)) { }
                     else argument = AwkFunctionArgument.FromValue(call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right) && operand.Kind == AwkRegionOperandKind.Field
@@ -188,31 +259,6 @@ internal partial struct AwkRegionMachine
         }
         Finish(AwkStatementFlow.Continue);
         goto Resume;
-
-        double Number(int index)
-        {
-            var operand = operands[index];
-            switch (operand.Kind)
-            {
-                case AwkRegionOperandKind.NumberTemporary: return numbers[operand.Index];
-                case AwkRegionOperandKind.Field: return state.GetFieldNumber(operand.Index);
-                case AwkRegionOperandKind.Variable:
-                    var variable = variables[operand.Index];
-                    if (variable.LocalIndex >= 0 && state.TryResolveFunctionLocalNumber(new(variable.LocalIndex), out var localNumber))
-                        return localNumber;
-                    if (variable.GlobalIndex >= 0 && state.TryResolvePreparedGlobalNumber(variable.GlobalIndex, out var number))
-                        return number;
-                    return ReadVariable(variable).AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.ValueTemporary:
-                    return storage.Values[operand.Index].AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.ArrayElement:
-                    var access = arrays[operand.Index];
-                    return operands[access.Key] is { Kind: AwkRegionOperandKind.Field } field
-                        ? state.GetArrayFieldNumber(access.Name, field.Index, access.Binding)
-                        : state.GetArrayNumber(access.Name, Key(access), access.Binding);
-                default: throw new InvalidOperationException("Unknown bound region operand.");
-            }
-        }
 
         AwkValue Value(int index)
         {

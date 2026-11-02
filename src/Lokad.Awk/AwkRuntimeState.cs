@@ -424,6 +424,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout, int arguments) => _functions.PrepareFrame(layout, arguments);
     internal void StageFunctionArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument) => _functions.StageArgument(frame, index, argument);
+    internal void StageFunctionNumber(AwkFunctionFrame frame, int index, double number) => _functions.StageNumber(frame, index, number);
     internal void ActivateFunctionFrame(AwkFunctionFrame frame)
     {
         _functions.ActivateFrame(frame);
@@ -889,6 +890,16 @@ internal sealed class AwkRuntimeState : IDisposable
         var slot = GetOrCreateGlobalScalarSlot(name);
         slots[index] = new(slot.Value + 1, null);
     }
+
+    internal bool TryAssignPreparedGlobalNumber(int index, double number)
+    {
+        if (_globalReadSlots is not { } slots || slots[index].ScalarSlot <= 0) return false;
+        _variables.SetOrdinaryScalarNumber(new(slots[index].ScalarSlot - 1), number);
+        return true;
+    }
+
+    internal bool TryAssignFunctionLocalNumber(AwkFunctionLocalSlotId slot, double number) =>
+        _functions.TryAssignLocal(slot, AwkVariableSlot.FromNumber(number));
 
     public void AssignVariable(AwkVariableName name, string value)
     {

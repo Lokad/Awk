@@ -55,6 +55,7 @@ internal sealed class AwkFunctionRuntime
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout, int arguments) => _calls.PrepareFrame(layout, arguments);
     internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument) => _calls.StageArgument(frame, index, argument);
+    internal void StageNumber(AwkFunctionFrame frame, int index, double number) => _calls.StageNumber(frame, index, number);
     internal void ActivateFrame(AwkFunctionFrame frame) => _calls.ActivateFrame(frame);
     internal void DiscardIncomingFrame(AwkFunctionFrame frame) => _calls.DiscardIncomingFrame(frame);
 
@@ -112,5 +113,8 @@ internal sealed class AwkFunctionRuntime
         _calls.TryAssignLocal(name, value);
 
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
+        _calls.TryAssignLocal(slotId, value);
+
+    internal bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value) =>
         _calls.TryAssignLocal(slotId, value);
 }

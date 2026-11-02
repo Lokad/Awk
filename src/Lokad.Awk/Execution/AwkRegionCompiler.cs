@@ -271,7 +271,7 @@ internal sealed class AwkRegionCompiler
             if (!Expression(syntax.Children[1], out var right)) return false;
             result = CaptureValue(right);
             if (Variable(syntax.Children[0], out var variable))
-                Emit(new(AwkRegionInstructionKind.Assign, variable, result));
+                Assign(variable, result);
             else
             {
                 // Ordinary assignment evaluates its RHS before the subscript.
@@ -353,9 +353,25 @@ internal sealed class AwkRegionCompiler
 
     private void Store(PreparedTarget target, int value)
     {
-        Emit(target.Capture >= 0
-            ? new(AwkRegionInstructionKind.ArrayCommit, target.Capture, NumericRegister(value), target.Binding)
-            : new(AwkRegionInstructionKind.Assign, target.Binding, value));
+        if (target.Capture >= 0)
+            Emit(new(AwkRegionInstructionKind.ArrayCommit, target.Capture, NumericRegister(value), target.Binding));
+        else Assign(target.Binding, value);
+    }
+
+    private void Assign(int variable, int value)
+    {
+        if (_operands[value].Kind != AwkRegionOperandKind.NumberTemporary)
+        {
+            Emit(new(AwkRegionInstructionKind.Assign, variable, value));
+            return;
+        }
+        var kind = _variables[variable] switch
+        {
+            { LocalIndex: >= 0 } => AwkRegionInstructionKind.AssignLocalNumber,
+            { GlobalIndex: >= 0 } => AwkRegionInstructionKind.AssignGlobalNumber,
+            _ => AwkRegionInstructionKind.AssignVariableNumber
+        };
+        Emit(new(kind, variable, NumericRegister(value)));
     }
 
     private bool Unary(AwkExpressionSyntax syntax, out int result)
@@ -396,7 +412,7 @@ internal sealed class AwkRegionCompiler
             var alternative = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: left));
             if (token == AwkTokenKind.PipePipe)
             {
-                Emit(new(AwkRegionInstructionKind.Number, number, Constant(1)));
+                Emit(new(AwkRegionInstructionKind.MoveNumber, number, NumericRegister(Constant(1))));
                 var done = Emit(new(AwkRegionInstructionKind.Jump));
                 Patch(alternative, Label());
                 if (!Expression(syntax.Children[1], out var right)) return false;
@@ -409,7 +425,7 @@ internal sealed class AwkRegionCompiler
                 Emit(new(AwkRegionInstructionKind.Truth, number, right));
                 var done = Emit(new(AwkRegionInstructionKind.Jump));
                 Patch(alternative, Label());
-                Emit(new(AwkRegionInstructionKind.Number, number, Constant(0)));
+                Emit(new(AwkRegionInstructionKind.MoveNumber, number, NumericRegister(Constant(0))));
                 Patch(done, Label());
             }
             result = Operand(AwkRegionOperandKind.NumberTemporary, number);
@@ -473,9 +489,23 @@ internal sealed class AwkRegionCompiler
 
     private int CaptureNumber(int operand)
     {
-        if (_operands[operand].Kind == AwkRegionOperandKind.NumberTemporary) return operand;
+        var source = _operands[operand];
+        if (source.Kind == AwkRegionOperandKind.NumberTemporary) return operand;
         var target = _numbers++;
-        Emit(new(AwkRegionInstructionKind.Number, target, operand));
+        var kind = source.Kind switch
+        {
+            AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
+            AwkRegionOperandKind.ValueTemporary => AwkRegionInstructionKind.ValueNumber,
+            AwkRegionOperandKind.ArrayElement => AwkRegionInstructionKind.ArrayNumber,
+            AwkRegionOperandKind.Variable => _variables[source.Index] switch
+            {
+                { LocalIndex: >= 0 } => AwkRegionInstructionKind.LocalNumber,
+                { GlobalIndex: >= 0 } => AwkRegionInstructionKind.GlobalNumber,
+                _ => AwkRegionInstructionKind.VariableNumber
+            },
+            _ => throw new InvalidOperationException("A numeric operand requires a value location.")
+        };
+        Emit(new(kind, target, source.Index));
         return Operand(AwkRegionOperandKind.NumberTemporary, target);
     }
 
