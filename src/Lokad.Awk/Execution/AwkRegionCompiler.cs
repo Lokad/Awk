@@ -11,6 +11,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionOperand> _operands = [];
     private readonly List<AwkRegionVariable> _variables = [];
     private readonly List<AwkRegionConstant> _constants = [];
+    private readonly List<AwkText> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
     private readonly List<int> _builderSeparators = [];
     private readonly List<AwkRegionCall> _calls = [];
@@ -41,7 +42,7 @@ internal sealed class AwkRegionCompiler
             return false;
         }
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
-            compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._arrays.ToArray(),
+            compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._literals.ToArray(), compiler._arrays.ToArray(),
             compiler._numbers, compiler._values, compiler._targets, compiler._builderSeparators.Count,
             compiler._calls.ToArray(), compiler._incomingCalls, compiler._hostStatements.ToArray(), compiler._hostExpressions.ToArray(),
             compiler._builtins.ToArray(), scope.IsFunction);
@@ -54,6 +55,13 @@ internal sealed class AwkRegionCompiler
         foreach (var statement in statements)
         {
             _scope.CheckCancellation();
+            if (AwkStatementKindFacts.IsOptionalValue(statement.Kind) &&
+                    (statement.Expressions.Count > 1 || statement.Expressions.Count == 0 &&
+                        AwkTokenNavigation.FindNextSignificant(statement.Tokens, 1) is not null) ||
+                AwkStatementValidationFacts.IsArgumentless(statement.Kind) && statement.Expressions.Count != 0 ||
+                statement.Kind == AwkStatementKind.Expression && statement.Expressions.Count != 1 ||
+                statement.Kind is AwkStatementKind.If or AwkStatementKind.While or AwkStatementKind.DoWhile && statement.Expressions.Count != 1)
+                return false;
             switch (statement.Kind)
             {
                 case AwkStatementKind.Block:
@@ -180,6 +188,11 @@ internal sealed class AwkRegionCompiler
                 if (!AwkExpressionLowerer.TryReadSwitchConstant(syntax, _scope, out var number)) return false;
                 result = Constant(number.AsNumber());
                 return true;
+            case AwkExpressionKind.String:
+                if (!AwkExpressionLowerer.TryReadStringLiteral(syntax, _scope, out var literal)) return false;
+                result = Operand(AwkRegionOperandKind.Literal, _literals.Count);
+                _literals.Add(AwkText.FromSourceLiteralString(literal));
+                return true;
             case AwkExpressionKind.Variable:
                 if (!Variable(syntax, out var variable)) return false;
                 result = Operand(AwkRegionOperandKind.Variable, variable);
@@ -287,7 +300,6 @@ internal sealed class AwkRegionCompiler
         _builtins.Add(new(implementation, start, count));
         var returned = _values++;
         Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
-        for (var index = 0; index < count; index++) Emit(new(AwkRegionInstructionKind.ReleaseValue, start + index));
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
         return true;
     }
@@ -497,7 +509,7 @@ internal sealed class AwkRegionCompiler
             _scope.CheckCancellation();
             syntax = syntax.Children[0];
         }
-        return syntax.Kind is AwkExpressionKind.Number or AwkExpressionKind.Variable ||
+        return syntax.Kind is AwkExpressionKind.Number or AwkExpressionKind.String or AwkExpressionKind.Variable ||
             syntax.Kind == AwkExpressionKind.Field && syntax.Children.Count == 1 && syntax.Children[0].Kind == AwkExpressionKind.Number;
     }
 
@@ -525,6 +537,7 @@ internal sealed class AwkRegionCompiler
         var kind = source.Kind switch
         {
             AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
+            AwkRegionOperandKind.Literal => AwkRegionInstructionKind.LiteralNumber,
             AwkRegionOperandKind.ValueTemporary => AwkRegionInstructionKind.ValueNumber,
             AwkRegionOperandKind.ArrayElement => AwkRegionInstructionKind.ArrayNumber,
             AwkRegionOperandKind.Variable => _variables[source.Index] switch

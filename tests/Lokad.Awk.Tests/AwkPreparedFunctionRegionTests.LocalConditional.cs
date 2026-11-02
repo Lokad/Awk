@@ -206,15 +206,17 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var function = Bind("function step(x,t){t=\"" + new string('a', 4096) + "\";if(x)return t;return \"\"} BEGIN{}")
             .Functions[AwkFunctionName.FromText("step")];
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
-        var prepared = Assert.IsAssignableFrom<IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>>(
-            AwkSynchronousFunction.Prepare(functions, null))[function.FunctionName];
+        var region = Assert.IsType<AwkRegion>(function.Region);
         state.InitializeFunctions(functions);
         state.PushFunctionFrame(function.LocalLayout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(7))]);
+        var storage = state.CurrentFunctionFrame.GetRegionStorage(state);
+        storage.Prepare(region.NumberCount, region.ValueCount, region.TargetCount, region.BuilderCount);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         try
         {
-            var error = Assert.Throws<AwkRuntimeException>(() => prepared.EvaluateBody(new(state)));
+            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
+                await function.ExecuteBodyAsync(new(state), state.CurrentFunctionFrame));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal("", state.ResolveFunctionLocalValue(new(1), AwkVariableName.FromText("t")).AsString());
             Assert.Equal(7, state.ResolveFunctionLocalValue(new(0), AwkVariableName.FromText("x")).AsNumber());

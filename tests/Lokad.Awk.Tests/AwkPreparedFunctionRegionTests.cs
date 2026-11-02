@@ -197,15 +197,20 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static async Task<PureActionResult> RunPureAction(bool legacy, bool caller, bool failMemory = false, string? loop = null)
     {
-        var program = Bind(loop is not null
+        var source = loop is not null
             ? loop == "for" ? "{s=\"ok\";for(i=0;i<3;i++)total+=2}" : "{s=\"ok\";i=0;while(i<3){total+=2;i++}}"
             : failMemory ? "{s=\"ok\";total=0}"
-            : "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))}");
-        var statements = program.MainActions[0].Statements;
+            : "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))}";
+        var program = Bind(source);
+        var controlReads = new AwkGlobalReadLayout(program.GlobalNames, null);
+        var syntax = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None).Syntax;
+        var lowered = AwkStatementLowerer.LowerList(syntax.Rules[0].ActionStatements,
+            AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, globalReads: controlReads));
+        Assert.True(lowered.Succeeded);
+        var statements = lowered.Value.ToArray();
         if (failMemory)
         {
-            var reads = new AwkGlobalReadLayout(program.GlobalNames, null);
-            Assert.True(reads.TryGetIndex(AwkVariableName.FromText("total"), out var slot));
+            Assert.True(controlReads.TryGetIndex(AwkVariableName.FromText("total"), out var slot));
             var assignment = AwkStatement.Assignment(
                 AwkReference.PreparedGlobalScalar(AwkVariableName.FromText("total"), slot), AwkExpression.Literal(new string('x', 2 << 20)));
             var condition = new AwkCondition(AwkExpression.Number(1));

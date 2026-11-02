@@ -3,6 +3,20 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkCooperativeCancellationTests
 {
+    [Theory]
+    [InlineData("and")] [InlineData("or")] [InlineData("xor")]
+    public void LongNumericPrimitiveObservesCancellationWithEvaluatedArguments(string name)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            cancellation.Token, AwkRuntimeOptions.CreateSystemDefault());
+        Assert.True(AwkBuiltins.TryGetCallable(name, out var definition));
+        Assert.True(definition.TryGetComputation(out var implementation));
+        var values = Enumerable.Repeat(AwkValue.FromNumber(1), 4096).ToArray();
+        cancellation.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            implementation.EvaluateBound(values, 0, values.Length, new(state)));
+    }
 
     [Theory]
     [InlineData(false, false, false)]

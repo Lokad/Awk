@@ -156,17 +156,7 @@ internal static partial class AwkExpressionLowerer
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            var tokens = expression.GetTokens(scope.Checkpoint);
-            if (tokens.Count != 1 || tokens[0].Kind != AwkTokenKind.String)
-                return false;
-
-            var text = tokens[0].Text;
-            var index = 0;
-            if (!TryReadStringLiteralToken(text, ref index, out var literal, scope.CompatibilityMode, scope.Checkpoint) ||
-                index != text.Length)
-            {
-                return false;
-            }
+            if (!TryReadStringLiteral(expression, scope, out var literal)) return false;
 
             lowered = AwkExpression.Literal(literal);
             return true;

@@ -72,20 +72,17 @@ internal static partial class AwkProgramLowerer
             checkpoint?.Invoke();
             var functionSyntax = syntax.Functions[functionIndex];
             var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
+            var scope = AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions);
+            if (AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region))
+            {
+                function.PrepareRegion(region);
+                continue;
+            }
             var body = AwkStatementLowerer.LowerList(functionSyntax.BodyStatements,
-                AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions));
+                scope);
             if (!body.Succeeded)
                 return AwkLoweringResult.Failure(body.Diagnostics);
             function.PrepareBody(body.Value);
-        }
-
-        for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
-        {
-            var functionSyntax = syntax.Functions[functionIndex];
-            var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
-            if (AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements,
-                AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions), out var region))
-                function.PrepareRegion(region);
         }
 
         var synchronousFunctions = AwkSynchronousFunction.Prepare(functions, checkpoint);
@@ -248,6 +245,12 @@ internal static partial class AwkProgramLowerer
                 return true;
             }
 
+            // Syntax/semantic validation precedes lowering. Covered actions need
+            // only their bound execution representation, not a discarded tree.
+            if (rule.Kind == AwkRuleKind.Main && rule.PatternTokens.Count == 0 && rule.HasExplicitAction &&
+                AwkRegionCompiler.TryCompile(rule.ActionStatements, scope, out var bound))
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, bound));
+
             IReadOnlyList<AwkStatement> statements;
             if (rule.HasExplicitAction)
             {
@@ -269,8 +272,6 @@ internal static partial class AwkProgramLowerer
 
             if (rule.PatternTokens.Count == 0)
             {
-                if (rule.HasExplicitAction && AwkRegionCompiler.TryCompile(rule.ActionStatements, scope, out var region))
-                    return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, region));
                 return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements, scope.SynchronousFunctions, scope.Checkpoint));
             }
 

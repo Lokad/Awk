@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 // The syntax compiler emits operands once; execution does not revisit expression trees.
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
-    AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkRegionArrayAccess[] arrays,
+    AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     int numberCount, int valueCount, int targetCount, int builderCount,
     AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions,
     AwkRegionBuiltin[] builtins, bool isFunction)
@@ -61,6 +61,7 @@ internal sealed class AwkRegion(
     internal AwkRegionInstruction[] Instructions => instructions;
     internal AwkRegionOperand[] Operands => operands;
     internal AwkRegionVariable[] Variables => variables;
+    internal AwkText[] Literals => literals;
     internal AwkRegionArrayAccess[] Arrays => arrays;
     internal AwkRegionCall[] Calls => calls;
     internal AwkStatement[] HostStatements => hostStatements;
@@ -70,14 +71,14 @@ internal sealed class AwkRegion(
 
 }
 
-internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
+internal enum AwkRegionOperandKind : byte { Variable, Field, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key);
 internal enum AwkRegionInstructionKind : byte
 {
-    Poll, StatementBoundary, MoveNumber, FieldNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
+    Poll, StatementBoundary, MoveNumber, FieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue,

@@ -4,20 +4,28 @@ namespace Lokad.Awk;
 
 internal static partial class AwkExpressionLowerer
 {
+    internal static bool TryReadStringLiteral(AwkExpressionSyntax expression, AwkLoweringScope scope, out string literal)
+    {
+        literal = string.Empty;
+        var tokens = expression.GetTokens(scope.Checkpoint);
+        if (tokens.Count != 1 || tokens[0].Kind != AwkTokenKind.String) return false;
+        var position = 0;
+        return TryReadStringLiteralToken(tokens[0].Text, ref position, out literal, scope.CompatibilityMode, scope.Checkpoint) &&
+            position == tokens[0].Text.Length;
+    }
+
     internal static bool TryReadSwitchConstant(AwkExpressionSyntax expression, AwkLoweringScope scope,
         out AwkValue value)
     {
         value = default;
-        var tokens = expression.GetTokens(scope.Checkpoint);
-        if (expression.Kind == AwkExpressionKind.String && tokens.Count == 1 && tokens[0].Kind == AwkTokenKind.String)
+        if (expression.Kind == AwkExpressionKind.String)
         {
-            var position = 0;
-            if (!TryReadStringLiteralToken(tokens[0].Text, ref position, out var text, scope.CompatibilityMode, scope.Checkpoint) ||
-                position != tokens[0].Text.Length) return false;
+            if (!TryReadStringLiteral(expression, scope, out var text)) return false;
             value = AwkValue.FromText(AwkText.FromSourceLiteralString(text), AwkNumberParsingMode.Decimal, scope.Checkpoint);
             return true;
         }
 
+        var tokens = expression.GetTokens(scope.Checkpoint);
         var signed = expression.Kind == AwkExpressionKind.Unary && tokens.Count == 2 &&
             tokens[0].Kind is AwkTokenKind.Plus or AwkTokenKind.Minus && tokens[1].Kind == AwkTokenKind.Number;
         if (!signed && !(expression.Kind == AwkExpressionKind.Number && tokens.Count == 1 && tokens[0].Kind == AwkTokenKind.Number))

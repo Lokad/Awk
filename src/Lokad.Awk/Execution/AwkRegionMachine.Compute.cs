@@ -13,6 +13,7 @@ internal partial struct AwkRegionMachine
         AwkRegionInstruction[] instructions;
         AwkRegionOperand[] operands;
         AwkRegionVariable[] variables;
+        AwkText[] literals;
         AwkRegionArrayAccess[] arrays;
         AwkRegionCall[] calls;
         AwkStatement[] hostStatements;
@@ -29,6 +30,7 @@ internal partial struct AwkRegionMachine
         instructions = region.Instructions;
         operands = region.Operands;
         variables = region.Variables;
+        literals = region.Literals;
         arrays = region.Arrays;
         calls = region.Calls;
         hostStatements = region.HostStatements;
@@ -58,6 +60,9 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.FieldNumber:
                     numbers[instruction.Target] = state.GetFieldNumber(instruction.Left);
+                    break;
+                case AwkRegionInstructionKind.LiteralNumber:
+                    numbers[instruction.Target] = state.CreateByteTextValue(literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.ValueNumber:
                     numbers[instruction.Target] = storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint);
@@ -240,9 +245,11 @@ internal partial struct AwkRegionMachine
                             ? state.GetFieldArithmeticArgument(input.Index) : Value(instruction.Left), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
+                    state.ThrowIfCancellationRequested();
                     var builtin = builtins[instruction.Left];
                     storage.StoreValue(instruction.Target,
                         builtin.Implementation.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context));
+                    storage.ReleaseValues(builtin.Start, builtin.Count);
                     break;
                 case AwkRegionInstructionKind.HostStatement:
                     _cursor = _cursor with { Position = position + 1 };
@@ -290,6 +297,7 @@ internal partial struct AwkRegionMachine
             {
                 AwkRegionOperandKind.NumberTemporary => AwkValue.FromNumber(numbers[operand.Index]),
                 AwkRegionOperandKind.Variable => ReadVariable(variables[operand.Index]),
+                AwkRegionOperandKind.Literal => state.CreateByteTextValue(literals[operand.Index]),
                 AwkRegionOperandKind.Field => operand.Index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(operand.Index),
                 AwkRegionOperandKind.ValueTemporary => storage.Values[operand.Index],
                 AwkRegionOperandKind.ArrayElement => ReadArray(arrays[operand.Index]),

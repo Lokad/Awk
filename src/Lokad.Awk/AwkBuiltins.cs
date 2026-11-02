@@ -320,11 +320,14 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount < 2)
                 return AwkValue.FromNumber(0);
 
-            // Expressions have already run once, with their work checkpoints.
+            // Operands have already been evaluated once, from left to right.
             // GNU then converts values from last to first and adjusts only the final fold.
             var result = ulong.MaxValue;
             for (var index = context.ArgumentCount - 1; index >= 0; index--)
+            {
+                if ((index & 63) == 0) context.State.ThrowIfCancellationRequested();
                 result &= ToBitOperand(context, index);
+            }
             return FromBitResult(result);
         }
 
@@ -335,7 +338,10 @@ internal static partial class AwkBuiltins
 
             var result = 0UL;
             for (var index = context.ArgumentCount - 1; index >= 0; index--)
+            {
+                if ((index & 63) == 0) context.State.ThrowIfCancellationRequested();
                 result |= ToBitOperand(context, index);
+            }
             return FromBitResult(result);
         }
 
@@ -346,7 +352,10 @@ internal static partial class AwkBuiltins
 
             var result = 0UL;
             for (var index = context.ArgumentCount - 1; index >= 0; index--)
+            {
+                if ((index & 63) == 0) context.State.ThrowIfCancellationRequested();
                 result ^= ToBitOperand(context, index);
+            }
             return FromBitResult(result);
         }
 

@@ -90,8 +90,11 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         var oldBytes = _state.MemoryAccounting.IsEnabled ? _targets[index].RetainedTargetBytes : 0;
         var nextBytes = _state.MemoryAccounting.IsEnabled ? target.RetainedTargetBytes : 0;
-        if (nextBytes > oldBytes) _payload.ReserveAdditional(nextBytes - oldBytes);
-        _state.ThrowIfCancellationRequested();
+        if (nextBytes > oldBytes)
+        {
+            _payload.ReserveAdditional(nextBytes - oldBytes);
+            _state.ThrowIfCancellationRequested();
+        }
         _targets[index] = target;
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
@@ -108,8 +111,11 @@ internal sealed class AwkRegionStorage : IDisposable
         if (!preserveOrigin) value = value.AsScalarCopy();
         var oldBytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
         var nextBytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
-        if (nextBytes > oldBytes) _payload.ReserveAdditional(nextBytes - oldBytes);
-        _state.ThrowIfCancellationRequested();
+        if (nextBytes > oldBytes)
+        {
+            _payload.ReserveAdditional(nextBytes - oldBytes);
+            _state.ThrowIfCancellationRequested();
+        }
         _values[index] = value;
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
@@ -118,6 +124,16 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         var bytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
         _values[index] = default;
+        if (bytes > 0) _payload.Release(bytes);
+    }
+
+    internal void ReleaseValues(int start, int count)
+    {
+        var bytes = 0L;
+        if (_state.MemoryAccounting.IsEnabled)
+            for (var index = start; index < start + count; index++)
+                bytes = AwkRuntimeMemory.CheckedAdd(bytes, _values[index].RetainedTextMemoryBytes);
+        Array.Clear(_values, start, count);
         if (bytes > 0) _payload.Release(bytes);
     }
 
