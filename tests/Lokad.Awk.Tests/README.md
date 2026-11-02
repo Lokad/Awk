@@ -25,6 +25,8 @@ and mutate the record. Inactive argument capacity can remain funded until the st
 checks require failure ordering, no pending users and final refunds instead of old route counts.
 Native string-operation counters cover cached field and array values across dirty-record
 reconstruction, byte-native processing and final governor refunds in both execution modes.
+Membership checks cover composite keys with default/empty `SUBSEP`, no key-copy allocation
+per lookup, no insertion on misses, and live prefixes across pending calls and record mutation.
 
 ## Golden Corpus
 

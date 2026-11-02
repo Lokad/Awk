@@ -95,6 +95,18 @@ internal partial struct AwkRegionMachine
                         : state.GetArrayNumber(numeric.Name, Key(numeric), numeric.Binding);
                     break;
                 }
+                case AwkRegionInstructionKind.ArrayContains:
+                {
+                    var membership = arrays[instruction.Left];
+                    var keyOperand = operands[membership.Key];
+                    var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
+                        ? state.ContainsArrayValue(membership.Name, storage.Builders[keyOperand.Index].AsMemory().Span, membership.Binding)
+                        : IsField(keyOperand)
+                            ? state.ContainsArrayField(membership.Name, FieldOrdinal(keyOperand), membership.Binding)
+                            : state.ContainsArrayValue(membership.Name, state.ToArrayKey(Value(membership.Key)), membership.Binding);
+                    numbers[instruction.Target] = found ? 1 : 0;
+                    break;
+                }
                 case AwkRegionInstructionKind.Value:
                     storage.StoreValue(instruction.Target, Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;

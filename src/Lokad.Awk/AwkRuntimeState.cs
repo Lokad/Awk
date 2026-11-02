@@ -1381,6 +1381,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.ContainsValue(name, index, binding);
 
+    internal bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding) =>
+        _arrayRuntime.ContainsValue(name, index, binding);
+
     public bool ContainsArrayField(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index < 0)

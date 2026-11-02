@@ -4,7 +4,7 @@ public sealed class AwkRegionFieldTests
 {
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf" })
+        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership" })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -22,6 +22,7 @@ public sealed class AwkRegionFieldTests
             "substr" => "{i=1;text=substr($i,read()-10);print text,$0,i;next}",
             "index" => "{i=1;found=index($i,(read()==11?\"0\":\"x\"));print found,$0,i;next}",
             "sprintf" => "{i=1;text=sprintf($i,read());print text,$0,i;next}",
+            "membership" => "{i=1;seen[\"0007\",11]=1;found=(($i,read()) in seen);print found,$0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
@@ -77,7 +78,7 @@ public sealed class AwkRegionFieldTests
                 "multi" => "0007 11 old\n",
                 "printf" => "[0007][11][old]\n",
                 "substr" or "sprintf" => "0007 100 old 2\n",
-                "index" => "1 100 old 2\n",
+                "index" or "membership" => "1 100 old 2\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

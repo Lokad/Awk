@@ -83,7 +83,7 @@ internal enum AwkRegionInstructionKind : byte
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Length, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
-    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
+    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
     GetlineBoundary, PrepareString, GetlineTarget, Getline,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow

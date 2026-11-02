@@ -197,6 +197,8 @@ Concatenation preserves operand formatting order and lazy text composition. Comp
 reuse record caches; discarded fixed-field copies can retain record-backed text. Escaping
 values own their spelling. Array updates preserve captured keys/prior values and rebind owners
 after RHS work. Borrowed byte spans remain local to synchronous consumption.
+Array membership consumes field bytes or a completed composite-key buffer synchronously;
+misses do not insert elements. Earlier key components remain owned across suspending calls.
 Unmigrated constructs retain existing interpretation and protection; diagnostic acceptance
 still precedes later effects. Cancellation is checked during preparation, bounded computation,
 calls and host interactions, including after admission callbacks and before mutation.
