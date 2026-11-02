@@ -672,14 +672,14 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput()
+    internal async Task ParsedFieldIndexKeepsTextByteNative()
     {
         var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],
             "id déjà-timeout\nid déjà-normal\n", false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.BorrowedFieldIndexSearches);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, 8);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }

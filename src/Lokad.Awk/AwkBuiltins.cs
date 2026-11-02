@@ -73,10 +73,10 @@ internal static partial class AwkBuiltins
                 EvaluateLength,
                 [AwkBuiltinArgumentRole.ScalarOrArray],
                 AwkBuiltinLoweringKind.Length),
-            [Name(AwkBuiltinId.Index)] = PosixFunctionAsync(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
-            [Name(AwkBuiltinId.Substr)] = PosixFunctionAsync(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
-            [Name(AwkBuiltinId.ToLower)] = PosixFunctionAsync(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
-            [Name(AwkBuiltinId.ToUpper)] = PosixFunctionAsync(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
+            [Name(AwkBuiltinId.Index)] = PosixFunction(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
+            [Name(AwkBuiltinId.Substr)] = PosixFunction(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
+            [Name(AwkBuiltinId.ToLower)] = PosixFunction(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
+            [Name(AwkBuiltinId.ToUpper)] = PosixFunction(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
             [Name(AwkBuiltinId.Int)] = PosixFunction(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt, arithmeticInputs: true, canPrepareComputation: true),
             [Name(AwkBuiltinId.Sqrt)] = PosixFunction(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt, arithmeticInputs: true),
             [Name(AwkBuiltinId.Sin)] = PosixFunction(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin, arithmeticInputs: true, canPrepareComputation: true),
@@ -469,44 +469,34 @@ internal static partial class AwkBuiltins
             return AwkValue.FromNumber(context.State.CountStringUnits(context.GetByteText(0)));
         }
 
-        static async ValueTask<AwkValue> EvaluateIndex(AwkBuiltinContext context)
+        static AwkValue EvaluateIndex(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 2)
                 return AwkValue.FromNumber(0);
 
-            var source = await context.GetValueAsync(0).ConfigureAwait(false);
-            using var sourceLease = context.State.MemoryAccounting.RetainValue(source);
-            var needle = await context.GetValueAsync(1).ConfigureAwait(false);
-            return EvaluateIndexValues(context.State, source, needle);
+            return EvaluateIndexValues(context.State, context.GetValue(0), context.GetValue(1));
         }
 
-        static async ValueTask<AwkValue> EvaluateSubstr(AwkBuiltinContext context)
+        static AwkValue EvaluateSubstr(AwkBuiltinContext context)
         {
             var argumentCount = context.ArgumentCount;
             if (argumentCount is < 2 or > 3)
                 return AwkValue.FromText(string.Empty);
 
-            var sourceValue = await context.GetValueAsync(0).ConfigureAwait(false);
-            using var sourceLease = context.State.MemoryAccounting.RetainValue(sourceValue);
-            var startValue = await context.GetValueAsync(1).ConfigureAwait(false);
-            using var startLease = context.State.MemoryAccounting.RetainValue(startValue);
-            var lengthValue = argumentCount == 3
-                ? await context.GetValueAsync(2).ConfigureAwait(false) : default;
-            return EvaluateSubstrValues(context.State, sourceValue, startValue, lengthValue, argumentCount);
+            return EvaluateSubstrValues(context.State, context.GetValue(0), context.GetValue(1),
+                argumentCount == 3 ? context.GetValue(2) : default, argumentCount);
         }
 
-        static async ValueTask<AwkValue> EvaluateToLower(AwkBuiltinContext context)
+        static AwkValue EvaluateToLower(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
-            var value = await context.GetValueAsync(0).ConfigureAwait(false);
-            return EvaluateCaseValue(context.State, value, upper: false);
+            return EvaluateCaseValue(context.State, context.GetValue(0), upper: false);
         }
 
-        static async ValueTask<AwkValue> EvaluateToUpper(AwkBuiltinContext context)
+        static AwkValue EvaluateToUpper(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
-            var value = await context.GetValueAsync(0).ConfigureAwait(false);
-            return EvaluateCaseValue(context.State, value, upper: true);
+            return EvaluateCaseValue(context.State, context.GetValue(0), upper: true);
         }
         static AwkValue EvaluateRand(AwkBuiltinContext context)
         {

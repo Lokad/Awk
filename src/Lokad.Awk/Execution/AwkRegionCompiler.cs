@@ -103,6 +103,7 @@ internal sealed class AwkRegionCompiler
         if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
         foreach (var statement in statements)
         {
+            var firstTemporary = _values;
             _scope.CheckCancellation();
             if (AwkStatementKindFacts.IsOptionalValue(statement.Kind) &&
                     (statement.Expressions.Count > 1 || statement.Expressions.Count == 0 &&
@@ -215,6 +216,11 @@ internal sealed class AwkRegionCompiler
                     break;
                 default: return false;
             }
+            // Values captured by a statement have no users after it completes.
+            // Calls/returns and pending host users finish before reaching here;
+            // nonlocal flow is unwound by its existing owner instead.
+            if (_values > firstTemporary)
+                Emit(new(AwkRegionInstructionKind.ReleaseValues, firstTemporary, Right: _values - firstTemporary));
             Emit(new(AwkRegionInstructionKind.StatementBoundary));
         }
         return true;
@@ -356,7 +362,7 @@ internal sealed class AwkRegionCompiler
         if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
             AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
             target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1) &&
-            builtin.TryGetComputation(out var implementation))
+            builtin.TryGetScalarComputation(out var implementation))
             return Builtin(syntax, builtin, implementation, out result);
         if (_scope.Functions is not { } functions ||
             !functions.TryGetValue(new AwkFunctionName(target.Identifier), out var function)) return false;

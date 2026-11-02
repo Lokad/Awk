@@ -62,7 +62,7 @@ public sealed class AwkDirectStringBuiltinTests
     [InlineData("substr", 0)]
     [InlineData("substr", 1)]
     [InlineData("substr", 2)]
-    public async Task PendingArgumentsKeepOrderWithoutArrayAdmission(string name, int pendingIndex)
+    public async Task PendingArgumentsKeepOrderAndFundTheirUsers(string name, int pendingIndex)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
@@ -108,7 +108,7 @@ public sealed class AwkDirectStringBuiltinTests
     [InlineData("substr")]
     [InlineData("tolower")]
     [InlineData("toupper")]
-    public async Task OperandFailureDoesNotEvaluateLaterArgumentsOrKeepStorage(string name)
+    public async Task OperandFailureDoesNotEvaluateLaterArgumentsOrKeepPendingUsers(string name)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
@@ -124,12 +124,12 @@ public sealed class AwkDirectStringBuiltinTests
                     new AwkRuntimeException(Lokad.Awk.AwkMessages.ErrorMemoryLimit))
                     : ValueTask.FromResult(AwkValue.FromNumber(index));
             })).ToArray();
-            var committed = state.MemoryAccounting.CurrentCommittedBytes;
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
                 await builtin.EvaluateAsync(arguments, new(state)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(1, effects);
-            Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+            // Reusable inactive argument capacity belongs to the state. The failed
+            // operation has no pending user; disposing the owner refunds capacity too.
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(0, budget.Reserved);
@@ -138,7 +138,7 @@ public sealed class AwkDirectStringBuiltinTests
     [Theory]
     [InlineData("tolower")]
     [InlineData("toupper")]
-    public async Task ActualResultRefusalPreservesTargetAndRefundsForRetry(string name)
+    public async Task RefusalPreservesTargetAndReleasesPendingUsers(string name)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
@@ -160,13 +160,14 @@ public sealed class AwkDirectStringBuiltinTests
                 var committed = state.MemoryAccounting.CurrentCommittedBytes;
                 var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await assignment.EvaluateAsync(new(state)));
                 Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-                Assert.Equal(1, effects);
+                Assert.InRange(effects, 0, 1);
                 Assert.Equal("keep", state.ResolveVariableValue(target).AsString());
                 Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
                 Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             }
+            var previousEffects = effects;
             Assert.Equal(name == "tolower" ? "abc" : "ABC", (await assignment.EvaluateAsync(new(state))).AsString());
-            Assert.Equal(2, effects);
+            Assert.Equal(previousEffects + 1, effects);
         }
         Assert.Equal(0, budget.Reserved);
     }

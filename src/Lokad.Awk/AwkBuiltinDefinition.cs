@@ -174,6 +174,23 @@ internal sealed class AwkBuiltinDefinition(
 
     internal bool ConsumesArithmeticInputs => implementation.ConsumesArithmeticInputs;
 
+    internal bool TryGetScalarComputation(
+        [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
+    {
+        // The common driver can retain values across suspending arguments and
+        // publish diagnostics at its ordinary boundaries. It does not need the
+        // old synchronous-tree eligibility rules. Regex origins and special-form
+        // lvalues/aliases still need their own operand preparation in Stage C.
+        if (LoweringKind == AwkBuiltinLoweringKind.Ordinary && Id != AwkBuiltinId.Gensub &&
+            implementation is AwkBuiltinImplementation.SyncBuiltinImplementation synchronous)
+        {
+            computation = synchronous;
+            return true;
+        }
+        computation = null;
+        return false;
+    }
+
     internal bool TryGetComputation(
         [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
     {

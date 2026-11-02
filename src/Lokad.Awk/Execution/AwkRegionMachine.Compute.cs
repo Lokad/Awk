@@ -101,6 +101,9 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.ReleaseValue:
                     storage.ReleaseValue(instruction.Target);
                     break;
+                case AwkRegionInstructionKind.ReleaseValues:
+                    storage.ReleaseValues(instruction.Target, instruction.Right);
+                    break;
                 case AwkRegionInstructionKind.ConcatArgument:
                     storage.StoreText(instruction.Target, state.FormatStringByteText(Value(instruction.Left)));
                     break;

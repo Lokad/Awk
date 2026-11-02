@@ -185,6 +185,8 @@ until the host write actually finishes, including when it ignores cancellation. 
 preflights before file creation or truncation; authorization remains at the host boundary.
 Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
+Ordinary scalar builtins use the same evaluated argument storage, including string operations
+and functions that can report warnings. Statement temporaries retire after their final users.
 Prepared `getline` captures the source before its destination and retains both through the
 actual read. Main-input reads can reenter file phases without overwriting caller scratch.
 EOF and recoverable errors preserve the ordinary status, `RT` and `ERRNO` behavior.

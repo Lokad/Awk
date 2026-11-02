@@ -20,6 +20,9 @@ pipe cases retain opaque command names, logical flush and command close status.
 Read loops check native numeric status/argument transport. Pending destination cases retain
 simple, composite and nested keys across file-phase mutation and ignored cancellation;
 setup/read/publication phases are separate so unrelated preparation gaps cannot mask the read.
+String and formatting argument cases preserve earlier fields while later arguments suspend
+and mutate the record. Inactive argument capacity can remain funded until the state ends;
+checks require failure ordering, no pending users and final refunds instead of old route counts.
 
 ## Golden Corpus
 

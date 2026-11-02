@@ -50,7 +50,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("sqrt", false)] [InlineData("sqrt", true)]
     [InlineData("exp", false)] [InlineData("exp", true)]
     [InlineData("log", false)] [InlineData("log", true)]
-    public async Task DiagnosticProducingFunctionsKeepStatementExecution(string builtin, bool governed)
+    public async Task MathCallsKeepNativeNumericInputs(string builtin, bool governed)
     {
         const int records = 128;
         var host = new MockFileSystem();
@@ -65,7 +65,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(records + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+        Assert.Equal(0, counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.InRange(counters.AwkTextAllocations, 0, 32);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);

@@ -33,7 +33,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
-    public async Task RepeatedBuiltinArgumentsReuseOnlyGovernedInactiveStorage(bool governed, bool prepared)
+    public async Task ScalarBuiltinArgumentsUseExecutionOwnedStorage(bool governed, bool prepared)
     {
         const int records = 128;
         var host = new MockFileSystem();
@@ -50,8 +50,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(prepared ? "896\n" : "338\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(governed && !prepared ? 1 : 0, counters.GovernedArgumentBufferAllocations);
-        Assert.True(governed && !prepared ? counters.GovernedArgumentBufferReuses >= records - 1 : counters.GovernedArgumentBufferReuses == 0);
+        Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
+        Assert.Equal(0, counters.GovernedArgumentBufferReuses);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);
