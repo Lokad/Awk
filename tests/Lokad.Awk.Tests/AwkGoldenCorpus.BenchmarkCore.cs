@@ -5,6 +5,21 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("composite-update-preserves-original-components-and-reuses-shorter-keys",
+            ["BEGIN{SUBSEP=\":\"}{a[$1,$2]+=$3;seen=a[$1,$2]}END{print seen,length(a),a[\"0007:é\"],a[\"x:y\"]}"],
+            [], "7 2 7 2\n", "0007 é 3\nx y 2\n0007 é 4\n");
+        yield return Passing("composite-update-snapshots-separator-before-component-effects",
+            ["BEGIN{SUBSEP=\":\";replacement=\"/\"}{a[$1,(SUBSEP=replacement)]++;after=SUBSEP}END{print a[\"left:/\"],after,length(a)}"],
+            [], "1 / 1\n", "left\n");
+        yield return Passing("composite-update-copies-field-before-record-changing-component",
+            ["BEGIN{SUBSEP=\":\"}{a[$1,(NF=0)]+=3}END{print a[\"0007:0\"],NF,length(a)}"],
+            [], "3 0 1\n", "0007 tail\n");
+        yield return Passing("composite-nested-construction-keeps-active-outer-key",
+            ["BEGIN{SUBSEP=\":\";b[1,2]=7;a[7,3]=11}{outer=a[b[1,2],3];b[1,2]+=1;later=a[b[1,2],3]}END{print outer,later+0,length(a),b[1,2]}"],
+            [], "11 0 2 8\n", "row\n");
+        yield return Passing("composite-reads-and-nested-updates-consume-key-before-reuse",
+            ["BEGIN{a[1,2]=10;a[3,4]=20}{x=a[1,2]+a[3,4];y=(a[1,2]+=(a[3,4]+=1))}END{print x,y,a[1,2],a[3,4]}"],
+            [], "30 31 31 21\n", "row\n");
         yield return AwkGoldenCaseBuilder.Create("array-bound-update-captures-prior-before-nested-same-key-update",
             ["BEGIN{a[1]=4}{prior=a[1]++;outer=(a[1]+=(a[1]+=3));after=a[1];copy=a[1];a[1];unseen=a[2]}END{print prior,outer,after,copy,length(a),(3 in a)}"], [])
             .WithStandardInput("row\n").WithStdOut("4 13 13 13 2 0\n")

@@ -235,6 +235,9 @@ internal sealed class AwkArrayRuntime
     public AwkArrayKey ResolveKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryGetBorrowedKey(name, builder.AsSpan(), out var key, binding) ? key : CopyKey(builder);
 
+    public AwkValue GetAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
+        TryGetBorrowedAwkValue(name, builder.AsSpan(), out var value, binding) ? value : GetAwkValue(name, CopyKey(builder), binding);
+
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryPrepareBorrowedUpdate(name, builder.AsSpan(), out var target, binding)
             ? target : PrepareUpdate(name, CopyKey(builder), binding);

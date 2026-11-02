@@ -8,14 +8,15 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> BoundArrayWorkloads()
     {
         foreach (var keys in new[] { 16, 1024 })
-        foreach (var fields in new[] { 2, 32 })
+        foreach (var composite in new[] { false, true })
+        foreach (var fields in new[] { composite ? 3 : 2, 32 })
         foreach (var loop in new[] { false, true })
-        foreach (var governed in new[] { false, true }) yield return [keys, fields, loop, governed];
+        foreach (var governed in new[] { false, true }) yield return [keys, fields, loop, governed, composite];
     }
 
     [Theory]
     [MemberData(nameof(BoundArrayWorkloads))]
-    public async Task BoundArrayProgramsReuseKeysAndNumericFields(int keys, int fields, bool loop, bool governed)
+    public async Task BoundArrayProgramsReuseKeysAndNumericFields(int keys, int fields, bool loop, bool governed, bool composite)
     {
         const int records = 1024;
         var input = new StringBuilder();
@@ -27,13 +28,17 @@ public sealed partial class AwkBenchmarkCounterTests
             var value = row % 97;
             sums[key] += (loop ? 2 : 1) * value;
             total += sums[key];
-            input.Append('k').Append(key).Append(' ').Append(value);
-            for (var field = 2; field < fields; field++) input.Append(" tail");
+            input.Append('k').Append(key);
+            if (composite) input.Append(" part").Append(key % 4);
+            input.Append(' ').Append(value);
+            for (var field = composite ? 3 : 2; field < fields; field++) input.Append(" tail");
             input.Append('\n');
         }
-        var source = (loop
-            ? "{for(pass=0;pass<2;pass++){sum[$1]+=+$2;count[$1]++}total+=sum[$1]}"
-            : "{sum[$1]+=$2;count[$1]++;total+=sum[$1]}") + "END{print total,length(sum),length(count)}";
+        var keyExpression = composite ? "$1,$2" : "$1";
+        var valueExpression = composite ? "$3" : "$2";
+        var update = "sum[" + keyExpression + "]+=" + (loop ? "+" : "") + valueExpression + ";count[" + keyExpression + "]++";
+        var source = (loop ? "{for(pass=0;pass<2;pass++){" + update + "}" : "{" + update + ";") +
+            "total+=sum[" + keyExpression + "]}END{print total,length(sum),length(count)}";
         var host = new MockFileSystem();
         host.SetStandardInput(input.ToString());
         var counters = AwkRuntimeCounters.CreateEnabled();

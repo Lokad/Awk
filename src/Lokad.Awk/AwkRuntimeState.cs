@@ -1299,6 +1299,9 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.ResolveKey(name, builder, binding);
 
+    internal AwkValue GetArrayAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
+        _arrayRuntime.GetAwkValue(name, builder, binding);
+
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.PrepareUpdate(name, builder, binding);
 

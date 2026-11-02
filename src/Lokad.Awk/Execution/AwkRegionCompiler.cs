@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
-// Stage B lowering covers ordinary scalar/flat-array computation. Unsupported constructs
+// Stage B lowering covers ordinary scalar/named-array computation. Unmigrated constructs
 // remain an explicit migration boundary; there are no arity/block-size/script guards.
 internal sealed class AwkRegionCompiler
 {
@@ -12,6 +12,8 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionVariable> _variables = [];
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
+    private readonly List<int> _builderSeparators = [];
+    private int _activeBuilders;
     private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
     private readonly Stack<Loop> _loops = [];
@@ -34,7 +36,7 @@ internal sealed class AwkRegionCompiler
         }
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
             compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._arrays.ToArray(),
-            compiler._numbers, compiler._values, compiler._targets);
+            compiler._numbers, compiler._values, compiler._targets, compiler._builderSeparators.Count);
         return true;
     }
 
@@ -162,7 +164,16 @@ internal sealed class AwkRegionCompiler
                 return true;
             case AwkExpressionKind.ArrayElement:
                 if (!ArrayAccess(syntax, out var access)) return false;
-                result = Operand(AwkRegionOperandKind.ArrayElement, access);
+                if (_operands[_arrays[access].Key].Kind == AwkRegionOperandKind.KeyBuilder)
+                {
+                    // A reusable key buffer must be consumed before another access
+                    // can reuse it. The captured scalar preserves its own spelling.
+                    var captured = _values++;
+                    Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access));
+                    FinishKey(access);
+                    result = Operand(AwkRegionOperandKind.ValueTemporary, captured);
+                }
+                else result = Operand(AwkRegionOperandKind.ArrayElement, access);
                 return true;
             case AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
                 return Assignment(syntax, out result);
@@ -203,6 +214,7 @@ internal sealed class AwkRegionCompiler
                 // Ordinary assignment evaluates its RHS before the subscript.
                 if (!ArrayAccess(syntax.Children[0], out var access)) return false;
                 Emit(new(AwkRegionInstructionKind.ArrayAssign, access, result));
+                FinishKey(access);
             }
         }
         else
@@ -221,13 +233,39 @@ internal sealed class AwkRegionCompiler
     private bool ArrayAccess(AwkExpressionSyntax syntax, out int index)
     {
         index = 0;
-        if (syntax.Children.Count != 2 || !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(syntax, out var array) ||
-            _scope.IsReservedVariable(array.Name) || !Expression(syntax.Children[1], out var key)) return false;
+        if (syntax.Children.Count < 2 || !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(syntax, out var array) ||
+            _scope.IsReservedVariable(array.Name)) return false;
+        int key;
+        if (syntax.Children.Count > 2)
+        {
+            var builder = _activeBuilders++;
+            if (builder == _builderSeparators.Count) _builderSeparators.Add(_values++);
+            var separator = _builderSeparators[builder];
+            Emit(new(AwkRegionInstructionKind.KeyBegin, builder, separator));
+            for (var component = 1; component < syntax.Children.Count; component++)
+            {
+                if (component > 1) Emit(new(AwkRegionInstructionKind.KeySeparator, builder, separator));
+                if (!Expression(syntax.Children[component], out var value)) return false;
+                Emit(new(AwkRegionInstructionKind.KeyAppend, builder, value));
+            }
+            // Separator bytes are already copied. Its old owner need not survive
+            // lookup/insertion after a component has changed SUBSEP.
+            Emit(new(AwkRegionInstructionKind.ReleaseValue, separator));
+            key = Operand(AwkRegionOperandKind.KeyBuilder, builder);
+        }
+        else if (!Expression(syntax.Children[1], out key)) return false;
         // Nested subscript reads happen now, not recursively inside a later operand.
         if (_operands[key].Kind == AwkRegionOperandKind.ArrayElement) key = CaptureValue(key);
         index = _arrays.Count;
         _arrays.Add(new(new(array.Identifier), _scope.GetArrayBinding(array.Identifier), key));
         return true;
+    }
+
+    private void FinishKey(int access)
+    {
+        if (_operands[_arrays[access].Key] is not { Kind: AwkRegionOperandKind.KeyBuilder } key) return;
+        Emit(new(AwkRegionInstructionKind.KeyEnd, key.Index));
+        _activeBuilders--;
     }
 
     private bool PrepareTarget(AwkExpressionSyntax syntax, out PreparedTarget target, out int prior)
@@ -244,6 +282,7 @@ internal sealed class AwkRegionCompiler
         var captured = _targets++;
         var number = _numbers++;
         Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, access, number));
+        FinishKey(access);
         prior = Operand(AwkRegionOperandKind.NumberTemporary, number);
         target = new(access, captured);
         return true;

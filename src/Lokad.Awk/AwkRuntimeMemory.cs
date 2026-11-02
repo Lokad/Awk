@@ -11,6 +11,7 @@ internal static class AwkRuntimeMemory
     private const int VariableSlotBytes = 24;
     private const int ArrayEntryBytes = 48;
     internal const int ArrayCellBytes = 48;
+    internal const int Utf8BuilderObjectBytes = 48;
     private const int ArrayObjectBytes = 24;
     // Coarse owner estimate includes the identity and its dictionary object, including
     // empty children. Entry/bucket capacity is charged separately below.
@@ -136,6 +137,9 @@ internal static class AwkRuntimeMemory
 
     public static long EstimateDoubleArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, sizeof(double));
+
+    public static long EstimateUtf8BuilderArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, ReferenceBytes);
 
     public static long EstimateFunctionArgumentArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, 64);

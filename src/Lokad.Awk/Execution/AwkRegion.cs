@@ -5,16 +5,17 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkRegionArrayAccess[] arrays,
-    int numberCount, int valueCount, int targetCount)
+    int numberCount, int valueCount, int targetCount, int builderCount)
 {
     internal int NumberCount => numberCount;
     internal int ValueCount => valueCount;
     internal int TargetCount => targetCount;
+    internal int BuilderCount => builderCount;
     internal int InstructionCount => instructions.Length;
 
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
     {
-        storage.Prepare(numberCount, valueCount, targetCount);
+        storage.Prepare(numberCount, valueCount, targetCount, builderCount);
         InitializeConstants(state, storage.Numbers);
         try { return Run(state, storage, 0, null).Flow; }
         finally { storage.ClearValues(); }
@@ -23,7 +24,7 @@ internal sealed class AwkRegion(
     internal ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkRegionStorage storage,
         AwkOutputSink output, AwkIo io)
     {
-        storage.Prepare(numberCount, valueCount, targetCount);
+        storage.Prepare(numberCount, valueCount, targetCount, builderCount);
         InitializeConstants(state, storage.Numbers);
         state.Counters.RecordBoundRegionRun();
         try
@@ -83,6 +84,31 @@ internal sealed class AwkRegion(
                 case AwkRegionInstructionKind.Value:
                     storage.StoreValue(instruction.Target, Value(instruction.Left));
                     break;
+                case AwkRegionInstructionKind.ReleaseValue:
+                    storage.ReleaseValue(instruction.Target);
+                    break;
+                case AwkRegionInstructionKind.KeyBegin:
+                    storage.Builders[instruction.Target].Clear();
+                    // Only the snapshot's original bytes are consumed.
+                    storage.StoreValue(instruction.Left, AwkValue.FromDeferredText(
+                        state.ResolveSubscriptSeparatorText(), AwkNumberParsingMode.Decimal));
+                    break;
+                case AwkRegionInstructionKind.KeySeparator:
+                    storage.Builders[instruction.Target].Append(storage.Values[instruction.Left].ByteText, state.CancellationCheckpoint);
+                    break;
+                case AwkRegionInstructionKind.KeyAppend:
+                    var component = operands[instruction.Left];
+                    if (component.Kind == AwkRegionOperandKind.Field)
+                        state.AppendFieldByteText(storage.Builders[instruction.Target], component.Index);
+                    else
+                        storage.Builders[instruction.Target].Append(state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
+                    break;
+                case AwkRegionInstructionKind.KeyEnd:
+                    storage.Builders[instruction.Target].Clear();
+                    break;
+                case AwkRegionInstructionKind.ArrayRead:
+                    storage.StoreValue(instruction.Target, ReadArray(arrays[instruction.Left]));
+                    break;
                 case AwkRegionInstructionKind.Arithmetic:
                     numbers[instruction.Target] = AwkNumericOperations.Apply(
                         numbers[instruction.Left], numbers[instruction.Right], (AwkNumericOperation)instruction.Detail);
@@ -120,9 +146,12 @@ internal sealed class AwkRegion(
                 case AwkRegionInstructionKind.ArrayPrepare:
                     var access = arrays[instruction.Left];
                     var key = operands[access.Key];
-                    var target = key.Kind == AwkRegionOperandKind.Field
-                        ? state.PrepareArrayFieldUpdate(access.Name, key.Index, access.Binding)
-                        : state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding);
+                    var target = key.Kind switch
+                    {
+                        AwkRegionOperandKind.Field => state.PrepareArrayFieldUpdate(access.Name, key.Index, access.Binding),
+                        AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index], access.Binding),
+                        _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
+                    };
                     storage.StoreTarget(instruction.Target, target);
                     numbers[instruction.Right] = target.Previous;
                     break;
@@ -191,12 +220,19 @@ internal sealed class AwkRegion(
             };
         }
 
-        AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] is { Kind: AwkRegionOperandKind.Field } field
-            ? state.GetArrayFieldKey(access.Name, field.Index, access.Binding) : state.ToArrayKey(Value(access.Key));
+        AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
+        {
+            { Kind: AwkRegionOperandKind.Field } field => state.GetArrayFieldKey(access.Name, field.Index, access.Binding),
+            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index], access.Binding),
+            _ => state.ToArrayKey(Value(access.Key))
+        };
 
-        AwkValue ReadArray(AwkRegionArrayAccess access) => operands[access.Key] is { Kind: AwkRegionOperandKind.Field } field
-            ? state.GetArrayFieldValue(access.Name, field.Index, access.Binding)
-            : state.GetArrayAwkValue(access.Name, Key(access), access.Binding);
+        AwkValue ReadArray(AwkRegionArrayAccess access) => operands[access.Key] switch
+        {
+            { Kind: AwkRegionOperandKind.Field } field => state.GetArrayFieldValue(access.Name, field.Index, access.Binding),
+            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index], access.Binding),
+            _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
+        };
 
         AwkValue ReadVariable(AwkRegionVariable variable) => variable.GlobalIndex >= 0
             ? state.ResolvePreparedGlobalValue(variable.Name, variable.GlobalIndex)
@@ -209,7 +245,7 @@ internal sealed class AwkRegion(
     private readonly record struct RegionResult(int Position, bool NeedsFlush, AwkStatementFlow Flow = AwkStatementFlow.Continue);
 }
 
-internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary, ArrayElement }
+internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
@@ -217,7 +253,7 @@ internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArray
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, Number, Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
-    ArrayPrepare, ArrayCommit, ArrayAssign, Jump, JumpIfFalse, Flow
+    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, Jump, JumpIfFalse, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
