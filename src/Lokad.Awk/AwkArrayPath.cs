@@ -97,22 +97,13 @@ internal sealed class AwkArrayPath
     public async ValueTask DeleteAsync(AwkEvaluationContext context)
     {
         var state = context.State;
-        using var heldKeys = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(_indices.Length));
-        var keys = new AwkArrayKey[_indices.Length];
+        using var target = AwkCapturedArrayPath.Begin(state, _root.Name, _root.Binding, _indices.Length);
         for (var index = 0; index < _indices.Length; index++)
         {
             state.Checkpoint();
-            var key = await _indices[index].ResolveKeyAsync(context).ConfigureAwait(false);
-            heldKeys.ReserveAdditional(key.RetainedTextMemoryBytes);
-            keys[index] = key;
+            target.CaptureKey(state, index, await _indices[index].ResolveKeyAsync(context).ConfigureAwait(false));
         }
-        var array = state.FindSubarray(_root.Name, keys[0], _root.Binding);
-        for (var index = 1; index < keys.Length - 1 && array is not null; index++)
-        {
-            state.Checkpoint();
-            array = state.FindSubarray(array, keys[index]);
-        }
-        if (array is not null) state.DeleteArrayValue(array, keys[^1]);
+        target.Delete(state);
     }
 
     public ValueTask<AwkCapturedArrayPath> CaptureAsync(AwkEvaluationContext context) =>
@@ -166,9 +157,7 @@ internal sealed class AwkCapturedArrayPath(
     // The final owner can be detached by that later computation; repair is logical.
     internal void Append(AwkRuntimeState state, int index, AwkArrayKey key)
     {
-        heldKeys.ReserveAdditional(key.RetainedTextMemoryBytes);
-        state.ThrowIfCancellationRequested();
-        keys[index] = key;
+        CaptureKey(state, index, key);
         if (index == keys.Length - 1)
         {
             _owner ??= state.ResolveOrdinaryArray(rootName, rootBinding);
@@ -178,6 +167,26 @@ internal sealed class AwkCapturedArrayPath(
             : state.GetSubarray(_owner is { IsDetached: false } live ? live
                 : ResolveOwner(state, rootName, rootBinding, keys, index), key);
     }
+    internal void CaptureKey(AwkRuntimeState state, int index, AwkArrayKey key)
+    {
+        heldKeys.ReserveAdditional(key.RetainedTextMemoryBytes);
+        state.ThrowIfCancellationRequested();
+        keys[index] = key;
+    }
+
+    internal void Delete(AwkRuntimeState state)
+    {
+        // Unlike ordinary access, all keys run before searching, without creating children.
+        var array = state.FindSubarray(rootName, keys[0], rootBinding);
+        for (var index = 1; index < keys.Length - 1 && array is not null; index++)
+        {
+            state.ThrowIfCancellationRequested();
+            array = state.FindSubarray(array, keys[index]);
+        }
+        state.ThrowIfCancellationRequested();
+        if (array is not null) state.DeleteArrayValue(array, keys[^1]);
+    }
+
     public AwkArrayKey Key => keys[^1];
 
     public AwkArrayIdentity ResolveOwner(AwkRuntimeState state)

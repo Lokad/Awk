@@ -211,6 +211,9 @@ internal sealed class AwkRegionCompiler
                     if (!OutputTarget(formatted.Redirection, out var printfTarget) ||
                         !formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
                     break;
+                case AwkStatementKind.Delete:
+                    if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var deleted) || !Delete(deleted)) return false;
+                    break;
                 case AwkStatementKind.Getline:
                     if (!AwkStatementLoweringShapes.Getline(statement).TryGetValue(out var getline) ||
                         !AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
@@ -560,7 +563,7 @@ internal sealed class AwkRegionCompiler
         return true;
     }
 
-    private bool NestedAccess(AwkExpressionSyntax syntax, out int index)
+    private bool NestedAccess(AwkExpressionSyntax syntax, out int index, bool deletion = false)
     {
         index = 0;
         var levels = new List<AwkExpressionSyntax>();
@@ -579,7 +582,7 @@ internal sealed class AwkRegionCompiler
         for (var depth = 0; depth < levels.Count; depth++)
         {
             if (!ArrayKey(levels[^(depth + 1)].Children, 1, out var key)) return false;
-            Emit(new(AwkRegionInstructionKind.PathKey, path, key, depth));
+            Emit(new(AwkRegionInstructionKind.PathKey, path, key, depth, deletion ? 1 : 0));
             if (_operands[key] is { Kind: AwkRegionOperandKind.KeyBuilder } builder)
             {
                 Emit(new(AwkRegionInstructionKind.KeyEnd, builder.Index));
@@ -619,8 +622,8 @@ internal sealed class AwkRegionCompiler
     private bool Membership(AwkExpressionSyntax syntax, out int result)
     {
         result = 0;
-        if (!AwkExpressionSyntaxFacts.TryGetIdentifier(syntax.Children[1], out var array) ||
-            _scope.IsReservedVariable(array.Name)) return false;
+        var named = AwkExpressionSyntaxFacts.TryGetIdentifier(syntax.Children[1], out var array);
+        if (named ? _scope.IsReservedVariable(array.Name) : syntax.Children[1].Kind != AwkExpressionKind.ArrayElement) return false;
         var index = syntax.Children[0];
         if (index.Kind == AwkExpressionKind.Group && index.FirstChild is { Kind: AwkExpressionKind.ExpressionList } tuple)
             index = tuple;
@@ -630,12 +633,57 @@ internal sealed class AwkRegionCompiler
             if (!ArrayKey(index.Children, 0, out key)) return false;
         }
         else if (!Expression(index, out key)) return false;
+        if (!named)
+        {
+            // Finish key conversion before the RHS can mutate fields, CONVFMT or
+            // the key's owner. Keep bytes in existing funded scratch through calls.
+            if (_operands[key].Kind != AwkRegionOperandKind.KeyBuilder)
+            {
+                var builder = _activeBuilders++;
+                if (builder == _builderSeparators.Count) _builderSeparators.Add(_values++);
+                Emit(new(AwkRegionInstructionKind.KeyEnd, builder));
+                Emit(new(AwkRegionInstructionKind.KeyAppend, builder, key));
+                key = Operand(AwkRegionOperandKind.KeyBuilder, builder);
+            }
+            if (!NestedAccess(syntax.Children[1], out var nested)) return false;
+            var found = _numbers++;
+            Emit(new(AwkRegionInstructionKind.NestedContains, found, _arrays[nested].Path, _operands[key].Index));
+            FinishKey(nested);
+            Emit(new(AwkRegionInstructionKind.KeyEnd, _operands[key].Index));
+            _activeBuilders--;
+            result = Operand(AwkRegionOperandKind.NumberTemporary, found);
+            return true;
+        }
         var access = _arrays.Count;
         _arrays.Add(new(new(array.Identifier), _scope.GetArrayBinding(array.Identifier), key));
         var number = _numbers++;
         Emit(new(AwkRegionInstructionKind.ArrayContains, number, access));
         FinishKey(access);
         result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        return true;
+    }
+
+    private bool Delete(AwkExpressionSyntax syntax)
+    {
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var name))
+        {
+            if (_scope.IsReservedVariable(name.Name)) return false;
+            var site = _arrays.Count;
+            _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
+            Emit(new(AwkRegionInstructionKind.ArrayClear, site));
+            return true;
+        }
+        if (syntax.Kind != AwkExpressionKind.ArrayElement || syntax.Children.Count < 2) return false;
+        if (syntax.Children[0].Kind == AwkExpressionKind.ArrayElement)
+        {
+            if (!NestedAccess(syntax, out var access, deletion: true)) return false;
+            Emit(new(AwkRegionInstructionKind.PathDelete, _arrays[access].Path));
+            FinishKey(access);
+            return true;
+        }
+        if (!ArrayAccess(syntax, out var flat)) return false;
+        Emit(new(AwkRegionInstructionKind.ArrayDelete, flat));
+        FinishKey(flat);
         return true;
     }
 

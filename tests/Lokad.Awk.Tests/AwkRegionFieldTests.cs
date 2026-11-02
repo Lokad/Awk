@@ -4,7 +4,7 @@ public sealed class AwkRegionFieldTests
 {
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership", "nested-read", "nested-simple", "nested-compound" })
+        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership", "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete" })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -26,6 +26,8 @@ public sealed class AwkRegionFieldTests
             "nested-read" => "{i=1;a[\"0007\",\"tag\"][11]=\"kept\";text=a[$i,\"tag\"][read()];print text,$0,i;next}",
             "nested-simple" => "{i=1;a[$i,\"tag\"][read()]=\"saved\";print a[\"0007\",\"tag\"][11],$0,i;next}",
             "nested-compound" => "{i=1;a[\"0007\"][\"leaf\"]=7;a[$i][\"leaf\"]+=read();print a[\"0007\"][\"leaf\"],$0,i;next}",
+            "nested-membership" => "{i=1;SUBSEP=\":\";a[\"r\"][\"0007:tag\"]=1;found=(($i,\"tag\") in a[(read()>0?\"r\":\"x\")]);print found,$0,i;next}",
+            "nested-delete" => "{i=1;a[\"0007\",\"tag\"][11]=1;delete a[$i,\"tag\"][read()];print (11 in a[\"0007\",\"tag\"]),$0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
@@ -79,7 +81,8 @@ public sealed class AwkRegionFieldTests
                 "multi" => "0007 11 old\n",
                 "printf" => "[0007][11][old]\n",
                 "substr" or "sprintf" => "0007 100 old 2\n",
-                "index" or "membership" => "1 100 old 2\n",
+                "index" or "membership" or "nested-membership" => "1 100 old 2\n",
+                "nested-delete" => "0 100 old 2\n",
                 "nested-read" => "kept 100 old 2\n",
                 "nested-simple" => "saved 100 old 2\n",
                 "nested-compound" => "18 100 old 2\n",

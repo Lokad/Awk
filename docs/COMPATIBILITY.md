@@ -325,6 +325,8 @@ cover the supported boundaries; compound SUBSEP keys remain distinct from child 
 Array-taking builtins reject ancestor/descendant operands. A child target removed by a
 later argument fails explicitly rather than accepting a detached write. Scalar/array
 conflicts also fail; this does not introduce array assignment or array-valued returns.
+Nested membership evaluates the key before the array operand. GNU evaluates the nested
+array operand first, so side effects on fields, `CONVFMT` or `SUBSEP` can change the result.
 
 ## Deferred and excluded capabilities
 

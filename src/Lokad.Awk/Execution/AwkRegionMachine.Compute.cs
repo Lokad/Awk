@@ -222,11 +222,29 @@ internal partial struct AwkRegionMachine
                     storage.BeginPath(instruction.Target, region.Paths[instruction.Target]);
                     break;
                 case AwkRegionInstructionKind.PathKey:
-                    var pathKey = operands[instruction.Left];
-                    storage.Path(instruction.Target).Append(state, instruction.Right,
-                        pathKey.Kind == AwkRegionOperandKind.KeyBuilder
-                            ? new AwkArrayKey(storage.Builders[pathKey.Index].CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
-                            : state.ToArrayKey(Value(instruction.Left)));
+                    var capturedKey = CaptureKey(instruction.Left);
+                    var capturedPath = storage.Path(instruction.Target);
+                    if (instruction.Detail == 0) capturedPath.Append(state, instruction.Right, capturedKey);
+                    else capturedPath.CaptureKey(state, instruction.Right, capturedKey);
+                    break;
+                case AwkRegionInstructionKind.NestedContains:
+                    var membershipPath = storage.Path(instruction.Left);
+                    var membershipOwner = state.GetSubarray(membershipPath.ResolveOwner(state), membershipPath.Key);
+                    numbers[instruction.Target] = membershipOwner.Slots.GetAlternateLookup<ReadOnlySpan<byte>>()
+                        .ContainsKey(storage.Builders[instruction.Right].AsMemory().Span) ? 1 : 0;
+                    break;
+                case AwkRegionInstructionKind.ArrayDelete:
+                    var deleted = arrays[instruction.Target];
+                    var deletedKey = CaptureKey(deleted.Key);
+                    state.ThrowIfCancellationRequested();
+                    state.DeleteArrayValue(deleted.Name, deletedKey);
+                    break;
+                case AwkRegionInstructionKind.ArrayClear:
+                    state.ThrowIfCancellationRequested();
+                    state.ClearArray(arrays[instruction.Target].Name);
+                    break;
+                case AwkRegionInstructionKind.PathDelete:
+                    storage.Path(instruction.Target).Delete(state);
                     break;
                 case AwkRegionInstructionKind.PathEnd:
                     storage.ReleasePath(instruction.Target);
@@ -525,6 +543,10 @@ internal partial struct AwkRegionMachine
                 _ => throw new InvalidOperationException("Unknown bound region operand.")
             };
         }
+
+        AwkArrayKey CaptureKey(int index) => operands[index] is { Kind: AwkRegionOperandKind.KeyBuilder } builder
+            ? new AwkArrayKey(storage.Builders[builder.Index].CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
+            : state.ToArrayKey(Value(index));
 
         AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
         {

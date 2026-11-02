@@ -183,6 +183,16 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("a 3\nb 2\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-sorted-child-parameter", ["function f(p,k){for(k in p)print k,p[k]} BEGIN{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\";a[1][\"b\"]=2;a[1][\"a\"]=3;f(a[1])}"], [])
             .WithStdOut("a 3\nb 2\n").Build(),
+        // Preserve the existing key-before-owner behavior during execution migration.
+        // GNU 5.3.2 instead evaluates this nested owner first (both results are0).
+        AwkGoldenCaseBuilder.Create("nested-array-membership-key-conversion-order", ["function parent(){CONVFMT=\"%.1f\";return \"r\"}BEGIN{CONVFMT=\"%.3f\";a[\"r\"][\"0.125\"]=1;print (0.125 in a[parent()]),CONVFMT}"], [])
+            .WithStdOut("1 %.1f\n").Build(),
+        AwkGoldenCaseBuilder.Create("nested-array-membership-separator-order", ["function parent(){SUBSEP=\"!\";return \"r\"}BEGIN{SUBSEP=\":\";a[\"r\"][\"0007:tag\"]=1;print ((\"0007\",\"tag\") in a[parent()]),SUBSEP}"], [])
+            .WithStdOut("1 !\n").Build(),
+        AwkGoldenCaseBuilder.Create("nested-array-delete-evaluates-before-search", ["function first(){print \"first\",(1 in a);return 1}function last(){print \"last\",(1 in a);return 2}BEGIN{delete a[first()][last()];print (1 in a),length(a)}"], [])
+            .WithStdOut("first 0\nlast 0\n0 0\n").Build(),
+        AwkGoldenCaseBuilder.Create("nested-array-delete-final-index-creates-entry", ["function last(){a[1][2]=3;return 2}BEGIN{delete a[1][last()];print length(a[1])}"], [])
+            .WithStdOut("0\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-delete-leaf", ["BEGIN{a[1][2]=3;delete a[1][2];print isarray(a[1]),length(a[1])}"], [])
             .WithStdOut("1 0\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-delete-missing-path", ["BEGIN{delete a[1][2];print (1 in a),isarray(a[1]),length(a[1])}"], [])

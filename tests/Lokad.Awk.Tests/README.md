@@ -32,6 +32,9 @@ per lookup, no insertion on misses, and live prefixes across pending calls and r
 Nested read/assignment/update cases include composite prefixes captured before a pending key
 or RHS call changes the record. They check actual pending funding, cancellation and cleanup;
 independent storage cases retain intermediate-child refusal and detached-owner repair coverage.
+Nested membership keeps the existing key-before-owner contract across suspended owner indices.
+Deletion evaluates every key before searching and does not create missing children; pinned
+GNU checks cover that distinction. Membership order has a documented GNU difference.
 
 ## Golden Corpus
 
