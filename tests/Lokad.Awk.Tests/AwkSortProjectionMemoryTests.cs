@@ -213,33 +213,38 @@ public sealed class AwkSortProjectionMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void LeasedPrintfResultCopyObservesCancellationAndReleasesBothOwners(bool observed, bool duringCopy)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LeasedPrintfResultAdmissionCancellationKeepsOwnersFundedUntilRetirement(bool observed)
     {
         using var memoryForState = State(observed, "default", "@val_str_asc");
         var state = memoryForState.State;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
-        var copyCalls = 0;
-        void Checkpoint()
+        var copyAdmitted = false;
+        memoryForState.Budget.OnGrowth = _ =>
         {
-            if (counters.Utf8Encodes == 1 && ++copyCalls == (duringCopy ? 3 : 1))
-                cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        using (var lease = state.MemoryAccounting.CreateTransientLease())
+            if (state.MemoryAccounting.CurrentCommittedBytes < baseline + 20000) return;
+            copyAdmitted = true;
+            cancellation.Cancel();
+        };
+        try
         {
-            var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-                "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters), PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting, checkpoint: Checkpoint, retainedTextLease: lease));
-            Assert.Equal(cancellation.Token, failure.CancellationToken);
-            Assert.Equal(duringCopy ? 3 : 1, copyCalls);
-            Assert.Equal(baseline + AwkRuntimeMemory.EstimateTextBytes(20_000), state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            using (var lease = state.MemoryAccounting.CreateTransientLease())
+            {
+                var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
+                    "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
+                    PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting,
+                    checkpoint: cancellation.Token.ThrowIfCancellationRequested, retainedTextLease: lease));
+                Assert.Equal(cancellation.Token, failure.CancellationToken);
+                Assert.True(copyAdmitted);
+                Assert.Equal(0, counters.AwkTextAllocations);
+                Assert.Equal(baseline + AwkRuntimeMemory.EstimateTextBytes(20_000), state.MemoryAccounting.CurrentCommittedBytes);
+                Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            }
         }
+        finally { memoryForState.Budget.OnGrowth = null; }
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
     }
 

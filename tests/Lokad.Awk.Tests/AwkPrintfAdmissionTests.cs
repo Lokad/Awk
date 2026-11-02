@@ -130,7 +130,7 @@ public sealed class AwkPrintfAdmissionTests
             Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
             Assert.Equal(committed, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(1, counters.Utf8Encodes);
+            Assert.Equal(0, counters.Utf8Encodes);
             Assert.Equal(0, counters.StringDecodes);
         }
         Assert.Equal(0, accounting.CurrentCommittedBytes);

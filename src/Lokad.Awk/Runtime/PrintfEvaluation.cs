@@ -190,8 +190,6 @@ internal static class PrintfEvaluation
         }
 
         checkpoint?.Invoke();
-        if (builder.Length > 0)
-            counters.RecordUtf8Encode();
 
         static void AppendInteger(
             PrintfByteOutput output, double number, PrintfConversion conversion, PrintfFlags flags,
@@ -661,6 +659,7 @@ internal static class PrintfEvaluation
             if (longText)
                 _checkpoint?.Invoke();
             _builder.AppendUtf8(text);
+            if (!text.IsEmpty) _counters.RecordUtf8Encode();
             if (longText)
                 _checkpoint?.Invoke();
         }

@@ -23,7 +23,6 @@ public sealed class AwkPrintfFormattingTests
                 counters, memory.Accounting);
             Assert.Equal(expected.ToArray(), builder.AsSpan().ToArray());
             Assert.Equal(0, counters.StringDecodes);
-            Assert.Equal(1, counters.Utf8Encodes); // The integer directive; literal runs add no text objects.
             Assert.Equal(0, counters.AwkTextAllocations);
             Assert.Equal(0, counters.FormattingStringInteropInputs);
         }

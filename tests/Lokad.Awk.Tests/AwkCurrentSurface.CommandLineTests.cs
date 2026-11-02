@@ -395,7 +395,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Equal("00073.5\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.FormattingFallbacks);
         Assert.Equal(2, counters.FormattingStringInteropInputs);
-        Assert.Equal(2, counters.Utf8Encodes);
+        // printf copies its already-encoded argument; only formatting the
+        // integer digits crosses from UTF-16 to UTF-8.
+        Assert.Equal(1, counters.Utf8Encodes);
         Assert.True(counters.AwkTextAsStringCalls <= counters.FormattingStringInteropInputs);
     }
 

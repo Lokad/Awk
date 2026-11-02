@@ -139,3 +139,6 @@ unsuccessful results. Refresh the full catalog at coherent architectural or rele
 Judge useful gains and control costs together; a modest control regression is no veto.
 Preserve the full correctness suite. See [runtime integration](RUNTIME.md) and
 [compatibility boundaries](COMPATIBILITY.md).
+
+Counter diagnostics distinguish field descriptors from owned text and count actual
+UTF-16-to-UTF-8 encoding; copying existing field bytes into output is not an encoding.

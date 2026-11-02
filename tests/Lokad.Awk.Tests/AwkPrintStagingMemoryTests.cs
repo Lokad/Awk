@@ -275,23 +275,31 @@ public sealed partial class AwkPrintStagingMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void UnleasedPrintfResultCopiesCheckDuringCopying(bool observed)
+    public void UnleasedPrintfResultAdmissionCancellationReleasesFormatting(bool observed)
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
-        var callsDuringCopy = 0;
-        void Checkpoint()
+        var copyAdmitted = false;
+        memoryForState.Budget.OnGrowth = _ =>
         {
-            if (counters.Utf8Encodes == 1 && ++callsDuringCopy == 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
+            if (state.MemoryAccounting.CurrentCommittedBytes < baseline + 20000) return;
+            copyAdmitted = true;
+            cancellation.Cancel();
+        };
+        OperationCanceledException failure;
+        try
+        {
+            failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
+                "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
+                PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting, checkpoint: cancellation.Token.ThrowIfCancellationRequested));
         }
-        var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-            "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters), PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting, checkpoint: Checkpoint));
+        finally { memoryForState.Budget.OnGrowth = null; }
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(3, callsDuringCopy);
+        Assert.True(copyAdmitted);
+        Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
