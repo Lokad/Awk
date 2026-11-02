@@ -32,6 +32,7 @@ internal sealed class AwkFunctionRuntime
     }
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
+    internal AwkFunctionFrame CurrentFrame => _calls.CurrentFrame;
 
     public AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _calls.EnterGlobalBindings();
 
@@ -51,6 +52,11 @@ internal sealed class AwkFunctionRuntime
 
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
         _calls.PushFrame(layout, arguments);
+
+    internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout, int arguments) => _calls.PrepareFrame(layout, arguments);
+    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument) => _calls.StageArgument(frame, index, argument);
+    internal void ActivateFrame(AwkFunctionFrame frame) => _calls.ActivateFrame(frame);
+    internal void DiscardIncomingFrame(AwkFunctionFrame frame) => _calls.DiscardIncomingFrame(frame);
 
     public void PopFrame() =>
         _calls.PopFrame(_removeFunctionLocalArray);

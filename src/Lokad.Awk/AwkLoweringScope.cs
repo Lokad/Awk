@@ -33,6 +33,7 @@ internal sealed class AwkLoweringScope
 
     internal IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? SynchronousFunctions { get; }
     internal IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? Functions { get; }
+    internal bool IsFunction => _hasFunctionLocals;
 
     public static AwkLoweringScope Function(AwkFunctionLocalLayout functionLocals,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,

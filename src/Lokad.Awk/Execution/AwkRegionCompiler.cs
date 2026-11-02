@@ -13,6 +13,11 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
     private readonly List<int> _builderSeparators = [];
+    private readonly List<AwkRegionCall> _calls = [];
+    private readonly List<AwkStatement> _hostStatements = [];
+    private readonly List<AwkExpression> _hostExpressions = [];
+    private int _activeCalls;
+    private int _incomingCalls;
     private int _activeBuilders;
     private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
@@ -36,7 +41,8 @@ internal sealed class AwkRegionCompiler
         }
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
             compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._arrays.ToArray(),
-            compiler._numbers, compiler._values, compiler._targets, compiler._builderSeparators.Count);
+            compiler._numbers, compiler._values, compiler._targets, compiler._builderSeparators.Count,
+            compiler._calls.ToArray(), compiler._incomingCalls, compiler._hostStatements.ToArray(), compiler._hostExpressions.ToArray(), scope.IsFunction);
         return true;
     }
 
@@ -81,6 +87,28 @@ internal sealed class AwkRegionCompiler
                     Emit(new(AwkRegionInstructionKind.StatementBoundary));
                     Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)(statement.Kind == AwkStatementKind.Next
                         ? AwkStatementFlow.NextRecord : AwkStatementFlow.NextFile)));
+                    break;
+                case AwkStatementKind.Return when _scope.IsFunction:
+                    var returned = -1;
+                    if (statement.Expression.TryGetValue(out var returning))
+                    {
+                        if (!Expression(returning, out var operand)) return false;
+                        returned = CaptureValue(operand);
+                    }
+                    Emit(new(AwkRegionInstructionKind.Return, Left: returned));
+                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
+                    Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)AwkStatementFlow.ReturnFunction));
+                    break;
+                case AwkStatementKind.Print:
+                case AwkStatementKind.Printf:
+                case AwkStatementKind.Getline:
+                    // Migration boundary: retain the existing host primitive and its
+                    // operand semantics until I/O operand lowering moves in Stage C.
+                    var host = AwkStatementLowerer.LowerList([statement], _scope);
+                    if (!host.Succeeded || host.Value.Count != 1) return false;
+                    var hostIndex = _hostStatements.Count;
+                    _hostStatements.Add(host.Value[0]);
+                    Emit(new(AwkRegionInstructionKind.HostStatement, Left: hostIndex));
                     break;
                 default: return false;
             }
@@ -138,7 +166,7 @@ internal sealed class AwkRegionCompiler
         return true;
     }
 
-    private bool Expression(AwkExpressionSyntax syntax, out int result)
+    private bool Expression(AwkExpressionSyntax syntax, out int result, bool argument = false)
     {
         _scope.CheckCancellation();
         result = 0;
@@ -146,7 +174,7 @@ internal sealed class AwkRegionCompiler
         switch (syntax.Kind)
         {
             case AwkExpressionKind.Group when syntax.Children.Count == 1:
-                return Expression(syntax.Children[0], out result);
+                return Expression(syntax.Children[0], out result, argument);
             case AwkExpressionKind.Number:
                 if (!AwkExpressionLowerer.TryReadSwitchConstant(syntax, _scope, out var number)) return false;
                 result = Constant(number.AsNumber());
@@ -169,7 +197,7 @@ internal sealed class AwkRegionCompiler
                     // A reusable key buffer must be consumed before another access
                     // can reuse it. The captured scalar preserves its own spelling.
                     var captured = _values++;
-                    Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access));
+                    Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access, Detail: argument ? 1 : 0));
                     FinishKey(access);
                     result = Operand(AwkRegionOperandKind.ValueTemporary, captured);
                 }
@@ -177,6 +205,8 @@ internal sealed class AwkRegionCompiler
                 return true;
             case AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
                 return Assignment(syntax, out result);
+            case AwkExpressionKind.FunctionCall:
+                return Call(syntax, out result);
             case AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
                 return Binary(syntax, out result);
             case AwkExpressionKind.Unary when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1:
@@ -186,17 +216,51 @@ internal sealed class AwkRegionCompiler
                 if (!Expression(syntax.Children[0], out var test)) return false;
                 var alternate = Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: test));
                 var target = _values++;
-                if (!Expression(syntax.Children[1], out var first)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, target, first));
+                if (!Expression(syntax.Children[1], out var first, argument)) return false;
+                Emit(new(AwkRegionInstructionKind.Value, target, first, Detail: argument ? 1 : 0));
                 var end = Emit(new(AwkRegionInstructionKind.Jump));
                 Patch(alternate, Label());
-                if (!Expression(syntax.Children[2], out var second)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, target, second));
+                if (!Expression(syntax.Children[2], out var second, argument)) return false;
+                Emit(new(AwkRegionInstructionKind.Value, target, second, Detail: argument ? 1 : 0));
                 Patch(end, Label());
                 result = Operand(AwkRegionOperandKind.ValueTemporary, target);
                 return true;
             default: return false;
         }
+    }
+
+    private bool Call(AwkExpressionSyntax syntax, out int result)
+    {
+        result = 0;
+        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target)) return false;
+        if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline))
+        {
+            if (!AwkExpressionLowerer.TryLower(syntax, _scope, out var expression)) return false;
+            var hostIndex = _hostExpressions.Count;
+            _hostExpressions.Add(expression);
+            var value = _values++;
+            Emit(new(AwkRegionInstructionKind.HostExpression, value, hostIndex));
+            result = Operand(AwkRegionOperandKind.ValueTemporary, value);
+            return true;
+        }
+        if (_scope.Functions is not { } functions ||
+            !functions.TryGetValue(new AwkFunctionName(target.Identifier), out var function)) return false;
+        var slot = _activeCalls++;
+        _incomingCalls = Math.Max(_incomingCalls, _activeCalls);
+        var call = _calls.Count;
+        _calls.Add(new(function, slot, syntax.Children.Count - 1));
+        Emit(new(AwkRegionInstructionKind.BeginCall, Left: call));
+        for (var index = 1; index < syntax.Children.Count; index++)
+        {
+            if (!Expression(syntax.Children[index], out var value, argument: true)) return false;
+            Emit(new(AwkRegionInstructionKind.Argument, call, value, index - 1,
+                syntax.Children[index].Kind == AwkExpressionKind.Group ? 1 : 0));
+        }
+        var returned = _values++;
+        Emit(new(AwkRegionInstructionKind.Call, returned, call));
+        _activeCalls--;
+        result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
+        return true;
     }
 
     private bool Assignment(AwkExpressionSyntax syntax, out int result)
@@ -398,12 +462,12 @@ internal sealed class AwkRegionCompiler
         if (!AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier) ||
             _scope.IsReservedVariable(identifier.Name) || AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length)) return false;
         var name = new AwkVariableName(identifier.Identifier);
-        if (_scope.TryGetFunctionLocalSlot(name, out _)) return false; // Stage B call-frame migration follows.
         if (!_variableIndices.TryGetValue(name, out index))
         {
             index = _variables.Count;
             _variableIndices.Add(name, index);
-            _variables.Add(new(name, _scope.TryGetGlobalReadIndex(name, out var global) ? global : -1));
+            var local = _scope.TryGetFunctionLocalSlot(name, out var slot) ? slot.Index : -1;
+            _variables.Add(new(name, local < 0 && _scope.TryGetGlobalReadIndex(name, out var global) ? global : -1, local));
         }
         return true;
     }

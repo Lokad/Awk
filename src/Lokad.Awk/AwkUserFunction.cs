@@ -10,6 +10,14 @@ internal sealed class AwkUserFunction
     // Preparation finishes before the program is published to any execution.
     private AwkStatement[] _statements = [];
     private AwkSynchronousFunction? _synchronous;
+    internal AwkRegion? Region { get; private set; }
+
+    internal void PrepareRegion(AwkRegion region)
+    {
+        Region = region;
+        _statements = [];
+        _synchronous = null;
+    }
 
     internal AwkUserFunction(AwkFunctionName name, AwkFunctionLocalLayout localLayout)
     {
@@ -34,9 +42,12 @@ internal sealed class AwkUserFunction
 
     internal bool TryPrepareSynchronousBody(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        out AwkStatement[] body, out int depth, out int calls, Action? checkpoint) =>
-        AwkStatementBlockExecutor.TryPrepareComputation(_statements, functions, 16,
+        out AwkStatement[] body, out int depth, out int calls, Action? checkpoint)
+    {
+        if (Region is not null) { body = []; depth = calls = 0; return false; }
+        return AwkStatementBlockExecutor.TryPrepareComputation(_statements, functions, 16,
             out body, out depth, out calls, checkpoint);
+    }
 
     public AwkFunctionName FunctionName { get; }
 
@@ -169,45 +180,43 @@ internal sealed class AwkUserFunction
 
     private async ValueTask<AwkValue> InvokeFrameAsync(AwkEvaluationContext context)
     {
+        try { return await ExecuteBodyAsync(context, context.State.CurrentFunctionFrame).ConfigureAwait(false); }
+        finally { context.State.PopFunctionFrame(); }
+    }
+
+    // The caller owns activation/unwinding. During migration this also serves the
+    // remaining host/statement bodies; there is one argument binder and frame owner.
+    internal async ValueTask<AwkValue> ExecuteBodyAsync(AwkEvaluationContext context, AwkFunctionFrame frame)
+    {
         var state = context.State;
-        try
+        AwkStatementFlow flow;
+        if (Region is { } region)
         {
-            if (_statements.Length == 0)
-                return AwkValue.Unassigned();
-
-            if (!context.TryGetExecutionContext(out var execution))
-                return AwkValue.Unassigned();
-
+            flow = context.TryGetExecutionContext(out var execution)
+                ? await region.ExecuteAsync(state, frame.GetRegionStorage(state), execution.Output, execution.Io).ConfigureAwait(false)
+                : region.Execute(state, frame.GetRegionStorage(state));
+        }
+        else
+        {
+            if (_statements.Length == 0 || !context.TryGetExecutionContext(out var execution)) return AwkValue.Unassigned();
             if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
                 state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
-                state.FieldsCannotReportRegexDiagnostics &&
-                !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())
+                state.FieldsCannotReportRegexDiagnostics && !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())
                 return prepared.EvaluateBody(context);
-
-            var flow = await AwkStatementBlockExecutor
-                .ExecuteAsync(_statements, context)
-                .ConfigureAwait(false);
-            if (flow == AwkStatementFlow.ReturnFunction)
-                return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.Unassigned();
-
-            if (flow is AwkStatementFlow.BreakLoop or AwkStatementFlow.ContinueLoop)
-                throw new AwkRuntimeException(flow == AwkStatementFlow.BreakLoop
-                    ? AwkMessages.ErrorBreakOutsideLoop
-                    : AwkMessages.ErrorContinueOutsideLoop);
-
-            if (flow is AwkStatementFlow.NextRecord or AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
-            {
-                state.ValidateFunctionFlow(flow);
-                throw new AwkFunctionFlowSignal(flow);
-            }
-
-            return AwkValue.Unassigned();
+            flow = await AwkStatementBlockExecutor.ExecuteAsync(_statements, context).ConfigureAwait(false);
         }
-        finally
+        if (flow == AwkStatementFlow.ReturnFunction)
+            return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.Unassigned();
+        if (flow is AwkStatementFlow.BreakLoop or AwkStatementFlow.ContinueLoop)
+            throw new AwkRuntimeException(flow == AwkStatementFlow.BreakLoop ? AwkMessages.ErrorBreakOutsideLoop : AwkMessages.ErrorContinueOutsideLoop);
+        if (flow is AwkStatementFlow.NextRecord or AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
         {
-            state.PopFunctionFrame();
+            state.ValidateFunctionFlow(flow);
+            throw new AwkFunctionFlowSignal(flow);
         }
+        return AwkValue.Unassigned();
     }
+
 }
 
 internal readonly struct AwkFunctionArgument

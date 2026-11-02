@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 
 namespace Lokad.Awk;
@@ -48,7 +47,7 @@ internal sealed class AwkFunctionFrame
     private AwkFunctionLocalSlot _secondSlot;
     private AwkFunctionLocalSlot[] _slots = [];
 
-    // Layout bounds are checked by the call stack; pooled arrays can be larger.
+    // The call stack owns exact-sized reusable backing for non-inline locals.
     public AwkFunctionLocalLayout Layout { get; private set; } = AwkFunctionLocalLayout.Empty;
 
     public bool UsesInlineSlots => Layout.SlotCount is 1 or 2;
@@ -69,33 +68,38 @@ internal sealed class AwkFunctionFrame
 
     public long RetainedMemoryBytes { get; set; }
 
+    internal bool IsIncoming { get; set; }
+    internal int IncomingArgumentCount { get; set; }
+    internal AwkRegionContinuation? Continuation { get; set; }
+    private AwkRegionStorage? _regionStorage;
+    internal AwkRegionStorage GetRegionStorage(AwkRuntimeState state) => _regionStorage ??= new(state);
+
     public long Id { get; private set; }
 
-    public void Initialize(long id, AwkFunctionLocalLayout layout, bool pooled)
+    public void Initialize(long id, AwkFunctionLocalLayout layout)
     {
         var slots = _slots;
-        if (pooled)
-            slots = layout.SlotCount <= 2 ? [] : ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
-        else if (layout.SlotCount > 2 && slots.Length == 0)
+        if (layout.SlotCount > 2 && slots.Length == 0)
             slots = new AwkFunctionLocalSlot[layout.SlotCount];
         Id = id;
         Layout = layout;
         _slots = slots;
     }
 
-    public AwkFunctionLocalSlot[] Reset(bool retainSlotBuffer)
+    public void Reset()
     {
-        var slots = _slots;
-        if (retainSlotBuffer) Array.Clear(slots);
+        Array.Clear(_slots);
         Layout = AwkFunctionLocalLayout.Empty;
-        if (!retainSlotBuffer) _slots = [];
         _firstSlot = default;
         _secondSlot = default;
         HasReturnValue = false;
         ReturnValue = AwkValue.Unassigned();
         RetainedMemoryBytes = 0;
+        IsIncoming = false;
+        IncomingArgumentCount = 0;
+        Continuation = null;
+        _regionStorage?.ClearValues();
         Id = 0;
-        return retainSlotBuffer ? [] : slots;
     }
 }
 

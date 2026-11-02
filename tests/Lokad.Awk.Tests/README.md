@@ -2,6 +2,11 @@
 
 The awk suite is intentionally split by boundary. New coverage should start in the narrowest layer that observes the behavior without depending on unrelated plumbing.
 
+`AwkRegionCallTests` checks iterative call continuations, genuinely pending host reads,
+cancellation and funded-frame cleanup. `AwkIncomingFrameTests` checks caller visibility,
+alias activation and admission before publication. During execution migration, preserve
+semantic assertions and measure removed transport rather than pinning old preparation routes.
+
 ## Golden Corpus
 
 `AwkGoldenCorpus` is the canonical behavior and diagnostic suite for the awk language surface. Add cases here for accepted awk programs, runtime behavior, compatibility-mode differences, diagnostics, host-policy errors surfaced through awk, and stderr/stdout ordering that is visible to awk callers.

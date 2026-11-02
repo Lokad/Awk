@@ -422,7 +422,17 @@ internal sealed class AwkRuntimeState : IDisposable
         _functions.PopFrame();
     }
 
+    internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout, int arguments) => _functions.PrepareFrame(layout, arguments);
+    internal void StageFunctionArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument) => _functions.StageArgument(frame, index, argument);
+    internal void ActivateFunctionFrame(AwkFunctionFrame frame)
+    {
+        _functions.ActivateFrame(frame);
+        if (frame.UsesInlineSlots) Counters.RecordInlineFunctionFrame();
+    }
+    internal void DiscardIncomingFunctionFrame(AwkFunctionFrame frame) => _functions.DiscardIncomingFrame(frame);
+
     public bool IsInsideFunction => _functions.IsInsideFunction;
+    internal AwkFunctionFrame CurrentFunctionFrame => _functions.CurrentFrame;
 
     internal AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _functions.EnterGlobalBindings();
 
@@ -846,6 +856,13 @@ internal sealed class AwkRuntimeState : IDisposable
         }
 
         return _variableRuntime.ResolveFunctionLocalValue(slotId, name);
+    }
+
+    internal bool TryResolveFunctionLocalNumber(AwkFunctionLocalSlotId slot, out double number)
+    {
+        if (!_functions.TryResolveLocalNumber(slot, out number)) return false;
+        Counters.RecordNumericLocalRead();
+        return true;
     }
 
     public void AssignPreparedGlobalValue(AwkVariableName name, int index, AwkValue value)

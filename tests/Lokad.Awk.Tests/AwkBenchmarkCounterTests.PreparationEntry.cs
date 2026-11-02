@@ -42,9 +42,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal((7 * count * records * iterations).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        if (shape == "flat") Assert.Equal(records, counters.SynchronousActionRuns);
-        else Assert.Equal(records, counters.SynchronousLoopRuns);
-        Assert.Equal(functions == "used" ? records * count * iterations : 0, counters.SynchronousFunctionRuns);
+        if (shape == "flat") Assert.Equal(records, counters.SynchronousActionRuns + counters.BoundRegionRuns);
+        else Assert.Equal(records, counters.SynchronousLoopRuns + counters.BoundRegionRuns);
+        Assert.Equal(functions == "used" ? records * count * iterations : 0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
         Assert.Equal(records, counters.NumericFieldByteParses);
         Assert.InRange(counters.AwkTextAllocations, 0, 2);
         Assert.Equal(0, counters.StringDecodes);

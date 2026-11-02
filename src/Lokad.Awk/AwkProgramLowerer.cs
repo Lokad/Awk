@@ -79,6 +79,15 @@ internal static partial class AwkProgramLowerer
             function.PrepareBody(body.Value);
         }
 
+        for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
+        {
+            var functionSyntax = syntax.Functions[functionIndex];
+            var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
+            if (AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements,
+                AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions), out var region))
+                function.PrepareRegion(region);
+        }
+
         var synchronousFunctions = AwkSynchronousFunction.Prepare(functions, checkpoint);
         var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, synchronousFunctions, functions);
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)

@@ -47,7 +47,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(records, counters.SynchronousActionRuns + counters.BoundRegionRuns);
         Assert.Equal(shape == "do" ? records : 0, counters.SynchronousLoopRuns);
         Assert.Equal(shape == "named-condition" ? 2 * records : shape == "named-body" ? records : 0,
-            counters.SynchronousFunctionRuns);
+            (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
         Assert.Equal(records * (shape is "fields" or "warm" ? 2 : 1), counters.NumericFieldByteParses);
         Assert.InRange(counters.AwkTextAllocations, shape == "escape" ? records : 0,
             shape == "escape" ? records + 4 : 2);

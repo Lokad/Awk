@@ -39,18 +39,17 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Fact]
     public void CompleteFunctionPreparationObservesConstructionCancellation()
     {
-        var program = Bind("function f(x){" + string.Join(';', Enumerable.Repeat("x++", 4097)) +
-            ";return x} BEGIN{}");
+        var source = "function f(x){" + string.Join(';', Enumerable.Repeat("x++", 4097)) + ";return x} BEGIN{}";
+        var syntax = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None).Syntax;
         using var cancellation = new CancellationTokenSource();
-        var functions = program.Functions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var visits = 0;
-        Assert.ThrowsAny<OperationCanceledException>(() => AwkSynchronousFunction.Prepare(functions, () =>
+        var scope = AwkLoweringScope.Function(new([AwkVariableName.FromText("x")]), checkpoint: () =>
         {
             if (++visits == 100) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
-        }));
-        Assert.Single(AwkSynchronousFunction.Prepare(functions, null) ??
-            throw new InvalidOperationException("Expected a prepared function."));
+        });
+        Assert.ThrowsAny<OperationCanceledException>(() => AwkRegionCompiler.TryCompile(syntax.Functions[0].BodyStatements, scope, out _));
+        Assert.NotNull(Bind(source).Functions[AwkFunctionName.FromText("f")].Region);
     }
 
     [Theory]
@@ -87,7 +86,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
                 await functions[name].InvokeAsync([], new(state, output, io)));
             Assert.Equal(20, iterations);
-            Assert.Equal(1, counters.SynchronousFunctionRuns);
+            Assert.Equal(1, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }

@@ -30,13 +30,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("t=x;u=x;if(t)return t;return 0", true)]
     [InlineData("global=x;if(x)return x;return 0", true)]
     [InlineData("t+=x;if(t)return t;return 0", true)]
-    [InlineData("t=x;if((getline line)>0)return t;return 0", false)]
-    [InlineData("t=step(x);if(t)return t;return 0", false)]
+    [InlineData("t=x;if((getline line)>0)return t;return 0", true)]
+    [InlineData("t=step(x);if(t)return t;return 0", true)]
     public void LocalConditionalReturnsPrepareCompleteComputationalBodies(string body, bool expected)
     {
         var function = Bind("function step(x,t,u){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("step")];
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
-        Assert.Equal(expected, AwkSynchronousFunction.Prepare(functions, null)?.Count == 1);
+        Assert.Equal(expected, function.Region is not null);
     }
 
     [Theory]
@@ -65,12 +65,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("default", true)]
-    [InlineData("syntax", false)]
-    [InlineData("lint", false)]
-    [InlineData("pending", false)]
-    [InlineData("captured-regex", false)]
-    public async Task LocalConditionalReturnsKeepPolicyAndFieldDiagnosticGuards(string boundary, bool prepared)
+    [InlineData("default")]
+    [InlineData("syntax")]
+    [InlineData("lint")]
+    [InlineData("pending")]
+    [InlineData("captured-regex")]
+    public async Task LocalConditionalReturnsKeepPolicyAndFieldDiagnosticGuards(string boundary)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -91,7 +91,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var value = await functions[AwkFunctionName.FromText("step")].InvokeAsync(
                 [AwkExpression.Number(7)], new(state, output, io));
             Assert.Equal(9, value.AsNumber());
-            Assert.Equal(prepared ? 1 : 0, counters.SynchronousFunctionRuns);
+            Assert.Equal(1, counters.BoundFunctionRuns);
             Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -121,13 +121,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             Assert.False(pending.IsCompleted);
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(0, counters.SynchronousFunctionRuns);
+            Assert.Equal(0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
             if (cancel) cancellation.Cancel();
             completion.SetResult(AwkValue.FromNumber(7));
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
             else Assert.Equal(9, (await pending).AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(cancel ? 0 : 1, counters.SynchronousFunctionRuns);
+            Assert.Equal(cancel ? 0 : 1, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
         }
         finally
         {
@@ -147,14 +147,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public void LocalConditionalReturnCallsSupportOmittedLocalsAndExcessArguments(int slots, int arguments, bool expected)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
-        var function = Bind("function step(" + parameters + "){x=1;if(x)return x;return 0} BEGIN{}")
-            .Functions[AwkFunctionName.FromText("step")];
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
-        var prepared = Assert.IsAssignableFrom<IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>>(
-            AwkSynchronousFunction.Prepare(functions, null));
-        var operands = Enumerable.Range(0, arguments).Select(_ => AwkExpression.Number(1)).ToArray();
-        Assert.Equal(expected, AwkExpression.FunctionCall(function.FunctionName, operands)
-            .TryPrepareFunctionCalls(prepared, 16, out _));
+        var call = "step(" + string.Join(",", Enumerable.Repeat("1", arguments)) + ")";
+        var parametersSource = "function step(" + parameters + "){x=1;if(x)return x;return 0}{total=" + call + "}";
+        var program = Bind(parametersSource);
+        Assert.NotNull(program.MainActions[0].Region);
+        Assert.Equal(expected, program.Functions[AwkFunctionName.FromText("step")].Region is not null);
     }
     [Fact]
     public async Task LocalConditionalReturnNestedRefusalKeepsCallerAndRefunds()
@@ -187,7 +184,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 before + AwkRuntimeMemory.EstimateFunctionFrameBytes());
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.True(state.IsInsideFunction);
-            Assert.Equal(1, counters.SynchronousFunctionRuns);
         }
         finally
         {

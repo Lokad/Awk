@@ -5,8 +5,10 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkRegionArrayAccess[] arrays,
-    int numberCount, int valueCount, int targetCount, int builderCount)
+    int numberCount, int valueCount, int targetCount, int builderCount,
+    AwkRegionCall[] calls, int incomingCount, AwkStatement[] hostStatements, AwkExpression[] hostExpressions, bool isFunction)
 {
+    internal bool IsFunction => isFunction;
     internal int NumberCount => numberCount;
     internal int ValueCount => valueCount;
     internal int TargetCount => targetCount;
@@ -15,27 +17,39 @@ internal sealed class AwkRegion(
 
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
     {
-        storage.Prepare(numberCount, valueCount, targetCount, builderCount);
-        InitializeConstants(state, storage.Numbers);
-        try { return Run(state, storage, 0, null).Flow; }
-        finally { storage.ClearValues(); }
+        var machine = new AwkRegionMachine(state, this, storage, null, null);
+        try
+        {
+            machine.Initialize();
+            if (!machine.Run()) throw new InvalidOperationException("A synchronous region cannot suspend.");
+            return machine.Flow;
+        }
+        finally { machine.Cleanup(); }
     }
 
     internal ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkRegionStorage storage,
         AwkOutputSink output, AwkIo io)
     {
-        storage.Prepare(numberCount, valueCount, targetCount, builderCount);
-        InitializeConstants(state, storage.Numbers);
-        state.Counters.RecordBoundRegionRun();
+        var machine = new AwkRegionMachine(state, this, storage, output, io);
         try
         {
-            var result = Run(state, storage, 0, output);
-            if (result.NeedsFlush) return ResumeAsync(state, storage, output, io, result.Position);
-            storage.ClearValues();
-            return ValueTask.FromResult(result.Flow);
+            machine.Initialize();
+            if (!machine.Run()) return AwkRegionMachine.ResumeAsync(machine);
+            machine.Cleanup();
+            return ValueTask.FromResult(machine.Flow);
         }
-        catch { storage.ClearValues(); throw; }
+        catch { machine.Cleanup(); throw; }
     }
+
+    internal void Initialize(AwkRuntimeState state, AwkRegionStorage storage)
+    {
+        storage.Prepare(numberCount, valueCount, targetCount, builderCount, incomingCount);
+        InitializeConstants(state, storage.Numbers);
+    }
+
+    internal AwkRegionCall Call(int index) => calls[index];
+    internal AwkStatement HostStatement(int index) => hostStatements[index];
+    internal AwkExpression HostExpression(int index) => hostExpressions[index];
 
     private void InitializeConstants(AwkRuntimeState state, double[] numbers)
     {
@@ -47,24 +61,7 @@ internal sealed class AwkRegion(
         }
     }
 
-    private async ValueTask<AwkStatementFlow> ResumeAsync(AwkRuntimeState state, AwkRegionStorage storage,
-        AwkOutputSink output, AwkIo io, int position)
-    {
-        try
-        {
-            while (true)
-            {
-                await output.FlushAsync(io).ConfigureAwait(false);
-                state.ThrowIfCancellationRequested();
-                var result = Run(state, storage, position, output);
-                if (!result.NeedsFlush) return result.Flow;
-                position = result.Position;
-            }
-        }
-        finally { storage.ClearValues(); }
-    }
-
-    private RegionResult Run(AwkRuntimeState state, AwkRegionStorage storage, int start, AwkOutputSink? output)
+    internal AwkRegionResult Run(AwkRuntimeState state, AwkRegionStorage storage, int start, AwkOutputSink? output)
     {
         var numbers = storage.Numbers;
         for (var position = start; position < instructions.Length; position++)
@@ -76,13 +73,13 @@ internal sealed class AwkRegion(
                     state.ThrowIfCancellationRequested();
                     break;
                 case AwkRegionInstructionKind.StatementBoundary:
-                    if (output is { HasPendingOutput: true }) return new(position + 1, true);
+                    if (output is { HasPendingOutput: true }) return new(position + 1, Boundary: AwkRegionBoundary.Flush);
                     break;
                 case AwkRegionInstructionKind.Number:
                     numbers[instruction.Target] = Number(instruction.Left);
                     break;
                 case AwkRegionInstructionKind.Value:
-                    storage.StoreValue(instruction.Target, Value(instruction.Left));
+                    storage.StoreValue(instruction.Target, Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.ReleaseValue:
                     storage.ReleaseValue(instruction.Target);
@@ -107,7 +104,7 @@ internal sealed class AwkRegion(
                     storage.Builders[instruction.Target].Clear();
                     break;
                 case AwkRegionInstructionKind.ArrayRead:
-                    storage.StoreValue(instruction.Target, ReadArray(arrays[instruction.Left]));
+                    storage.StoreValue(instruction.Target, ReadArray(arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Arithmetic:
                     numbers[instruction.Target] = AwkNumericOperations.Apply(
@@ -138,7 +135,9 @@ internal sealed class AwkRegion(
                     // A region poll cannot replace the check before an observable store.
                     state.ThrowIfCancellationRequested();
                     var variable = variables[instruction.Target];
-                    if (variable.GlobalIndex >= 0)
+                    if (variable.LocalIndex >= 0)
+                        state.AssignFunctionLocalValue(new(variable.LocalIndex), variable.Name, value);
+                    else if (variable.GlobalIndex >= 0)
                         state.AssignPreparedGlobalValue(variable.Name, variable.GlobalIndex, value);
                     else
                         state.AssignVariableValue(variable.Name, value);
@@ -168,6 +167,28 @@ internal sealed class AwkRegion(
                     state.ThrowIfCancellationRequested();
                     state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
                     break;
+                case AwkRegionInstructionKind.BeginCall:
+                    state.ThrowIfCancellationRequested();
+                    storage.BeginCall(calls[instruction.Left]);
+                    break;
+                case AwkRegionInstructionKind.Argument:
+                    var call = calls[instruction.Target];
+                    var operand = operands[instruction.Left];
+                    AwkFunctionArgument argument;
+                    if (instruction.Detail == 0 && operand.Kind == AwkRegionOperandKind.Variable && TryArrayArgument(variables[operand.Index], out argument)) { }
+                    else argument = AwkFunctionArgument.FromValue(call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right) && operand.Kind == AwkRegionOperandKind.Field
+                        ? state.GetFieldArithmeticArgument(operand.Index) : Value(instruction.Left));
+                    state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
+                    break;
+                case AwkRegionInstructionKind.Call:
+                    return new(position + 1, Boundary: AwkRegionBoundary.Call, Index: instruction.Left, Destination: instruction.Target);
+                case AwkRegionInstructionKind.HostStatement:
+                    return new(position + 1, Boundary: AwkRegionBoundary.HostStatement, Index: instruction.Left);
+                case AwkRegionInstructionKind.HostExpression:
+                    return new(position + 1, Boundary: AwkRegionBoundary.HostExpression, Index: instruction.Left, Destination: instruction.Target);
+                case AwkRegionInstructionKind.Return:
+                    state.SetFunctionReturnValue(instruction.Left < 0 ? AwkValue.Unassigned() : Value(instruction.Left));
+                    break;
                 case AwkRegionInstructionKind.Jump:
                     position = instruction.Target - 1;
                     break;
@@ -176,12 +197,12 @@ internal sealed class AwkRegion(
                     break;
                 case AwkRegionInstructionKind.Flow:
                     state.ThrowIfCancellationRequested();
-                    return new(instructions.Length, false, (AwkStatementFlow)instruction.Detail);
+                    return new(instructions.Length, (AwkStatementFlow)instruction.Detail);
                 default:
                     throw new InvalidOperationException("Unknown bound region operation.");
             }
         }
-        return new(instructions.Length, false);
+        return new(instructions.Length);
 
         double Number(int index)
         {
@@ -192,6 +213,8 @@ internal sealed class AwkRegion(
                 case AwkRegionOperandKind.Field: return state.GetFieldNumber(operand.Index);
                 case AwkRegionOperandKind.Variable:
                     var variable = variables[operand.Index];
+                    if (variable.LocalIndex >= 0 && state.TryResolveFunctionLocalNumber(new(variable.LocalIndex), out var localNumber))
+                        return localNumber;
                     if (variable.GlobalIndex >= 0 && state.TryResolvePreparedGlobalNumber(variable.GlobalIndex, out var number))
                         return number;
                     return ReadVariable(variable).AsNumber(state.CancellationCheckpoint);
@@ -213,7 +236,7 @@ internal sealed class AwkRegion(
             {
                 AwkRegionOperandKind.NumberTemporary => AwkValue.FromNumber(numbers[operand.Index]),
                 AwkRegionOperandKind.Variable => ReadVariable(variables[operand.Index]),
-                AwkRegionOperandKind.Field => state.GetFieldValue(operand.Index),
+                AwkRegionOperandKind.Field => operand.Index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(operand.Index),
                 AwkRegionOperandKind.ValueTemporary => storage.Values[operand.Index],
                 AwkRegionOperandKind.ArrayElement => ReadArray(arrays[operand.Index]),
                 _ => throw new InvalidOperationException("Unknown bound region operand.")
@@ -234,26 +257,54 @@ internal sealed class AwkRegion(
             _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
         };
 
-        AwkValue ReadVariable(AwkRegionVariable variable) => variable.GlobalIndex >= 0
+        AwkValue ReadVariable(AwkRegionVariable variable) => variable.LocalIndex >= 0
+            ? state.ResolveFunctionLocalValue(new(variable.LocalIndex), variable.Name) : variable.GlobalIndex >= 0
             ? state.ResolvePreparedGlobalValue(variable.Name, variable.GlobalIndex)
             : state.ResolveVariableValue(variable.Name);
+
+        bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionArgument argument) => variable.LocalIndex >= 0
+            ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.LocalIndex), variable.Name, out argument)
+            : state.TryResolveArrayArgument(variable.Name, out argument);
 
         AwkComparisonOperand ComparisonOperand(int index) => operands[index] is { Kind: AwkRegionOperandKind.Field } field
             ? state.GetFieldComparison(field.Index) : new(Value(index));
     }
 
-    private readonly record struct RegionResult(int Position, bool NeedsFlush, AwkStatementFlow Flow = AwkStatementFlow.Continue);
 }
 
 internal enum AwkRegionOperandKind : byte { Variable, Field, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
-internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex);
+internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key);
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, Number, Value, Arithmetic, Compound, Compare, Negate, Not, Truth, Discard, Assign,
-    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, Jump, JumpIfFalse, Flow
+    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, BeginCall, Argument, Call, HostStatement, HostExpression, Return, Jump, JumpIfFalse, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
+
+internal readonly record struct AwkRegionCall
+{
+    private readonly AwkUserFunction? _function;
+    internal AwkRegionCall(AwkUserFunction function, int slot, int arguments) => (_function, Slot, Arguments) = (function, slot, arguments);
+    internal AwkUserFunction Function => _function ?? throw new InvalidOperationException("An uninitialized call has no function.");
+    internal int Slot { get; }
+    internal int Arguments { get; }
+}
+internal enum AwkRegionBoundary : byte { None, Flush, Call, HostStatement, HostExpression }
+internal readonly record struct AwkRegionResult(int Position, AwkStatementFlow Flow = AwkStatementFlow.Continue,
+    AwkRegionBoundary Boundary = AwkRegionBoundary.None, int Index = -1, int Destination = -1);
+internal readonly record struct AwkRegionCursor
+{
+    private readonly AwkRegion? _region;
+    private readonly AwkRegionStorage? _storage;
+    internal AwkRegionCursor(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame) =>
+        (_region, _storage, Position, Frame) = (region, storage, position, frame);
+    internal AwkRegion Region => _region ?? throw new InvalidOperationException("An uninitialized cursor has no region.");
+    internal AwkRegionStorage Storage => _storage ?? throw new InvalidOperationException("An uninitialized cursor has no storage.");
+    internal int Position { get; init; }
+    internal AwkFunctionFrame? Frame { get; }
+}
+internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, int Destination);

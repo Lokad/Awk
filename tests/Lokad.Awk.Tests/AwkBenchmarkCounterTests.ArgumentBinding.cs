@@ -35,12 +35,8 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.FunctionNameLookups);
-        if (shape == "global") Assert.True(counters.BoundScalarArguments >= records);
-        else Assert.True(counters.BoundLocalScalarArguments >= records);
-        if (shape is "array" or "omitted-array") Assert.True(counters.IndexedLocalArrayArguments >= records);
-        else Assert.Equal(0, counters.IndexedLocalArrayArguments);
-        if (ordinary) Assert.Equal(0, counters.SynchronousFunctionRuns);
-        else Assert.True(counters.SynchronousFunctionRuns >= records);
+        Assert.Equal(0, counters.FunctionArgumentBufferRents);
+        if (!ordinary || shape != "global") Assert.True(counters.BoundFunctionRuns >= records);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }

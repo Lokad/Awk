@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("calls-keep-pending-caller-arguments-hidden",
+            ["function add(x,y){return x+y}function nextvalue(x){x++;return x}{x=$1;v=add(x,nextvalue(x));print v,x,$1}"],
+            [], "15 0007 0007\n", "0007\n");
+        yield return Passing("recursive-call-return-keeps-earlier-operand",
+            ["function sum(n,x){if(n==0)return x;return sum(n-1,x)+n}{print sum(80,$1),$1}"],
+            [], "3247 0007\n", "0007\n");
+        yield return Passing("call-extra-operands-evaluate-before-activation",
+            ["function add(x,y){return x+y}function later(){effects++;return 99}{v=add($1,2,later());print v,effects,$1}"],
+            [], "9 1 0007\n", "0007\n");
         yield return Passing("builtin-computation-keeps-array-target-across-rhs-growth",
             ["function rhs(a,k,i){for(i=1;i<=200;i++)a[i]=i;return 3}function touch(a,k){a[k]=5;a[k]+=int(rhs(a,k));return a[k]}{print touch(t,$1),t[\"0007\"],t[7],length(t),$1}"],
             [], "8 8 7 201 0007\n", "0007\n");

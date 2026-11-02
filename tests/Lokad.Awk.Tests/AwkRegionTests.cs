@@ -140,7 +140,6 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData("print 1")]
     [InlineData("x=length")]
     [InlineData("x=sin(1)")]
     public void UnmigratedConstructIsExplicit(string body)

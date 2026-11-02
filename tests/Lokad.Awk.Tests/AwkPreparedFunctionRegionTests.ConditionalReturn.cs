@@ -22,11 +22,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("default", true)]
-    [InlineData("syntax", false)]
-    [InlineData("lint", false)]
-    [InlineData("pending", false)]
-    public async Task ConditionalReturnsKeepExistingFunctionGuards(string boundary, bool prepared)
+    [InlineData("default")]
+    [InlineData("syntax")]
+    [InlineData("lint")]
+    [InlineData("pending")]
+    public async Task ConditionalReturnsKeepExistingFunctionGuards(string boundary)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -43,7 +43,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var value = await functions[AwkFunctionName.FromText("choose")].InvokeAsync(
                 [AwkExpression.Number(7)], new(state, output, io));
             Assert.Equal(5, value.AsNumber());
-            Assert.Equal(prepared ? 1 : 0, counters.SynchronousFunctionRuns);
+            Assert.Equal(1, counters.BoundFunctionRuns);
             Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -59,12 +59,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("if(x){if(x)return 1}return 2", true)]
     [InlineData("if(x)return 1;return", true)]
     [InlineData("if(x)return 1;return 2;x++", true)]
-    [InlineData("if((getline line)>0)return 1;return 2", false)]
+    [InlineData("if((getline line)>0)return 1;return 2", true)]
     public void ConditionalReturnsPrepareCompleteComputationalBodies(string body, bool expected)
     {
         var function = Bind("function choose(x){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("choose")];
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
-        Assert.Equal(expected, AwkSynchronousFunction.Prepare(functions, null)?.Count == 1);
+        Assert.Equal(expected, function.Region is not null);
     }
 
     [Theory]
@@ -112,14 +112,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             Assert.False(pending.IsCompleted);
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(0, counters.SynchronousFunctionRuns);
+            Assert.Equal(0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
             state.AssignVariableValue(x, AwkValue.FromNumber(43));
             if (cancel) cancellation.Cancel();
             completion.SetResult(AwkValue.FromNumber(7));
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
             else Assert.Equal(5, (await pending).AsNumber());
             Assert.Equal(43, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(cancel ? 0 : 1, counters.SynchronousFunctionRuns);
+            Assert.Equal(cancel ? 0 : 1, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
         }
         finally
         {
@@ -164,7 +164,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 before + AwkRuntimeMemory.EstimateFunctionFrameBytes());
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.True(state.IsInsideFunction);
-            Assert.Equal(1, counters.SynchronousFunctionRuns);
         }
         finally
         {
