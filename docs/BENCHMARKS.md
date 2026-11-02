@@ -133,8 +133,9 @@ exits, drains and cleanup. `--smoke` verifies library fixtures without GNU. Cata
 select family/scale before constructing input. `--governed-profile` supplies existing
 budget controls; `--function-stack-probe` checks entry and unwinding on small stacks.
 
-During development measure affected workloads and a few contrasting controls, with at
-most one useful reverse confirmation. Refresh the full catalog at declared milestones.
+During development measure affected workloads and contrasting controls. Use repeat samples
+or design revisions to resolve concrete attribution questions, retaining inconclusive and
+unsuccessful results. Refresh the full catalog at coherent architectural or release milestones.
 Judge useful gains and control costs together; a modest control regression is no veto.
 Preserve the full correctness suite. See [runtime integration](RUNTIME.md) and
 [compatibility boundaries](COMPATIBILITY.md).

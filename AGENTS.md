@@ -24,9 +24,12 @@ or environment dependencies.
 
 ## Architecture Rules
 
-- Keep one execution engine: the interpreter, including useful synchronous/prepared paths.
-  Do not retain or reintroduce the removed bytecode backend, engine-selection flags or VM
-  qualification machinery. Internal prepared programs prepare interpreter execution only.
+- The destination is one production interpreter. A compact prebound instruction representation
+  may replace the current execution machinery. Temporary overlap requires explicit removal
+  milestones in the local plan; progressively delete displaced trees, delegates and guards.
+  Do not restore the abandoned backend as an alternative, add public engine-selection flags
+  or VM policy/qualification machinery, or introduce dynamic IL. Existing preparation paths
+  are useful foundations, not a requirement to retain their current representation.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
@@ -64,7 +67,8 @@ or environment dependencies.
   active/pending buffers or evict/retry after refusal. Check cancellation after cold admission.
 - Ordinary and prepared user calls share reference-argument binding. Keep dynamic scalar
   guards and caller scope; known local slots use the same array conversion as name lookup,
-  with name fallback when local bindings are hidden or unavailable.
+  with name fallback when local bindings are hidden or unavailable. A replacement execution
+  representation must preserve these semantics, without retaining the particular hook hierarchy.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 
@@ -78,7 +82,11 @@ or environment dependencies.
 - Use `ArgumentNullException.ThrowIfNull` at public or shared boundaries, not defensive null plumbing
   throughout hot paths.
 - Async runtime paths use `Task`/`ValueTask` and `ConfigureAwait(false)` where host behavior
-  can suspend; preserve the interpreter's synchronous completion paths.
+  can suspend. Computation need not propagate asynchronous machinery: a replacement driver
+  may use explicit continuations and synchronous regions while preserving real suspension.
+- Cancellation tests should establish bounded responsiveness, effect ordering and cleanup.
+  Region/backedge/call/host/long-primitive polls may replace redundant expression polls;
+  preserve checks after admission callbacks and before observable effects. Do not add fuel.
 - Avoid unnecessary allocations in record, field, regex, formatting and array paths. If a change
   deliberately crosses a string boundary, update or add counter evidence.
 
