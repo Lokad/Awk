@@ -103,7 +103,11 @@ public sealed partial class AwkRegionTests
         var region = Compile("while(1){}", fixture.State);
         using var storage = new AwkRegionStorage(fixture.State);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var execution = Task.Run(() => { started.TrySetResult(); return region.Execute(fixture.State, storage); });
+        // This intentionally CPU-bound loop must not occupy a worker needed to
+        // schedule its cancellation test on a small, busy CI runner.
+        var execution = Task.Factory.StartNew(
+            () => { started.TrySetResult(); return region.Execute(fixture.State, storage); },
+            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         try
         {
             await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
