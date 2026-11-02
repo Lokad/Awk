@@ -116,7 +116,8 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
             var action = ExecuteMainAction(state, io, index);
             if (!action.IsCompletedSuccessfully)
                 return ResumeMainActionsAsync(state, io, index, default, action, false);
-            if (action.Result != AwkStatementFlow.Continue) return action;
+            var flow = action.Result;
+            if (flow != AwkStatementFlow.Continue) return ValueTask.FromResult(flow);
         }
         return ValueTask.FromResult(AwkStatementFlow.Continue);
     }

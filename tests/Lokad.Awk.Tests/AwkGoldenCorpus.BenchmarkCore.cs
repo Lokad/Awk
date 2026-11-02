@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("record-snapshot-global-ignorecase-write-inside-function",
+            ["function change(dummy){SYMTAB[\"IGNORECASE\"]=1;return dummy}BEGIN{FS=\"[x]\";change(0)}{print $1,$2}"],
+            [], "a b\n", "aXb\n");
+        yield return Passing("record-snapshot-keeps-getline-case-mode-after-function-reset",
+            ["function read(dummy){IGNORECASE=1;getline;IGNORECASE=0}BEGIN{FS=\"[x]\";IGNORECASE=0;read(0)}END{print NF,IGNORECASE,$1,$2}"],
+            [], "2 0 a b\n", "aXb\n");
         yield return Passing("composite-update-preserves-original-components-and-reuses-shorter-keys",
             ["BEGIN{SUBSEP=\":\"}{a[$1,$2]+=$3;seen=a[$1,$2]}END{print seen,length(a),a[\"0007:é\"],a[\"x:y\"]}"],
             [], "7 2 7 2\n", "0007 é 3\nx y 2\n0007 é 4\n");
