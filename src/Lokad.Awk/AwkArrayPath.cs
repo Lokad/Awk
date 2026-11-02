@@ -142,39 +142,41 @@ internal sealed class AwkArrayPath
                 array = index == 0
                     ? state.GetSubarray(_root.Name, key, _root.Binding)
                     : state.GetSubarray(array is { IsDetached: false } live
-                        ? live : ResolveOwner(state, keys, index), key);
+                        ? live : AwkCapturedArrayPath.ResolveOwner(state, _root.Name, _root.Binding, keys, index), key);
             }
             array ??= state.ResolveOrdinaryArray(_root.Name, _root.Binding);
-            return new AwkCapturedArrayPath(this, keys, array, heldKeys);
+            return new AwkCapturedArrayPath(_root.Name, _root.Binding, keys, array, heldKeys);
         }
         catch { heldKeys.Dispose(); throw; }
-    }
-
-    internal AwkArrayIdentity ResolveOwner(AwkRuntimeState state, AwkArrayKey[] keys, int count)
-    {
-        if (count == 0) return state.ResolveOrdinaryArray(_root.Name, _root.Binding);
-        var array = state.GetSubarray(_root.Name, keys[0], _root.Binding);
-        for (var index = 1; index < count; index++)
-        {
-            state.Checkpoint();
-            array = state.GetSubarray(array, keys[index]);
-        }
-        return array;
     }
 }
 
 // Lexical staging, not retained array ownership. The existing lease funds all keys
 // even if a later operand removes the source entries while host work is pending.
 internal sealed class AwkCapturedArrayPath(
-    AwkArrayPath path, AwkArrayKey[] keys, AwkArrayIdentity owner, AwkMemoryLease heldKeys) : IDisposable
+    AwkArrayName rootName, AwkArrayBinding rootBinding, AwkArrayKey[] keys,
+    AwkArrayIdentity owner, AwkMemoryLease heldKeys) : IDisposable
 {
     private AwkArrayIdentity _owner = owner;
     public AwkArrayKey Key => keys[^1];
 
     public AwkArrayIdentity ResolveOwner(AwkRuntimeState state)
     {
-        if (_owner.IsDetached) _owner = path.ResolveOwner(state, keys, keys.Length - 1);
+        if (_owner.IsDetached) _owner = ResolveOwner(state, rootName, rootBinding, keys, keys.Length - 1);
         return _owner;
+    }
+
+    internal static AwkArrayIdentity ResolveOwner(AwkRuntimeState state, AwkArrayName rootName,
+        AwkArrayBinding rootBinding, AwkArrayKey[] keys, int count)
+    {
+        if (count == 0) return state.ResolveOrdinaryArray(rootName, rootBinding);
+        var array = state.GetSubarray(rootName, keys[0], rootBinding);
+        for (var index = 1; index < count; index++)
+        {
+            state.Checkpoint();
+            array = state.GetSubarray(array, keys[index]);
+        }
+        return array;
     }
 
     public void Dispose() => heldKeys.Dispose();
