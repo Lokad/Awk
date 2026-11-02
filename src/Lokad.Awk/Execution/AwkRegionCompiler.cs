@@ -65,6 +65,7 @@ internal sealed class AwkRegionCompiler
                 case AwkStatementKind.Break:
                 case AwkStatementKind.Continue:
                     if (_loops.Count == 0) return false;
+                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
                     var jump = Emit(new(AwkRegionInstructionKind.Jump));
                     (statement.Kind == AwkStatementKind.Break ? _loops.Peek().Breaks : _loops.Peek().Continues).Add(jump);
                     break;
