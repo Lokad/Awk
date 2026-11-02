@@ -354,8 +354,19 @@ internal partial struct AwkRegionMachine
             ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.LocalIndex), variable.Name, out argument)
             : state.TryResolveArrayArgument(variable.Name, out argument);
 
-        AwkComparisonOperand ComparisonOperand(int index) => IsField(operands[index])
-            ? state.GetFieldComparison(FieldOrdinal(operands[index])) : new(Value(index));
+        AwkComparisonOperand ComparisonOperand(int index)
+        {
+            var operand = operands[index];
+            if (IsField(operand)) return state.GetFieldComparison(FieldOrdinal(operand));
+            if (operand.Kind == AwkRegionOperandKind.Literal)
+            {
+                // Comparison needs the string origin and spelling, not an eager
+                // numeric parse. Actual text comparison retains bounded polling.
+                state.Counters.RecordDeferredComparisonLiteral();
+                return new(state.CreateDeferredTextValue(literals[operand.Index]));
+            }
+            return new(Value(index));
+        }
 
         static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;
         int FieldOrdinal(AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];

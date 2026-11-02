@@ -33,14 +33,31 @@ internal sealed class AwkRegionCompiler
     private AwkRegionCompiler(AwkLoweringScope scope) => _scope = scope;
 
     internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
-        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region)
+        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region, AwkExpressionSyntax? condition = null)
     {
         var compiler = new AwkRegionCompiler(scope);
         compiler.Label();
+        var skipped = -1;
+        if (condition is not null)
+        {
+            if (!compiler.Expression(condition, out var test))
+            {
+                region = null;
+                return false;
+            }
+            skipped = compiler.Emit(new(AwkRegionInstructionKind.JumpIfFalse, Left: test));
+        }
         if (!compiler.Statements(statements))
         {
             region = null;
             return false;
+        }
+        if (skipped >= 0)
+        {
+            compiler.Patch(skipped, compiler.Label());
+            // A false condition can still have queued diagnostics. Preserve the
+            // action boundary even when none of its statements executes.
+            compiler.Emit(new(AwkRegionInstructionKind.StatementBoundary));
         }
         region = new(compiler._code.ToArray(), compiler._operands.ToArray(),
             compiler._variables.ToArray(), compiler._constants.ToArray(), compiler._literals.ToArray(), compiler._arrays.ToArray(),

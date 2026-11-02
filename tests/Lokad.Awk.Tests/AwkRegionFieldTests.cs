@@ -4,7 +4,7 @@ public sealed class AwkRegionFieldTests
 {
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat" })
+        foreach (var operation in new[] { "simple", "compound", "concat", "condition" })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -13,9 +13,13 @@ public sealed class AwkRegionFieldTests
     [MemberData(nameof(PendingFieldWrites))]
     public async Task SuspendedFieldsPreserveTargetOrderingTextAndActualPendingOwnership(string operation, bool cancel, bool governed)
     {
-        var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" +
-            (operation == "concat" ? "{i=1;text=($i \":\" read());print text,$0,i;next}" :
-                "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}");
+        var action = operation switch
+        {
+            "concat" => "{i=1;text=($i \":\" read());print text,$0,i;next}",
+            "condition" => "read()>0{print $0,i;next}",
+            _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
+        };
+        var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
         var host = new MockFileSystem();
         host.SetStandardInput("0007 old\n");
         host.AddFile("/side", "11\n");
@@ -64,6 +68,7 @@ public sealed class AwkRegionFieldTests
             {
                 "compound" => "18 old 2\n",
                 "concat" => "0007:11 100 old 2\n",
+                "condition" => "100 old 2\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

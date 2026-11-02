@@ -167,23 +167,19 @@ representations; numeric errors still occur at actual use.
 Prepared comparisons can reuse field classification and scoped record bytes. Values that
 escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
-Numeric builtin definitions share that consumption rule with argument evaluation and user
-function preparation. Argument buffers remain funded through pending operands and cleanup.
-Eligible synchronous builtins prepare through the same interpreter. Builtins that can queue
-diagnostics keep statement execution so warning acceptance precedes later effects.
-Eligible main actions and loop bodies prepare independently of user-function declarations
-and flat block size; expression, call, conditional and managed-stack guards remain.
-Prepared calls use the existing argument-storage admission for larger argument lists;
-there is no separate prepared-call arity limit. Cancellation is checked during preparation
-and argument evaluation. Eligible scalar function blocks, branches and loops prepare as
-complete bodies without a statement-count cutoff. Host-capable or unsupported work keeps
-the ordinary interpreter path; cancellation, stack protection and admission still apply.
-Array reads and membership participate in this preparation for eligible literal, field
-and composite indices, including prepared calls within indices. Pending indices retain
-ordinary evaluation; field bytes remain borrowed only during synchronous consumption.
-Eligible array assignments, compound updates and increments use the same preparation.
-Computational nested paths also prepare through the same captured-key and owner-rebinding
-operations. Host-capable indices retain ordinary execution and its guarantees.
+Interpreter preparation binds operands, scalar/array locations and function targets.
+Covered computation, branches, loops, calls and rule conditions share a driver that suspends
+for actual pending host work. Preparation has no flat block-size or argument-count cutoff;
+managed stack protection still applies. There is no public execution-engine selector.
+Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
+keys and formatted concatenation prefixes remain funded through their actual pending users.
+Concatenation preserves operand formatting order and lazy text composition. Computed fields
+reuse record caches; discarded fixed-field copies can retain record-backed text. Escaping
+values own their spelling. Array updates preserve captured keys/prior values and rebind owners
+after RHS work. Borrowed byte spans remain local to synchronous consumption.
+Unmigrated constructs retain existing interpretation and protection; diagnostic acceptance
+still precedes later effects. Cancellation is checked during preparation, bounded computation,
+calls and host interactions, including after admission callbacks and before mutation.
 Ordinary newline main input reuses two admitted buffers for small current records.
 Staging leaves the previous record intact until admission succeeds. Fields use scoped
 bytes; scalar escapes and regex operands that survive later evaluation own their text.

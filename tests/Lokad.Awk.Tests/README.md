@@ -314,6 +314,9 @@ variables, arithmetic and user calls. `AwkRegionFieldTests` preserves simple/com
 ordering across genuinely pending host reads, cancellation and actual owner cleanup in both
 memory modes. Discarded fixed-field copies retain record-backed storage; escaping results
 still own their original spelling.
+The same pending-host matrix covers concatenation prefixes and ordinary rule conditions.
+Counter checks retain short-circuit behavior, byte comparisons and the lazy concatenation
+copy bound while execution preparation changes.
 
 ## Benchmarks
 
