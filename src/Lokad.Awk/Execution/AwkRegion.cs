@@ -7,7 +7,7 @@ internal sealed class AwkRegion(
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls, AwkStatement[] hostStatements,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
-    AwkRegionStringCall[] strings, AwkRegionKind kind)
+    AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
@@ -68,22 +68,24 @@ internal sealed class AwkRegion(
     internal AwkRegionPrintf[] Printfs => printfs;
     internal AwkRegionGetline[] Getlines => getlines;
     internal AwkRegionStringCall[] Strings => strings;
+    internal AwkRegionPath[] Paths => paths;
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
-    int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0);
+    int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0);
 internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
-internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key);
+internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
+internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Length, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
-    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
+    ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
     GetlineBoundary, PrepareString, GetlineTarget, Getline,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow

@@ -125,29 +125,19 @@ internal sealed class AwkArrayPath
     private async ValueTask<AwkCapturedArrayPath> CaptureCoreAsync(AwkEvaluationContext context, bool synchronousIndices)
     {
         var state = context.State;
-        var heldKeys = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
-            64, AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(_indices.Length)));
+        var target = AwkCapturedArrayPath.Begin(state, _root.Name, _root.Binding, _indices.Length);
         try
         {
-            var keys = new AwkArrayKey[_indices.Length];
-            AwkArrayIdentity? array = null;
-            for (var index = 0; index < keys.Length; index++)
+            for (var index = 0; index < _indices.Length; index++)
             {
                 state.Checkpoint();
                 var key = synchronousIndices ? _indices[index].ResolveKeySynchronous(context)
                     : await _indices[index].ResolveKeyAsync(context).ConfigureAwait(false);
-                heldKeys.ReserveAdditional(key.RetainedTextMemoryBytes);
-                keys[index] = key;
-                if (index == keys.Length - 1) break;
-                array = index == 0
-                    ? state.GetSubarray(_root.Name, key, _root.Binding)
-                    : state.GetSubarray(array is { IsDetached: false } live
-                        ? live : AwkCapturedArrayPath.ResolveOwner(state, _root.Name, _root.Binding, keys, index), key);
+                target.Append(state, index, key);
             }
-            array ??= state.ResolveOrdinaryArray(_root.Name, _root.Binding);
-            return new AwkCapturedArrayPath(_root.Name, _root.Binding, keys, array, heldKeys);
+            return target;
         }
-        catch { heldKeys.Dispose(); throw; }
+        catch { target.Dispose(); throw; }
     }
 }
 
@@ -155,15 +145,45 @@ internal sealed class AwkArrayPath
 // even if a later operand removes the source entries while host work is pending.
 internal sealed class AwkCapturedArrayPath(
     AwkArrayName rootName, AwkArrayBinding rootBinding, AwkArrayKey[] keys,
-    AwkArrayIdentity owner, AwkMemoryLease heldKeys) : IDisposable
+    AwkMemoryLease heldKeys) : IDisposable
 {
-    private AwkArrayIdentity _owner = owner;
+    private AwkArrayIdentity? _owner;
+
+    internal static AwkCapturedArrayPath Begin(AwkRuntimeState state, AwkArrayName rootName,
+        AwkArrayBinding rootBinding, int count)
+    {
+        var lease = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+            64, AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count)));
+        try
+        {
+            state.ThrowIfCancellationRequested();
+            return new(rootName, rootBinding, new AwkArrayKey[count], lease);
+        }
+        catch { lease.Dispose(); throw; }
+    }
+
+    // Capture each key and admit its intermediate child before the next key runs.
+    // The final owner can be detached by that later computation; repair is logical.
+    internal void Append(AwkRuntimeState state, int index, AwkArrayKey key)
+    {
+        heldKeys.ReserveAdditional(key.RetainedTextMemoryBytes);
+        state.ThrowIfCancellationRequested();
+        keys[index] = key;
+        if (index == keys.Length - 1)
+        {
+            _owner ??= state.ResolveOrdinaryArray(rootName, rootBinding);
+            return;
+        }
+        _owner = index == 0 ? state.GetSubarray(rootName, key, rootBinding)
+            : state.GetSubarray(_owner is { IsDetached: false } live ? live
+                : ResolveOwner(state, rootName, rootBinding, keys, index), key);
+    }
     public AwkArrayKey Key => keys[^1];
 
     public AwkArrayIdentity ResolveOwner(AwkRuntimeState state)
     {
-        if (_owner.IsDetached) _owner = ResolveOwner(state, rootName, rootBinding, keys, keys.Length - 1);
-        return _owner;
+        if (_owner is { IsDetached: false } live) return live;
+        return _owner = ResolveOwner(state, rootName, rootBinding, keys, keys.Length - 1);
     }
 
     internal static AwkArrayIdentity ResolveOwner(AwkRuntimeState state, AwkArrayName rootName,

@@ -12,6 +12,7 @@ internal sealed class AwkRegionStorage : IDisposable
     private AwkText[] _texts = [];
     private AwkArrayUpdateTarget[] _targets = [];
     private AwkResolvedGetlineTarget[] _getlineTargets = [];
+    private AwkCapturedArrayPath?[] _paths = [];
     private AwkUtf8Builder[] _builders = [];
     private AwkFunctionFrame?[] _incoming = [];
     private AwkFieldText[] _printSegments = [];
@@ -44,7 +45,8 @@ internal sealed class AwkRegionStorage : IDisposable
         var texts = layout.Texts;
         var segments = layout.PrintSegments;
         var getlineTargets = layout.GetlineTargets;
-        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length && segments <= _printSegments.Length && getlineTargets <= _getlineTargets.Length) return;
+        var paths = layout.Paths;
+        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length && segments <= _printSegments.Length && getlineTargets <= _getlineTargets.Length && paths <= _paths.Length) return;
         var growNumbers = numbers > _numbers.Length;
         var growValues = values > _values.Length;
         var growTargets = targets > _targets.Length;
@@ -53,6 +55,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var growTexts = texts > _texts.Length;
         var growSegments = segments > _printSegments.Length;
         var growGetlineTargets = getlineTargets > _getlineTargets.Length;
+        var growPaths = paths > _paths.Length;
         // Unchanged buffers keep their current funding. Admit only the new buffers
         // alongside the old buffers that remain live until publication below.
         var bytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(numbers) : 0,
@@ -66,6 +69,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (growTexts) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkTextArrayBytes(texts));
         if (growSegments) bytes = AwkRuntimeMemory.CheckedAdd(bytes, PrintSegmentBytes(segments));
         if (growGetlineTargets) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateGetlineTargetArrayBytes(getlineTargets));
+        if (growPaths) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateCapturedPathArrayBytes(paths));
         var replacedBytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(_numbers.Length) : 0,
             AwkRuntimeMemory.CheckedAdd(growValues ? AwkRuntimeMemory.EstimateAwkValueArrayBytes(_values.Length) : 0,
                 growTargets ? AwkRuntimeMemory.EstimateArrayUpdateTargetArrayBytes(_targets.Length) : 0));
@@ -75,12 +79,14 @@ internal sealed class AwkRegionStorage : IDisposable
         if (growTexts) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateAwkTextArrayBytes(_texts.Length));
         if (growSegments) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, PrintSegmentBytes(_printSegments.Length));
         if (growGetlineTargets) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateGetlineTargetArrayBytes(_getlineTargets.Length));
+        if (growPaths) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateCapturedPathArrayBytes(_paths.Length));
         using var staging = _state.MemoryAccounting.ReserveTransient(bytes);
         _state.ThrowIfCancellationRequested();
         var numeric = growNumbers ? new double[numbers] : _numbers;
         var scalar = growValues ? new AwkValue[values] : _values;
         var captured = growTargets ? new AwkArrayUpdateTarget[targets] : _targets;
         var readTargets = growGetlineTargets ? new AwkResolvedGetlineTarget[getlineTargets] : _getlineTargets;
+        var capturedPaths = growPaths ? new AwkCapturedArrayPath?[paths] : _paths;
         var frames = growIncoming ? new AwkFunctionFrame?[incoming] : _incoming;
         var printFields = growSegments ? new AwkFieldText[segments] : _printSegments;
         var borrowedFields = growSegments ? new bool[segments] : _borrowedPrintFields;
@@ -106,6 +112,7 @@ internal sealed class AwkRegionStorage : IDisposable
         _values = scalar;
         _targets = captured;
         _getlineTargets = readTargets;
+        _paths = capturedPaths;
         _builders = keyBuffers;
         _incoming = frames;
         _texts = formatted;
@@ -240,6 +247,29 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal string PreparedString(int index) => _values[index].ByteText.PreparedString;
 
+    internal void BeginPath(int slot, AwkRegionPath path)
+    {
+        ReleasePath(slot);
+        _paths[slot] = AwkCapturedArrayPath.Begin(_state, path.Name, path.Binding, path.Count);
+    }
+
+    internal AwkCapturedArrayPath Path(int slot) => _paths[slot] ??
+        throw new InvalidOperationException("No captured array path.");
+
+    internal AwkCapturedArrayPath TakePath(int slot)
+    {
+        var path = Path(slot);
+        _paths[slot] = null;
+        return path;
+    }
+
+    internal void ReleasePath(int slot)
+    {
+        var path = _paths[slot];
+        _paths[slot] = null;
+        path?.Dispose();
+    }
+
     internal AwkResolvedGetlineTarget GetlineTarget(int slot) => _getlineTargets[slot];
 
     internal void PrepareGetlineTarget(int slot, AwkResolvedReference reference)
@@ -316,6 +346,7 @@ internal sealed class AwkRegionStorage : IDisposable
         }
         Array.Clear(_values);
         Array.Clear(_targets);
+        for (var index = 0; index < _paths.Length; index++) ReleasePath(index);
         foreach (var target in _getlineTargets) target.Dispose();
         Array.Clear(_getlineTargets);
         Array.Fill(_texts, AwkText.Empty);
@@ -335,6 +366,7 @@ internal sealed class AwkRegionStorage : IDisposable
         _texts = [];
         _targets = [];
         _getlineTargets = [];
+        _paths = [];
         foreach (var builder in _builders) builder.Dispose();
         _builders = [];
         _incoming = [];

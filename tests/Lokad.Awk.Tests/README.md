@@ -29,6 +29,9 @@ Native string-operation counters cover cached field and array values across dirt
 reconstruction, byte-native processing and final governor refunds in both execution modes.
 Membership checks cover composite keys with default/empty `SUBSEP`, no key-copy allocation
 per lookup, no insertion on misses, and live prefixes across pending calls and record mutation.
+Nested read/assignment/update cases include composite prefixes captured before a pending key
+or RHS call changes the record. They check actual pending funding, cancellation and cleanup;
+independent storage cases retain intermediate-child refusal and detached-owner repair coverage.
 
 ## Golden Corpus
 

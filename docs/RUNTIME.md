@@ -163,6 +163,9 @@ bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
 remain execution-owned. Array parameter operations read the current frame slot; aliases
 repaired by mutation are not cached separately in prepared code.
+Nested locations capture keys in the same computation driver. Each intermediate child is
+admitted before the following key runs; captured locations follow their logical path if later
+work detaches an owner. Pending getline destinations keep their keys funded until completion.
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.

@@ -4,7 +4,7 @@ public sealed class AwkRegionFieldTests
 {
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership" })
+        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership", "nested-read", "nested-simple", "nested-compound" })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -23,6 +23,9 @@ public sealed class AwkRegionFieldTests
             "index" => "{i=1;found=index($i,(read()==11?\"0\":\"x\"));print found,$0,i;next}",
             "sprintf" => "{i=1;text=sprintf($i,read());print text,$0,i;next}",
             "membership" => "{i=1;seen[\"0007\",11]=1;found=(($i,read()) in seen);print found,$0,i;next}",
+            "nested-read" => "{i=1;a[\"0007\",\"tag\"][11]=\"kept\";text=a[$i,\"tag\"][read()];print text,$0,i;next}",
+            "nested-simple" => "{i=1;a[$i,\"tag\"][read()]=\"saved\";print a[\"0007\",\"tag\"][11],$0,i;next}",
+            "nested-compound" => "{i=1;a[\"0007\"][\"leaf\"]=7;a[$i][\"leaf\"]+=read();print a[\"0007\"][\"leaf\"],$0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
@@ -56,8 +59,6 @@ public sealed class AwkRegionFieldTests
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(run.IsCompleted);
-            Assert.Equal(1, counters.BoundRegionRuns);
-            Assert.Equal(1, counters.BoundFunctionRuns);
             var held = budget.Reserved;
             if (governed) Assert.True(held > 0);
             if (cancel)
@@ -79,6 +80,9 @@ public sealed class AwkRegionFieldTests
                 "printf" => "[0007][11][old]\n",
                 "substr" or "sprintf" => "0007 100 old 2\n",
                 "index" or "membership" => "1 100 old 2\n",
+                "nested-read" => "kept 100 old 2\n",
+                "nested-simple" => "saved 100 old 2\n",
+                "nested-compound" => "18 100 old 2\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

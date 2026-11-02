@@ -218,6 +218,23 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.KeyEnd:
                     storage.Builders[instruction.Target].Clear();
                     break;
+                case AwkRegionInstructionKind.PathBegin:
+                    storage.BeginPath(instruction.Target, region.Paths[instruction.Target]);
+                    break;
+                case AwkRegionInstructionKind.PathKey:
+                    var pathKey = operands[instruction.Left];
+                    storage.Path(instruction.Target).Append(state, instruction.Right,
+                        pathKey.Kind == AwkRegionOperandKind.KeyBuilder
+                            ? new AwkArrayKey(storage.Builders[pathKey.Index].CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
+                            : state.ToArrayKey(Value(instruction.Left)));
+                    break;
+                case AwkRegionInstructionKind.PathEnd:
+                    storage.ReleasePath(instruction.Target);
+                    break;
+                case AwkRegionInstructionKind.PathNumber:
+                    var numericPath = storage.Path(instruction.Left);
+                    numbers[instruction.Target] = state.GetArrayNumber(numericPath.ResolveOwner(state), numericPath.Key);
+                    break;
                 case AwkRegionInstructionKind.ArrayRead:
                     storage.StoreValue(instruction.Target, ReadArray(arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
                     break;
@@ -325,10 +342,20 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.ArrayAssign:
                     var assigned = arrays[instruction.Target];
-                    var assignedKey = Key(assigned);
-                    var assignedValue = Value(instruction.Left);
-                    state.ThrowIfCancellationRequested();
-                    state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                    if (assigned.Path >= 0)
+                    {
+                        var assignedPath = storage.Path(assigned.Path);
+                        var assignedValue = Value(instruction.Left);
+                        state.ThrowIfCancellationRequested();
+                        state.SetArrayAwkValue(assignedPath.ResolveOwner(state), assignedPath.Key, assignedValue);
+                    }
+                    else
+                    {
+                        var assignedKey = Key(assigned);
+                        var assignedValue = Value(instruction.Left);
+                        state.ThrowIfCancellationRequested();
+                        state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                    }
                     break;
                 case AwkRegionInstructionKind.BeginCall:
                     state.ThrowIfCancellationRequested();
@@ -435,7 +462,9 @@ internal partial struct AwkRegionMachine
                     else if (readTarget.Kind == AwkRegionOperandKind.ArrayElement)
                     {
                         var readArray = arrays[readTarget.Index];
-                        reference = AwkResolvedReference.ArrayElement(readArray.Name, Key(readArray));
+                        reference = readArray.Path >= 0
+                            ? AwkResolvedReference.NestedArrayElement(storage.TakePath(readArray.Path))
+                            : AwkResolvedReference.ArrayElement(readArray.Name, Key(readArray));
                     }
                     else throw new InvalidOperationException("Unknown getline destination.");
                     storage.PrepareGetlineTarget(instruction.Target, reference);
@@ -504,12 +533,20 @@ internal partial struct AwkRegionMachine
             _ => state.ToArrayKey(Value(access.Key))
         };
 
-        AwkValue ReadArray(AwkRegionArrayAccess access) => operands[access.Key] switch
+        AwkValue ReadArray(AwkRegionArrayAccess access)
         {
-            { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldOrdinal(field), access.Binding),
-            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index], access.Binding),
-            _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
-        };
+            if (access.Path >= 0)
+            {
+                var path = storage.Path(access.Path);
+                return state.GetArrayAwkValue(path.ResolveOwner(state), path.Key);
+            }
+            return operands[access.Key] switch
+            {
+                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldOrdinal(field), access.Binding),
+                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index], access.Binding),
+                _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
+            };
+        }
 
         AwkValue ReadVariable(AwkRegionVariable variable) => variable.LocalIndex >= 0
             ? state.ResolveFunctionLocalValue(new(variable.LocalIndex), variable.Name) : variable.GlobalIndex >= 0
