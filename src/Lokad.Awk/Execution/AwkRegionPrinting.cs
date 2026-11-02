@@ -15,7 +15,7 @@ internal static class AwkRegionPrinting
                     state.PreflightPrintfField(print.Fields[index]);
                 }
             }
-            if (print.Output.IsRedirected) storage.PrepareOutputTarget(print.Output);
+            if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
             var format = storage.PrepareFormattedString(storage.Values[print.Format], out formatBytes);
             if (print.Fields.Length != 0)
                 AppendPrintf(state, storage, output, print.Output, format, new AwkPrintfFieldArguments(print.Fields, state));
@@ -70,7 +70,7 @@ internal static class AwkRegionPrinting
         }
         else if (print.Count <= 4) state.Counters.RecordSmallValuePrint();
 
-        if (print.Output.IsRedirected) storage.PrepareOutputTarget(print.Output);
+        if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
 
         // Every argument has been evaluated. Preserve separator/terminator and
         // per-value formatting order, including untyped scalar effects and OFMT.

@@ -328,11 +328,53 @@ internal partial struct AwkRegionMachine
                     _hostFlow = region.HostStatements[instruction.Left].ExecuteAsync(Context);
                     _pending = Pending.HostFlow;
                     goto Resume;
-                case AwkRegionInstructionKind.HostExpression:
+                case AwkRegionInstructionKind.GetlineBoundary:
+                {
+                    var read = region.Getlines[instruction.Left];
+                    if (!Context.TryGetExecutionContext(out var execution))
+                    {
+                        if (!read.IsExpression) throw new InvalidOperationException("Getline requires a host context.");
+                        numbers[read.Result] = -1;
+                        position = instruction.Target - 1;
+                        break;
+                    }
+                    if (read.Kind != AwkGetlineSourceKind.MainInput && !read.IsExpression) break;
                     _cursor = _cursor with { Position = position + 1 };
-                    _destination = instruction.Target;
-                    _hostValue = region.HostExpressions[instruction.Left].EvaluateAsync(Context);
-                    _pending = Pending.HostValue;
+                    _pending = Pending.Flush;
+                    _hostCompletion = read.Kind == AwkGetlineSourceKind.MainInput
+                        ? execution.Output.FlushAsync(execution.Io)
+                        : execution.Output.FlushDiagnosticsAsync(execution.Io);
+                    goto Resume;
+                }
+                case AwkRegionInstructionKind.PrepareString:
+                    storage.PrepareString(instruction.Target);
+                    break;
+                case AwkRegionInstructionKind.GetlineTarget:
+                {
+                    var readTarget = operands[instruction.Left];
+                    AwkResolvedReference reference;
+                    if (readTarget.Kind == AwkRegionOperandKind.Variable)
+                    {
+                        var readVariable = variables[readTarget.Index];
+                        reference = readVariable.LocalIndex >= 0
+                            ? AwkResolvedReference.LocalScalar(readVariable.Name, new(readVariable.LocalIndex))
+                            : readVariable.GlobalIndex >= 0
+                                ? AwkResolvedReference.PreparedGlobalScalar(readVariable.Name, readVariable.GlobalIndex)
+                                : AwkResolvedReference.Scalar(readVariable.Name);
+                    }
+                    else if (IsField(readTarget)) reference = AwkResolvedReference.Field(new(FieldOrdinal(readTarget)));
+                    else if (readTarget.Kind == AwkRegionOperandKind.ArrayElement)
+                    {
+                        var readArray = arrays[readTarget.Index];
+                        reference = AwkResolvedReference.ArrayElement(readArray.Name, Key(readArray));
+                    }
+                    else throw new InvalidOperationException("Unknown getline destination.");
+                    storage.PrepareGetlineTarget(instruction.Target, reference);
+                    break;
+                }
+                case AwkRegionInstructionKind.Getline:
+                    _cursor = _cursor with { Position = position + 1 };
+                    BeginRead(region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
                     Return(instruction.Left < 0 ? AwkValue.Unassigned() : Value(instruction.Left));

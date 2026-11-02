@@ -19,8 +19,8 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionBuiltin> _builtins = [];
     private readonly List<AwkRegionPrint> _prints = [];
     private readonly List<AwkRegionPrintf> _printfs = [];
+    private readonly List<AwkRegionGetline> _getlines = [];
     private readonly List<AwkStatement> _hostStatements = [];
-    private readonly List<AwkExpression> _hostExpressions = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -92,9 +92,9 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments),
-            _calls.ToArray(), _hostStatements.ToArray(), _hostExpressions.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _kind);
+            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count),
+            _calls.ToArray(), _hostStatements.ToArray(),
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _kind);
         return true;
     }
 
@@ -164,7 +164,10 @@ internal sealed class AwkRegionCompiler
                 case AwkStatementKind.Print:
                     if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;
                     if (output.Redirection.TryGetValue(out var printRedirection) && printRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
-                        goto case AwkStatementKind.Getline;
+                    {
+                        if (!LegacyHostStatement(statement)) return false;
+                        break;
+                    }
                     if (!OutputTarget(output.Redirection, out var printTarget)) return false;
                     if (output.Output.IsEmpty)
                     {
@@ -198,23 +201,33 @@ internal sealed class AwkRegionCompiler
                 case AwkStatementKind.Printf:
                     if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted)) return false;
                     if (formatted.Redirection.TryGetValue(out var printfRedirection) && printfRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
-                        goto case AwkStatementKind.Getline;
+                    {
+                        if (!LegacyHostStatement(statement)) return false;
+                        break;
+                    }
                     if (!OutputTarget(formatted.Redirection, out var printfTarget) ||
                         !formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
                     break;
                 case AwkStatementKind.Getline:
-                    // Migration boundary: retain the existing host primitive and its
-                    // operand semantics until I/O operand lowering moves in Stage C.
-                    var host = AwkStatementLowerer.LowerList([statement], _scope);
-                    if (!host.Succeeded || host.Value.Count != 1) return false;
-                    var hostIndex = _hostStatements.Count;
-                    _hostStatements.Add(host.Value[0]);
-                    Emit(new(AwkRegionInstructionKind.HostStatement, Left: hostIndex));
+                    if (!AwkStatementLoweringShapes.Getline(statement).TryGetValue(out var getline) ||
+                        !AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
+                        !Getline(parts, isExpression: false, out _)) return false;
                     break;
                 default: return false;
             }
             Emit(new(AwkRegionInstructionKind.StatementBoundary));
         }
+        return true;
+    }
+
+    // Coprocess rejection remains a named migration boundary, not an alternate engine.
+    private bool LegacyHostStatement(AwkStatementSyntax statement)
+    {
+        var host = AwkStatementLowerer.LowerList([statement], _scope);
+        if (!host.Succeeded || host.Value.Count != 1) return false;
+        var index = _hostStatements.Count;
+        _hostStatements.Add(host.Value[0]);
+        Emit(new(AwkRegionInstructionKind.HostStatement, Left: index));
         return true;
     }
 
@@ -337,13 +350,8 @@ internal sealed class AwkRegionCompiler
         if (_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _)) return false;
         if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline))
         {
-            if (!AwkExpressionLowerer.TryLower(syntax, _scope, out var expression)) return false;
-            var hostIndex = _hostExpressions.Count;
-            _hostExpressions.Add(expression);
-            var value = _values++;
-            Emit(new(AwkRegionInstructionKind.HostExpression, value, hostIndex));
-            result = Operand(AwkRegionOperandKind.ValueTemporary, value);
-            return true;
+            return AwkGetlineLowerer.TryResolveExpressionCallParts(syntax, out var parts) &&
+                Getline(parts, isExpression: true, out result);
         }
         if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
             AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
@@ -367,6 +375,43 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.Call, returned, call));
         _activeCalls--;
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
+        return true;
+    }
+
+    private bool Getline(AwkGetlineLoweringParts parts, bool isExpression, out int result)
+    {
+        var site = _getlines.Count;
+        var number = _numbers++;
+        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        var source = parts.HasRedirection ? _values++ : -1;
+        _getlines.Add(new(site, source, parts.SourceKind, number, isExpression));
+        var boundary = Emit(new(AwkRegionInstructionKind.GetlineBoundary, Left: site));
+        if (parts.HasRedirection)
+        {
+            if (!parts.Source.TryGetValue(out var sourceSyntax) || !Expression(sourceSyntax, out var sourceValue)) return false;
+            Emit(new(AwkRegionInstructionKind.Value, source, sourceValue));
+            // Resolve the name before any destination effects, including numeric formatting.
+            Emit(new(AwkRegionInstructionKind.PrepareString, source));
+        }
+        if (parts.Target.TryGetValue(out var target))
+        {
+            int operand;
+            var access = -1;
+            if (target.Kind == AwkExpressionKind.Variable &&
+                AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(target, out _) && Variable(target, out var variable))
+                operand = Operand(AwkRegionOperandKind.Variable, variable);
+            else if (target.Kind == AwkExpressionKind.Field && Field(target, out var field)) operand = field;
+            else if (target.Kind == AwkExpressionKind.ArrayElement &&
+                AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(target, out _) && ArrayAccess(target, out access))
+            {
+                operand = Operand(AwkRegionOperandKind.ArrayElement, access);
+            }
+            else return false;
+            Emit(new(AwkRegionInstructionKind.GetlineTarget, site, operand));
+            if (access >= 0) FinishKey(access);
+        }
+        Emit(new(AwkRegionInstructionKind.Getline, Left: site));
+        Patch(boundary, Label());
         return true;
     }
 

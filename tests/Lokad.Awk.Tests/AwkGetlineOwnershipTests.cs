@@ -103,19 +103,25 @@ public sealed class AwkGetlineOwnershipTests
             .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), token);
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
-    public async Task DestinationFundingLastsThroughActualPendingRead(bool cancel, bool nested)
+    [InlineData(false, "simple")] [InlineData(true, "simple")]
+    [InlineData(false, "nested")] [InlineData(true, "nested")]
+    [InlineData(false, "composite")] [InlineData(true, "composite")]
+    public async Task DestinationFundingLastsThroughActualPendingRead(bool cancel, string kind)
     {
         var budget = new CooperativeTestBudget(32 << 20);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new ReadHost { Input = true, PendingRead = () => { entered.SetResult(); return completed.Task; } };
-        var destination = nested ? "a[x][\"c\"]" : "a[x]";
-        var result = nested ? "s,length(a),a[sprintf(\"%01000000d\",0)][\"c\"]" : "s,length(a)";
-        var execution = Execute("BEGIN{x=sprintf(\"%01000000d\",0);s=getline " + destination + ";print " + result + "}" +
-            "BEGINFILE{delete a;x=\"\";print \"held\"}", host, budget, cancellation.Token);
+        var destination = kind switch { "nested" => "a[x][\"c\"]", "composite" => "a[x,\"c\"]", _ => "a[x]" };
+        var result = kind switch
+        {
+            "nested" => "s,length(a),a[sprintf(\"%01000000d\",0)][\"c\"]",
+            "composite" => "s,length(a),a[sprintf(\"%01000000d\",0) \"\\034c\"]",
+            _ => "s,length(a)"
+        };
+        var execution = Execute("BEGIN{x=sprintf(\"%01000000d\",0)}BEGIN{s=getline " + destination + "}BEGIN{print " + result + "}" +
+            "BEGINFILE{delete a;x=\"\";SUBSEP=\"!\";print \"held\"}", host, budget, cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -130,7 +136,7 @@ public sealed class AwkGetlineOwnershipTests
         else
         {
             Assert.Equal(0, (await execution).Value);
-            Assert.Equal(nested ? "held\n1 1 a\n" : "held\n1 1\n", host.Output);
+            Assert.Equal(kind == "simple" ? "held\n1 1\n" : "held\n1 1 a\n", host.Output);
         }
         Assert.Equal("", host.Error);
         Assert.Equal(0, budget.Reserved);

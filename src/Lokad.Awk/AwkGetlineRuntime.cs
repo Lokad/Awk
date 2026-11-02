@@ -10,6 +10,39 @@ internal enum AwkPendingDiagnosticPolicy
 
 internal static class AwkGetlineRuntime
 {
+    internal static void ApplyResult(AwkRuntimeState state, AwkResolvedGetlineTarget target,
+        bool readsMainInput, AwkGetlineResult result)
+    {
+        if (result.HasRecord)
+        {
+            if (target.IsCurrentRecord)
+            {
+                state.PublishInputRecord(AwkInputRecordResult.Record(result.RecordText,
+                    result.Terminator, result.FieldSplittingMode), readsMainInput);
+                return;
+            }
+            state.ThrowIfCancellationRequested();
+            if (readsMainInput)
+            {
+                state.AdvanceMainInputRecord(result.Terminator);
+            }
+            else
+            {
+                state.SetRecordTerminator(result.Terminator);
+            }
+
+            target.AssignRecord(state, result.RecordText, result.FieldSplittingMode);
+        }
+        else if (result.ClearsRecordTerminator)
+        {
+            state.SetRecordTerminator(AwkRecordTerminator.Empty);
+        }
+        else if (result.Failed)
+        {
+            state.SetErrno(result.Error.Errno);
+        }
+    }
+
     public static async ValueTask<AwkGetlineResult> ExecuteAsync(
         AwkGetlineTarget target,
         AwkGetlineSource source,
@@ -17,42 +50,6 @@ internal static class AwkGetlineRuntime
         AwkExecutionContext execution,
         AwkPendingDiagnosticPolicy pendingDiagnosticPolicy)
     {
-        static void ApplyResult(
-            AwkResolvedGetlineTarget target,
-            AwkGetlineSource source,
-            AwkEvaluationContext context,
-            AwkGetlineResult result)
-        {
-            if (result.HasRecord)
-            {
-                if (target.IsCurrentRecord)
-                {
-                    context.State.PublishInputRecord(AwkInputRecordResult.Record(result.RecordText,
-                        result.Terminator, result.FieldSplittingMode), source.ReadsMainInput);
-                    return;
-                }
-                context.State.ThrowIfCancellationRequested();
-                if (source.ReadsMainInput)
-                {
-                    context.State.AdvanceMainInputRecord(result.Terminator);
-                }
-                else
-                {
-                    context.State.SetRecordTerminator(result.Terminator);
-                }
-
-                target.AssignRecord(context.State, result.RecordText, result.FieldSplittingMode);
-            }
-            else if (result.ClearsRecordTerminator)
-            {
-                context.State.SetRecordTerminator(AwkRecordTerminator.Empty);
-            }
-            else if (result.Failed)
-            {
-                context.State.SetErrno(result.Error.Errno);
-            }
-        }
-
         var readMainInput = source.ReadsMainInput;
         if (readMainInput)
         {
@@ -69,7 +66,7 @@ internal static class AwkGetlineRuntime
         using var targetLease = context.State.MemoryAccounting.ReserveTransient(resolvedTarget.RetainedKeyBytes);
         var result = await resolvedSource.ReadAsync(execution).ConfigureAwait(false);
 
-        ApplyResult(resolvedTarget, source, context, result);
+        ApplyResult(context.State, resolvedTarget, source.ReadsMainInput, result);
         return result;
     }
 }

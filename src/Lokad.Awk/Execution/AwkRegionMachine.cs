@@ -80,6 +80,10 @@ internal partial struct AwkRegionMachine
                 if (!_hostCompletion.IsCompletedSuccessfully) return false;
                 CompleteHostOperation();
                 break;
+            case Pending.Read:
+                if (!_hostCompletion.IsCompletedSuccessfully) return false;
+                CompleteRead();
+                break;
             case Pending.HostFlow:
                 if (!_hostFlow.IsCompletedSuccessfully) return false;
                 var flow = _hostFlow.Result;
@@ -200,6 +204,10 @@ internal partial struct AwkRegionMachine
                         await machine._hostCompletion.ConfigureAwait(false);
                         machine.CompleteHostOperation();
                         break;
+                    case Pending.Read:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompleteRead();
+                        break;
                     case Pending.HostFlow:
                         var flow = await machine._hostFlow.ConfigureAwait(false);
                         machine._pending = Pending.None;
@@ -217,5 +225,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, Output, HostFlow, HostValue, LegacyValue }
+    private enum Pending : byte { None, Flush, Output, Read, HostFlow, LegacyValue }
 }

@@ -17,6 +17,9 @@ Redirected-output cases cover numeric target conversion after argument effects, 
 names, field views across arities, and pending writes inside calls with live caller keys.
 Refusal/format failures preserve existing files and avoid creating new outputs. Prepared
 pipe cases retain opaque command names, logical flush and command close status.
+Read loops check native numeric status/argument transport. Pending destination cases retain
+simple, composite and nested keys across file-phase mutation and ignored cancellation;
+setup/read/publication phases are separate so unrelated preparation gaps cannot mask the read.
 
 ## Golden Corpus
 
