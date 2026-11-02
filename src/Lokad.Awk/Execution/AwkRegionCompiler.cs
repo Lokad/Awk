@@ -17,6 +17,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<int> _builderSeparators = [];
     private readonly List<AwkRegionCall> _calls = [];
     private readonly List<AwkRegionBuiltin> _builtins = [];
+    private readonly List<AwkRegionStringCall> _strings = [];
     private readonly List<AwkRegionPrint> _prints = [];
     private readonly List<AwkRegionPrintf> _printfs = [];
     private readonly List<AwkRegionGetline> _getlines = [];
@@ -94,7 +95,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count),
             _calls.ToArray(), _hostStatements.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _kind);
         return true;
     }
 
@@ -369,7 +370,9 @@ internal sealed class AwkRegionCompiler
             AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
             target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1) &&
             builtin.TryGetScalarComputation(out var implementation))
-            return Builtin(syntax, builtin, implementation, out result);
+            return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
+                ? StringCall(syntax, builtin.Id, out result)
+                : Builtin(syntax, builtin, implementation, out result);
         if (_scope.Functions is not { } functions ||
             !functions.TryGetValue(new AwkFunctionName(target.Identifier), out var function)) return false;
         var slot = _activeCalls++;
@@ -470,6 +473,42 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
         return true;
+    }
+
+    private bool StringCall(AwkExpressionSyntax syntax, AwkBuiltinId id, out int result)
+    {
+        result = 0;
+        var count = syntax.Children.Count - 1;
+        Span<int> arguments = stackalloc int[3];
+        arguments.Fill(-1);
+        for (var index = 0; index < count; index++)
+        {
+            // Preserve evaluation before any later computation or possibly
+            // invalidating lookup. Immediate scalar/field reads keep their
+            // existing owners through this synchronous operation.
+            if (!IsImmediateRead(syntax.Children[index + 1])) CaptureStringArguments(arguments, index);
+            if (!Expression(syntax.Children[index + 1], out var operand)) return false;
+            arguments[index] = operand;
+            if (_operands[operand].Kind == AwkRegionOperandKind.ArrayElement)
+                CaptureStringArguments(arguments, index + 1);
+        }
+        var site = _strings.Count;
+        _strings.Add(new(id, arguments[0], arguments[1], arguments[2]));
+        var target = id == AwkBuiltinId.Index ? _numbers++ : _values++;
+        Emit(new(AwkRegionInstructionKind.String, target, site));
+        result = Operand(id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, target);
+        return true;
+    }
+
+    private void CaptureStringArguments(Span<int> arguments, int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            if (_operands[arguments[index]].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary) continue;
+            var captured = _values++;
+            Emit(new(AwkRegionInstructionKind.Value, captured, arguments[index], Detail: 1));
+            arguments[index] = Operand(AwkRegionOperandKind.ValueTemporary, captured);
+        }
     }
 
     private bool Assignment(AwkExpressionSyntax syntax, out int result)
@@ -905,8 +944,10 @@ internal sealed class AwkRegionCompiler
             _scope.CheckCancellation();
             syntax = syntax.Children[0];
         }
-        return syntax.Kind is AwkExpressionKind.Number or AwkExpressionKind.String or AwkExpressionKind.Variable ||
-            syntax.Kind == AwkExpressionKind.Field && syntax.Children.Count == 1 && syntax.Children[0].Kind == AwkExpressionKind.Number;
+        return syntax.Kind is AwkExpressionKind.Number or AwkExpressionKind.String ||
+            syntax.Kind == AwkExpressionKind.Variable &&
+                AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier) && !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ||
+            syntax.Kind == AwkExpressionKind.Field && TryFixedField(syntax, out _);
     }
 
     private bool Variable(AwkExpressionSyntax syntax, out int index)

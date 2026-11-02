@@ -7,8 +7,11 @@ namespace Lokad.Awk;
 internal static partial class AwkBuiltins
 {
 
+    internal static double EvaluateIndexNumber(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
+        state.IndexOfStringUnits(state.FormatStringByteText(source.ForceScalar()), state.FormatStringByteText(needle));
+
     internal static AwkValue EvaluateIndexValues(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
-        AwkValue.FromNumber(state.IndexOfStringUnits(state.FormatStringByteText(source.ForceScalar()), state.FormatStringByteText(needle)));
+        AwkValue.FromNumber(EvaluateIndexNumber(state, source, needle));
 
     internal static AwkValue EvaluateSubstrValues(AwkRuntimeState state, AwkValue sourceValue,
         AwkValue startValue, AwkValue lengthValue, int argumentCount)

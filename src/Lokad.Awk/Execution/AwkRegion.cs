@@ -6,7 +6,8 @@ internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls, AwkStatement[] hostStatements,
-    AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines, AwkRegionKind kind)
+    AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
+    AwkRegionStringCall[] strings, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
@@ -66,6 +67,7 @@ internal sealed class AwkRegion(
     internal AwkRegionPrint[] Prints => prints;
     internal AwkRegionPrintf[] Printfs => printfs;
     internal AwkRegionGetline[] Getlines => getlines;
+    internal AwkRegionStringCall[] Strings => strings;
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
@@ -79,7 +81,7 @@ internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArray
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
-    Value, Length, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
+    Value, Length, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
@@ -111,6 +113,7 @@ internal readonly record struct AwkRegionCursor
 internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, int Destination);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation Implementation,
     int Start, int Count, int[] PendingArguments);
+internal readonly record struct AwkRegionStringCall(AwkBuiltinId Id, int First, int Second = -1, int Third = -1);
 internal sealed record AwkRegionPrint(int Values, int Texts, int Segments, int Count, int[] Fields, AwkRegionOutput Output = default);
 internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields, AwkRegionOutput Output = default);
 internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result, bool IsExpression);

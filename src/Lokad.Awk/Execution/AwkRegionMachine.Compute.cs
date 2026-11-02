@@ -98,6 +98,21 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Value:
                     storage.StoreValue(instruction.Target, Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
+                case AwkRegionInstructionKind.String:
+                {
+                    var operation = region.Strings[instruction.Left];
+                    var first = Value(operation.First);
+                    var second = operation.Second >= 0 ? Value(operation.Second) : default;
+                    var third = operation.Third >= 0 ? Value(operation.Third) : default;
+                    state.ThrowIfCancellationRequested();
+                    if (operation.Id == AwkBuiltinId.Index)
+                        numbers[instruction.Target] = AwkBuiltins.EvaluateIndexNumber(state, first, second);
+                    else
+                        storage.StoreValue(instruction.Target, operation.Id == AwkBuiltinId.Substr
+                            ? AwkBuiltins.EvaluateSubstrValues(state, first, second, third, operation.Third >= 0 ? 3 : 2)
+                            : AwkBuiltins.EvaluateCaseValue(state, first, operation.Id == AwkBuiltinId.ToUpper));
+                    break;
+                }
                 case AwkRegionInstructionKind.Length:
                 {
                     var lengthOperand = operands[instruction.Left];

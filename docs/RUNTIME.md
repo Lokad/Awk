@@ -185,8 +185,10 @@ until the host write actually finishes, including when it ignores cancellation. 
 preflights before file creation or truncation; authorization remains at the host boundary.
 Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
-Ordinary scalar builtins use the same evaluated argument storage, including string operations
-and functions that can report warnings. Statement temporaries retire after their final users.
+Scalar string operations consume prebound operands directly. Stable synchronous reads keep
+their existing owners; captures remain funded before intervening computation, array reads or
+suspension. Other scalar builtins use reusable argument storage. Statement temporaries retire
+after their final users, including for functions that can report warnings.
 `length` counts fields without owning their text and distinguishes scalar text from array aliases.
 Prepared `getline` captures the source before its destination and retains both through the
 actual read. Main-input reads can reenter file phases without overwriting caller scratch.

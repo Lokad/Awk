@@ -23,6 +23,8 @@ setup/read/publication phases are separate so unrelated preparation gaps cannot 
 String and formatting argument cases preserve earlier fields while later arguments suspend
 and mutate the record. Inactive argument capacity can remain funded until the state ends;
 checks require failure ordering, no pending users and final refunds instead of old route counts.
+Native string-operation counters cover cached field and array values across dirty-record
+reconstruction, byte-native processing and final governor refunds in both execution modes.
 
 ## Golden Corpus
 
