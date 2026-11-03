@@ -3,7 +3,7 @@
 The awk suite is intentionally split by boundary. New coverage should start in the narrowest layer that observes the behavior without depending on unrelated plumbing.
 
 Public deep-source cases raise the existing syntax-depth policy and exercise block/function
-scope, operators, nested arguments, value locations, keys, conditions and loop/switch bodies in ordinary/governed
+scope, operators, nested arguments/special forms, value locations, keys, conditions and loop/switch bodies in ordinary/governed
 execution, preserving values, control flow and final refunds. Binder cases pin symbol and diagnostic order across branches and switch contexts.
 `AwkRegionCallTests` checks iterative call continuations, genuinely pending host reads,
 cancellation and funded-frame cleanup. Numeric-return cases distinguish immediate numeric

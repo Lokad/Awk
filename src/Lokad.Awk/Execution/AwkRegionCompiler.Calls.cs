@@ -9,31 +9,31 @@ internal sealed partial class AwkRegionCompiler
         if (AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target) &&
             !_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _))
         {
+            if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline) &&
+                AwkGetlineLowerer.TryResolveExpressionCallParts(syntax, out var parts)) return new GetlineWork(parts, isExpression: true);
+            if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Length) && target.HasDelimitedCall && syntax.Children.Count is 1 or 2)
+                return new LengthWork(syntax.Children.Count == 1 ? null : syntax.Children[1]);
             if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
                 AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
                 target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1))
             {
-                if (builtin.Id is not (AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper) &&
-                    builtin.TryGetScalarComputation(out var computation))
+                if (builtin.Id is AwkBuiltinId.IsArray or AwkBuiltinId.TypeOf)
+                    return new IntrospectionWork(syntax.Children[1], builtin.Id == AwkBuiltinId.TypeOf);
+                if (builtin.Id is AwkBuiltinId.Split or AwkBuiltinId.Patsplit) return new SplitWork(syntax, builtin.Id == AwkBuiltinId.Patsplit);
+                if (builtin.Id == AwkBuiltinId.Match) return new MatchWork(syntax);
+                if (builtin.Id is AwkBuiltinId.Sub or AwkBuiltinId.Gsub) return new SubstituteWork(syntax, builtin.Id == AwkBuiltinId.Gsub);
+                if (builtin.Id is AwkBuiltinId.Asort or AwkBuiltinId.Asorti) return new SortWork(syntax, builtin.Id == AwkBuiltinId.Asorti);
+                if (builtin.Id == AwkBuiltinId.Gensub) return new GensubWork(syntax);
+                if (builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
+                    return new StringCallWork(syntax, builtin.Id);
+                if (builtin.TryGetScalarComputation(out var computation))
                     return new ScalarBuiltinWork(syntax, builtin, computation);
                 if (builtin.TryGetHostComputation(out var host)) return new HostBuiltinWork(syntax, builtin, host, false);
             }
             else if (_scope.Functions is { } functions && functions.TryGetValue(new(target.Identifier), out var function))
                 return new UserCallWork(syntax, function);
         }
-        return new SpecialCallWork(syntax);
-    }
-
-    // Remaining special forms still adapt their existing preparation helpers.
-    // Convert these requests before the recursive preparation bridge is retired.
-    private sealed class SpecialCallWork(AwkExpressionSyntax syntax) : PreparationWork<int>
-    {
-        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
-            [NotNullWhen(true)] out PreparationWork? next)
-        {
-            next = null;
-            return compiler.SpecialCall(syntax, out var result) ? Complete(result) : false;
-        }
+        return new LeafOperandWork(syntax);
     }
 
     private sealed class UserCallWork(AwkExpressionSyntax syntax, AwkUserFunction function) : PreparationWork<int>

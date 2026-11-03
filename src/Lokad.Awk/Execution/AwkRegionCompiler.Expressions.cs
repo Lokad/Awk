@@ -6,14 +6,8 @@ internal sealed partial class AwkRegionCompiler
 {
     // Preparation-only continuations. Emitted operations still execute in the one
     // common interpreter; this stack never survives program publication.
-    private bool Expression(AwkExpressionSyntax syntax, out int result, bool preserveOrigin = false)
-    {
-        result = 0;
-        // Temporary protection for recursive helper bridges. Remove after their
-        // operands also use preparation frames, before deleting the AST fallback.
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        return PrepareOperandWork(CreateOperandWork(syntax, preserveOrigin), out result);
-    }
+    private bool Expression(AwkExpressionSyntax syntax, out int result, bool preserveOrigin = false) =>
+        PrepareOperandWork(CreateOperandWork(syntax, preserveOrigin), out result);
 
     private bool PrepareOperandWork(PreparationWork<int> work, out int result)
     {
@@ -54,10 +48,14 @@ internal sealed partial class AwkRegionCompiler
         }
         return syntax.Kind switch
         {
+            AwkExpressionKind.Variable when AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var name) &&
+                AwkBuiltins.IsName(name.Name, AwkBuiltinId.Length) => new LengthWork(null),
             AwkExpressionKind.Field when syntax.Children.Count == 1 => new FieldWork(syntax),
             AwkExpressionKind.ArrayElement => new ArrayReadWork(syntax, preserveOrigin),
             AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 => new AssignmentWork(syntax),
             AwkExpressionKind.Concatenation when syntax.Children.Count == 2 => new ConcatenationWork(syntax),
+            AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 &&
+                syntax.OperatorTokens[0].Kind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde => new RegexMatchWork(syntax),
             AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 &&
                 syntax.OperatorTokens[0].Kind == AwkTokenKind.In => new MembershipWork(syntax),
             AwkExpressionKind.Unary or AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1 &&
@@ -67,7 +65,7 @@ internal sealed partial class AwkRegionCompiler
             AwkExpressionKind.FunctionCall => CreateCallWork(syntax),
             AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 => new BinaryWork(syntax),
             AwkExpressionKind.Unary or AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1 => new UnaryWork(syntax),
-            _ => new RecursiveOperandWork(syntax, preserveOrigin)
+            _ => new LeafOperandWork(syntax)
         };
     }
 
@@ -89,15 +87,13 @@ internal sealed partial class AwkRegionCompiler
         completed is PreparationWork<T> work ? work.Result :
             throw new InvalidOperationException("The completed preparation has a different result type.");
 
-    // Explicit migration bridge for not-yet-converted preparation helpers.
-    // It is not an execution path and must disappear with the recursive emitter.
-    private sealed class RecursiveOperandWork(AwkExpressionSyntax syntax, bool preserveOrigin) : PreparationWork<int>
+    private sealed class LeafOperandWork(AwkExpressionSyntax syntax) : PreparationWork<int>
     {
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
-            return compiler.ExpressionCore(syntax, out var operand, preserveOrigin) ? Complete(operand) : false;
+            return compiler.PrepareLeafOperand(syntax, out var operand) ? Complete(operand) : false;
         }
     }
 
@@ -145,8 +141,6 @@ internal sealed partial class AwkRegionCompiler
             var token = syntax.OperatorTokens[0].Kind;
             if (_stage == 0)
             {
-                if (token is AwkTokenKind.Tilde or AwkTokenKind.BangTilde)
-                    return compiler.RegexMatch(syntax, out var match) ? Complete(match) : false;
                 _stage = 1;
                 next = compiler.CreateOperandWork(syntax.Children[0]);
                 return true;

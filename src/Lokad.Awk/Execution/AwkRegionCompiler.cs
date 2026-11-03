@@ -129,14 +129,11 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private bool Statements(IReadOnlyList<AwkStatementSyntax> statements)
-    {
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        return PrepareWork(new StatementsWork(statements));
-    }
+    private bool Statements(IReadOnlyList<AwkStatementSyntax> statements) =>
+        PrepareWork(new StatementsWork(statements));
 
-    // Temporary adapter for statements whose operands/control preparation have
-    // not yet moved onto the shared work stack.
+    // Control bodies use preparation continuations. These leaf statements may
+    // finish an operand work stack without recursively entering statement bodies.
     private bool PrepareStatement(AwkStatementSyntax statement)
     {
         _scope.CheckCancellation();
@@ -301,7 +298,7 @@ internal sealed partial class AwkRegionCompiler
         return false;
     }
 
-    private bool ExpressionCore(AwkExpressionSyntax syntax, out int result, bool preserveOrigin)
+    private bool PrepareLeafOperand(AwkExpressionSyntax syntax, out int result)
     {
         result = 0;
         switch (syntax.Kind)
@@ -320,234 +317,11 @@ internal sealed partial class AwkRegionCompiler
                 result = EmitRegexMatch(new(Operand(AwkRegionOperandKind.Field, 0), regex), negated: false);
                 return true;
             case AwkExpressionKind.Variable:
-                if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier) &&
-                    AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length))
-                    return Length(null, out result);
                 if (!Variable(syntax, out var variable)) return false;
                 result = Operand(AwkRegionOperandKind.Variable, variable);
                 return true;
             default: return false;
         }
-    }
-
-    private bool SpecialCall(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target)) return false;
-        if (_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _)) return false;
-        if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline))
-        {
-            return AwkGetlineLowerer.TryResolveExpressionCallParts(syntax, out var parts) &&
-                Getline(parts, isExpression: true, out result);
-        }
-        if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Length) &&
-            target.HasDelimitedCall && syntax.Children.Count is 1 or 2)
-            return Length(syntax.Children.Count == 1 ? null : syntax.Children[1], out result);
-        if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
-            AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
-            target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1))
-        {
-            if (builtin.Id is AwkBuiltinId.IsArray or AwkBuiltinId.TypeOf)
-                return Introspection(syntax.Children[1], builtin.Id == AwkBuiltinId.TypeOf, out result);
-            if (builtin.Id is AwkBuiltinId.Split or AwkBuiltinId.Patsplit)
-                return Split(syntax, builtin.Id == AwkBuiltinId.Patsplit, out result);
-            if (builtin.Id == AwkBuiltinId.Match) return Match(syntax, out result);
-            if (builtin.Id is AwkBuiltinId.Sub or AwkBuiltinId.Gsub)
-                return Substitute(syntax, builtin.Id == AwkBuiltinId.Gsub, out result);
-            if (builtin.Id is AwkBuiltinId.Asort or AwkBuiltinId.Asorti) return Sort(syntax, builtin.Id == AwkBuiltinId.Asorti, out result);
-            if (builtin.Id == AwkBuiltinId.Gensub) return Gensub(syntax, out result);
-            if (builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
-                return StringCall(syntax, builtin.Id, out result);
-        }
-        return false;
-    }
-
-    private bool Introspection(AwkExpressionSyntax argument, bool typeName, out int result)
-    {
-        result = 0;
-        int operand;
-        AwkRegionInstructionKind operation;
-        if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) && Variable(argument, out operand))
-            operation = AwkRegionInstructionKind.InspectVariable;
-        else
-        {
-            var unwrapped = argument;
-            while (unwrapped.Kind == AwkExpressionKind.Group && unwrapped.Children.Count == 1)
-            {
-                _scope.CheckCancellation();
-                unwrapped = unwrapped.Children[0];
-            }
-            if (unwrapped.Kind == AwkExpressionKind.ArrayElement)
-            {
-                if (!ArrayAccess(unwrapped, out operand)) return false;
-                operation = AwkRegionInstructionKind.InspectArray;
-            }
-            else
-            {
-                if (!Expression(argument, out operand, preserveOrigin: true)) return false;
-                operation = AwkRegionInstructionKind.InspectValue;
-            }
-        }
-        var target = typeName ? _values++ : _numbers++;
-        Emit(new(operation, target, operand, Detail: typeName ? 1 : 0));
-        if (operation == AwkRegionInstructionKind.InspectArray) FinishKey(operand);
-        result = Operand(typeName ? AwkRegionOperandKind.ValueTemporary : AwkRegionOperandKind.NumberTemporary, target);
-        return true;
-    }
-
-    private bool Split(AwkExpressionSyntax syntax, bool patsplit, out int result)
-    {
-        result = 0;
-        if (!Expression(syntax.Children[1], out var inputValue)) return false;
-        var input = _values++;
-        Emit(new(AwkRegionInstructionKind.Value, input, inputValue));
-        if (!ArrayTarget(syntax.Children[2], out var array)) return false;
-        var usesDefault = syntax.Children.Count == 3;
-        var origin = AwkRegexPatternOrigin.Runtime;
-        var literal = false;
-        int pattern;
-        if (usesDefault) pattern = _values++;
-        else if (!Pattern(syntax.Children[3], out pattern, out origin, out literal)) return false;
-        var separators = -1;
-        if (syntax.Children.Count == 5 && !ArrayTarget(syntax.Children[4], out separators)) return false;
-        var site = _splits.Count;
-        _splits.Add(new(input, array, separators, pattern, origin, literal, usesDefault, patsplit));
-        var target = _numbers++;
-        Emit(new(AwkRegionInstructionKind.Split, target, site));
-        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
-        return true;
-    }
-
-    private bool Match(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        if (!Expression(syntax.Children[1], out var inputValue)) return false;
-        var input = _values++;
-        Emit(new(AwkRegionInstructionKind.Value, input, inputValue));
-        if (!Pattern(syntax.Children[2], out var pattern, out var origin, out _)) return false;
-        var array = -1;
-        if (syntax.Children.Count == 4 && !ArrayTarget(syntax.Children[3], out array)) return false;
-        var site = _matches.Count;
-        _matches.Add(new(input, pattern, origin, array));
-        var target = _numbers++;
-        Emit(new(AwkRegionInstructionKind.Match, target, site));
-        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
-        return true;
-    }
-
-    private bool Substitute(AwkExpressionSyntax syntax, bool global, out int result)
-    {
-        result = 0;
-        if (!Pattern(syntax.Children[1], out var pattern, out var origin, out _)) return false;
-        if (!Expression(syntax.Children[2], out var replacementValue)) return false;
-        var replacement = _values++;
-        Emit(new(AwkRegionInstructionKind.Value, replacement, replacementValue));
-        var target = -1;
-        var access = -1;
-        if (syntax.Children.Count == 4 && !Reference(syntax.Children[3], out target, out access)) return false;
-        var site = _substitutions.Count;
-        _substitutions.Add(new(pattern, origin, replacement, target, global));
-        var number = _numbers++;
-        Emit(new(AwkRegionInstructionKind.Substitute, number, site));
-        if (access >= 0) FinishKey(access);
-        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        return true;
-    }
-
-    private bool Sort(AwkExpressionSyntax syntax, bool keys, out int result)
-    {
-        result = 0;
-        if (!ArrayTarget(syntax.Children[1], out var source)) return false;
-        var destination = source;
-        if (syntax.Children.Count >= 3 && !ArrayTarget(syntax.Children[2], out destination)) return false;
-        var order = -1;
-        if (syntax.Children.Count == 4)
-        {
-            if (!Expression(syntax.Children[3], out var value)) return false;
-            order = _values++;
-            Emit(new(AwkRegionInstructionKind.Value, order, value));
-            Emit(new(AwkRegionInstructionKind.PrepareString, order));
-        }
-        var site = _sorts.Count;
-        var comparison = _numbers++;
-        _sorts.Add(new(source, destination, order, _sortSlots++, _activeCalls, comparison, keys));
-        _incomingCalls = Math.Max(_incomingCalls, _activeCalls + 1);
-        Emit(new(AwkRegionInstructionKind.SortBegin, Left: site));
-        var target = _numbers++;
-        Emit(new(AwkRegionInstructionKind.SortAdvance, target, site));
-        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
-        return true;
-    }
-
-    private bool Gensub(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        if (!Pattern(syntax.Children[1], out var pattern, out var origin, out _)) return false;
-        var start = _values;
-        var count = syntax.Children.Count - 2;
-        _values = checked(_values + count);
-        for (var index = 0; index < count; index++)
-        {
-            if (!Expression(syntax.Children[index + 2], out var value, preserveOrigin: true)) return false;
-            Emit(new(AwkRegionInstructionKind.Value, start + index, value, Detail: 1));
-        }
-        var site = _gensubs.Count;
-        _gensubs.Add(new(pattern, origin, start, count));
-        var target = _values++;
-        Emit(new(AwkRegionInstructionKind.Gensub, target, site));
-        result = Operand(AwkRegionOperandKind.ValueTemporary, target);
-        return true;
-    }
-
-    private bool Pattern(AwkExpressionSyntax syntax, out int captured, out AwkRegexPatternOrigin origin, out bool literal)
-    {
-        captured = 0;
-        origin = AwkRegexPatternOrigin.Runtime;
-        literal = false;
-        int value;
-        if (AwkExpressionLowerer.TryReadRegexLiteralPattern(syntax, out var pattern, _scope.Checkpoint))
-        {
-            literal = true;
-            origin = AwkRegexPatternOrigin.SourceLiteral;
-            value = Operand(AwkRegionOperandKind.Literal, _literals.Count);
-            _literals.Add(AwkText.FromSourceLiteralString(pattern));
-        }
-        else if (!Expression(syntax, out value)) return false;
-        captured = _values++;
-        Emit(new(AwkRegionInstructionKind.Value, captured, value));
-        Emit(new(AwkRegionInstructionKind.PrepareByteText, captured));
-        return true;
-    }
-
-    private bool ArrayTarget(AwkExpressionSyntax syntax, out int slot)
-    {
-        slot = 0;
-        int access;
-        if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var name))
-        {
-            if (_scope.IsReservedVariable(name.Name)) return false;
-            access = _arrays.Count;
-            _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
-        }
-        else if (_scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
-            syntax.Kind != AwkExpressionKind.ArrayElement || !ArrayAccess(syntax, out access)) return false;
-        slot = _arrayTargets++;
-        Emit(new(AwkRegionInstructionKind.ArrayTarget, slot, access));
-        if (_arrays[access].Key >= 0 || _arrays[access].Path >= 0) FinishKey(access);
-        return true;
-    }
-
-    private bool Length(AwkExpressionSyntax? argument, out int result)
-    {
-        result = 0;
-        int value;
-        if (argument is null) value = Operand(AwkRegionOperandKind.Field, 0);
-        else if (!Expression(argument, out value, preserveOrigin: true)) return false;
-        var number = _numbers++;
-        Emit(new(AwkRegionInstructionKind.Length, number, value,
-            Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
-        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        return true;
     }
 
     private bool InputPipe(AwkInputPipeGetlineSyntax syntax)
@@ -558,76 +332,14 @@ internal sealed partial class AwkRegionCompiler
         return Getline(new(target, command, AwkGetlineSourceKind.InputPipe), isExpression: false, out _);
     }
 
-    private bool Getline(AwkGetlineLoweringParts parts, bool isExpression, out int result)
-    {
-        var site = _getlines.Count;
-        var number = _numbers++;
-        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        var source = parts.HasRedirection ? _values++ : -1;
-        _getlines.Add(new(site, source, parts.SourceKind, number, isExpression));
-        var boundary = Emit(new(AwkRegionInstructionKind.GetlineBoundary, Left: site));
-        if (parts.HasRedirection)
-        {
-            if (!parts.Source.TryGetValue(out var sourceSyntax) || !Expression(sourceSyntax, out var sourceValue)) return false;
-            Emit(new(AwkRegionInstructionKind.Value, source, sourceValue));
-            // Resolve the name before any destination effects, including numeric formatting.
-            Emit(new(AwkRegionInstructionKind.PrepareString, source));
-        }
-        if (parts.Target.TryGetValue(out var target))
-        {
-            if (!Reference(target, out var operand, out var access)) return false;
-            Emit(new(AwkRegionInstructionKind.GetlineTarget, site, operand));
-            if (access >= 0) FinishKey(access);
-        }
-        Emit(new(AwkRegionInstructionKind.Getline, Left: site));
-        Patch(boundary, Label());
-        return true;
-    }
-
-    private bool Reference(AwkExpressionSyntax syntax, out int operand, out int access)
-    {
-        access = -1;
-        operand = 0;
-        if (syntax.Kind == AwkExpressionKind.Variable &&
-            AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(syntax, out _) && Variable(syntax, out var variable))
-            operand = Operand(AwkRegionOperandKind.Variable, variable);
-        else if (syntax.Kind == AwkExpressionKind.Field && Field(syntax, out var field)) operand = field;
-        else if (syntax.Kind == AwkExpressionKind.ArrayElement && ArrayAccess(syntax, out access))
-            operand = Operand(AwkRegionOperandKind.ArrayElement, access);
-        else return false;
-        return true;
-    }
+    private bool Getline(AwkGetlineLoweringParts parts, bool isExpression, out int result) =>
+        PrepareOperandWork(new GetlineWork(parts, isExpression), out result);
 
     private bool HostBuiltin(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
         AwkBuiltinImplementation.AsyncBuiltinImplementation implementation, out int result,
         bool flushBeforeArguments = false)
     {
         return PrepareOperandWork(new HostBuiltinWork(syntax, definition, implementation, flushBeforeArguments), out result);
-    }
-
-    private bool StringCall(AwkExpressionSyntax syntax, AwkBuiltinId id, out int result)
-    {
-        result = 0;
-        var count = syntax.Children.Count - 1;
-        Span<int> arguments = stackalloc int[3];
-        arguments.Fill(-1);
-        for (var index = 0; index < count; index++)
-        {
-            // Preserve evaluation before any later computation or possibly
-            // invalidating lookup. Immediate scalar/field reads keep their
-            // existing owners through this synchronous operation.
-            if (!IsImmediateRead(syntax.Children[index + 1])) CaptureStringArguments(arguments, index);
-            if (!Expression(syntax.Children[index + 1], out var operand)) return false;
-            arguments[index] = operand;
-            if (_operands[operand].Kind == AwkRegionOperandKind.ArrayElement)
-                CaptureStringArguments(arguments, index + 1);
-        }
-        var site = _strings.Count;
-        _strings.Add(new(id, arguments[0], arguments[1], arguments[2]));
-        var target = id == AwkBuiltinId.Index ? _numbers++ : _values++;
-        Emit(new(AwkRegionInstructionKind.String, target, site));
-        result = Operand(id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, target);
-        return true;
     }
 
     private void CaptureStringArguments(Span<int> arguments, int count)
@@ -838,11 +550,8 @@ internal sealed partial class AwkRegionCompiler
         Emit(new(kind, variable, NumericRegister(value)));
     }
 
-    private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations)
-    {
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        return PrepareWork(new BranchWork(syntax, whenTrue, destinations));
-    }
+    private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations) =>
+        PrepareWork(new BranchWork(syntax, whenTrue, destinations));
 
     private int EmitBranch(int operand, bool whenTrue)
     {
@@ -850,28 +559,6 @@ internal sealed partial class AwkRegionCompiler
         return source.Kind == AwkRegionOperandKind.NumberTemporary
             ? Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfNonzero : AwkRegionInstructionKind.JumpIfZero, Left: source.Index))
             : Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfTrue : AwkRegionInstructionKind.JumpIfFalse, Left: operand));
-    }
-
-    private bool RegexMatch(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        if (!Expression(syntax.Children[0], out var input)) return false;
-        var negated = syntax.OperatorTokens[0].Kind == AwkTokenKind.BangTilde;
-        if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(syntax.Children[1], out var literal,
-            _scope.CompatibilityMode, _scope.Checkpoint))
-        {
-            result = EmitRegexMatch(new(input, literal), negated);
-            return true;
-        }
-        // Capture the value before the RHS can replace it. Numeric formatting
-        // uses CONVFMT after the RHS has run, as in GNU awk.
-        input = CaptureValue(input);
-        if (!Expression(syntax.Children[1], out var pattern)) return false;
-        pattern = CaptureByteText(pattern);
-        input = CaptureByteText(input);
-        result = EmitRegexMatch(new(input, null, _operands[pattern].Index), negated);
-        Emit(new(AwkRegionInstructionKind.ReleaseValue, _operands[pattern].Index));
-        return true;
     }
 
     private int CaptureByteText(int input)

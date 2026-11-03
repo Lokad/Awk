@@ -3,6 +3,44 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, "length")] [InlineData(true, "length")]
+    [InlineData(false, "substr")] [InlineData(true, "substr")]
+    [InlineData(false, "typeof")] [InlineData(true, "typeof")]
+    [InlineData(false, "split")] [InlineData(true, "split")]
+    [InlineData(false, "match")] [InlineData(true, "match")]
+    [InlineData(false, "gensub")] [InlineData(true, "gensub")]
+    [InlineData(false, "sub")] [InlineData(true, "sub")]
+    [InlineData(false, "regex")] [InlineData(true, "regex")]
+    public async Task DeepSpecialFormsPreserveResultsAndRefunds(bool governed, string shape)
+    {
+        const int depth = 2048;
+        var prefix = shape switch
+        {
+            "length" => "length(", "substr" => "substr(", "typeof" => "typeof(",
+            "split" => "split(", "match" => "match(", "gensub" => "gensub(/x/,\"y\",\"g\",",
+            "sub" => "sub(/x/,", _ => ""
+        };
+        var suffix = shape switch
+        {
+            "substr" => ",1)", "split" => ",a,\" \")", "match" => ",/1/)",
+            "sub" => ",v)", "regex" => " ~ /1/", _ => ")"
+        };
+        var source = "BEGIN{v=1;value=" + string.Concat(Enumerable.Repeat(prefix, depth)) + "1" +
+            string.Concat(Enumerable.Repeat(suffix, depth)) + ";print value}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(64 << 20);
+        var policy = AwkTestHarness.CreatePolicy().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.True(exit.Succeeded, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(shape == "typeof" ? "string\n" : shape == "sub" ? "0\n" : "1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, "assignment")] [InlineData(true, "assignment")]
     [InlineData(false, "compound")] [InlineData(true, "compound")]
     [InlineData(false, "field")] [InlineData(true, "field")]

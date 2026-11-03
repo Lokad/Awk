@@ -33,7 +33,7 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
-    private sealed class LocationWork(AwkExpressionSyntax syntax) : PreparationWork<PreparedLocation>
+    private sealed class LocationWork(AwkExpressionSyntax syntax, bool strict = false) : PreparationWork<PreparedLocation>
     {
         private bool _waiting;
         private bool _field;
@@ -43,6 +43,8 @@ internal sealed partial class AwkRegionCompiler
             next = null;
             if (!_waiting)
             {
+                if (strict && syntax.Kind is not (AwkExpressionKind.Variable or AwkExpressionKind.Field or AwkExpressionKind.ArrayElement))
+                    return false;
                 if (compiler.Variable(syntax, out var variable))
                     return Complete(new(compiler.Operand(AwkRegionOperandKind.Variable, variable)));
                 var unwrapped = syntax;
