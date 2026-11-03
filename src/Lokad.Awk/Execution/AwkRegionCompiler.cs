@@ -132,8 +132,19 @@ internal sealed class AwkRegionCompiler
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements)
     {
         if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        foreach (var statement in statements)
+        Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Position, int FirstTemporary)>? blocks = null;
+        var position = 0;
+        while (true)
         {
+            if (position == statements.Count)
+            {
+                if (blocks is null || !blocks.TryPop(out var caller)) return true;
+                statements = caller.Statements;
+                position = caller.Position;
+                FinishStatement(caller.FirstTemporary);
+                continue;
+            }
+            var statement = statements[position++];
             var firstTemporary = _values;
             _scope.CheckCancellation();
             if (AwkStatementKindFacts.IsOptionalValue(statement.Kind) &&
@@ -147,8 +158,11 @@ internal sealed class AwkRegionCompiler
             switch (statement.Kind)
             {
                 case AwkStatementKind.Block:
-                    if (!Statements(statement.BodyStatements)) return false;
-                    break;
+                    blocks ??= new();
+                    blocks.Push((statements, position, firstTemporary));
+                    statements = statement.BodyStatements;
+                    position = 0;
+                    continue;
                 case AwkStatementKind.Expression:
                     if (statement.Payload is AwkInputPipeExpressionStatementSyntaxPayload pipe)
                     {
@@ -293,14 +307,17 @@ internal sealed class AwkRegionCompiler
                     break;
                 default: return false;
             }
-            // Values captured by a statement have no users after it completes.
-            // Calls/returns and pending host users finish before reaching here;
-            // nonlocal flow is unwound by its existing owner instead.
-            if (_values > firstTemporary)
-                Emit(new(AwkRegionInstructionKind.ReleaseValues, firstTemporary, Right: _values - firstTemporary));
-            Emit(new(AwkRegionInstructionKind.StatementBoundary));
+            FinishStatement(firstTemporary);
         }
-        return true;
+    }
+
+    private void FinishStatement(int firstTemporary)
+    {
+        // Child statements retire their captures before their enclosing block does.
+        // Calls and pending users complete before this boundary; nonlocal flow unwinds.
+        if (_values > firstTemporary)
+            Emit(new(AwkRegionInstructionKind.ReleaseValues, firstTemporary, Right: _values - firstTemporary));
+        Emit(new(AwkRegionInstructionKind.StatementBoundary));
     }
 
     private bool CompileLoop(AwkStatementSyntax statement)

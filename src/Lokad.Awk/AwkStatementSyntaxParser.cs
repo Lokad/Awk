@@ -1510,36 +1510,35 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkStatementSyntax> statements,
         List<AwkDiagnostic> diagnostics)
     {
-        for (var index = 0; index < statements.Count; index++)
+        var pending = new Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Index)>();
+        pending.Push((statements, 0));
+        while (pending.TryPop(out var frame))
         {
+            if (frame.Index >= frame.Statements.Count) continue;
             _checkpoint?.Invoke();
-            AddNestedStatementDiagnostics(statements[index], diagnostics);
-        }
-
-        void AddNestedStatementDiagnostics(
-            AwkStatementSyntax statement,
-            List<AwkDiagnostic> diagnostics)
-        {
+            var statement = frame.Statements[frame.Index];
+            if (frame.Index + 1 < frame.Statements.Count)
+                pending.Push((frame.Statements, frame.Index + 1));
             for (var index = 0; index < statement.Diagnostics.Count; index++)
             {
                 _checkpoint?.Invoke();
                 diagnostics.Add(statement.Diagnostics[index]);
             }
-
             foreach (var expression in statement.EnumerateChildExpressions())
             {
                 _checkpoint?.Invoke();
                 if (expression.Kind == AwkExpressionKind.Unknown)
                     diagnostics.Add(AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression));
             }
-
-            AddStatementDiagnostics(statement.BodyStatements, diagnostics);
-            AddStatementDiagnostics(statement.ElseStatements, diagnostics);
-            for (var index = 0; index < statement.SwitchCases.Count; index++)
+            // Depth-first source order: body, else, switch arms, then the next sibling.
+            for (var index = statement.SwitchCases.Count - 1; index >= 0; index--)
             {
                 _checkpoint?.Invoke();
-                AddStatementDiagnostics(statement.SwitchCases[index].BodyStatements, diagnostics);
+                var body = statement.SwitchCases[index].BodyStatements;
+                if (body.Count != 0) pending.Push((body, 0));
             }
+            if (statement.ElseStatements.Count != 0) pending.Push((statement.ElseStatements, 0));
+            if (statement.BodyStatements.Count != 0) pending.Push((statement.BodyStatements, 0));
         }
     }
 

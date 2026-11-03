@@ -133,6 +133,16 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Fact]
+    public void AwkSyntaxParser_DeepBlockDiagnosticsDoNotUseTheManagedCallStack()
+    {
+        const int depth = 2048;
+        var source = "BEGIN{" + new string('{', depth) + "print 7" + new string('}', depth + 1);
+        var parsed = AwkParser.Parse(source, depth + 8);
+        Assert.True(parsed.Success);
+        Assert.Empty(parsed.Errors);
+    }
+
+    [Fact]
     public void AwkSyntaxParser_ParsesDeepStatementNestingWithLinearAllocation()
     {
         _ = ParseAndMeasureAllocatedBytes(CreateNestedStatements(8));

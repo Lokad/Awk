@@ -3,6 +3,24 @@ namespace Lokad.Awk.Tests;
 // Storage/migration checks. Ordinary behavior belongs to the public golden corpus.
 public sealed partial class AwkRegionTests
 {
+    [Theory]
+    [InlineData(512)]
+    [InlineData(2048)]
+    public void DeepSyntacticBlocksPrepareAndExecuteWithoutRecursiveBlockEmission(int depth)
+    {
+        var source = "BEGIN{" + new string('{', depth) + "value=7" + new string('}', depth + 1);
+        var parsed = AwkParser.Parse(source, depth + 8);
+        Assert.True(parsed.Success);
+        Assert.True(AwkRegionCompiler.TryCompileRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var region));
+        using var fixture = State(CancellationToken.None, true);
+        using var storage = new AwkRegionStorage(fixture.State);
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(fixture.State, storage));
+        Assert.Equal(7, fixture.State.ResolveVariableValue(AwkVariableName.FromText("value")).AsNumber());
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
     public static IEnumerable<object[]> ComputationCases()
     {
         foreach (var governed in new[] { false, true })
