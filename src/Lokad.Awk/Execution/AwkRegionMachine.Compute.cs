@@ -184,6 +184,9 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Split:
                     ExecuteSplit(region.Splits[instruction.Left], instruction.Target);
                     break;
+                case AwkRegionInstructionKind.Match:
+                    ExecuteMatch(region.Matches[instruction.Left], instruction.Target);
+                    break;
                 case AwkRegionInstructionKind.InspectArray:
                 {
                     var inspected = arrays[instruction.Left];

@@ -34,7 +34,8 @@ public sealed class AwkRegionFieldTests
             "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership",
             "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete",
             "typeof-field", "typeof-prefix", "typeof-nested", "isarray-nested", "isarray-symbol",
-            "split-input", "patsplit-input", "split-child", "split-pattern", "patsplit-pattern", "split-promote", "split-detach"
+            "split-input", "patsplit-input", "split-child", "split-pattern", "patsplit-pattern", "split-promote", "split-detach",
+            "match-input", "match-pattern", "match-child", "match-prefix", "match-numeric"
         })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
@@ -71,9 +72,15 @@ public sealed class AwkRegionFieldTests
             "patsplit-pattern" => "{i=1;count=patsplit(\"A0007B\",a,$i,seps[(read()>0?\"r\":\"x\")]);print count,a[1],seps[\"r\"][0],seps[\"r\"][1],$0,i;next}",
             "split-promote" => "{count=split(\"x:y\",a[1],(read()>0?\":\":\"none\"));print count,a[1][1],a[1][2],length(a[1]),$0,i;next}",
             "split-detach" => "{a[1][9]=3;count=split(\"x:y\",a[1],(read()>0?\":\":\"none\"));print \"unreachable\"}",
+            "match-input" => "{i=1;count=match($i,(read()>0?\"[0-9]+\":\"none\"));print count,RSTART,RLENGTH,$0,i;next}",
+            "match-pattern" => "{i=1;count=match(\"A0007B\",$i,caps[(read()>0?\"r\":\"x\")]);print count,caps[\"r\"][0],RSTART,RLENGTH,$0,i;next}",
+            "match-child" => "{i=1;caps[\"0007\",\"tag\"][11][\"old\"]=1;count=match(\"ab7\",/[0-9]/,caps[$i,\"tag\"][read()]);print count,caps[\"0007\",\"tag\"][11][0],RSTART,RLENGTH,$0,i;next}",
+            "match-prefix" => "{i=1;print match($i,/^0007$/),read(),RSTART,RLENGTH;next}",
+            "match-numeric" => "{CONVFMT=\"%.3f\";count=match(.125,(read()>0?\"^0[.]125$\":\"none\"));print count,CONVFMT,RSTART,RLENGTH,$0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
-        var beforeRead = operation switch { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", _ => "" };
+        var beforeRead = operation switch
+        { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", "match-numeric" => "CONVFMT=\"%.1f\";", _ => "" };
         var source = "function read(x){" + beforeRead + "getline x<\"/side\";i=2;$1=100;return x}" + action;
         var host = new MockFileSystem();
         host.SetStandardInput("0007 old\n");
@@ -141,6 +148,11 @@ public sealed class AwkRegionFieldTests
                 "patsplit-pattern" => "1 0007 A B 100 old 2\n",
                 "split-promote" => "2 x y 2 100 old 2\n",
                 "split-detach" => "",
+                "match-input" => "1 1 4 100 old 2\n",
+                "match-pattern" => "2 0007 2 4 100 old 2\n",
+                "match-child" => "3 7 3 1 100 old 2\n",
+                "match-prefix" => "1 11 1 4\n",
+                "match-numeric" => "0 %.1f 0 -1 100 old 2\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

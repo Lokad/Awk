@@ -21,8 +21,10 @@ refused selector admission and final refunds. Canonical switch/exit goldens reta
 selection, fallthrough, nested loop flow and END status behavior.
 `AwkRegexRegionTests` checks native literal field/record predicates and dynamic-pattern input
 ownership across pending RHS calls, record/format mutation and ignored cancellation in both
-memory modes. Splitting variants retain mixed-path coverage during migration. Golden cases pin
-GNU-compatible late numeric formatting without changing the captured input value.
+memory modes. Match and split cases retain patterns after their source variable is cleared,
+and check capture admission before mutation. Sorting preludes retain mixed-call coverage until
+sorting migrates. Golden cases pin late numeric input formatting and earlier regex-argument
+conversion without changing the captured input value.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.

@@ -25,6 +25,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkSwitchCasePattern> _switchCases = [];
     private readonly List<AwkRegionRegexMatch> _regexMatches = [];
     private readonly List<AwkRegionSplit> _splits = [];
+    private readonly List<AwkRegionMatch> _matches = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -119,7 +120,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets),
             _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _kind);
         return true;
     }
 
@@ -512,6 +513,7 @@ internal sealed class AwkRegionCompiler
                 return Introspection(syntax.Children[1], builtin.Id == AwkBuiltinId.TypeOf, out result);
             if (builtin.Id is AwkBuiltinId.Split or AwkBuiltinId.Patsplit)
                 return Split(syntax, builtin.Id == AwkBuiltinId.Patsplit, out result);
+            if (builtin.Id == AwkBuiltinId.Match) return Match(syntax, out result);
             if (builtin.TryGetScalarComputation(out var implementation))
                 return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
                     ? StringCall(syntax, builtin.Id, out result)
@@ -577,7 +579,6 @@ internal sealed class AwkRegionCompiler
         if (!Expression(syntax.Children[1], out var inputValue)) return false;
         var input = _values++;
         Emit(new(AwkRegionInstructionKind.Value, input, inputValue));
-        Emit(new(AwkRegionInstructionKind.PrepareByteText, input));
         if (!ArrayTarget(syntax.Children[2], out var array)) return false;
         var usesDefault = syntax.Children.Count == 3;
         var origin = AwkRegexPatternOrigin.Runtime;
@@ -591,6 +592,23 @@ internal sealed class AwkRegionCompiler
         _splits.Add(new(input, array, separators, pattern, origin, literal, usesDefault, patsplit));
         var target = _numbers++;
         Emit(new(AwkRegionInstructionKind.Split, target, site));
+        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
+        return true;
+    }
+
+    private bool Match(AwkExpressionSyntax syntax, out int result)
+    {
+        result = 0;
+        if (!Expression(syntax.Children[1], out var inputValue)) return false;
+        var input = _values++;
+        Emit(new(AwkRegionInstructionKind.Value, input, inputValue));
+        if (!Pattern(syntax.Children[2], out var pattern, out var origin, out _)) return false;
+        var array = -1;
+        if (syntax.Children.Count == 4 && !ArrayTarget(syntax.Children[3], out array)) return false;
+        var site = _matches.Count;
+        _matches.Add(new(input, pattern, origin, array));
+        var target = _numbers++;
+        Emit(new(AwkRegionInstructionKind.Match, target, site));
         result = Operand(AwkRegionOperandKind.NumberTemporary, target);
         return true;
     }

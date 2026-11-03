@@ -65,43 +65,16 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            static void AssignMatchVariables(
-                AwkRuntimeState state,
-                bool success,
-                int index,
-                int length)
-            {
-                state.AssignVariableValue(
-                    new AwkSpecialVariableName(AwkSpecialVariableId.RegexStart),
-                    AwkValue.FromNumber(success ? index + 1 : 0));
-                state.AssignVariableValue(
-                    new AwkSpecialVariableName(AwkSpecialVariableId.RegexLength),
-                    AwkValue.FromNumber(success ? length : -1));
-            }
-
-            var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
+            var inputValue = (await valueExpression.EvaluateAsync(context).ConfigureAwait(false)).AsScalarCopy();
+            using var heldInput = context.State.MemoryAccounting.ReserveTransient(inputValue.RetainedTextMemoryBytes);
             var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
-                captureArray is AwkArrayOperand.Element
-                    ? AwkRuntimeMemory.EstimateTextBytes(pattern.Text) : 0);
+                pattern.Text.EstimatedRetainedMemoryBytes);
             AwkArrayTarget? captureTarget = captureArray is null ? null :
                 await captureArray.CaptureAsync(context).ConfigureAwait(false);
             using var heldTarget = context.State.MemoryAccounting.ReserveTransient(captureTarget?.RetainedBytes ?? 0);
-            var regex = context.State.CreateRegex(pattern);
-            if (!captureTarget.HasValue)
-            {
-                var position = context.State.MatchRegexPosition(regex, input);
-                AssignMatchVariables(context.State, position.Success, position.Index, position.Length);
-                return AwkValue.FromNumber(position.Success ? position.Index + 1 : 0);
-            }
-
-            using var leasedMatch = context.State.MatchRegexCaptureValue(regex, input);
-            var match = leasedMatch.Match;
-            context.State.ReplaceMatchCaptureArray(captureTarget.Value, leasedMatch);
-            AssignMatchVariables(context.State, match.Success, match.Index, match.Length);
-
-            return AwkValue.FromNumber(match.Success ? match.Index + 1 : 0);
+            var input = context.State.FormatStringByteText(inputValue, heldInput);
+            return AwkValue.FromNumber(AwkMatchRuntime.Execute(context.State, input, pattern, captureTarget));
         }
     }
 }

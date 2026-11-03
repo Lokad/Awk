@@ -201,8 +201,9 @@ calls. Reusing a prepared program does not share that state between executions.
 completes. A pending call does not return that storage on cancellation alone. `close()` captures
 the formatted stream name before evaluating its direction; `fflush()` retains value origins
 for its lint behavior. Both preserve their diagnostic and stream-status contracts.
-`split()` and `patsplit()` retain their input, pattern and captured destinations through
-pending argument evaluation. Array replacement retains its mutation preflight.
+`match()`, `split()` and `patsplit()` retain captured input values, patterns and array
+destinations through pending argument evaluation. Numeric inputs format after later arguments;
+regex arguments keep their earlier conversion point. Array replacement retains its preflight.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

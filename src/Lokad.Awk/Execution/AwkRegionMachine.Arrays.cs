@@ -2,9 +2,22 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
+    private void ExecuteMatch(AwkRegionMatch match, int result)
+    {
+        var storage = _cursor.Storage;
+        storage.PrepareByteText(match.Input);
+        var pattern = new AwkRegexPattern(storage.Values[match.Pattern].ByteText, match.Origin, match);
+        AwkArrayTarget? capture = match.Array < 0 ? null : storage.ArrayTarget(match.Array);
+        storage.Numbers[result] = AwkMatchRuntime.Execute(_state, storage.Values[match.Input].ByteText, pattern, capture);
+        storage.ReleaseValue(match.Input);
+        storage.ReleaseValue(match.Pattern);
+        if (match.Array >= 0) storage.ReleaseArrayTarget(match.Array);
+    }
+
     private void ExecuteSplit(AwkRegionSplit split, int result)
     {
         var storage = _cursor.Storage;
+        storage.PrepareByteText(split.Input);
         var csv = split.UsesDefault && !split.Patsplit && _state.CsvInput;
         if (split.UsesDefault && !csv)
         {

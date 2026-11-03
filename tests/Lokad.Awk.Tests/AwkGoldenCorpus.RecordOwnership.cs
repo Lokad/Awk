@@ -4,6 +4,24 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordOwnershipCases()
     {
+        yield return Passing("match-numeric-input-formats-after-pattern-effects",
+            ["function pattern(){CONVFMT=\"%.1f\";return \"^0[.]125$\"}BEGIN{CONVFMT=\"%.3f\";print match(.125,pattern()),RSTART,RLENGTH,CONVFMT}"], [],
+            "0 0 -1 %.1f\n");
+        yield return Passing("match-captures-numeric-value-before-pattern-effects",
+            ["function pattern(){x=.5;CONVFMT=\"%.1f\";return \"^0[.]1$\"}BEGIN{CONVFMT=\"%.3f\";x=.125;print match(x,pattern()),RSTART,RLENGTH,x}"], [],
+            "1 1 3 0.5\n");
+        yield return Passing("match-pattern-formats-before-capture-target-effects",
+            ["function key(){CONVFMT=\"%.1f\";return \"r\"}BEGIN{CONVFMT=\"%.3f\";print match(\"0.125\",.125,caps[key()]),RSTART,RLENGTH,caps[\"r\"][0]}"], [],
+            "1 1 5 0.125\n");
+        yield return Passing("split-numeric-input-formats-after-pattern-effects",
+            ["function pattern(){CONVFMT=\"%.1f\";return \":\"}BEGIN{CONVFMT=\"%.3f\";print split(.125,a,pattern()),a[1]}"], [],
+            "1 0.1\n");
+        yield return Passing("split-pattern-formats-before-separator-target-effects",
+            ["function key(){CONVFMT=\"%.1f\";return \"r\"}BEGIN{CONVFMT=\"%.3f\";print split(\"A0.125B\",a,.125,seps[key()]),a[1],a[2],seps[\"r\"][1]}"], [],
+            "2 A B 0.125\n");
+        yield return Passing("patsplit-numeric-input-formats-after-pattern-effects",
+            ["function pattern(){CONVFMT=\"%.1f\";cache=x\"\";return \"[0-9]+\"}BEGIN{CONVFMT=\"%.3f\";x=.125;print patsplit(x,a,pattern()),a[1],a[2],CONVFMT}"], [],
+            "2 0 1 %.1f\n");
         yield return Passing("print-values-format-after-later-operand-effects",
             ["function change(){OFS=\"|\";ORS=\"!\\n\";OFMT=\"%.3f\";$0=\"new row\";return 2.5}{print $1,1.25,change(),$1}"],
             [], "0007|1.250|2.500|new!\n", "0007 old\n");

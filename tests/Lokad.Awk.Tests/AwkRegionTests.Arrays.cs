@@ -5,13 +5,16 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData("split", false)] [InlineData("split", true)]
     [InlineData("patsplit", false)] [InlineData("patsplit", true)]
+    [InlineData("match", false)] [InlineData("match", true)]
     public void ArrayArgumentCaptureAdmissionPrecedesMissingReadAndLaterEffects(string builtin, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
         var state = fixture.State;
         var pattern = builtin == "patsplit" ? ",\".\"" : "";
-        var region = Compile(builtin + "(\"\",a[\"missing\"]" + pattern + ");later=9", state);
+        var call = builtin == "match" ? "match(\"\",\"\",a[\"missing\"])"
+            : builtin + "(\"\",a[\"missing\"]" + pattern + ")";
+        var region = Compile(call + ";later=9", state);
         var name = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
         var owner = state.ResolveOrdinaryArray(name, default);

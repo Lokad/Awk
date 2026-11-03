@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Capture `match`, `split` and `patsplit` input values before later arguments, and format
+  numeric inputs afterward using the resulting `CONVFMT`. Regex arguments retain their
+  earlier conversion point.
 - Correct `typeof(length)` to inspect the implicit length call.
 - Correct standalone two-argument `close()` to evaluate and validate the direction,
   consistently with calls used as expressions.
