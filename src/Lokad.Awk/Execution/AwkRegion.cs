@@ -40,13 +40,7 @@ internal sealed class AwkRegion(
         catch { machine.Cleanup(); throw; }
     }
 
-    internal void Initialize(AwkRuntimeState state, AwkRegionStorage storage)
-    {
-        storage.Prepare(layout);
-        InitializeConstants(state, storage.Numbers);
-    }
-
-    private void InitializeConstants(AwkRuntimeState state, double[] numbers)
+    internal void InitializeConstants(AwkRuntimeState state, double[] numbers)
     {
         for (var index = 0; index < constants.Length; index++)
         {
@@ -107,6 +101,7 @@ internal readonly record struct AwkRegionCursor
     private readonly AwkRegionStorage? _storage;
     internal AwkRegionCursor(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame) =>
         (_region, _storage, Position, Frame) = (region, storage, position, frame);
+    internal bool HasRegion => _region is not null;
     internal AwkRegion Region => _region ?? throw new InvalidOperationException("An uninitialized cursor has no region.");
     internal AwkRegionStorage Storage => _storage ?? throw new InvalidOperationException("An uninitialized cursor has no storage.");
     internal int Position { get; init; }

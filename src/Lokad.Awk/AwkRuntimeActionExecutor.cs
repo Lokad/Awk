@@ -50,76 +50,30 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
             state,
             io);
 
-    public ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkInputRecordResult record)
+    internal async Task ExecuteMainInputAsync(AwkRuntimeState state, AwkIo io, AwkInputScheduler input)
     {
-        var phase = state.EnterActionPhase(AwkActionPhase.Main);
-        var execution = default(AwkExecutionContextScope);
+        using var execution = state.PushExecutionContext(_output, io);
+        var machine = new AwkRegionMachine(state, _program.MainActions, _regionStorage, _output, io, input);
         var pending = false;
         try
         {
-            execution = state.PushExecutionContext(_output, io);
-            state.PublishInputRecord(record, readsMainInput: true);
-            state.Counters.RecordRecordRead();
-            var result = RunMainActions(state, io);
-            if (result.IsCompletedSuccessfully)
-                return ValueTask.FromResult(RecordFlow(result.Result));
-            pending = true;
-            return CompleteRecordAsync(result, phase, execution);
-        }
-        catch (AwkFunctionFlowSignal signal)
-        {
-            return ValueTask.FromResult(RecordFlow(signal.Flow));
-        }
-        finally
-        {
-            if (!pending)
+            if (!machine.Run())
             {
-                execution.Dispose();
-                phase.Dispose();
+                pending = true;
+                await AwkRegionMachine.ResumeAsync(machine).ConfigureAwait(false);
             }
         }
+        finally { if (!pending) machine.Cleanup(); }
     }
 
-    private static async ValueTask<AwkStatementFlow> CompleteRecordAsync(ValueTask<AwkStatementFlow> pending,
-        AwkActionPhaseScope phase, AwkExecutionContextScope execution)
+    internal static ValueTask<AwkStatementFlow> ExecuteUnmigratedActionAsync(AwkAction action,
+        AwkRuntimeState state, AwkIo io, AwkOutputSink output)
     {
-        try { return RecordFlow(await pending.ConfigureAwait(false)); }
-        catch (AwkFunctionFlowSignal signal) { return RecordFlow(signal.Flow); }
-        finally
-        {
-            execution.Dispose();
-            phase.Dispose();
-        }
-    }
-
-    private static AwkStatementFlow RecordFlow(AwkStatementFlow flow) =>
-        flow == AwkStatementFlow.NextRecord ? AwkStatementFlow.Continue : flow;
-
-    // Completed operations stay in this loop. Only an actual pending match/action
-    // transfers its index and scope to the asynchronous continuation below.
-    private ValueTask<AwkStatementFlow> RunMainActions(AwkRuntimeState state, AwkIo io)
-    {
-        for (var index = 0; index < _program.MainActions.Length; index++)
-        {
-            var action = ExecuteMainAction(state, io, index);
-            if (!action.IsCompletedSuccessfully)
-                return ResumeMainActionsAsync(state, io, index, action);
-            var flow = action.Result;
-            if (flow != AwkStatementFlow.Continue) return ValueTask.FromResult(flow);
-        }
-        return ValueTask.FromResult(AwkStatementFlow.Continue);
-    }
-
-    private ValueTask<AwkStatementFlow> ExecuteMainAction(AwkRuntimeState state, AwkIo io, int index)
-    {
-        var action = _program.MainActions[index];
-        if (action.Region is { } region)
-            return region.ExecuteAsync(state, _regionStorage, _output, io);
         var match = action.MatchesAsync(state);
         if (match.IsCompletedSuccessfully)
-            return match.Result ? action.ExecuteAsync(state, io, _output)
+            return match.Result ? action.ExecuteAsync(state, io, output)
                 : ValueTask.FromResult(AwkStatementFlow.Continue);
-        return AwaitMatchedActionAsync(match, action, state, io, _output);
+        return AwaitMatchedActionAsync(match, action, state, io, output);
     }
 
     // Only an unmigrated external pattern needs its own boolean continuation.
@@ -127,18 +81,6 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         AwkAction action, AwkRuntimeState state, AwkIo io, AwkOutputSink output) =>
         await match.ConfigureAwait(false) ? await action.ExecuteAsync(state, io, output).ConfigureAwait(false)
             : AwkStatementFlow.Continue;
-
-    private async ValueTask<AwkStatementFlow> ResumeMainActionsAsync(AwkRuntimeState state, AwkIo io,
-        int index, ValueTask<AwkStatementFlow> action)
-    {
-        while (true)
-        {
-            var flow = await action.ConfigureAwait(false);
-            if (flow != AwkStatementFlow.Continue) return flow;
-            if (++index == _program.MainActions.Length) return AwkStatementFlow.Continue;
-            action = ExecuteMainAction(state, io, index);
-        }
-    }
 
     public void Dispose()
     {

@@ -31,7 +31,7 @@ public sealed class AwkPrintfFieldArgumentTests
             : AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"), fields);
         var expected = fieldList ? "before 7\n" : "before:0007\n";
         var program = new AwkProgram([], [new(null, [statement])], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
-        using var executor = new AwkRuntimeActionExecutor(program, state);
+        using var executor = new AwkRecordTestExecution(program, state);
         var run = executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("before 7"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary)).AsTask();
         try
         {

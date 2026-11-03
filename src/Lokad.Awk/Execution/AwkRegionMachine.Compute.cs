@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 // operations cross the suspension boundary. Calls do not reenter an async driver.
 internal partial struct AwkRegionMachine
 {
-    internal bool Run()
+    private bool RunCore()
     {
         var state = _state;
         var output = _output;
@@ -22,6 +22,12 @@ internal partial struct AwkRegionMachine
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
+        if (!_cursor.HasRegion)
+        {
+            AdvanceMain();
+            if (_finished) return true;
+            if (_pending != Pending.None) goto Resume;
+        }
         region = _cursor.Region;
         storage = _cursor.Storage;
         frame = _cursor.Frame ?? _rootFrame;

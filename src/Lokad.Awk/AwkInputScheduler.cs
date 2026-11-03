@@ -268,29 +268,12 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    public async Task ProcessRemainingInputAsync()
-    {
-        while (!state.ExitRequested)
-        {
-            var input = await ReadAsync(state.InputRecordStorage).ConfigureAwait(false);
-            if (!input.HasRecord)
-                return;
+    internal ValueTask<AwkInputRecordResult> ReadForProcessingAsync() => ReadAsync(state.InputRecordStorage);
 
-            var flow = await actionExecutor.ProcessRecordAsync(state, io, input).ConfigureAwait(false);
-            if (flow == AwkStatementFlow.ExitProgram)
-            {
-                await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);
-                return;
-            }
+    internal ValueTask<AwkStatementFlow> CompleteActionAsync(AwkStatementFlow flow) =>
+        CompleteCurrentInputAsync(flow == AwkStatementFlow.ExitProgram ? EndFileAction.Skip : EndFileAction.Execute);
 
-            if (flow == AwkStatementFlow.NextFile)
-            {
-                var endFileFlow = await CompleteCurrentInputAsync(EndFileAction.Execute).ConfigureAwait(false);
-                if (endFileFlow == AwkStatementFlow.ExitProgram)
-                    return;
-            }
-        }
-    }
+    public Task ProcessRemainingInputAsync() => actionExecutor.ExecuteMainInputAsync(state, io, this);
 
     public async Task CloseRemainingDescriptorsAsync()
     {

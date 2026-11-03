@@ -173,9 +173,14 @@ Prepared comparisons can reuse field classification and scoped record bytes. Val
 escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Interpreter preparation binds operands, scalar/array locations and function targets.
-Covered computation, branches, loops, calls and rule conditions share a driver that suspends
-for actual pending host work. Command-wide host services are reused by record/actions;
-reentrant scopes retain only actual service overrides and restore them after pending work. File/start/end phases use separate funded scratch when they
+Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
+capacity checks and initialization. Switching bodies refreshes preparation without retaining
+unrelated scratch payloads.
+Main records, covered computation, branches, loops, calls and rule conditions share a
+continuing driver. It keeps input/rule/call positions across actual host suspension;
+record/header publication retains its admission and cancellation preflight. Command-wide
+host services are reused; reentrant scopes retain actual overrides and restore them after
+pending work. File/start/end phases use separate funded scratch when they
 interrupt a caller through `getline`; default and single-value output retain the ordinary
 flush/diagnostic contract. Multi-value output stages operands before formatting and keeps
 fixed-field lists byte-native across arities. Rebuilding `$0` or mutating/suspending operands

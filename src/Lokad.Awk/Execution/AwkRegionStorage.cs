@@ -18,6 +18,7 @@ internal sealed class AwkRegionStorage : IDisposable
     private AwkFieldText[] _printSegments = [];
     private bool[] _borrowedPrintFields = [];
     private bool _disposed;
+    private AwkRegion? _preparedRegion;
 
     internal AwkRegionStorage(AwkRuntimeState state)
     {
@@ -34,6 +35,15 @@ internal sealed class AwkRegionStorage : IDisposable
     internal AwkFieldText[] PrintSegments => _printSegments;
     internal bool[] BorrowedPrintFields => _borrowedPrintFields;
 
+    internal void Initialize(AwkRegion region)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (ReferenceEquals(_preparedRegion, region)) return;
+        Prepare(region.Layout);
+        region.InitializeConstants(_state, _numbers);
+        _preparedRegion = region;
+    }
+
     internal void Prepare(AwkRegionStorageLayout layout)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -47,6 +57,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var getlineTargets = layout.GetlineTargets;
         var paths = layout.Paths;
         if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length && segments <= _printSegments.Length && getlineTargets <= _getlineTargets.Length && paths <= _paths.Length) return;
+        _preparedRegion = null;
         var growNumbers = numbers > _numbers.Length;
         var growValues = values > _values.Length;
         var growTargets = targets > _targets.Length;
@@ -360,6 +371,7 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _preparedRegion = null;
         ClearValues();
         _numbers = [];
         _values = [];

@@ -10,6 +10,8 @@ execution boundary and actual pending reads to preserve matching/nonmatching act
 cancellation and refunds while rule orchestration is consolidated. `AwkIncomingFrameTests` checks caller visibility,
 alias activation and admission before publication. During execution migration, preserve
 semantic assertions and measure removed transport rather than pinning old preparation routes.
+Repeated-preparation counters cover constant values across multiple rules and recycled function
+frames, including nested calls, native field processing and final refunds.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.
@@ -102,6 +104,12 @@ entries/skip annotations. Green CI with these deferrals does not establish compl
 conformance. The core package remains independent of the concrete provider.
 
 ## End-to-End Host Tests
+
+Main-pipeline cases combine multiple rules/files, function `nextfile`, actual pending input
+or output, ignored cancellation and retained append bytes. They check phase/counter order,
+no later effects after cancellation, descriptor cleanup and refunds in both memory modes.
+`AwkRecordTestExecution` lets focused publication tests enter the same continuing driver
+with an already-read record; it retains no old production per-record executor.
 
 Record-publication checks preserve combined header/record refusal and cancellation, counter
 conversion and function-local special names. Repeated-publication counters verify native text

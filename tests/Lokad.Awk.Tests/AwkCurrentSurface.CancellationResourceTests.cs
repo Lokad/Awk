@@ -993,7 +993,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state.Limits, state, static _ => []);
         var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
             [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
-        using var executor = new AwkRuntimeActionExecutor(program, state);
+        using var executor = new AwkRecordTestExecution(program, state);
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
 
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -1040,7 +1040,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state.Limits, state, static _ => []);
         var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
             [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
-        using var executor = new AwkRuntimeActionExecutor(program, state);
+        using var executor = new AwkRecordTestExecution(program, state);
         var reserved = memory.Budget.Reserved;
         memory.Budget.OnGrowth = _ => cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>

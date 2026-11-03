@@ -23,7 +23,7 @@ public sealed class AwkFunctionFlowTests
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, counters, limits, state, static _ => []);
-        using var executor = new AwkRuntimeActionExecutor(program, state);
+        using var executor = new AwkRecordTestExecution(program, state);
         var record = AwkInputRecordResult.Record(AwkText.FromString("row"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
         var expectedFlow = skipFile ? AwkStatementFlow.NextFile : AwkStatementFlow.Continue;
 
