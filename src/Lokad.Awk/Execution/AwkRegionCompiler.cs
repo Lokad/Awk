@@ -500,8 +500,6 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             case AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
                 return Assignment(syntax, out result);
-            case AwkExpressionKind.FunctionCall:
-                return Call(syntax, out result);
             case AwkExpressionKind.Concatenation when syntax.Children.Count == 2:
                 return Concatenation(syntax, out result);
             case AwkExpressionKind.Conditional when syntax.Children.Count == 3:
@@ -521,7 +519,7 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
-    private bool Call(AwkExpressionSyntax syntax, out int result)
+    private bool SpecialCall(AwkExpressionSyntax syntax, out int result)
     {
         result = 0;
         if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target)) return false;
@@ -547,30 +545,10 @@ internal sealed partial class AwkRegionCompiler
                 return Substitute(syntax, builtin.Id == AwkBuiltinId.Gsub, out result);
             if (builtin.Id is AwkBuiltinId.Asort or AwkBuiltinId.Asorti) return Sort(syntax, builtin.Id == AwkBuiltinId.Asorti, out result);
             if (builtin.Id == AwkBuiltinId.Gensub) return Gensub(syntax, out result);
-            if (builtin.TryGetScalarComputation(out var implementation))
-                return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
-                    ? StringCall(syntax, builtin.Id, out result)
-                    : Builtin(syntax, builtin, implementation, out result);
-            if (builtin.TryGetHostComputation(out var host)) return HostBuiltin(syntax, builtin, host, out result);
+            if (builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
+                return StringCall(syntax, builtin.Id, out result);
         }
-        if (_scope.Functions is not { } functions ||
-            !functions.TryGetValue(new AwkFunctionName(target.Identifier), out var function)) return false;
-        var slot = _activeCalls++;
-        _incomingCalls = Math.Max(_incomingCalls, _activeCalls);
-        var call = _calls.Count;
-        _calls.Add(new(function, slot, syntax.Children.Count - 1));
-        Emit(new(AwkRegionInstructionKind.BeginCall, Left: call));
-        for (var index = 1; index < syntax.Children.Count; index++)
-        {
-            if (!Expression(syntax.Children[index], out var value, preserveOrigin: true)) return false;
-            Emit(new(AwkRegionInstructionKind.Argument, call, value, index - 1,
-                syntax.Children[index].Kind == AwkExpressionKind.Group ? 1 : 0));
-        }
-        var returned = _values++;
-        Emit(new(AwkRegionInstructionKind.Call, returned, call));
-        _activeCalls--;
-        result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
-        return true;
+        return false;
     }
 
     private bool Introspection(AwkExpressionSyntax argument, bool typeName, out int result)
@@ -809,63 +787,11 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private bool Builtin(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
-        AwkBuiltinImplementation.SyncBuiltinImplementation implementation, out int result)
-    {
-        result = 0;
-        var count = syntax.Children.Count - 1;
-        var start = _values;
-        _values = checked(_values + count);
-        for (var index = 0; index < count; index++)
-        {
-            if (!Expression(syntax.Children[index + 1], out var operand)) return false;
-            Emit(new(AwkRegionInstructionKind.BuiltinArgument, start + index, operand,
-                Detail: definition.ConsumesArithmeticInputs ? 1 : 0));
-        }
-        // Fold the final uninterrupted captures into the invocation. Earlier
-        // captures stay before any intervening computation, mutation or call.
-        // This applies to every scalar builtin, independently of syntax shape.
-        var firstPending = _code.Count;
-        while (firstPending > 0 && _code[firstPending - 1] is { Kind: AwkRegionInstructionKind.BuiltinArgument } capture &&
-            capture.Target >= start && capture.Target < start + count)
-            firstPending--;
-        var pendingArguments = firstPending == _code.Count ? [] : new int[_code.Count - firstPending];
-        for (var index = 0; index < pendingArguments.Length; index++)
-            pendingArguments[index] = _code[firstPending + index].Left;
-        _code.RemoveRange(firstPending, pendingArguments.Length);
-        var site = _builtins.Count;
-        _builtins.Add(new(implementation, start, count, pendingArguments));
-        var returned = _values++;
-        Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
-        result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
-        return true;
-    }
-
     private bool HostBuiltin(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
         AwkBuiltinImplementation.AsyncBuiltinImplementation implementation, out int result,
         bool flushBeforeArguments = false)
     {
-        var count = syntax.Children.Count - 1;
-        var start = _values;
-        _values = checked(_values + count);
-        var returned = _values++;
-        result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
-        var boundary = Emit(new(AwkRegionInstructionKind.BuiltinBoundary, Left: returned,
-            Detail: flushBeforeArguments ? 1 : 0));
-        for (var index = 0; index < count; index++)
-        {
-            if (!Expression(syntax.Children[index + 1], out var operand)) return false;
-            Emit(new(AwkRegionInstructionKind.BuiltinArgument, start + index, operand));
-            // close captures the formatted name before evaluating its direction.
-            // fflush instead retains the original value kind for lint/formatting.
-            if (definition.Id == AwkBuiltinId.Close && index == 0)
-                Emit(new(AwkRegionInstructionKind.PrepareString, start));
-        }
-        var site = _builtins.Count;
-        _builtins.Add(new(null, start, count, [], implementation));
-        Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
-        Patch(boundary, Label());
-        return true;
+        return PrepareOperandWork(new HostBuiltinWork(syntax, definition, implementation, flushBeforeArguments), out result);
     }
 
     private bool StringCall(AwkExpressionSyntax syntax, AwkBuiltinId id, out int result)

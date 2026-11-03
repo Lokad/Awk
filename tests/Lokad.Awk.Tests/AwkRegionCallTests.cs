@@ -3,6 +3,28 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task DeepCallArgumentsPrepareAndExecuteWithoutRecursiveTransport(bool governed, bool builtin)
+    {
+        const int depth = 2048;
+        var prefix = builtin ? "int(" : "identity(";
+        var source = "function identity(x){return x}BEGIN{value=" +
+            string.Concat(Enumerable.Repeat(prefix, depth)) + "7" + new string(')', depth) + ";print value}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, "arithmetic")] [InlineData(true, "arithmetic")]
     [InlineData(false, "logical")] [InlineData(true, "logical")]
     [InlineData(false, "unary")] [InlineData(true, "unary")]

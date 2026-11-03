@@ -12,7 +12,12 @@ internal sealed partial class AwkRegionCompiler
         // Temporary protection for recursive helper bridges. Remove after their
         // operands also use preparation frames, before deleting the AST fallback.
         if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        var current = CreateOperandWork(syntax, preserveOrigin);
+        return PrepareOperandWork(CreateOperandWork(syntax, preserveOrigin), out result);
+    }
+
+    private bool PrepareOperandWork(OperandWork current, out int result)
+    {
+        result = 0;
         Stack<OperandWork>? callers = null;
         var completed = current;
         while (true)
@@ -46,6 +51,7 @@ internal sealed partial class AwkRegionCompiler
         }
         return syntax.Kind switch
         {
+            AwkExpressionKind.FunctionCall => CreateCallWork(syntax),
             AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 => new BinaryWork(syntax),
             AwkExpressionKind.Unary or AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1 => new UnaryWork(syntax),
             _ => new RecursiveOperandWork(syntax, preserveOrigin)
