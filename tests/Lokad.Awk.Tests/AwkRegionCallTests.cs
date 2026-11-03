@@ -3,6 +3,55 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, "while")] [InlineData(true, "while")]
+    [InlineData(false, "for")] [InlineData(true, "for")]
+    [InlineData(false, "do")] [InlineData(true, "do")]
+    [InlineData(false, "iteration")] [InlineData(true, "iteration")]
+    [InlineData(false, "switch")] [InlineData(true, "switch")]
+    public async Task DeepControlBodiesKeepScopesBreaksAndSnapshotCleanup(bool governed, string shape)
+    {
+        const int depth = 2048;
+        var prefix = shape switch { "while" => "while(1){", "for" => "for(;;){", "do" => "do{",
+            "iteration" => "for(k in a){", _ => "switch(1){case 1:" };
+        var suffix = shape switch { "do" => "}while(0);", "iteration" => "}", _ => "break;}" };
+        var source = "BEGIN{a[1]=1;" + string.Concat(Enumerable.Repeat(prefix, depth)) + "value=7;" +
+            string.Concat(Enumerable.Repeat(suffix, depth)) + "print value}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(64 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task DeepConditionsPrepareWithTheirStatementAndExpressionScopes(bool governed, bool conditional)
+    {
+        const int depth = 2048;
+        var body = conditional ? "value=" + string.Concat(Enumerable.Repeat("0?9:", depth)) + "7;"
+            : string.Concat(Enumerable.Repeat("if(1)", depth)) + "value=7;";
+        var source = "BEGIN{" + body + "print value}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task DeepCallArgumentsPrepareAndExecuteWithoutRecursiveTransport(bool governed, bool builtin)

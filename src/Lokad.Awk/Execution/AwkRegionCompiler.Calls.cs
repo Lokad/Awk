@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
-    private OperandWork CreateCallWork(AwkExpressionSyntax syntax)
+    private PreparationWork<int> CreateCallWork(AwkExpressionSyntax syntax)
     {
         if (AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target) &&
             !_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _))
@@ -26,23 +26,23 @@ internal sealed partial class AwkRegionCompiler
 
     // Remaining special forms still adapt their existing preparation helpers.
     // Convert these requests before the recursive preparation bridge is retired.
-    private sealed class SpecialCallWork(AwkExpressionSyntax syntax) : OperandWork
+    private sealed class SpecialCallWork(AwkExpressionSyntax syntax) : PreparationWork<int>
     {
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             return compiler.SpecialCall(syntax, out var result) ? Complete(result) : false;
         }
     }
 
-    private sealed class UserCallWork(AwkExpressionSyntax syntax, AwkUserFunction function) : OperandWork
+    private sealed class UserCallWork(AwkExpressionSyntax syntax, AwkUserFunction function) : PreparationWork<int>
     {
         private bool _started;
         private int _call;
         private int _argument = 1;
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             if (!_started)
@@ -56,7 +56,7 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                compiler.Emit(new(AwkRegionInstructionKind.Argument, _call, completed.Operand, _argument - 1,
+                compiler.Emit(new(AwkRegionInstructionKind.Argument, _call, CompletedResult<int>(completed), _argument - 1,
                     syntax.Children[_argument].Kind == AwkExpressionKind.Group ? 1 : 0));
                 _argument++;
             }
@@ -73,13 +73,13 @@ internal sealed partial class AwkRegionCompiler
     }
 
     private sealed class ScalarBuiltinWork(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
-        AwkBuiltinImplementation.SyncBuiltinImplementation implementation) : OperandWork
+        AwkBuiltinImplementation.SyncBuiltinImplementation implementation) : PreparationWork<int>
     {
         private bool _started;
         private int _start;
         private int _argument;
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             var count = syntax.Children.Count - 1;
@@ -91,7 +91,7 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, completed.Operand,
+                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, CompletedResult<int>(completed),
                     Detail: definition.ConsumesArithmeticInputs ? 1 : 0));
                 _argument++;
             }
@@ -117,7 +117,7 @@ internal sealed partial class AwkRegionCompiler
     }
 
     private sealed class HostBuiltinWork(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
-        AwkBuiltinImplementation.AsyncBuiltinImplementation implementation, bool flushBeforeArguments) : OperandWork
+        AwkBuiltinImplementation.AsyncBuiltinImplementation implementation, bool flushBeforeArguments) : PreparationWork<int>
     {
         private bool _started;
         private int _start;
@@ -125,8 +125,8 @@ internal sealed partial class AwkRegionCompiler
         private int _result;
         private int _boundary;
         private int _argument;
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             var count = syntax.Children.Count - 1;
@@ -142,7 +142,7 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, completed.Operand));
+                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, CompletedResult<int>(completed)));
                 // close formats its captured name before evaluating the direction.
                 if (definition.Id == AwkBuiltinId.Close && _argument == 0)
                     compiler.Emit(new(AwkRegionInstructionKind.PrepareString, _start));

@@ -15,10 +15,17 @@ internal sealed partial class AwkRegionCompiler
         return PrepareOperandWork(CreateOperandWork(syntax, preserveOrigin), out result);
     }
 
-    private bool PrepareOperandWork(OperandWork current, out int result)
+    private bool PrepareOperandWork(PreparationWork<int> work, out int result)
     {
         result = 0;
-        Stack<OperandWork>? callers = null;
+        if (!PrepareWork(work)) return false;
+        result = work.Result;
+        return true;
+    }
+
+    private bool PrepareWork(PreparationWork current)
+    {
+        Stack<PreparationWork>? callers = null;
         var completed = current;
         while (true)
         {
@@ -33,16 +40,12 @@ internal sealed partial class AwkRegionCompiler
             }
             if (!current.Succeeded) return false;
             completed = current;
-            if (callers is null || !callers.TryPop(out var caller))
-            {
-                result = current.Operand;
-                return true;
-            }
+            if (callers is null || !callers.TryPop(out var caller)) return true;
             current = caller;
         }
     }
 
-    private OperandWork CreateOperandWork(AwkExpressionSyntax syntax, bool preserveOrigin = false)
+    private PreparationWork<int> CreateOperandWork(AwkExpressionSyntax syntax, bool preserveOrigin = false)
     {
         while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
         {
@@ -51,6 +54,7 @@ internal sealed partial class AwkRegionCompiler
         }
         return syntax.Kind switch
         {
+            AwkExpressionKind.Conditional when syntax.Children.Count == 3 => new ConditionalWork(syntax, preserveOrigin),
             AwkExpressionKind.FunctionCall => CreateCallWork(syntax),
             AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 => new BinaryWork(syntax),
             AwkExpressionKind.Unary or AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1 => new UnaryWork(syntax),
@@ -58,37 +62,41 @@ internal sealed partial class AwkRegionCompiler
         };
     }
 
-    private abstract class OperandWork
+    private abstract class PreparationWork
     {
         internal bool Succeeded { get; private set; }
-        internal int Operand { get; private set; }
-        protected bool Complete(int operand)
-        {
-            Succeeded = true;
-            Operand = operand;
-            return false;
-        }
-        internal abstract bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next);
+        protected bool Complete() { Succeeded = true; return false; }
+        internal abstract bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next);
     }
+
+    private abstract class PreparationWork<T> : PreparationWork where T : struct
+    {
+        internal T Result { get; private set; }
+        protected bool Complete(T result) { Result = result; return Complete(); }
+    }
+
+    private static T CompletedResult<T>(PreparationWork completed) where T : struct =>
+        completed is PreparationWork<T> work ? work.Result :
+            throw new InvalidOperationException("The completed preparation has a different result type.");
 
     // Explicit migration bridge for not-yet-converted preparation helpers.
     // It is not an execution path and must disappear with the recursive emitter.
-    private sealed class RecursiveOperandWork(AwkExpressionSyntax syntax, bool preserveOrigin) : OperandWork
+    private sealed class RecursiveOperandWork(AwkExpressionSyntax syntax, bool preserveOrigin) : PreparationWork<int>
     {
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             return compiler.ExpressionCore(syntax, out var operand, preserveOrigin) ? Complete(operand) : false;
         }
     }
 
-    private sealed class UnaryWork(AwkExpressionSyntax syntax) : OperandWork
+    private sealed class UnaryWork(AwkExpressionSyntax syntax) : PreparationWork<int>
     {
         private bool _waiting;
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             var token = syntax.OperatorTokens[0].Kind;
@@ -100,7 +108,7 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[0]);
                 return true;
             }
-            var operand = completed.Operand;
+            var operand = CompletedResult<int>(completed);
             if (token == AwkTokenKind.Plus) return Complete(compiler.CaptureNumber(operand));
             var destination = compiler._numbers++;
             if (token == AwkTokenKind.Minus)
@@ -112,7 +120,7 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
-    private sealed class BinaryWork(AwkExpressionSyntax syntax) : OperandWork
+    private sealed class BinaryWork(AwkExpressionSyntax syntax) : PreparationWork<int>
     {
         private byte _stage;
         private int _left;
@@ -123,8 +131,8 @@ internal sealed partial class AwkRegionCompiler
         private AwkNumericOperation _arithmetic;
         private AwkComparison _comparison;
 
-        internal override bool TryAdvance(AwkRegionCompiler compiler, OperandWork completed,
-            [NotNullWhen(true)] out OperandWork? next)
+        internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
+            [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             var token = syntax.OperatorTokens[0].Kind;
@@ -141,7 +149,7 @@ internal sealed partial class AwkRegionCompiler
             var logical = token is AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe;
             if (_stage == 1)
             {
-                _left = completed.Operand;
+                _left = CompletedResult<int>(completed);
                 if (logical)
                 {
                     _number = compiler._numbers++;
@@ -178,7 +186,7 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[1]);
                 return true;
             }
-            var right = completed.Operand;
+            var right = CompletedResult<int>(completed);
             if (logical)
             {
                 compiler.Emit(new(AwkRegionInstructionKind.Truth, _number, right));

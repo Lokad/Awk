@@ -132,183 +132,152 @@ internal sealed partial class AwkRegionCompiler
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements)
     {
         if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Position, int FirstTemporary)>? blocks = null;
-        var position = 0;
-        while (true)
+        return PrepareWork(new StatementsWork(statements));
+    }
+
+    // Temporary adapter for statements whose operands/control preparation have
+    // not yet moved onto the shared work stack.
+    private bool PrepareStatement(AwkStatementSyntax statement)
+    {
+        _scope.CheckCancellation();
+        if (AwkStatementKindFacts.IsOptionalValue(statement.Kind) &&
+                (statement.Expressions.Count > 1 || statement.Expressions.Count == 0 &&
+                    AwkTokenNavigation.FindNextSignificant(statement.Tokens, 1) is not null) ||
+            AwkStatementValidationFacts.IsArgumentless(statement.Kind) && statement.Expressions.Count != 0 ||
+            statement.Kind == AwkStatementKind.Expression && statement.Expressions.Count != 1 &&
+                statement.Payload is not AwkInputPipeExpressionStatementSyntaxPayload ||
+            statement.Kind is AwkStatementKind.If or AwkStatementKind.While or AwkStatementKind.DoWhile && statement.Expressions.Count != 1)
+            return false;
+        switch (statement.Kind)
         {
-            if (position == statements.Count)
-            {
-                if (blocks is null || !blocks.TryPop(out var caller)) return true;
-                statements = caller.Statements;
-                position = caller.Position;
-                FinishStatement(caller.FirstTemporary);
-                continue;
-            }
-            var statement = statements[position++];
-            var firstTemporary = _values;
-            _scope.CheckCancellation();
-            if (AwkStatementKindFacts.IsOptionalValue(statement.Kind) &&
-                    (statement.Expressions.Count > 1 || statement.Expressions.Count == 0 &&
-                        AwkTokenNavigation.FindNextSignificant(statement.Tokens, 1) is not null) ||
-                AwkStatementValidationFacts.IsArgumentless(statement.Kind) && statement.Expressions.Count != 0 ||
-                statement.Kind == AwkStatementKind.Expression && statement.Expressions.Count != 1 &&
-                    statement.Payload is not AwkInputPipeExpressionStatementSyntaxPayload ||
-                statement.Kind is AwkStatementKind.If or AwkStatementKind.While or AwkStatementKind.DoWhile && statement.Expressions.Count != 1)
-                return false;
-            switch (statement.Kind)
-            {
-                case AwkStatementKind.Block:
-                    blocks ??= new();
-                    blocks.Push((statements, position, firstTemporary));
-                    statements = statement.BodyStatements;
-                    position = 0;
-                    continue;
-                case AwkStatementKind.Expression:
-                    if (statement.Payload is AwkInputPipeExpressionStatementSyntaxPayload pipe)
-                    {
-                        if (pipe.InputPipeGetline.IsCoprocess)
-                            Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
-                        else if (!InputPipe(pipe.InputPipeGetline)) return false;
-                        break;
-                    }
-                    if (!statement.Expression.TryGetValue(out var expression)) return false;
-                    if (!CopyField(expression))
-                    {
-                        if (!Expression(expression, out var value)) return false;
-                        Discard(value);
-                    }
-                    break;
-                case AwkStatementKind.If:
-                    var otherwise = new List<int>();
-                    if (!statement.Expression.TryGetValue(out var condition) || !Branch(condition, whenTrue: false, otherwise)) return false;
-                    if (!Statements(statement.BodyStatements)) return false;
-                    var done = Emit(new(AwkRegionInstructionKind.Jump));
-                    PatchBranches(otherwise, Label());
-                    if (!Statements(statement.ElseStatements)) return false;
-                    Patch(done, Label());
-                    break;
-                case AwkStatementKind.While:
-                case AwkStatementKind.DoWhile:
-                case AwkStatementKind.For:
-                    if (!CompileLoop(statement)) return false;
-                    break;
-                case AwkStatementKind.Switch:
-                    if (!CompileSwitch(statement)) return false;
-                    break;
-                case AwkStatementKind.Break:
-                case AwkStatementKind.Continue:
-                    if (!TryGetControl(statement.Kind == AwkStatementKind.Continue, out var control)) return false;
-                    if (_values > control.FirstTemporary)
-                        Emit(new(AwkRegionInstructionKind.ReleaseValues, control.FirstTemporary, Right: _values - control.FirstTemporary));
-                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
-                    var jump = Emit(new(AwkRegionInstructionKind.Jump));
-                    (statement.Kind == AwkStatementKind.Break ? control.Breaks : control.Continues).Add(jump);
-                    break;
-                case AwkStatementKind.Exit:
-                    var status = -1;
-                    if (statement.Expression.TryGetValue(out var statusExpression))
-                    {
-                        if (!Expression(statusExpression, out var exitValue)) return false;
-                        status = NumericRegister(exitValue);
-                    }
-                    Emit(new(AwkRegionInstructionKind.Exit, Left: status));
-                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
-                    Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)AwkStatementFlow.ExitProgram));
-                    break;
-                case AwkStatementKind.Next:
-                case AwkStatementKind.NextFile:
-                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
-                    Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)(statement.Kind == AwkStatementKind.Next
-                        ? AwkStatementFlow.NextRecord : AwkStatementFlow.NextFile)));
-                    break;
-                case AwkStatementKind.Return when _scope.IsFunction:
-                    var returned = -1;
-                    if (statement.Expression.TryGetValue(out var returning))
-                    {
-                        if (!Expression(returning, out var operand)) return false;
-                        returned = CaptureValue(operand);
-                    }
-                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
-                    Emit(new(AwkRegionInstructionKind.Return, Left: returned));
-                    break;
-                case AwkStatementKind.Print:
-                    if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;
-                    if (output.Redirection.TryGetValue(out var printRedirection) && printRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
-                    {
+            case AwkStatementKind.Expression:
+                if (statement.Payload is AwkInputPipeExpressionStatementSyntaxPayload pipe)
+                {
+                    if (pipe.InputPipeGetline.IsCoprocess)
                         Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
-                        break;
-                    }
-                    if (!OutputTarget(output.Redirection, out var printTarget)) return false;
-                    if (output.Output.IsEmpty)
-                    {
-                        if (printTarget.IsRedirected)
-                        {
-                            var recordPrint = AllocatePrint(1, [], printTarget);
-                            Emit(new(AwkRegionInstructionKind.Value, recordPrint.Values, Operand(AwkRegionOperandKind.Field, 0), Detail: 1));
-                            EmitPrint(recordPrint);
-                        }
-                        else Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
-                        break;
-                    }
-                    if (!output.Output.Expression.TryGetValue(out var printed)) return false;
-                    if (printed.Kind == AwkExpressionKind.Group && printed.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
-                        printed = list;
-                    if (printed.Kind == AwkExpressionKind.ExpressionList)
-                    {
-                        if (!PrintList(printed.Children, printTarget)) return false;
-                        break;
-                    }
+                    else if (!InputPipe(pipe.InputPipeGetline)) return false;
+                    break;
+                }
+                if (!statement.Expression.TryGetValue(out var expression)) return false;
+                if (!CopyField(expression))
+                {
+                    if (!Expression(expression, out var value)) return false;
+                    Discard(value);
+                }
+                break;
+            case AwkStatementKind.Break:
+            case AwkStatementKind.Continue:
+                if (!TryGetControl(statement.Kind == AwkStatementKind.Continue, out var control)) return false;
+                if (_values > control.FirstTemporary)
+                    Emit(new(AwkRegionInstructionKind.ReleaseValues, control.FirstTemporary, Right: _values - control.FirstTemporary));
+                Emit(new(AwkRegionInstructionKind.StatementBoundary));
+                var jump = Emit(new(AwkRegionInstructionKind.Jump));
+                (statement.Kind == AwkStatementKind.Break ? control.Breaks : control.Continues).Add(jump);
+                break;
+            case AwkStatementKind.Exit:
+                var status = -1;
+                if (statement.Expression.TryGetValue(out var statusExpression))
+                {
+                    if (!Expression(statusExpression, out var exitValue)) return false;
+                    status = NumericRegister(exitValue);
+                }
+                Emit(new(AwkRegionInstructionKind.Exit, Left: status));
+                Emit(new(AwkRegionInstructionKind.StatementBoundary));
+                Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)AwkStatementFlow.ExitProgram));
+                break;
+            case AwkStatementKind.Next:
+            case AwkStatementKind.NextFile:
+                Emit(new(AwkRegionInstructionKind.StatementBoundary));
+                Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)(statement.Kind == AwkStatementKind.Next
+                    ? AwkStatementFlow.NextRecord : AwkStatementFlow.NextFile)));
+                break;
+            case AwkStatementKind.Return when _scope.IsFunction:
+                var returned = -1;
+                if (statement.Expression.TryGetValue(out var returning))
+                {
+                    if (!Expression(returning, out var operand)) return false;
+                    returned = CaptureValue(operand);
+                }
+                Emit(new(AwkRegionInstructionKind.StatementBoundary));
+                Emit(new(AwkRegionInstructionKind.Return, Left: returned));
+                break;
+            case AwkStatementKind.Print:
+                if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;
+                if (output.Redirection.TryGetValue(out var printRedirection) && printRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
+                {
+                    Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
+                    break;
+                }
+                if (!OutputTarget(output.Redirection, out var printTarget)) return false;
+                if (output.Output.IsEmpty)
+                {
                     if (printTarget.IsRedirected)
                     {
-                        if (!PrintList([printed], printTarget)) return false;
-                        break;
+                        var recordPrint = AllocatePrint(1, [], printTarget);
+                        Emit(new(AwkRegionInstructionKind.Value, recordPrint.Values, Operand(AwkRegionOperandKind.Field, 0), Detail: 1));
+                        EmitPrint(recordPrint);
                     }
-                    if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
-                    var printKind = _operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField
-                        ? AwkRegionInstructionKind.PrintField : AwkRegionInstructionKind.PrintValue;
-                    Emit(new(printKind, Left: printValue));
+                    else Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
                     break;
-                case AwkStatementKind.Printf:
-                    if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted)) return false;
-                    if (formatted.Redirection.TryGetValue(out var printfRedirection) && printfRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
-                    {
-                        Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
-                        break;
-                    }
-                    if (!OutputTarget(formatted.Redirection, out var printfTarget) ||
-                        !formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
+                }
+                if (!output.Output.Expression.TryGetValue(out var printed)) return false;
+                if (printed.Kind == AwkExpressionKind.Group && printed.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
+                    printed = list;
+                if (printed.Kind == AwkExpressionKind.ExpressionList)
+                {
+                    if (!PrintList(printed.Children, printTarget)) return false;
                     break;
-                case AwkStatementKind.Delete:
-                    if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var deleted) || !Delete(deleted)) return false;
+                }
+                if (printTarget.IsRedirected)
+                {
+                    if (!PrintList([printed], printTarget)) return false;
                     break;
-                case AwkStatementKind.Getline:
-                    if (!AwkStatementLoweringShapes.Getline(statement).TryGetValue(out var getline) ||
-                        !AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
-                        !Getline(parts, isExpression: false, out _)) return false;
+                }
+                if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
+                var printKind = _operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField
+                    ? AwkRegionInstructionKind.PrintField : AwkRegionInstructionKind.PrintValue;
+                Emit(new(printKind, Left: printValue));
+                break;
+            case AwkStatementKind.Printf:
+                if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted)) return false;
+                if (formatted.Redirection.TryGetValue(out var printfRedirection) && printfRedirection.Kind == AwkOutputRedirectionKind.Coprocess)
+                {
+                    Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
                     break;
-                case AwkStatementKind.Close:
-                case AwkStatementKind.Fflush:
-                    var builtinId = statement.Kind == AwkStatementKind.Close ? AwkBuiltinId.Close : AwkBuiltinId.Fflush;
-                    if (!AwkStatementLoweringShapes.TryGetWholeStatementCall(statement, builtinId, out var hostCall) ||
-                        !hostCall.Definition.TryGetHostComputation(out var hostImplementation) ||
-                        !HostBuiltin(hostCall.Expression, hostCall.Definition, hostImplementation, out var hostResult,
-                            flushBeforeArguments: builtinId == AwkBuiltinId.Close && hostCall.ArgumentCount == 1)) return false;
-                    Discard(hostResult);
-                    break;
-                case AwkStatementKind.Split:
-                case AwkStatementKind.Patsplit:
-                case AwkStatementKind.Asort:
-                case AwkStatementKind.Asorti:
-                case AwkStatementKind.Sub:
-                case AwkStatementKind.Gsub:
-                    if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var splitCall) ||
-                        !Expression(splitCall, out var splitResult)) return false;
-                    Discard(splitResult);
-                    break;
-                default: return false;
-            }
-            FinishStatement(firstTemporary);
+                }
+                if (!OutputTarget(formatted.Redirection, out var printfTarget) ||
+                    !formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
+                break;
+            case AwkStatementKind.Delete:
+                if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var deleted) || !Delete(deleted)) return false;
+                break;
+            case AwkStatementKind.Getline:
+                if (!AwkStatementLoweringShapes.Getline(statement).TryGetValue(out var getline) ||
+                    !AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
+                    !Getline(parts, isExpression: false, out _)) return false;
+                break;
+            case AwkStatementKind.Close:
+            case AwkStatementKind.Fflush:
+                var builtinId = statement.Kind == AwkStatementKind.Close ? AwkBuiltinId.Close : AwkBuiltinId.Fflush;
+                if (!AwkStatementLoweringShapes.TryGetWholeStatementCall(statement, builtinId, out var hostCall) ||
+                    !hostCall.Definition.TryGetHostComputation(out var hostImplementation) ||
+                    !HostBuiltin(hostCall.Expression, hostCall.Definition, hostImplementation, out var hostResult,
+                        flushBeforeArguments: builtinId == AwkBuiltinId.Close && hostCall.ArgumentCount == 1)) return false;
+                Discard(hostResult);
+                break;
+            case AwkStatementKind.Split:
+            case AwkStatementKind.Patsplit:
+            case AwkStatementKind.Asort:
+            case AwkStatementKind.Asorti:
+            case AwkStatementKind.Sub:
+            case AwkStatementKind.Gsub:
+                if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var splitCall) ||
+                    !Expression(splitCall, out var splitResult)) return false;
+                Discard(splitResult);
+                break;
+            default: return false;
         }
+        return true;
     }
 
     private void FinishStatement(int firstTemporary)
@@ -318,132 +287,6 @@ internal sealed partial class AwkRegionCompiler
         if (_values > firstTemporary)
             Emit(new(AwkRegionInstructionKind.ReleaseValues, firstTemporary, Right: _values - firstTemporary));
         Emit(new(AwkRegionInstructionKind.StatementBoundary));
-    }
-
-    private bool CompileLoop(AwkStatementSyntax statement)
-    {
-        AwkForHeaderSyntax? header = null;
-        if (statement.Kind == AwkStatementKind.For)
-        {
-            if (statement.Payload is not AwkForStatementSyntaxPayload payload) return false;
-            if (payload.Header.IsForIn) return CompileIteration(payload.Header, statement.BodyStatements);
-            if (payload.Header.Parts.Count != 3)
-                return false;
-            header = payload.Header;
-            if (header.Parts[0].Expression.TryGetValue(out var initial))
-            {
-                if (!Expression(initial, out var value)) return false;
-                Discard(value);
-            }
-        }
-
-        var start = Label();
-        var conditionJumps = new List<int>();
-        if (statement.Kind != AwkStatementKind.DoWhile)
-        {
-            var condition = header is null ? statement.Expression : header.Parts[1].Expression;
-            if (condition.TryGetValue(out var expression))
-            {
-                if (!Branch(expression, whenTrue: false, conditionJumps)) return false;
-            }
-        }
-        var loop = new ControlScope(isLoop: true, _values);
-        _controls.Push(loop);
-        if (!Statements(statement.BodyStatements)) return false;
-        _controls.Pop();
-        var continuation = Label();
-        foreach (var position in loop.Continues) Patch(position, continuation);
-        if (header is not null && header.Parts[2].Expression.TryGetValue(out var step))
-        {
-            if (!Expression(step, out var value)) return false;
-            Discard(value);
-        }
-        if (statement.Kind == AwkStatementKind.DoWhile)
-        {
-            if (!statement.Expression.TryGetValue(out var condition) || !Branch(condition, whenTrue: false, conditionJumps)) return false;
-        }
-        Emit(new(AwkRegionInstructionKind.Jump, start));
-        var end = Label();
-        PatchBranches(conditionJumps, end);
-        foreach (var position in loop.Breaks) Patch(position, end);
-        return true;
-    }
-
-    private bool CompileIteration(AwkForHeaderSyntax header, IReadOnlyList<AwkStatementSyntax> body)
-    {
-        if (header.Parts.Count != 2 || !header.Parts[0].Expression.TryGetValue(out var variableSyntax) ||
-            !Variable(variableSyntax, out var variable) || !header.Parts[1].Expression.TryGetValue(out var arraySyntax))
-            return false;
-        int access;
-        if (AwkExpressionSyntaxFacts.TryGetIdentifier(arraySyntax, out var name))
-        {
-            if (_scope.IsReservedVariable(name.Name)) return false;
-            access = _arrays.Count;
-            _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
-        }
-        else if (arraySyntax.Kind != AwkExpressionKind.ArrayElement || !ArrayAccess(arraySyntax, out access)) return false;
-        var slot = _iterators++;
-        var site = _iterations.Count;
-        _iterations.Add(new(access, slot, _sortSlots++, _activeCalls, _numbers++));
-        _incomingCalls = Math.Max(_incomingCalls, _activeCalls + 1);
-        Emit(new(AwkRegionInstructionKind.IteratorBegin, Left: site));
-        if (_arrays[access].Key >= 0) FinishKey(access);
-        Emit(new(AwkRegionInstructionKind.IteratorSortAdvance, Left: site));
-        var start = Label();
-        var next = Emit(new(AwkRegionInstructionKind.IteratorNext, Left: slot, Right: variable));
-        var loop = new ControlScope(isLoop: true, _values);
-        _controls.Push(loop);
-        if (!Statements(body)) return false;
-        _controls.Pop();
-        foreach (var position in loop.Continues) Patch(position, start);
-        Emit(new(AwkRegionInstructionKind.Jump, start));
-        var end = Label();
-        Patch(next, end);
-        foreach (var position in loop.Breaks) Patch(position, end);
-        Emit(new(AwkRegionInstructionKind.IteratorEnd, slot));
-        return true;
-    }
-
-    private bool CompileSwitch(AwkStatementSyntax statement)
-    {
-        if (_scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
-            !AwkStatementLoweringShapes.Switch(statement).TryGetValue(out var shape) ||
-            !shape.Header.Expression.TryGetValue(out var selectorSyntax)) return false;
-        var control = new ControlScope(isLoop: false, _values);
-        if (!Expression(selectorSyntax, out var selector)) return false;
-        selector = CaptureValue(selector);
-        var branches = new int[shape.SwitchCases.Count];
-        var defaultArm = -1;
-        for (var index = 0; index < branches.Length; index++)
-        {
-            _scope.CheckCancellation();
-            var arm = shape.SwitchCases[index];
-            if (arm.IsDefault) { branches[index] = -1; defaultArm = index; continue; }
-            if (!arm.Expression.TryGetValue(out var pattern)) return false;
-            AwkSwitchCasePattern prepared;
-            if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(pattern, out var regex, _scope.CompatibilityMode, _scope.Checkpoint))
-                prepared = AwkSwitchCasePattern.FromRegex(regex);
-            else if (AwkExpressionLowerer.TryReadSwitchConstant(pattern, _scope, out var value))
-                prepared = AwkSwitchCasePattern.FromValue(value);
-            else return false;
-            var site = _switchCases.Count;
-            _switchCases.Add(prepared);
-            branches[index] = Emit(new(AwkRegionInstructionKind.JumpIfCase, Left: selector, Right: site));
-        }
-        var unmatched = Emit(new(AwkRegionInstructionKind.Jump));
-        _controls.Push(control);
-        for (var index = 0; index < branches.Length; index++)
-        {
-            var start = Label();
-            if (branches[index] >= 0) Patch(branches[index], start);
-            if (index == defaultArm) Patch(unmatched, start);
-            if (!Statements(shape.SwitchCases[index].BodyStatements)) return false;
-        }
-        _controls.Pop();
-        var end = Label();
-        if (defaultArm < 0) Patch(unmatched, end);
-        foreach (var position in control.Breaks) Patch(position, end);
-        return true;
     }
 
     private bool TryGetControl(bool forContinue, [NotNullWhen(true)] out ControlScope? selected)
@@ -502,19 +345,6 @@ internal sealed partial class AwkRegionCompiler
                 return Assignment(syntax, out result);
             case AwkExpressionKind.Concatenation when syntax.Children.Count == 2:
                 return Concatenation(syntax, out result);
-            case AwkExpressionKind.Conditional when syntax.Children.Count == 3:
-                var alternate = new List<int>();
-                if (!Branch(syntax.Children[0], whenTrue: false, alternate)) return false;
-                var target = _values++;
-                if (!Expression(syntax.Children[1], out var first, preserveOrigin)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, target, first, Detail: preserveOrigin ? 1 : 0));
-                var end = Emit(new(AwkRegionInstructionKind.Jump));
-                PatchBranches(alternate, Label());
-                if (!Expression(syntax.Children[2], out var second, preserveOrigin)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, target, second, Detail: preserveOrigin ? 1 : 0));
-                Patch(end, Label());
-                result = Operand(AwkRegionOperandKind.ValueTemporary, target);
-                return true;
             default: return false;
         }
     }
@@ -1266,30 +1096,8 @@ internal sealed partial class AwkRegionCompiler
 
     private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations)
     {
-        _scope.CheckCancellation();
         if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
-        while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
-        {
-            _scope.CheckCancellation();
-            syntax = syntax.Children[0];
-        }
-        if (syntax.Kind == AwkExpressionKind.Unary && syntax.Children.Count == 1 &&
-            syntax.OperatorTokens.Count == 1 && syntax.OperatorTokens[0].Kind == AwkTokenKind.Bang)
-            return Branch(syntax.Children[0], !whenTrue, destinations);
-        if (syntax.Kind == AwkExpressionKind.Binary && syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 &&
-            syntax.OperatorTokens[0].Kind is AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe)
-        {
-            var conjunction = syntax.OperatorTokens[0].Kind == AwkTokenKind.AmpersandAmpersand;
-            if (conjunction != whenTrue)
-                return Branch(syntax.Children[0], whenTrue, destinations) && Branch(syntax.Children[1], whenTrue, destinations);
-            var bypass = new List<int>();
-            if (!Branch(syntax.Children[0], !whenTrue, bypass) || !Branch(syntax.Children[1], whenTrue, destinations)) return false;
-            PatchBranches(bypass, Label());
-            return true;
-        }
-        if (!Expression(syntax, out var value)) return false;
-        destinations.Add(EmitBranch(value, whenTrue));
-        return true;
+        return PrepareWork(new BranchWork(syntax, whenTrue, destinations));
     }
 
     private int EmitBranch(int operand, bool whenTrue)
