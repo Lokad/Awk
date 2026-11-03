@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ComputedFieldCases()
     {
+        yield return Passing("regex-numeric-input-formats-after-pattern-effects",
+            ["function pattern(){CONVFMT=\"%.1f\";$0=\"changed tail\";return \"^0[.]125$\"}BEGIN{CONVFMT=\"%.3f\";print(0.125~pattern()),$0,CONVFMT}"],
+            [], "0 changed tail %.1f\n");
+        yield return Passing("regex-field-input-captured-before-pattern-effects",
+            ["function pattern(){$0=\"changed tail\";return \"^old$\"}BEGIN{$0=\"old tail\";print($1~pattern()),$0}"],
+            [], "1 changed tail\n");
+        yield return Passing("regex-numeric-input-formats-after-pattern-effects-with-split",
+            ["function pattern(){CONVFMT=\"%.1f\";return \"^0[.]125$\"}BEGIN{split(\"\",tmp);CONVFMT=\"%.3f\";print(0.125~pattern()),CONVFMT}"],
+            [], "0 %.1f\n");
         yield return Passing("computed-field-simple-assignment-captures-rhs-before-index",
             ["function choose(){i++;return i}function rhs(){i=2;return \"0007\"}{i=1;$(choose())=rhs();print i,NF,$0,typeof($3)}"],
             [], "3 3 a b 0007 string\n", "a b\n");

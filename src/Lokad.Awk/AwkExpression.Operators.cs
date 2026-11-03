@@ -424,9 +424,10 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
+            var inputValue = (await valueExpression.EvaluateAsync(context).ConfigureAwait(false)).AsScalarCopy();
+            using var heldInput = context.State.MemoryAccounting.ReserveTransient(inputValue.RetainedTextMemoryBytes);
             var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
+            var input = context.State.FormatStringByteText(inputValue, heldInput);
             var matched = context.State.IsRegexMatch(
                 context.State.CreateRegex(pattern),
                 input);

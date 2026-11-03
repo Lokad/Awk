@@ -192,6 +192,9 @@ Nested calls, early flow and pending sorting callbacks retain their ordinary own
 Switch selectors are captured once; ordered case tests and fallthrough use the same branch
 driver as loops. Regex labels use the supplied provider. Function exit uses the existing
 status/phase checks and unwind path, including pending status evaluation and END handling.
+Regex predicates use native byte operands and the existing provider/cache. Dynamic predicates
+keep captured input values funded through RHS suspension; numeric formatting uses the updated
+`CONVFMT`. Predicate temporaries retire after matching. Range flow is still being migrated.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

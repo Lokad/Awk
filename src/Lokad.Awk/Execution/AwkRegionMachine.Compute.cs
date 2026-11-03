@@ -476,6 +476,18 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.PrepareString:
                     storage.PrepareString(instruction.Target);
                     break;
+                case AwkRegionInstructionKind.PrepareByteText:
+                    storage.PrepareByteText(instruction.Target);
+                    break;
+                case AwkRegionInstructionKind.RegexMatch:
+                {
+                    var match = region.RegexMatches[instruction.Left];
+                    var regex = match.Literal ?? state.CreateRegex(new AwkRegexPattern(
+                        storage.Values[match.Pattern].ByteText, warningSite: match));
+                    var matched = state.IsRegexMatch(regex, TextOperand(match.Input, comparisonLiteral: false));
+                    numbers[instruction.Target] = matched != (instruction.Detail != 0) ? 1 : 0;
+                    break;
+                }
                 case AwkRegionInstructionKind.GetlineTarget:
                 {
                     var readTarget = operands[instruction.Left];
@@ -614,13 +626,13 @@ internal partial struct AwkRegionMachine
             return new(Value(index));
         }
 
-        AwkByteTextOperand TextOperand(int index)
+        AwkByteTextOperand TextOperand(int index, bool comparisonLiteral = true)
         {
             var operand = operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
             if (operand.Kind == AwkRegionOperandKind.Literal)
             {
-                state.Counters.RecordDeferredComparisonLiteral();
+                if (comparisonLiteral) state.Counters.RecordDeferredComparisonLiteral();
                 return new(literals[operand.Index]);
             }
             return new(state.FormatStringByteText(Value(index)));

@@ -243,7 +243,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (retainedBytes > 0) _payload.Release(retainedBytes);
     }
 
-    internal void PrepareString(int index)
+    internal void PrepareByteText(int index)
     {
         var value = _values[index];
         var oldBytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
@@ -253,11 +253,16 @@ internal sealed class AwkRegionStorage : IDisposable
         var nextBytes = _state.MemoryAccounting.IsEnabled ? text.EstimatedRetainedMemoryBytes : 0;
         if (nextBytes > funded) _payload.ReserveAdditional(nextBytes - funded);
         _state.ThrowIfCancellationRequested();
-        // Native text owns the decoded cache too. Transfer the captured/temporary
-        // claim once, retaining both through the actual pending host operation.
+        // Transfer the captured/temporary claim once. Regex inputs stay native;
+        // host paths additionally decode through PrepareString below.
         _values[index] = _state.CreateDeferredTextValue(text);
         if (funded > nextBytes) _payload.Release(funded - nextBytes);
-        _ = text.AsString(_state.Counters, _state.CancellationCheckpoint);
+    }
+
+    internal void PrepareString(int index)
+    {
+        PrepareByteText(index);
+        _ = _values[index].ByteText.AsString(_state.Counters, _state.CancellationCheckpoint);
     }
 
     internal AwkResolvedOutputRedirection PreparedOutputTarget(AwkRegionOutput output) =>

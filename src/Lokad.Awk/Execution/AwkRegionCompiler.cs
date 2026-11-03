@@ -24,6 +24,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionGetline> _getlines = [];
     private readonly List<AwkStatement> _hostStatements = [];
     private readonly List<AwkSwitchCasePattern> _switchCases = [];
+    private readonly List<AwkRegionRegexMatch> _regexMatches = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -98,7 +99,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators),
             _calls.ToArray(), _hostStatements.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _kind);
         return true;
     }
 
@@ -411,6 +412,10 @@ internal sealed class AwkRegionCompiler
                 if (!AwkExpressionLowerer.TryReadStringLiteral(syntax, _scope, out var literal)) return false;
                 result = Operand(AwkRegionOperandKind.Literal, _literals.Count);
                 _literals.Add(AwkText.FromSourceLiteralString(literal));
+                return true;
+            case AwkExpressionKind.Regex:
+                if (!AwkExpressionLowerer.TryLowerRegexLiteralPattern(syntax, out var regex, _scope.CompatibilityMode, _scope.Checkpoint)) return false;
+                result = EmitRegexMatch(new(Operand(AwkRegionOperandKind.Field, 0), regex), negated: false);
                 return true;
             case AwkExpressionKind.Variable:
                 if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier) &&
@@ -1073,6 +1078,7 @@ internal sealed class AwkRegionCompiler
         result = 0;
         var token = syntax.OperatorTokens[0].Kind;
         if (token == AwkTokenKind.In) return Membership(syntax, out result);
+        if (token is AwkTokenKind.Tilde or AwkTokenKind.BangTilde) return RegexMatch(syntax, out result);
         if (!Expression(syntax.Children[0], out var left)) return false;
         if (token is AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe)
         {
@@ -1165,6 +1171,51 @@ internal sealed class AwkRegionCompiler
         return source.Kind == AwkRegionOperandKind.NumberTemporary
             ? Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfNonzero : AwkRegionInstructionKind.JumpIfZero, Left: source.Index))
             : Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfTrue : AwkRegionInstructionKind.JumpIfFalse, Left: operand));
+    }
+
+    private bool RegexMatch(AwkExpressionSyntax syntax, out int result)
+    {
+        result = 0;
+        if (!Expression(syntax.Children[0], out var input)) return false;
+        var negated = syntax.OperatorTokens[0].Kind == AwkTokenKind.BangTilde;
+        if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(syntax.Children[1], out var literal,
+            _scope.CompatibilityMode, _scope.Checkpoint))
+        {
+            result = EmitRegexMatch(new(input, literal), negated);
+            return true;
+        }
+        // Capture the value before the RHS can replace it. Numeric formatting
+        // uses CONVFMT after the RHS has run, as in GNU awk.
+        input = CaptureValue(input);
+        if (!Expression(syntax.Children[1], out var pattern)) return false;
+        pattern = CaptureByteText(pattern);
+        input = CaptureByteText(input);
+        result = EmitRegexMatch(new(input, null, _operands[pattern].Index), negated);
+        Emit(new(AwkRegionInstructionKind.ReleaseValue, _operands[pattern].Index));
+        return true;
+    }
+
+    private int CaptureByteText(int input)
+    {
+        if (_operands[input].Kind != AwkRegionOperandKind.ValueTemporary)
+        {
+            var slot = _values++;
+            Emit(new(AwkRegionInstructionKind.Value, slot, input));
+            input = Operand(AwkRegionOperandKind.ValueTemporary, slot);
+        }
+        Emit(new(AwkRegionInstructionKind.PrepareByteText, _operands[input].Index));
+        return input;
+    }
+
+    private int EmitRegexMatch(AwkRegionRegexMatch match, bool negated)
+    {
+        var site = _regexMatches.Count;
+        _regexMatches.Add(match);
+        var number = _numbers++;
+        Emit(new(AwkRegionInstructionKind.RegexMatch, number, site, Detail: negated ? 1 : 0));
+        if (_operands[match.Input].Kind == AwkRegionOperandKind.ValueTemporary)
+            Emit(new(AwkRegionInstructionKind.ReleaseValue, _operands[match.Input].Index));
+        return Operand(AwkRegionOperandKind.NumberTemporary, number);
     }
 
     private void PatchBranches(List<int> positions, int target)

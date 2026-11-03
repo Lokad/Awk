@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correct dynamic regex matching to capture the left value before RHS effects and
+  apply `CONVFMT` afterward when formatting numeric input.
 - Prepare standard `printf` operands in the common interpreter, retaining values across
   pending calls and borrowing literal field arguments without an arity cutoff.
 - Correct numeric `printf` format conversion to use `CONVFMT` after argument effects,
