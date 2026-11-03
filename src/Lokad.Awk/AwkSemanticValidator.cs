@@ -289,7 +289,7 @@ internal static class AwkSemanticValidator
                 var rule = syntax.Rules[index];
                 var context = AwkStatementValidationContext.RuleBody(rule.Kind, AwkLoweringScope.GlobalFor(mode, checkpoint));
                 foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
-                    ValidateExpressionSemantics(expression, context, diagnostics);
+                    ValidateExpressionSemanticsCore(expression, context, diagnostics);
 
                 ValidateStatements(
                     rule.ActionStatements,
@@ -386,10 +386,22 @@ internal static class AwkSemanticValidator
                 AwkDiagnosticId.BindInvalidProgram));
         }
 
-        for (var index = 0; index < statements.Count; index++)
+        var pending = new Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Position,
+            AwkStatementValidationContext Context, AwkSyntaxOptional<AwkExpressionSyntax> Label, bool IsCase)>();
+        pending.Push((statements, 0, context, default, false));
+        while (pending.TryPop(out var frame))
         {
+            context = frame.Context;
             context.Scope.CheckCancellation();
-            var statement = statements[index];
+            if (frame.IsCase)
+            {
+                ValidateExpressionSemantics(frame.Label, context, diagnostics);
+                context = context.EnterSwitch();
+            }
+            if (frame.Position >= frame.Statements.Count) continue;
+            var statement = frame.Statements[frame.Position];
+            if (frame.Position + 1 < frame.Statements.Count)
+                pending.Push((frame.Statements, frame.Position + 1, context, default, false));
             ValidateControlStatementShape(statement, diagnostics);
             ValidateArgumentlessStatementShape(statement, diagnostics);
             ValidateControlFlowUsage(statement, context, diagnostics);
@@ -404,18 +416,20 @@ internal static class AwkSemanticValidator
                 diagnostics.Add(AwkGetlineLowerer.PostfixFieldTargetDiagnostic(destination));
 
             foreach (var expression in statement.EnumerateChildExpressions())
-                ValidateExpressionSemantics(expression, context, diagnostics);
+                ValidateExpressionSemanticsCore(expression, context, diagnostics);
 
             ValidateDeleteStatement(statement, context, diagnostics);
             ValidateSwitchLabels(statement, context.Scope, diagnostics);
-            ValidateStatements(statement.BodyStatements, context.EnterBody(statement.Kind), diagnostics);
-            ValidateStatements(statement.ElseStatements, context, diagnostics);
-            for (var caseIndex = 0; caseIndex < statement.SwitchCases.Count; caseIndex++)
+            for (var caseIndex = statement.SwitchCases.Count - 1; caseIndex >= 0; caseIndex--)
             {
                 context.Scope.CheckCancellation();
-                ValidateExpressionSemantics(statement.SwitchCases[caseIndex].Expression, context, diagnostics);
-                ValidateStatements(statement.SwitchCases[caseIndex].BodyStatements, context.EnterSwitch(), diagnostics);
+                var arm = statement.SwitchCases[caseIndex];
+                pending.Push((arm.BodyStatements, 0, context, arm.Expression, true));
             }
+            if (statement.ElseStatements.Count != 0)
+                pending.Push((statement.ElseStatements, 0, context, default, false));
+            if (statement.BodyStatements.Count != 0)
+                pending.Push((statement.BodyStatements, 0, context.EnterBody(statement.Kind), default, false));
         }
 
         static void ValidateSwitchLabels(AwkStatementSyntax statement, AwkLoweringScope scope,
@@ -515,18 +529,33 @@ internal static class AwkSemanticValidator
         AwkStatementValidationFacts.IsArgumentless(statement.Kind) &&
         statement.Tokens.Count > 1;
 
-    private static void ValidateExpressionSemantics(
-        AwkExpressionSyntax? expression,
-        AwkStatementValidationContext context,
-        List<AwkDiagnostic> diagnostics)
+    private static void ValidateExpressionSemanticsCore(AwkExpressionSyntax expression,
+        AwkStatementValidationContext context, List<AwkDiagnostic> diagnostics)
     {
-        if (expression == null)
-            return;
-
-        ValidateExpressionSemanticsCore(expression, context, diagnostics);
+        Stack<AwkExpressionSyntax>? pending = null;
+        while (true)
+        {
+            var start = ValidateExpressionNode(expression, context, diagnostics);
+            if (start >= 0 && start < expression.Children.Count)
+            {
+                if (start + 1 < expression.Children.Count)
+                {
+                    pending ??= new();
+                    for (var index = expression.Children.Count - 1; index > start; index--)
+                    {
+                        if ((index & 63) == 0) context.Scope.CheckCancellation();
+                        pending.Push(expression.Children[index]);
+                    }
+                }
+                expression = expression.Children[start];
+                continue;
+            }
+            if (pending is null || !pending.TryPop(out var next)) return;
+            expression = next;
+        }
     }
 
-    private static void ValidateExpressionSemanticsCore(
+    private static int ValidateExpressionNode(
         AwkExpressionSyntax expression,
         AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
@@ -676,13 +705,9 @@ internal static class AwkSemanticValidator
         }
 
         if (expression.Kind == AwkExpressionKind.Field || IsMalformedArrayElement(expression))
-            return;
+            return -1;
 
-        var startIndex = expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;
-        for (var index = startIndex; index < expression.Children.Count; index++)
-        {
-            ValidateExpressionSemantics(expression.Children[index], context, diagnostics);
-        }
+        return expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;
 
         static void ValidateSpecialArrayElementMutation(
             AwkExpressionSyntax target,

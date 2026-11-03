@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Replace recursive statement-diagnostic and block-preparation walks with explicit
-  continuation state, preserving diagnostic order and statement cleanup.
+- Replace recursive symbol, semantic-validation, statement-diagnostic and block-preparation
+  walks with explicit continuation state, preserving scope, diagnostic order and statement cleanup.
 
 - Remove the superseded action delegates and specialized loop runner, including their
   preparation guards and internal action counter. Ordinary computation keeps the common

@@ -3,6 +3,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task DeepBlocksKeepFunctionScopeAndRefundThroughPublicExecution(bool governed)
+    {
+        const int depth = 2048;
+        var source = "function update(value){" + new string('{', depth) +
+            "total=value;value=9;" + new string('}', depth) +
+            "return value}BEGIN{value=3;print update(7),value,total}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("9 3 7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(false, false, true)]
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]

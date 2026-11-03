@@ -7,6 +7,43 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBinderTests
 {
     [Fact]
+    public void AwkBinder_PreservesOrderedSymbolsAndLocalScopeAcrossBranchesAndArms()
+    {
+        const string source = """
+            function f(local){
+                if(local){left[a]=x}else{right[b]=y}
+                switch(local){case 1:c=d;break;default:e=g}
+                return local
+            }
+            BEGIN{out=f(input)}
+            """;
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        Assert.True(binding.Success);
+        Assert.Equal(new[] { "f", "local", "local", "left", "a", "x", "right", "b", "y",
+            "local", "c", "d", "e", "g", "local", "out", "f", "input" },
+            binding.Symbols.Select(symbol => symbol.Name));
+        Assert.All(binding.Symbols.Where(symbol => symbol.Name == "local"), symbol => Assert.True(symbol.IsFunctionLocal));
+        Assert.All(binding.Symbols.Where(symbol => symbol.Name != "local"), symbol => Assert.False(symbol.IsFunctionLocal));
+    }
+
+    [Fact]
+    public void AwkBinder_PreservesDiagnosticOrderAndLoopSwitchContexts()
+    {
+        const string source = """
+            BEGIN{
+                if(1){break}else{continue}
+                while(0){switch(1){case 1:break;default:continue}}
+                switch(1){case 1:continue;default:return}
+            }
+            """;
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        Assert.False(binding.Success);
+        Assert.Equal(new[] { "Break used outside loop or switch",
+            "Continue used outside loop", "Continue used outside loop",
+            "Return used outside function" }, binding.Diagnostics.Select(diagnostic => diagnostic.Message));
+    }
+
+    [Fact]
     public void AwkBinder_BindsExecutableParseResult()
     {
         var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
