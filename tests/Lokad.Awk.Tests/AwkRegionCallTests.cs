@@ -7,6 +7,73 @@ public sealed class AwkRegionCallTests
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]
     [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task PendingRangeConditionOrdersItsActionAndLaterRules(bool governed, bool matches, bool cancel)
+    {
+        const string source = """
+            function read(v){getline v<"/side";return v}
+            read()=="yes",0 {print "match"}
+            {print "tail";next}
+            """;
+        var host = new MockFileSystem();
+        host.SetStandardInput("row\n");
+        host.AddFile("/side", matches ? "yes\n" : "no\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = Read;
+        async ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            if (descriptor != AwkFileDescriptor.StdIn)
+            {
+                using var registration = token.Register(() => canceled.TrySetResult());
+                entered.TrySetResult();
+                await release.Task.ConfigureAwait(false);
+            }
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false); }
+            finally { host.ReadAsyncOverride = Read; }
+        }
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var run = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            var held = budget.Reserved;
+            if (governed) Assert.True(held > 0);
+            if (cancel)
+            {
+                cancellation.Cancel();
+                await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(run.IsCompleted);
+                Assert.Equal(held, budget.Reserved);
+            }
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(cancel ? "" : matches ? "match\ntail\n" : "tail\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            release.TrySetResult();
+            try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
     public async Task NumericAndValueReturnsKeepPendingOwnersAndOriginalSpelling(bool governed, bool legacyBody, bool cancel)
     {
         var source = "function read(v){" + (legacyBody ? "switch(0){default:break}" : "") +

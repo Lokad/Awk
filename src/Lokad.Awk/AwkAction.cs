@@ -10,11 +10,8 @@ internal readonly struct AwkAction
     private readonly Action<AwkEvaluationContext>? _synchronous;
     private readonly AwkRegion? _region;
 
-    internal AwkAction(AwkPattern? pattern, AwkRegion region)
-    {
-        _pattern = pattern;
-        _region = region;
-    }
+    // A prepared rule already contains its condition.
+    internal AwkAction(AwkRegion region) => _region = region;
 
     internal AwkRegion? Region => _region;
 

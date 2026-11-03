@@ -248,7 +248,7 @@ internal static partial class AwkProgramLowerer
             // Syntax/semantic validation precedes lowering. Covered actions need
             // only their bound execution representation, not a discarded tree.
             if (AwkRegionCompiler.TryCompileRule(rule, scope, out var bound))
-                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, bound));
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(bound));
 
             IReadOnlyList<AwkStatement> statements;
             if (rule.HasExplicitAction)

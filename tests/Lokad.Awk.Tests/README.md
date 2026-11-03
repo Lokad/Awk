@@ -5,7 +5,9 @@ The awk suite is intentionally split by boundary. New coverage should start in t
 `AwkRegionCallTests` checks iterative call continuations, genuinely pending host reads,
 cancellation and funded-frame cleanup. Numeric-return cases distinguish immediate numeric
 consumption from spelling-preserving value returns, including pending and canceled reads
-in both migrated and temporarily unmigrated callees. `AwkIncomingFrameTests` checks caller visibility,
+in both migrated and temporarily unmigrated callees. Range-condition cases use the public
+execution boundary and actual pending reads to preserve matching/nonmatching action order,
+cancellation and refunds while rule orchestration is consolidated. `AwkIncomingFrameTests` checks caller visibility,
 alias activation and admission before publication. During execution migration, preserve
 semantic assertions and measure removed transport rather than pinning old preparation routes.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and

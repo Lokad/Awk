@@ -101,13 +101,9 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     {
         for (var index = 0; index < _program.MainActions.Length; index++)
         {
-            var matches = _program.MainActions[index].MatchesAsync(state);
-            if (!matches.IsCompletedSuccessfully)
-                return ResumeMainActionsAsync(state, io, index, matches, default, true);
-            if (!matches.Result) continue;
             var action = ExecuteMainAction(state, io, index);
             if (!action.IsCompletedSuccessfully)
-                return ResumeMainActionsAsync(state, io, index, default, action, false);
+                return ResumeMainActionsAsync(state, io, index, action);
             var flow = action.Result;
             if (flow != AwkStatementFlow.Continue) return ValueTask.FromResult(flow);
         }
@@ -117,25 +113,30 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     private ValueTask<AwkStatementFlow> ExecuteMainAction(AwkRuntimeState state, AwkIo io, int index)
     {
         var action = _program.MainActions[index];
-        return action.Region is { } region
-            ? region.ExecuteAsync(state, _regionStorage, _output, io)
-            : action.ExecuteAsync(state, io, _output);
+        if (action.Region is { } region)
+            return region.ExecuteAsync(state, _regionStorage, _output, io);
+        var match = action.MatchesAsync(state);
+        if (match.IsCompletedSuccessfully)
+            return match.Result ? action.ExecuteAsync(state, io, _output)
+                : ValueTask.FromResult(AwkStatementFlow.Continue);
+        return AwaitMatchedActionAsync(match, action, state, io, _output);
     }
 
+    // Only an unmigrated external pattern needs its own boolean continuation.
+    private static async ValueTask<AwkStatementFlow> AwaitMatchedActionAsync(ValueTask<bool> match,
+        AwkAction action, AwkRuntimeState state, AwkIo io, AwkOutputSink output) =>
+        await match.ConfigureAwait(false) ? await action.ExecuteAsync(state, io, output).ConfigureAwait(false)
+            : AwkStatementFlow.Continue;
+
     private async ValueTask<AwkStatementFlow> ResumeMainActionsAsync(AwkRuntimeState state, AwkIo io,
-        int index, ValueTask<bool> match, ValueTask<AwkStatementFlow> action, bool waitingForMatch)
+        int index, ValueTask<AwkStatementFlow> action)
     {
         while (true)
         {
-            if (!waitingForMatch || await match.ConfigureAwait(false))
-            {
-                if (waitingForMatch) action = ExecuteMainAction(state, io, index);
-                var flow = await action.ConfigureAwait(false);
-                if (flow != AwkStatementFlow.Continue) return flow;
-            }
+            var flow = await action.ConfigureAwait(false);
+            if (flow != AwkStatementFlow.Continue) return flow;
             if (++index == _program.MainActions.Length) return AwkStatementFlow.Continue;
-            match = _program.MainActions[index].MatchesAsync(state);
-            waitingForMatch = true;
+            action = ExecuteMainAction(state, io, index);
         }
     }
 
