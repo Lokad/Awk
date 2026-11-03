@@ -27,6 +27,8 @@ sorting migrates. Golden cases pin late numeric input formatting and earlier reg
 conversion without changing the captured input value.
 Substitution cases cover pending pattern/replacement/target expressions, field and nested-array
 locations, late numeric replacement conversion, dynamic-pattern failure order and final refunds.
+Special-scalar counters cover native reads through function calls and field mutation, without
+caching computed `NF` across effects or changing compatibility/local binding rules.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.

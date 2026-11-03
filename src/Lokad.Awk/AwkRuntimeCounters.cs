@@ -52,6 +52,12 @@ internal sealed class AwkRuntimeCounters
 
     public long RecordsRead { get; private set; }
 
+    public long PreparedSpecialScalarReads { get; private set; }
+    internal void RecordPreparedSpecialScalarRead()
+    {
+        if (_enabled) lock (_sync) PreparedSpecialScalarReads++;
+    }
+
     public long ArrayContainerCacheHits { get; private set; }
 
     public long BorrowedFieldTargetSnapshots { get; private set; }

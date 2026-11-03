@@ -1461,7 +1461,9 @@ internal sealed class AwkRegionCompiler
             index = _variables.Count;
             _variableIndices.Add(name, index);
             var local = _scope.TryGetFunctionLocalSlot(name, out var slot) ? slot.Index : -1;
-            _variables.Add(new(name, local < 0 && _scope.TryGetGlobalReadIndex(name, out var global) ? global : -1, local));
+            var special = local < 0 && AwkSpecialVariables.TryGetScalar(name, out var id) &&
+                AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode) ? (int)id : -1;
+            _variables.Add(new(name, local < 0 && _scope.TryGetGlobalReadIndex(name, out var global) ? global : -1, local, special));
         }
         return true;
     }

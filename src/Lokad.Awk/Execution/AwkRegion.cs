@@ -76,7 +76,8 @@ internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values =
     int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0);
 internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
-internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
+internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex,
+    int LocalIndex = -1, int SpecialId = -1);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);

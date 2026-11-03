@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bind known special-scalar read identities during interpreter preparation, preserving
+  computed values, local bindings and effects between reads.
 - Prepare `sub`/`gsub` operands in the common interpreter. Numeric replacements format
   after target-index effects; dynamic regex validation follows those effects. Publish
   target changes only after a successful replacement, preserving mutation admission.

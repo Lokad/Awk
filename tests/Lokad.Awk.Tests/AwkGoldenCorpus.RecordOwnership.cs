@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordOwnershipCases()
     {
+        yield return Passing("special-scalar-reads-follow-record-mutation-through-calls",
+            ["function columns(){return NF}{print columns();$3=7;print columns()}END{print NR,NF}"], [],
+            "2\n3\n1 3\n", "left right\n");
         yield return Passing("sub-replacement-formats-after-target-effects",
             ["function key(){replacement=.5;CONVFMT=\"%.1f\";return \"k\"}BEGIN{CONVFMT=\"%.3f\";replacement=.125;a[\"k\"]=\"x\";print sub(/x/,replacement,a[key()]),a[\"k\"],replacement}"], [],
             "1 0.1 0.5\n");

@@ -4,6 +4,31 @@ public sealed class AwkRegionFieldTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task SpecialScalarReadsFollowRecordMutationAndKeepByteNativeProcessing(bool governed)
+    {
+        const int records = 128;
+        const string source = "function columns(){return NF}{sum+=columns();$3=7;sum+=columns();nr+=NR}END{print sum,nr,NF}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("left right\n", records)));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        Assert.Equal("640 8256 3\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        Assert.True(counters.PreparedSpecialScalarReads >= records);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters.AwkTextAllocations, 0, records + 16);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task IntrospectionReusesNativeFieldClassificationWithoutOwningSpelling(bool governed)
     {
         const int records = 128;

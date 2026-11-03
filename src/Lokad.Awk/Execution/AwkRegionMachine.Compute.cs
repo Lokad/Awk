@@ -90,7 +90,7 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.VariableNumber:
-                    numbers[instruction.Target] = state.ResolveVariableValue(variables[instruction.Left].Name).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = ReadVariable(variables[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.ArrayNumber:
                 {
@@ -690,6 +690,7 @@ internal partial struct AwkRegionMachine
         AwkValue ReadVariable(AwkRegionVariable variable) => variable.LocalIndex >= 0
             ? state.ResolveFunctionLocalValue(new(variable.LocalIndex), variable.Name) : variable.GlobalIndex >= 0
             ? state.ResolvePreparedGlobalValue(variable.Name, variable.GlobalIndex)
+            : variable.SpecialId >= 0 ? state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)variable.SpecialId)
             : state.ResolveVariableValue(variable.Name);
 
         bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionArgument argument) => variable.LocalIndex >= 0

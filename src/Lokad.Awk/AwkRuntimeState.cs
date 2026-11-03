@@ -977,6 +977,12 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
+    internal AwkValue ResolvePreparedSpecialVariableValue(AwkSpecialVariableId id)
+    {
+        Counters.RecordPreparedSpecialScalarRead();
+        return ResolveSpecialVariableValue(id);
+    }
+
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id)
     {
         if (id == AwkSpecialVariableId.FieldCount)
