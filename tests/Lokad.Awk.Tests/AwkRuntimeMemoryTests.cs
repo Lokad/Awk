@@ -5,6 +5,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRuntimeMemoryTests
 {
     [Fact]
+    public void ArrayTargetCapacityCoversTheActualValueLayout()
+    {
+        var elementBytes = System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayTarget?>();
+        Assert.True(AwkRuntimeMemory.EstimateArrayTargetArrayBytes(8) >= 24 + 8L * elementBytes);
+    }
+
+    [Fact]
     public void AwkRuntimeMemory_CheckedArithmeticAcceptsRepresentableSizes()
     {
         Assert.Equal(7, AwkRuntimeMemory.CheckedAdd(3, 4));

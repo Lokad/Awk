@@ -9,6 +9,31 @@ public sealed class AwkSplitCaptureResourceTests
     private static readonly AwkArrayKey Old = new("old");
 
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RepeatedPublicSplitKeepsUtf8NativeAndRefundsCapturedStorage(bool governed)
+    {
+        const int records = 128;
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("a:bé:😀\n", records)));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", "{total+=split($0,a,\":\",seps);separators+=length(seps)}END{print total,separators,a[2],a[3]}"),
+            CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        Assert.Equal("384 256 bé 😀\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.RegexMatches);
+        Assert.InRange(counters.AwkTextAllocations, 0, records * 6 + 8);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("abc", ",", 1, 0, 1)]
     [InlineData(",a,", ",", 3, 2, 3)]
     [InlineData("a b", " ", 2, 1, 3)]

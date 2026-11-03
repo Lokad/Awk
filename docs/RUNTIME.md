@@ -169,7 +169,7 @@ work detaches an owner. Pending getline destinations keep their keys funded unti
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.
-Prepared comparisons can reuse field classification and scoped record bytes. Values that
+Comparisons and introspection can reuse record-local classification and bytes. Values that
 escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Interpreter preparation binds operands, scalar/array locations and function targets.
@@ -201,10 +201,8 @@ calls. Reusing a prepared program does not share that state between executions.
 completes. A pending call does not return that storage on cancellation alone. `close()` captures
 the formatted stream name before evaluating its direction; `fflush()` retains value origins
 for its lint behavior. Both preserve their diagnostic and stream-status contracts.
-Introspection distinguishes bare names, array elements and computed values. It preserves
-untyped cells, missing-read insertion, aliases and virtual-array behavior. Field type checks
-can use record-local classification without owning the field's spelling; escaping values
-still own their text.
+`split()` and `patsplit()` retain their input, pattern and captured destinations through
+pending argument evaluation. Array replacement retains its mutation preflight.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

@@ -15,6 +15,12 @@ internal static partial class AwkGoldenCorpus
         Passing("introspection-implicit-length-after-split",
             ["BEGIN{split(\"\",parts);print typeof(length),typeof(length()),typeof((length));print typeof(FS),typeof(NF)}"], [],
             "number number number\nstring number\n"),
+        Passing("split-captured-array-origin-promoted-by-pattern",
+            ["function pattern(){a[1][9]=3;return \":\"}BEGIN{print split(\"x:y\",a[1],pattern()),a[1][1],a[1][2],length(a[1])}"], [],
+            "2 x y 2\n"),
+        Passing("patsplit-captured-array-origin-promoted-by-pattern",
+            ["function pattern(){a[1][9]=3;return \"[a-z]\"}BEGIN{print patsplit(\"x:y\",a[1],pattern()),a[1][1],a[1][2],length(a[1])}"], [],
+            "2 x y 2\n"),
         AwkGoldenCaseBuilder.Create("array-cell-update-keeps-prior-value-through-same-key-write",
             ["function rhs(a){a[\"x\"]=20;return 3} BEGIN{a[\"x\"]=5;a[\"x\"]+=rhs(a);print a[\"x\"]}"], [])
             .WithStdOut("8\n")

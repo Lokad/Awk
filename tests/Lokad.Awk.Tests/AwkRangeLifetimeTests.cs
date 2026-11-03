@@ -105,7 +105,7 @@ public sealed class AwkRangeLifetimeTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task ReusedArtifactKeepsConcurrentNativeAndSplitRangesIndependent(bool governed)
+    public async Task ReusedArtifactKeepsConcurrentRangesIndependent(bool governed)
     {
         const string source = """
             $1=="A",$1=="Z"{print "one",$1}

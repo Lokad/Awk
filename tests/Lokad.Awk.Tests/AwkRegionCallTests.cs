@@ -74,11 +74,11 @@ public sealed class AwkRegionCallTests
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]
     [InlineData(true, true, false)] [InlineData(true, true, true)]
-    public async Task NumericAndValueReturnsKeepPendingOwnersAndOriginalSpelling(bool governed, bool legacyBody, bool cancel)
+    public async Task NumericAndValueReturnsKeepPendingOwnersAndOriginalSpelling(bool governed, bool sortPrelude, bool cancel)
     {
-        // The splitting primitive is still an explicit migration boundary. This
+        // Sorting is still an explicit migration boundary. This
         // covers its pending callee lifetime until that primitive joins the driver.
-        var source = "function read(v,scratch){" + (legacyBody ? "split(\"\",scratch);" : "") +
+        var source = "function read(v,scratch){" + (sortPrelude ? "asort(scratch);" : "") +
             "getline v<\"/side\";return v}{sum+=read();saved=read();print sum,saved;next}";
         var host = new MockFileSystem();
         host.SetStandardInput("row\n");

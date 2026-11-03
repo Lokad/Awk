@@ -24,6 +24,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionGetline> _getlines = [];
     private readonly List<AwkSwitchCasePattern> _switchCases = [];
     private readonly List<AwkRegionRegexMatch> _regexMatches = [];
+    private readonly List<AwkRegionSplit> _splits = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -36,6 +37,7 @@ internal sealed class AwkRegionCompiler
     private int _printSegments;
     private int _targets;
     private int _iterators;
+    private int _arrayTargets;
     private int _straightLine;
     private bool _usesOutputBuilder;
 
@@ -115,9 +117,9 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators),
+            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets),
             _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _kind);
         return true;
     }
 
@@ -264,6 +266,12 @@ internal sealed class AwkRegionCompiler
                         !HostBuiltin(hostCall.Expression, hostCall.Definition, hostImplementation, out var hostResult,
                             flushBeforeArguments: builtinId == AwkBuiltinId.Close && hostCall.ArgumentCount == 1)) return false;
                     Discard(hostResult);
+                    break;
+                case AwkStatementKind.Split:
+                case AwkStatementKind.Patsplit:
+                    if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var splitCall) ||
+                        !Call(splitCall, out var splitResult)) return false;
+                    Discard(splitResult);
                     break;
                 default: return false;
             }
@@ -502,6 +510,8 @@ internal sealed class AwkRegionCompiler
         {
             if (builtin.Id is AwkBuiltinId.IsArray or AwkBuiltinId.TypeOf)
                 return Introspection(syntax.Children[1], builtin.Id == AwkBuiltinId.TypeOf, out result);
+            if (builtin.Id is AwkBuiltinId.Split or AwkBuiltinId.Patsplit)
+                return Split(syntax, builtin.Id == AwkBuiltinId.Patsplit, out result);
             if (builtin.TryGetScalarComputation(out var implementation))
                 return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
                     ? StringCall(syntax, builtin.Id, out result)
@@ -558,6 +568,68 @@ internal sealed class AwkRegionCompiler
         Emit(new(operation, target, operand, Detail: typeName ? 1 : 0));
         if (operation == AwkRegionInstructionKind.InspectArray) FinishKey(operand);
         result = Operand(typeName ? AwkRegionOperandKind.ValueTemporary : AwkRegionOperandKind.NumberTemporary, target);
+        return true;
+    }
+
+    private bool Split(AwkExpressionSyntax syntax, bool patsplit, out int result)
+    {
+        result = 0;
+        if (!Expression(syntax.Children[1], out var inputValue)) return false;
+        var input = _values++;
+        Emit(new(AwkRegionInstructionKind.Value, input, inputValue));
+        Emit(new(AwkRegionInstructionKind.PrepareByteText, input));
+        if (!ArrayTarget(syntax.Children[2], out var array)) return false;
+        var usesDefault = syntax.Children.Count == 3;
+        var origin = AwkRegexPatternOrigin.Runtime;
+        var literal = false;
+        int pattern;
+        if (usesDefault) pattern = _values++;
+        else if (!Pattern(syntax.Children[3], out pattern, out origin, out literal)) return false;
+        var separators = -1;
+        if (syntax.Children.Count == 5 && !ArrayTarget(syntax.Children[4], out separators)) return false;
+        var site = _splits.Count;
+        _splits.Add(new(input, array, separators, pattern, origin, literal, usesDefault, patsplit));
+        var target = _numbers++;
+        Emit(new(AwkRegionInstructionKind.Split, target, site));
+        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
+        return true;
+    }
+
+    private bool Pattern(AwkExpressionSyntax syntax, out int captured, out AwkRegexPatternOrigin origin, out bool literal)
+    {
+        captured = 0;
+        origin = AwkRegexPatternOrigin.Runtime;
+        literal = false;
+        int value;
+        if (AwkExpressionLowerer.TryReadRegexLiteralPattern(syntax, out var pattern, _scope.Checkpoint))
+        {
+            literal = true;
+            origin = AwkRegexPatternOrigin.SourceLiteral;
+            value = Operand(AwkRegionOperandKind.Literal, _literals.Count);
+            _literals.Add(AwkText.FromSourceLiteralString(pattern));
+        }
+        else if (!Expression(syntax, out value)) return false;
+        captured = _values++;
+        Emit(new(AwkRegionInstructionKind.Value, captured, value));
+        Emit(new(AwkRegionInstructionKind.PrepareByteText, captured));
+        return true;
+    }
+
+    private bool ArrayTarget(AwkExpressionSyntax syntax, out int slot)
+    {
+        slot = 0;
+        int access;
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var name))
+        {
+            if (_scope.IsReservedVariable(name.Name)) return false;
+            access = _arrays.Count;
+            _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
+        }
+        else if (_scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
+            syntax.Kind != AwkExpressionKind.ArrayElement || !ArrayAccess(syntax, out access)) return false;
+        slot = _arrayTargets++;
+        Emit(new(AwkRegionInstructionKind.ArrayTarget, slot, access));
+        if (_arrays[access].Key >= 0 || _arrays[access].Path >= 0) FinishKey(access);
         return true;
     }
 

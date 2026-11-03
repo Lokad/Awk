@@ -169,6 +169,21 @@ internal partial struct AwkRegionMachine
                     }
                     break;
                 }
+                case AwkRegionInstructionKind.ArrayTarget:
+                {
+                    var captured = arrays[instruction.Left];
+                    if (captured.Key < 0 && captured.Path < 0)
+                        storage.StoreArrayTarget(instruction.Target, new(captured.Name));
+                    else
+                    {
+                        storage.BeginArrayTargetCapture(instruction.Target);
+                        storage.StoreArrayTarget(instruction.Target, new(ReadArray(captured)));
+                    }
+                    break;
+                }
+                case AwkRegionInstructionKind.Split:
+                    ExecuteSplit(region.Splits[instruction.Left], instruction.Target);
+                    break;
                 case AwkRegionInstructionKind.InspectArray:
                 {
                     var inspected = arrays[instruction.Left];

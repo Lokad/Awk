@@ -40,16 +40,16 @@ public sealed class AwkRegexRegionTests
         foreach (var shape in new[] { "field", "record", "number" })
         foreach (var governed in new[] { false, true })
         foreach (var cancel in new[] { false, true })
-        foreach (var withSplit in new[] { false, true }) yield return [shape, governed, cancel, withSplit];
+        foreach (var sortPrelude in new[] { false, true }) yield return [shape, governed, cancel, sortPrelude];
     }
 
     [Theory]
     [MemberData(nameof(DynamicInputs))]
-    public async Task DynamicPatternsKeepTheInputValueAcrossPendingMutation(string shape, bool governed, bool cancel, bool withSplit)
+    public async Task DynamicPatternsKeepTheInputValueAcrossPendingMutation(string shape, bool governed, bool cancel, bool sortPrelude)
     {
         var input = shape switch { "field" => "$1", "record" => "$0", _ => "0.125" };
         var source = "function pattern(v){$0=\"changed tail\";CONVFMT=\"%.1f\";getline v<\"/side\";return v}" +
-            "function run(tmp){" + (withSplit ? "split(\"\",tmp);" : "") +
+            "function run(tmp){" + (sortPrelude ? "asort(tmp);" : "") +
             "print(" + input + "~pattern()),$0,CONVFMT;print \"tail\"}" +
             "BEGIN{CONVFMT=\"%.3f\";$0=\"old tail\";run()}";
         var host = new MockFileSystem();

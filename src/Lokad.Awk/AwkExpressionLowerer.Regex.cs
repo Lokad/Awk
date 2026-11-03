@@ -48,7 +48,7 @@ internal static partial class AwkExpressionLowerer
         }
     }
 
-    private static bool TryReadRegexLiteralPattern(
+    internal static bool TryReadRegexLiteralPattern(
         AwkExpressionSyntax? expression,
         [NotNullWhen(true)] out string? pattern,
         Action? checkpoint = null)

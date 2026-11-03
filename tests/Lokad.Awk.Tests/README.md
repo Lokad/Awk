@@ -379,6 +379,9 @@ and expression positions, to check caller continuation, cancellation and actual 
 Introspection extends the pending-field/key matrix and refusal checks. Counter checks cover
 byte-native field classification; canonical cases retain scalar consumption through grouping
 and implicit `length` calls.
+The same pending matrix covers split inputs, patterns and child/separator destinations,
+including origin promotion and deletion. Capture-refusal checks precede missing-entry mutation;
+reuse checks bound retained capacity. Public split counters include UTF8 fields and separators.
 `AwkRegionPhaseTests` uses the canonical two-file `getline` case with genuinely pending
 input. It preserves caller prefixes/locals through reentrant file phases and keeps pending
 users funded through cancellation. A print fallback case prevents replaying earlier operands;

@@ -1,0 +1,29 @@
+namespace Lokad.Awk;
+
+internal partial struct AwkRegionMachine
+{
+    private void ExecuteSplit(AwkRegionSplit split, int result)
+    {
+        var storage = _cursor.Storage;
+        var csv = split.UsesDefault && !split.Patsplit && _state.CsvInput;
+        if (split.UsesDefault && !csv)
+        {
+            var separator = split.Patsplit ? AwkSpecialVariableId.FieldPattern : AwkSpecialVariableId.FieldSeparator;
+            storage.StoreValue(split.Pattern, _state.ResolveSpecialVariableValue(separator));
+            storage.PrepareByteText(split.Pattern);
+        }
+        var pattern = csv ? default : new AwkRegexPattern(storage.Values[split.Pattern].ByteText, split.Origin, split);
+        AwkArrayTarget? separators = split.Separators < 0 ? null : storage.ArrayTarget(split.Separators);
+        var input = storage.Values[split.Input].ByteText;
+        var array = storage.ArrayTarget(split.Array);
+        _state.ThrowIfCancellationRequested();
+        storage.Numbers[result] = split.Patsplit
+            ? _state.PatsplitIntoArray(input, array, pattern, separators)
+            : _state.SplitIntoArray(input, array,
+                csv ? default : AwkFieldSeparatorSpec.FromRegexPattern(pattern, split.IsRegexLiteral), separators, csv);
+        storage.ReleaseValue(split.Input);
+        storage.ReleaseValue(split.Pattern);
+        storage.ReleaseArrayTarget(split.Array);
+        if (split.Separators >= 0) storage.ReleaseArrayTarget(split.Separators);
+    }
+}

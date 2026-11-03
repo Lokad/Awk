@@ -29,7 +29,13 @@ public sealed class AwkRegionFieldTests
 
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership", "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete", "typeof-field", "typeof-prefix", "typeof-nested", "isarray-nested", "isarray-symbol" })
+        foreach (var operation in new[]
+        {
+            "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership",
+            "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete",
+            "typeof-field", "typeof-prefix", "typeof-nested", "isarray-nested", "isarray-symbol",
+            "split-input", "patsplit-input", "split-child", "split-pattern", "patsplit-pattern", "split-promote", "split-detach"
+        })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -58,9 +64,17 @@ public sealed class AwkRegionFieldTests
             "typeof-nested" => "{i=1;a[\"0007\",\"tag\"][11][\"child\"]=1;text=typeof(a[$i,\"tag\"][read()]);print text,$0,i;next}",
             "isarray-nested" => "{i=1;a[\"0007\",\"tag\"][11][\"child\"]=1;text=isarray(a[$i,\"tag\"][read()]);print text,$0,i;next}",
             "isarray-symbol" => "{a[11][\"child\"]=1;text=isarray(SYMTAB[(read()==11?\"a\":\"missing\")]);print text,$0,i;next}",
+            "split-input" => "{i=1;count=split($i,a,(read()>0?\" \":\"none\"));print count,a[1],$0,i;next}",
+            "patsplit-input" => "{i=1;count=patsplit($i,a,(read()>0?\"[0-9]+\":\"none\"));print count,a[1],$0,i;next}",
+            "split-child" => "{i=1;a[\"0007\",\"tag\"][11][\"old\"]=1;count=split(\"left right\",a[$i,\"tag\"][read()]);print count,a[\"0007\",\"tag\"][11][2],$0,i;next}",
+            "split-pattern" => "{i=1;count=split(\"A0007B\",a,$i,seps[(read()>0?\"r\":\"x\")]);print count,a[1],a[2],seps[\"r\"][1],$0,i;next}",
+            "patsplit-pattern" => "{i=1;count=patsplit(\"A0007B\",a,$i,seps[(read()>0?\"r\":\"x\")]);print count,a[1],seps[\"r\"][0],seps[\"r\"][1],$0,i;next}",
+            "split-promote" => "{count=split(\"x:y\",a[1],(read()>0?\":\":\"none\"));print count,a[1][1],a[1][2],length(a[1]),$0,i;next}",
+            "split-detach" => "{a[1][9]=3;count=split(\"x:y\",a[1],(read()>0?\":\":\"none\"));print \"unreachable\"}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
-        var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
+        var beforeRead = operation switch { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", _ => "" };
+        var source = "function read(x){" + beforeRead + "getline x<\"/side\";i=2;$1=100;return x}" + action;
         var host = new MockFileSystem();
         host.SetStandardInput("0007 old\n");
         host.AddFile("/side", "11\n");
@@ -84,7 +98,7 @@ public sealed class AwkRegionFieldTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+            counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) { MemoryBudget = governed ? budget : null };
         var run = AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
             cancellation.Token, options);
         try
@@ -102,7 +116,8 @@ public sealed class AwkRegionFieldTests
             }
             resume.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
-            else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            else Assert.Equal(operation == "split-detach" ? AwkExitCode.FatalError : AwkExitCode.Success,
+                await run.WaitAsync(TimeSpan.FromSeconds(10)));
             var expected = operation switch
             {
                 "compound" => "18 old 2\n",
@@ -120,10 +135,17 @@ public sealed class AwkRegionFieldTests
                 "typeof-prefix" => "strnum 11 old\n",
                 "typeof-nested" => "array 100 old 2\n",
                 "isarray-nested" or "isarray-symbol" => "1 100 old 2\n",
+                "split-input" or "patsplit-input" => "1 0007 100 old 2\n",
+                "split-child" => "2 right 100 old 2\n",
+                "split-pattern" => "2 A B 0007 100 old 2\n",
+                "patsplit-pattern" => "1 0007 A B 100 old 2\n",
+                "split-promote" => "2 x y 2 100 old 2\n",
+                "split-detach" => "",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(!cancel && operation == "split-detach" ? "awk: array target was removed during evaluation\n" : "",
+                host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);
         }
