@@ -14,9 +14,11 @@ internal sealed class AwkByteReader(
     public ReadOnlyMemory<byte> Content => _borrow is { } borrow ? borrow.Content[_offset..] : default;
     public bool ReachedEof => _completion == AwkReadCompletion.EndOfFile;
 
-    public async ValueTask<bool> TryBufferAsync()
+    public ValueTask<bool> TryBufferAsync() => !Content.IsEmpty
+        ? ValueTask.FromResult(true) : ReadBufferAsync();
+
+    private async ValueTask<bool> ReadBufferAsync()
     {
-        if (!Content.IsEmpty) return true;
         if (_completion == AwkReadCompletion.Failure) ThrowReadFailure();
         if (ReachedEof) return false;
         ReleaseBorrow();

@@ -5,6 +5,72 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkRecordCursorContextTests
 {
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task PendingRefillsKeepPartialRecordsAndFundingUntilActualCompletion(
+        bool governed, bool afterPrefix, bool cancel)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInput("prefix\n" + string.Concat(Enumerable.Repeat("a😀", 4096)) + "\ntail\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        host.ReadAsyncOverride = ReadAsync;
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            using var registration = token.Register(() => canceled.TrySetResult());
+            if (++reads == (afterPrefix ? 9 : 1))
+            {
+                entered.TrySetResult();
+                await release.Task.ConfigureAwait(false); // The host deliberately ignores cancellation here.
+            }
+            else await Task.Yield();
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, Math.Min(maximum, 128), token).ConfigureAwait(false); }
+            finally { host.ReadAsyncOverride = ReadAsync; }
+        }
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        using var cancellation = new CancellationTokenSource();
+        var run = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "{print length($0),NR}END{print \"end\"}")).ExecuteAsync(host, policy, cancellation.Token);
+        var before = afterPrefix ? "6 1\n" : "";
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            Assert.Equal(before, host.GetOutput(AwkFileDescriptor.StdOut));
+            var held = budget.Reserved;
+            if (governed) Assert.True(held > 0);
+            if (cancel)
+            {
+                cancellation.Cancel();
+                await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(run.IsCompleted);
+                Assert.Equal(held, budget.Reserved);
+            }
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(cancel ? before : "6 1\n8192 2\n4 3\nend\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            release.TrySetResult();
+            try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
     public static IEnumerable<object[]> Configurations()
     {
         foreach (var golden in AwkGoldenCorpus.DirectCases.Where(c => c.Name.StartsWith("cursor-reader-", StringComparison.Ordinal)))

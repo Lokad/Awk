@@ -179,8 +179,10 @@ capacity checks and initialization. Switching bodies refreshes preparation witho
 unrelated scratch payloads.
 Main records, covered computation, branches, loops, calls and rule conditions share a
 continuing driver. It keeps input/rule/call positions across actual host suspension;
-record/header publication retains its admission and cancellation preflight. Command-wide
-host services are reused; reentrant scopes retain actual overrides and restore them after
+available records use synchronous recognition, while pending refills retain their cursor and
+storage until actual completion. Record/header publication retains its admission and
+cancellation preflight. Command-wide host services are reused; reentrant scopes retain actual
+overrides and restore them after
 pending work. File/start/end phases use separate funded scratch when they
 interrupt a caller through `getline`; default and single-value output retain the ordinary
 flush/diagnostic contract. Multi-value output stages operands before formatting and keeps

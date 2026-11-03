@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate buffered record recognition from pending host reads, retaining one refill
+  loop and the existing streaming ownership and cancellation behavior.
 - Bind known special-scalar read identities during interpreter preparation, preserving
   computed values, local bindings and effects between reads.
 - Prepare `sub`/`gsub` operands in the common interpreter. Numeric replacements format
