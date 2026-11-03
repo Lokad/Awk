@@ -13,6 +13,9 @@ execution boundary and actual pending reads to preserve matching/nonmatching act
 cancellation and refunds while rule orchestration is consolidated. `AwkIncomingFrameTests` checks caller visibility,
 alias activation and admission before publication. During execution migration, preserve
 semantic assertions and measure removed transport rather than pinning old preparation routes.
+Compiler failure cases retain enclosing-statement diagnostics, plain-block propagation and
+body-before-pattern diagnostic precedence. Pending output/publication fixtures bind source;
+they preserve actual borrows, cancellation ordering and refunds without injecting old bodies.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.
 `AwkSortingContinuationTests` checks pending comparator calls through the shared function frames,

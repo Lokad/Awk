@@ -46,16 +46,28 @@ internal sealed partial class AwkRegionCompiler
     private int _arrayTargets;
     private int _straightLine;
     private bool _usesOutputBuilder;
+    private AwkDiagnostic? _diagnostic;
 
     private AwkRegionCompiler(AwkLoweringScope scope, AwkRegionKind kind) => (_scope, _kind) = (scope, kind);
 
     internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
         AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region) =>
-        new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record)
-            .Compile(statements, null, defaultPrint: false, out region);
+        TryCompile(statements, scope, out region, out _);
+
+    internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
+        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic)
+    {
+        var compiler = new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record);
+        var success = compiler.Compile(statements, null, defaultPrint: false, out region);
+        diagnostic = compiler._diagnostic ?? default;
+        return success;
+    }
 
     internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
-        [NotNullWhen(true)] out AwkRegion? region)
+        [NotNullWhen(true)] out AwkRegion? region) => TryCompileRule(rule, scope, rangeIndex, out region, out _);
+
+    internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
+        [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic)
     {
         AwkExpressionSyntax? condition = null;
         AwkExpressionSyntax? rangeEnd = null;
@@ -72,12 +84,25 @@ internal sealed partial class AwkRegionCompiler
             else
             {
                 region = null;
+                diagnostic = InvalidRule(rule);
                 return false;
             }
         }
-        return new AwkRegionCompiler(scope, rule.Kind == AwkRuleKind.Main ? AwkRegionKind.Record : AwkRegionKind.Phase)
-            .Compile(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, out region, rangeEnd, rangeIndex);
+        var compiler = new AwkRegionCompiler(scope, rule.Kind == AwkRuleKind.Main ? AwkRegionKind.Record : AwkRegionKind.Phase);
+        var success = compiler.Compile(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, out region, rangeEnd, rangeIndex);
+        if (!success && compiler._diagnostic is null && rule.HasExplicitAction)
+        {
+            // Body diagnostics have always preceded pattern-lowering failures.
+            // Preparing a body cannot execute effects or publish a partial program.
+            var body = new AwkRegionCompiler(scope, AwkRegionKind.Record);
+            if (!body.Compile(rule.ActionStatements, null, defaultPrint: false, out _)) compiler._diagnostic = body._diagnostic;
+        }
+        diagnostic = compiler._diagnostic ?? (success ? default : InvalidRule(rule));
+        return success;
     }
+
+    private static AwkDiagnostic InvalidRule(AwkRuleSyntax rule) => new(rule.Span,
+        rule.HasExplicitAction ? "Invalid action block." : "Invalid pattern.", AwkDiagnosticId.BindInvalidProgram);
 
     private bool Compile(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
         bool defaultPrint, [NotNullWhen(true)] out AwkRegion? region,

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Publish prepared rules and functions without tree-execution fallbacks; remove the main
+  driver's fallback action/callee completion routes while preserving frontend diagnostics.
+
+
 - Replace recursive symbol, semantic-validation, statement-diagnostic, block and ordinary
   operator/call/control/location and special-form preparation with explicit continuation state, preserving scope, evaluation order
   and statement cleanup.

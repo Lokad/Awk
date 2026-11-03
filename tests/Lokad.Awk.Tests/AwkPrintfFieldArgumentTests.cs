@@ -26,11 +26,11 @@ public sealed class AwkPrintfFieldArgumentTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
-        AwkExpression[] fields = [AwkExpression.FieldIndex(AwkExpression.Number(1)), AwkExpression.FieldIndex(AwkExpression.Number(2))];
-        var statement = fieldList ? AwkStatement.Print(fields)
-            : AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"), fields);
+        var source = fieldList ? "{print $1,$2}" : "{printf \"%s:%04d\\n\",$1,$2}";
         var expected = fieldList ? "before 7\n" : "before:0007\n";
-        var program = new AwkProgram([], [new(null, [statement])], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
         using var executor = new AwkRecordTestExecution(program, state);
         var run = executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("before 7"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary)).AsTask();
         try

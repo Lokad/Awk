@@ -58,26 +58,10 @@ internal partial struct AwkRegionMachine
                 if (actions.Length == 0) continue;
             }
             ref readonly var action = ref actions[_mainIndex];
-            if (action.Region is { } region)
-            {
-                _cursor = new(region, _rootStorage, 0, null);
-                Initialize();
-                return;
-            }
-            if (_output is not { } output || _io is not { } io)
-                throw new InvalidOperationException("An input action requires a host context.");
-            var execution = AwkRuntimeActionExecutor.ExecuteUnmigratedActionAsync(action, _state, io, output);
-            if (execution.IsCompletedSuccessfully)
-            {
-                CompleteMainAction(execution.Result);
-                if (_finished || _pending != Pending.None) return;
-            }
-            else
-            {
-                _pending = Pending.MainAction;
-                _hostFlow = execution;
-                return;
-            }
+            var region = action.Region ?? throw new InvalidOperationException("An action has not been prepared.");
+            _cursor = new(region, _rootStorage, 0, null);
+            Initialize();
+            return;
         }
     }
 
@@ -105,14 +89,12 @@ internal partial struct AwkRegionMachine
         phase.Dispose();
     }
 
-    private void CompleteMainFlow(AwkStatementFlow flow)
+    private void CompleteMainClose(AwkStatementFlow flow)
     {
-        var closing = _pending == Pending.MainClose;
         _hostFlow = default;
         _pending = Pending.None;
         _state.ThrowIfCancellationRequested();
-        if (!closing) CompleteMainAction(flow);
-        else if (Flow == AwkStatementFlow.ExitProgram || flow == AwkStatementFlow.ExitProgram)
+        if (Flow == AwkStatementFlow.ExitProgram || flow == AwkStatementFlow.ExitProgram)
         {
             Flow = AwkStatementFlow.ExitProgram;
             _finished = true;

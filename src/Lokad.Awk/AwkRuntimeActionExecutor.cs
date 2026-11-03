@@ -66,22 +66,6 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         finally { if (!pending) machine.Cleanup(); }
     }
 
-    internal static ValueTask<AwkStatementFlow> ExecuteUnmigratedActionAsync(AwkAction action,
-        AwkRuntimeState state, AwkIo io, AwkOutputSink output)
-    {
-        var match = action.MatchesAsync(state);
-        if (match.IsCompletedSuccessfully)
-            return match.Result ? action.ExecuteAsync(state, io, output)
-                : ValueTask.FromResult(AwkStatementFlow.Continue);
-        return AwaitMatchedActionAsync(match, action, state, io, output);
-    }
-
-    // Only an unmigrated external pattern needs its own boolean continuation.
-    private static async ValueTask<AwkStatementFlow> AwaitMatchedActionAsync(ValueTask<bool> match,
-        AwkAction action, AwkRuntimeState state, AwkIo io, AwkOutputSink output) =>
-        await match.ConfigureAwait(false) ? await action.ExecuteAsync(state, io, output).ConfigureAwait(false)
-            : AwkStatementFlow.Continue;
-
     public void Dispose()
     {
         try { _output.Dispose(); }

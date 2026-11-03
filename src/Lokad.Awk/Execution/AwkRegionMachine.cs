@@ -1,7 +1,7 @@
 namespace Lokad.Awk;
 
 // One computation loop. Saved callers belong to existing function frames; only
-// actual pending host/legacy operations allocate an asynchronous continuation.
+// actual pending host operations allocate an asynchronous continuation.
 internal partial struct AwkRegionMachine
 {
     private readonly AwkRuntimeState _state;
@@ -17,7 +17,7 @@ internal partial struct AwkRegionMachine
     private ValueTask<AwkStatementFlow> _hostFlow;
     private ValueTask<AwkValue> _hostValue;
     private int _destination;
-    private AwkFunctionFrame? _legacyFrame;
+    private AwkFunctionFrame? _enteringFrame;
     private bool _finished;
     private readonly AwkAction[]? _mainActions;
     private readonly AwkInputScheduler? _mainInput;
@@ -63,20 +63,13 @@ internal partial struct AwkRegionMachine
         _state.ActivateFunctionFrame(frame);
         _cursor.Storage.ActivatedCall(call.Slot);
         // Retain responsibility if obtaining/preparing callee scratch fails.
-        _legacyFrame = frame;
-        if (call.Function.Region is { } region)
-        {
-            var storage = frame.GetRegionStorage(_state);
-            _cursor = new(region, storage, 0, frame);
-            _legacyFrame = null;
-            storage.Initialize(region);
-            _state.Counters.RecordBoundFunctionRun();
-        }
-        else
-        {
-            _pending = Pending.LegacyValue;
-            _hostValue = call.Function.ExecuteBodyAsync(Context, frame);
-        }
+        _enteringFrame = frame;
+        var region = call.Function.Region ?? throw new InvalidOperationException("A called function has not been prepared.");
+        var storage = frame.GetRegionStorage(_state);
+        _cursor = new(region, storage, 0, frame);
+        _enteringFrame = null;
+        storage.Initialize(region);
+        _state.Counters.RecordBoundFunctionRun();
     }
 
     private bool TryCompletePending()
@@ -96,20 +89,15 @@ internal partial struct AwkRegionMachine
                 if (!_mainRead.IsCompletedSuccessfully) return false;
                 CompleteMainRead(_mainRead.Result);
                 break;
-            case Pending.MainAction:
             case Pending.MainClose:
                 if (!_hostFlow.IsCompletedSuccessfully) return false;
-                CompleteMainFlow(_hostFlow.Result);
+                CompleteMainClose(_hostFlow.Result);
                 break;
             case Pending.BuiltinValue:
                 if (!_hostValue.IsCompletedSuccessfully) return false;
                 CompleteBuiltinValue(_hostValue.Result);
                 break;
-            default:
-                if (!_hostValue.IsCompletedSuccessfully) return false;
-                var value = _hostValue.Result;
-                CompleteValue(value);
-                break;
+            default: throw new InvalidOperationException("The pending operation has no completion source.");
         }
         return true;
     }
@@ -135,18 +123,6 @@ internal partial struct AwkRegionMachine
         _hostCompletion = Task.CompletedTask;
         _pending = Pending.None;
         _state.ThrowIfCancellationRequested();
-    }
-
-    private void CompleteValue(AwkValue value)
-    {
-        _hostValue = default;
-        _pending = Pending.None;
-        _state.ThrowIfCancellationRequested();
-        if (_legacyFrame is not { Continuation: { } continuation })
-            throw new InvalidOperationException("A called function requires a caller.");
-        StoreReturnValue(continuation, value);
-        _state.PopFunctionFrame();
-        _legacyFrame = null;
     }
 
     private void CompleteBuiltinValue(AwkValue value)
@@ -209,10 +185,10 @@ internal partial struct AwkRegionMachine
 
     private void UnwindFrames()
     {
-        if (_legacyFrame is not null)
+        if (_enteringFrame is not null)
         {
             _state.PopFunctionFrame();
-            _legacyFrame = null;
+            _enteringFrame = null;
         }
         while (_cursor.Frame is { } frame)
         {
@@ -256,19 +232,15 @@ internal partial struct AwkRegionMachine
                             var mainRecord = await machine._mainRead.ConfigureAwait(false);
                             machine.CompleteMainRead(mainRecord);
                             break;
-                        case Pending.MainAction:
                         case Pending.MainClose:
                             var mainFlow = await machine._hostFlow.ConfigureAwait(false);
-                            machine.CompleteMainFlow(mainFlow);
+                            machine.CompleteMainClose(mainFlow);
                             break;
                         case Pending.BuiltinValue:
                             var builtinValue = await machine._hostValue.ConfigureAwait(false);
                             machine.CompleteBuiltinValue(builtinValue);
                             break;
-                        default:
-                            var value = await machine._hostValue.ConfigureAwait(false);
-                            machine.CompleteValue(value);
-                            break;
+                        default: throw new InvalidOperationException("The pending operation has no completion source.");
                     }
                 }
                 catch (AwkFunctionFlowSignal signal) when (machine.IsProcessingMainRecord)
@@ -281,5 +253,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, Output, Read, LegacyValue, MainRead, MainAction, MainClose, BuiltinValue }
+    private enum Pending : byte { None, Flush, Output, Read, MainRead, MainClose, BuiltinValue }
 }

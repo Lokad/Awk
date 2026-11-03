@@ -4,6 +4,21 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkRegionTests
 {
     [Theory]
+    [InlineData("BEGIN{print length(1,2)}", "Invalid number of arguments for length.")]
+    [InlineData("BEGIN{{print length(1,2)}}", "Invalid number of arguments for length.")]
+    [InlineData("BEGIN{while(1){print length(1,2)}}", "Invalid `while' statement.")]
+    [InlineData("missing(){print length(1,2)}", "Invalid number of arguments for length.")]
+    public void PreparationFailureKeepsTheEnclosingDiagnosticAndBodyPrecedence(string source, string expected)
+    {
+        var parsed = AwkParser.Parse(source);
+        Assert.True(parsed.Success);
+        Assert.False(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
+            -1, out var region, out var diagnostic));
+        Assert.Null(region);
+        Assert.Equal(expected, diagnostic.Message);
+    }
+
+    [Theory]
     [InlineData(512)]
     [InlineData(2048)]
     public void DeepSyntacticBlocksPrepareAndExecuteWithoutRecursiveBlockEmission(int depth)

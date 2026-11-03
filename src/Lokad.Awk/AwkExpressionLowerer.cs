@@ -923,6 +923,9 @@ internal static partial class AwkExpressionLowerer
 
     public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
     {
+        while (expression.Kind == AwkExpressionKind.Group && expression.FirstChild is { } groupedExpression)
+            expression = groupedExpression;
+
         if (expression.Kind == AwkExpressionKind.Unknown)
             return AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression);
 
@@ -953,12 +956,6 @@ internal static partial class AwkExpressionLowerer
             }
 
             return InvalidExpression(expression, "Invalid function call.");
-        }
-
-        if (expression.Kind == AwkExpressionKind.Group &&
-            expression.FirstChild is { } groupedExpression)
-        {
-            return CreateFailureDiagnostic(groupedExpression);
         }
 
         if (expression.Kind == AwkExpressionKind.Assignment)

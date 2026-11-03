@@ -991,8 +991,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
             state.Limits, state, static _ => []);
-        var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
-            [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
         using var executor = new AwkRecordTestExecution(program, state);
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
 
@@ -1038,8 +1039,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, AwkRuntimeCounters.Disabled,
             state.Limits, state, static _ => []);
-        var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
-            [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
         using var executor = new AwkRecordTestExecution(program, state);
         var reserved = memory.Budget.Reserved;
         memory.Budget.OnGrowth = _ => cancellation.Cancel();

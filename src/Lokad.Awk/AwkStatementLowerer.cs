@@ -7,6 +7,45 @@ namespace Lokad.Awk;
 internal static class AwkStatementLowerer
 {
 
+    internal static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax syntax)
+    {
+        static string FormatFailureDiagnostic(AwkStatementSyntax syntax)
+        {
+            if (AwkStatementNames.TryGetKeyword(syntax.Kind, out var keyword))
+                return "Invalid `" + keyword + "' statement.";
+
+            return "Invalid statement.";
+        }
+
+        if (syntax.Kind == AwkStatementKind.Getline)
+            return AwkGetlineLowerer.CreateFailureDiagnostic(syntax);
+
+        if (syntax.Kind == AwkStatementKind.Delete &&
+            AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var deleteTarget))
+        {
+            return new AwkDiagnostic(
+                deleteTarget.Span,
+                "Invalid delete target.",
+                AwkDiagnosticId.BindInvalidProgram);
+        }
+
+        if ((AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind) ||
+                syntax.Kind is AwkStatementKind.Close or AwkStatementKind.Fflush) &&
+            AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var expression))
+        {
+            return AwkExpressionLowerer.CreateFailureDiagnostic(expression);
+        }
+
+        if ((syntax.Kind is AwkStatementKind.Print or AwkStatementKind.Printf) &&
+            AwkStatementLoweringShapes.Output(syntax).TryGetValue(out var output) &&
+            AwkStatementLoweringShapes.RequiredExpression(output.Output).TryGetValue(out var outputExpression))
+        {
+            return AwkExpressionLowerer.CreateFailureDiagnostic(outputExpression);
+        }
+
+        return new AwkDiagnostic(syntax.Span, FormatFailureDiagnostic(syntax), AwkDiagnosticId.BindInvalidProgram);
+    }
+
     public static AwkLoweringOutcome<IReadOnlyList<AwkStatement>> LowerList(
         IReadOnlyList<AwkStatementSyntax> syntaxStatements,
         AwkLoweringScope scope)
@@ -29,44 +68,7 @@ internal static class AwkStatementLowerer
         out AwkDiagnostic diagnostic)
     {
         scope.CheckCancellation();
-        static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax syntax)
-        {
-            static string FormatFailureDiagnostic(AwkStatementSyntax syntax)
-            {
-                if (AwkStatementNames.TryGetKeyword(syntax.Kind, out var keyword))
-                    return "Invalid `" + keyword + "' statement.";
 
-                return "Invalid statement.";
-            }
-
-            if (syntax.Kind == AwkStatementKind.Getline)
-                return AwkGetlineLowerer.CreateFailureDiagnostic(syntax);
-
-            if (syntax.Kind == AwkStatementKind.Delete &&
-                AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var deleteTarget))
-            {
-                return new AwkDiagnostic(
-                    deleteTarget.Span,
-                    "Invalid delete target.",
-                    AwkDiagnosticId.BindInvalidProgram);
-            }
-
-            if ((AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind) ||
-                    syntax.Kind is AwkStatementKind.Close or AwkStatementKind.Fflush) &&
-                AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var expression))
-            {
-                return AwkExpressionLowerer.CreateFailureDiagnostic(expression);
-            }
-
-            if ((syntax.Kind is AwkStatementKind.Print or AwkStatementKind.Printf) &&
-                AwkStatementLoweringShapes.Output(syntax).TryGetValue(out var output) &&
-                AwkStatementLoweringShapes.RequiredExpression(output.Output).TryGetValue(out var outputExpression))
-            {
-                return AwkExpressionLowerer.CreateFailureDiagnostic(outputExpression);
-            }
-
-            return new AwkDiagnostic(syntax.Span, FormatFailureDiagnostic(syntax), AwkDiagnosticId.BindInvalidProgram);
-        }
 
         if (syntaxStatements.Count == 0)
         {

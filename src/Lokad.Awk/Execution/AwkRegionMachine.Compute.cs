@@ -1,6 +1,6 @@
 namespace Lokad.Awk;
 
-// Calls and returns change explicit cursors in this loop; only actual host/legacy
+// Calls and returns change explicit cursors in this loop; only actual host
 // operations cross the suspension boundary. Calls do not reenter an async driver.
 internal partial struct AwkRegionMachine
 {

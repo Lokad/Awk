@@ -32,7 +32,17 @@ internal sealed partial class AwkRegionCompiler
                 completed = next;
                 continue;
             }
-            if (!current.Succeeded) return false;
+            if (!current.Succeeded)
+            {
+                // Diagnose the enclosing statement, as the original frontend did;
+                // plain blocks pass through their failing child's diagnostic.
+                AwkStatementSyntax? failed = current is StatementsWork statement ? statement.CurrentStatement : null;
+                if (callers is not null)
+                    foreach (var ancestor in callers)
+                        if (ancestor is StatementsWork { CurrentStatement: { Kind: not AwkStatementKind.Block } parent }) failed = parent;
+                if (failed is not null) _diagnostic = AwkStatementLowerer.CreateFailureDiagnostic(failed);
+                return false;
+            }
             completed = current;
             if (callers is null || !callers.TryPop(out var caller)) return true;
             current = caller;

@@ -9,6 +9,7 @@ internal sealed partial class AwkRegionCompiler
         private int _position;
         private int _firstTemporary;
         private bool _waiting;
+        internal AwkStatementSyntax? CurrentStatement => _position < statements.Count ? statements[_position] : null;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {

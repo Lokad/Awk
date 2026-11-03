@@ -126,8 +126,9 @@ public sealed class AwkCooperativeMemoryTests
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
             state.Limits, state, static _ => []);
-        var program = new AwkProgram([], [new(null, [AwkStatement.Print([AwkExpression.Literal("unreachable")])])],
-            [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
         using var executor = new AwkRecordTestExecution(program, state);
         var previousCharge = budget.Reserved;
         Assert.True(budget.TryReserve(limit - previousCharge, out var otherConsumer));
