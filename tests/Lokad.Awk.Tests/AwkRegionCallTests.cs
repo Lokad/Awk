@@ -3,6 +3,41 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, "assignment")] [InlineData(true, "assignment")]
+    [InlineData(false, "compound")] [InlineData(true, "compound")]
+    [InlineData(false, "field")] [InlineData(true, "field")]
+    [InlineData(false, "subscript")] [InlineData(true, "subscript")]
+    [InlineData(false, "composite")] [InlineData(true, "composite")]
+    [InlineData(false, "membership")] [InlineData(true, "membership")]
+    [InlineData(false, "concatenation")] [InlineData(true, "concatenation")]
+    public async Task DeepValueLocationsPreserveResultsAndRefunds(bool governed, string shape)
+    {
+        const int depth = 2048;
+        var expression = shape switch
+        {
+            "assignment" => string.Concat(Enumerable.Repeat("x=", depth)) + "1",
+            "compound" => string.Concat(Enumerable.Repeat("x+=", depth)) + "1",
+            "field" => new string('$', depth) + "1",
+            "subscript" => string.Concat(Enumerable.Repeat("a[", depth)) + "1" + new string(']', depth),
+            "membership" => new string('(', depth) + "1" + string.Concat(Enumerable.Repeat(" in a)", depth)),
+            "composite" => string.Concat(Enumerable.Repeat("b[1,", depth)) + "1" + new string(']', depth),
+            _ => string.Concat(Enumerable.Repeat("\"\" (", depth)) + "1" + new string(')', depth)
+        };
+        var source = "BEGIN{$0=1;a[1]=1;b[1,1]=1;value=" + expression + ";print value}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(32 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSyntaxNestingDepth(depth * 2 + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.True(exit.Succeeded, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, "while")] [InlineData(true, "while")]
     [InlineData(false, "for")] [InlineData(true, "for")]
     [InlineData(false, "do")] [InlineData(true, "do")]

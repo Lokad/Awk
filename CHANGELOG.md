@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Replace recursive symbol, semantic-validation, statement-diagnostic, block and ordinary
-  operator/call/control preparation with explicit continuation state, preserving scope, evaluation order
+  operator/call/control/location preparation with explicit continuation state, preserving scope, evaluation order
   and statement cleanup.
 
 - Remove the superseded action delegates and specialized loop runner, including their

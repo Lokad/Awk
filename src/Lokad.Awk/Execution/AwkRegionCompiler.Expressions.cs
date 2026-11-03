@@ -54,6 +54,15 @@ internal sealed partial class AwkRegionCompiler
         }
         return syntax.Kind switch
         {
+            AwkExpressionKind.Field when syntax.Children.Count == 1 => new FieldWork(syntax),
+            AwkExpressionKind.ArrayElement => new ArrayReadWork(syntax, preserveOrigin),
+            AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 => new AssignmentWork(syntax),
+            AwkExpressionKind.Concatenation when syntax.Children.Count == 2 => new ConcatenationWork(syntax),
+            AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 &&
+                syntax.OperatorTokens[0].Kind == AwkTokenKind.In => new MembershipWork(syntax),
+            AwkExpressionKind.Unary or AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1 &&
+                syntax.OperatorTokens[0].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus or
+                    AwkTokenKind.PostfixPlusPlus or AwkTokenKind.PostfixMinusMinus => new IncrementWork(syntax),
             AwkExpressionKind.Conditional when syntax.Children.Count == 3 => new ConditionalWork(syntax, preserveOrigin),
             AwkExpressionKind.FunctionCall => CreateCallWork(syntax),
             AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1 => new BinaryWork(syntax),
@@ -102,8 +111,6 @@ internal sealed partial class AwkRegionCompiler
             var token = syntax.OperatorTokens[0].Kind;
             if (!_waiting)
             {
-                if (token is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus or AwkTokenKind.PostfixPlusPlus or AwkTokenKind.PostfixMinusMinus)
-                    return compiler.PrepareIncrement(syntax, out var updated) ? Complete(updated) : false;
                 _waiting = true;
                 next = compiler.CreateOperandWork(syntax.Children[0]);
                 return true;
@@ -138,8 +145,6 @@ internal sealed partial class AwkRegionCompiler
             var token = syntax.OperatorTokens[0].Kind;
             if (_stage == 0)
             {
-                if (token == AwkTokenKind.In)
-                    return compiler.Membership(syntax, out var member) ? Complete(member) : false;
                 if (token is AwkTokenKind.Tilde or AwkTokenKind.BangTilde)
                     return compiler.RegexMatch(syntax, out var match) ? Complete(match) : false;
                 _stage = 1;

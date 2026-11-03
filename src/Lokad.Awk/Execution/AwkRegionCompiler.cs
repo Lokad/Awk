@@ -326,25 +326,6 @@ internal sealed partial class AwkRegionCompiler
                 if (!Variable(syntax, out var variable)) return false;
                 result = Operand(AwkRegionOperandKind.Variable, variable);
                 return true;
-            case AwkExpressionKind.Field when syntax.Children.Count == 1:
-                return Field(syntax, out result);
-            case AwkExpressionKind.ArrayElement:
-                if (!ArrayAccess(syntax, out var access)) return false;
-                if (_arrays[access].Path >= 0 || _operands[_arrays[access].Key].Kind == AwkRegionOperandKind.KeyBuilder)
-                {
-                    // A reusable key buffer must be consumed before another access
-                    // can reuse it. The captured scalar preserves its own spelling.
-                    var captured = _values++;
-                    Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access, Detail: preserveOrigin ? 1 : 0));
-                    FinishKey(access);
-                    result = Operand(AwkRegionOperandKind.ValueTemporary, captured);
-                }
-                else result = Operand(AwkRegionOperandKind.ArrayElement, access);
-                return true;
-            case AwkExpressionKind.Assignment when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
-                return Assignment(syntax, out result);
-            case AwkExpressionKind.Concatenation when syntax.Children.Count == 2:
-                return Concatenation(syntax, out result);
             default: return false;
         }
     }
@@ -660,153 +641,11 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
-    private bool Assignment(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        var token = syntax.OperatorTokens[0].Kind;
-        if (token == AwkTokenKind.Equal)
-        {
-            if (!Expression(syntax.Children[1], out var right)) return false;
-            result = CaptureValue(right);
-            if (Variable(syntax.Children[0], out var variable))
-                Assign(variable, result);
-            else if (Field(syntax.Children[0], out var field))
-                Emit(new(AwkRegionInstructionKind.AssignField, field, result));
-            else
-            {
-                // Ordinary assignment evaluates its RHS before the subscript.
-                if (!ArrayAccess(syntax.Children[0], out var access)) return false;
-                Emit(new(AwkRegionInstructionKind.ArrayAssign, access, result));
-                FinishKey(access);
-            }
-        }
-        else
-        {
-            if (!AwkAssignmentOperators.TryGetCompoundOperation(token, out var operation)) return false;
-            if (!PrepareTarget(syntax.Children[0], out var target, out var left)) return false;
-            if (!Expression(syntax.Children[1], out var right)) return false;
-            var number = _numbers++;
-            Emit(new(AwkRegionInstructionKind.Compound, number, NumericRegister(left), NumericRegister(right), (int)operation));
-            result = Operand(AwkRegionOperandKind.NumberTemporary, number);
-            Store(target, result);
-        }
-        return true;
-    }
+    private bool ArrayAccess(AwkExpressionSyntax syntax, out int index) =>
+        PrepareOperandWork(new ArrayAccessWork(syntax), out index);
 
-    private bool ArrayAccess(AwkExpressionSyntax syntax, out int index)
-    {
-        index = 0;
-        if (syntax.Children.Count < 2) return false;
-        if (syntax.Children[0].Kind == AwkExpressionKind.ArrayElement) return NestedAccess(syntax, out index);
-        if (!AwkExpressionSyntaxFacts.TryGetArrayElementTarget(syntax, out var array) ||
-            _scope.IsReservedVariable(array.Name)) return false;
-        if (!ArrayKey(syntax.Children, 1, out var key)) return false;
-        // Nested subscript reads happen now, not recursively inside a later operand.
-        if (_operands[key].Kind == AwkRegionOperandKind.ArrayElement) key = CaptureValue(key);
-        index = _arrays.Count;
-        _arrays.Add(new(new(array.Identifier), _scope.GetArrayBinding(array.Identifier), key));
-        return true;
-    }
-
-    private bool NestedAccess(AwkExpressionSyntax syntax, out int index, bool deletion = false)
-    {
-        index = 0;
-        var levels = new List<AwkExpressionSyntax>();
-        var root = syntax;
-        while (root.Kind == AwkExpressionKind.ArrayElement && root.Children.Count > 1)
-        {
-            _scope.CheckCancellation();
-            levels.Add(root);
-            root = root.Children[0];
-        }
-        if (!AwkExpressionSyntaxFacts.TryGetIdentifier(root, out var name) || _scope.IsReservedVariable(name.Name)) return false;
-        var path = _paths.Count;
-        var binding = _scope.GetArrayBinding(name.Identifier);
-        _paths.Add(new(new(name.Identifier), binding, levels.Count));
-        Emit(new(AwkRegionInstructionKind.PathBegin, path));
-        for (var depth = 0; depth < levels.Count; depth++)
-        {
-            if (!ArrayKey(levels[^(depth + 1)].Children, 1, out var key)) return false;
-            Emit(new(AwkRegionInstructionKind.PathKey, path, key, depth, deletion ? 1 : 0));
-            if (_operands[key] is { Kind: AwkRegionOperandKind.KeyBuilder } builder)
-            {
-                Emit(new(AwkRegionInstructionKind.KeyEnd, builder.Index));
-                _activeBuilders--;
-            }
-        }
-        index = _arrays.Count;
-        _arrays.Add(new(new(name.Identifier), binding, -1, path));
-        return true;
-    }
-
-    private bool ArrayKey(IReadOnlyList<AwkExpressionSyntax> parts, int first, out int key)
-    {
-        key = 0;
-        if (parts.Count <= first) return false;
-        if (parts.Count - first > 1)
-        {
-            var builder = _activeBuilders++;
-            if (builder == _builderSeparators.Count) _builderSeparators.Add(_values++);
-            var separator = _builderSeparators[builder];
-            Emit(new(AwkRegionInstructionKind.KeyBegin, builder, separator));
-            for (var component = first; component < parts.Count; component++)
-            {
-                if (component > first) Emit(new(AwkRegionInstructionKind.KeySeparator, builder, separator));
-                if (!Expression(parts[component], out var value)) return false;
-                Emit(new(AwkRegionInstructionKind.KeyAppend, builder, value));
-            }
-            // Separator bytes are already copied. Its old owner need not survive
-            // lookup/insertion after a component has changed SUBSEP.
-            Emit(new(AwkRegionInstructionKind.ReleaseValue, separator));
-            key = Operand(AwkRegionOperandKind.KeyBuilder, builder);
-        }
-        else if (!Expression(parts[first], out key)) return false;
-        return true;
-    }
-
-    private bool Membership(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        var named = AwkExpressionSyntaxFacts.TryGetIdentifier(syntax.Children[1], out var array);
-        if (named ? _scope.IsReservedVariable(array.Name) : syntax.Children[1].Kind != AwkExpressionKind.ArrayElement) return false;
-        var index = syntax.Children[0];
-        if (index.Kind == AwkExpressionKind.Group && index.FirstChild is { Kind: AwkExpressionKind.ExpressionList } tuple)
-            index = tuple;
-        int key;
-        if (index.Kind == AwkExpressionKind.ExpressionList)
-        {
-            if (!ArrayKey(index.Children, 0, out key)) return false;
-        }
-        else if (!Expression(index, out key)) return false;
-        if (!named)
-        {
-            // Finish key conversion before the RHS can mutate fields, CONVFMT or
-            // the key's owner. Keep bytes in existing funded scratch through calls.
-            if (_operands[key].Kind != AwkRegionOperandKind.KeyBuilder)
-            {
-                var builder = _activeBuilders++;
-                if (builder == _builderSeparators.Count) _builderSeparators.Add(_values++);
-                Emit(new(AwkRegionInstructionKind.KeyEnd, builder));
-                Emit(new(AwkRegionInstructionKind.KeyAppend, builder, key));
-                key = Operand(AwkRegionOperandKind.KeyBuilder, builder);
-            }
-            if (!NestedAccess(syntax.Children[1], out var nested)) return false;
-            var found = _numbers++;
-            Emit(new(AwkRegionInstructionKind.NestedContains, found, _arrays[nested].Path, _operands[key].Index));
-            FinishKey(nested);
-            Emit(new(AwkRegionInstructionKind.KeyEnd, _operands[key].Index));
-            _activeBuilders--;
-            result = Operand(AwkRegionOperandKind.NumberTemporary, found);
-            return true;
-        }
-        var access = _arrays.Count;
-        _arrays.Add(new(new(array.Identifier), _scope.GetArrayBinding(array.Identifier), key));
-        var number = _numbers++;
-        Emit(new(AwkRegionInstructionKind.ArrayContains, number, access));
-        FinishKey(access);
-        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        return true;
-    }
+    private bool NestedAccess(AwkExpressionSyntax syntax, out int index, bool deletion = false) =>
+        PrepareOperandWork(new ArrayAccessWork(syntax, forcePath: true, deletion), out index);
 
     private bool Delete(AwkExpressionSyntax syntax)
     {
@@ -844,39 +683,6 @@ internal sealed partial class AwkRegionCompiler
         _activeBuilders--;
     }
 
-    private bool PrepareTarget(AwkExpressionSyntax syntax, out PreparedTarget target, out int prior)
-    {
-        if (Variable(syntax, out var variable))
-        {
-            target = new(Operand(AwkRegionOperandKind.Variable, variable), -1);
-            prior = CaptureNumber(Operand(AwkRegionOperandKind.Variable, variable));
-            return true;
-        }
-        if (Field(syntax, out var field))
-        {
-            target = new(field, -1);
-            prior = CaptureNumber(field);
-            return true;
-        }
-        target = default;
-        prior = 0;
-        if (!ArrayAccess(syntax, out var access)) return false;
-        var number = _numbers++;
-        if (_arrays[access].Path >= 0)
-        {
-            Emit(new(AwkRegionInstructionKind.PathNumber, number, _arrays[access].Path));
-            prior = Operand(AwkRegionOperandKind.NumberTemporary, number);
-            target = new(Operand(AwkRegionOperandKind.ArrayElement, access), -1);
-            return true;
-        }
-        var captured = _targets++;
-        Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, access, number));
-        FinishKey(access);
-        prior = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        target = new(Operand(AwkRegionOperandKind.ArrayElement, access), captured);
-        return true;
-    }
-
     private void Store(PreparedTarget target, int value)
     {
         var operand = _operands[target.Operand];
@@ -892,26 +698,8 @@ internal sealed partial class AwkRegionCompiler
         else Assign(operand.Index, value);
     }
 
-    private bool Field(AwkExpressionSyntax syntax, out int operand)
-    {
-        operand = 0;
-        while (syntax.Kind == AwkExpressionKind.Group && syntax.Children.Count == 1)
-        {
-            _scope.CheckCancellation();
-            syntax = syntax.Children[0];
-        }
-        if (syntax.Kind != AwkExpressionKind.Field || syntax.Children.Count != 1) return false;
-        if (TryFixedField(syntax, out var field))
-        {
-            operand = Operand(AwkRegionOperandKind.Field, field);
-            return true;
-        }
-        if (!Expression(syntax.Children[0], out var value)) return false;
-        var validated = _numbers++;
-        Emit(new(AwkRegionInstructionKind.FieldIndex, validated, NumericRegister(value)));
-        operand = Operand(AwkRegionOperandKind.DynamicField, validated);
-        return true;
-    }
+    private bool Field(AwkExpressionSyntax syntax, out int operand) =>
+        PrepareOperandWork(new FieldWork(syntax), out operand);
 
     private bool CopyField(AwkExpressionSyntax syntax)
     {
@@ -1034,37 +822,6 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private bool Concatenation(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        var parts = new List<AwkExpressionSyntax>();
-        var pending = new Stack<AwkExpressionSyntax>();
-        pending.Push(syntax);
-        while (pending.TryPop(out var part))
-        {
-            _scope.CheckCancellation();
-            if (part.Kind == AwkExpressionKind.Concatenation && part.Children.Count == 2)
-            {
-                pending.Push(part.Children[1]);
-                pending.Push(part.Children[0]);
-            }
-            else parts.Add(part);
-        }
-        var start = _texts;
-        _texts += parts.Count;
-        for (var index = 0; index < parts.Count; index++)
-        {
-            if (!Expression(parts[index], out var value)) return false;
-            // Formatting belongs to this operand, before later work can mutate
-            // CONVFMT or its source. Nested concatenations use separate slots.
-            Emit(new(AwkRegionInstructionKind.ConcatArgument, start + index, value));
-        }
-        var target = _values++;
-        Emit(new(AwkRegionInstructionKind.ConcatValue, target, start, parts.Count));
-        result = Operand(AwkRegionOperandKind.ValueTemporary, target);
-        return true;
-    }
-
     private void Assign(int variable, int value)
     {
         if (_operands[value].Kind != AwkRegionOperandKind.NumberTemporary)
@@ -1079,19 +836,6 @@ internal sealed partial class AwkRegionCompiler
             _ => AwkRegionInstructionKind.AssignVariableNumber
         };
         Emit(new(kind, variable, NumericRegister(value)));
-    }
-
-    private bool PrepareIncrement(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        if (!PrepareTarget(syntax.Children[0], out var target, out var prior)) return false;
-        var number = _numbers++;
-        var decrement = syntax.OperatorTokens[0].Kind is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
-        Emit(new(AwkRegionInstructionKind.Arithmetic, number, NumericRegister(prior), NumericRegister(Constant(decrement ? -1 : 1)), (int)AwkNumericOperation.Add));
-        var updated = Operand(AwkRegionOperandKind.NumberTemporary, number);
-        Store(target, updated);
-        result = syntax.Kind == AwkExpressionKind.Postfix ? prior : updated;
-        return true;
     }
 
     private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations)
