@@ -67,7 +67,7 @@ internal sealed class AwkRegion(
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
-    int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0);
+    int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0);
 internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, int GlobalIndex, int LocalIndex = -1);
@@ -81,7 +81,7 @@ internal enum AwkRegionInstructionKind : byte
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
-    GetlineBoundary, PrepareString, GetlineTarget, Getline,
+    GetlineBoundary, PrepareString, GetlineTarget, Getline, IteratorBegin, IteratorNext, IteratorEnd,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow
 }
 internal readonly record struct AwkRegionInstruction(

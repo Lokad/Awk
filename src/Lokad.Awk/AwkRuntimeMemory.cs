@@ -33,7 +33,7 @@ internal static class AwkRuntimeMemory
     private const int FunctionFrameBytes = 512;
     // Standalone phase/action scratch owner, its two leases and the enclosing
     // scoped lease. Backing arrays and live payload are admitted separately.
-    internal const int ScopedRegionStorageBytes = 232;
+    internal const int ScopedRegionStorageBytes = 240;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
     private const int RuntimeDiagnosticBytes = 64;
@@ -150,6 +150,9 @@ internal static class AwkRuntimeMemory
 
     internal static long EstimateCapturedPathArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);
+
+    internal static long EstimateRegionIteratorArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, 16);
 
     public static long EstimateFunctionFrameArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);

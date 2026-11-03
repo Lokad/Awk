@@ -249,6 +249,18 @@ internal partial struct AwkRegionMachine
                     state.ThrowIfCancellationRequested();
                     state.ClearArray(arrays[instruction.Target].Name);
                     break;
+                case AwkRegionInstructionKind.IteratorBegin:
+                    _cursor = _cursor with { Position = position + 1 };
+                    BeginIteration(arrays[instruction.Left]);
+                    goto Resume;
+                case AwkRegionInstructionKind.IteratorNext:
+                    if (storage.TryNextKey(instruction.Left, out var nextKey))
+                        AssignVariable(variables[instruction.Right], state.CreateArrayKeyValue(nextKey));
+                    else position = instruction.Target - 1;
+                    break;
+                case AwkRegionInstructionKind.IteratorEnd:
+                    storage.ReleaseIterator(instruction.Target);
+                    break;
                 case AwkRegionInstructionKind.PathDelete:
                     storage.Path(instruction.Target).Delete(state);
                     break;
@@ -305,14 +317,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Assign:
                     var value = Value(instruction.Left);
                     // A region poll cannot replace the check before an observable store.
-                    state.ThrowIfCancellationRequested();
-                    var variable = variables[instruction.Target];
-                    if (variable.LocalIndex >= 0)
-                        state.AssignFunctionLocalValue(new(variable.LocalIndex), variable.Name, value);
-                    else if (variable.GlobalIndex >= 0)
-                        state.AssignPreparedGlobalValue(variable.Name, variable.GlobalIndex, value);
-                    else
-                        state.AssignVariableValue(variable.Name, value);
+                    AssignVariable(variables[instruction.Target], value);
                     break;
                 case AwkRegionInstructionKind.AssignLocalNumber:
                 {

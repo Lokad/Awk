@@ -34,6 +34,7 @@ internal sealed class AwkRegionCompiler
     private int _texts;
     private int _printSegments;
     private int _targets;
+    private int _iterators;
     private int _straightLine;
     private bool _usesOutputBuilder;
 
@@ -94,7 +95,7 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count),
+            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators),
             _calls.ToArray(), _hostStatements.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _kind);
         return true;
@@ -247,7 +248,9 @@ internal sealed class AwkRegionCompiler
         AwkForHeaderSyntax? header = null;
         if (statement.Kind == AwkStatementKind.For)
         {
-            if (statement.Payload is not AwkForStatementSyntaxPayload payload || payload.Header.IsForIn || payload.Header.Parts.Count != 3)
+            if (statement.Payload is not AwkForStatementSyntaxPayload payload) return false;
+            if (payload.Header.IsForIn) return CompileIteration(payload.Header, statement.BodyStatements);
+            if (payload.Header.Parts.Count != 3)
                 return false;
             header = payload.Header;
             if (header.Parts[0].Expression.TryGetValue(out var initial))
@@ -286,6 +289,36 @@ internal sealed class AwkRegionCompiler
         var end = Label();
         PatchBranches(conditionJumps, end);
         foreach (var position in loop.Breaks) Patch(position, end);
+        return true;
+    }
+
+    private bool CompileIteration(AwkForHeaderSyntax header, IReadOnlyList<AwkStatementSyntax> body)
+    {
+        if (header.Parts.Count != 2 || !header.Parts[0].Expression.TryGetValue(out var variableSyntax) ||
+            !Variable(variableSyntax, out var variable) || !header.Parts[1].Expression.TryGetValue(out var arraySyntax))
+            return false;
+        int access;
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(arraySyntax, out var name))
+        {
+            if (_scope.IsReservedVariable(name.Name)) return false;
+            access = _arrays.Count;
+            _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
+        }
+        else if (arraySyntax.Kind != AwkExpressionKind.ArrayElement || !NestedAccess(arraySyntax, out access)) return false;
+        var slot = _iterators++;
+        Emit(new(AwkRegionInstructionKind.IteratorBegin, slot, access));
+        var start = Label();
+        var next = Emit(new(AwkRegionInstructionKind.IteratorNext, Left: slot, Right: variable));
+        var loop = new Loop();
+        _loops.Push(loop);
+        if (!Statements(body)) return false;
+        _loops.Pop();
+        foreach (var position in loop.Continues) Patch(position, start);
+        Emit(new(AwkRegionInstructionKind.Jump, start));
+        var end = Label();
+        Patch(next, end);
+        foreach (var position in loop.Breaks) Patch(position, end);
+        Emit(new(AwkRegionInstructionKind.IteratorEnd, slot));
         return true;
     }
 

@@ -12,6 +12,9 @@ alias activation and admission before publication. During execution migration, p
 semantic assertions and measure removed transport rather than pinning old preparation routes.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.
+`AwkIterationLifetimeTests` checks flat/nested snapshots across source deletion, aliased calls,
+genuinely pending sorting callbacks or loop bodies, cancellation and refused admission. Its
+aggregation counters cover native values and bound calls at two key cardinalities.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.

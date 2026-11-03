@@ -186,6 +186,9 @@ flush/diagnostic contract. Multi-value output stages operands before formatting 
 fixed-field lists byte-native across arities. Rebuilding `$0` or mutating/suspending operands
 retain owned captures. Preparation has no flat block-size or argument-count cutoff;
 managed stack protection still applies. There is no public execution-engine selector.
+Array traversal keeps its existing leased key snapshot in execution-owned scratch. Loop
+progression shares the computation driver; source mutation does not change the snapshot.
+Nested calls, early flow and pending sorting callbacks retain their ordinary ownership rules.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.
