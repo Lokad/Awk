@@ -135,7 +135,8 @@ internal sealed class AwkRegionCompiler
                     (statement.Expressions.Count > 1 || statement.Expressions.Count == 0 &&
                         AwkTokenNavigation.FindNextSignificant(statement.Tokens, 1) is not null) ||
                 AwkStatementValidationFacts.IsArgumentless(statement.Kind) && statement.Expressions.Count != 0 ||
-                statement.Kind == AwkStatementKind.Expression && statement.Expressions.Count != 1 ||
+                statement.Kind == AwkStatementKind.Expression && statement.Expressions.Count != 1 &&
+                    statement.Payload is not AwkInputPipeExpressionStatementSyntaxPayload ||
                 statement.Kind is AwkStatementKind.If or AwkStatementKind.While or AwkStatementKind.DoWhile && statement.Expressions.Count != 1)
                 return false;
             switch (statement.Kind)
@@ -144,6 +145,13 @@ internal sealed class AwkRegionCompiler
                     if (!Statements(statement.BodyStatements)) return false;
                     break;
                 case AwkStatementKind.Expression:
+                    if (statement.Payload is AwkInputPipeExpressionStatementSyntaxPayload pipe)
+                    {
+                        if (pipe.InputPipeGetline.IsCoprocess)
+                            Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
+                        else if (!InputPipe(pipe.InputPipeGetline)) return false;
+                        break;
+                    }
                     if (!statement.Expression.TryGetValue(out var expression)) return false;
                     if (!CopyField(expression))
                     {
@@ -662,6 +670,14 @@ internal sealed class AwkRegionCompiler
             Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
         result = Operand(AwkRegionOperandKind.NumberTemporary, number);
         return true;
+    }
+
+    private bool InputPipe(AwkInputPipeGetlineSyntax syntax)
+    {
+        if (!syntax.Command.Expression.TryGetValue(out var command)) return false;
+        var target = syntax.Target.Expression;
+        if (!syntax.Target.IsEmpty && !target.HasValue) return false;
+        return Getline(new(target, command, AwkGetlineSourceKind.InputPipe), isExpression: false, out _);
     }
 
     private bool Getline(AwkGetlineLoweringParts parts, bool isExpression, out int result)

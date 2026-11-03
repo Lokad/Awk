@@ -7,6 +7,21 @@ public sealed class AwkControlFlowLifetimeTests
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]
     [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public Task CoprocessInputRejectsOnlyWhenReachedAfterAPendingCall(bool governed, bool reached, bool cancel) =>
+        CheckPendingAsync("""
+            function effect(){print "bad";return "cat"}
+            function run(v){print "before";getline v<"/side";
+                if(v){effect()|&getline a[effect()]}print "after"}
+            BEGIN{run()}END{print "end"}
+            """, reached ? "1\n" : "0\n", "before\n", reached ? "before\n" : "before\nafter\nend\n",
+            reached ? 2 : 0, governed, cancel,
+            reached ? "awk: coprocesses are unsupported in Lokad awk\n" : "");
+
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
     public Task SwitchKeepsFallthroughAndOuterIterationAcrossPendingSelectorOrBody(
         bool governed, bool pendingSelector, bool cancel)
     {
@@ -58,7 +73,7 @@ public sealed class AwkControlFlowLifetimeTests
     }
 
     private static async Task CheckPendingAsync(string source, string side, string before, string expected,
-        int status, bool governed, bool cancel)
+        int status, bool governed, bool cancel, string error = "")
     {
         var host = new MockFileSystem();
         host.SetStandardInput("stop\n");
@@ -103,7 +118,8 @@ public sealed class AwkControlFlowLifetimeTests
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             else Assert.Equal(new AwkExitCode(status), await run.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(cancel ? before : expected, host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(cancel ? "" : error, host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Empty(host.AwkCommandInvocations);
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);
         }

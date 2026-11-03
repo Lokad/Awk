@@ -3087,6 +3087,16 @@ internal static partial class AwkGoldenCorpus
             "awk: coprocesses are unsupported in Lokad awk\n"),
 
         Failing(
+            "coprocess-getline-rejects-before-operand-effects",
+            ["function effect(){print \"bad\";return \"cat\"}BEGIN{effect() |& getline a[effect()]}"],
+            [], 2, string.Empty, "awk: coprocesses are unsupported in Lokad awk\n"),
+
+        Passing(
+            "coprocess-getline-in-untaken-function-branch",
+            ["function effect(){print \"bad\";return \"cat\"}function run(){if(0){effect() |& getline a[effect()]}print \"kept\"}BEGIN{run()}END{print \"end\"}"],
+            [], "kept\nend\n"),
+
+        Failing(
             "coprocess-print-rejects-before-operand-effects",
             ["function effect(){print \"bad\";return \"cat\"}BEGIN{print effect() |& effect()}"],
             [], 2, string.Empty, "awk: coprocesses are unsupported in Lokad awk\n"),
