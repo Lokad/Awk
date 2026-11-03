@@ -11,7 +11,7 @@ public sealed class AwkProgramTests
     [Fact]
     public void AwkProgram_CopiesCallerOwnedCollections()
     {
-        var beginActions = new List<AwkAction> { new(null, []) };
+        var beginActions = new List<AwkAction> { new([]) };
         var firstFunctionName = AwkFunctionName.FromText("first");
         var secondFunctionName = AwkFunctionName.FromText("second");
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
@@ -33,7 +33,7 @@ public sealed class AwkProgramTests
     public async Task AwkAction_CopiesCallerOwnedStatementList()
     {
         var statements = new List<AwkStatement> { AwkStatement.Exit(AwkOptionalExpression.None) };
-        var action = new AwkAction(null, statements);
+        var action = new AwkAction(statements);
         statements.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         using var output = AwkTestHarness.CreateOutputSink();

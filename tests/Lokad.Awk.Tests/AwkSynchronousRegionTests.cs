@@ -184,7 +184,7 @@ public sealed partial class AwkSynchronousRegionTests
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var pending = new AwkAction(null, [statement]).ExecuteAsync(state, io, output).AsTask();
+        var pending = new AwkAction([statement]).ExecuteAsync(state, io, output).AsTask();
         Assert.False(pending.IsCompleted);
         Assert.True(state.TryGetExecutionContext(out _));
         Assert.Equal(7, state.ResolveVariableValue(name).AsNumber());
@@ -230,7 +230,7 @@ public sealed partial class AwkSynchronousRegionTests
         var statement = AwkStatement.If(condition, [inner, AwkStatement.Assignment(target,failMemory ? AwkExpression.Literal(new string('x',2 << 20)) :
                 AwkExpression.Add(value,AwkExpression.Number(3)))], [AwkStatement.Assignment(indexTarget,AwkExpression.Add(indexValue,AwkExpression.Number(10))),
                 AwkStatement.Assignment(target,AwkExpression.Subtract(value,AwkExpression.Number(1)))]);
-        var action = new AwkAction(null, [forceLegacy ? new ForwardingStatement(statement) : statement]);
+        var action = new AwkAction([forceLegacy ? new ForwardingStatement(statement) : statement]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);

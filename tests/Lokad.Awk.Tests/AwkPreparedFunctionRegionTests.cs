@@ -211,7 +211,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 : AwkStatement.While(condition,[assignment])];
         }
         if (legacy) statements = statements.Select(s => (AwkStatement)new OrdinaryStatement(s)).ToArray();
-        var action = new AwkAction(null, statements);
+        var action = new AwkAction(statements);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memory = new CooperativeTestMemory(1 << 20, enabled: failMemory);
@@ -424,7 +424,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var operand = new PendingOperand(completion.Task);
-        var action = new AwkAction(null,
+        var action = new AwkAction(
             [AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(i, indexSlot),
                 AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), [AwkExpression.PreparedGlobalVariable(i, indexSlot)])),
              AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(total, totalSlot),
@@ -504,7 +504,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                     AwkExpression.PreparedGlobalVariable(total, totalSlot), AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), multiple
                         ? [AwkExpression.Number(1), operand] : [operand])));
                 var loop = AwkStatement.For(AwkStatement.Assignment(indexTarget, AwkExpression.Number(0)), new(AwkExpression.Compare(index, AwkExpression.Number(8), AwkComparison.LessThan)), AwkStatement.PostIncrement(indexTarget), [body]);
-                var action = new AwkAction(null, [body, body, body]);
+                var action = new AwkAction([body, body, body]);
                 var host = new MockFileSystem();
                 var io = Io(state, host, counters);
                 using var output = new AwkOutputSink(state.MemoryAccounting, counters);
@@ -800,7 +800,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 .Select(lowered =>
                 {
                     Assert.True(lowered.Succeeded);
-                    return new AwkAction(null, lowered.Value);
+                    return new AwkAction(lowered.Value);
                 }).ToArray();
         }
         var functions = program.Functions.ToDictionary(pair => pair.Key, pair => pair.Value);

@@ -5,7 +5,6 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkAction
 {
-    private readonly AwkPattern? _pattern;
     private readonly AwkStatement[]? _statements;
     private readonly AwkRegion? _region;
 
@@ -14,19 +13,13 @@ internal readonly struct AwkAction
 
     internal AwkRegion? Region => _region;
 
-    public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements)
+    public AwkAction(IReadOnlyList<AwkStatement> statements)
     {
-        _pattern = pattern;
         var snapshot = AwkCollectionSnapshots.Copy(statements);
         _statements = snapshot;
     }
 
     internal AwkStatement[] Statements => _statements ?? [];
-
-    public ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>
-        _pattern == null
-            ? ValueTask.FromResult(true)
-            : _pattern.MatchesAsync(state);
 
     public async ValueTask<AwkStatementFlow> ExecuteAsync(
         AwkRuntimeState state,

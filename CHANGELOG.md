@@ -6,6 +6,8 @@
   tree lowering. Builtin destinations validate location shape; the common compiler binds
   their operands, including deeply nested substitution targets.
 
+- Delete the unused tree-based rule-pattern dispatcher and its obsolete action parameter.
+
 - Publish prepared rules and functions without tree-execution fallbacks; remove the main
   driver's fallback action/callee completion routes while preserving frontend diagnostics.
 
