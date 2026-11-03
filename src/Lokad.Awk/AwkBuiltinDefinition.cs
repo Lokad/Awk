@@ -203,6 +203,13 @@ internal sealed class AwkBuiltinDefinition(
         return false;
     }
 
+    internal bool TryGetHostComputation(
+        [NotNullWhen(true)] out AwkBuiltinImplementation.AsyncBuiltinImplementation? computation)
+    {
+        computation = implementation as AwkBuiltinImplementation.AsyncBuiltinImplementation;
+        return computation is not null;
+    }
+
     public ValueTask<AwkValue> EvaluateAsync(
         IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context) =>
         implementation.EvaluateAsync(arguments, context);
@@ -309,8 +316,11 @@ internal abstract class AwkBuiltinImplementation
 
     }
 
-    private sealed class AsyncBuiltinImplementation(AwkAsyncBuiltinEvaluator evaluator) : AwkBuiltinImplementation
+    internal sealed class AsyncBuiltinImplementation(AwkAsyncBuiltinEvaluator evaluator) : AwkBuiltinImplementation
     {
+        internal ValueTask<AwkValue> EvaluateBound(AwkValue[] values, int start, int count, AwkEvaluationContext context) =>
+            evaluator(new AwkBuiltinContext(null, values, count, context, start));
+
         public override ValueTask<AwkValue> EvaluateAsync(
             IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context) => evaluator(new(arguments, context));
     }

@@ -38,6 +38,23 @@ internal static partial class AwkGoldenCorpus
             [File("/data", "old\n")]).WithStdOut("0\n-1 0\n")
             .WithExpectedFiles([File("/out", "new\n")]).Build();
 
+        foreach (var withSplit in new[] { false, true })
+        {
+            var prepare = withSplit ? "split(\"\",parts);" : "";
+            yield return Passing("close-mode-statement-evaluates-direction-" + withSplit,
+                ["function mode(){calls++;return \"to\"}BEGIN{" + prepare +
+                    "getline x<\"data\";close(\"data\",mode());print calls,close(\"data\")}"],
+                [File("/data", "old\n")], "1 -1\n");
+            yield return AwkGoldenCaseBuilder.Create("close-mode-statement-rejects-invalid-direction-" + withSplit,
+                ["BEGIN{" + prepare + "getline x<\"data\";print \"before\";close(\"data\",\"bad\");print \"unreachable\"}"],
+                [File("/data", "old\n")]).WithStdOut("before\n")
+                .WithStdErr("awk: close second argument must be `to' or `from'\n").ExitsWith(2).Build();
+            yield return Passing("close-mode-formats-name-before-direction-" + withSplit,
+                ["function mode(){CONVFMT=\"%.1f\";return \"from\"}BEGIN{" + prepare +
+                    "CONVFMT=\"%.3f\";getline x<0.125;close(0.125,mode());print close(\"0.125\")}"],
+                [File("/0.125", "old\n")], "-1\n");
+        }
+
         foreach (var mode in new[] { "\"bad\"", "\"\"", "17", "unknown" })
             yield return AwkGoldenCaseBuilder.Create("close-mode-invalid-" + mode,
                 ["BEGIN{getline x<\"data\";print \"before\";print close(\"data\"," + mode + ");print \"unreachable\"}"],

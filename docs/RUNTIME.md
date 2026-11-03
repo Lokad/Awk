@@ -197,6 +197,10 @@ keep captured input values funded through RHS suspension; numeric formatting use
 `CONVFMT`. Predicate temporaries retire after matching. Range conditions use the same driver
 and keep inclusive start/end state in funded per-execution slots, across files and suspended
 calls. Reusing a prepared program does not share that state between executions.
+`close()` and `fflush()` retain evaluated operands in caller scratch until the host operation
+completes. A pending call does not return that storage on cancellation alone. `close()` captures
+the formatted stream name before evaluating its direction; `fflush()` retains value origins
+for its lint behavior. Both preserve their diagnostic and stream-status contracts.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

@@ -106,13 +106,9 @@ internal partial struct AwkRegionMachine
                 if (!_hostFlow.IsCompletedSuccessfully) return false;
                 CompleteMainFlow(_hostFlow.Result);
                 break;
-            case Pending.HostFlow:
-                if (!_hostFlow.IsCompletedSuccessfully) return false;
-                var flow = _hostFlow.Result;
-                _hostFlow = default;
-                _pending = Pending.None;
-                _state.ThrowIfCancellationRequested();
-                if (flow != AwkStatementFlow.Continue) Finish(flow);
+            case Pending.BuiltinValue:
+                if (!_hostValue.IsCompletedSuccessfully) return false;
+                CompleteBuiltinValue(_hostValue.Result);
                 break;
             default:
                 if (!_hostValue.IsCompletedSuccessfully) return false;
@@ -156,6 +152,17 @@ internal partial struct AwkRegionMachine
         StoreReturnValue(continuation, value);
         _state.PopFunctionFrame();
         _legacyFrame = null;
+    }
+
+    private void CompleteBuiltinValue(AwkValue value)
+    {
+        _hostValue = default;
+        _pending = Pending.None;
+        _state.ThrowIfCancellationRequested();
+        var instruction = _cursor.Region.Instructions[_cursor.Position - 1];
+        var builtin = _cursor.Region.Builtins[instruction.Left];
+        _cursor.Storage.StoreValue(instruction.Target, value);
+        _cursor.Storage.ReleaseValues(builtin.Start, builtin.Count);
     }
 
     private void StoreReturnValue(AwkRegionContinuation continuation, AwkValue value)
@@ -264,12 +271,9 @@ internal partial struct AwkRegionMachine
                             var mainFlow = await machine._hostFlow.ConfigureAwait(false);
                             machine.CompleteMainFlow(mainFlow);
                             break;
-                        case Pending.HostFlow:
-                            var flow = await machine._hostFlow.ConfigureAwait(false);
-                            machine._hostFlow = default;
-                            machine._pending = Pending.None;
-                            machine._state.ThrowIfCancellationRequested();
-                            if (flow != AwkStatementFlow.Continue) machine.Finish(flow);
+                        case Pending.BuiltinValue:
+                            var builtinValue = await machine._hostValue.ConfigureAwait(false);
+                            machine.CompleteBuiltinValue(builtinValue);
                             break;
                         default:
                             var value = await machine._hostValue.ConfigureAwait(false);
@@ -287,5 +291,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, Output, Read, HostFlow, LegacyValue, MainRead, MainAction, MainClose, Iteration }
+    private enum Pending : byte { None, Flush, Output, Read, LegacyValue, MainRead, MainAction, MainClose, Iteration, BuiltinValue }
 }

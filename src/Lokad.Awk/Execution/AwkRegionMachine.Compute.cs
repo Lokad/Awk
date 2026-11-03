@@ -433,6 +433,15 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Builtin:
                 {
                     var builtin = builtins[instruction.Left];
+                    if (builtin.Host is { } host)
+                    {
+                        state.ThrowIfCancellationRequested();
+                        _cursor = _cursor with { Position = position + 1 };
+                        _pending = Pending.BuiltinValue;
+                        _hostValue = host.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context);
+                        goto Resume;
+                    }
+                    var computation = builtin.Computation ?? throw new InvalidOperationException("A computational builtin requires its implementation.");
                     var pendingArguments = builtin.PendingArguments;
                     var firstPending = builtin.Start + builtin.Count - pendingArguments.Length;
                     for (var index = 0; index < pendingArguments.Length; index++)
@@ -440,21 +449,32 @@ internal partial struct AwkRegionMachine
                         if ((index & 63) == 63) state.ThrowIfCancellationRequested();
                         var pendingOperand = operands[pendingArguments[index]];
                         storage.StoreValue(firstPending + index,
-                            builtin.Implementation.ConsumesArithmeticInputs && IsField(pendingOperand)
+                            computation.ConsumesArithmeticInputs && IsField(pendingOperand)
                                 ? state.GetFieldArithmeticArgument(FieldOrdinal(pendingOperand)) : Value(pendingArguments[index]),
                             preserveOrigin: true);
                     }
                     state.ThrowIfCancellationRequested();
                     storage.StoreValue(instruction.Target,
-                        builtin.Implementation.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context));
+                        computation.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context));
                     storage.ReleaseValues(builtin.Start, builtin.Count);
                     break;
                 }
-                case AwkRegionInstructionKind.HostStatement:
-                    _cursor = _cursor with { Position = position + 1 };
-                    _hostFlow = region.HostStatements[instruction.Left].ExecuteAsync(Context);
-                    _pending = Pending.HostFlow;
-                    goto Resume;
+                case AwkRegionInstructionKind.BuiltinBoundary:
+                    if (!Context.TryGetExecutionContext(out var builtinExecution))
+                    {
+                        storage.StoreValue(instruction.Left, AwkValue.FromNumber(-1));
+                        position = instruction.Target - 1;
+                    }
+                    else if (instruction.Detail != 0)
+                    {
+                        _cursor = _cursor with { Position = position + 1 };
+                        _pending = Pending.Flush;
+                        _hostCompletion = builtinExecution.Output.FlushDiagnosticsAsync(builtinExecution.Io);
+                        goto Resume;
+                    }
+                    break;
+                case AwkRegionInstructionKind.UnsupportedCoprocess:
+                    throw new AwkRuntimeException(AwkMessages.ErrorUnsupportedCoprocess, AwkDiagnosticId.UnsupportedPolicy);
                 case AwkRegionInstructionKind.GetlineBoundary:
                 {
                     var read = region.Getlines[instruction.Left];

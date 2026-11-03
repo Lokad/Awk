@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
-    AwkRegionStorageLayout layout, AwkRegionCall[] calls, AwkStatement[] hostStatements,
+    AwkRegionStorageLayout layout, AwkRegionCall[] calls,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
     AwkRegionRegexMatch[] regexMatches, AwkRegionKind kind)
@@ -57,7 +57,6 @@ internal sealed class AwkRegion(
     internal AwkText[] Literals => literals;
     internal AwkRegionArrayAccess[] Arrays => arrays;
     internal AwkRegionCall[] Calls => calls;
-    internal AwkStatement[] HostStatements => hostStatements;
     internal AwkRegionBuiltin[] Builtins => builtins;
     internal AwkRegionPrint[] Prints => prints;
     internal AwkRegionPrintf[] Printfs => printfs;
@@ -83,7 +82,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Length, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
-    BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
+    BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorNext, IteratorEnd, RegexMatch,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
@@ -111,8 +110,9 @@ internal readonly record struct AwkRegionCursor
     internal AwkFunctionFrame? Frame { get; }
 }
 internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, AwkRegionOperand Destination);
-internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation Implementation,
-    int Start, int Count, int[] PendingArguments);
+internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,
+    int Start, int Count, int[] PendingArguments,
+    AwkBuiltinImplementation.AsyncBuiltinImplementation? Host = null);
 internal readonly record struct AwkRegionStringCall(AwkBuiltinId Id, int First, int Second = -1, int Third = -1);
 internal sealed record AwkRegionRegexMatch(int Input, AwkRegex? Literal, int Pattern = -1);
 internal sealed record AwkRegionPrint(int Values, int Texts, int Segments, int Count, int[] Fields, AwkRegionOutput Output = default);

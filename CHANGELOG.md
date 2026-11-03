@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correct standalone two-argument `close()` to evaluate and validate the direction,
+  consistently with calls used as expressions.
 - Correct dynamic regex matching to capture the left value before RHS effects and
   apply `CONVFMT` afterward when formatting numeric input.
 - Prepare standard `printf` operands in the common interpreter, retaining values across

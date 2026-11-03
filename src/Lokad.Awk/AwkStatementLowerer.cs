@@ -279,6 +279,13 @@ internal static class AwkStatementLowerer
                 [NotNullWhen(true)] out AwkStatement? statement)
             {
                 statement = null;
+                if (AwkStatementLoweringShapes.TryGetWholeStatementCall(syntax, AwkBuiltinId.Close, out var directed) &&
+                    directed.ArgumentCount == 2)
+                {
+                    if (!AwkExpressionLowerer.TryLower(directed.Expression, scope, out var invocation)) return false;
+                    statement = AwkStatement.Expression(invocation);
+                    return true;
+                }
                 if (!AwkStatementLoweringShapes.TryGetWholeStatementCall(syntax, AwkBuiltinId.Close, out var call) ||
                     call.ArgumentCount < 1 ||
                     !call.GetArgument(0).TryGetValue(out var targetSyntax) ||
