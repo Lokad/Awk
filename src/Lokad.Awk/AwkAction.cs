@@ -7,7 +7,6 @@ internal readonly struct AwkAction
 {
     private readonly AwkPattern? _pattern;
     private readonly AwkStatement[]? _statements;
-    private readonly Action<AwkEvaluationContext>? _synchronous;
     private readonly AwkRegion? _region;
 
     // A prepared rule already contains its condition.
@@ -15,13 +14,11 @@ internal readonly struct AwkAction
 
     internal AwkRegion? Region => _region;
 
-    public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null)
+    public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements)
     {
         _pattern = pattern;
         var snapshot = AwkCollectionSnapshots.Copy(statements);
         _statements = snapshot;
-        _synchronous = AwkStatementBlockExecutor.TryPrepareActions(snapshot, functions, preparationCheckpoint);
     }
 
     internal AwkStatement[] Statements => _statements ?? [];
@@ -50,15 +47,6 @@ internal readonly struct AwkAction
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state, output, io);
-        if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
-            state.FieldsCannotReportRegexDiagnostics &&
-            state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
-            !output.HasPendingOutput && System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
-        {
-            state.Counters.RecordSynchronousAction();
-            prepared(evaluationContext);
-            return AwkStatementFlow.Continue;
-        }
         var flow = await AwkStatementBlockExecutor
             .ExecuteAsync(statements, evaluationContext)
             .ConfigureAwait(false);

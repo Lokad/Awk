@@ -7,22 +7,6 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    private static bool TryPrepareSynchronousIncrement(AwkReference target, out Action<AwkEvaluationContext> action)
-    {
-        if (target.TryGetSynchronousScalar(out var location))
-        {
-            action = context =>
-            {
-                var state = context.State;
-                state.Checkpoint();
-                var previous = location.EvaluateNumber(state);
-                location.AssignValue(state, AwkValue.FromNumber(previous + 1));
-            };
-            return true;
-        }
-        action = static _ => { };
-        return false;
-    }
 
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
@@ -45,26 +29,6 @@ internal abstract partial class AwkExpression
                     out var value, preparationCheckpoint)) return false;
             expression = new SynchronousAssignmentExpression(location, value, preparationCheckpoint);
             return expression.SynchronousDepth <= 16;
-        }
-
-        internal override AwkExpression PrepareSynchronousCallAction(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
-            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value, preparationCheckpoint) && !ReferenceEquals(value, valueExpression)
-                ? new AssignmentExpression(target, value) : this;
-
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
-        {
-            if (valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 } value &&
-                target.TryGetSynchronousScalar(out var location))
-            {
-                action = context =>
-                {
-                    context.State.Checkpoint();
-                    location.AssignValue(context.State, value.EvaluateSynchronous(context));
-                };
-                return true;
-            }
-            return base.TryPrepareSynchronousAction(out action);
         }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
@@ -113,31 +77,6 @@ internal abstract partial class AwkExpression
             return expression.SynchronousDepth <= 16;
         }
 
-        internal override AwkExpression PrepareSynchronousCallAction(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) =>
-            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value, preparationCheckpoint) && !ReferenceEquals(value, valueExpression)
-                ? new CompoundAssignmentExpression(target, value, operation) : this;
-
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
-        {
-            if (valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and <= 16 } value &&
-                target.TryGetSynchronousScalar(out var location))
-            {
-                action = context =>
-                {
-                    var state = context.State;
-                    state.Checkpoint();
-                    var previous = location.EvaluateNumber(state);
-                    var right = value.ResolveNumberSynchronous(context);
-                    location.AssignValue(state, AwkValue.FromNumber(
-                        AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation)));
-                };
-                return true;
-            }
-            action = static _ => { };
-            return false;
-        }
-
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyCompoundAssignmentAsync(context, valueExpression, operation);
     }
@@ -154,9 +93,6 @@ internal abstract partial class AwkExpression
             expression = new SynchronousIncrementExpression(location, 1, false, preparationCheckpoint);
             return expression.SynchronousDepth <= 16;
         }
-
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
-            TryPrepareSynchronousIncrement(target, out action);
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyIncrementAsync(context);
@@ -191,9 +127,6 @@ internal abstract partial class AwkExpression
             expression = new SynchronousIncrementExpression(location, 1, true, preparationCheckpoint);
             return expression.SynchronousDepth <= 16;
         }
-
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
-            TryPrepareSynchronousIncrement(target, out action);
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyPostIncrementAsync(context);

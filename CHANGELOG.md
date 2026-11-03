@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Remove the superseded action delegates and specialized loop runner, including their
+  preparation guards and internal action counter. Ordinary computation keeps the common
+  prepared interpreter; host effects and mutation admission retain their contracts.
+
 - Run user sorting callbacks through ordinary interpreter frames, including `sorted_in`
   traversal. Keep stable comparisons, admitted snapshots, mutation and publication rules
   while removing the separate pending traversal and argument-buffer paths.

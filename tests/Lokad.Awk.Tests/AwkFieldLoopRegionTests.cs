@@ -10,8 +10,7 @@ public sealed class AwkFieldLoopRegionTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var prepared = await RunAsync(false, limits);
         var ordinary = await RunAsync(true, limits);
-        Assert.Equal(ordinary, prepared with { Loops = 0 });
-        Assert.Equal(1, prepared.Loops);
+        Assert.Equal(ordinary, prepared);
         {
             Assert.Equal(3, prepared.Nonempty);
             Assert.Equal(7, prepared.Chars);
@@ -25,8 +24,7 @@ public sealed class AwkFieldLoopRegionTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var record = "é xyz aa";
         var prepared = await RunAsync(false, limits, record);
-        Assert.Equal(await RunAsync(true, limits, record), prepared with { Loops = 0 });
-        Assert.Equal(1, prepared.Loops);
+        Assert.Equal(await RunAsync(true, limits, record), prepared);
         Assert.Empty(prepared.Error);
     }
 
@@ -136,7 +134,7 @@ public sealed class AwkFieldLoopRegionTests
         try { await statement.ExecuteAsync(new(state, output, io)); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("nonempty")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("chars")).AsNumber(), counters.MemoryPeakLiveBytes, counters.SynchronousLoopRuns, counters.FieldsMaterialized, host.GetOutput(AwkFileDescriptor.StdOut), error);
+        var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("nonempty")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("chars")).AsNumber(), counters.MemoryPeakLiveBytes, counters.FieldsMaterialized, host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync(); output.Dispose(); await owner.DisposeAsync(); Assert.Equal(0, budget.Reserved);
         return result;
     }
@@ -157,5 +155,5 @@ public sealed class AwkFieldLoopRegionTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) { Entries++; return new(value); }
     }
 
-    private readonly record struct Result(double Index, double Nonempty, double Chars, long Peak, long Loops, long Descriptors, string Output, string Error);
+    private readonly record struct Result(double Index, double Nonempty, double Chars, long Peak, long Descriptors, string Output, string Error);
 }

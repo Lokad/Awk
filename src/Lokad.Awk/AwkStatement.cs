@@ -134,20 +134,14 @@ internal abstract partial class AwkStatement
         new ForInStatement(loopVariable, default, AwkCollectionSnapshots.Copy(body), array);
 
     public static AwkStatement For(
-        AwkStatement initializer,
-        AwkCondition condition,
-        AwkStatement increment,
-        IReadOnlyList<AwkStatement> body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null, Action? preparationCheckpoint = null) =>
-        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body), synchronousFunctions, preparationCheckpoint);
+        AwkStatement initializer, AwkCondition condition, AwkStatement increment, IReadOnlyList<AwkStatement> body) =>
+        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body));
 
-    public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null) =>
-        new WhileStatement(condition, AwkCollectionSnapshots.Copy(body), functions, preparationCheckpoint);
+    public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body) =>
+        new WhileStatement(condition, AwkCollectionSnapshots.Copy(body));
 
-    public static AwkStatement DoWhile(IReadOnlyList<AwkStatement> body, AwkCondition condition,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null) =>
-        new DoWhileStatement(AwkCollectionSnapshots.Copy(body), condition, functions, preparationCheckpoint);
+    public static AwkStatement DoWhile(IReadOnlyList<AwkStatement> body, AwkCondition condition) =>
+        new DoWhileStatement(AwkCollectionSnapshots.Copy(body), condition);
 
     public static AwkStatement Switch(
         AwkExpression value,
@@ -182,21 +176,6 @@ internal abstract partial class AwkStatement
             AwkOutputSink output,
             AwkIo io) =>
         ExecuteAsync(new AwkEvaluationContext(state, output, io));
-
-    internal virtual bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
-    {
-        action = static _ => { };
-        return false;
-    }
-
-    // Only whole actions use this entry, under AwkAction's policy/stack/field guards.
-    // Loop-body preparation keeps the scalar entry, excluding nested loops.
-    internal virtual bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null) =>
-        TryPrepareSynchronousAction(out action);
-
-    internal virtual AwkStatement PrepareSynchronousCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) => this;
 
     internal virtual bool TryPrepareComputation(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
@@ -233,12 +212,6 @@ internal abstract partial class AwkStatement
 
         internal override AwkStatementFlow ExecuteComputation(AwkEvaluationContext context, ref AwkValue returned) =>
             AwkStatementFlow.Continue;
-
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
-        {
-            action = static _ => { };
-            return true;
-        }
 
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.Continue);

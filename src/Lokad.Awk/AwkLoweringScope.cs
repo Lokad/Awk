@@ -8,7 +8,6 @@ internal sealed class AwkLoweringScope
 
     private AwkLoweringScope(AwkFunctionLocalLayout functionLocals, bool hasFunctionLocals, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null, AwkGlobalReadLayout? globalReads = null,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null)
     {
         _functionLocals = functionLocals;
@@ -16,7 +15,6 @@ internal sealed class AwkLoweringScope
         CompatibilityMode = compatibilityMode;
         Checkpoint = checkpoint;
         _globalReads = globalReads;
-        SynchronousFunctions = synchronousFunctions;
         Functions = functions;
     }
 
@@ -25,13 +23,11 @@ internal sealed class AwkLoweringScope
 
     public static AwkLoweringScope GlobalFor(AwkCompatibilityMode mode, Action? checkpoint = null,
         AwkGlobalReadLayout? globalReads = null,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null) =>
-        mode == AwkCompatibilityMode.GnuDefault && checkpoint is null && globalReads is null && synchronousFunctions is null && functions is null
+        mode == AwkCompatibilityMode.GnuDefault && checkpoint is null && globalReads is null && functions is null
             ? Global
-            : new(AwkFunctionLocalLayout.Empty, false, mode, checkpoint, globalReads, synchronousFunctions, functions);
+            : new(AwkFunctionLocalLayout.Empty, false, mode, checkpoint, globalReads, functions);
 
-    internal IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? SynchronousFunctions { get; }
     internal IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? Functions { get; }
     internal bool IsFunction => _hasFunctionLocals;
 

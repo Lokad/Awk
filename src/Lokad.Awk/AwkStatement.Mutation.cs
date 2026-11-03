@@ -67,16 +67,6 @@ internal abstract partial class AwkStatement
             return AwkStatementFlow.Continue;
         }
 
-        internal override AwkStatement PrepareSynchronousCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null)
-        {
-            var prepared = expression.PrepareSynchronousCallAction(functions, preparationCheckpoint);
-            return ReferenceEquals(prepared, expression) ? this : new ExpressionStatement(prepared);
-        }
-
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
-            expression.TryPrepareSynchronousAction(out action);
-
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var pending = expression.EvaluateAsync(context);

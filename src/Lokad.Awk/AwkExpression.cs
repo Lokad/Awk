@@ -324,15 +324,6 @@ internal abstract partial class AwkExpression
     private static async ValueTask<bool> AwaitConditionValueAsync(ValueTask<AwkValue> pending) =>
         (await pending.ConfigureAwait(false)).IsTruthy();
 
-    internal virtual bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
-    {
-        action = static _ => { };
-        return false;
-    }
-
-    internal virtual AwkExpression PrepareSynchronousCallAction(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, Action? preparationCheckpoint = null) => this;
-
     internal virtual bool TryGetFieldCopy(out int source, out int destination)
     {
         source = destination = 0;

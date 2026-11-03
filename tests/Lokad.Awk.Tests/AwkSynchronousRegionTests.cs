@@ -8,9 +8,7 @@ public sealed partial class AwkSynchronousRegionTests
         {
             var prepared = await RunLoop(false, pendingOutput: false, whileLoop: true);
             var legacy = await RunLoop(true, pendingOutput: false, whileLoop: true);
-            Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
-            Assert.Equal(1, prepared.LoopRuns);
-            Assert.Equal(0, legacy.LoopRuns);
+            Assert.Equal(legacy, prepared);
             {
                 Assert.Equal(20, prepared.Value);
                 Assert.Equal(8, prepared.Index);
@@ -27,7 +25,6 @@ public sealed partial class AwkSynchronousRegionTests
         var prepared = await RunLoop(false, pendingOutput, whileLoop: true, lint: lint);
         var legacy = await RunLoop(true, pendingOutput, whileLoop: true, lint: lint);
         Assert.Equal(legacy, prepared);
-        Assert.Equal(0, prepared.LoopRuns);
         Assert.Equal(pendingOutput ? "prior" : "", prepared.Output);
     }
 
@@ -36,9 +33,7 @@ public sealed partial class AwkSynchronousRegionTests
     {
         var prepared = await RunLoop(false, false, whileLoop: true, failMemory: true);
         var legacy = await RunLoop(true, false, whileLoop: true, failMemory: true);
-        Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
-        Assert.Equal(1, prepared.LoopRuns);
-        Assert.Equal(0, legacy.LoopRuns);
+        Assert.Equal(legacy, prepared);
         Assert.Equal(7, prepared.Value);
         Assert.Equal(0, prepared.Index);
         Assert.Equal("awk: memory limit exceeded\n", prepared.Error);
@@ -49,9 +44,7 @@ public sealed partial class AwkSynchronousRegionTests
     {
         var prepared = await RunLoop(false, pendingOutput: false);
         var legacy = await RunLoop(true, pendingOutput: false);
-        Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
-        Assert.Equal(1, prepared.LoopRuns);
-        Assert.Equal(0, legacy.LoopRuns);
+        Assert.Equal(legacy, prepared);
         {
             Assert.Equal(20, prepared.Value);
             Assert.Equal(8, prepared.Index);
@@ -65,7 +58,6 @@ public sealed partial class AwkSynchronousRegionTests
         var prepared = await RunLoop(false, pendingOutput: true);
         var legacy = await RunLoop(true, pendingOutput: true);
         Assert.Equal(legacy, prepared);
-        Assert.Equal(0, prepared.LoopRuns);
         Assert.Equal("prior", prepared.Output);
     }
 
@@ -145,12 +137,10 @@ public sealed partial class AwkSynchronousRegionTests
         {
             var prepared = await RunConditional(false);
             var legacy = await RunConditional(true);
-            Assert.Equal(legacy with { Runs = prepared.Runs }, prepared);
-            Assert.Equal(0, legacy.Runs);
+            Assert.Equal(legacy, prepared);
             {
                 Assert.Equal(4, prepared.Value);
                 Assert.Equal(23, prepared.Index);
-                Assert.Equal(6, prepared.Runs);
                 Assert.Equal("", prepared.Error);
             }
         }
@@ -165,7 +155,6 @@ public sealed partial class AwkSynchronousRegionTests
         var prepared = await RunConditional(false, boundary);
         var legacy = await RunConditional(true, boundary);
         Assert.Equal(legacy, prepared);
-        Assert.Equal(0, prepared.Runs);
     }
 
     [Fact]
@@ -173,10 +162,9 @@ public sealed partial class AwkSynchronousRegionTests
     {
         var prepared = await RunConditional(false, failMemory: true);
         var legacy = await RunConditional(true, failMemory: true);
-        Assert.Equal(legacy with { Runs = prepared.Runs }, prepared);
+        Assert.Equal(legacy, prepared);
         Assert.Equal(0, prepared.Value);
         Assert.Equal(1, prepared.Index);
-        Assert.Equal(2, prepared.Runs);
         Assert.Equal("awk: memory limit exceeded\n", prepared.Error);
     }
 
@@ -219,51 +207,6 @@ public sealed partial class AwkSynchronousRegionTests
         await io.CloseAsync();
     }
 
-    [Theory]
-    [InlineData(4, true)]
-    [InlineData(5, false)]
-    public void ConditionalPreparationBoundsNesting(int depth, bool eligible)
-    {
-        var condition = new AwkCondition(AwkExpression.Number(1));
-        var statement = AwkStatement.NoOp();
-        for (var index = 0; index < depth; index++) statement = AwkStatement.If(condition, [statement]);
-        Assert.Equal(eligible, AwkStatementBlockExecutor.TryPrepareActions([statement], null) is not null);
-    }
-
-    [Theory]
-    [InlineData("action")] [InlineData("conditional")]
-    [InlineData("for")] [InlineData("while")] [InlineData("do")]
-    public void LongPreparationObservesCancellationBeforeInspectingTheEntireBody(string shape)
-    {
-        const int count = 4096;
-        using var cancellation = new CancellationTokenSource();
-        var probe = new PreparationProbe();
-        var body = Enumerable.Repeat<AwkStatement>(probe, count).ToArray();
-        var condition = new AwkCondition(AwkExpression.Number(0));
-        void Checkpoint()
-        {
-            if (probe.Preparations >= 32) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        void Prepare()
-        {
-            switch (shape)
-            {
-                case "for": AwkSynchronousFor.TryPrepare(AwkStatement.NoOp(), condition,
-                    AwkStatement.NoOp(), body, preparationCheckpoint: Checkpoint); break;
-                case "while": AwkStatement.While(condition, body, preparationCheckpoint: Checkpoint); break;
-                case "do": AwkStatement.DoWhile(body, condition, preparationCheckpoint: Checkpoint); break;
-                default:
-                    var statements = shape == "conditional" ? [AwkStatement.If(condition, body)] : body;
-                    AwkStatementBlockExecutor.TryPrepareActions(statements, null, Checkpoint);
-                    break;
-            }
-        }
-        var error = Assert.Throws<OperationCanceledException>(Prepare);
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.InRange(probe.Preparations, 1, count - 1);
-    }
-
     private static async Task<ConditionalResult> RunConditional(bool forceLegacy, int boundary = 0, bool failMemory = false)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -302,12 +245,12 @@ public sealed partial class AwkSynchronousRegionTests
         }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.False(state.TryGetExecutionContext(out _));
-        var result = new ConditionalResult(state.ResolveVariableValue(name).AsNumber(), state.ResolveVariableValue(indexName).AsNumber(), counters.SynchronousConditionalRuns, state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
+        var result = new ConditionalResult(state.ResolveVariableValue(name).AsNumber(), state.ResolveVariableValue(indexName).AsNumber(), state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
         return result;
     }
 
-    private readonly record struct ConditionalResult(double Value, double Index, long Runs, long Reserved, string Output, string Error);
+    private readonly record struct ConditionalResult(double Value, double Index, long Reserved, string Output, string Error);
 
     private static async Task<Result> RunLoop(bool forceLegacy, bool pendingOutput, bool whileLoop = false, bool lint = false, bool failMemory = false, bool doWhileLoop = false)
     {
@@ -327,22 +270,9 @@ public sealed partial class AwkSynchronousRegionTests
         var error = "";
         try { await loop.ExecuteAsync(new AwkEvaluationContext(state, output, io)); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        var result = new Result(state.ResolveVariableValue(name).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), counters.SynchronousLoopRuns, state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
+        var result = new Result(state.ResolveVariableValue(name).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
         return result;
-    }
-
-    private sealed class PreparationProbe : AwkStatement
-    {
-        public int Preparations { get; private set; }
-        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
-        {
-            Preparations++;
-            action = static _ => { };
-            return true;
-        }
-        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            throw new InvalidOperationException("Preparation must not execute a statement.");
     }
 
     private static AwkStatement Loop(AwkStatement body, int iterations = 8, bool whileLoop = false, bool doWhileLoop = false)
@@ -390,5 +320,5 @@ public sealed partial class AwkSynchronousRegionTests
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) => inner.ExecuteAsync(context);
     }
 
-    private readonly record struct Result(double Value, double Index, long LoopRuns, long Reserved, string Output, string Error);
+    private readonly record struct Result(double Value, double Index, long Reserved, string Output, string Error);
 }

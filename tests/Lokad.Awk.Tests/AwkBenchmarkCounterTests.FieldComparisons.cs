@@ -44,7 +44,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(total.ToString(System.Globalization.CultureInfo.InvariantCulture) +
             (shape == "escape" ? " 0007" : "") + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.SynchronousActionRuns + counters.BoundRegionRuns);
         Assert.Equal(shape == "named-condition" ? 2 * records : shape == "named-body" ? records : 0,
             (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
         Assert.Equal(records * (shape is "fields" or "warm" ? 2 : 1), counters.NumericFieldByteParses);

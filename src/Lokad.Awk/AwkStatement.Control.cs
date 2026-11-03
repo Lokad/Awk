@@ -39,27 +39,6 @@ internal abstract partial class AwkStatement
             return AwkStatementBlockExecutor.ExecuteComputation(selected, context, ref returned);
         }
 
-        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
-        {
-            action = static _ => { };
-            if (conditionalDepth <= 0 || !condition.PrepareSynchronousCalls(functions, preparationCheckpoint).TryGetSynchronousExpression(out var test) ||
-                !AwkStatementBlockExecutor.TryPrepareActions(body, functions, conditionalDepth - 1,
-                    out var yes, preparationCheckpoint) ||
-                !AwkStatementBlockExecutor.TryPrepareActions(elseBody, functions, conditionalDepth - 1,
-                    out var no, preparationCheckpoint)) return false;
-            action = PrepareConditional(test, yes, no);
-            return true;
-        }
-
-        private static Action<AwkEvaluationContext> PrepareConditional(AwkSynchronousExpression test,
-            Action<AwkEvaluationContext> yes, Action<AwkEvaluationContext> no) => context =>
-        {
-            context.State.Counters.RecordSynchronousConditional();
-            if (test.EvaluateSynchronous(context).IsTruthy()) yes(context);
-            else no(context);
-        };
-
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var selectedBody = await condition.EvaluateAsync(context).ConfigureAwait(false) ? body : elseBody;
@@ -102,19 +81,8 @@ internal abstract partial class AwkStatement
         AwkStatement initializer,
         AwkCondition condition,
         AwkStatement increment,
-        AwkStatement[] body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions, Action? preparationCheckpoint) : AwkStatement
+        AwkStatement[] body) : AwkStatement
     {
-        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions, preparationCheckpoint);
-
-        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
-        {
-            if (_synchronous is not { } prepared)
-                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions, out action, preparationCheckpoint);
-            action = context => prepared.Execute(context);
-            return true;
-        }
 
         internal override bool TryPrepareComputation(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
@@ -130,7 +98,7 @@ internal abstract partial class AwkStatement
             var depth = 1 + Math.Max(test.SynchronousDepth,
                 Math.Max(bodyDepth, Math.Max(initialize.Depth, advance.Depth)));
             if (depth > 16) return false;
-            prepared = new(new ForStatement(initialize.Statement, new(test), advance.Statement, nodes, null, null),
+            prepared = new(new ForStatement(initialize.Statement, new(test), advance.Statement, nodes),
                 depth, Math.Max(test.SynchronousCallDepth,
                     Math.Max(bodyCalls, Math.Max(initialize.Calls, advance.Calls))));
             return true;
@@ -159,9 +127,6 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
-            if (_synchronous is { } prepared && prepared.CanExecute(context))
-                return prepared.Execute(context);
-
             var flow = await initializer.ExecuteAsync(context).ConfigureAwait(false);
             if (flow != AwkStatementFlow.Continue)
                 return flow;
@@ -202,20 +167,8 @@ internal abstract partial class AwkStatement
         }
     }
 
-    private sealed class WhileStatement(AwkCondition condition, AwkStatement[] body,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null) : AwkStatement
+    private sealed class WhileStatement(AwkCondition condition, AwkStatement[] body) : AwkStatement
     {
-        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
-            NoOp(), condition, NoOp(), body, functions, preparationCheckpoint);
-
-        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions, out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
-        {
-            if (_synchronous is not { } prepared)
-                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions, out action, preparationCheckpoint);
-            action = context => prepared.Execute(context);
-            return true;
-        }
 
         internal override bool TryPrepareComputation(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
@@ -248,9 +201,6 @@ internal abstract partial class AwkStatement
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
-            if (_synchronous is { } prepared && prepared.CanExecute(context))
-                return prepared.Execute(context);
-
             var state = context.State;
             while (await condition
                 .EvaluateAsync(context)
@@ -274,21 +224,8 @@ internal abstract partial class AwkStatement
         }
     }
 
-    private sealed class DoWhileStatement(AwkStatement[] body, AwkCondition condition,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null, Action? preparationCheckpoint = null) : AwkStatement
+    private sealed class DoWhileStatement(AwkStatement[] body, AwkCondition condition) : AwkStatement
     {
-        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
-            NoOp(), condition, NoOp(), body, functions, preparationCheckpoint);
-
-        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            out Action<AwkEvaluationContext> action, Action? preparationCheckpoint = null)
-        {
-            if (_synchronous is not { } prepared)
-                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions, out action, preparationCheckpoint);
-            action = context => prepared.ExecuteDoWhile(context);
-            return true;
-        }
 
         internal override bool TryPrepareComputation(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
@@ -322,9 +259,6 @@ internal abstract partial class AwkStatement
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
-            if (_synchronous is { } prepared && prepared.CanExecute(context))
-                return prepared.ExecuteDoWhile(context);
-
             var state = context.State;
             do
             {

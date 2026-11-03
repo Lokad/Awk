@@ -12,9 +12,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             {
                 var prepared = await RunPureAction(false, caller, loop: loop);
                 var legacy = await RunPureAction(true, caller, loop: loop);
-                Assert.Equal(legacy with { Prepared = prepared.Prepared }, prepared);
-                Assert.Equal(1, prepared.Prepared);
-                Assert.Equal(0, legacy.Prepared);
+                Assert.Equal(legacy, prepared);
                 {
                     Assert.Equal(3, prepared.Index);
                     Assert.Equal(caller ? 42 : 0, prepared.Caller);
@@ -31,12 +29,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var prepared = await RunPureAction(false, false, failMemory: true, loop: loop);
         var legacy = await RunPureAction(true, false, failMemory: true, loop: loop);
-        Assert.Equal(legacy with { Prepared = prepared.Prepared }, prepared);
+        Assert.Equal(legacy, prepared);
         Assert.Equal("ok", prepared.Text);
         Assert.Equal(0, prepared.Total);
         Assert.Equal("awk: memory limit exceeded\n", prepared.Error);
-        Assert.Equal(1, prepared.Prepared);
-        Assert.Equal(0, legacy.Prepared);
     }
 
     [Fact]
@@ -77,9 +73,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             {
                 var prepared = await RunPureAction(false, caller);
                 var legacy = await RunPureAction(true, caller);
-                Assert.Equal(legacy with { Prepared = prepared.Prepared }, prepared);
-                Assert.Equal(1, prepared.Prepared);
-                Assert.Equal(0, legacy.Prepared);
+                Assert.Equal(legacy, prepared);
             }
         }
     }
@@ -89,12 +83,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var prepared = await RunPureAction(false, false, failMemory: true);
         var legacy = await RunPureAction(true, false, failMemory: true);
-        Assert.Equal(legacy with { Prepared = prepared.Prepared }, prepared);
+        Assert.Equal(legacy, prepared);
         Assert.Equal("ok", prepared.Text);
         Assert.Equal(0, prepared.Total);
         Assert.Equal("awk: memory limit exceeded\n", prepared.Error);
-        Assert.Equal(1, prepared.Prepared);
-        Assert.Equal(0, legacy.Prepared);
     }
 
     [Theory]
@@ -236,7 +228,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         var local = caller ? state.ResolveFunctionLocalValue(new(0), total).AsNumber() : 0;
         if (caller) state.PopFunctionFrame();
-        var result = new PureActionResult(state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString(), state.ResolveVariableValue(total).AsNumber(), local, state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), counters.SynchronousActionRuns, state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
+        var result = new PureActionResult(state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString(), state.ResolveVariableValue(total).AsNumber(), local, state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
         return result;
     }
@@ -247,7 +239,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             inner.ExecuteAsync(context);
     }
 
-    private readonly record struct PureActionResult(string Text, double Total, double Caller, double Index, long Prepared, long Reserved, string Output, string Error);
+    private readonly record struct PureActionResult(string Text, double Total, double Caller, double Index, long Reserved, string Output, string Error);
 
     private const string Functions = "function inc(x){return x+1} function twice(x){return inc(inc(x))}";
     private const string PairFunctions = "function inc(x,a){return x+a} function twice(x,a){return inc(inc(x,a),a)}";
@@ -439,7 +431,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 multiple
                     ? AwkExpression.FunctionCall(AwkFunctionName.FromText("pair"),
                         [AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), [AwkExpression.Number(7)]), operand])
-                    : AwkExpression.FunctionCall(AwkFunctionName.FromText("twice"), [operand]))], prepared);
+                    : AwkExpression.FunctionCall(AwkFunctionName.FromText("twice"), [operand]))]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
@@ -450,7 +442,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(6, state.ResolveVariableValue(i).AsNumber());
             Assert.Equal(5, state.ResolveVariableValue(total).AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(0, counters.SynchronousActionRuns);
             state.AssignVariableValue(x, AwkValue.FromNumber(43));
             if (cancel) cancellation.Cancel();
             completion.SetResult(AwkValue.FromNumber(7));
@@ -460,7 +451,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(cancel ? 5 : multiple ? 15 : 9, state.ResolveVariableValue(total).AsNumber());
             Assert.Equal(43, state.ResolveVariableValue(x).AsNumber());
             Assert.Equal(1, operand.Entries);
-            Assert.Equal(0, counters.SynchronousActionRuns);
             Assert.Equal(multiple ? 1 : 0, counters.FunctionArgumentBufferRents);
         }
         finally
@@ -513,8 +503,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(total, totalSlot), AwkExpression.Add(
                     AwkExpression.PreparedGlobalVariable(total, totalSlot), AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), multiple
                         ? [AwkExpression.Number(1), operand] : [operand])));
-                var loop = AwkStatement.For(AwkStatement.Assignment(indexTarget, AwkExpression.Number(0)), new(AwkExpression.Compare(index, AwkExpression.Number(8), AwkComparison.LessThan)), AwkStatement.PostIncrement(indexTarget), [body], ordinary ? null : prepared);
-                var action = new AwkAction(null, [body, body, body], ordinary ? null : prepared);
+                var loop = AwkStatement.For(AwkStatement.Assignment(indexTarget, AwkExpression.Number(0)), new(AwkExpression.Compare(index, AwkExpression.Number(8), AwkComparison.LessThan)), AwkStatement.PostIncrement(indexTarget), [body]);
+                var action = new AwkAction(null, [body, body, body]);
                 var host = new MockFileSystem();
                 var io = Io(state, host, counters);
                 using var output = new AwkOutputSink(state.MemoryAccounting, counters);

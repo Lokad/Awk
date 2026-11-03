@@ -243,7 +243,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(9, (await pending).AsNumber());
         }
         Assert.Equal(1, operand.Entries);
-        Assert.Equal(0, counters.SynchronousActionRuns);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

@@ -41,46 +41,6 @@ internal static class AwkStatementBlockExecutor
         return AwkStatementFlow.Continue;
     }
 
-    internal static Action<AwkEvaluationContext>? TryPrepareActions(AwkStatement[] statements,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions, Action? preparationCheckpoint = null)
-    {
-        if (statements.Length == 0) return null;
-        return TryPrepareActions(statements, functions, 4, out var execute, preparationCheckpoint) ? execute : null;
-    }
-
-    internal static bool TryPrepareActions(AwkStatement[] statements,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions, int conditionalDepth,
-        out Action<AwkEvaluationContext> execute, Action? preparationCheckpoint = null)
-    {
-        execute = static _ => { };
-        preparationCheckpoint?.Invoke();
-        if (statements.Length == 0) return true;
-        functions ??= AwkSynchronousFunction.Empty;
-        var actions = new Action<AwkEvaluationContext>[statements.Length];
-        for (var index = 0; index < statements.Length; index++)
-        {
-            preparationCheckpoint?.Invoke();
-            var statement = statements[index].PrepareSynchronousCalls(functions, preparationCheckpoint);
-            if (!statement.TryPrepareTopLevelSynchronousAction(conditionalDepth, functions,
-                    out actions[index], preparationCheckpoint)) return false;
-        }
-        execute = PrepareExecution(actions);
-        return true;
-    }
-
-    private static Action<AwkEvaluationContext> PrepareExecution(Action<AwkEvaluationContext>[] actions)
-    {
-        return Execute;
-        void Execute(AwkEvaluationContext context)
-        {
-            foreach (var action in actions)
-            {
-                context.State.Checkpoint();
-                action(context);
-            }
-        }
-    }
-
     public static async ValueTask<AwkStatementFlow> ExecuteAsync(
         AwkStatement[] statements,
         AwkEvaluationContext context)

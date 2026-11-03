@@ -4,9 +4,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkFunctionStorageTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public void GeneralCallPreparationObservesCancellationBeforeTheArgumentTail(bool loop, bool preCanceled)
+    [InlineData(false)] [InlineData(true)]
+    public void GeneralCallPreparationObservesCancellationBeforeTheArgumentTail(bool preCanceled)
     {
         const int count = 256;
         using var cancellation = new CancellationTokenSource();
@@ -22,17 +21,9 @@ public sealed partial class AwkFunctionStorageTests
                 value.SynchronousDepth, value.SynchronousCallDepth)
         };
         var call = AwkExpression.FunctionCall(name, Enumerable.Repeat<AwkExpression>(probe, count).ToArray());
-        var body = AwkStatement.Expression(AwkExpression.Assignment(AwkReference.Scalar(AwkVariableName.FromText("n")), call));
         if (preCanceled) cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() =>
-        {
-            if (loop)
-            {
-                var initialize = AwkStatement.Expression(AwkExpression.Assignment(AwkReference.Scalar(AwkVariableName.FromText("i")), value));
-                _ = AwkStatement.For(initialize, new(value), initialize, [body], functions, cancellation.Token.ThrowIfCancellationRequested);
-            }
-            else _ = new AwkAction(null, [body], functions, cancellation.Token.ThrowIfCancellationRequested);
-        });
+            call.TryPrepareFunctionCalls(functions, 16, out _, cancellation.Token.ThrowIfCancellationRequested));
         Assert.True(visited < count);
         if (preCanceled) Assert.Equal(0, visited);
     }

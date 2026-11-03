@@ -8,9 +8,7 @@ public sealed partial class AwkSynchronousRegionTests
         {
             var prepared = await RunLoop(false, false, doWhileLoop: true);
             var legacy = await RunLoop(true, false, doWhileLoop: true);
-            Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
-            Assert.Equal(1, prepared.LoopRuns);
-            Assert.Equal(0, legacy.LoopRuns);
+            Assert.Equal(legacy, prepared);
             {
                 Assert.Equal(20, prepared.Value);
                 Assert.Equal(8, prepared.Index);
@@ -28,7 +26,6 @@ public sealed partial class AwkSynchronousRegionTests
         var prepared = await RunLoop(false, pendingOutput, lint: lint, doWhileLoop: true);
         var legacy = await RunLoop(true, pendingOutput, lint: lint, doWhileLoop: true);
         Assert.Equal(legacy, prepared);
-        Assert.Equal(0, prepared.LoopRuns);
     }
 
     [Fact]
@@ -36,8 +33,7 @@ public sealed partial class AwkSynchronousRegionTests
     {
         var prepared = await RunLoop(false, false, failMemory: true, doWhileLoop: true);
         var legacy = await RunLoop(true, false, failMemory: true, doWhileLoop: true);
-        Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
-        Assert.Equal(1, prepared.LoopRuns);
+        Assert.Equal(legacy, prepared);
         Assert.Equal(7, prepared.Value);
         Assert.Equal(0, prepared.Index);
         Assert.Equal("awk: memory limit exceeded\n", prepared.Error);
@@ -145,10 +141,10 @@ public sealed partial class AwkSynchronousRegionTests
     }
 
     [Theory]
-    [InlineData(16, 1)]
-    [InlineData(17, 1)]
-    [InlineData(64, 1)]
-    public async Task LongDoWhileBodyKeepsMandatoryFirstIteration(int count, int expectedPrepared)
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(64)]
+    public async Task LongDoWhileBodyKeepsMandatoryFirstIteration(int count)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForState = State(counters);
@@ -156,9 +152,11 @@ public sealed partial class AwkSynchronousRegionTests
         var io = Io(state, new MockFileSystem(), counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var condition = new AwkCondition(AwkExpression.Number(0));
-        var loop = AwkStatement.DoWhile(Enumerable.Repeat(AwkStatement.NoOp(), count).ToArray(), condition);
+        var name = AwkVariableName.FromText("executed");
+        var body = AwkStatement.PostIncrement(AwkReference.Scalar(name));
+        var loop = AwkStatement.DoWhile(Enumerable.Repeat(body, count).ToArray(), condition);
         Assert.Equal(AwkStatementFlow.Continue, await loop.ExecuteAsync(new AwkEvaluationContext(state, output, io)));
-        Assert.Equal(expectedPrepared, counters.SynchronousDoWhileLoopRuns);
+        Assert.Equal(count, state.ResolveVariableValue(name).AsNumber());
         await io.CloseAsync();
     }
 }
