@@ -11,7 +11,7 @@ internal static partial class AwkExpressionLowerer
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
         lowered = null;
-        if (TryReadRegexLiteralPattern(expression, out var pattern, scope.Checkpoint))
+        if (AwkSourceLiterals.TryReadRegexLiteralPattern(expression, out var pattern, scope.Checkpoint))
         {
             lowered = AwkExpression.SourceRegexPattern(pattern);
             return true;
@@ -20,56 +20,4 @@ internal static partial class AwkExpressionLowerer
         return TryLower(expression, scope, out lowered);
     }
 
-    public static bool TryLowerRegexLiteralPattern(
-        AwkExpressionSyntax? expression,
-        [NotNullWhen(true)] out AwkRegex? regex,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        regex = null;
-        if (!TryReadRegexLiteralPattern(expression, out var pattern, checkpoint))
-            return false;
-
-        try
-        {
-            checkpoint?.Invoke();
-            var prepared = AwkRegex.Create(
-                new AwkRegexPattern(pattern),
-                AwkRegexCaseSensitivity.CaseSensitive,
-                compatibilityMode, checkpoint);
-            checkpoint?.Invoke();
-            regex = prepared;
-            return true;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
-
-    internal static bool TryReadRegexLiteralPattern(
-        AwkExpressionSyntax? expression,
-        [NotNullWhen(true)] out string? pattern,
-        Action? checkpoint = null)
-    {
-        pattern = null;
-        if (expression?.Kind != AwkExpressionKind.Regex)
-            return false;
-
-        var tokens = expression.GetTokens(checkpoint);
-        if (tokens.Count != 1 || tokens[0].Kind != AwkTokenKind.Regex)
-        {
-            return false;
-        }
-
-        var token = tokens[0];
-        if (!AwkRegexLiteral.TryReadPattern(token.Text, out var literalPattern, checkpoint))
-        {
-            return false;
-        }
-
-        pattern = literalPattern;
-        return true;
-    }
 }

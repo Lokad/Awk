@@ -10,7 +10,7 @@ internal sealed partial class AwkRegionCompiler
             !_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _))
         {
             if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline) &&
-                AwkGetlineLowerer.TryResolveExpressionCallParts(syntax, out var parts)) return new GetlineWork(parts, isExpression: true);
+                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(syntax, out var parts)) return new GetlineWork(parts, isExpression: true);
             if (AwkBuiltins.IsName(target.Name, AwkBuiltinId.Length) && target.HasDelimitedCall && syntax.Children.Count is 1 or 2)
                 return new LengthWork(syntax.Children.Count == 1 ? null : syntax.Children[1]);
             if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&

@@ -40,7 +40,7 @@ internal sealed partial class AwkRegionCompiler
                 if (callers is not null)
                     foreach (var ancestor in callers)
                         if (ancestor is StatementsWork { CurrentStatement: { Kind: not AwkStatementKind.Block } parent }) failed = parent;
-                if (failed is not null) _diagnostic = AwkStatementLowerer.CreateFailureDiagnostic(failed);
+                if (failed is not null) _diagnostic = AwkPreparationDiagnostics.ForStatement(failed);
                 return false;
             }
             completed = current;

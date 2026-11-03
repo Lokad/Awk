@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Separate source literals, getline syntax and diagnostic construction from retired
+  tree lowering. Builtin destinations validate location shape; the common compiler binds
+  their operands, including deeply nested substitution targets.
+
 - Publish prepared rules and functions without tree-execution fallbacks; remove the main
   driver's fallback action/callee completion routes while preserving frontend diagnostics.
 

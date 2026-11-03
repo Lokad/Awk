@@ -1,20 +1,5 @@
 namespace Lokad.Awk;
 
-internal enum AwkGetlineSourceKind
-{
-    MainInput,
-    RedirectedFile,
-    InputPipe
-}
-
-internal readonly record struct AwkGetlineLoweringParts(
-    AwkSyntaxOptional<AwkExpressionSyntax> Target,
-    AwkSyntaxOptional<AwkExpressionSyntax> Source,
-    AwkGetlineSourceKind SourceKind)
-{
-    public bool HasRedirection => SourceKind != AwkGetlineSourceKind.MainInput;
-}
-
 internal readonly struct AwkGetlineLoweringResult
 {
     private readonly bool _succeeded;
@@ -60,103 +45,11 @@ internal readonly struct AwkGetlineLoweringResult
 
 internal static class AwkGetlineLowerer
 {
-    internal static bool IsPostfixFieldTarget(AwkExpressionSyntax target) =>
-        target.Kind == AwkExpressionKind.Postfix && target.Children.Count == 1 &&
-        target.Children[0].Kind == AwkExpressionKind.Field &&
-        AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(target);
-
-    internal static AwkDiagnostic PostfixFieldTargetDiagnostic(AwkExpressionSyntax target) =>
-        new(target.Span,
-            "Postfix field mutation is not a getline destination; put index mutations inside $(...).",
-            AwkDiagnosticId.BindInvalidProgram);
-
-    public static bool TryResolveStatementParts(
-        AwkGetlineSyntax syntax,
-        out AwkGetlineLoweringParts parts)
-    {
-        static bool TryResolveSlot(
-            AwkExpressionSlotSyntax slot,
-            out AwkSyntaxOptional<AwkExpressionSyntax> expression)
-        {
-            expression = AwkSyntaxOptional<AwkExpressionSyntax>.None;
-            if (slot.IsEmpty)
-                return true;
-
-            if (!slot.Expression.TryGetValue(out var syntax))
-                return false;
-
-            expression = syntax;
-            return true;
-        }
-
-        parts = default;
-        if (!TryResolveSlot(syntax.Target, out var target) ||
-            !TryResolveSlot(syntax.Source, out var source))
-        {
-            return false;
-        }
-
-        parts = new AwkGetlineLoweringParts(target, source, syntax.HasInputRedirection
-            ? AwkGetlineSourceKind.RedirectedFile
-            : AwkGetlineSourceKind.MainInput);
-        return true;
-    }
-
-    public static bool TryResolveExpressionCallParts(
-        AwkExpressionSyntax expression,
-        out AwkGetlineLoweringParts parts)
-    {
-        parts = default;
-        if (expression.DelimiterTokens.Count != 0 ||
-            expression.Children.Count is < 1 or > 3)
-        {
-            return false;
-        }
-
-        var sourceKind = AwkGetlineSourceKind.MainInput;
-        for (var index = 0; index < expression.OperatorTokens.Count; index++)
-        {
-            if (expression.OperatorTokens[index].Kind == AwkTokenKind.Less)
-            {
-                sourceKind = AwkGetlineSourceKind.RedirectedFile;
-                break;
-            }
-            if (expression.OperatorTokens[index].Kind == AwkTokenKind.Pipe)
-            {
-                sourceKind = AwkGetlineSourceKind.InputPipe;
-                break;
-            }
-        }
-
-        var target = AwkSyntaxOptional<AwkExpressionSyntax>.None;
-        var source = AwkSyntaxOptional<AwkExpressionSyntax>.None;
-        if (sourceKind != AwkGetlineSourceKind.MainInput)
-        {
-            if (expression.Children.Count == 3)
-                target = expression.Children[1];
-            else if (expression.Children.Count != 2)
-                return false;
-
-            source = expression.Children[^1];
-        }
-        else if (expression.Children.Count == 2)
-        {
-            target = expression.Children[1];
-        }
-        else if (expression.Children.Count != 1)
-        {
-            return false;
-        }
-
-        parts = new AwkGetlineLoweringParts(target, source, sourceKind);
-        return true;
-    }
-
     public static AwkGetlineLoweringResult Lower(
-        AwkGetlineLoweringParts parts,
+        AwkGetlineParts parts,
         AwkLoweringScope scope)
     {
-        static AwkTextSpan ResolveFallbackSpan(AwkGetlineLoweringParts parts)
+        static AwkTextSpan ResolveFallbackSpan(AwkGetlineParts parts)
         {
             if (parts.Target.TryGetValue(out var target))
                 return target.Span;
@@ -172,8 +65,8 @@ internal static class AwkGetlineLowerer
 
         if (parts.Target.TryGetValue(out var targetExpression))
         {
-            if (IsPostfixFieldTarget(targetExpression))
-                return AwkGetlineLoweringResult.Failure(PostfixFieldTargetDiagnostic(targetExpression));
+            if (AwkGetlineSyntaxFacts.IsPostfixFieldTarget(targetExpression))
+                return AwkGetlineLoweringResult.Failure(AwkGetlineSyntaxFacts.PostfixFieldTargetDiagnostic(targetExpression));
 
             var targetResult = AwkLValueLowerer.Lower(targetExpression, scope);
             if (!targetResult.Succeeded)
@@ -209,31 +102,6 @@ internal static class AwkGetlineLowerer
         }
 
         return AwkGetlineLoweringResult.Success(target, source);
-    }
-
-    public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
-    {
-        if (TryResolveExpressionCallParts(expression, out var parts))
-        {
-            var lowering = Lower(parts, AwkLoweringScope.Global);
-            if (!lowering.Succeeded)
-                return lowering.Diagnostic;
-        }
-
-        return InvalidGetline(expression.Span, "Invalid getline expression.");
-    }
-
-    public static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax statement)
-    {
-        if (statement.Payload is AwkGetlineStatementSyntaxPayload payload &&
-            TryResolveStatementParts(payload.Getline, out var parts))
-        {
-            var lowering = Lower(parts, AwkLoweringScope.Global);
-            if (!lowering.Succeeded)
-                return lowering.Diagnostic;
-        }
-
-        return InvalidGetline(statement.Span, "Invalid getline statement.");
     }
 
     private static AwkDiagnostic InvalidGetline(AwkTextSpan span, string message) =>

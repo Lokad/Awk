@@ -163,7 +163,7 @@ internal static class AwkBuiltinCallShape
             {
                 AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument, scope),
                 AwkBuiltinArgumentRole.LValue =>
-                    AwkLValueLowerer.Lower(argument, scope).Succeeded,
+                    AwkExpressionSyntaxFacts.IsValidMutationTarget(argument, scope),
                 _ => true
             };
 

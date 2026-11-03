@@ -6,14 +6,7 @@ namespace Lokad.Awk;
 
 internal static partial class AwkExpressionLowerer
 {
-    internal static double PrepareSourceNumber(string text, double gnuDefaultValue,
-        AwkCompatibilityMode mode, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        return mode == AwkCompatibilityMode.GnuDefault ? gnuDefaultValue :
-            AwkValue.TryParseNumber(text, AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText,
-                out var value, checkpoint) ? value : 0;
-    }
+
 
     public static bool TryLower(
         AwkExpressionSyntax expression,
@@ -139,13 +132,13 @@ internal static partial class AwkExpressionLowerer
 
             var text = tokens[0].Text;
             var index = 0;
-            if (!TryReadNumericLiteralToken(text, ref index, out var numberText, out var numberValue, scope.Checkpoint) ||
+            if (!AwkSourceLiterals.TryReadNumericLiteralToken(text, ref index, out var numberText, out var numberValue, scope.Checkpoint) ||
                 index != text.Length)
             {
                 return false;
             }
 
-            lowered = AwkExpression.Number(PrepareSourceNumber(
+            lowered = AwkExpression.Number(AwkSourceLiterals.PrepareSourceNumber(
                 numberText, numberValue, scope.CompatibilityMode, scope.Checkpoint));
             return true;
         }
@@ -156,7 +149,7 @@ internal static partial class AwkExpressionLowerer
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            if (!TryReadStringLiteral(expression, scope, out var literal)) return false;
+            if (!AwkSourceLiterals.TryReadStringLiteral(expression, scope, out var literal)) return false;
 
             lowered = AwkExpression.Literal(literal);
             return true;
@@ -168,7 +161,7 @@ internal static partial class AwkExpressionLowerer
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            if (!TryLowerRegexLiteralPattern(expression, out var regex, scope.CompatibilityMode, scope.Checkpoint))
+            if (!AwkSourceLiterals.TryLowerRegexLiteralPattern(expression, out var regex, scope.CompatibilityMode, scope.Checkpoint))
                 return false;
 
             lowered = AwkExpression.RegexMatch(
@@ -244,7 +237,7 @@ internal static partial class AwkExpressionLowerer
                     [NotNullWhen(true)] out AwkExpression? lowered)
                 {
                     lowered = null;
-                    if (!AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts))
+                    if (!AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts))
                         return false;
 
                     var lowering = AwkGetlineLowerer.Lower(parts, scope);
@@ -411,7 +404,7 @@ internal static partial class AwkExpressionLowerer
                         {
                             return false;
                         }
-                        isRegexLiteral = TryReadRegexLiteralPattern(separatorSyntax, out _, scope.Checkpoint);
+                        isRegexLiteral = AwkSourceLiterals.TryReadRegexLiteralPattern(separatorSyntax, out _, scope.Checkpoint);
                     }
 
                     if (!TryLowerOptionalArrayArgument(call, 3, scope, out var separatorArrayName))
@@ -774,7 +767,7 @@ internal static partial class AwkExpressionLowerer
                 return false;
 
             if (operatorKind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde &&
-                TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex, scope.CompatibilityMode, scope.Checkpoint))
+                AwkSourceLiterals.TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex, scope.CompatibilityMode, scope.Checkpoint))
             {
                 lowered = AwkExpression.RegexMatch(
                     left,
@@ -917,84 +910,13 @@ internal static partial class AwkExpressionLowerer
             return true;
         }
 
-        diagnostic = CreateFailureDiagnostic(expression);
+        diagnostic = AwkPreparationDiagnostics.ForExpression(expression);
         return false;
     }
 
-    public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
-    {
-        while (expression.Kind == AwkExpressionKind.Group && expression.FirstChild is { } groupedExpression)
-            expression = groupedExpression;
 
-        if (expression.Kind == AwkExpressionKind.Unknown)
-            return AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression);
 
-        static AwkDiagnostic CreateCallFailureDiagnostic(AwkExpressionSyntax expression)
-        {
-            if (AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))
-            {
-                if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
-                {
-                    return InvalidExpression(
-                        expression,
-                        "Invalid number of arguments for " + call.Target.Name + ".");
-                }
 
-                if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, out var failure))
-                {
-                    return InvalidExpression(
-                        failure.Argument,
-                        AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure));
-                }
-            }
-
-            if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
-                AwkBuiltins.TryGetSpecialSyntax(target.Name, out var specialSyntax) &&
-                specialSyntax.Id == AwkBuiltinId.Getline)
-            {
-                return AwkGetlineLowerer.CreateFailureDiagnostic(expression);
-            }
-
-            return InvalidExpression(expression, "Invalid function call.");
-        }
-
-        if (expression.Kind == AwkExpressionKind.Assignment)
-        {
-            return expression.Children.Count == 0
-                ? InvalidExpression(expression, "Invalid assignment expression.")
-                : AwkLValueLowerer.CreateFailureDiagnostic(expression.Children[0], "Invalid assignment target.");
-        }
-
-        if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression))
-        {
-            return expression.Children.Count == 0
-                ? InvalidExpression(expression, "Invalid increment expression.")
-                : AwkLValueLowerer.CreateFailureDiagnostic(expression.Children[0], "Invalid increment target.");
-        }
-
-        if (expression.Kind == AwkExpressionKind.FunctionCall)
-            return CreateCallFailureDiagnostic(expression);
-
-        if (expression.Kind == AwkExpressionKind.ArrayElement &&
-            expression.TargetExpression is { } targetExpression &&
-            AwkExpressionSyntaxFacts.TryGetIdentifier(targetExpression, out var target) &&
-            AwkIdentifiers.IsReservedName(target.Name))
-        {
-            return InvalidExpression(targetExpression, "Reserved identifier `" + target.Name + "' cannot be used as an array name.");
-        }
-
-        if (expression.Kind == AwkExpressionKind.Variable &&
-            AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) &&
-            AwkIdentifiers.IsReservedName(identifier.Name))
-        {
-            return InvalidExpression(expression, "Reserved identifier `" + identifier.Name + "' cannot be used as a variable.");
-        }
-
-        return InvalidExpression(expression, "Invalid expression.");
-    }
-
-    private static AwkDiagnostic InvalidExpression(AwkExpressionSyntax expression, string message) =>
-        new(expression.Span, message, AwkDiagnosticId.BindInvalidProgram);
 
     private static bool TryLowerArrayArgument(AwkBuiltinCallSyntax call, int index, AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkArrayOperand? operand)

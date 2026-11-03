@@ -2,8 +2,17 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
-internal static partial class AwkExpressionLowerer
+internal static partial class AwkSourceLiterals
 {
+    internal static double PrepareSourceNumber(string text, double gnuDefaultValue,
+        AwkCompatibilityMode mode, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        return mode == AwkCompatibilityMode.GnuDefault ? gnuDefaultValue :
+            AwkValue.TryParseNumber(text, AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText,
+                out var value, checkpoint) ? value : 0;
+    }
+
     internal static bool TryReadStringLiteral(AwkExpressionSyntax expression, AwkLoweringScope scope, out string literal)
     {
         literal = string.Empty;

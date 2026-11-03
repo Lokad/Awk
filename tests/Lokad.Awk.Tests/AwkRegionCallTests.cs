@@ -3,6 +3,28 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task DeepSubstitutionDestinationsBindWithoutBuildingValidationTrees(bool governed, bool field)
+    {
+        const int depth = 2048;
+        var target = field ? new string('$', depth) + "keyIndex()"
+            : string.Concat(Enumerable.Repeat("a[", depth)) + "keyIndex()" + new string(']', depth);
+        var source = "function keyIndex(){return 1}BEGIN{$0=1;a[1]=1;print sub(/x/,\"y\"," + target + "),$0,a[1]}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(32 << 20);
+        var policy = AwkTestHarness.CreatePolicy().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.True(exit.Succeeded, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("0 1 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, "length")] [InlineData(true, "length")]
     [InlineData(false, "substr")] [InlineData(true, "substr")]
     [InlineData(false, "typeof")] [InlineData(true, "typeof")]

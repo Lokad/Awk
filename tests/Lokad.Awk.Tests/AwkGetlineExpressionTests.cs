@@ -68,7 +68,7 @@ public sealed class AwkGetlineExpressionTests
         Assert.Equal("getline", expression.Children[0].FirstToken.Text);
         Assert.Equal(expression.Tokens.Select(token => token.Span.Start).Order().ToArray(),
             expression.Tokens.Select(token => token.Span.Start).ToArray());
-        Assert.True(AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts));
+        Assert.True(AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts));
         Assert.Equal(hasTarget, parts.Target.HasValue);
         Assert.True(parts.Source.HasValue);
         Assert.Equal(operation == "|" ? AwkGetlineSourceKind.InputPipe : AwkGetlineSourceKind.RedirectedFile,

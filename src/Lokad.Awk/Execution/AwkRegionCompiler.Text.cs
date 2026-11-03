@@ -18,7 +18,7 @@ internal sealed partial class AwkRegionCompiler
             int value;
             if (!_waiting)
             {
-                if (AwkExpressionLowerer.TryReadRegexLiteralPattern(syntax, out var pattern, compiler._scope.Checkpoint))
+                if (AwkSourceLiterals.TryReadRegexLiteralPattern(syntax, out var pattern, compiler._scope.Checkpoint))
                 {
                     literal = true;
                     origin = AwkRegexPatternOrigin.SourceLiteral;
@@ -58,7 +58,7 @@ internal sealed partial class AwkRegionCompiler
             if (_stage == 1)
             {
                 _input = CompletedResult<int>(completed);
-                if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(syntax.Children[1], out var literal,
+                if (AwkSourceLiterals.TryLowerRegexLiteralPattern(syntax.Children[1], out var literal,
                     compiler._scope.CompatibilityMode, compiler._scope.Checkpoint))
                     return Complete(compiler.EmitRegexMatch(new(_input, literal), negated));
                 // Preserve the input value now, but format it after RHS effects.

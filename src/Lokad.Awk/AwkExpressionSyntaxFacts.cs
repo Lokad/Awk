@@ -103,6 +103,26 @@ internal static class AwkExpressionSyntaxFacts
         return TryGetIdentifier(expression, out root);
     }
 
+    // A builtin's lvalue role describes the destination shape. Operand binding
+    // belongs to the compiler, rather than constructing an executable tree here.
+    public static bool IsValidMutationTarget(AwkExpressionSyntax expression, AwkLoweringScope scope)
+    {
+        scope.CheckCancellation();
+        if (expression.Kind == AwkExpressionKind.Field) return expression.Children.Count == 1;
+        if (expression.Kind == AwkExpressionKind.Variable)
+            return TryGetAssignableIdentifier(expression, out var variable) && !scope.IsReservedVariable(variable.Name);
+        if (expression.Kind != AwkExpressionKind.ArrayElement || expression.Children.Count < 2) return false;
+        if (expression.Children[0].Kind == AwkExpressionKind.ArrayElement && scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
+            return false;
+        while (expression.Kind == AwkExpressionKind.ArrayElement)
+        {
+            scope.CheckCancellation();
+            if (expression.Children.Count < 2) return false;
+            expression = expression.Children[0];
+        }
+        return TryGetIdentifier(expression, out var array) && !scope.IsReservedVariable(array.Name);
+    }
+
     public static bool IsIncrementOrDecrementExpression(AwkExpressionSyntax expression)
     {
         if (expression.Kind is not AwkExpressionKind.Unary and not AwkExpressionKind.Postfix)

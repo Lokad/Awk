@@ -177,9 +177,9 @@ internal sealed partial class AwkRegionCompiler
                     if (arm.IsDefault) { _branches[index] = -1; _defaultArm = index; continue; }
                     if (!arm.Expression.TryGetValue(out var pattern)) return false;
                     AwkSwitchCasePattern prepared;
-                    if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(pattern, out var regex, compiler._scope.CompatibilityMode, compiler._scope.Checkpoint))
+                    if (AwkSourceLiterals.TryLowerRegexLiteralPattern(pattern, out var regex, compiler._scope.CompatibilityMode, compiler._scope.Checkpoint))
                         prepared = AwkSwitchCasePattern.FromRegex(regex);
-                    else if (AwkExpressionLowerer.TryReadSwitchConstant(pattern, compiler._scope, out var value))
+                    else if (AwkSourceLiterals.TryReadSwitchConstant(pattern, compiler._scope, out var value))
                         prepared = AwkSwitchCasePattern.FromValue(value);
                     else return false;
                     var site = compiler._switchCases.Count;

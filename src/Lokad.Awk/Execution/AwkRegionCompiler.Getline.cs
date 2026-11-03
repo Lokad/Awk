@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
-    private sealed class GetlineWork(AwkGetlineLoweringParts parts, bool isExpression) : PreparationWork<int>
+    private sealed class GetlineWork(AwkGetlineParts parts, bool isExpression) : PreparationWork<int>
     {
         private byte _stage;
         private int _site;

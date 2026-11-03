@@ -76,8 +76,6 @@ internal static class AwkLValueLowerer
         }
     }
 
-    public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression, string message) =>
-        new(expression.Span, message, AwkDiagnosticId.BindInvalidProgram);
 }
 
 internal readonly struct AwkLValueLoweringResult

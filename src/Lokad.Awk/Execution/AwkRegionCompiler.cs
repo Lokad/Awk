@@ -275,7 +275,7 @@ internal sealed partial class AwkRegionCompiler
                 break;
             case AwkStatementKind.Getline:
                 if (!AwkStatementLoweringShapes.Getline(statement).TryGetValue(out var getline) ||
-                    !AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
+                    !AwkGetlineSyntaxFacts.TryResolveStatementParts(getline, out var parts) ||
                     !Getline(parts, isExpression: false, out _)) return false;
                 break;
             case AwkStatementKind.Close:
@@ -329,16 +329,16 @@ internal sealed partial class AwkRegionCompiler
         switch (syntax.Kind)
         {
             case AwkExpressionKind.Number:
-                if (!AwkExpressionLowerer.TryReadSwitchConstant(syntax, _scope, out var number)) return false;
+                if (!AwkSourceLiterals.TryReadSwitchConstant(syntax, _scope, out var number)) return false;
                 result = Constant(number.AsNumber());
                 return true;
             case AwkExpressionKind.String:
-                if (!AwkExpressionLowerer.TryReadStringLiteral(syntax, _scope, out var literal)) return false;
+                if (!AwkSourceLiterals.TryReadStringLiteral(syntax, _scope, out var literal)) return false;
                 result = Operand(AwkRegionOperandKind.Literal, _literals.Count);
                 _literals.Add(AwkText.FromSourceLiteralString(literal));
                 return true;
             case AwkExpressionKind.Regex:
-                if (!AwkExpressionLowerer.TryLowerRegexLiteralPattern(syntax, out var regex, _scope.CompatibilityMode, _scope.Checkpoint)) return false;
+                if (!AwkSourceLiterals.TryLowerRegexLiteralPattern(syntax, out var regex, _scope.CompatibilityMode, _scope.Checkpoint)) return false;
                 result = EmitRegexMatch(new(Operand(AwkRegionOperandKind.Field, 0), regex), negated: false);
                 return true;
             case AwkExpressionKind.Variable:
@@ -357,7 +357,7 @@ internal sealed partial class AwkRegionCompiler
         return Getline(new(target, command, AwkGetlineSourceKind.InputPipe), isExpression: false, out _);
     }
 
-    private bool Getline(AwkGetlineLoweringParts parts, bool isExpression, out int result) =>
+    private bool Getline(AwkGetlineParts parts, bool isExpression, out int result) =>
         PrepareOperandWork(new GetlineWork(parts, isExpression), out result);
 
     private bool HostBuiltin(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
@@ -465,7 +465,7 @@ internal sealed partial class AwkRegionCompiler
             _scope.CheckCancellation();
             index = index.Children[0];
         }
-        if (index.Kind != AwkExpressionKind.Number || !AwkExpressionLowerer.TryReadSwitchConstant(index, _scope, out var constant)) return false;
+        if (index.Kind != AwkExpressionKind.Number || !AwkSourceLiterals.TryReadSwitchConstant(index, _scope, out var constant)) return false;
         var number = constant.AsNumber();
         if (!double.IsFinite(number) || number < 0 || number > int.MaxValue) return false;
         field = (int)number;

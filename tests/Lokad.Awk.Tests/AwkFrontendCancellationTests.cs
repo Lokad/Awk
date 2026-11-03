@@ -42,7 +42,7 @@ public sealed class AwkFrontendCancellationTests
         }
         var text = "1" + new string('0', 12_000);
         var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkExpressionLowerer.PrepareSourceNumber(text, double.PositiveInfinity,
+            AwkSourceLiterals.PrepareSourceNumber(text, double.PositiveInfinity,
                 AwkCompatibilityMode.Posix, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
@@ -51,7 +51,7 @@ public sealed class AwkFrontendCancellationTests
     public async Task SourceNumberExecutionDoesNotUseThePreparationCancellationCallback()
     {
         using var preparation = new CancellationTokenSource();
-        var number = AwkExpressionLowerer.PrepareSourceNumber("2", 2,
+        var number = AwkSourceLiterals.PrepareSourceNumber("2", 2,
             AwkCompatibilityMode.Posix, preparation.Token.ThrowIfCancellationRequested);
         var expression = AwkExpression.Number(number);
         preparation.Cancel();
@@ -87,7 +87,7 @@ public sealed class AwkFrontendCancellationTests
         }
 
         var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkExpressionLowerer.TryReadNumericLiteralToken(source, ref position, out _, out _, Checkpoint));
+            AwkSourceLiterals.TryReadNumericLiteralToken(source, ref position, out _, out _, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.InRange(position, 1, source.Length - 1);
         Assert.Equal(3, calls);
@@ -111,12 +111,12 @@ public sealed class AwkFrontendCancellationTests
         }
 
         var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkExpressionLowerer.TryReadStringLiteralToken(source, ref position, out _,
+            AwkSourceLiterals.TryReadStringLiteralToken(source, ref position, out _,
                 checkpoint: Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.InRange(position, 1, source.Length - 1);
         position = 0;
-        Assert.True(AwkExpressionLowerer.TryReadStringLiteralToken(source, ref position, out var literal));
+        Assert.True(AwkSourceLiterals.TryReadStringLiteralToken(source, ref position, out var literal));
         Assert.Equal(escaped ? new string('\n', 6_000) : content, literal);
         Assert.Equal(source.Length, position);
     }

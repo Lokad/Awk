@@ -412,8 +412,8 @@ internal static class AwkSemanticValidator
                     pipe.InputPipeGetline.Target.Expression,
                 _ => AwkSyntaxOptional<AwkExpressionSyntax>.None
             };
-            if (getlineTarget.TryGetValue(out var destination) && AwkGetlineLowerer.IsPostfixFieldTarget(destination))
-                diagnostics.Add(AwkGetlineLowerer.PostfixFieldTargetDiagnostic(destination));
+            if (getlineTarget.TryGetValue(out var destination) && AwkGetlineSyntaxFacts.IsPostfixFieldTarget(destination))
+                diagnostics.Add(AwkGetlineSyntaxFacts.PostfixFieldTargetDiagnostic(destination));
 
             foreach (var expression in statement.EnumerateChildExpressions())
                 ValidateExpressionSemanticsCore(expression, context, diagnostics);
@@ -451,7 +451,7 @@ internal static class AwkSemanticValidator
                 if (!arm.Expression.TryGetValue(out var expression)) continue;
                 // Repeated regex patterns are permitted; scalar labels have distinct textual values.
                 if (expression.Kind == AwkExpressionKind.Regex) continue;
-                if (!AwkExpressionLowerer.TryReadSwitchConstant(expression, scope, out var value))
+                if (!AwkSourceLiterals.TryReadSwitchConstant(expression, scope, out var value))
                 {
                     diagnostics.Add(new AwkDiagnostic(expression.Span,
                         "Switch case label must be a numeric, string or regex constant.", AwkDiagnosticId.BindInvalidProgram));
@@ -588,10 +588,10 @@ internal static class AwkSemanticValidator
             if (expression.Kind == AwkExpressionKind.FunctionCall &&
                 AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
                 AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline) &&
-                AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) &&
-                parts.Target.TryGetValue(out var destination) && AwkGetlineLowerer.IsPostfixFieldTarget(destination))
+                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts) &&
+                parts.Target.TryGetValue(out var destination) && AwkGetlineSyntaxFacts.IsPostfixFieldTarget(destination))
             {
-                diagnostics.Add(AwkGetlineLowerer.PostfixFieldTargetDiagnostic(destination));
+                diagnostics.Add(AwkGetlineSyntaxFacts.PostfixFieldTargetDiagnostic(destination));
                 return;
             }
 
@@ -639,7 +639,7 @@ internal static class AwkSemanticValidator
                 expression.Children.Count == 0 ||
                 !AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var identifier) ||
                 !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
-                !AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) ||
+                !AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts) ||
                 parts.HasRedirection)
             {
                 return;
