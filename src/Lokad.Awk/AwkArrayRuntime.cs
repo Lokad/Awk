@@ -268,12 +268,14 @@ internal sealed class AwkArrayRuntime
         return new(key, previous, array, cell);
     }
 
-    public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)
+    public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default)
     {
+        if (_state.TryGetBoundArray(name, binding, out var array))
+            return _variables.GetArrayValue(array, index).RuntimeKind;
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         return !resolved.IsFunctionLocal && _variables.IsSymbolTable(resolved.Text)
             ? _variables.GetArrayElementRuntimeKind(resolved, index)
-            : GetAwkValue(name, index).RuntimeKind;
+            : GetAwkValue(name, index, binding).RuntimeKind;
     }
 
     public bool TryPeekAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)

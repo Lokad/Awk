@@ -2,9 +2,34 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRegionFieldTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task IntrospectionReusesNativeFieldClassificationWithoutOwningSpelling(bool governed)
+    {
+        const int records = 128;
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("key 0007\n", records)));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", "{kind=typeof($2);arrays+=isarray($2);typed+=(kind==\"strnum\");sum+=$2}END{print typed,arrays,sum}"),
+            CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        Assert.Equal("128 0 896\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters.AwkTextAllocations, 0, 12);
+        Assert.InRange(counters.NumericFieldByteParses, records, records * 2);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> PendingFieldWrites()
     {
-        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership", "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete" })
+        foreach (var operation in new[] { "simple", "compound", "concat", "condition", "multi", "printf", "substr", "index", "sprintf", "membership", "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete", "typeof-field", "typeof-prefix", "typeof-nested", "isarray-nested", "isarray-symbol" })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
@@ -28,6 +53,11 @@ public sealed class AwkRegionFieldTests
             "nested-compound" => "{i=1;a[\"0007\"][\"leaf\"]=7;a[$i][\"leaf\"]+=read();print a[\"0007\"][\"leaf\"],$0,i;next}",
             "nested-membership" => "{i=1;SUBSEP=\":\";a[\"r\"][\"0007:tag\"]=1;found=(($i,\"tag\") in a[(read()>0?\"r\":\"x\")]);print found,$0,i;next}",
             "nested-delete" => "{i=1;a[\"0007\",\"tag\"][11]=1;delete a[$i,\"tag\"][read()];print (11 in a[\"0007\",\"tag\"]),$0,i;next}",
+            "typeof-field" => "{text=typeof($(read()-10));print text,$0,i;next}",
+            "typeof-prefix" => "{i=1;print typeof($i),read(),$i;next}",
+            "typeof-nested" => "{i=1;a[\"0007\",\"tag\"][11][\"child\"]=1;text=typeof(a[$i,\"tag\"][read()]);print text,$0,i;next}",
+            "isarray-nested" => "{i=1;a[\"0007\",\"tag\"][11][\"child\"]=1;text=isarray(a[$i,\"tag\"][read()]);print text,$0,i;next}",
+            "isarray-symbol" => "{a[11][\"child\"]=1;text=isarray(SYMTAB[(read()==11?\"a\":\"missing\")]);print text,$0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var source = "function read(x){getline x<\"/side\";i=2;$1=100;return x}" + action;
@@ -86,6 +116,10 @@ public sealed class AwkRegionFieldTests
                 "nested-read" => "kept 100 old 2\n",
                 "nested-simple" => "saved 100 old 2\n",
                 "nested-compound" => "18 100 old 2\n",
+                "typeof-field" => "number 100 old 2\n",
+                "typeof-prefix" => "strnum 11 old\n",
+                "typeof-nested" => "array 100 old 2\n",
+                "isarray-nested" or "isarray-symbol" => "1 100 old 2\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

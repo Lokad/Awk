@@ -376,6 +376,9 @@ Range goldens cover inclusive endpoints and independent state across files.
 reuse, byte-native predicates and funding through actual completion and cancellation.
 `AwkIoCloseDirectionTests` also suspends `close()` and `fflush()` inside user calls, in statement
 and expression positions, to check caller continuation, cancellation and actual storage lifetime.
+Introspection extends the pending-field/key matrix and refusal checks. Counter checks cover
+byte-native field classification; canonical cases retain scalar consumption through grouping
+and implicit `length` calls.
 `AwkRegionPhaseTests` uses the canonical two-file `getline` case with genuinely pending
 input. It preserves caller prefixes/locals through reentrant file phases and keeps pending
 users funded through cancellation. A print fallback case prevents replaying earlier operands;

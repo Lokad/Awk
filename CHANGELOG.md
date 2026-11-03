@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Correct `typeof(length)` to inspect the implicit length call.
 - Correct standalone two-argument `close()` to evaluate and validate the direction,
   consistently with calls used as expressions.
 - Correct dynamic regex matching to capture the left value before RHS effects and

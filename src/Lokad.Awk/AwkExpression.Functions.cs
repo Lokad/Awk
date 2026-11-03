@@ -8,7 +8,7 @@ namespace Lokad.Awk;
 internal abstract partial class AwkExpression
 {
     private static AwkValue TypeOf(AwkRuntimeValueKind kind) =>
-        AwkValue.FromText(AwkRuntimeValueKindNames.Format(kind));
+        AwkRuntimeValueKindNames.Value(kind);
 
     private static AwkExpression CreateStringBuiltin(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments)
     {

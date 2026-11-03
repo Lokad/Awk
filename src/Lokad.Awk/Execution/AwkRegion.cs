@@ -79,7 +79,7 @@ internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding
 internal enum AwkRegionInstructionKind : byte
 {
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
-    Value, Length, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
+    Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return,

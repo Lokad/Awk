@@ -500,6 +500,8 @@ internal sealed class AwkRegionCompiler
             AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
             target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1))
         {
+            if (builtin.Id is AwkBuiltinId.IsArray or AwkBuiltinId.TypeOf)
+                return Introspection(syntax.Children[1], builtin.Id == AwkBuiltinId.TypeOf, out result);
             if (builtin.TryGetScalarComputation(out var implementation))
                 return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
                     ? StringCall(syntax, builtin.Id, out result)
@@ -523,6 +525,39 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.Call, returned, call));
         _activeCalls--;
         result = Operand(AwkRegionOperandKind.ValueTemporary, returned);
+        return true;
+    }
+
+    private bool Introspection(AwkExpressionSyntax argument, bool typeName, out int result)
+    {
+        result = 0;
+        int operand;
+        AwkRegionInstructionKind operation;
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) && Variable(argument, out operand))
+            operation = AwkRegionInstructionKind.InspectVariable;
+        else
+        {
+            var unwrapped = argument;
+            while (unwrapped.Kind == AwkExpressionKind.Group && unwrapped.Children.Count == 1)
+            {
+                _scope.CheckCancellation();
+                unwrapped = unwrapped.Children[0];
+            }
+            if (unwrapped.Kind == AwkExpressionKind.ArrayElement)
+            {
+                if (!ArrayAccess(unwrapped, out operand)) return false;
+                operation = AwkRegionInstructionKind.InspectArray;
+            }
+            else
+            {
+                if (!Expression(argument, out operand, preserveOrigin: true)) return false;
+                operation = AwkRegionInstructionKind.InspectValue;
+            }
+        }
+        var target = typeName ? _values++ : _numbers++;
+        Emit(new(operation, target, operand, Detail: typeName ? 1 : 0));
+        if (operation == AwkRegionInstructionKind.InspectArray) FinishKey(operand);
+        result = Operand(typeName ? AwkRegionOperandKind.ValueTemporary : AwkRegionOperandKind.NumberTemporary, target);
         return true;
     }
 

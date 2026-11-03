@@ -1345,8 +1345,8 @@ internal sealed class AwkRuntimeState : IDisposable
         return ToArrayKey(field);
     }
 
-    public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
-        _arrayRuntime.GetElementRuntimeKind(name, index);
+    public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
+        _arrayRuntime.GetElementRuntimeKind(name, index, binding);
 
     internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {

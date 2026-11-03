@@ -6,6 +6,15 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("introspection-groups-preserve-scalar-use",
+            ["BEGIN{print typeof(a),typeof((a)),typeof(a);print isarray((b)),typeof(b)}"], [],
+            "untyped unassigned unassigned\n0 unassigned\n"),
+        Passing("introspection-implicit-length-call",
+            ["BEGIN{print typeof(length),typeof(length()),typeof((length));print typeof(FS),typeof(NF)}"], [],
+            "number number number\nstring number\n"),
+        Passing("introspection-implicit-length-after-split",
+            ["BEGIN{split(\"\",parts);print typeof(length),typeof(length()),typeof((length));print typeof(FS),typeof(NF)}"], [],
+            "number number number\nstring number\n"),
         AwkGoldenCaseBuilder.Create("array-cell-update-keeps-prior-value-through-same-key-write",
             ["function rhs(a){a[\"x\"]=20;return 3} BEGIN{a[\"x\"]=5;a[\"x\"]+=rhs(a);print a[\"x\"]}"], [])
             .WithStdOut("8\n")

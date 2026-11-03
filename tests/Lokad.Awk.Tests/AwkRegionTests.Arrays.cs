@@ -3,6 +3,35 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkRegionTests
 {
     [Theory]
+    [InlineData("isarray", false)] [InlineData("isarray", true)]
+    [InlineData("typeof", false)] [InlineData("typeof", true)]
+    public void IntrospectionAdmissionFailureDoesNotInsertOrRunLaterEffects(string builtin, bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token, true);
+        var state = fixture.State;
+        var region = Compile("kind=" + builtin + "(a[\"missing\"]);later=9", state);
+        var name = AwkArrayName.FromText("a");
+        state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
+        var owner = state.ResolveOrdinaryArray(name, default);
+        using var storage = new AwkRegionStorage(state);
+        storage.Prepare(region.Layout);
+        var held = fixture.Budget.Reserved;
+        if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
+        else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        Assert.Single(owner.Slots);
+        Assert.False(owner.Slots.ContainsKey(new("missing")));
+        Assert.False(state.HasScalar(AwkVariableName.FromText("kind")));
+        Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
+        Assert.Equal(held, fixture.Budget.Reserved);
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void NestedArrayUpdatesKeepCapturedPriorAndRefundScratch(bool governed)

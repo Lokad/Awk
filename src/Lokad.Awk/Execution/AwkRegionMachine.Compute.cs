@@ -156,6 +156,38 @@ internal partial struct AwkRegionMachine
                             ? arrayCount : state.CountStringUnits(state.FormatStringByteText(lengthValue));
                     break;
                 }
+                case AwkRegionInstructionKind.InspectVariable:
+                {
+                    var inspected = variables[instruction.Left];
+                    var isArray = state.IsArray(new(inspected.Name.Identifier));
+                    if (instruction.Detail == 0) numbers[instruction.Target] = isArray ? 1 : 0;
+                    else
+                    {
+                        var kind = isArray ? AwkRuntimeValueKind.Array : !state.HasScalar(inspected.Name)
+                            ? AwkRuntimeValueKind.Untyped : ReadVariable(inspected).RuntimeKind;
+                        storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
+                    }
+                    break;
+                }
+                case AwkRegionInstructionKind.InspectArray:
+                {
+                    var inspected = arrays[instruction.Left];
+                    var kind = inspected.Path >= 0
+                        ? state.GetArrayAwkValue(storage.Path(inspected.Path).ResolveOwner(state), storage.Path(inspected.Path).Key).RuntimeKind
+                        : state.GetArrayElementRuntimeKind(inspected.Name, Key(inspected), inspected.Binding);
+                    if (instruction.Detail == 0) numbers[instruction.Target] = kind == AwkRuntimeValueKind.Array ? 1 : 0;
+                    else storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
+                    break;
+                }
+                case AwkRegionInstructionKind.InspectValue:
+                {
+                    var inspected = operands[instruction.Left];
+                    // Classification remains local; field spelling stays with its frame.
+                    var inspectedValue = IsField(inspected) ? state.GetFieldComparison(FieldOrdinal(inspected)).Value : Value(instruction.Left);
+                    if (instruction.Detail == 0) numbers[instruction.Target] = inspectedValue.IsArrayValue ? 1 : 0;
+                    else storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(inspectedValue.RuntimeKind));
+                    break;
+                }
                 case AwkRegionInstructionKind.ReleaseValue:
                     storage.ReleaseValue(instruction.Target);
                     break;

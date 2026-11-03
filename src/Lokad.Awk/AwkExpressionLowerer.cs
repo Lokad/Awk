@@ -325,7 +325,8 @@ internal static partial class AwkExpressionLowerer
                     if (!call.GetArgument(0).TryGetValue(out var argument))
                         return false;
 
-                    if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out var variableName))
+                    if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out var variableName) &&
+                        !AwkBuiltins.IsName(variableName.Name, AwkBuiltinId.Length))
                     {
                         var name = new AwkVariableName(variableName.Identifier);
                         lowered = AwkExpression.TypeOf(

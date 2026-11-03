@@ -201,6 +201,10 @@ calls. Reusing a prepared program does not share that state between executions.
 completes. A pending call does not return that storage on cancellation alone. `close()` captures
 the formatted stream name before evaluating its direction; `fflush()` retains value origins
 for its lint behavior. Both preserve their diagnostic and stream-status contracts.
+Introspection distinguishes bare names, array elements and computed values. It preserves
+untyped cells, missing-read insertion, aliases and virtual-array behavior. Field type checks
+can use record-local classification without owning the field's spelling; escaping values
+still own their text.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.
