@@ -28,14 +28,15 @@ internal static class AwkRuntimeMemory
     internal const int ListBufferOverheadBytes = ListObjectBytes + ByteArrayObjectBytes;
     private const int AwkArrayKeyBytes = 32;
     private const int ArraySortEntryBytes = 96;
-    // Five references, seven ints and three flags, including an aligned object header.
+    // Four references, seven ints and three flags, including an aligned object header.
     internal const int ArrayMergeProgressBytes = 96;
+    internal const int ArraySortOperationBytes = 176;
     // Frame/inline slots, its reusable region owner and leases, plus amortized
     // active/recycled reference stacks. Scratch/slot backing is charged separately.
     private const int FunctionFrameBytes = 512;
     // Standalone phase/action scratch owner, its two leases and the enclosing
     // scoped lease. Backing arrays and live payload are admitted separately.
-    internal const int ScopedRegionStorageBytes = 248;
+    internal const int ScopedRegionStorageBytes = 256;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
     private const int RuntimeDiagnosticBytes = 64;
@@ -151,6 +152,9 @@ internal static class AwkRuntimeMemory
         EstimateArrayBufferBytes(count, ReferenceBytes);
 
     internal static long EstimateCapturedPathArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, ReferenceBytes);
+
+    internal static long EstimateSortOperationArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);
 
     internal static long EstimateRegionIteratorArrayBytes(int count) =>

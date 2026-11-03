@@ -129,7 +129,6 @@ internal partial struct AwkRegionMachine
         _hostCompletion = Task.CompletedTask;
         _hostFlow = default;
         _hostValue = default;
-        _iterationKeys = default;
         if (flow == AwkStatementFlow.Continue) { _mainIndex++; return; }
         EndMainRecord();
         if (_mainInput is not { } input)

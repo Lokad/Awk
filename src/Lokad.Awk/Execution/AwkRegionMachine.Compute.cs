@@ -187,6 +187,16 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Match:
                     ExecuteMatch(region.Matches[instruction.Left], instruction.Target);
                     break;
+                case AwkRegionInstructionKind.SortBegin:
+                {
+                    var sort = region.Sorts[instruction.Left];
+                    storage.BeginSort(sort.Slot, storage.ArrayTarget(sort.Source),
+                        sort.Order < 0 ? AwkArraySortOrder.Default : AwkArraySortOrder.Parse(storage.PreparedString(sort.Order)), sort.Keys);
+                    break;
+                }
+                case AwkRegionInstructionKind.SortAdvance:
+                    if (AdvanceSort(region.Sorts[instruction.Left], instruction.Target, position)) goto Resume;
+                    break;
                 case AwkRegionInstructionKind.Gensub:
                     ExecuteGensub(region.Gensubs[instruction.Left], instruction.Target);
                     break;
@@ -310,11 +320,14 @@ internal partial struct AwkRegionMachine
                     state.ClearArray(arrays[instruction.Target].Name);
                     break;
                 case AwkRegionInstructionKind.IteratorBegin:
-                    var iterated = arrays[instruction.Left];
+                    var iteration = region.Iterations[instruction.Left];
+                    var iterated = arrays[iteration.Access];
                     var iterationKey = iterated.Key >= 0 ? Key(iterated) : default;
-                    _cursor = _cursor with { Position = position + 1 };
-                    BeginIteration(iterated, iterationKey);
-                    goto Resume;
+                    BeginIteration(iteration, iterated, iterationKey);
+                    break;
+                case AwkRegionInstructionKind.IteratorSortAdvance:
+                    if (AdvanceIterationSort(region.Iterations[instruction.Left], position)) goto Resume;
+                    break;
                 case AwkRegionInstructionKind.IteratorNext:
                     if (storage.TryNextKey(instruction.Left, out var nextKey))
                         AssignVariable(variables[instruction.Right], state.CreateArrayKeyValue(nextKey));

@@ -28,6 +28,9 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionMatch> _matches = [];
     private readonly List<AwkRegionSubstitution> _substitutions = [];
     private readonly List<AwkRegionGensub> _gensubs = [];
+    private readonly List<AwkRegionSort> _sorts = [];
+    private readonly List<AwkRegionIteration> _iterations = [];
+    private int _sortSlots;
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -120,9 +123,9 @@ internal sealed class AwkRegionCompiler
         }
         region = new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets),
+            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots),
             _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind);
         return true;
     }
 
@@ -361,8 +364,12 @@ internal sealed class AwkRegionCompiler
         }
         else if (arraySyntax.Kind != AwkExpressionKind.ArrayElement || !ArrayAccess(arraySyntax, out access)) return false;
         var slot = _iterators++;
-        Emit(new(AwkRegionInstructionKind.IteratorBegin, slot, access));
+        var site = _iterations.Count;
+        _iterations.Add(new(access, slot, _sortSlots++, _activeCalls, _numbers++));
+        _incomingCalls = Math.Max(_incomingCalls, _activeCalls + 1);
+        Emit(new(AwkRegionInstructionKind.IteratorBegin, Left: site));
         if (_arrays[access].Key >= 0) FinishKey(access);
+        Emit(new(AwkRegionInstructionKind.IteratorSortAdvance, Left: site));
         var start = Label();
         var next = Emit(new(AwkRegionInstructionKind.IteratorNext, Left: slot, Right: variable));
         var loop = new ControlScope(isLoop: true, _values);
@@ -528,6 +535,7 @@ internal sealed class AwkRegionCompiler
             if (builtin.Id == AwkBuiltinId.Match) return Match(syntax, out result);
             if (builtin.Id is AwkBuiltinId.Sub or AwkBuiltinId.Gsub)
                 return Substitute(syntax, builtin.Id == AwkBuiltinId.Gsub, out result);
+            if (builtin.Id is AwkBuiltinId.Asort or AwkBuiltinId.Asorti) return Sort(syntax, builtin.Id == AwkBuiltinId.Asorti, out result);
             if (builtin.Id == AwkBuiltinId.Gensub) return Gensub(syntax, out result);
             if (builtin.TryGetScalarComputation(out var implementation))
                 return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
@@ -644,6 +652,31 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.Substitute, number, site));
         if (access >= 0) FinishKey(access);
         result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        return true;
+    }
+
+    private bool Sort(AwkExpressionSyntax syntax, bool keys, out int result)
+    {
+        result = 0;
+        if (!ArrayTarget(syntax.Children[1], out var source)) return false;
+        var destination = source;
+        if (syntax.Children.Count >= 3 && !ArrayTarget(syntax.Children[2], out destination)) return false;
+        var order = -1;
+        if (syntax.Children.Count == 4)
+        {
+            if (!Expression(syntax.Children[3], out var value)) return false;
+            order = _values++;
+            Emit(new(AwkRegionInstructionKind.Value, order, value));
+            Emit(new(AwkRegionInstructionKind.PrepareString, order));
+        }
+        var site = _sorts.Count;
+        var comparison = _numbers++;
+        _sorts.Add(new(source, destination, order, _sortSlots++, _activeCalls, comparison, keys));
+        _incomingCalls = Math.Max(_incomingCalls, _activeCalls + 1);
+        Emit(new(AwkRegionInstructionKind.SortBegin, Left: site));
+        var target = _numbers++;
+        Emit(new(AwkRegionInstructionKind.SortAdvance, target, site));
+        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
         return true;
     }
 

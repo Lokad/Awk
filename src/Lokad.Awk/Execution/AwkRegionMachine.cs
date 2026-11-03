@@ -16,7 +16,6 @@ internal partial struct AwkRegionMachine
     private Task _hostCompletion;
     private ValueTask<AwkStatementFlow> _hostFlow;
     private ValueTask<AwkValue> _hostValue;
-    private ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> _iterationKeys;
     private int _destination;
     private AwkFunctionFrame? _legacyFrame;
     private bool _finished;
@@ -96,10 +95,6 @@ internal partial struct AwkRegionMachine
             case Pending.MainRead:
                 if (!_mainRead.IsCompletedSuccessfully) return false;
                 CompleteMainRead(_mainRead.Result);
-                break;
-            case Pending.Iteration:
-                if (!_iterationKeys.IsCompletedSuccessfully) return false;
-                CompleteIteration(_iterationKeys.Result);
                 break;
             case Pending.MainAction:
             case Pending.MainClose:
@@ -236,7 +231,6 @@ internal partial struct AwkRegionMachine
         _hostFlow = default;
         _hostValue = default;
         _mainRead = default;
-        _iterationKeys = default;
     }
 
     internal static async ValueTask<AwkStatementFlow> ResumeAsync(AwkRegionMachine machine)
@@ -261,10 +255,6 @@ internal partial struct AwkRegionMachine
                         case Pending.MainRead:
                             var mainRecord = await machine._mainRead.ConfigureAwait(false);
                             machine.CompleteMainRead(mainRecord);
-                            break;
-                        case Pending.Iteration:
-                            var keys = await machine._iterationKeys.ConfigureAwait(false);
-                            machine.CompleteIteration(keys);
                             break;
                         case Pending.MainAction:
                         case Pending.MainClose:
@@ -291,5 +281,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, Output, Read, LegacyValue, MainRead, MainAction, MainClose, Iteration, BuiltinValue }
+    private enum Pending : byte { None, Flush, Output, Read, LegacyValue, MainRead, MainAction, MainClose, BuiltinValue }
 }

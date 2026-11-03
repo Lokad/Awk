@@ -191,7 +191,10 @@ retain owned captures. Preparation has no flat block-size or argument-count cuto
 managed stack protection still applies. There is no public execution-engine selector.
 Array traversal keeps its existing leased key snapshot in execution-owned scratch. Loop
 progression shares the computation driver; source mutation does not change the snapshot.
-Nested calls, early flow and pending sorting callbacks retain their ordinary ownership rules.
+`asort`, `asorti` and `sorted_in` callbacks use the same function frames and continuations as
+ordinary calls. The admitted sort snapshot survives source mutation and pending callbacks;
+comparison phases and atomic destination publication retain their existing rules. Unsorted
+traversal takes its ordinary key snapshot without constructing a sort operation.
 Switch selectors are captured once; ordered case tests and fallthrough use the same branch
 driver as loops. Regex labels use the supplied provider. Function exit uses the existing
 status/phase checks and unwind path, including pending status evaluation and END handling.

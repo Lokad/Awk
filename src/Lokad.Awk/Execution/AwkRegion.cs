@@ -9,7 +9,7 @@ internal sealed class AwkRegion(
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
     AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches,
-    AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionKind kind)
+    AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
@@ -70,11 +70,13 @@ internal sealed class AwkRegion(
     internal AwkRegionMatch[] Matches => matches;
     internal AwkRegionSubstitution[] Substitutions => substitutions;
     internal AwkRegionGensub[] Gensubs => gensubs;
+    internal AwkRegionSort[] Sorts => sorts;
+    internal AwkRegionIteration[] Iterations => iterations;
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
-    int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0);
+    int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0, int Sorts = 0);
 internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
 internal enum AwkRegionVariableKind : byte { Dynamic, Global, Local, Special }
@@ -88,8 +90,8 @@ internal enum AwkRegionInstructionKind : byte
     Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
-    BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return,
-    GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorNext, IteratorEnd, RegexMatch,
+    SortBegin, SortAdvance, BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return,
+    GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
 internal readonly record struct AwkRegionInstruction(
@@ -126,6 +128,8 @@ internal sealed record AwkRegionSplit(int Input, int Array, int Separators, int 
 internal sealed record AwkRegionMatch(int Input, int Pattern, AwkRegexPatternOrigin Origin, int Array);
 internal sealed record AwkRegionSubstitution(int Pattern, AwkRegexPatternOrigin Origin,
     int Replacement, int Target, bool Global);
+internal readonly record struct AwkRegionIteration(int Access, int Iterator, int Sort, int CallSlot, int Comparison);
+internal sealed record AwkRegionSort(int Source, int Destination, int Order, int Slot, int CallSlot, int Comparison, bool Keys);
 internal sealed record AwkRegionGensub(int Pattern, AwkRegexPatternOrigin Origin, int Start, int Count);
 internal sealed record AwkRegionPrint(int Values, int Texts, int Segments, int Count, int[] Fields, AwkRegionOutput Output = default);
 internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields, AwkRegionOutput Output = default);

@@ -2,6 +2,37 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
+    private bool AdvanceSort(AwkRegionSort site, int result, int position)
+    {
+        var storage = _cursor.Storage;
+        var operation = storage.Sort(site.Slot);
+        if (ScheduleSortComparison(operation, site.CallSlot, site.Comparison, position)) return true;
+        storage.Numbers[result] = operation.Publish(storage.ArrayTarget(site.Destination), site.Keys);
+        storage.ReleaseSort(site.Slot);
+        storage.ReleaseArrayTarget(site.Source);
+        if (site.Destination != site.Source) storage.ReleaseArrayTarget(site.Destination);
+        if (site.Order >= 0) storage.ReleaseValue(site.Order);
+        return false;
+    }
+
+    private bool ScheduleSortComparison(AwkArrayRuntime.AwkArraySortOperation operation, int callSlot, int comparison, int position)
+    {
+        var storage = _cursor.Storage;
+        if (operation.IsComparing) operation.AcceptComparison(storage.Numbers[comparison]);
+        if (operation.TryNextComparison())
+        {
+            var call = new AwkRegionCall(operation.Function, callSlot, 4);
+            storage.BeginCall(call);
+            var frame = storage.IncomingFrame(call.Slot);
+            for (var index = 0; index < 4; index++)
+                _state.StageFunctionArgument(frame, index, AwkFunctionArgument.FromValue(operation.GetArgument(index)));
+            _cursor = _cursor with { Position = position };
+            EnterCall(call, new(AwkRegionOperandKind.NumberTemporary, comparison));
+            return true;
+        }
+        return false;
+    }
+
     private void ExecuteGensub(AwkRegionGensub operation, int result)
     {
         var storage = _cursor.Storage;

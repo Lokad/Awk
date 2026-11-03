@@ -426,9 +426,14 @@ internal sealed partial class AwkArrayRuntime
     internal async ValueTask<int> SortArrayValuesAsync(AwkArrayTarget sourceArrayName,
         AwkArrayTarget destinationArrayName, AwkArraySortOrder order, AwkEvaluationContext context)
     {
-        var source = ResolveTarget(sourceArrayName);
-        using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
-        var entries = await SortEntriesAsync(source, order, reservation.Count, reservation.Lease, context).ConfigureAwait(false);
+        using var operation = BeginSort(sourceArrayName, order, keys: false);
+        await CompleteLegacySortAsync(operation, context).ConfigureAwait(false);
+        return operation.Publish(destinationArrayName, keys: false);
+    }
+
+    private int PublishSortedValues(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
+        AwkArraySortEntry[] entries, AwkArrayReservation reservation)
+    {
         var destination = ResolveTarget(destinationArrayName);
         _variables.ValidateArrayOverlap(source, destination, allowSame: true);
         long transferredValueTextBytes = 0;
@@ -466,11 +471,14 @@ internal sealed partial class AwkArrayRuntime
     internal async ValueTask<int> SortArrayKeysAsync(AwkArrayTarget sourceArrayName,
         AwkArrayTarget destinationArrayName, AwkArraySortOrder order, AwkEvaluationContext context)
     {
-        if (order is AwkArraySortOrder.DefaultOrder)
-            order = DefaultIndexOrder;
-        var source = ResolveTarget(sourceArrayName);
-        using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
-        var entries = await SortEntriesAsync(source, order, reservation.Count, reservation.Lease, context).ConfigureAwait(false);
+        using var operation = BeginSort(sourceArrayName, order, keys: true);
+        await CompleteLegacySortAsync(operation, context).ConfigureAwait(false);
+        return operation.Publish(destinationArrayName, keys: true);
+    }
+
+    private int PublishSortedKeys(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
+        AwkArraySortEntry[] entries, AwkArrayReservation reservation)
+    {
         var destination = ResolveTarget(destinationArrayName);
         _variables.ValidateArrayOverlap(source, destination, allowSame: true);
         _variables.SetArrayValues(
@@ -557,36 +565,11 @@ internal sealed partial class AwkArrayRuntime
     private async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(AwkArrayTarget target,
         AwkEvaluationContext context)
     {
-        var arrayName = ResolveTarget(target);
-        if (!TryResolveSortedInOrder(out var order))
-            return SnapshotUnsortedKeyValues(arrayName);
-
-        var reservation = ReserveSortedKeySnapshot(arrayName, order);
-        var lease = reservation.Lease;
-        try
-        {
-            return new AwkLeasedReadOnlyList<AwkArrayKey>(
-                await SnapshotKeyValuesAsync(arrayName, order, reservation.Count, context).ConfigureAwait(false),
-                lease);
-        }
-        catch
-        {
-            reservation.Dispose();
-            throw;
-        }
-
-        async ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
-            AwkArrayTarget arrayName,
-            AwkArraySortOrder order,
-            int count,
-            AwkEvaluationContext context)
-        {
-            if (count == 0)
-                return [];
-
-            var entries = await SortEntriesAsync(arrayName, order, count, lease, context).ConfigureAwait(false);
-            return CopyKeyValues(entries);
-        }
+        var start = BeginKeySnapshot(target);
+        if (!start.NeedsComparisons) return start.Keys;
+        using var operation = start.Sort;
+        await CompleteLegacySortAsync(operation, context).ConfigureAwait(false);
+        return operation.TakeKeys();
     }
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayTarget arrayName)
@@ -872,7 +855,6 @@ internal sealed partial class AwkArrayRuntime
             bytes = AwkRuntimeMemory.CheckedAdd(
                 bytes,
                 AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count));
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkValueArrayBytes(4));
         }
 
         if (output is AwkArraySortOutput.KeySnapshot)

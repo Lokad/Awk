@@ -2,37 +2,42 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private void BeginIteration(AwkRegionArrayAccess access, AwkArrayKey key)
+    private void BeginIteration(AwkRegionIteration site, AwkRegionArrayAccess access, AwkArrayKey key)
     {
         _state.ThrowIfCancellationRequested();
+        AwkArrayTarget target;
         if (access.Path >= 0)
         {
             var path = _cursor.Storage.Path(access.Path);
-            var array = _state.GetSubarray(path.ResolveOwner(_state), path.Key);
+            target = new(AwkValue.FromArrayReference(_state.GetSubarray(path.ResolveOwner(_state), path.Key)));
             _cursor.Storage.ReleasePath(access.Path);
-            _iterationKeys = _state.SnapshotArrayKeyValuesAsync(array, Context);
         }
         else if (access.Key >= 0)
-            _iterationKeys = _state.SnapshotArrayKeyValuesAsync(
-                _state.GetSubarray(access.Name, key, access.Binding), Context);
+            target = new(AwkValue.FromArrayReference(_state.GetSubarray(access.Name, key, access.Binding)));
         else
-            _iterationKeys = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
-                ? _state.SnapshotArrayKeyValuesAsync(array, Context)
-                : _state.SnapshotArrayKeyValuesAsync(access.Name, Context);
-        _pending = Pending.Iteration;
+            target = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
+                ? new(AwkValue.FromArrayReference(array)) : new(access.Name);
+        var start = _state.BeginArrayKeySnapshot(target);
+        if (start.NeedsComparisons) _cursor.Storage.StoreSort(site.Sort, start.Sort);
+        else
+        {
+            try
+            {
+                _state.ThrowIfCancellationRequested();
+                _cursor.Storage.BeginIterator(site.Iterator, start.Keys);
+            }
+            catch { start.Keys.Dispose(); throw; }
+        }
     }
 
-    private void CompleteIteration(AwkLeasedReadOnlyList<AwkArrayKey> keys)
+    private bool AdvanceIterationSort(AwkRegionIteration site, int position)
     {
-        _iterationKeys = default;
-        _pending = Pending.None;
-        try
-        {
-            _state.ThrowIfCancellationRequested();
-            var site = _cursor.Region.Instructions[_cursor.Position - 1];
-            _cursor.Storage.BeginIterator(site.Target, keys);
-        }
-        catch { keys.Dispose(); throw; }
+        var storage = _cursor.Storage;
+        if (!storage.TryGetSort(site.Sort, out var operation)) return false;
+        if (ScheduleSortComparison(operation, site.CallSlot, site.Comparison, position)) return true;
+        storage.BeginIterator(site.Iterator, operation.TakeKeys());
+        storage.ReleaseSort(site.Sort);
+        return false;
     }
 
     private void AssignVariable(AwkRegionVariable variable, AwkValue value)

@@ -76,8 +76,8 @@ public sealed class AwkRegionCallTests
     [InlineData(true, true, false)] [InlineData(true, true, true)]
     public async Task NumericAndValueReturnsKeepPendingOwnersAndOriginalSpelling(bool governed, bool sortPrelude, bool cancel)
     {
-        // Sorting is still an explicit migration boundary. This
-        // covers its pending callee lifetime until that primitive joins the driver.
+        // Preserve numeric/value returns after an optional sort initializes
+        // the callee scratch used by the same pending function.
         var source = "function read(v,scratch){" + (sortPrelude ? "asort(scratch);" : "") +
             "getline v<\"/side\";return v}{sum+=read();saved=read();print sum,saved;next}";
         var host = new MockFileSystem();

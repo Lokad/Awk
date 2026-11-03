@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Run user sorting callbacks through ordinary interpreter frames, including `sorted_in`
+  traversal. Keep stable comparisons, admitted snapshots, mutation and publication rules
+  while removing the separate pending traversal and argument-buffer paths.
+
 - Prepare `gensub` through the common interpreter with byte-native patterns and selectors.
   Preserve early pattern conversion and late replacement conversion; large or nonfinite
   occurrence numbers no longer wrap to the first match. Positive numeric selectors avoid

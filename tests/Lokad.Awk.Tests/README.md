@@ -5,13 +5,17 @@ The awk suite is intentionally split by boundary. New coverage should start in t
 `AwkRegionCallTests` checks iterative call continuations, genuinely pending host reads,
 cancellation and funded-frame cleanup. Numeric-return cases distinguish immediate numeric
 consumption from spelling-preserving value returns, including pending and canceled reads
-in both migrated and temporarily unmigrated callees. Range-condition cases use the public
+after ordinary computation and sorting. Range-condition cases use the public
 execution boundary and actual pending reads to preserve matching/nonmatching action order,
 cancellation and refunds while rule orchestration is consolidated. `AwkIncomingFrameTests` checks caller visibility,
 alias activation and admission before publication. During execution migration, preserve
 semantic assertions and measure removed transport rather than pinning old preparation routes.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.
+`AwkSortingContinuationTests` checks pending comparator calls through the shared function frames,
+including nested sorts, deleted source arrays, captured values, destination publication,
+refused admission, ignored cancellation and final refunds. Counters verify that asort/asorti
+and sorted traversal no longer rent intermediate function-argument buffers.
 `AwkIterationLifetimeTests` checks flat/nested snapshots across source deletion, aliased calls,
 genuinely pending sorting callbacks or loop bodies, cancellation and refused admission. Its
 aggregation counters cover native values and bound calls at two key cardinalities.
@@ -22,8 +26,8 @@ selection, fallthrough, nested loop flow and END status behavior.
 `AwkRegexRegionTests` checks native literal field/record predicates and dynamic-pattern input
 ownership across pending RHS calls, record/format mutation and ignored cancellation in both
 memory modes. Match and split cases retain patterns after their source variable is cleared,
-and check capture admission before mutation. Sorting preludes retain mixed-call coverage until
-sorting migrates. Golden cases pin late numeric input formatting and earlier regex-argument
+and check capture admission before mutation. Sorting preludes exercise argument and pending
+return lifetimes after a sort. Golden cases pin late numeric input formatting and earlier regex-argument
 conversion without changing the captured input value.
 Substitution cases cover pending pattern/replacement/target expressions, field and nested-array
 locations, late numeric replacement conversion, dynamic-pattern failure order and final refunds.

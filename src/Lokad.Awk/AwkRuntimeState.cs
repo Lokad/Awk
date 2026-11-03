@@ -1465,6 +1465,11 @@ internal sealed class AwkRuntimeState : IDisposable
     internal int PatsplitIntoArray(AwkText input, AwkArrayTarget array, AwkRegexPattern pattern,
         AwkArrayTarget? separators) => _arrayRuntime.PatsplitIntoArray(input, array, pattern, separators);
 
+    internal AwkArrayIterationStart BeginArrayKeySnapshot(AwkArrayTarget target) => _arrayRuntime.BeginKeySnapshot(target);
+
+    internal AwkArrayRuntime.AwkArraySortOperation BeginArraySort(AwkArrayTarget source,
+        AwkArraySortOrder order, bool keys) => _arrayRuntime.BeginSort(source, order, keys);
+
     public ValueTask<int> SortArrayValuesAsync(
         AwkArrayName sourceArrayName,
         AwkArrayName destinationArrayName,

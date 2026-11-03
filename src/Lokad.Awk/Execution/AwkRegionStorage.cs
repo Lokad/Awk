@@ -15,6 +15,7 @@ internal sealed class AwkRegionStorage : IDisposable
     private AwkArrayTarget?[] _arrayTargets = [];
     private AwkCapturedArrayPath?[] _paths = [];
     private AwkRegionIterator[] _iterators = [];
+    private AwkArrayRuntime.AwkArraySortOperation?[] _sorts = [];
     private AwkUtf8Builder[] _builders = [];
     private AwkFunctionFrame?[] _incoming = [];
     private AwkFieldText[] _printSegments = [];
@@ -60,7 +61,8 @@ internal sealed class AwkRegionStorage : IDisposable
         var paths = layout.Paths;
         var iterators = layout.Iterators;
         var arrayTargets = layout.ArrayTargets;
-        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length && segments <= _printSegments.Length && getlineTargets <= _getlineTargets.Length && paths <= _paths.Length && iterators <= _iterators.Length && arrayTargets <= _arrayTargets.Length) return;
+        var sorts = layout.Sorts;
+        if (numbers <= _numbers.Length && values <= _values.Length && targets <= _targets.Length && builders <= _builders.Length && incoming <= _incoming.Length && texts <= _texts.Length && segments <= _printSegments.Length && getlineTargets <= _getlineTargets.Length && paths <= _paths.Length && iterators <= _iterators.Length && arrayTargets <= _arrayTargets.Length && sorts <= _sorts.Length) return;
         _preparedRegion = null;
         var growNumbers = numbers > _numbers.Length;
         var growValues = values > _values.Length;
@@ -73,6 +75,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var growPaths = paths > _paths.Length;
         var growIterators = iterators > _iterators.Length;
         var growArrayTargets = arrayTargets > _arrayTargets.Length;
+        var growSorts = sorts > _sorts.Length;
         // Unchanged buffers keep their current funding. Admit only the new buffers
         // alongside the old buffers that remain live until publication below.
         var bytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(numbers) : 0,
@@ -89,6 +92,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (growPaths) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateCapturedPathArrayBytes(paths));
         if (growIterators) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateRegionIteratorArrayBytes(iterators));
         if (growArrayTargets) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayTargetArrayBytes(arrayTargets));
+        if (growSorts) bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateSortOperationArrayBytes(sorts));
         var replacedBytes = AwkRuntimeMemory.CheckedAdd(growNumbers ? AwkRuntimeMemory.EstimateDoubleArrayBytes(_numbers.Length) : 0,
             AwkRuntimeMemory.CheckedAdd(growValues ? AwkRuntimeMemory.EstimateAwkValueArrayBytes(_values.Length) : 0,
                 growTargets ? AwkRuntimeMemory.EstimateArrayUpdateTargetArrayBytes(_targets.Length) : 0));
@@ -101,6 +105,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (growPaths) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateCapturedPathArrayBytes(_paths.Length));
         if (growIterators) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateRegionIteratorArrayBytes(_iterators.Length));
         if (growArrayTargets) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateArrayTargetArrayBytes(_arrayTargets.Length));
+        if (growSorts) replacedBytes = AwkRuntimeMemory.CheckedAdd(replacedBytes, AwkRuntimeMemory.EstimateSortOperationArrayBytes(_sorts.Length));
         using var staging = _state.MemoryAccounting.ReserveTransient(bytes);
         _state.ThrowIfCancellationRequested();
         var numeric = growNumbers ? new double[numbers] : _numbers;
@@ -108,6 +113,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var captured = growTargets ? new AwkArrayUpdateTarget[targets] : _targets;
         var readTargets = growGetlineTargets ? new AwkResolvedGetlineTarget[getlineTargets] : _getlineTargets;
         var capturedPaths = growPaths ? new AwkCapturedArrayPath?[paths] : _paths;
+        var sortOperations = growSorts ? new AwkArrayRuntime.AwkArraySortOperation?[sorts] : _sorts;
         var iterations = growIterators ? new AwkRegionIterator[iterators] : _iterators;
         var argumentTargets = growArrayTargets ? new AwkArrayTarget?[arrayTargets] : _arrayTargets;
         var frames = growIncoming ? new AwkFunctionFrame?[incoming] : _incoming;
@@ -137,6 +143,7 @@ internal sealed class AwkRegionStorage : IDisposable
         _getlineTargets = readTargets;
         _paths = capturedPaths;
         _iterators = iterations;
+        _sorts = sortOperations;
         _arrayTargets = argumentTargets;
         _builders = keyBuffers;
         _incoming = frames;
@@ -300,6 +307,34 @@ internal sealed class AwkRegionStorage : IDisposable
         path?.Dispose();
     }
 
+    internal void BeginSort(int slot, AwkArrayTarget source, AwkArraySortOrder order, bool keys)
+    {
+        ReleaseSort(slot);
+        _sorts[slot] = _state.BeginArraySort(source, order, keys);
+    }
+
+    internal void StoreSort(int slot, AwkArrayRuntime.AwkArraySortOperation operation)
+    {
+        ReleaseSort(slot);
+        _sorts[slot] = operation;
+    }
+
+    internal bool TryGetSort(int slot, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayRuntime.AwkArraySortOperation? operation)
+    {
+        operation = _sorts[slot];
+        return operation is not null;
+    }
+
+    internal AwkArrayRuntime.AwkArraySortOperation Sort(int slot) => _sorts[slot] ??
+        throw new InvalidOperationException("No active sort operation.");
+
+    internal void ReleaseSort(int slot)
+    {
+        var operation = _sorts[slot];
+        _sorts[slot] = null;
+        operation?.Dispose();
+    }
+
     internal void BeginIterator(int slot, AwkLeasedReadOnlyList<AwkArrayKey> keys)
     {
         ReleaseIterator(slot);
@@ -428,6 +463,7 @@ internal sealed class AwkRegionStorage : IDisposable
             _incoming[index] = null;
             _state.DiscardIncomingFunctionFrame(frame);
         }
+        for (var index = _sorts.Length - 1; index >= 0; index--) ReleaseSort(index);
         Array.Clear(_values);
         Array.Clear(_targets);
         for (var index = 0; index < _paths.Length; index++) ReleasePath(index);
@@ -456,6 +492,7 @@ internal sealed class AwkRegionStorage : IDisposable
         _arrayTargets = [];
         _paths = [];
         _iterators = [];
+        _sorts = [];
         foreach (var builder in _builders) builder.Dispose();
         _builders = [];
         _incoming = [];
