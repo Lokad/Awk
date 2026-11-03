@@ -371,6 +371,9 @@ copy bound while execution preparation changes.
 Predicate goldens cover mixed `&&`/`||`/`!`, call order, loop tests, NaN/signed zero and
 string-origin comparisons. Text comparisons must not parse decimal input as numbers when
 the other operand is known to be a string; nondecimal conversion behavior stays covered.
+Range goldens cover inclusive endpoints and independent state across files.
+`AwkRangeLifetimeTests` checks pending conditions, nonlocal flow, concurrent prepared-program
+reuse, byte-native predicates and funding through actual completion and cancellation.
 `AwkRegionPhaseTests` uses the canonical two-file `getline` case with genuinely pending
 input. It preserves caller prefixes/locals through reentrant file phases and keeps pending
 users funded through cancellation. A print fallback case prevents replaying earlier operands;

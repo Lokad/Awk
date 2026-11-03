@@ -85,7 +85,7 @@ internal enum AwkRegionInstructionKind : byte
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorNext, IteratorEnd, RegexMatch,
-    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, Exit, Flow
+    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);

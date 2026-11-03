@@ -47,35 +47,54 @@ internal sealed class AwkRegionCompiler
         new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record)
             .Compile(statements, null, defaultPrint: false, out region);
 
-    internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope,
+    internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
         [NotNullWhen(true)] out AwkRegion? region)
     {
         AwkExpressionSyntax? condition = null;
+        AwkExpressionSyntax? rangeEnd = null;
         if (rule.Kind == AwkRuleKind.Main && rule.PatternTokens.Count != 0)
         {
-            if (rule.PatternSyntax is not AwkSinglePatternSyntax { Expression: { } expression })
+            if (rule.PatternSyntax is AwkSinglePatternSyntax { Expression: { } expression })
+                condition = expression;
+            else if (rangeIndex >= 0 && rule.PatternSyntax is AwkRangePatternSyntax
+                { Start.Expression: { } start, End.Expression: { } end })
+            {
+                condition = start;
+                rangeEnd = end;
+            }
+            else
             {
                 region = null;
                 return false;
             }
-            condition = expression;
         }
         return new AwkRegionCompiler(scope, rule.Kind == AwkRuleKind.Main ? AwkRegionKind.Record : AwkRegionKind.Phase)
-            .Compile(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, out region);
+            .Compile(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, out region, rangeEnd, rangeIndex);
     }
 
     private bool Compile(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
-        bool defaultPrint, [NotNullWhen(true)] out AwkRegion? region)
+        bool defaultPrint, [NotNullWhen(true)] out AwkRegion? region,
+        AwkExpressionSyntax? rangeEnd = null, int rangeIndex = -1)
     {
         Label();
         List<int>? skipped = null;
         if (condition is not null)
         {
             skipped = [];
+            var active = rangeEnd is null ? -1 : Emit(new(AwkRegionInstructionKind.JumpIfRangeActive, Left: rangeIndex));
             if (!Branch(condition, whenTrue: false, skipped))
             {
                 region = null;
                 return false;
+            }
+            if (rangeEnd is not null)
+            {
+                Emit(new(AwkRegionInstructionKind.SetRangeState, rangeIndex, Detail: 1));
+                Patch(active, Label());
+                var continuing = new List<int>();
+                if (!Branch(rangeEnd, whenTrue: false, continuing)) { region = null; return false; }
+                Emit(new(AwkRegionInstructionKind.SetRangeState, rangeIndex));
+                PatchBranches(continuing, Label());
             }
         }
         if (!Statements(statements))

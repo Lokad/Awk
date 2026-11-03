@@ -47,6 +47,7 @@ internal static class AwkRuntime
             stringEscapeWarnings, regexEscapeWarnings, executionOptions.Csv);
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeRangePatterns(program.RangeCount);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(
             runtimeOptions.ExposeEnvironment

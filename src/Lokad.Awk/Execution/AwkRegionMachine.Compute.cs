@@ -538,6 +538,12 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.JumpIfCase:
                     if (region.SwitchCases[instruction.Right].Matches(Value(instruction.Left), state)) position = instruction.Target - 1;
                     break;
+                case AwkRegionInstructionKind.JumpIfRangeActive:
+                    if (state.IsRangePatternActive(instruction.Left)) position = instruction.Target - 1;
+                    break;
+                case AwkRegionInstructionKind.SetRangeState:
+                    state.SetRangePatternActive(instruction.Target, instruction.Detail != 0);
+                    break;
                 case AwkRegionInstructionKind.Exit:
                     state.ThrowIfCancellationRequested();
                     state.RequestExit(instruction.Left < 0 ? AwkOptionalExitCode.None :

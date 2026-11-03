@@ -6,9 +6,9 @@ internal abstract class AwkPattern
 {
     public static AwkPattern Regex(AwkRegex regex) => new RegexPattern(regex);
 
-    public static AwkPattern Range(AwkRegex start, AwkRegex end) => new RangePattern(start, end);
+    public static AwkPattern Range(AwkRegex start, AwkRegex end, int index) => new RangePattern(start, end, index);
 
-    public static AwkPattern Range(AwkCondition start, AwkCondition end) => new ConditionRangePattern(start, end);
+    public static AwkPattern Range(AwkCondition start, AwkCondition end, int index) => new ConditionRangePattern(start, end, index);
 
     /// <summary>
     /// Returns whether the current input record should execute the associated action and updates per-run pattern state.
@@ -21,44 +21,44 @@ internal abstract class AwkPattern
             ValueTask.FromResult(state.IsRegexMatch(regex, state.CurrentRecordByteOperand));
     }
 
-    private sealed class RangePattern(AwkRegex start, AwkRegex end) : AwkPattern
+    private sealed class RangePattern(AwkRegex start, AwkRegex end, int index) : AwkPattern
     {
         public override ValueTask<bool> MatchesAsync(AwkRuntimeState state)
         {
             var line = state.CurrentRecordByteOperand;
-            var active = state.IsRangePatternActive(this);
+            var active = state.IsRangePatternActive(index);
             if (!active && state.IsRegexMatch(start, line))
             {
                 active = true;
-                state.SetRangePatternActive(this, active: true);
+                state.SetRangePatternActive(index, active: true);
             }
 
             var matches = active;
             if (active && state.IsRegexMatch(end, line))
             {
-                state.SetRangePatternActive(this, active: false);
+                state.SetRangePatternActive(index, active: false);
             }
 
             return ValueTask.FromResult(matches);
         }
     }
 
-    private sealed class ConditionRangePattern(AwkCondition start, AwkCondition end) : AwkPattern
+    private sealed class ConditionRangePattern(AwkCondition start, AwkCondition end, int index) : AwkPattern
     {
         public override async ValueTask<bool> MatchesAsync(AwkRuntimeState state)
         {
             var context = new AwkEvaluationContext(state);
-            var active = state.IsRangePatternActive(this);
+            var active = state.IsRangePatternActive(index);
             if (!active && await start.EvaluateAsync(context).ConfigureAwait(false))
             {
                 active = true;
-                state.SetRangePatternActive(this, active: true);
+                state.SetRangePatternActive(index, active: true);
             }
 
             var matches = active;
             if (active && await end.EvaluateAsync(context).ConfigureAwait(false))
             {
-                state.SetRangePatternActive(this, active: false);
+                state.SetRangePatternActive(index, active: false);
             }
 
             return matches;

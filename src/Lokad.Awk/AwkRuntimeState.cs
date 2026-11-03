@@ -47,7 +47,7 @@ internal sealed class AwkRuntimeState : IDisposable
     private readonly AwkFunctionRuntime _functions;
     private AwkGlobalBinding[]? _globalReadSlots;
     private readonly AwkExecutionContextStack _executionContexts = new();
-    private readonly AwkRangePatternRuntime _rangePatterns = new();
+    private bool[] _rangePatterns = [];
     private readonly AwkExecutionControlRuntime _executionControl = new();
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _globalRegexCaseSensitivity;
@@ -235,11 +235,29 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public TimeZoneInfo TimeZone => _timeRuntime.TimeZone;
 
-    public bool IsRangePatternActive(AwkPattern pattern) =>
-        _rangePatterns.IsActive(pattern);
+    public bool IsRangePatternActive(int index) => _rangePatterns[index];
 
-    public void SetRangePatternActive(AwkPattern pattern, bool active) =>
-        _rangePatterns.SetActive(pattern, active);
+    public void SetRangePatternActive(int index, bool active)
+    {
+        ThrowIfCancellationRequested();
+        _rangePatterns[index] = active;
+    }
+
+    internal void InitializeRangePatterns(int count)
+    {
+        if (count == 0) return;
+        var bytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(count);
+        MemoryAccounting.Reserve(bytes);
+        bool[] states;
+        try
+        {
+            ThrowIfCancellationRequested();
+            states = new bool[count];
+        }
+        catch { MemoryAccounting.ReleaseReserved(bytes); throw; }
+        MemoryAccounting.CommitReserved(bytes);
+        _rangePatterns = states;
+    }
 
     internal AwkNumberParsingMode NumberParsingMode =>
         CompatibilityMode switch
@@ -1511,6 +1529,9 @@ internal sealed class AwkRuntimeState : IDisposable
             try { _recordFields.ResetRecord(); }
             finally
             {
+                var rangeBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
+                _rangePatterns = [];
+                if (rangeBytes > 0) MemoryAccounting.ReleaseCommitted(rangeBytes);
                 _valueArgumentStorage?.Dispose();
                 _functionArgumentStorage?.Dispose();
             }

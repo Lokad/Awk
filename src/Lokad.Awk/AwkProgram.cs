@@ -28,7 +28,7 @@ internal readonly struct AwkProgram
         IReadOnlyList<AwkAction> endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         IReadOnlySet<AwkVariableName>? globalNames = null,
-        int globalReadCount = 0)
+        int globalReadCount = 0, int rangeCount = 0)
     {
         static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
@@ -48,6 +48,7 @@ internal readonly struct AwkProgram
         _functions = CopyFunctions(functions);
         _globalNames = globalNames?.ToFrozenSet();
         GlobalReadCount = globalReadCount;
+        RangeCount = rangeCount;
     }
 
     public AwkAction[] BeginActions => _beginActions ?? [];
@@ -66,5 +67,7 @@ internal readonly struct AwkProgram
     public IReadOnlySet<AwkVariableName> GlobalNames => _globalNames ?? FrozenSet<AwkVariableName>.Empty;
 
     public int GlobalReadCount { get; }
+
+    public int RangeCount { get; }
 
 }

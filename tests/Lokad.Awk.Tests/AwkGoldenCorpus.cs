@@ -3623,6 +3623,12 @@ internal static partial class AwkGoldenCorpus
             "2:b\n"),
 
         Passing(
+            "independent-ranges-span-input-files",
+            ["$1==\"start\",$1==\"end\"{print \"outer\",FNR,$1}$1==\"mark\",$1==\"mark\"{print \"single\",FNR,$1}", "/a", "/b"],
+            [File("/a", "start\nmark\n"), File("/b", "tail\nend\nafter\nmark\n")],
+            "outer 1 start\nouter 2 mark\nsingle 2 mark\nouter 1 tail\nouter 2 end\nsingle 4 mark\n"),
+
+        Passing(
             "begin-end",
             ["BEGIN{print \"start\"} {print $1} END{print NR}", "/file.txt"],
             [File("/file.txt", "a b\nc d\n")],

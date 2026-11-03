@@ -194,7 +194,9 @@ driver as loops. Regex labels use the supplied provider. Function exit uses the 
 status/phase checks and unwind path, including pending status evaluation and END handling.
 Regex predicates use native byte operands and the existing provider/cache. Dynamic predicates
 keep captured input values funded through RHS suspension; numeric formatting uses the updated
-`CONVFMT`. Predicate temporaries retire after matching. Range flow is still being migrated.
+`CONVFMT`. Predicate temporaries retire after matching. Range conditions use the same driver
+and keep inclusive start/end state in funded per-execution slots, across files and suspended
+calls. Reusing a prepared program does not share that state between executions.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.
