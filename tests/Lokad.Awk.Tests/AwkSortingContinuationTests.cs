@@ -139,8 +139,8 @@ public sealed class AwkSortingContinuationTests
     public async Task ComparatorsUseBoundFramesWithoutArgumentBuffers(bool governed, bool keys)
     {
         var source = "function compare(a,av,b,bv){return av-bv}" +
-            "BEGIN{for(i=65;i>=1;i--)data[i]=i;print " +
-            (keys ? "asorti" : "asort") + "(data,result,\"compare\"),result[1],result[65]}";
+            "BEGIN{for(i=65;i>=1;i--)data[i]=i;" +
+            (keys ? "asorti" : "asort") + "(data,result,\"compare\");print length(result),result[1],result[65]}";
         var host = new MockFileSystem();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);

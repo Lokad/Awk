@@ -283,10 +283,12 @@ internal sealed class AwkRegionCompiler
                     break;
                 case AwkStatementKind.Split:
                 case AwkStatementKind.Patsplit:
+                case AwkStatementKind.Asort:
+                case AwkStatementKind.Asorti:
                 case AwkStatementKind.Sub:
                 case AwkStatementKind.Gsub:
                     if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var splitCall) ||
-                        !Call(splitCall, out var splitResult)) return false;
+                        !Expression(splitCall, out var splitResult)) return false;
                     Discard(splitResult);
                     break;
                 default: return false;
