@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordOwnershipCases()
     {
+        yield return Passing("sub-replacement-formats-after-target-effects",
+            ["function key(){replacement=.5;CONVFMT=\"%.1f\";return \"k\"}BEGIN{CONVFMT=\"%.3f\";replacement=.125;a[\"k\"]=\"x\";print sub(/x/,replacement,a[key()]),a[\"k\"],replacement}"], [],
+            "1 0.1 0.5\n");
+        yield return Passing("gsub-replacement-formats-after-target-effects",
+            ["function key(){replacement=.5;CONVFMT=\"%.1f\";return \"k\"}BEGIN{CONVFMT=\"%.3f\";replacement=.125;a[\"k\"]=\"xx\";print gsub(/x/,replacement,a[key()]),a[\"k\"],replacement}"], [],
+            "2 0.10.1 0.5\n");
+        yield return Passing("sub-target-case-effects-precede-regex-consumption",
+            ["function key(){IGNORECASE=1;return \"k\"}BEGIN{a[\"k\"]=\"A\";print sub(/a/,\"x\",a[key()]),a[\"k\"]}"], [],
+            "1 x\n");
+        yield return Failing("sub-invalid-dynamic-pattern-follows-target-effects",
+            ["function key(){print \"target-evaluated\";return \"k\"}BEGIN{pattern=\"[\";sub(pattern,\"x\",a[key()]);print \"unreachable\"}"], [],
+            2, "target-evaluated\n", "awk: invalid regular expression\n");
         yield return Passing("match-numeric-input-formats-after-pattern-effects",
             ["function pattern(){CONVFMT=\"%.1f\";return \"^0[.]125$\"}BEGIN{CONVFMT=\"%.3f\";print match(.125,pattern()),RSTART,RLENGTH,CONVFMT}"], [],
             "0 0 -1 %.1f\n");

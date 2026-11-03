@@ -40,8 +40,7 @@ internal abstract record AwkReference
         try
         {
             target.PrepareForSubstitution(context.State);
-            var input = context.State.FormatStringByteText(target.Evaluate(context.State));
-            return AwkResolvedSubstitutionTarget.ReferenceTarget(input, target);
+            return AwkResolvedSubstitutionTarget.ReferenceTarget(target);
         }
         catch { target.Dispose(); throw; }
     }

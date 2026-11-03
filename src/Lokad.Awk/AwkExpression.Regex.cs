@@ -6,55 +6,19 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    private sealed class GsubExpression(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) : AwkExpression
+    private sealed class SubstitutionExpression(AwkExpression pattern, AwkExpression replacement,
+        AwkSubstitutionTarget target, bool global) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
                 AwkRuntimeMemory.EstimateTextBytes(regexPattern.Text));
-            var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
-            using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementText.EstimatedRetainedMemoryBytes);
-            var regex = context.State.CreateRegex(regexPattern);
+            var replacementValue = (await replacement.EvaluateAsync(context).ConfigureAwait(false)).AsScalarCopy();
+            using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementValue.RetainedTextMemoryBytes);
             using var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
-            var replaced = AwkRegexSubstitution.ReplaceAll(
-                context.State,
-                regex,
-                resolvedTarget.Input,
-                replacementText,
-                AwkReplacementMode.Substitution,
-                maxReplacements: 0,
-                out var count);
-
-            if (count > 0)
-                resolvedTarget.AssignText(context.State, replaced);
-            return AwkValue.FromNumber(count);
-        }
-    }
-
-    private sealed class SubExpression(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) : AwkExpression
-    {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
-            using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
-                AwkRuntimeMemory.EstimateTextBytes(regexPattern.Text));
-            var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
-            using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementText.EstimatedRetainedMemoryBytes);
-            var regex = context.State.CreateRegex(regexPattern);
-            using var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
-            var replaced = AwkRegexSubstitution.ReplaceAll(
-                context.State,
-                regex,
-                resolvedTarget.Input,
-                replacementText,
-                AwkReplacementMode.Substitution,
-                maxReplacements: 1,
-                out var count);
-
-            if (count > 0)
-                resolvedTarget.AssignText(context.State, replaced);
-            return AwkValue.FromNumber(count > 0 ? 1 : 0);
+            return AwkValue.FromNumber(AwkSubstitutionRuntime.Execute(
+                context.State, regexPattern, replacementValue, resolvedTarget, global));
         }
     }
 

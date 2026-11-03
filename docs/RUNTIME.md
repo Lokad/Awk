@@ -204,6 +204,8 @@ for its lint behavior. Both preserve their diagnostic and stream-status contract
 `match()`, `split()` and `patsplit()` retain captured input values, patterns and array
 destinations through pending argument evaluation. Numeric inputs format after later arguments;
 regex arguments keep their earlier conversion point. Array replacement retains its preflight.
+`sub()` and `gsub()` capture replacement values before target-index effects and format them
+afterward. Target indices run once; matching finishes before replacement publication.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

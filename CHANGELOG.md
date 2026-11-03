@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Prepare `sub`/`gsub` operands in the common interpreter. Numeric replacements format
+  after target-index effects; dynamic regex validation follows those effects. Publish
+  target changes only after a successful replacement, preserving mutation admission.
 - Capture `match`, `split` and `patsplit` input values before later arguments, and format
   numeric inputs afterward using the resulting `CONVFMT`. Regex arguments retain their
   earlier conversion point.

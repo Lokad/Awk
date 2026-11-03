@@ -3,6 +3,34 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexRegionTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task SubstitutionsKeepByteNativeFieldsAndRefundOwners(bool global, bool governed)
+    {
+        const int records = 128;
+        var source = "{count+=" + (global ? "gsub" : "sub") +
+            "(/0/,\"X\",$2);sum+=$1}END{print count,sum,$2}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("1 0007\n", records)));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
+            { MemoryBudget = governed ? budget : null };
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        Assert.Equal(global ? "384 128 XXX7\n" : "128 128 X007\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        Assert.InRange(counters.RegexMatches, records, records * 8);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters.AwkTextAllocations, 0, records * 12 + 32);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("split", false)] [InlineData("split", true)]
     [InlineData("patsplit", false)] [InlineData("patsplit", true)]
     public async Task PatternCaptureStaysFundedAfterItsVariableIsCleared(string builtin, bool sortPrelude)

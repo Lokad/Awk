@@ -2,6 +2,28 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
+    private void ExecuteSubstitution(AwkRegionSubstitution operation, int result, AwkResolvedReference reference)
+    {
+        var storage = _cursor.Storage;
+        var pattern = new AwkRegexPattern(storage.Values[operation.Pattern].ByteText, operation.Origin, operation);
+        using var target = ResolveSubstitutionTarget(reference, operation.Target < 0);
+        storage.Numbers[result] = AwkSubstitutionRuntime.Execute(
+            _state, pattern, storage.Values[operation.Replacement], target, operation.Global);
+        storage.ReleaseValue(operation.Pattern);
+        storage.ReleaseValue(operation.Replacement);
+    }
+
+    private AwkResolvedSubstitutionTarget ResolveSubstitutionTarget(AwkResolvedReference reference, bool currentRecord)
+    {
+        if (currentRecord) return AwkResolvedSubstitutionTarget.CurrentRecord;
+        try
+        {
+            reference.PrepareForSubstitution(_state);
+            return AwkResolvedSubstitutionTarget.ReferenceTarget(reference);
+        }
+        catch { reference.Dispose(); throw; }
+    }
+
     private void ExecuteMatch(AwkRegionMatch match, int result)
     {
         var storage = _cursor.Storage;

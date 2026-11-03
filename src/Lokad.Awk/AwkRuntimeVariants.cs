@@ -31,14 +31,14 @@ internal abstract record AwkSubstitutionTarget
     public static AwkSubstitutionTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceSubstitutionTarget(reference);
 
-    /// <summary>Evaluates the mutable location once and reads its strict UTF-8 value.</summary>
+    /// <summary>Evaluates the mutable location once; its value is read at substitution.</summary>
     public abstract ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context);
 }
 
 internal sealed record AwkCurrentRecordSubstitutionTarget : AwkSubstitutionTarget
 {
     public override ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(AwkResolvedSubstitutionTarget.CurrentRecord(context.State.CurrentRecordByteText));
+        ValueTask.FromResult(AwkResolvedSubstitutionTarget.CurrentRecord);
 }
 
 internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : AwkSubstitutionTarget
@@ -49,29 +49,28 @@ internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : 
 
 internal readonly struct AwkResolvedSubstitutionTarget : IDisposable
 {
-    private readonly AwkText? _input;
     private readonly AwkResolvedReference _reference;
     private readonly bool _isCurrentRecord;
 
     private AwkResolvedSubstitutionTarget(
-        AwkText input,
         AwkResolvedReference reference,
         bool isCurrentRecord)
     {
-        _input = input;
         _reference = reference;
         _isCurrentRecord = isCurrentRecord;
     }
 
-    public AwkText Input => _input ?? AwkText.Empty;
+    internal long RetainedKeyBytes => _reference.RetainedKeyBytes;
+
+    internal AwkValue ReadValue(AwkRuntimeState state) =>
+        _isCurrentRecord ? state.GetCurrentRecordValue() : _reference.Evaluate(state);
 
     public void Dispose() => _reference.Dispose();
 
-    public static AwkResolvedSubstitutionTarget CurrentRecord(AwkText input) =>
-        new(input, default, isCurrentRecord: true);
+    public static AwkResolvedSubstitutionTarget CurrentRecord => new(default, isCurrentRecord: true);
 
-    public static AwkResolvedSubstitutionTarget ReferenceTarget(AwkText input, AwkResolvedReference reference) =>
-        new(input, reference, isCurrentRecord: false);
+    public static AwkResolvedSubstitutionTarget ReferenceTarget(AwkResolvedReference reference) =>
+        new(reference, isCurrentRecord: false);
 
     public void AssignText(AwkRuntimeState state, AwkText text)
     {

@@ -168,10 +168,10 @@ internal abstract partial class AwkExpression
         CreateStringBuiltin(definition, AwkCollectionSnapshots.Copy(arguments));
 
     public static AwkExpression Gsub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
-        new GsubExpression(pattern, replacement, target);
+        new SubstitutionExpression(pattern, replacement, target, global: true);
 
     public static AwkExpression Sub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
-        new SubExpression(pattern, replacement, target);
+        new SubstitutionExpression(pattern, replacement, target, global: false);
 
     public static AwkExpression Getline(AwkGetlineTarget target, AwkGetlineSource source) =>
         new GetlineExpression(target, source);

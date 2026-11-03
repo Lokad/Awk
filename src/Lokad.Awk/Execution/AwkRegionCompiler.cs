@@ -26,6 +26,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionRegexMatch> _regexMatches = [];
     private readonly List<AwkRegionSplit> _splits = [];
     private readonly List<AwkRegionMatch> _matches = [];
+    private readonly List<AwkRegionSubstitution> _substitutions = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -120,7 +121,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets),
             _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _kind);
         return true;
     }
 
@@ -278,6 +279,8 @@ internal sealed class AwkRegionCompiler
                     break;
                 case AwkStatementKind.Split:
                 case AwkStatementKind.Patsplit:
+                case AwkStatementKind.Sub:
+                case AwkStatementKind.Gsub:
                     if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var splitCall) ||
                         !Call(splitCall, out var splitResult)) return false;
                     Discard(splitResult);
@@ -522,6 +525,8 @@ internal sealed class AwkRegionCompiler
             if (builtin.Id is AwkBuiltinId.Split or AwkBuiltinId.Patsplit)
                 return Split(syntax, builtin.Id == AwkBuiltinId.Patsplit, out result);
             if (builtin.Id == AwkBuiltinId.Match) return Match(syntax, out result);
+            if (builtin.Id is AwkBuiltinId.Sub or AwkBuiltinId.Gsub)
+                return Substitute(syntax, builtin.Id == AwkBuiltinId.Gsub, out result);
             if (builtin.TryGetScalarComputation(out var implementation))
                 return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
                     ? StringCall(syntax, builtin.Id, out result)
@@ -621,6 +626,25 @@ internal sealed class AwkRegionCompiler
         return true;
     }
 
+    private bool Substitute(AwkExpressionSyntax syntax, bool global, out int result)
+    {
+        result = 0;
+        if (!Pattern(syntax.Children[1], out var pattern, out var origin, out _)) return false;
+        if (!Expression(syntax.Children[2], out var replacementValue)) return false;
+        var replacement = _values++;
+        Emit(new(AwkRegionInstructionKind.Value, replacement, replacementValue));
+        var target = -1;
+        var access = -1;
+        if (syntax.Children.Count == 4 && !Reference(syntax.Children[3], out target, out access)) return false;
+        var site = _substitutions.Count;
+        _substitutions.Add(new(pattern, origin, replacement, target, global));
+        var number = _numbers++;
+        Emit(new(AwkRegionInstructionKind.Substitute, number, site));
+        if (access >= 0) FinishKey(access);
+        result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        return true;
+    }
+
     private bool Pattern(AwkExpressionSyntax syntax, out int captured, out AwkRegexPatternOrigin origin, out bool literal)
     {
         captured = 0;
@@ -697,23 +721,26 @@ internal sealed class AwkRegionCompiler
         }
         if (parts.Target.TryGetValue(out var target))
         {
-            int operand;
-            var access = -1;
-            if (target.Kind == AwkExpressionKind.Variable &&
-                AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(target, out _) && Variable(target, out var variable))
-                operand = Operand(AwkRegionOperandKind.Variable, variable);
-            else if (target.Kind == AwkExpressionKind.Field && Field(target, out var field)) operand = field;
-            else if (target.Kind == AwkExpressionKind.ArrayElement &&
-                ArrayAccess(target, out access))
-            {
-                operand = Operand(AwkRegionOperandKind.ArrayElement, access);
-            }
-            else return false;
+            if (!Reference(target, out var operand, out var access)) return false;
             Emit(new(AwkRegionInstructionKind.GetlineTarget, site, operand));
             if (access >= 0) FinishKey(access);
         }
         Emit(new(AwkRegionInstructionKind.Getline, Left: site));
         Patch(boundary, Label());
+        return true;
+    }
+
+    private bool Reference(AwkExpressionSyntax syntax, out int operand, out int access)
+    {
+        access = -1;
+        operand = 0;
+        if (syntax.Kind == AwkExpressionKind.Variable &&
+            AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(syntax, out _) && Variable(syntax, out var variable))
+            operand = Operand(AwkRegionOperandKind.Variable, variable);
+        else if (syntax.Kind == AwkExpressionKind.Field && Field(syntax, out var field)) operand = field;
+        else if (syntax.Kind == AwkExpressionKind.ArrayElement && ArrayAccess(syntax, out access))
+            operand = Operand(AwkRegionOperandKind.ArrayElement, access);
+        else return false;
         return true;
     }
 

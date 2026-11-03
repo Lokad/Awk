@@ -8,7 +8,8 @@ internal sealed class AwkRegion(
     AwkRegionStorageLayout layout, AwkRegionCall[] calls,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
-    AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches, AwkRegionKind kind)
+    AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches,
+    AwkRegionSubstitution[] substitutions, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
@@ -67,6 +68,7 @@ internal sealed class AwkRegion(
     internal AwkRegionRegexMatch[] RegexMatches => regexMatches;
     internal AwkRegionSplit[] Splits => splits;
     internal AwkRegionMatch[] Matches => matches;
+    internal AwkRegionSubstitution[] Substitutions => substitutions;
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
@@ -84,7 +86,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
-    BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return,
+    BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorNext, IteratorEnd, RegexMatch,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
@@ -120,6 +122,8 @@ internal sealed record AwkRegionRegexMatch(int Input, AwkRegex? Literal, int Pat
 internal sealed record AwkRegionSplit(int Input, int Array, int Separators, int Pattern,
     AwkRegexPatternOrigin Origin, bool IsRegexLiteral, bool UsesDefault, bool Patsplit);
 internal sealed record AwkRegionMatch(int Input, int Pattern, AwkRegexPatternOrigin Origin, int Array);
+internal sealed record AwkRegionSubstitution(int Pattern, AwkRegexPatternOrigin Origin,
+    int Replacement, int Target, bool Global);
 internal sealed record AwkRegionPrint(int Values, int Texts, int Segments, int Count, int[] Fields, AwkRegionOutput Output = default);
 internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields, AwkRegionOutput Output = default);
 internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result, bool IsExpression);

@@ -35,7 +35,8 @@ public sealed class AwkRegionFieldTests
             "nested-read", "nested-simple", "nested-compound", "nested-membership", "nested-delete",
             "typeof-field", "typeof-prefix", "typeof-nested", "isarray-nested", "isarray-symbol",
             "split-input", "patsplit-input", "split-child", "split-pattern", "patsplit-pattern", "split-promote", "split-detach",
-            "match-input", "match-pattern", "match-child", "match-prefix", "match-numeric"
+            "match-input", "match-pattern", "match-child", "match-prefix", "match-numeric",
+            "sub-pattern", "sub-replacement", "sub-field", "gsub-child", "sub-source-pattern", "sub-numeric", "gsub-record", "sub-prefix"
         })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
@@ -77,10 +78,18 @@ public sealed class AwkRegionFieldTests
             "match-child" => "{i=1;caps[\"0007\",\"tag\"][11][\"old\"]=1;count=match(\"ab7\",/[0-9]/,caps[$i,\"tag\"][read()]);print count,caps[\"0007\",\"tag\"][11][0],RSTART,RLENGTH,$0,i;next}",
             "match-prefix" => "{i=1;print match($i,/^0007$/),read(),RSTART,RLENGTH;next}",
             "match-numeric" => "{CONVFMT=\"%.3f\";count=match(.125,(read()>0?\"^0[.]125$\":\"none\"));print count,CONVFMT,RSTART,RLENGTH,$0,i;next}",
+            "sub-pattern" => "{count=sub((read()>0?\"0\":\"none\"),\"X\",$1);print count,$0,i;next}",
+            "sub-replacement" => "{i=1;a[\"k\"]=\"x\";count=sub(/x/,($i \":\" read()),a[\"k\"]);print count,a[\"k\"],$0,i;next}",
+            "sub-field" => "{count=sub(/0/,\"X\",$(read()-10));print count,$0,i;next}",
+            "gsub-child" => "{i=1;a[\"0007\",\"tag\"][11]=\"xx\";count=gsub(/x/,\"Z\",a[$i,\"tag\"][read()]);print count,a[\"0007\",\"tag\"][11],$0,i;next}",
+            "sub-source-pattern" => "{i=1;a[\"k\"]=\"0007\";count=sub($i,(read()>0?\"X\":\"Y\"),a[\"k\"]);print count,a[\"k\"],$0,i;next}",
+            "sub-numeric" => "{CONVFMT=\"%.3f\";a[\"k\"]=\"x\";count=sub(/x/,.125,a[(read()>0?\"k\":\"bad\")]);print count,a[\"k\"],$0,i;next}",
+            "gsub-record" => "{$0=\"x x\";count=gsub(/x/,(read()>0?\"Z\":\"Y\"));print count,$0,i;next}",
+            "sub-prefix" => "{print sub(/0/,\"X\",$1),read(),$0;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var beforeRead = operation switch
-        { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", "match-numeric" => "CONVFMT=\"%.1f\";", _ => "" };
+        { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", "match-numeric" or "sub-numeric" => "CONVFMT=\"%.1f\";", _ => "" };
         var source = "function read(x){" + beforeRead + "getline x<\"/side\";i=2;$1=100;return x}" + action;
         var host = new MockFileSystem();
         host.SetStandardInput("0007 old\n");
@@ -153,6 +162,13 @@ public sealed class AwkRegionFieldTests
                 "match-child" => "3 7 3 1 100 old 2\n",
                 "match-prefix" => "1 11 1 4\n",
                 "match-numeric" => "0 %.1f 0 -1 100 old 2\n",
+                "sub-pattern" or "sub-field" => "1 1X0 old 2\n",
+                "sub-replacement" => "1 0007:11 100 old 2\n",
+                "gsub-child" => "2 ZZ 100 old 2\n",
+                "sub-source-pattern" => "1 X 100 old 2\n",
+                "sub-numeric" => "1 0.1 100 old 2\n",
+                "gsub-record" => "1 100 Z 2\n",
+                "sub-prefix" => "1 11 100 old\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));

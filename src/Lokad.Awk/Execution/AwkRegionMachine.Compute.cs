@@ -187,6 +187,13 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Match:
                     ExecuteMatch(region.Matches[instruction.Left], instruction.Target);
                     break;
+                case AwkRegionInstructionKind.Substitute:
+                {
+                    var substitution = region.Substitutions[instruction.Left];
+                    ExecuteSubstitution(substitution, instruction.Target,
+                        substitution.Target < 0 ? default : ResolveReference(substitution.Target));
+                    break;
+                }
                 case AwkRegionInstructionKind.InspectArray:
                 {
                     var inspected = arrays[instruction.Left];
@@ -559,30 +566,8 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.GetlineTarget:
-                {
-                    var readTarget = operands[instruction.Left];
-                    AwkResolvedReference reference;
-                    if (readTarget.Kind == AwkRegionOperandKind.Variable)
-                    {
-                        var readVariable = variables[readTarget.Index];
-                        reference = readVariable.LocalIndex >= 0
-                            ? AwkResolvedReference.LocalScalar(readVariable.Name, new(readVariable.LocalIndex))
-                            : readVariable.GlobalIndex >= 0
-                                ? AwkResolvedReference.PreparedGlobalScalar(readVariable.Name, readVariable.GlobalIndex)
-                                : AwkResolvedReference.Scalar(readVariable.Name);
-                    }
-                    else if (IsField(readTarget)) reference = AwkResolvedReference.Field(new(FieldOrdinal(readTarget)));
-                    else if (readTarget.Kind == AwkRegionOperandKind.ArrayElement)
-                    {
-                        var readArray = arrays[readTarget.Index];
-                        reference = readArray.Path >= 0
-                            ? AwkResolvedReference.NestedArrayElement(storage.TakePath(readArray.Path))
-                            : AwkResolvedReference.ArrayElement(readArray.Name, Key(readArray));
-                    }
-                    else throw new InvalidOperationException("Unknown getline destination.");
-                    storage.PrepareGetlineTarget(instruction.Target, reference);
+                    storage.PrepareGetlineTarget(instruction.Target, ResolveReference(instruction.Left));
                     break;
-                }
                 case AwkRegionInstructionKind.Getline:
                     _cursor = _cursor with { Position = position + 1 };
                     BeginRead(region.Getlines[instruction.Left]);
@@ -636,6 +621,29 @@ internal partial struct AwkRegionMachine
             if (!frame.TryReadNumber(index, out number)) return false;
             state.Counters.RecordNumericLocalRead();
             return true;
+        }
+
+        AwkResolvedReference ResolveReference(int index)
+        {
+            var target = operands[index];
+            if (target.Kind == AwkRegionOperandKind.Variable)
+            {
+                var variable = variables[target.Index];
+                return variable.LocalIndex >= 0
+                    ? AwkResolvedReference.LocalScalar(variable.Name, new(variable.LocalIndex))
+                    : variable.GlobalIndex >= 0
+                        ? AwkResolvedReference.PreparedGlobalScalar(variable.Name, variable.GlobalIndex)
+                        : AwkResolvedReference.Scalar(variable.Name);
+            }
+            if (IsField(target)) return AwkResolvedReference.Field(new(FieldOrdinal(target)));
+            if (target.Kind == AwkRegionOperandKind.ArrayElement)
+            {
+                var array = arrays[target.Index];
+                return array.Path >= 0
+                    ? AwkResolvedReference.NestedArrayElement(storage.TakePath(array.Path))
+                    : AwkResolvedReference.ArrayElement(array.Name, Key(array));
+            }
+            throw new InvalidOperationException("Unknown mutable location.");
         }
 
         AwkValue Value(int index)
