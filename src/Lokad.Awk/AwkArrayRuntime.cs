@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkArrayRuntime
+internal sealed partial class AwkArrayRuntime
 {
     private readonly struct AwkArrayReservation(int count, AwkMemoryLease? lease, long keyTextBytes) : IDisposable
     {
@@ -668,128 +668,6 @@ internal sealed class AwkArrayRuntime
         return order is not AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.Unsorted };
     }
 
-    private ValueTask<AwkArraySortEntry[]> SortEntriesAsync(
-        AwkArrayTarget arrayName,
-        AwkArraySortOrder order,
-        int count,
-        AwkMemoryLease retainedTextLease,
-        AwkEvaluationContext context)
-    {
-        static async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
-            AwkArrayRuntime runtime,
-            AwkArrayTarget arrayName,
-            AwkArraySortOrder.UserFunctionOrder order,
-            int count,
-            AwkMemoryLease retainedTextLease,
-            AwkEvaluationContext context)
-        {
-            static async ValueTask SortWithUserFunctionAsync(
-                AwkArraySortEntry[] entries,
-                AwkUserFunction function,
-                AwkEvaluationContext context)
-            {
-                if (entries.Length < 2)
-                    return;
-
-                var comparatorArguments = new AwkValue[4];
-                var buffer = new AwkArraySortEntry[entries.Length];
-                var source = entries;
-                var destination = buffer;
-                var runLength = 1;
-                while (runLength < entries.Length)
-                {
-                    for (var start = 0; start < entries.Length;)
-                    {
-                        var middle = (int)Math.Min((long)start + runLength, entries.Length);
-                        var end = (int)Math.Min((long)middle + runLength, entries.Length);
-                        await MergeRunsAsync(source, destination, start, middle, end).ConfigureAwait(false);
-                        start = end;
-                    }
-
-                    (source, destination) = (destination, source);
-                    runLength = runLength > entries.Length / 2 ? entries.Length : runLength * 2;
-                }
-
-                if (!ReferenceEquals(source, entries))
-                {
-                    for (var offset = 0; offset < entries.Length; offset += 64)
-                    {
-                        context.State.CancellationCheckpoint();
-                        Array.Copy(source, offset, entries, offset, Math.Min(64, entries.Length - offset));
-                    }
-                }
-                context.State.CancellationCheckpoint();
-
-                async ValueTask MergeRunsAsync(
-                    AwkArraySortEntry[] mergeSource,
-                    AwkArraySortEntry[] mergeDestination,
-                    int start,
-                    int middle,
-                    int end)
-                {
-                    var leftIndex = start;
-                    var rightIndex = middle;
-                    var destinationIndex = start;
-                    while (leftIndex < middle && rightIndex < end)
-                    {
-                        var comparison = await CompareAsync(
-                                mergeSource[leftIndex],
-                                mergeSource[rightIndex])
-                            .ConfigureAwait(false);
-                        mergeDestination[destinationIndex++] = comparison <= 0
-                            ? mergeSource[leftIndex++]
-                            : mergeSource[rightIndex++];
-                    }
-
-                    while (leftIndex < middle)
-                    {
-                        if ((destinationIndex & 63) == 0)
-                            context.State.CancellationCheckpoint();
-                        mergeDestination[destinationIndex++] = mergeSource[leftIndex++];
-                    }
-
-                    while (rightIndex < end)
-                    {
-                        if ((destinationIndex & 63) == 0)
-                            context.State.CancellationCheckpoint();
-                        mergeDestination[destinationIndex++] = mergeSource[rightIndex++];
-                    }
-                    context.State.CancellationCheckpoint();
-                }
-
-                async ValueTask<int> CompareAsync(
-                    AwkArraySortEntry left,
-                    AwkArraySortEntry right)
-                {
-                    var state = context.State;
-                    state.Resources.Checkpoint();
-                    comparatorArguments[0] = state.CreateByteTextValue(left.KeyText);
-                    comparatorArguments[1] = left.Value;
-                    comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
-                    comparatorArguments[3] = right.Value;
-                    using var comparisonPhase = state.EnterActionPhase(AwkActionPhase.SortComparison);
-                    var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
-                    var number = value.AsNumber(state.CancellationCheckpoint);
-                    if (number < 0)
-                        return -1;
-
-                    return number > 0 ? 1 : 0;
-                }
-            }
-
-            if (!runtime._state.TryGetUserFunction(order.FunctionName, out var function))
-                throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(order.FunctionName.Text));
-
-            var entries = runtime.SnapshotSortEntries(arrayName, count, AwkArraySortMode.UserFunction, retainedTextLease);
-            await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
-            return entries;
-        }
-
-        return order is AwkArraySortOrder.UserFunctionOrder userFunctionOrder
-            ? SortUserEntriesAsync(this, arrayName, userFunctionOrder, count, retainedTextLease, context)
-            : ValueTask.FromResult(SortEntries(arrayName, order, count, retainedTextLease));
-    }
-
     private AwkArraySortEntry[] SortEntries(
         AwkArrayTarget arrayName,
         AwkArraySortOrder order,
@@ -990,6 +868,7 @@ internal sealed class AwkArrayRuntime
         var bytes = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count);
         if (order is AwkArraySortOrder.UserFunctionOrder && count >= 2)
         {
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.ArrayMergeProgressBytes);
             bytes = AwkRuntimeMemory.CheckedAdd(
                 bytes,
                 AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count));

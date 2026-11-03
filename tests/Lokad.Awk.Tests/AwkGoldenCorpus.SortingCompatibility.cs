@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SortingCompatibilityCases()
     {
+        yield return Passing("sorting-user-comparator-preserves-an-odd-sized-source",
+            ["function compare(k1,v1,k2,v2){return v1-v2}BEGIN{for(i=1;i<=65;i++)a[\"k\" i]=66-i;print asort(a,b,\"compare\");for(i=1;i<=65;i++)bad+=(b[i]!=i);print bad,a[\"k1\"],a[\"k65\"]}"], [],
+            "65\n0 65 1\n");
         yield return AwkGoldenCaseBuilder
             .Create("sorting-numbers-asort-0",
                 ["function emit(k,v){printf \"[%s]:%s:[%s]\\n\",k,typeof(v),v} BEGIN{a[\"z\"]=10;a[\"a\"]=2;a[\"m\"]=-3;a[\"b\"]=100;a[\"q\"]=0;a[\"r\"]=-0;a[\"t\"]=1.5;n=asort(a,b);print n;for(i=1;i<=n;i++)emit(i,b[i])}"], [])
