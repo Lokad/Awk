@@ -304,9 +304,10 @@ internal sealed class AwkRegionCompiler
             access = _arrays.Count;
             _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
         }
-        else if (arraySyntax.Kind != AwkExpressionKind.ArrayElement || !NestedAccess(arraySyntax, out access)) return false;
+        else if (arraySyntax.Kind != AwkExpressionKind.ArrayElement || !ArrayAccess(arraySyntax, out access)) return false;
         var slot = _iterators++;
         Emit(new(AwkRegionInstructionKind.IteratorBegin, slot, access));
+        if (_arrays[access].Key >= 0) FinishKey(access);
         var start = Label();
         var next = Emit(new(AwkRegionInstructionKind.IteratorNext, Left: slot, Right: variable));
         var loop = new Loop();

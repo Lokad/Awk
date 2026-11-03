@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private void BeginIteration(AwkRegionArrayAccess access)
+    private void BeginIteration(AwkRegionArrayAccess access, AwkArrayKey key)
     {
         _state.ThrowIfCancellationRequested();
         if (access.Path >= 0)
@@ -12,6 +12,9 @@ internal partial struct AwkRegionMachine
             _cursor.Storage.ReleasePath(access.Path);
             _iterationKeys = _state.SnapshotArrayKeyValuesAsync(array, Context);
         }
+        else if (access.Key >= 0)
+            _iterationKeys = _state.SnapshotArrayKeyValuesAsync(
+                _state.GetSubarray(access.Name, key, access.Binding), Context);
         else
             _iterationKeys = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
                 ? _state.SnapshotArrayKeyValuesAsync(array, Context)

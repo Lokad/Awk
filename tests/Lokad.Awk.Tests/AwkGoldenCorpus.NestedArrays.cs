@@ -183,6 +183,10 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("a 3\nb 2\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-sorted-child-parameter", ["function f(p,k){for(k in p)print k,p[k]} BEGIN{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\";a[1][\"b\"]=2;a[1][\"a\"]=3;f(a[1])}"], [])
             .WithStdOut("a 3\nb 2\n").Build(),
+        AwkGoldenCaseBuilder.Create("nested-array-symbol-table-iteration", ["BEGIN{source[\"key\"]=3;for(k in SYMTAB[\"source\"])print k}"], [])
+            .WithStdOut("key\n").Build(),
+        AwkGoldenCaseBuilder.Create("nested-array-symbol-table-iteration-shadow", ["function f(source,k){for(k in SYMTAB[\"source\"])print k}BEGIN{source[\"key\"]=3;f(7)}"], [])
+            .WithStdOut("key\n").Build(),
         // Preserve the existing key-before-owner behavior during execution migration.
         // GNU 5.3.2 instead evaluates this nested owner first (both results are0).
         AwkGoldenCaseBuilder.Create("nested-array-membership-key-conversion-order", ["function parent(){CONVFMT=\"%.1f\";return \"r\"}BEGIN{CONVFMT=\"%.3f\";a[\"r\"][\"0.125\"]=1;print (0.125 in a[parent()]),CONVFMT}"], [])

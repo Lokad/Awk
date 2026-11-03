@@ -250,8 +250,10 @@ internal partial struct AwkRegionMachine
                     state.ClearArray(arrays[instruction.Target].Name);
                     break;
                 case AwkRegionInstructionKind.IteratorBegin:
+                    var iterated = arrays[instruction.Left];
+                    var iterationKey = iterated.Key >= 0 ? Key(iterated) : default;
                     _cursor = _cursor with { Position = position + 1 };
-                    BeginIteration(arrays[instruction.Left]);
+                    BeginIteration(iterated, iterationKey);
                     goto Resume;
                 case AwkRegionInstructionKind.IteratorNext:
                     if (storage.TryNextKey(instruction.Left, out var nextKey))
