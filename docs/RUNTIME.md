@@ -189,6 +189,9 @@ managed stack protection still applies. There is no public execution-engine sele
 Array traversal keeps its existing leased key snapshot in execution-owned scratch. Loop
 progression shares the computation driver; source mutation does not change the snapshot.
 Nested calls, early flow and pending sorting callbacks retain their ordinary ownership rules.
+Switch selectors are captured once; ordered case tests and fallthrough use the same branch
+driver as loops. Regex labels use the supplied provider. Function exit uses the existing
+status/phase checks and unwind path, including pending status evaluation and END handling.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

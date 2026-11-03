@@ -523,6 +523,14 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.JumpIfNonzero:
                     if (numbers[instruction.Left] != 0) position = instruction.Target - 1;
                     break;
+                case AwkRegionInstructionKind.JumpIfCase:
+                    if (region.SwitchCases[instruction.Right].Matches(Value(instruction.Left), state)) position = instruction.Target - 1;
+                    break;
+                case AwkRegionInstructionKind.Exit:
+                    state.ThrowIfCancellationRequested();
+                    state.RequestExit(instruction.Left < 0 ? AwkOptionalExitCode.None :
+                        AwkOptionalExitCode.Specified(new((int)Math.Truncate(numbers[instruction.Left]))));
+                    break;
                 case AwkRegionInstructionKind.Flow:
                     state.ThrowIfCancellationRequested();
                     Finish((AwkStatementFlow)instruction.Detail);

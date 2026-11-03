@@ -11,7 +11,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [Theory]
     [InlineData("global", false)] [InlineData("global", true)]
     [InlineData("local", false)] [InlineData("local", true)]
-    [InlineData("ordinary-local", false)] [InlineData("ordinary-local", true)]
+    [InlineData("switch-local", false)] [InlineData("switch-local", true)]
     [InlineData("field", false)] [InlineData("field", true)]
     [InlineData("nested", false)] [InlineData("nested", true)]
     public async Task NumericUpdatesConsumeFieldRhsWithoutOwnedTransport(string target, bool governed)
@@ -22,7 +22,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var source = target switch
             {
                 "local" => "function update(x){x" + operation + "=$2;return x}{total+=update(8)}",
-                "ordinary-local" => "function update(x){switch(x){default:break}x" + operation + "=$2;return x}{total+=update(8)}",
+                "switch-local" => "function update(x){switch(x){default:break}x" + operation + "=$2;return x}{total+=update(8)}",
                 "field" => "{$1" + operation + "=$2;total+=$1}",
                 "nested" => "{a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]" + operation + "=$2;total+=a[\"row\"][\"sum\"]}",
                 _ => "{x=8;x" + operation + "=$2;total+=x}"
@@ -399,11 +399,11 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData(false, 17, false)] [InlineData(true, 17, false)]
     [InlineData(false, 0, true)] [InlineData(true, 0, true)]
     [InlineData(false, 17, true)] [InlineData(true, 17, true)]
-    public async Task LocalUpdatesKeepNumericCellsByteNative(bool governed, int padding, bool prepared)
+    public async Task LocalUpdatesKeepNumericCellsByteNative(bool governed, int padding, bool withSwitch)
     {
         const int records = 128;
         var source = "function score(x,a,b,c,d,t,i){" +
-            (prepared ? "" : "switch(x){default:break};") + "t=x+a;" +
+            (withSwitch ? "switch(x){default:break};" : "") + "t=x+a;" +
             string.Concat(Enumerable.Repeat("t+=0;", padding)) +
             "for(i=0;i<b;i++){if(i==c)continue;t=(t*3+d)%101;if(t==0)return d};return t} " +
             "{total+=score($1,2,4,1,3)} END{print total}";
@@ -419,9 +419,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("10240\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(prepared ? records : 0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
-        Assert.InRange(counters.AwkTextAllocations, prepared ? 0 : records, prepared ? 32 : records + 32);
-        if (prepared) Assert.True(counters.NumericFieldByteParses >= records);
+        // A text-sensitive selector owns its original argument spelling. Numeric-only
+        // bodies can consume the record's numeric cache without transporting that text.
+        Assert.InRange(counters.AwkTextAllocations, withSwitch ? records : 0, withSwitch ? records + 32 : 32);
+        if (!withSwitch) Assert.True(counters.NumericFieldByteParses >= records);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);

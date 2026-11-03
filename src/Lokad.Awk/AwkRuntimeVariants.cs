@@ -233,28 +233,21 @@ internal sealed record AwkExpressionFflushTarget(AwkExpression Expression) : Awk
             await Expression.EvaluateAsync(context).ConfigureAwait(false), context.State, execution).ConfigureAwait(false);
 }
 
-internal abstract record AwkSwitchCasePattern
+internal readonly record struct AwkSwitchCasePattern
 {
+    private readonly AwkValue _value;
+    private readonly AwkRegex? _regex;
+
+    private AwkSwitchCasePattern(AwkValue value, AwkRegex? regex) => (_value, _regex) = (value, regex);
+
     public static AwkSwitchCasePattern FromValue(AwkValue value) =>
-        new AwkValueSwitchCasePattern(value);
+        new(value, null);
 
     public static AwkSwitchCasePattern FromRegex(AwkRegex regex) =>
-        new AwkRegexSwitchCasePattern(regex);
+        new(default, regex);
 
     /// <summary>Evaluates whether <paramref name="value"/> matches this switch case under awk comparison rules.</summary>
-    public abstract bool Matches(AwkValue value, AwkRuntimeState state);
-}
-
-internal sealed record AwkValueSwitchCasePattern(AwkValue Value) : AwkSwitchCasePattern
-{
-    public override bool Matches(AwkValue value, AwkRuntimeState state) =>
-        AwkComparisonOperations.Evaluate(value, Value, AwkComparison.Equal, state);
-}
-
-internal sealed record AwkRegexSwitchCasePattern(AwkRegex Regex) : AwkSwitchCasePattern
-{
-    public override bool Matches(AwkValue value, AwkRuntimeState state) =>
-        state.IsRegexMatch(
-            Regex,
-            state.FormatStringByteText(value));
+    public bool Matches(AwkValue value, AwkRuntimeState state) =>
+        _regex is { } regex ? state.IsRegexMatch(regex, state.FormatStringByteText(value)) :
+            AwkComparisonOperations.Evaluate(value, _value, AwkComparison.Equal, state);
 }

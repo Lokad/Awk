@@ -7,7 +7,7 @@ internal sealed class AwkRegion(
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls, AwkStatement[] hostStatements,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
-    AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkRegionKind kind)
+    AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases, AwkRegionKind kind)
 {
     internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
@@ -63,6 +63,7 @@ internal sealed class AwkRegion(
     internal AwkRegionGetline[] Getlines => getlines;
     internal AwkRegionStringCall[] Strings => strings;
     internal AwkRegionPath[] Paths => paths;
+    internal AwkSwitchCasePattern[] SwitchCases => switchCases;
 }
 
 internal enum AwkRegionKind : byte { Record, Function, Phase }
@@ -82,7 +83,7 @@ internal enum AwkRegionInstructionKind : byte
     ArrayPrepare, ArrayCommit, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     BeginCall, Argument, Call, BuiltinArgument, Builtin, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, HostStatement, Return,
     GetlineBoundary, PrepareString, GetlineTarget, Getline, IteratorBegin, IteratorNext, IteratorEnd,
-    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, Flow
+    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, Exit, Flow
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);

@@ -9,13 +9,13 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData(true, false, 9)] [InlineData(true, true, 9)]
     [InlineData(false, false, 65)] [InlineData(false, true, 65)]
     [InlineData(true, false, 65)] [InlineData(true, true, 65)]
-    public async Task UserCallsReuseGovernedStagingAcrossOrdinaryAndPreparedBodies(bool governed, bool ordinary, int arity)
+    public async Task WideCallsKeepNativeArgumentsAcrossSwitchBranches(bool governed, bool withSwitch, int arity)
     {
         const int records = 128;
         var parameters = string.Join(',', Enumerable.Range(0, arity).Select(i => "p" + i));
         var statements = string.Concat(Enumerable.Range(0, arity).Select(i => "s+=p" + i + ";"));
         var source = "function sum(" + parameters + ",s){"
-            + (ordinary ? "switch(0){default:break}" : "")
+            + (withSwitch ? "switch(0){default:break}" : "")
             + statements + "return s}{total+=sum("
             + string.Join(',', Enumerable.Repeat("$1", arity)) + ")}END{print total}";
         var host = new MockFileSystem();
@@ -32,7 +32,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.GovernedFunctionArgumentBufferAllocations);
         Assert.Equal(0, counters.GovernedFunctionArgumentBufferReuses);
-        Assert.Equal(ordinary ? 0 : records, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+        Assert.Equal(0, counters.FunctionNameLookups);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);

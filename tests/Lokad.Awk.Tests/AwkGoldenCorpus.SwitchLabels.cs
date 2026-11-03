@@ -4,6 +4,20 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SwitchLabelCases()
     {
+        yield return Passing("switch-default-before-case-fallthrough-once",
+            ["function selected(){calls++;return \"hit\"}BEGIN{switch(selected()){default:print \"bad\";break;case \"hit\":print \"hit\";case \"next\":print \"fall\";break}print calls}"],
+            [], "hit\nfall\n1\n");
+        yield return Passing("switch-and-loop-break-continue",
+            ["BEGIN{for(i=0;i<4;i++){switch(i){case 0:continue;case 1:for(j=0;j<2;j++){if(j==0)continue;print i,j;break};break;default:print \"d\",i}print \"after\",i}}"],
+            [], "1 1\nafter 1\nd 2\nafter 2\nd 3\nafter 3\n");
+        yield return Passing("switch-regex-fallthrough-after-case-change",
+            ["BEGIN{IGNORECASE=1;switch(\"A\"){case /a/:IGNORECASE=0;print \"first\";case /never/:print \"fall\";break;default:print \"bad\"}print IGNORECASE}"],
+            [], "first\nfall\n0\n");
+        foreach (var (suffix, end, status) in new[] { ("preserves", "exit", 7), ("replaces", "exit 3", 3) })
+            yield return AwkGoldenCaseBuilder.Create("function-exit-end-" + suffix + "-status",
+                ["function stop(){exit 7.9}BEGIN{stop();print \"bad\"}END{print \"end\";" + end + "}"], [])
+                .WithStdOut("end\n").ExitsWith(status).Build();
+
         foreach (var (name, label) in new[]
         {
             ("variable", "x"), ("call", "f()"), ("arithmetic", "1+1"), ("group", "(1)"),

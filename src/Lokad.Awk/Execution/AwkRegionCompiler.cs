@@ -23,12 +23,13 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionPrintf> _printfs = [];
     private readonly List<AwkRegionGetline> _getlines = [];
     private readonly List<AwkStatement> _hostStatements = [];
+    private readonly List<AwkSwitchCasePattern> _switchCases = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
     private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
-    private readonly Stack<Loop> _loops = [];
+    private readonly Stack<ControlScope> _controls = [];
     private int _numbers;
     private int _values;
     private int _texts;
@@ -97,7 +98,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators),
             _calls.ToArray(), _hostStatements.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _kind);
         return true;
     }
 
@@ -142,12 +143,28 @@ internal sealed class AwkRegionCompiler
                 case AwkStatementKind.For:
                     if (!CompileLoop(statement)) return false;
                     break;
+                case AwkStatementKind.Switch:
+                    if (!CompileSwitch(statement)) return false;
+                    break;
                 case AwkStatementKind.Break:
                 case AwkStatementKind.Continue:
-                    if (_loops.Count == 0) return false;
+                    if (!TryGetControl(statement.Kind == AwkStatementKind.Continue, out var control)) return false;
+                    if (_values > control.FirstTemporary)
+                        Emit(new(AwkRegionInstructionKind.ReleaseValues, control.FirstTemporary, Right: _values - control.FirstTemporary));
                     Emit(new(AwkRegionInstructionKind.StatementBoundary));
                     var jump = Emit(new(AwkRegionInstructionKind.Jump));
-                    (statement.Kind == AwkStatementKind.Break ? _loops.Peek().Breaks : _loops.Peek().Continues).Add(jump);
+                    (statement.Kind == AwkStatementKind.Break ? control.Breaks : control.Continues).Add(jump);
+                    break;
+                case AwkStatementKind.Exit:
+                    var status = -1;
+                    if (statement.Expression.TryGetValue(out var statusExpression))
+                    {
+                        if (!Expression(statusExpression, out var exitValue)) return false;
+                        status = NumericRegister(exitValue);
+                    }
+                    Emit(new(AwkRegionInstructionKind.Exit, Left: status));
+                    Emit(new(AwkRegionInstructionKind.StatementBoundary));
+                    Emit(new(AwkRegionInstructionKind.Flow, Detail: (int)AwkStatementFlow.ExitProgram));
                     break;
                 case AwkStatementKind.Next:
                 case AwkStatementKind.NextFile:
@@ -270,10 +287,10 @@ internal sealed class AwkRegionCompiler
                 if (!Branch(expression, whenTrue: false, conditionJumps)) return false;
             }
         }
-        var loop = new Loop();
-        _loops.Push(loop);
+        var loop = new ControlScope(isLoop: true, _values);
+        _controls.Push(loop);
         if (!Statements(statement.BodyStatements)) return false;
-        _loops.Pop();
+        _controls.Pop();
         var continuation = Label();
         foreach (var position in loop.Continues) Patch(position, continuation);
         if (header is not null && header.Parts[2].Expression.TryGetValue(out var step))
@@ -310,10 +327,10 @@ internal sealed class AwkRegionCompiler
         if (_arrays[access].Key >= 0) FinishKey(access);
         var start = Label();
         var next = Emit(new(AwkRegionInstructionKind.IteratorNext, Left: slot, Right: variable));
-        var loop = new Loop();
-        _loops.Push(loop);
+        var loop = new ControlScope(isLoop: true, _values);
+        _controls.Push(loop);
         if (!Statements(body)) return false;
-        _loops.Pop();
+        _controls.Pop();
         foreach (var position in loop.Continues) Patch(position, start);
         Emit(new(AwkRegionInstructionKind.Jump, start));
         var end = Label();
@@ -321,6 +338,60 @@ internal sealed class AwkRegionCompiler
         foreach (var position in loop.Breaks) Patch(position, end);
         Emit(new(AwkRegionInstructionKind.IteratorEnd, slot));
         return true;
+    }
+
+    private bool CompileSwitch(AwkStatementSyntax statement)
+    {
+        if (_scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
+            !AwkStatementLoweringShapes.Switch(statement).TryGetValue(out var shape) ||
+            !shape.Header.Expression.TryGetValue(out var selectorSyntax)) return false;
+        var control = new ControlScope(isLoop: false, _values);
+        if (!Expression(selectorSyntax, out var selector)) return false;
+        selector = CaptureValue(selector);
+        var branches = new int[shape.SwitchCases.Count];
+        var defaultArm = -1;
+        for (var index = 0; index < branches.Length; index++)
+        {
+            _scope.CheckCancellation();
+            var arm = shape.SwitchCases[index];
+            if (arm.IsDefault) { branches[index] = -1; defaultArm = index; continue; }
+            if (!arm.Expression.TryGetValue(out var pattern)) return false;
+            AwkSwitchCasePattern prepared;
+            if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(pattern, out var regex, _scope.CompatibilityMode, _scope.Checkpoint))
+                prepared = AwkSwitchCasePattern.FromRegex(regex);
+            else if (AwkExpressionLowerer.TryReadSwitchConstant(pattern, _scope, out var value))
+                prepared = AwkSwitchCasePattern.FromValue(value);
+            else return false;
+            var site = _switchCases.Count;
+            _switchCases.Add(prepared);
+            branches[index] = Emit(new(AwkRegionInstructionKind.JumpIfCase, Left: selector, Right: site));
+        }
+        var unmatched = Emit(new(AwkRegionInstructionKind.Jump));
+        _controls.Push(control);
+        for (var index = 0; index < branches.Length; index++)
+        {
+            var start = Label();
+            if (branches[index] >= 0) Patch(branches[index], start);
+            if (index == defaultArm) Patch(unmatched, start);
+            if (!Statements(shape.SwitchCases[index].BodyStatements)) return false;
+        }
+        _controls.Pop();
+        var end = Label();
+        if (defaultArm < 0) Patch(unmatched, end);
+        foreach (var position in control.Breaks) Patch(position, end);
+        return true;
+    }
+
+    private bool TryGetControl(bool forContinue, [NotNullWhen(true)] out ControlScope? selected)
+    {
+        foreach (var control in _controls)
+        {
+            if (forContinue && !control.IsLoop) continue;
+            selected = control;
+            return true;
+        }
+        selected = null;
+        return false;
     }
 
     private bool Expression(AwkExpressionSyntax syntax, out int result, bool preserveOrigin = false)
@@ -1221,8 +1292,10 @@ internal sealed class AwkRegionCompiler
 
     private void Patch(int position, int target) => _code[position] = _code[position] with { Target = target };
 
-    private sealed class Loop
+    private sealed class ControlScope(bool isLoop, int firstTemporary)
     {
+        internal bool IsLoop { get; } = isLoop;
+        internal int FirstTemporary { get; } = firstTemporary;
         internal List<int> Breaks { get; } = [];
         internal List<int> Continues { get; } = [];
     }

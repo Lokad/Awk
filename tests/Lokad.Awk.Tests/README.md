@@ -15,6 +15,10 @@ frames, including nested calls, native field processing and final refunds.
 `AwkIterationLifetimeTests` checks flat/nested snapshots across source deletion, aliased calls,
 genuinely pending sorting callbacks or loop bodies, cancellation and refused admission. Its
 aggregation counters cover native values and bound calls at two key cardinalities.
+`AwkControlFlowLifetimeTests` covers switch selection/fallthrough across pending calls,
+continue to an enclosing array traversal, function exit/status evaluation, cancellation,
+refused selector admission and final refunds. Canonical switch/exit goldens retain ordinary
+selection, fallthrough, nested loop flow and END status behavior.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.
@@ -205,11 +209,11 @@ and final owner refunds. Counters distinguish governed reuse from new argument a
 print/printf lifetime checks preserve formatting and host-buffer funding.
 `AwkArgumentStorageTests` covers both typed stores, nested user operands in caller scope,
 pending success/fault/cancellation, payload clearing/final refunds and cancellation requested
-by cold admission before large value/user-argument arrays. User-call counters cover ordinary/
-prepared bodies at 5, 9 and 65 arguments without changing their binding or activation phases.
+by cold admission before large value/user-argument arrays. User-call counters cover straight
+and switch-containing bodies at 5, 9 and 65 arguments, retaining binding and activation phases.
 `AwkArgumentBindingTests` covers untouched globals, symbol-table changes, hidden caller slots,
 name fallback and real pending getline operands through cancellation and final refunds.
-Shared-binding counters cover ordinary/prepared scalar, array and omitted-local forwarding
+Shared-binding counters cover scalar, array and omitted-local forwarding across switch branches
 in both memory modes; goldens preserve spelling, aliases, caller scope and later mutation.
 Preparation counters cover complete numeric builtin bodies; warning-producing fallbacks keep
 their diagnostic boundary before later caller effects, including failed/pending/canceled appends.

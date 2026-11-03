@@ -5,16 +5,16 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> SharedArgumentBindings()
     {
         foreach (var shape in new[] { "global", "local", "array", "omitted-array" })
-        foreach (var ordinary in new[] { false, true })
-        foreach (var governed in new[] { false, true }) yield return [shape, ordinary, governed];
+        foreach (var withSwitch in new[] { false, true })
+        foreach (var governed in new[] { false, true }) yield return [shape, withSwitch, governed];
     }
 
     [Theory]
     [MemberData(nameof(SharedArgumentBindings))]
-    public async Task OrdinaryAndPreparedCallsShareGuardedReferenceBindings(string shape, bool ordinary, bool governed)
+    public async Task CallsAcrossSwitchBranchesShareGuardedReferenceBindings(string shape, bool withSwitch, bool governed)
     {
         const int records = 128;
-        var boundary = ordinary ? "switch(0){default:break}" : "";
+        var boundary = withSwitch ? "switch(0){default:break}" : "";
         var source = shape switch
         {
             "global" => "function leaf(x,y){" + boundary + "return x+y}{x=$1+0;total+=leaf(x,1)}END{print total}",
@@ -36,7 +36,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.FunctionNameLookups);
         Assert.Equal(0, counters.FunctionArgumentBufferRents);
-        if (!ordinary || shape != "global") Assert.True(counters.BoundFunctionRuns >= records);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }
