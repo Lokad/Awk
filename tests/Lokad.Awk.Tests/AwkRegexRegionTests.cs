@@ -3,6 +3,61 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexRegionTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task GensubAdmissionStopsBeforeFollowingArgumentEffects(bool cancel)
+    {
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(8 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var reached = false;
+        host.AfterAppend = () =>
+        {
+            host.AfterAppend = null;
+            budget.OnGrowth = _ => { reached = true; if (cancel) cancellation.Cancel(); };
+            if (!cancel) budget.RefuseNextAdmissionMinimumGrowth = 1;
+        };
+        const string source = "function effect(){print \"bad\";return \"Y\"}BEGIN{pattern=\"x\";print \"ready\";" +
+            "print gensub(pattern,effect(),\"g\",\"x\");print \"tail\"}";
+        var run = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source)).ExecuteAsync(host,
+            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        else Assert.Equal(AwkExitCode.FatalError, await run);
+        Assert.True(reached);
+        Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(cancel ? "" : "awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task GensubKeepsPatternsSubjectsAndSelectorsByteNative(bool global, bool governed)
+    {
+        const int records = 128;
+        var source = "{value=gensub(/[0-9]/,\"Z\"," + (global ? "\"g\"" : "2") +
+            ",$2);total+=length(value)}END{print total,value}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("key 0007\n", records)));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
+            { MemoryBudget = governed ? budget : null };
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        Assert.Equal(global ? "512 ZZZZ\n" : "512 0Z07\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        Assert.InRange(counters.RegexMatches, records, records * 8);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters.AwkTextAllocations, 0, records * 12 + 32);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task SubstitutionsKeepByteNativeFieldsAndRefundOwners(bool global, bool governed)
@@ -33,6 +88,7 @@ public sealed class AwkRegexRegionTests
     [Theory]
     [InlineData("split", false)] [InlineData("split", true)]
     [InlineData("patsplit", false)] [InlineData("patsplit", true)]
+    [InlineData("gensub", false)] [InlineData("gensub", true)]
     public async Task PatternCaptureStaysFundedAfterItsVariableIsCleared(string builtin, bool sortPrelude)
     {
         const int characters = 65_536;
@@ -42,9 +98,11 @@ public sealed class AwkRegexRegionTests
 
         async Task<long> PendingBytesAsync(bool retain)
         {
+            var operation = builtin == "gensub" ? "gensub((hold?pattern:\"\"),\"X\",\"g\",wait())"
+                : builtin + "(\"x\",fields,(hold?pattern:\"\"),seps[wait()])";
             var source = "function wait(v){pattern=\"\";getline v<\"/side\";return v}BEGIN{" +
                 (sortPrelude ? "asort(scratch);" : "") + "pattern=sprintf(\"%65536s\",\"x\");" +
-                builtin + "(\"x\",fields,(hold?pattern:\"\"),seps[wait()]);print \"unreachable\"}";
+                operation + ";print \"unreachable\"}";
             var host = new MockFileSystem();
             host.AddFile("/side", "r\n");
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

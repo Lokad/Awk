@@ -194,10 +194,14 @@ internal static partial class AwkExpressionLowerer
                     int argumentIndex,
                     AwkExpressionSyntax argument,
                     AwkLoweringScope scope,
-                    [NotNullWhen(true)] out AwkExpression? lowered) =>
-                    callable.Id == AwkBuiltinId.Gensub && argumentIndex == 0
-                        ? TryLowerPatternExpression(argument, scope, out lowered)
-                        : TryLower(argument, scope, out lowered);
+                    [NotNullWhen(true)] out AwkExpression? lowered)
+                {
+                    if (callable.Id != AwkBuiltinId.Gensub || argumentIndex != 0)
+                        return TryLower(argument, scope, out lowered);
+                    if (!TryLowerPatternExpression(argument, scope, out lowered)) return false;
+                    lowered = AwkExpression.RegexArgument(lowered);
+                    return true;
+                }
 
                 lowered = null;
                 if (!AwkBuiltinCallShape.TryCreate(callable, expression, out var call) ||

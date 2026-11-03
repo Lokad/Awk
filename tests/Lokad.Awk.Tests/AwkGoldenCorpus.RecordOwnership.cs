@@ -4,6 +4,21 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordOwnershipCases()
     {
+        yield return Passing("gensub-pattern-formats-before-later-selector-effects",
+            ["function how(){CONVFMT=\"%.1f\";return \"g\"}BEGIN{CONVFMT=\"%.3f\";print gensub(.125,\"X\",how(),\"0.125\")}"], [],
+            "X\n");
+        yield return Passing("gensub-replacement-captures-value-and-formats-after-subject-effects",
+            ["function subject(){replacement=.5;CONVFMT=\"%.1f\";return \"x\"}BEGIN{CONVFMT=\"%.3f\";replacement=.625;print gensub(/^x$/,replacement,\"g\",subject()),replacement}"], [],
+            "0.6 0.5\n");
+        yield return Passing("gensub-large-occurrences-do-not-wrap-to-the-first-match",
+            ["BEGIN{print gensub(/a/,\"X\",2147483648,\"banana\"),gensub(/a/,\"X\",1e40,\"banana\")}"], [],
+            "banana banana\n");
+        yield return Passing("gensub-nonfinite-occurrences-do-not-wrap-to-the-first-match",
+            ["BEGIN{print gensub(/a/,\"X\",strtonum(\"+nan\"),\"banana\"),gensub(/a/,\"X\",strtonum(\"+inf\"),\"banana\")}"], [],
+            "banana banana\n");
+        yield return Passing("gensub-positive-numeric-selector-does-not-use-convfmt",
+            ["BEGIN{CONVFMT=\"%q\";print gensub(/a/,\"X\",1.5,\"banana\")}"], [],
+            "bXnana\n");
         yield return Passing("special-scalar-reads-follow-record-mutation-through-calls",
             ["function columns(){return NF}{print columns();$3=7;print columns()}END{print NR,NF}"], [],
             "2\n3\n1 3\n", "left right\n");

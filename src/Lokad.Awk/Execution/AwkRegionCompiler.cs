@@ -27,6 +27,7 @@ internal sealed class AwkRegionCompiler
     private readonly List<AwkRegionSplit> _splits = [];
     private readonly List<AwkRegionMatch> _matches = [];
     private readonly List<AwkRegionSubstitution> _substitutions = [];
+    private readonly List<AwkRegionGensub> _gensubs = [];
     private int _activeCalls;
     private int _incomingCalls;
     private int _activeBuilders;
@@ -121,7 +122,7 @@ internal sealed class AwkRegionCompiler
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
             new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets),
             _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _kind);
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _kind);
         return true;
     }
 
@@ -527,6 +528,7 @@ internal sealed class AwkRegionCompiler
             if (builtin.Id == AwkBuiltinId.Match) return Match(syntax, out result);
             if (builtin.Id is AwkBuiltinId.Sub or AwkBuiltinId.Gsub)
                 return Substitute(syntax, builtin.Id == AwkBuiltinId.Gsub, out result);
+            if (builtin.Id == AwkBuiltinId.Gensub) return Gensub(syntax, out result);
             if (builtin.TryGetScalarComputation(out var implementation))
                 return builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper
                     ? StringCall(syntax, builtin.Id, out result)
@@ -642,6 +644,26 @@ internal sealed class AwkRegionCompiler
         Emit(new(AwkRegionInstructionKind.Substitute, number, site));
         if (access >= 0) FinishKey(access);
         result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        return true;
+    }
+
+    private bool Gensub(AwkExpressionSyntax syntax, out int result)
+    {
+        result = 0;
+        if (!Pattern(syntax.Children[1], out var pattern, out var origin, out _)) return false;
+        var start = _values;
+        var count = syntax.Children.Count - 2;
+        _values = checked(_values + count);
+        for (var index = 0; index < count; index++)
+        {
+            if (!Expression(syntax.Children[index + 2], out var value, preserveOrigin: true)) return false;
+            Emit(new(AwkRegionInstructionKind.Value, start + index, value, Detail: 1));
+        }
+        var site = _gensubs.Count;
+        _gensubs.Add(new(pattern, origin, start, count));
+        var target = _values++;
+        Emit(new(AwkRegionInstructionKind.Gensub, target, site));
+        result = Operand(AwkRegionOperandKind.ValueTemporary, target);
         return true;
     }
 

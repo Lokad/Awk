@@ -187,6 +187,9 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Match:
                     ExecuteMatch(region.Matches[instruction.Left], instruction.Target);
                     break;
+                case AwkRegionInstructionKind.Gensub:
+                    ExecuteGensub(region.Gensubs[instruction.Left], instruction.Target);
+                    break;
                 case AwkRegionInstructionKind.Substitute:
                 {
                     var substitution = region.Substitutions[instruction.Left];

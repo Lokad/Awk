@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prepare `gensub` through the common interpreter with byte-native patterns and selectors.
+  Preserve early pattern conversion and late replacement conversion; large or nonfinite
+  occurrence numbers no longer wrap to the first match. Positive numeric selectors avoid
+  unnecessary `CONVFMT` conversion.
 - Separate buffered record recognition from pending host reads, retaining one refill
   loop and the existing streaming ownership and cancellation behavior.
 - Bind known special-scalar read identities during interpreter preparation, preserving

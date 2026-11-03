@@ -63,7 +63,7 @@ internal readonly struct AwkBuiltinContext
         State.FormatStringByteText(GetValue(index)).AsString(State.Counters, State.CancellationCheckpoint);
 
     public AwkRegexPattern GetRegexPattern(int index) =>
-        new(GetString(index), _expressions is { } expressions
+        new(GetByteText(index), _expressions is { } expressions
             ? expressions[index].RegexPatternOrigin : AwkRegexPatternOrigin.Runtime,
             _expressions is { } sites ? sites[index] : null);
 

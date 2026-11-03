@@ -209,6 +209,8 @@ destinations through pending argument evaluation. Numeric inputs format after la
 regex arguments keep their earlier conversion point. Array replacement retains its preflight.
 `sub()` and `gsub()` capture replacement values before target-index effects and format them
 afterward. Target indices run once; matching finishes before replacement publication.
+`gensub()` retains its pattern and evaluated values through pending arguments. Ordinary pattern
+and selector processing stays byte-native; rendering a selector warning uses the diagnostic boundary.
 Standard `printf` uses the same argument ownership and retains field byte views across
 arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
 format storage retires after formatting, before the host receives owned output bytes.

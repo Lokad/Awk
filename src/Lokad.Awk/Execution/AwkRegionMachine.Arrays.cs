@@ -2,6 +2,17 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
+    private void ExecuteGensub(AwkRegionGensub operation, int result)
+    {
+        var storage = _cursor.Storage;
+        var pattern = new AwkRegexPattern(storage.Values[operation.Pattern].ByteText, operation.Origin, operation);
+        var input = operation.Count == 3 ? storage.Values[operation.Start + 2] : _state.GetCurrentRecordValue();
+        storage.StoreValue(result, AwkSubstitutionRuntime.Gensub(Context, pattern,
+            storage.Values[operation.Start], storage.Values[operation.Start + 1], input));
+        storage.ReleaseValue(operation.Pattern);
+        storage.ReleaseValues(operation.Start, operation.Count);
+    }
+
     private void ExecuteSubstitution(AwkRegionSubstitution operation, int result, AwkResolvedReference reference)
     {
         var storage = _cursor.Storage;

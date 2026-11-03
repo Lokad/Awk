@@ -403,63 +403,10 @@ internal static partial class AwkBuiltins
         }
         static AwkValue EvaluateGensub(AwkBuiltinContext context)
         {
-            static AwkText ApplyGensub(
-                AwkBuiltinContext context,
-                AwkRegex regex,
-                AwkText replacement,
-                AwkValue how,
-                string selector,
-                AwkText input)
-            {
-                if (selector.Length > 0 && selector[0] is 'g' or 'G')
-                {
-                    return AwkRegexSubstitution.ReplaceAll(
-                        context.State,
-                        regex,
-                        input,
-                        replacement,
-                        AwkReplacementMode.Gensub,
-                        maxReplacements: 0,
-                        out _);
-                }
-
-                var selectorNumber = how.AsNumber(context.State.CancellationCheckpoint);
-                if (selectorNumber <= 0 &&
-                    context.TryGetExecutionContext(out var execution))
-                {
-                    execution.Output.ReportDiagnostic(new AwkDiagnostic(
-                        new AwkTextSpan(0, 0),
-                        AwkMessages.FormatGensubThirdArgumentWarningText(selector),
-                        AwkDiagnosticId.WarningRuntime));
-                }
-
-                var occurrence = Math.Max(1, (int)selectorNumber);
-
-                return AwkRegexSubstitution.ReplaceOccurrence(
-                    context.State,
-                    regex,
-                    input,
-                    replacement,
-                    AwkReplacementMode.Gensub,
-                    occurrence,
-                    out _);
-            }
-
-            if (context.ArgumentCount is < 3 or > 4)
-                return AwkValue.FromText(string.Empty);
-
-            var pattern = context.GetRegexPattern(0);
-            var replacement = context.GetByteText(1);
-            var how = context.GetValue(2);
-            var selector = context.GetString(2);
-            var input = context.ArgumentCount == 4 ? context.GetByteText(3) : context.State.CurrentRecordByteText;
-            return context.State.CreateByteTextValue(ApplyGensub(
-                context,
-                context.State.CreateRegex(pattern),
-                replacement,
-                how,
-                selector,
-                input));
+            if (context.ArgumentCount is < 3 or > 4) return AwkValue.FromText(string.Empty);
+            return AwkSubstitutionRuntime.Gensub(context.Evaluation, context.GetRegexPattern(0),
+                context.GetValue(1), context.GetValue(2),
+                context.ArgumentCount == 4 ? context.GetValue(3) : context.State.GetCurrentRecordValue());
         }
         static AwkValue EvaluateLength(AwkBuiltinContext context)
         {

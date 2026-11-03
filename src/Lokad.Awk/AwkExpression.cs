@@ -83,6 +83,8 @@ internal abstract partial class AwkExpression
     public static AwkExpression SourceRegexPattern(string pattern) =>
         new LiteralExpression(pattern, AwkRegexPatternOrigin.SourceLiteral);
 
+    internal static AwkExpression RegexArgument(AwkExpression value) => new RegexArgumentExpression(value);
+
     internal virtual AwkRegexPatternOrigin RegexPatternOrigin => AwkRegexPatternOrigin.Runtime;
 
     public async ValueTask<AwkRegexPattern> ResolveRegexPatternAsync(AwkEvaluationContext context) =>

@@ -6,6 +6,14 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
+    private sealed class RegexArgumentExpression(AwkExpression value) : AwkExpression
+    {
+        internal override AwkRegexPatternOrigin RegexPatternOrigin => value.RegexPatternOrigin;
+
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            context.State.CreateDeferredTextValue(await value.ResolveByteTextAsync(context).ConfigureAwait(false));
+    }
+
     private sealed class SubstitutionExpression(AwkExpression pattern, AwkExpression replacement,
         AwkSubstitutionTarget target, bool global) : AwkExpression
     {

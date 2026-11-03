@@ -27,6 +27,8 @@ sorting migrates. Golden cases pin late numeric input formatting and earlier reg
 conversion without changing the captured input value.
 Substitution cases cover pending pattern/replacement/target expressions, field and nested-array
 locations, late numeric replacement conversion, dynamic-pattern failure order and final refunds.
+Gensub checks include all pending argument positions, default-record input, pattern retention
+after its source is cleared, large/nonfinite occurrence selectors and byte-native counters.
 Special-scalar counters cover native reads through function calls and field mutation, without
 caching computed `NF` across effects or changing compatibility/local binding rules.
 Record-cursor checks retain scanner semantics across chunk sizes and input sources. Pending

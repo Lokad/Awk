@@ -61,7 +61,8 @@ public sealed class AwkRegionFieldTests
             "typeof-field", "typeof-prefix", "typeof-nested", "isarray-nested", "isarray-symbol",
             "split-input", "patsplit-input", "split-child", "split-pattern", "patsplit-pattern", "split-promote", "split-detach",
             "match-input", "match-pattern", "match-child", "match-prefix", "match-numeric",
-            "sub-pattern", "sub-replacement", "sub-field", "gsub-child", "sub-source-pattern", "sub-numeric", "gsub-record", "sub-prefix"
+            "sub-pattern", "sub-replacement", "sub-field", "gsub-child", "sub-source-pattern", "sub-numeric", "gsub-record", "sub-prefix",
+            "gensub-pattern", "gensub-replacement", "gensub-selector", "gensub-input", "gensub-default", "gensub-prefix", "gensub-numeric"
         })
         foreach (var cancel in new[] { false, true })
         foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
@@ -111,10 +112,17 @@ public sealed class AwkRegionFieldTests
             "sub-numeric" => "{CONVFMT=\"%.3f\";a[\"k\"]=\"x\";count=sub(/x/,.125,a[(read()>0?\"k\":\"bad\")]);print count,a[\"k\"],$0,i;next}",
             "gsub-record" => "{$0=\"x x\";count=gsub(/x/,(read()>0?\"Z\":\"Y\"));print count,$0,i;next}",
             "sub-prefix" => "{print sub(/0/,\"X\",$1),read(),$0;next}",
+            "gensub-pattern" => "{i=1;text=gensub($i,(read()>0?\"X\":\"Y\"),\"g\",\"0007\");print text,$0,i;next}",
+            "gensub-replacement" => "{i=1;text=gensub(/x/,$i,\"g\",(read()>0?\"x\":\"bad\"));print text,$0,i;next}",
+            "gensub-selector" => "{i=1;text=gensub(/x/,\"Y\",$i,(read()>0?\"xxxxxxxx\":\"bad\"));print text,$0,i;next}",
+            "gensub-input" => "{text=gensub(/[0-9]/,\"Z\",\"g\",(read()>0?$0:\"bad\"));print text,$0,i;next}",
+            "gensub-default" => "{text=gensub(/[0-9]/,(read()>0?\"Z\":\"Y\"),\"g\");print text,$0,i;next}",
+            "gensub-prefix" => "{i=1;print gensub(/0/,\"X\",\"g\",$i),read(),$0;next}",
+            "gensub-numeric" => "{CONVFMT=\"%.3f\";text=gensub(.125,\"X\",\"g\",(read()>0?\"0.125\":\"bad\"));print text,CONVFMT,$0,i;next}",
             _ => "{i=1;$i" + (operation == "compound" ? "+=" : "=") + "read();print $0,i;next}"
         };
         var beforeRead = operation switch
-        { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", "match-numeric" or "sub-numeric" => "CONVFMT=\"%.1f\";", _ => "" };
+        { "split-promote" => "a[1][9]=3;", "split-detach" => "delete a;", "match-numeric" or "sub-numeric" or "gensub-numeric" => "CONVFMT=\"%.1f\";", _ => "" };
         var source = "function read(x){" + beforeRead + "getline x<\"/side\";i=2;$1=100;return x}" + action;
         var host = new MockFileSystem();
         host.SetStandardInput("0007 old\n");
@@ -194,6 +202,12 @@ public sealed class AwkRegionFieldTests
                 "sub-numeric" => "1 0.1 100 old 2\n",
                 "gsub-record" => "1 100 Z 2\n",
                 "sub-prefix" => "1 11 100 old\n",
+                "gensub-pattern" => "X 100 old 2\n",
+                "gensub-replacement" => "0007 100 old 2\n",
+                "gensub-selector" => "xxxxxxYx 100 old 2\n",
+                "gensub-input" or "gensub-default" => "ZZZ old 100 old 2\n",
+                "gensub-prefix" => "XXX7 11 100 old\n",
+                "gensub-numeric" => "X %.1f 100 old 2\n",
                 _ => "100 11 2\n"
             };
             Assert.Equal(cancel ? "" : expected, host.GetOutput(AwkFileDescriptor.StdOut));
