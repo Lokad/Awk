@@ -3,6 +3,33 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
+    [InlineData(false, "arithmetic")] [InlineData(true, "arithmetic")]
+    [InlineData(false, "logical")] [InlineData(true, "logical")]
+    [InlineData(false, "unary")] [InlineData(true, "unary")]
+    public async Task DeepOperatorsUsePreparationFramesAndPreserveValues(bool governed, string shape)
+    {
+        const int depth = 2048;
+        var expression = shape switch
+        {
+            "arithmetic" => "1" + string.Concat(Enumerable.Repeat("+1", depth)),
+            "logical" => "0" + string.Concat(Enumerable.Repeat("||0", depth)) + "||1",
+            _ => new string('!', depth) + "0"
+        };
+        var source = "BEGIN{value=" + expression + ";print value}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSyntaxNestingDepth(depth + 16);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(shape == "arithmetic" ? "2049\n" : shape == "logical" ? "1\n" : "0\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task DeepBlocksKeepFunctionScopeAndRefundThroughPublicExecution(bool governed)
     {

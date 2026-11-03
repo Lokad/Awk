@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 // Lowering covers scalar/array computation, direct calls and synchronous builtins. Unmigrated constructs
 // remain an explicit migration boundary; there are no arity/block-size/script guards.
-internal sealed class AwkRegionCompiler
+internal sealed partial class AwkRegionCompiler
 {
     private readonly AwkLoweringScope _scope;
     private readonly AwkRegionKind _kind;
@@ -458,15 +458,11 @@ internal sealed class AwkRegionCompiler
         return false;
     }
 
-    private bool Expression(AwkExpressionSyntax syntax, out int result, bool preserveOrigin = false)
+    private bool ExpressionCore(AwkExpressionSyntax syntax, out int result, bool preserveOrigin)
     {
-        _scope.CheckCancellation();
         result = 0;
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()) return false;
         switch (syntax.Kind)
         {
-            case AwkExpressionKind.Group when syntax.Children.Count == 1:
-                return Expression(syntax.Children[0], out result, preserveOrigin);
             case AwkExpressionKind.Number:
                 if (!AwkExpressionLowerer.TryReadSwitchConstant(syntax, _scope, out var number)) return false;
                 result = Constant(number.AsNumber());
@@ -508,11 +504,6 @@ internal sealed class AwkRegionCompiler
                 return Call(syntax, out result);
             case AwkExpressionKind.Concatenation when syntax.Children.Count == 2:
                 return Concatenation(syntax, out result);
-            case AwkExpressionKind.Binary when syntax.Children.Count == 2 && syntax.OperatorTokens.Count == 1:
-                return Binary(syntax, out result);
-            case AwkExpressionKind.Unary when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1:
-            case AwkExpressionKind.Postfix when syntax.Children.Count == 1 && syntax.OperatorTokens.Count == 1:
-                return Unary(syntax, out result);
             case AwkExpressionKind.Conditional when syntax.Children.Count == 3:
                 var alternate = new List<int>();
                 if (!Branch(syntax.Children[0], whenTrue: false, alternate)) return false;
@@ -1334,94 +1325,16 @@ internal sealed class AwkRegionCompiler
         Emit(new(kind, variable, NumericRegister(value)));
     }
 
-    private bool Unary(AwkExpressionSyntax syntax, out int result)
+    private bool PrepareIncrement(AwkExpressionSyntax syntax, out int result)
     {
         result = 0;
-        var token = syntax.OperatorTokens[0].Kind;
-        if (token is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus or AwkTokenKind.PostfixPlusPlus or AwkTokenKind.PostfixMinusMinus)
-        {
-            if (!PrepareTarget(syntax.Children[0], out var target, out var prior)) return false;
-            var number = _numbers++;
-            var decrement = token is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
-            Emit(new(AwkRegionInstructionKind.Arithmetic, number, NumericRegister(prior), NumericRegister(Constant(decrement ? -1 : 1)), (int)AwkNumericOperation.Add));
-            var updated = Operand(AwkRegionOperandKind.NumberTemporary, number);
-            Store(target, updated);
-            result = syntax.Kind == AwkExpressionKind.Postfix ? prior : updated;
-            return true;
-        }
-        if (!Expression(syntax.Children[0], out var operand)) return false;
-        if (token == AwkTokenKind.Plus) { result = CaptureNumber(operand); return true; }
-        var destination = _numbers++;
-        if (token == AwkTokenKind.Minus)
-            Emit(new(AwkRegionInstructionKind.Negate, destination, NumericRegister(operand)));
-        else if (token == AwkTokenKind.Bang)
-            Emit(new(AwkRegionInstructionKind.Not, destination, operand));
-        else return false;
-        result = Operand(AwkRegionOperandKind.NumberTemporary, destination);
-        return true;
-    }
-
-    private bool Binary(AwkExpressionSyntax syntax, out int result)
-    {
-        result = 0;
-        var token = syntax.OperatorTokens[0].Kind;
-        if (token == AwkTokenKind.In) return Membership(syntax, out result);
-        if (token is AwkTokenKind.Tilde or AwkTokenKind.BangTilde) return RegexMatch(syntax, out result);
-        if (!Expression(syntax.Children[0], out var left)) return false;
-        if (token is AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe)
-        {
-            var number = _numbers++;
-            var alternative = EmitBranch(left, whenTrue: false);
-            if (token == AwkTokenKind.PipePipe)
-            {
-                Emit(new(AwkRegionInstructionKind.MoveNumber, number, NumericRegister(Constant(1))));
-                var done = Emit(new(AwkRegionInstructionKind.Jump));
-                Patch(alternative, Label());
-                if (!Expression(syntax.Children[1], out var right)) return false;
-                Emit(new(AwkRegionInstructionKind.Truth, number, right));
-                Patch(done, Label());
-            }
-            else
-            {
-                if (!Expression(syntax.Children[1], out var right)) return false;
-                Emit(new(AwkRegionInstructionKind.Truth, number, right));
-                var done = Emit(new(AwkRegionInstructionKind.Jump));
-                Patch(alternative, Label());
-                Emit(new(AwkRegionInstructionKind.MoveNumber, number, NumericRegister(Constant(0))));
-                Patch(done, Label());
-            }
-            result = Operand(AwkRegionOperandKind.NumberTemporary, number);
-            return true;
-        }
-
-        var arithmetic = token switch
-        {
-            AwkTokenKind.Plus => AwkNumericOperation.Add, AwkTokenKind.Minus => AwkNumericOperation.Subtract,
-            AwkTokenKind.Star => AwkNumericOperation.Multiply, AwkTokenKind.Slash => AwkNumericOperation.Divide,
-            AwkTokenKind.Percent => AwkNumericOperation.Modulo, AwkTokenKind.Caret => AwkNumericOperation.Power,
-            _ => (AwkNumericOperation)(-1)
-        };
-        var comparison = token switch
-        {
-            AwkTokenKind.EqualEqual => AwkComparison.Equal, AwkTokenKind.BangEqual => AwkComparison.NotEqual,
-            AwkTokenKind.Less => AwkComparison.LessThan, AwkTokenKind.LessEqual => AwkComparison.LessOrEqual,
-            AwkTokenKind.Greater => AwkComparison.GreaterThan, AwkTokenKind.GreaterEqual => AwkComparison.GreaterOrEqual,
-            _ => (AwkComparison)(-1)
-        };
-        if ((int)arithmetic < 0 && (int)comparison < 0) return false;
-        // Immediate operands are consumed in source order inside one operation.
-        // A computed RHS needs an owned capture before its operations can run.
-        var stringComparison = _operands[left].Kind == AwkRegionOperandKind.Literal;
-        left = (int)arithmetic >= 0 ? CaptureNumber(left) : IsImmediateRead(syntax.Children[1]) ? left : CaptureValue(left);
-        if (!Expression(syntax.Children[1], out var operand)) return false;
-        var target = _numbers++;
-        if ((int)arithmetic >= 0)
-            Emit(new(AwkRegionInstructionKind.Arithmetic, target, NumericRegister(left), NumericRegister(operand), (int)arithmetic));
-        else
-            Emit(new(stringComparison || _operands[operand].Kind == AwkRegionOperandKind.Literal
-                ? AwkRegionInstructionKind.CompareText : AwkRegionInstructionKind.Compare,
-                target, left, operand, (int)comparison));
-        result = Operand(AwkRegionOperandKind.NumberTemporary, target);
+        if (!PrepareTarget(syntax.Children[0], out var target, out var prior)) return false;
+        var number = _numbers++;
+        var decrement = syntax.OperatorTokens[0].Kind is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
+        Emit(new(AwkRegionInstructionKind.Arithmetic, number, NumericRegister(prior), NumericRegister(Constant(decrement ? -1 : 1)), (int)AwkNumericOperation.Add));
+        var updated = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        Store(target, updated);
+        result = syntax.Kind == AwkExpressionKind.Postfix ? prior : updated;
         return true;
     }
 
