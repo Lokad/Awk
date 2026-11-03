@@ -1253,8 +1253,8 @@ internal sealed class AwkRegionCompiler
         }
         var kind = _variables[variable] switch
         {
-            { LocalIndex: >= 0 } => AwkRegionInstructionKind.AssignLocalNumber,
-            { GlobalIndex: >= 0 } => AwkRegionInstructionKind.AssignGlobalNumber,
+            { Kind: AwkRegionVariableKind.Local } => AwkRegionInstructionKind.AssignLocalNumber,
+            { Kind: AwkRegionVariableKind.Global } => AwkRegionInstructionKind.AssignGlobalNumber,
             _ => AwkRegionInstructionKind.AssignVariableNumber
         };
         Emit(new(kind, variable, NumericRegister(value)));
@@ -1460,10 +1460,14 @@ internal sealed class AwkRegionCompiler
         {
             index = _variables.Count;
             _variableIndices.Add(name, index);
-            var local = _scope.TryGetFunctionLocalSlot(name, out var slot) ? slot.Index : -1;
-            var special = local < 0 && AwkSpecialVariables.TryGetScalar(name, out var id) &&
-                AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode) ? (int)id : -1;
-            _variables.Add(new(name, local < 0 && _scope.TryGetGlobalReadIndex(name, out var global) ? global : -1, local, special));
+            if (_scope.TryGetFunctionLocalSlot(name, out var slot))
+                _variables.Add(new(name, AwkRegionVariableKind.Local, slot.Index));
+            else if (AwkSpecialVariables.TryGetScalar(name, out var id) &&
+                AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode))
+                _variables.Add(new(name, AwkRegionVariableKind.Special, (int)id));
+            else if (_scope.TryGetGlobalReadIndex(name, out var global))
+                _variables.Add(new(name, AwkRegionVariableKind.Global, global));
+            else _variables.Add(new(name, AwkRegionVariableKind.Dynamic, -1));
         }
         return true;
     }
@@ -1492,8 +1496,8 @@ internal sealed class AwkRegionCompiler
             AwkRegionOperandKind.ArrayElement => AwkRegionInstructionKind.ArrayNumber,
             AwkRegionOperandKind.Variable => _variables[source.Index] switch
             {
-                { LocalIndex: >= 0 } => AwkRegionInstructionKind.LocalNumber,
-                { GlobalIndex: >= 0 } => AwkRegionInstructionKind.GlobalNumber,
+                { Kind: AwkRegionVariableKind.Local } => AwkRegionInstructionKind.LocalNumber,
+                { Kind: AwkRegionVariableKind.Global } => AwkRegionInstructionKind.GlobalNumber,
                 _ => AwkRegionInstructionKind.VariableNumber
             },
             _ => throw new InvalidOperationException("A numeric operand requires a value location.")

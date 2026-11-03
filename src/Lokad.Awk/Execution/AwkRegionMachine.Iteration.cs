@@ -38,10 +38,10 @@ internal partial struct AwkRegionMachine
     private void AssignVariable(AwkRegionVariable variable, AwkValue value)
     {
         _state.ThrowIfCancellationRequested();
-        if (variable.LocalIndex >= 0)
-            _state.AssignFunctionLocalValue(new(variable.LocalIndex), variable.Name, value);
-        else if (variable.GlobalIndex >= 0)
-            _state.AssignPreparedGlobalValue(variable.Name, variable.GlobalIndex, value);
+        if (variable.Kind == AwkRegionVariableKind.Local)
+            _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
+        else if (variable.Kind == AwkRegionVariableKind.Global)
+            _state.AssignPreparedGlobalValue(variable.Name, variable.Index, value);
         else
             _state.AssignVariableValue(variable.Name, value);
     }

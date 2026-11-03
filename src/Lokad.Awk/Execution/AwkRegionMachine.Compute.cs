@@ -78,15 +78,15 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.LocalNumber:
                 {
                     var local = variables[instruction.Left];
-                    numbers[instruction.Target] = TryLocalNumber(local.LocalIndex, out var number)
-                        ? number : state.ResolveFunctionLocalValue(new(local.LocalIndex), local.Name).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = TryLocalNumber(local.Index, out var number)
+                        ? number : state.ResolveFunctionLocalValue(new(local.Index), local.Name).AsNumber(state.CancellationCheckpoint);
                     break;
                 }
                 case AwkRegionInstructionKind.GlobalNumber:
                 {
                     var global = variables[instruction.Left];
-                    numbers[instruction.Target] = state.TryResolvePreparedGlobalNumber(global.GlobalIndex, out var number)
-                        ? number : state.ResolvePreparedGlobalValue(global.Name, global.GlobalIndex).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = state.TryResolvePreparedGlobalNumber(global.Index, out var number)
+                        ? number : state.ResolvePreparedGlobalValue(global.Name, global.Index).AsNumber(state.CancellationCheckpoint);
                     break;
                 }
                 case AwkRegionInstructionKind.VariableNumber:
@@ -142,7 +142,7 @@ internal partial struct AwkRegionMachine
                     if (instruction.Detail != 0 && lengthOperand.Kind == AwkRegionOperandKind.Variable)
                     {
                         var named = variables[lengthOperand.Index];
-                        if (named.LocalIndex < 0 && named.GlobalIndex >= 0 && state.HasBoundGlobalScalar(named.GlobalIndex))
+                        if (named.Kind == AwkRegionVariableKind.Global && state.HasBoundGlobalScalar(named.Index))
                             state.Counters.RecordBoundScalarLength();
                         else if (state.TryGetExistingArrayCount(new(named.Name.Identifier), out var count))
                         {
@@ -383,8 +383,8 @@ internal partial struct AwkRegionMachine
                     state.ThrowIfCancellationRequested();
                     var local = variables[instruction.Target];
                     var number = numbers[instruction.Left];
-                    if (!state.TryAssignFunctionLocalNumber(new(local.LocalIndex), number))
-                        state.AssignFunctionLocalValue(new(local.LocalIndex), local.Name, AwkValue.FromNumber(number));
+                    if (!state.TryAssignFunctionLocalNumber(new(local.Index), number))
+                        state.AssignFunctionLocalValue(new(local.Index), local.Name, AwkValue.FromNumber(number));
                     break;
                 }
                 case AwkRegionInstructionKind.AssignGlobalNumber:
@@ -392,8 +392,8 @@ internal partial struct AwkRegionMachine
                     state.ThrowIfCancellationRequested();
                     var global = variables[instruction.Target];
                     var number = numbers[instruction.Left];
-                    if (!state.TryAssignPreparedGlobalNumber(global.GlobalIndex, number))
-                        state.AssignPreparedGlobalValue(global.Name, global.GlobalIndex, AwkValue.FromNumber(number));
+                    if (!state.TryAssignPreparedGlobalNumber(global.Index, number))
+                        state.AssignPreparedGlobalValue(global.Name, global.Index, AwkValue.FromNumber(number));
                     break;
                 }
                 case AwkRegionInstructionKind.AssignVariableNumber:
@@ -461,9 +461,9 @@ internal partial struct AwkRegionMachine
                     {
                         var source = variables[operand.Index];
                         var number = 0d;
-                        var numeric = source.LocalIndex >= 0
-                            ? TryLocalNumber(source.LocalIndex, out number)
-                            : source.GlobalIndex >= 0 && state.TryResolvePreparedGlobalNumber(source.GlobalIndex, out number);
+                        var numeric = source.Kind == AwkRegionVariableKind.Local
+                            ? TryLocalNumber(source.Index, out number)
+                            : source.Kind == AwkRegionVariableKind.Global && state.TryResolvePreparedGlobalNumber(source.Index, out number);
                         if (numeric)
                         {
                             state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, number);
@@ -629,10 +629,10 @@ internal partial struct AwkRegionMachine
             if (target.Kind == AwkRegionOperandKind.Variable)
             {
                 var variable = variables[target.Index];
-                return variable.LocalIndex >= 0
-                    ? AwkResolvedReference.LocalScalar(variable.Name, new(variable.LocalIndex))
-                    : variable.GlobalIndex >= 0
-                        ? AwkResolvedReference.PreparedGlobalScalar(variable.Name, variable.GlobalIndex)
+                return variable.Kind == AwkRegionVariableKind.Local
+                    ? AwkResolvedReference.LocalScalar(variable.Name, new(variable.Index))
+                    : variable.Kind == AwkRegionVariableKind.Global
+                        ? AwkResolvedReference.PreparedGlobalScalar(variable.Name, variable.Index)
                         : AwkResolvedReference.Scalar(variable.Name);
             }
             if (IsField(target)) return AwkResolvedReference.Field(new(FieldOrdinal(target)));
@@ -687,14 +687,16 @@ internal partial struct AwkRegionMachine
             };
         }
 
-        AwkValue ReadVariable(AwkRegionVariable variable) => variable.LocalIndex >= 0
-            ? state.ResolveFunctionLocalValue(new(variable.LocalIndex), variable.Name) : variable.GlobalIndex >= 0
-            ? state.ResolvePreparedGlobalValue(variable.Name, variable.GlobalIndex)
-            : variable.SpecialId >= 0 ? state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)variable.SpecialId)
-            : state.ResolveVariableValue(variable.Name);
+        AwkValue ReadVariable(AwkRegionVariable variable) => variable.Kind switch
+        {
+            AwkRegionVariableKind.Local => state.ResolveFunctionLocalValue(new(variable.Index), variable.Name),
+            AwkRegionVariableKind.Global => state.ResolvePreparedGlobalValue(variable.Name, variable.Index),
+            AwkRegionVariableKind.Special => state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)variable.Index),
+            _ => state.ResolveVariableValue(variable.Name)
+        };
 
-        bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionArgument argument) => variable.LocalIndex >= 0
-            ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.LocalIndex), variable.Name, out argument)
+        bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionArgument argument) => variable.Kind == AwkRegionVariableKind.Local
+            ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.Index), variable.Name, out argument)
             : state.TryResolveArrayArgument(variable.Name, out argument);
 
         AwkComparisonOperand ComparisonOperand(int index)
