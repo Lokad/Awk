@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Cache arithmetic field numbers in their funded descriptors, retaining original spelling
+  for comparisons and escaping values. Remove separate numeric-cache entries and growth.
 - Share immutable splitting configuration through compact record snapshots. Reuse preparation
   for assignments of the same separator storage, preserving settings captured by admitted records.
 - Bind splitting and value construction to the record frame. Remove the forwarding record runtime
