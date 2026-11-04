@@ -38,37 +38,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(0, 3)]
-    [InlineData(13, 16)]
-    [InlineData(14, 0)]
-    [InlineData(17, 0)]
-    public void FieldArrayLeavesKeepTheExistingExpressionDepthLimit(int additions, int expectedDepth)
-    {
-        AwkExpression index = AwkExpression.Number(1);
-        for (var i = 0; i < additions; i++) index = AwkExpression.Add(index, AwkExpression.Number(0));
-        var expression = AwkExpression.ArrayElement(AwkArrayName.FromText("a"),
-            AwkArrayIndex.Simple(AwkExpression.FieldIndex(index)));
-        Assert.Equal(expectedDepth, Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).SynchronousDepth);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FieldArrayLeafKeepsAllThreeOriginalEvaluationSteps(bool ordinary)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault());
-        var name = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(name, new("hit"), AwkValue.FromNumber(7));
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit"));
-        _ = state.GetFieldValue(1); // Exclude the separate record-split work charge.
-        var expression = AwkExpression.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number(1))));
-        var value = ordinary ? await expression.EvaluateAsync(new(state))
-            : Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).EvaluateSynchronous(new(state));
-        Assert.Equal(7, value.AsNumber());
-    }
-
-    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task FieldArraySharedAdmissionRefusalStopsWithoutRetry(bool firstExists)
@@ -210,39 +179,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Same(record, state.CurrentRecordByteText);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FieldArrayHostDependentIndexKeepsPendingLifetime(bool fail)
-    {
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var operand = new PendingOperand(completion.Task);
-        var name = AwkArrayName.FromText("a");
-        var expression = AwkExpression.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.FieldIndex(operand)));
-        Assert.Equal(0, Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).SynchronousDepth);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault());
-        state.SetArrayAwkValue(name, new("old"), AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(name, new("new"), AwkValue.FromNumber(9));
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("old"));
-        var pending = expression.EvaluateAsync(new(state));
-        Assert.False(pending.IsCompleted);
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("new"));
-        if (fail)
-        {
-            var error = new AwkRuntimeException("index failure\n"u8.ToArray());
-            completion.SetException(error);
-            Assert.Same(error, await Record.ExceptionAsync(() => pending.AsTask()));
-        }
-        else
-        {
-            completion.SetResult(AwkValue.FromNumber(1));
-            Assert.Equal(9, (await pending).AsNumber());
-        }
-        Assert.Equal(1, operand.Entries);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private readonly record struct FieldArrayResult(double Total, bool FirstMiss, bool SecondMiss, long Prepared, string Error);

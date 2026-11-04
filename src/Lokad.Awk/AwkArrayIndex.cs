@@ -35,17 +35,11 @@ internal abstract record AwkArrayIndex
         AwkArrayName array, AwkArrayBinding binding, ValueTask<AwkArrayKey> pending) =>
         context.State.GetArrayNumber(array, await pending.ConfigureAwait(false), binding);
 
-    internal virtual async ValueTask<bool> ContainsAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
-        context.State.ContainsArrayValue(array, await ResolveKeyAsync(context).ConfigureAwait(false), binding);
-
     internal virtual AwkValue ReadSynchronous(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
         context.State.GetArrayAwkValue(array, ResolveKeySynchronous(context), binding);
 
     internal virtual double ReadNumberSynchronous(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
         context.State.GetArrayNumber(array, ResolveKeySynchronous(context), binding);
-
-    internal virtual bool ContainsSynchronous(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
-        context.State.ContainsArrayValue(array, ResolveKeySynchronous(context), binding);
 
     internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding = default) =>
         ResolveKeyAsync(context);
@@ -97,11 +91,6 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
             ? context.State.GetArrayFieldNumber(array, ResolveFieldSynchronous(context), binding)
             : base.ReadNumberSynchronous(context, array, binding);
 
-    internal override bool ContainsSynchronous(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
-        AwkExpression.TryGetFieldIndexExpression(Expression, out _)
-            ? context.State.ContainsArrayField(array, ResolveFieldSynchronous(context), binding)
-            : base.ContainsSynchronous(context, array, binding);
-
     internal override ValueTask<AwkValue> ReadAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding)
     {
         if (!AwkExpression.TryGetFieldIndexExpression(Expression, out var index))
@@ -128,18 +117,6 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
     private static async ValueTask<double> AwaitFieldNumberAsync(AwkEvaluationContext context,
         AwkArrayName array, AwkArrayBinding binding, ValueTask<double> pending) =>
         context.State.GetArrayFieldNumber(array, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, binding);
-
-    internal override ValueTask<bool> ContainsAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding)
-    {
-        if (!AwkExpression.TryGetFieldIndexExpression(Expression, out var index))
-            return base.ContainsAsync(context, array, binding);
-        context.State.Checkpoint();
-        return AwaitFieldContainsAsync(context, array, binding, index.ResolveNumberAsync(context));
-    }
-
-    private static async ValueTask<bool> AwaitFieldContainsAsync(AwkEvaluationContext context,
-        AwkArrayName array, AwkArrayBinding binding, ValueTask<double> pending) =>
-        context.State.ContainsArrayField(array, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, binding);
 
     internal override ValueTask<AwkArrayUpdateTarget> PrepareUpdateAsync(AwkEvaluationContext context,
         AwkArrayName array, AwkArrayBinding binding = default)

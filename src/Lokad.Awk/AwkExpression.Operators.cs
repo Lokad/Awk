@@ -181,18 +181,4 @@ internal abstract partial class AwkExpression
             AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
     }
 
-    private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName,
-        AwkArrayBinding binding, Action? checkpoint = null) : AwkSynchronousExpression
-    {
-        private readonly (int Depth, int Calls) _shape = indexExpression.GetSynchronousShape(checkpoint);
-        internal override int SynchronousDepth => _shape.Depth > 0 ? _shape.Depth + 1 : 0;
-        internal override int SynchronousCallDepth => _shape.Calls;
-
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            AwkValue.FromNumber(indexExpression.ContainsSynchronous(context, arrayName, binding) ? 1 : 0);
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            AwkValue.FromNumber(await indexExpression.ContainsAsync(context, arrayName, binding).ConfigureAwait(false) ? 1 : 0);
-    }
-
 }

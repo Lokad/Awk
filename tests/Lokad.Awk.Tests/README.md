@@ -128,6 +128,14 @@ case and coordinate behavior, cached numeric search results and refusal before p
 The old short-literal string eligibility thresholds and route counters are retired.
 Native string-operation counters cover cached field and array values across dirty-record
 reconstruction, byte-native processing and final governor refunds in both execution modes.
+Native field-key fixtures retain record selection after a pending index, membership without
+insertion, owned value snapshots after array mutation, and missing-key admission before RHS
+effects. Warm complete array updates retain their allocation bound through native source;
+owned field-prefix checks call the actual field owner. Old membership and forwarding wrappers
+are removed. Native pending index failures stop splitting, insertion and result publication;
+the retired expression-depth and duplicate synchronous/value route assertions are deleted
+with their synthetic pending helper. Native numeric failure cases retain exact public diagnostics before later effects;
+nonfinite field destinations use real pending calls and preserve record/counter state.
 Membership checks cover composite keys with default/empty `SUBSEP`, no key-copy allocation
 per lookup, no insertion on misses, and live prefixes across pending calls and record mutation.
 Nested read/assignment/update cases include composite prefixes captured before a pending key

@@ -50,9 +50,6 @@ internal abstract partial class AwkExpression
                     ? new SynchronousComparisonExpression(syncLeft, syncRight, comparison)
                     : new ComparisonExpression(left, right, comparison);
 
-    public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName, AwkArrayBinding binding = default,
-        Action? checkpoint = null) => new ArrayMembershipExpression(index, arrayName, binding, checkpoint);
-
     public static AwkExpression Assignment(AwkReference target, AwkExpression value) =>
         new AssignmentExpression(target, value);
 

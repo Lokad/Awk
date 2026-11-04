@@ -5,7 +5,7 @@ public sealed partial class AwkFieldProjectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task OwnedExpressionsUsePrefixBoundsAndChargeCompletionWork(bool finite)
+    public void OwnedFieldValuesUsePrefixBoundsAndChargeCompletionWork(bool finite)
     {
         using var memoryForState = State(finite);
         var state = memoryForState.State;
@@ -17,20 +17,19 @@ public sealed partial class AwkFieldProjectionTests
         state.SetCurrentRecord(source);
         eager.SetCurrentRecord(source);
         Assert.Equal(64, eager.FieldCount);
-        AwkExpression Field(int index) => AwkExpression.FieldIndex(AwkExpression.Number(index));
-        var first = await Field(1).EvaluateAsync(new(state));
-        var firstEager = await Field(1).EvaluateAsync(new(eager));
+        var first = state.GetFieldValue(1);
+        var firstEager = eager.GetFieldValue(1);
         Assert.Equal(firstEager, first);
         Assert.Equal("0007"u8.ToArray(), first.ByteText.AsSpan().ToArray());
         Assert.Equal(1, counters.FieldsMaterialized);
         Assert.Equal(64, eagerCounters.FieldsMaterialized);
-        var third = await Field(3).EvaluateAsync(new(state));
-        var thirdEager = await Field(3).EvaluateAsync(new(eager));
+        var third = state.GetFieldValue(3);
+        var thirdEager = eager.GetFieldValue(3);
         Assert.Equal(thirdEager, third);
         Assert.Equal(3, counters.FieldsMaterialized);
         Assert.Equal(64, state.FieldCount);
         Assert.Equal(64, counters.FieldsMaterialized);
-        Assert.Equal(first, await Field(1).EvaluateAsync(new(state)));
+        Assert.Equal(first, state.GetFieldValue(1));
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

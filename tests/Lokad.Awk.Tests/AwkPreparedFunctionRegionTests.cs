@@ -710,16 +710,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
             CancellationToken.None, counters, state.Limits, state, static _ => []);
 
-    private sealed class PendingOperand(Task<AwkValue> completion) : AwkExpression
-    {
-        public int Entries { get; private set; }
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            Entries++;
-            return new(completion);
-        }
-    }
-
     private static void AssertSemantics(Result actual, double total, double index, string output, string error)
     {
         Assert.Equal(total, actual.Total);

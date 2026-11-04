@@ -6,15 +6,18 @@ public sealed class AwkFieldTargetAllocationTests
     [Fact]
     public void ExistingFieldTargetUpdatesAvoidPerRecordAllocation()
     {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
-        var target = AwkReference.ArrayElement(name, AwkArrayIndex.Simple(
-            AwkExpression.FieldIndex(AwkExpression.Number(1))));
-        var right = AwkExpression.Number(1);
-        var context = new AwkEvaluationContext(state);
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{values[$1]+=1}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        var region = Assert.Single(program.BeginActions);
+        using var storage = new AwkRegionStorage(state);
         for (var warm = 0; warm < 32; warm++) Update();
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var row = 0; row < 1024; row++) Update();
@@ -25,9 +28,8 @@ public sealed class AwkFieldTargetAllocationTests
 
         void Update()
         {
-            var result = target.ApplyCompoundAssignmentAsync(context, right, AwkCompoundAssignmentOperation.Add);
-            if (!result.IsCompletedSuccessfully) throw new InvalidOperationException("A ready numeric update must complete synchronously.");
-            _ = result.Result;
+            if (region.Execute(state, storage) != AwkStatementFlow.Continue)
+                throw new InvalidOperationException("Unexpected native array-update control flow.");
         }
     }
 }

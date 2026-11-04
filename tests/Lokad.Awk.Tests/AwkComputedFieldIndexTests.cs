@@ -39,32 +39,59 @@ public sealed class AwkComputedFieldIndexTests
     public async Task PendingInvalidTargetsPreserveTheRecordAndEvaluateTheIndexOnce(double number, bool governed)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
-        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
-            AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("kept record"));
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var index = new PendingIndex(completion.Task);
-        var target = AwkReference.Field(index);
-        var pending = target.AssignValueAsync(new(state), AwkValue.FromNumber(7)).AsTask();
-        Assert.False(pending.IsCompleted);
-        completion.SetResult(AwkValue.FromNumber(number));
-
-        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => pending);
-        Assert.Equal("awk: non-finite field index\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-        Assert.Equal(1, index.Entries);
-        Assert.Equal("kept record", state.CurrentRecordByteText.AsString());
-        Assert.Equal(2, state.FieldCount);
-        memory.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
-    }
-
-    private sealed class PendingIndex(Task<AwkValue> completion) : AwkExpression
-    {
-        public int Entries { get; private set; }
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
+        var record = AwkText.FromSourceLiteralString("kept record");
+        state.SetCurrentRecord(record);
+        var binding = AwkBinder.Bind(AwkParser.Parse("function index_value(v){effects++;getline v<\"/side\";return bad}" +
+            "BEGIN{$(index_value())=7}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        state.AssignVariableValue(AwkVariableName.FromText("bad"), AwkValue.FromNumber(number));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem();
+        host.AddFile("/side", "ready\n");
+        var reads = 0;
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
         {
-            Entries++;
-            return new(completion);
+            reads++;
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            Assert.Same(record, state.CurrentRecordByteText);
+            release.TrySetResult();
+            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal("awk: non-finite field index\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+            Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
+            Assert.Equal(1, reads);
+            Assert.Same(record, state.CurrentRecordByteText);
+            Assert.Equal(2, state.FieldCount);
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally
+        {
+            release.TrySetResult();
+            try { await run; } catch (AwkRuntimeException) { }
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            memory.Dispose();
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, memory.Budget.Reserved);
         }
     }
 }

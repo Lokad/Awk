@@ -100,29 +100,4 @@ public sealed class AwkBorrowedMembershipTests
         Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
     }
 
-    [Fact]
-    public async Task PendingIndexCompletesBeforeBorrowingTheSelectedRecord()
-    {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var name = AwkArrayName.FromText("lookup");
-        state.SetArrayAwkValue(name, new AwkArrayKey("hit"), AwkValue.FromNumber(1));
-        state.SetCurrentRecord(AwkText.FromString("miss old"));
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var expression = AwkExpression.ArrayMembership(AwkArrayIndex.Simple(AwkExpression.FieldIndex(new PendingIndex(completion.Task))), name);
-        var pending = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        Assert.False(pending.IsCompleted);
-        state.SetCurrentRecord(AwkText.FromString("hit after"));
-        completion.SetResult(AwkValue.FromNumber(1));
-        Assert.Equal(1, (await pending).AsNumber());
-    }
-
-    private sealed record ForwardingIndex(AwkArrayIndex Inner) : AwkArrayIndex
-    {
-        public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) => Inner.ResolveKeyAsync(context);
-    }
-
-    private sealed class PendingIndex(Task<AwkValue> result) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => new(result);
-    }
 }
