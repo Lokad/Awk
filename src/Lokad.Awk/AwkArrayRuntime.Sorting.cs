@@ -122,21 +122,6 @@ internal sealed partial class AwkArrayRuntime
     internal AwkArrayIterationStart BeginKeySnapshot(AwkArrayTarget target) =>
         AwkArraySortOperation.BeginKeySnapshot(this, target);
 
-    // Temporary bridge for the old expression/statement callers. Remove in D.
-    private static async ValueTask CompleteLegacySortAsync(AwkArraySortOperation operation, AwkEvaluationContext context)
-    {
-        if (!operation.TryNextComparison()) return;
-        using var storage = context.State.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateAwkValueArrayBytes(4));
-        context.State.ThrowIfCancellationRequested();
-        var arguments = new AwkValue[4];
-        do
-        {
-            for (var index = 0; index < arguments.Length; index++) arguments[index] = operation.GetArgument(index);
-            var value = await operation.Function.InvokeValuesAsync(arguments, context).ConfigureAwait(false);
-            operation.AcceptComparison(value.AsNumber(context.State.CancellationCheckpoint));
-        } while (operation.TryNextComparison());
-    }
-
     // Snapshots and both entry buffers belong to the admitted sort operation.
     // Only a comparison request suspends progression; merge tails stay synchronous.
     private sealed class AwkArrayMergeProgress

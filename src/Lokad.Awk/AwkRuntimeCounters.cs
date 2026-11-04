@@ -93,13 +93,6 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) BorrowedFieldTargetSnapshots++;
     }
 
-    public long SynchronousDoWhileLoopRuns { get; private set; }
-
-    public void RecordSynchronousDoWhileLoop()
-    {
-        if (_enabled) lock (_sync) SynchronousDoWhileLoopRuns++;
-    }
-
     public void RecordArrayContainerCacheHit()
     {
         if (_enabled) lock (_sync) ArrayContainerCacheHits++;
@@ -241,16 +234,6 @@ internal sealed class AwkRuntimeCounters
 
     public long StringInteropFallbacks { get; private set; }
 
-    public long SynchronousLoopRuns { get; private set; }
-
-
-    public long SynchronousConditionalRuns { get; private set; }
-
-    public void RecordSynchronousConditional()
-    {
-        if (_enabled) lock (_sync) SynchronousConditionalRuns++;
-    }
-
     public long SynchronousExpressionRuns { get; private set; }
 
     public long FunctionNameLookups { get; private set; }
@@ -359,23 +342,9 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled) return;
         lock (_sync) BoundScalarArguments++;
     }
-    public long FunctionArgumentBufferRents { get; private set; }
 
     public long GovernedArgumentBufferAllocations { get; private set; }
     public long GovernedArgumentBufferReuses { get; private set; }
-
-    public long GovernedFunctionArgumentBufferAllocations { get; private set; }
-    public long GovernedFunctionArgumentBufferReuses { get; private set; }
-
-    public void RecordGovernedFunctionArgumentBuffer(bool reused)
-    {
-        if (!_enabled) return;
-        lock (_sync)
-        {
-            if (reused) GovernedFunctionArgumentBufferReuses++;
-            else GovernedFunctionArgumentBufferAllocations++;
-        }
-    }
 
     public void RecordGovernedArgumentBuffer(bool reused)
     {
@@ -394,25 +363,9 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) InlineFunctionFrames++;
     }
 
-    public void RecordFunctionArgumentBufferRent()
-    {
-        if (_enabled) lock (_sync) FunctionArgumentBufferRents++;
-    }
-
     public long HostCalls { get; private set; }
 
     public long CancellationChecks { get; private set; }
-
-    public long FunctionStackSuspensions { get; private set; }
-
-    public void RecordFunctionStackSuspension()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            FunctionStackSuspensions++;
-    }
 
     public long AwkTextAsStringCalls { get; private set; }
 
@@ -620,11 +573,6 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             StringInteropFallbacks++;
-    }
-
-    public void RecordSynchronousLoop()
-    {
-        if (_enabled) lock (_sync) SynchronousLoopRuns++;
     }
 
     public void RecordSynchronousExpression()

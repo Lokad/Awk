@@ -63,24 +63,4 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class SortArrayExpression(AwkArrayOperand sourceOperand, AwkArrayOperand? destinationOperand,
-        AwkExpression orderExpression, bool keys) : AwkExpression
-    {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            if (context.State.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
-                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(
-                    AwkBuiltins.Name(keys ? AwkBuiltinId.Asorti : AwkBuiltinId.Asort)));
-
-            var source = await sourceOperand.CaptureAsync(context).ConfigureAwait(false);
-            using var heldSource = context.State.MemoryAccounting.ReserveTransient(source.RetainedBytes);
-            var destination = destinationOperand is null ? source : await destinationOperand.CaptureAsync(context).ConfigureAwait(false);
-            using var heldDestination = context.State.MemoryAccounting.ReserveTransient(destinationOperand is null ? 0 : destination.RetainedBytes);
-            var order = await orderExpression.ResolveStringAsync(context).ConfigureAwait(false);
-            var parsed = AwkArraySortOrder.Parse(order);
-            return AwkValue.FromNumber(keys
-                ? await context.State.SortArrayKeysAsync(source, destination, parsed, context).ConfigureAwait(false)
-                : await context.State.SortArrayValuesAsync(source, destination, parsed, context).ConfigureAwait(false));
-        }
-    }
 }

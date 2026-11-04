@@ -53,7 +53,6 @@ internal sealed class AwkRuntimeState : IDisposable
     private AwkRegexCaseSensitivity _globalRegexCaseSensitivity;
     private long _recordSeparatorVersion;
     private AwkArgumentStorage<AwkValue>? _valueArgumentStorage;
-    private AwkArgumentStorage<AwkFunctionArgument>? _functionArgumentStorage;
 
     internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -1315,9 +1314,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
         _variables.SetArrayValue(array, key, value);
 
-    internal ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(AwkArrayIdentity array,
-        AwkEvaluationContext context) => _arrayRuntime.SnapshotKeyValuesAsync(array, context);
-
     public AwkValue GetArrayFieldValue(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index < 0)
@@ -1470,26 +1466,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayRuntime.AwkArraySortOperation BeginArraySort(AwkArrayTarget source,
         AwkArraySortOrder order, bool keys) => _arrayRuntime.BeginSort(source, order, keys);
 
-    public ValueTask<int> SortArrayValuesAsync(
-        AwkArrayName sourceArrayName,
-        AwkArrayName destinationArrayName,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context) =>
-        _arrayRuntime.SortArrayValuesAsync(sourceArrayName, destinationArrayName, order, context);
-
-    public ValueTask<int> SortArrayKeysAsync(
-        AwkArrayName sourceArrayName,
-        AwkArrayName destinationArrayName,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context) =>
-        _arrayRuntime.SortArrayKeysAsync(sourceArrayName, destinationArrayName, order, context);
-
-    internal ValueTask<int> SortArrayValuesAsync(AwkArrayTarget source, AwkArrayTarget destination,
-        AwkArraySortOrder order, AwkEvaluationContext context) => _arrayRuntime.SortArrayValuesAsync(source, destination, order, context);
-
-    internal ValueTask<int> SortArrayKeysAsync(AwkArrayTarget source, AwkArrayTarget destination,
-        AwkArraySortOrder order, AwkEvaluationContext context) => _arrayRuntime.SortArrayKeysAsync(source, destination, order, context);
-
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
 
@@ -1499,11 +1475,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void ReplaceMatchCaptureArray(AwkArrayTarget target, AwkLeasedRegexMatch match) =>
         _arrayRuntime.ReplaceMatchCaptures(target, match);
 
-    public ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
-        AwkArrayName name,
-        AwkEvaluationContext context) =>
-        _arrayRuntime.SnapshotKeyValuesAsync(name, context);
-
     internal AwkArgumentBuffer<AwkValue> RentValueArguments(int count)
     {
         if (count == 0 || !MemoryAccounting.IsEnabled)
@@ -1511,24 +1482,6 @@ internal sealed class AwkRuntimeState : IDisposable
         _valueArgumentStorage ??= new(MemoryAccounting, AwkRuntimeMemory.EstimateAwkValueArrayBytes);
         var buffer = _valueArgumentStorage.Rent(count, CancellationCheckpoint, out var reused);
         Counters.RecordGovernedArgumentBuffer(reused);
-        return buffer;
-    }
-
-    internal AwkArgumentBuffer<AwkFunctionArgument> RentFunctionArguments(int count)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        if (count == 0) return AwkArgumentBuffer<AwkFunctionArgument>.RentPooled(0);
-        var buffer = MemoryAccounting.IsEnabled
-            ? RentGovernedFunctionArguments(count) : AwkArgumentBuffer<AwkFunctionArgument>.RentPooled(count);
-        Counters.RecordFunctionArgumentBufferRent();
-        return buffer;
-    }
-
-    private AwkArgumentBuffer<AwkFunctionArgument> RentGovernedFunctionArguments(int count)
-    {
-        _functionArgumentStorage ??= new(MemoryAccounting, AwkRuntimeMemory.EstimateFunctionArgumentArrayBytes);
-        var buffer = _functionArgumentStorage.Rent(count, CancellationCheckpoint, out var reused);
-        Counters.RecordGovernedFunctionArgumentBuffer(reused);
         return buffer;
     }
 
@@ -1544,7 +1497,6 @@ internal sealed class AwkRuntimeState : IDisposable
                 _rangePatterns = [];
                 if (rangeBytes > 0) MemoryAccounting.ReleaseCommitted(rangeBytes);
                 _valueArgumentStorage?.Dispose();
-                _functionArgumentStorage?.Dispose();
             }
         }
     }

@@ -77,27 +77,6 @@ internal abstract partial class AwkExpression
             AwkBuiltins.EvaluateAsync(definition, arguments, context);
     }
 
-    private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments,
-        AwkUserFunction? target) : AwkExpression
-    {
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            if (target is { } prepared)
-                return prepared.InvokeAsync(arguments, context);
-            if (context.State.TryGetUserFunction(name, out var function))
-                return function.InvokeAsync(arguments, context);
-
-            throw new AwkRuntimeException(
-                context.State.LintMode switch
-                {
-                    AwkLintMode.Off => AwkMessages.FormatUndefinedFunction(name.Text),
-                    AwkLintMode.Fatal => AwkMessages.FormatUndefinedFunctionWithFatalLint(name.Text),
-                    _ => AwkMessages.FormatUndefinedFunctionWithLintWarning(name.Text)
-                });
-        }
-    }
-
     private sealed class FieldLengthExpression(AwkExpression indexExpression) : AwkSynchronousExpression
     {
         internal override int SynchronousDepth => indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and <= 14 } index

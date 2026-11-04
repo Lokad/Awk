@@ -57,7 +57,6 @@ public sealed class AwkIterationLifetimeTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.FunctionNameLookups);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.InRange(counters.AwkTextAllocations, keys, keys + 8);

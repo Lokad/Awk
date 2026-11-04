@@ -23,7 +23,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.InRange(counters.AwkTextAllocations, 0, 32);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

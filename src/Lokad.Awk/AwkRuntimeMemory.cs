@@ -166,9 +166,6 @@ internal static class AwkRuntimeMemory
     public static long EstimateFunctionFrameArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);
 
-    public static long EstimateFunctionArgumentArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, 64);
-
     public static long EstimateAwkArrayKeyArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkArrayKeyBytes);
 

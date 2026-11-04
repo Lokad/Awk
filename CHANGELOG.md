@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Delete retired function-body/invocation and sorting-callback bridges, tree loop
+  execution, intermediate function-argument storage and obsolete route counters.
+  Calls and sorting callbacks use the common interpreter's explicit frames.
+
 - Store prepared rules directly and remove the old action wrapper and statement-list
   execution entry. Phase and reentrant execution retain separate funded scratch.
 

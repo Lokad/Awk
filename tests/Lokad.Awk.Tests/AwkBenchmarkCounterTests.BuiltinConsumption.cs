@@ -38,7 +38,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.True(counters.NumericFieldByteParses >= records * (binary ? 2 : 1));
         Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.Equal(0, counters.GovernedArgumentBufferReuses);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         if (forwarding) Assert.Equal(records, counters.BoundFunctionRuns);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
@@ -65,7 +64,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(records + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.InRange(counters.AwkTextAllocations, 0, 32);
         Assert.Equal(0, budget.Reserved);

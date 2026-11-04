@@ -34,8 +34,8 @@ cases preserve earlier updates and live caller values across the same host bound
 also check cancellation during a later input argument after two completed updates.
 `AwkSortingContinuationTests` checks pending comparator calls through the shared function frames,
 including nested sorts, deleted source arrays, captured values, destination publication,
-refused admission, ignored cancellation and final refunds. Counters verify that asort/asorti
-and sorted traversal no longer rent intermediate function-argument buffers.
+refused admission, ignored cancellation and final refunds. Calls use the common interpreter frames; narrow storage tests enter the production
+sort/snapshot owners directly, without scheduling user callbacks.
 `AwkIterationLifetimeTests` checks flat/nested snapshots across source deletion, aliased calls,
 genuinely pending sorting callbacks or loop bodies, cancellation and refused admission. Its
 aggregation counters cover native values and bound calls at two key cardinalities.
@@ -242,14 +242,17 @@ forwarding, with deferred-error text funded through record replacement and pendi
 Counter checks compare ordinary/prepared numeric inputs and text-sensitive controls at multiple arities.
 Numeric builtin checks cover direct and forwarded field arguments, later-argument mutation,
 deferred errors and actual pending/canceled operands with complete refunds.
-Argument-storage checks cover cleared funded reuse, nested active buffers, pending success/
-fault/cancellation through actual completion, arity-change refusal before public effects
-and final owner refunds. Counters distinguish governed reuse from new argument arrays;
-print/printf lifetime checks preserve formatting and host-buffer funding.
-`AwkArgumentStorageTests` covers both typed stores, nested user operands in caller scope,
-pending success/fault/cancellation, payload clearing/final refunds and cancellation requested
-by cold admission before large value/user-argument arrays. User-call counters cover straight
-and switch-containing bodies at 5, 9 and 65 arguments, retaining binding and activation phases.
+Argument and print/printf checks preserve formatting, funded backing reuse, arity-change
+refusal before effects, host-buffer lifetimes and final refunds.
+`AwkArgumentStorageTests` binds nested calls whose earlier text argument stays funded after
+its source is cleared and while a real host read ignores cancellation. Success, runtime
+failure and cancellation preserve argument order, caller values and final refunds. Cold
+admission cancellation precedes large value/user-frame storage and operand effects.
+`AwkPreparedFunctionRegionTests` observes refused incoming calls while the caller remains
+active, and local text refusal before assignment. Earlier output/targets survive; calls
+unwind without retry and owners refund. The same cases use prepared programs rather than
+standalone invocation bridges. User-call counters cover straight and switch-containing
+bodies at 5, 9 and 65 arguments, retaining binding and activation phases.
 `AwkArgumentBindingTests` covers untouched globals, symbol-table changes, hidden caller slots,
 name fallback and real pending getline operands through cancellation and final refunds.
 Shared-binding counters cover scalar, array and omitted-local forwarding across switch branches

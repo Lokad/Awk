@@ -18,13 +18,13 @@ public sealed class AwkProgramTests
         var secondFunctionName = AwkFunctionName.FromText("second");
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
         {
-            [firstFunctionName] = new AwkUserFunction(firstFunctionName, AwkFunctionLocalLayout.Empty, [])
+            [firstFunctionName] = new AwkUserFunction(firstFunctionName, AwkFunctionLocalLayout.Empty)
         };
 
         var program = new AwkProgram(beginActions, [], [], [], [], functions);
 
         beginActions.Clear();
-        functions[secondFunctionName] = new AwkUserFunction(secondFunctionName, AwkFunctionLocalLayout.Empty, []);
+        functions[secondFunctionName] = new AwkUserFunction(secondFunctionName, AwkFunctionLocalLayout.Empty);
 
         Assert.Single(program.BeginActions);
         Assert.Single(program.Functions);
@@ -32,30 +32,13 @@ public sealed class AwkProgramTests
     }
 
     [Fact]
-    public async Task AwkUserFunction_CopiesCallerOwnedParameterAndStatementLists()
+    public void AwkUserFunction_RetainsSnapshotOfCallerOwnedParameters()
     {
-        var parameters = new List<AwkVariableName> { VariableName("value") };
-        var statements = new List<AwkStatement>
-        {
-            AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.Number(1)))
-        };
+        var parameters = new List<AwkVariableName> { AwkVariableName.FromText("value") };
         var localLayout = new AwkFunctionLocalLayout(parameters);
-        var function = new AwkUserFunction(AwkFunctionName.FromText("f"), localLayout, statements);
+        var function = new AwkUserFunction(AwkFunctionName.FromText("f"), localLayout);
         parameters.Clear();
-        statements.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var io = CreateIo();
-        using var context = state.PushExecutionContext(AwkTestHarness.CreateOutputSink(), io);
-
-        var value = await function.InvokeValuesAsync(
-            [],
-            new AwkEvaluationContext(state, AwkTestHarness.CreateOutputSink(), io));
-
         Assert.Equal(["value"], function.Parameters.Select(static parameter => parameter.Text));
-        Assert.Equal(1, value.AsNumber());
-
-        static AwkVariableName VariableName(string text) =>
-            AwkVariableName.FromText(text);
     }
 
     [Fact]

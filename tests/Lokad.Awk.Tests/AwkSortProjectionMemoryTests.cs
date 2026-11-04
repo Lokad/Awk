@@ -17,7 +17,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     [Theory]
     [MemberData(nameof(Projections))]
-    public async Task StringValueSnapshotHoldsFormattedProjectionTextUntilDisposal(bool observed, string format, string selector)
+    public void StringValueSnapshotHoldsFormattedProjectionTextUntilDisposal(bool observed, string format, string selector)
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
@@ -29,7 +29,7 @@ public sealed class AwkSortProjectionMemoryTests
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers - payload - scratch);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-        using (var snapshot = await state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)))
+        using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state,Source))
         {
             var ordered = selector.EndsWith("desc", StringComparison.Ordinal)
                 ? expected.OrderByDescending(static value => value.Text.AsString(), StringComparer.Ordinal)
@@ -45,7 +45,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     [Theory]
     [MemberData(nameof(Projections))]
-    public async Task ProjectionShortfallReleasesStagingAndPreservesStorage(bool observed, string format, string selector)
+    public void ProjectionShortfallReleasesStagingAndPreservesStorage(bool observed, string format, string selector)
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
@@ -58,15 +58,15 @@ public sealed class AwkSortProjectionMemoryTests
         {
             var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-                state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)).AsTask());
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+                AwkArrayStorageTestOperations.Snapshot(state,Source));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.All(expected, value => Assert.True(state.GetArrayAwkValue(Source, value.Key).IsNumberValue));
         }
-        using (var retry = await state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)))
+        using (var retry = AwkArrayStorageTestOperations.Snapshot(state,Source))
             Assert.Equal(32, retry.Count);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
     }
@@ -81,7 +81,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     [Theory]
     [MemberData(nameof(Ties))]
-    public async Task NumericTieShortfallPreservesStorageAndReleasesComparisonText(bool observed, string format, string selector)
+    public void NumericTieShortfallPreservesStorageAndReleasesComparisonText(bool observed, string format, string selector)
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
@@ -96,14 +96,14 @@ public sealed class AwkSortProjectionMemoryTests
         {
             var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-                state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)).AsTask());
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+                AwkArrayStorageTestOperations.Snapshot(state,Source));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
-        using (var retry = await state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)))
+        using (var retry = AwkArrayStorageTestOperations.Snapshot(state,Source))
             Assert.Equal(selector.EndsWith("desc", StringComparison.Ordinal) ? new[] { right, left } : new[] { left, right }, retry.ToArray());
         Assert.True(state.GetArrayAwkValue(Source, left).IsNumberValue);
         Assert.True(state.GetArrayAwkValue(Source, right).IsNumberValue);
@@ -112,7 +112,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     [Theory]
     [MemberData(nameof(Ties))]
-    public async Task NumericTieTextReleasesBeforeReturningTheSnapshot(bool observed, string format, string selector)
+    public void NumericTieTextReleasesBeforeReturningTheSnapshot(bool observed, string format, string selector)
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
@@ -124,7 +124,7 @@ public sealed class AwkSortProjectionMemoryTests
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - required);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var snapshot = await state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)))
+        using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state,Source))
         {
             Assert.Equal(2, snapshot.Count);
             Assert.Equal(before + containers, state.MemoryAccounting.CurrentCommittedBytes);
@@ -143,7 +143,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     [Theory]
     [MemberData(nameof(Nonfinite))]
-    public async Task ValueSortFailurePreservesDestinationAndSuccessTransfersOnlyNonfiniteText(bool observed, string format, string selector)
+    public void ValueSortFailurePreservesDestinationAndSuccessTransfersOnlyNonfiniteText(bool observed, string format, string selector)
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
@@ -161,8 +161,8 @@ public sealed class AwkSortProjectionMemoryTests
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         {
             var beforeFailure = state.MemoryAccounting.CurrentCommittedBytes;
-            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-                state.SortArrayValuesAsync(Source, Destination, AwkArraySortOrder.Parse(selector), new AwkEvaluationContext(state)).AsTask());
+            var failure = Assert.Throws<AwkRuntimeException>(() =>
+                AwkArrayStorageTestOperations.Sort(state,Source,Destination,AwkArraySortOrder.Parse(selector),keys:false));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal("keep", state.GetArrayAwkValue(Destination, First).ByteText.AsString());
             Assert.All(expected, item => Assert.True(state.GetArrayAwkValue(Source, item.Key).IsNumberValue));
@@ -171,7 +171,7 @@ public sealed class AwkSortProjectionMemoryTests
         }
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-        var count = await state.SortArrayValuesAsync(Source, Destination, AwkArraySortOrder.Parse(selector), new AwkEvaluationContext(state));
+        var count = AwkArrayStorageTestOperations.Sort(state,Source,Destination,AwkArraySortOrder.Parse(selector),keys:false);
 
         Assert.Equal(numbers.Length, count);
         var ordered = selector.EndsWith("desc", StringComparison.Ordinal)
@@ -194,7 +194,7 @@ public sealed class AwkSortProjectionMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StringSortingRetainsExistingTextWithoutCopyingAtItsAdmittedBudget(bool observed)
+    public void StringSortingRetainsExistingTextWithoutCopyingAtItsAdmittedBudget(bool observed)
     {
         using var memoryForState = State(observed, "default", "@val_str_asc");
         var state = memoryForState.State;
@@ -204,7 +204,7 @@ public sealed class AwkSortProjectionMemoryTests
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var snapshot = await state.SnapshotArrayKeyValuesAsync(Source, new AwkEvaluationContext(state)))
+        using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state,Source))
         {
             Assert.Equal(new[] { new AwkArrayKey("a"), new AwkArrayKey("b") }, snapshot.ToArray());
             Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);

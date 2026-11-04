@@ -85,7 +85,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(expected + " " + keys + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.BoundFunctionRuns > 0);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.FunctionNameLookups);
         Assert.True(counters.IndexedLocalArrayAccesses > 0);
         Assert.True(counters.NumericFieldByteParses >= records);
@@ -163,7 +162,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("20 31 0007\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.BoundFunctionRuns > 0);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -211,7 +209,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.BoundFunctionRuns > 0);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -245,7 +242,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("40\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.BoundFunctionRuns > 0);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -706,7 +702,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("16\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.BoundFunctionRuns);
-        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -721,8 +716,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(16, result.Counters.BoundFunctionRuns);
-        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
-        Assert.Equal(2, result.Counters.SynchronousLoopRuns + result.Counters.BoundRegionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -767,8 +760,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(unary ? "146\n" : "182\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(unary || true ? 0 : 16,
-            result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(16, result.Counters.BoundFunctionRuns);
     }
 
@@ -793,7 +784,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("file \nhelper 2\nnested 3\ncaller local\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.InlineFunctionFrames);
-        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
         Assert.Equal(1, result.Counters.RecordsRead);
     }
 
@@ -828,7 +818,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(16, result.Counters.InlineFunctionFrames);
-        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -857,7 +846,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.SynchronousLoopRuns + result.Counters.BoundRegionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -870,23 +858,21 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.SynchronousLoopRuns + result.Counters.BoundRegionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
     [Theory]
-    [InlineData("BEGIN{i=0;while(i<3){i++;if(i==2)break}print i}", "2\n", 0)]
-    [InlineData("BEGIN{i=0;while(i<3){i++;continue}print i}", "3\n", 0)]
-    [InlineData("function f(){while(1)return 7} BEGIN{print f()}", "7\n", 1)]
-    [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n", 0)]
-    internal async Task ParsedWhileFlowAndOutputKeepBehavior(string source, string expected, int preparedLoops)
+    [InlineData("BEGIN{i=0;while(i<3){i++;if(i==2)break}print i}", "2\n")]
+    [InlineData("BEGIN{i=0;while(i<3){i++;continue}print i}", "3\n")]
+    [InlineData("function f(){while(1)return 7} BEGIN{print f()}", "7\n")]
+    [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n")]
+    internal async Task ParsedWhileFlowAndOutputKeepBehavior(string source, string expected)
     {
         var result = await RunAsync([source], "", false);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(preparedLoops, result.Counters.SynchronousLoopRuns + result.Counters.BoundFunctionRuns);
     }
 
     [Fact]
@@ -905,7 +891,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(12, result.Counters.BoundFunctionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
-        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
     [Fact]
@@ -1028,13 +1013,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(multiple ? "186\n" : "40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.SynchronousLoopRuns + result.Counters.BoundRegionRuns);
-        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(multiple ? 30 : 14, result.Counters.NumericLocalReads);
         Assert.Equal(16, result.Counters.BoundFunctionRuns);
-        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
         { }
-        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
     [Fact]
@@ -1057,7 +1038,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("18\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
     [Theory]
@@ -1109,7 +1089,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("4 7\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.SynchronousLoopRuns + result.Counters.BoundRegionRuns);
         Assert.Equal(18, result.Counters.NumericGlobalReads);
         Assert.Equal(0, result.Counters.StringDecodes);
     }
@@ -1162,8 +1141,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.SynchronousLoopRuns + result.Counters.BoundRegionRuns);
-        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -2066,7 +2043,6 @@ bool nestedArguments)
         Assert.Equal(0, exitCode);
         Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionStackSuspensions);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);

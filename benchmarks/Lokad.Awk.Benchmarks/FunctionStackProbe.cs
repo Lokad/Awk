@@ -120,7 +120,6 @@ internal static class FunctionStackProbe
             RequestedStackBytes = 256 << 10,
             FunctionDepthLimit = limits.MaxFunctionCallDepth,
             Reads = reads,
-            counters.FunctionStackSuspensions,
             counters.HostCalls,
             counters.StringDecodes,
             counters.Utf8Encodes,

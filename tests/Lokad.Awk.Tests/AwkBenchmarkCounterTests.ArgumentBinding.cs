@@ -35,7 +35,6 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.FunctionNameLookups);
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }

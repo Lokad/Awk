@@ -30,7 +30,7 @@ internal partial struct AwkRegionMachine
         }
         region = _cursor.Region;
         storage = _cursor.Storage;
-        frame = _cursor.Frame ?? _rootFrame;
+        frame = _cursor.Frame;
         instructions = region.Instructions;
         operands = region.Operands;
         variables = region.Variables;

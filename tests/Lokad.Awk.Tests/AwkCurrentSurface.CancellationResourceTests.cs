@@ -13,7 +13,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_ClassicLoopObservesCancellation()
     {
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
 
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
         var fileSystem = new MockFileSystem();
@@ -28,14 +27,22 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
-        var statement = AwkStatement.For(
-            AwkStatement.Assignment(AwkReference.Scalar(AwkVariableName.FromText("i")), AwkExpression.Number(0)),
-            new AwkCondition(AwkExpression.Number(1)),
-            AwkStatement.PostIncrement(AwkReference.Scalar(AwkVariableName.FromText("i"))),
-            [AwkStatement.PostIncrement(AwkReference.Scalar(AwkVariableName.FromText("x")))]);
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{for(i=0;1;i++)x++}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        using var output = AwkTestHarness.CreateOutputSink();
+        cancellation.Cancel();
+        try
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
+            Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("x")).AsNumber());
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally { await io.CloseForCleanupAsync(); }
 
-        await Assert.ThrowsAsync<OperationCanceledException>(
-            async () => await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), io));
     }
 
     [Fact]
@@ -419,15 +426,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var cancellation = new CancellationTokenSource();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
-        var functionName = AwkFunctionName.FromText("f");
-        var function = new AwkUserFunction(
-            functionName,
-            AwkFunctionLocalLayout.Empty,
-            [AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.FunctionCall(functionName, [])))]);
-        state.InitializeFunctions(new Dictionary<AwkFunctionName, AwkUserFunction>
-        {
-            [function.FunctionName] = function
-        });
+        var binding = AwkBinder.Bind(AwkParser.Parse("function f(){return f()}BEGIN{f()}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
         var fileSystem = new MockFileSystem();
         var io = new AwkIo(
             fileSystem,
@@ -440,13 +444,17 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
-        using var context = state.PushExecutionContext(AwkTestHarness.CreateOutputSink(), io);
-
+        using var output = AwkTestHarness.CreateOutputSink();
         cancellation.Cancel();
+        try
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally { await io.CloseForCleanupAsync(); }
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => function
-            .InvokeAsync([], new AwkEvaluationContext(state, AwkTestHarness.CreateOutputSink(), io))
-            .AsTask());
     }
 
     [Fact]
@@ -504,7 +512,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
+    public void Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
     {
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
@@ -515,12 +523,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
-            () => state.SortArrayValuesAsync(
-                sourceArrayName,
-                destinationArrayName,
-                AwkArraySortOrder.Default,
-                new AwkEvaluationContext(state)).AsTask());
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => AwkArrayStorageTestOperations.Sort(state,sourceArrayName,destinationArrayName,AwkArraySortOrder.Default,keys:false));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("keep", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -550,7 +554,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_BuiltinArraySortDoesNotReserveUserComparatorBuffers()
+    public void Awk_BuiltinArraySortDoesNotReserveUserComparatorBuffers()
     {
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
@@ -560,11 +564,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var count = await state.SortArrayValuesAsync(
-            sourceArrayName,
-            destinationArrayName,
-            AwkArraySortOrder.Default,
-            new AwkEvaluationContext(state));
+        var count = AwkArrayStorageTestOperations.Sort(state,sourceArrayName,destinationArrayName,AwkArraySortOrder.Default,keys:false);
 
         Assert.Equal(1, count);
         Assert.Equal("v", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -572,7 +572,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_BuiltinArrayKeySortWritesDirectlyToDestination()
+    public void Awk_BuiltinArrayKeySortWritesDirectlyToDestination()
     {
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
@@ -582,11 +582,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var count = await state.SortArrayKeysAsync(
-            sourceArrayName,
-            destinationArrayName,
-            AwkArraySortOrder.Default,
-            new AwkEvaluationContext(state));
+        var count = AwkArrayStorageTestOperations.Sort(state,sourceArrayName,destinationArrayName,AwkArraySortOrder.Default,keys:true);
 
         Assert.Equal(1, count);
         Assert.Equal("k", FormatArrayValue(state, destinationArrayName, ordinalOne));

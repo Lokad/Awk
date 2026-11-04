@@ -160,10 +160,6 @@ internal abstract partial class AwkExpression
         AwkExpression whenFalse) =>
         new TernaryExpression(condition, whenTrue, whenFalse);
 
-    public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments,
-        AwkUserFunction? target = null) =>
-        new FunctionCallExpression(name, AwkCollectionSnapshots.Copy(arguments), target);
-
     public static AwkExpression ScalarArgument(AwkExpression value) => new ScalarArgumentExpression(value);
 
     public static AwkExpression BuiltinCall(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) =>
@@ -225,17 +221,6 @@ internal abstract partial class AwkExpression
     public static AwkExpression Patsplit(AwkExpression value, AwkArrayOperand array, AwkExpression pattern,
         AwkArrayOperand? separators) => new PatsplitExpression(value, array, pattern, separators);
 
-    public static AwkExpression Asort(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
-        Asort(new AwkArrayOperand.Named(sourceArrayName, default), new AwkArrayOperand.Named(destinationArrayName, default), order);
-
-    public static AwkExpression Asorti(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
-        Asorti(new AwkArrayOperand.Named(sourceArrayName, default), new AwkArrayOperand.Named(destinationArrayName, default), order);
-
-    public static AwkExpression Asort(AwkArrayOperand source, AwkArrayOperand? destination, AwkExpression order) =>
-        new SortArrayExpression(source, destination, order, keys: false);
-
-    public static AwkExpression Asorti(AwkArrayOperand source, AwkArrayOperand? destination, AwkExpression order) =>
-        new SortArrayExpression(source, destination, order, keys: true);
 
     public static AwkExpression Assignment(AwkReference target, AwkExpression value) =>
         new AssignmentExpression(target, value);

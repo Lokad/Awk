@@ -2,116 +2,94 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArgumentStorageTests
 {
-    [Fact]
-    public void TypedStorageClearsPayloadAndKeepsOnlyInactiveCapacityFunded()
-    {
-        var fixture = State(CancellationToken.None);
-        var budget = fixture.Budget;
-        try
-        {
-            var state = fixture.State;
-            var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-            var text = AwkValue.FromText(new string('x', 4096));
-            AwkFunctionArgument[] values;
-            using (var arguments = state.RentFunctionArguments(5))
-            {
-                values = arguments.Values;
-                arguments.Retain(text);
-                values[0] = AwkFunctionArgument.Scalar(text);
-                using var nested = state.RentFunctionArguments(5);
-                Assert.NotSame(values, nested.Values);
-                using var builtin = AwkValueBuffer.Rent(5, state);
-                builtin.Set(0, AwkValue.FromNumber(19));
-                Assert.Equal(text, values[0].Value);
-            }
-            Assert.All(values, value => Assert.Equal(default, value));
-            Assert.Equal(baseline + AwkRuntimeMemory.EstimateFunctionArgumentArrayBytes(5)
-                + AwkRuntimeMemory.EstimateAwkValueArrayBytes(5), state.MemoryAccounting.CurrentCommittedBytes);
-            using (var reused = state.RentFunctionArguments(5))
-                Assert.All(reused.Values, value => Assert.Equal(default, value));
-            Assert.Equal(2, state.Counters.GovernedFunctionArgumentBufferAllocations);
-            Assert.Equal(1, state.Counters.GovernedFunctionArgumentBufferReuses);
-        }
-        finally { fixture.Dispose(); }
-        Assert.Equal(0, budget.Reserved);
-    }
-
     [Theory]
-    [InlineData("success")]
-    [InlineData("fault")]
-    [InlineData("cancel")]
-    public async Task NestedUserArgumentsStayInCallerScopeAndFundedThroughActualCompletion(string outcome)
+    [InlineData("success")] [InlineData("fault")] [InlineData("cancel")]
+    public async Task NestedUserArgumentsStayFundedThroughActualHostCompletion(string outcome)
     {
         using var cancellation = new CancellationTokenSource();
-        var fixture = State(cancellation.Token);
+        using var fixture = State(cancellation.Token);
         var budget = fixture.Budget;
         var state = fixture.State;
-        var x = AwkVariableName.FromText("x");
-        state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
-        var entries = new List<int>();
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var layout = new AwkFunctionLocalLayout(Enumerable.Range(0, 5).Select(i => AwkVariableName.FromText("p" + i)).ToArray());
-        var inner = new AwkUserFunction(AwkFunctionName.FromText("inner"), layout, []);
-        var outer = new AwkUserFunction(AwkFunctionName.FromText("outer"), layout, []);
-        var text = AwkValue.FromText(new string('x', 32_768));
+        var source = "function inner(a,b,c,d,e){}" +
+            "function arg(n,v){order=order n;return v}" +
+            "function delayed(v){order=order 2;inner(0,1,2,3,4);payload=\"\";getline v<\"/side\";return " +
+            (outcome == "fault" ? "1/0" : "v") + "}" +
+            "function target(a,b,c,d,e){return length(a)+b+c+d+e}" +
+            "function caller(x){result=target(arg(0,payload),arg(1,1),delayed(),arg(3,3),arg(4,4));observed=x}" +
+            "BEGIN{caller(42)}";
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        var arguments = Enumerable.Range(0, 5).Select(index => (AwkExpression)new Operand(async context =>
+        var text = AwkValue.FromText(new string('x', 32_768));
+        state.AssignVariableValue(AwkVariableName.FromText("payload"), text);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem();
+        host.AddFile("/side", "7\n");
+        var reads = 0;
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
         {
-            entries.Add(index);
-            Assert.Equal(42, context.State.ResolveVariableValue(x).AsNumber());
-            if (index == 0) return text;
-            if (index == 2)
-            {
-                await inner.InvokeAsync(Enumerable.Range(0, 5).Select(i =>
-                    (AwkExpression)AwkExpression.Number(i)).ToArray(), context);
-                entered.TrySetResult();
-                return await completion.Task;
-            }
-            return AwkValue.FromNumber(index);
-        })).ToArray();
-        var pending = outer.InvokeAsync(arguments, new(state)).AsTask();
+            reads++;
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
+            CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(new[] { 0, 1, 2 }, entries);
-            Assert.False(pending.IsCompleted);
+            Assert.False(run.IsCompleted);
+            Assert.Equal("012", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
+            Assert.Empty(state.ResolveVariableValue(AwkVariableName.FromText("payload")).AsString());
             Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= baseline + text.RetainedTextMemoryBytes);
             if (outcome == "cancel") cancellation.Cancel();
-            Assert.False(pending.IsCompleted);
+            Assert.False(run.IsCompleted);
             Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= baseline + text.RetainedTextMemoryBytes);
+            release.TrySetResult();
             if (outcome == "success")
             {
-                completion.SetResult(AwkValue.FromNumber(7));
-                await pending.WaitAsync(TimeSpan.FromSeconds(10));
-                Assert.Equal(new[] { 0, 1, 2, 3, 4 }, entries);
-            }
-            else if (outcome == "fault")
-            {
-                completion.SetException(new InvalidOperationException("operand failed"));
-                await Assert.ThrowsAsync<InvalidOperationException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
-                Assert.Equal(new[] { 0, 1, 2 }, entries);
+                Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+                Assert.Equal("01234", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
+                Assert.Equal(32783, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+                Assert.Equal(42, state.ResolveVariableValue(AwkVariableName.FromText("observed")).AsNumber());
             }
             else
             {
-                completion.SetCanceled(cancellation.Token);
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
-                Assert.Equal(new[] { 0, 1, 2 }, entries);
+                if (outcome == "cancel") await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+                else
+                {
+                    var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+                    Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+                }
+                Assert.Equal("012", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
+                Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("observed")).AsNumber());
+                Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
             }
-            Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
+            Assert.Equal(1, reads);
+            Assert.False(state.IsInsideFunction);
             Assert.True(state.MemoryAccounting.CurrentCommittedBytes < baseline + text.RetainedTextMemoryBytes);
-            Assert.True(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
-            completion.TrySetCanceled();
-            try { await pending.WaitAsync(TimeSpan.FromSeconds(10)); }
-            catch (InvalidOperationException) when (outcome == "fault") { }
-            catch (OperationCanceledException) { }
-            state.PopFunctionFrame();
+            release.TrySetResult();
+            try { await run; }
+            catch (AwkRuntimeException) when (outcome == "fault") { }
+            catch (OperationCanceledException) when (outcome == "cancel") { }
+            await io.CloseForCleanupAsync();
+            output.Dispose();
             fixture.Dispose();
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
         }
-        Assert.Equal(0, budget.Reserved);
     }
 
     [Theory]
@@ -146,11 +124,6 @@ public sealed class AwkArgumentStorageTests
         Assert.Equal(0, budget.Refusals);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
-    }
-
-    private sealed class Operand(Func<AwkEvaluationContext, ValueTask<AwkValue>> evaluate) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => evaluate(context);
     }
 
     private static CooperativeTestMemory State(CancellationToken cancellationToken)

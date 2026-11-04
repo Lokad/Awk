@@ -11,7 +11,6 @@ internal sealed class AwkRegion(
     AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches,
     AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind)
 {
-    internal bool IsFunction => kind == AwkRegionKind.Function;
     internal AwkRegionKind Kind => kind;
     internal AwkRegionStorageLayout Layout => layout;
     internal int InstructionCount => instructions.Length;

@@ -3,81 +3,39 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSingleCallArgumentTests
 {
     [Fact]
-    public async Task PendingArgumentRunsInCallerAndCallerFrameIsRestored()
+    public async Task FrameDepthRefusalOccursAfterArgumentEffectsAndUnwindsCaller()
     {
-        using var memoryForState = State(10);
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("x");
-        var layout = new AwkFunctionLocalLayout([name]);
-        var function = new AwkUserFunction(AwkFunctionName.FromText("inner"), layout, []);
-        state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
-        var entered = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var operand = new Operand(async context =>
-        {
-            entered.SetResult(context.State.ResolveVariableValue(name).AsNumber());
-            return await completion.Task.ConfigureAwait(false);
-        });
-        var pending = function.InvokeAsync([operand], new(state)).AsTask();
+        using var memory = State(1);
+        var state = memory.State;
+        var binding = AwkBinder.Bind(AwkParser.Parse("function inner(x){print \"inner\"}" +
+            "function caller(x){print \"before\",x;total=inner(observed=x+0*++effects);print \"after\"}BEGIN{caller(42)}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        var host = new MockFileSystem();
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
+            CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         try
         {
-            Assert.Equal(42, await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)));
-            Assert.False(pending.IsCompleted);
-            Assert.Equal(42, state.ResolveVariableValue(name).AsNumber());
-            state.AssignVariableValue(name, AwkValue.FromNumber(43));
-            completion.SetResult(AwkValue.FromNumber(7));
-            await pending.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.True(state.IsInsideFunction);
-            Assert.Equal(43, state.ResolveVariableValue(name).AsNumber());
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        finally
-        {
-            completion.TrySetResult(AwkValue.FromNumber(7));
-            await pending;
-            state.PopFunctionFrame();
-        }
-        Assert.False(state.IsInsideFunction);
-    }
-
-    [Fact]
-    public async Task FrameDepthRefusalOccursAfterArgumentWithoutMutatingCaller()
-    {
-        using var memoryForState = State(1);
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("x");
-        var layout = new AwkFunctionLocalLayout([name]);
-        var function = new AwkUserFunction(AwkFunctionName.FromText("inner"), layout, []);
-        state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
-        try
-        {
-            var committed = state.MemoryAccounting.CurrentCommittedBytes;
-            var effects = 0;
-            var operand = new Operand(context =>
-            {
-                effects++;
-                Assert.Equal(42, context.State.ResolveVariableValue(name).AsNumber());
-                return ValueTask.FromResult(AwkValue.FromNumber(7));
-            });
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-                await function.InvokeAsync([operand], new(state)));
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
             Assert.Equal(Lokad.Awk.AwkMessages.ErrorFunctionRecursionLimit.ToArray(), error.MessageBytes.ToArray());
-            Assert.Equal(1, effects);
-            Assert.True(state.IsInsideFunction);
-            Assert.Equal(42, state.ResolveVariableValue(name).AsNumber());
-            Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
+            Assert.Equal(42, state.ResolveVariableValue(AwkVariableName.FromText("observed")).AsNumber());
+            Assert.Equal("before 42\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
-            state.PopFunctionFrame();
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            memory.Dispose();
+            Assert.Equal(0, memory.Budget.Reserved);
         }
-        Assert.False(state.IsInsideFunction);
-    }
-
-    private sealed class Operand(Func<AwkEvaluationContext, ValueTask<AwkValue>> evaluate) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => evaluate(context);
     }
 
     private static CooperativeTestMemory State(int depth)

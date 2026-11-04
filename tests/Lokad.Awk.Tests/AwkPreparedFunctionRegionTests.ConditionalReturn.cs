@@ -30,16 +30,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var limits = AwkRuntimeLimits.CreateDefault();
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
-        var functions = Bind("function choose(x){if(x<3)return x+2;return x-2} BEGIN{}").Functions;
-        state.InitializeFunctions(functions);
+        var program = Bind("function choose(x){if(x<3)return x+2;return x-2}{total=choose(7)}");
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try
         {
-            var value = await functions[AwkFunctionName.FromText("choose")].InvokeAsync(
-                [AwkExpression.Number(7)], new(state, output, io));
+            await Assert.Single(program.MainActions).ExecuteAsync(state, io, output);
+            var value = state.ResolveVariableValue(AwkVariableName.FromText("total"));
             Assert.Equal(5, value.AsNumber());
             Assert.Equal(1, counters.BoundFunctionRuns);
             Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -65,89 +67,4 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(expected, function.Region is not null);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ConditionalReturnPendingArgumentKeepsCallerAndCancellation(bool cancel)
-    {
-        var functions = Bind("function choose(x){if(x<3)return x+2;return x-2} BEGIN{}").Functions;
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var cancellation = new CancellationTokenSource();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token);
-        state.InitializeFunctions(functions);
-        var x = AwkVariableName.FromText("x");
-        state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
-        var host = new MockFileSystem();
-        var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = functions[AwkFunctionName.FromText("choose")].InvokeAsync(
-            [new PendingOperand(completion.Task)], new(state, output, io)).AsTask();
-        try
-        {
-            Assert.False(pending.IsCompleted);
-            Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(0, counters.BoundFunctionRuns);
-            state.AssignVariableValue(x, AwkValue.FromNumber(43));
-            if (cancel) cancellation.Cancel();
-            completion.SetResult(AwkValue.FromNumber(7));
-            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
-            else Assert.Equal(5, (await pending).AsNumber());
-            Assert.Equal(43, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(cancel ? 0 : 1, counters.BoundFunctionRuns);
-        }
-        finally
-        {
-            completion.TrySetResult(AwkValue.FromNumber(7));
-            try { await pending; } catch (OperationCanceledException) when (cancel) { }
-            state.PopFunctionFrame();
-            await io.CloseAsync();
-        }
-        Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ConditionalReturnRefusalPreservesCallerAndRefunds(bool branch)
-    {
-        var budget = new CooperativeTestBudget(2L << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner: owner);
-        var functions = Bind("function inc(x){return x+1} function choose(x){if(x)return inc(x);return inc(x)+1} BEGIN{}").Functions;
-        state.InitializeFunctions(functions);
-        var x = AwkVariableName.FromText("x");
-        state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
-        var host = new MockFileSystem();
-        var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var frameBytes = AwkRuntimeMemory.EstimateFunctionFrameBytes() + AwkRuntimeMemory.EstimateFunctionLocalPayloadBytes(
-            AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(AwkValue.FromNumber(1))));
-        var fill = budget.Limit - state.MemoryAccounting.CurrentCommittedBytes - frameBytes;
-        state.MemoryAccounting.ReserveAndCommit(fill);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        try
-        {
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await
-                functions[AwkFunctionName.FromText("choose")].InvokeAsync(
-                    [AwkExpression.Number(branch ? 1 : 0)], new(state, output, io)));
-            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            // An admitted child may remain in the funded frame cache after unwind.
-            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, before,
-                before + AwkRuntimeMemory.EstimateFunctionFrameBytes());
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-            Assert.True(state.IsInsideFunction);
-        }
-        finally
-        {
-            state.MemoryAccounting.ReleaseCommitted(fill);
-            state.PopFunctionFrame();
-            await io.CloseAsync();
-            output.Dispose();
-            await owner.DisposeAsync();
-        }
-        Assert.Equal(0, budget.Reserved);
-    }
 }

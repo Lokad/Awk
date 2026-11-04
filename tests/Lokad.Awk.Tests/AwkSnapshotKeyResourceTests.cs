@@ -39,7 +39,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var snapshot = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)))
+        using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state,name))
         {
             Assert.Equal(keys, snapshot.ToArray());
             Assert.Equal(before + required, state.MemoryAccounting.CurrentCommittedBytes);
@@ -66,14 +66,14 @@ public sealed class AwkSnapshotKeyResourceTests
         {
             var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-                state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)).AsTask());
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+                AwkArrayStorageTestOperations.Snapshot(state,name));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
-        using (var retry = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)))
+        using (var retry = AwkArrayStorageTestOperations.Snapshot(state,name))
         {
             Assert.Equal(keys, retry.ToArray());
             Assert.Equal(baseline + required, state.MemoryAccounting.CurrentCommittedBytes);
@@ -101,8 +101,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var (keys, _, payload) = await MeasureExpected(state, name, source, "@ind_str_asc");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-        var count = await state.SortArrayKeysAsync(name, Destination, AwkArraySortOrder.Parse("@ind_str_asc"),
-            new AwkEvaluationContext(state));
+        var count = AwkArrayStorageTestOperations.Sort(state,name,Destination,AwkArraySortOrder.Parse("@ind_str_asc"),keys:true);
 
         Assert.Equal(keys.Length, count);
         for (var index = 0; index < keys.Length; index++)
@@ -136,16 +135,16 @@ public sealed class AwkSnapshotKeyResourceTests
         {
             var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => (keys
-                ? state.SortArrayKeysAsync(name, Destination, AwkArraySortOrder.Parse("@ind_str_asc"), new AwkEvaluationContext(state))
-                : state.SortArrayValuesAsync(name, Destination, AwkArraySortOrder.Parse("@ind_str_asc"), new AwkEvaluationContext(state))).AsTask());
+            var error = Assert.Throws<AwkRuntimeException>(() => (keys
+                ? AwkArrayStorageTestOperations.Sort(state,name,Destination,AwkArraySortOrder.Parse("@ind_str_asc"),keys:true)
+                : AwkArrayStorageTestOperations.Sort(state,name,Destination,AwkArraySortOrder.Parse("@ind_str_asc"),keys:false)));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal("keep", state.GetArrayByteText(Destination, First).AsString());
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
-        using var retry = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state));
+        using var retry = AwkArrayStorageTestOperations.Snapshot(state,name);
         Assert.Equal(original, retry.ToArray());
     }
 
@@ -203,7 +202,7 @@ public sealed class AwkSnapshotKeyResourceTests
     private static async Task<(AwkArrayKey[] Keys, long Containers, long Payload)> MeasureExpected(
         AwkRuntimeState state, AwkArrayName name, string source, string selector)
     {
-        using var snapshot = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state));
+        using var snapshot = AwkArrayStorageTestOperations.Snapshot(state,name);
         var keys = snapshot.ToArray();
         var sorted = selector == "@ind_str_asc";
         var containers = AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(keys.Length) +

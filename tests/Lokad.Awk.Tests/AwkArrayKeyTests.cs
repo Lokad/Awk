@@ -119,13 +119,13 @@ public sealed class AwkArrayKeyTests
     }
 
     [Fact]
-    public async Task AwkArrayKey_UnsortedSnapshotsKeepOrdinalShapeUntilObservation()
+    public void AwkArrayKey_UnsortedSnapshotsKeepOrdinalShapeUntilObservation()
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
 
-        using var keys = await state.SnapshotArrayKeyValuesAsync(arrayName, new AwkEvaluationContext(state));
+        using var keys = AwkArrayStorageTestOperations.Snapshot(state,arrayName);
         var key = Assert.Single(keys);
         Assert.True(key.IsOrdinal);
         Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());

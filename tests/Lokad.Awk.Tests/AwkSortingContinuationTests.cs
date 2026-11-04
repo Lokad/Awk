@@ -126,8 +126,6 @@ public sealed class AwkSortingContinuationTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("65 1 65 2145\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
-        Assert.Equal(0, counters.GovernedFunctionArgumentBufferAllocations);
         Assert.Equal(1, counters.FunctionNameLookups);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);
@@ -151,8 +149,6 @@ public sealed class AwkSortingContinuationTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("65 1 65\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
-        Assert.Equal(0, counters.GovernedFunctionArgumentBufferAllocations);
         Assert.Equal(1, counters.FunctionNameLookups);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);

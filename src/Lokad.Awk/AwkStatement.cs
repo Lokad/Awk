@@ -127,22 +127,6 @@ internal abstract partial class AwkStatement
             AwkCollectionSnapshots.Copy(body),
             AwkCollectionSnapshots.Copy(elseBody));
 
-    public static AwkStatement ForIn(AwkVariableName loopVariable, AwkArrayName arrayVariable, IReadOnlyList<AwkStatement> body) =>
-        new ForInStatement(loopVariable, arrayVariable, AwkCollectionSnapshots.Copy(body));
-
-    public static AwkStatement ForIn(AwkVariableName loopVariable, AwkArrayOperand array, IReadOnlyList<AwkStatement> body) =>
-        new ForInStatement(loopVariable, default, AwkCollectionSnapshots.Copy(body), array);
-
-    public static AwkStatement For(
-        AwkStatement initializer, AwkCondition condition, AwkStatement increment, IReadOnlyList<AwkStatement> body) =>
-        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body));
-
-    public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body) =>
-        new WhileStatement(condition, AwkCollectionSnapshots.Copy(body));
-
-    public static AwkStatement DoWhile(IReadOnlyList<AwkStatement> body, AwkCondition condition) =>
-        new DoWhileStatement(AwkCollectionSnapshots.Copy(body), condition);
-
     public static AwkStatement Switch(
         AwkExpression value,
         IReadOnlyList<AwkSwitchArm> arms) =>

@@ -29,9 +29,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal((records * arity * 7) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionArgumentBufferRents);
-        Assert.Equal(0, counters.GovernedFunctionArgumentBufferAllocations);
-        Assert.Equal(0, counters.GovernedFunctionArgumentBufferReuses);
         Assert.Equal(0, counters.FunctionNameLookups);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);

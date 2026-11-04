@@ -416,21 +416,6 @@ internal sealed partial class AwkArrayRuntime
         return result.Fields.Count;
     }
 
-    public ValueTask<int> SortArrayValuesAsync(
-        AwkArrayName sourceArrayName,
-        AwkArrayName destinationArrayName,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context) => SortArrayValuesAsync(new AwkArrayTarget(sourceArrayName),
-            new AwkArrayTarget(destinationArrayName), order, context);
-
-    internal async ValueTask<int> SortArrayValuesAsync(AwkArrayTarget sourceArrayName,
-        AwkArrayTarget destinationArrayName, AwkArraySortOrder order, AwkEvaluationContext context)
-    {
-        using var operation = BeginSort(sourceArrayName, order, keys: false);
-        await CompleteLegacySortAsync(operation, context).ConfigureAwait(false);
-        return operation.Publish(destinationArrayName, keys: false);
-    }
-
     private int PublishSortedValues(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
         AwkArraySortEntry[] entries, AwkArrayReservation reservation)
     {
@@ -459,21 +444,6 @@ internal sealed partial class AwkArrayRuntime
             reservation.Lease,
             transferredValueTextBytes);
         return entries.Length;
-    }
-
-    public ValueTask<int> SortArrayKeysAsync(
-        AwkArrayName sourceArrayName,
-        AwkArrayName destinationArrayName,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context) => SortArrayKeysAsync(new AwkArrayTarget(sourceArrayName),
-            new AwkArrayTarget(destinationArrayName), order, context);
-
-    internal async ValueTask<int> SortArrayKeysAsync(AwkArrayTarget sourceArrayName,
-        AwkArrayTarget destinationArrayName, AwkArraySortOrder order, AwkEvaluationContext context)
-    {
-        using var operation = BeginSort(sourceArrayName, order, keys: true);
-        await CompleteLegacySortAsync(operation, context).ConfigureAwait(false);
-        return operation.Publish(destinationArrayName, keys: true);
     }
 
     private int PublishSortedKeys(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
@@ -553,23 +523,6 @@ internal sealed partial class AwkArrayRuntime
             slots,
             leasedMatch.MemoryLease,
             leasedMatch.RetainedTextMemoryBytes);
-    }
-
-    public ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(
-        AwkArrayName name,
-        AwkEvaluationContext context) => SnapshotKeyValuesAsync(new AwkArrayTarget(name), context);
-
-    internal ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(AwkArrayIdentity array,
-        AwkEvaluationContext context) => SnapshotKeyValuesAsync(new AwkArrayTarget(AwkValue.FromArrayReference(array)), context);
-
-    private async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(AwkArrayTarget target,
-        AwkEvaluationContext context)
-    {
-        var start = BeginKeySnapshot(target);
-        if (!start.NeedsComparisons) return start.Keys;
-        using var operation = start.Sort;
-        await CompleteLegacySortAsync(operation, context).ConfigureAwait(false);
-        return operation.TakeKeys();
     }
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayTarget arrayName)
