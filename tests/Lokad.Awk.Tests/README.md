@@ -74,6 +74,14 @@ Substitution cases cover pending pattern/replacement/target expressions, field a
 locations, late numeric replacement conversion, dynamic-pattern failure order and final refunds.
 Gensub checks include all pending argument positions, default-record input, pattern retention
 after its source is cleared, large/nonfinite occurrence selectors and byte-native counters.
+Scalar assignment/compound fixtures use native calls and real immediate/pending reads in
+ordinary/governed execution. They preserve capture before SYMTAB writes, exact numeric results,
+spelling on runtime failure, unassigned read-versus-write promotion, late refusal, cancellation
+and final refunds. Cancellation fixtures inspect numeric storage without starting a fresh text
+parse after cancellation. Native increment/decrement cases retain numeric pre/post results and input cancellation;
+array-type rejection is shared with the native compound fixtures. The retired synchronous
+mutation nodes/selectors and prepared-global reference adapter are removed. Old synthetic
+pending scalar fixtures map to these native read/publication and SYMTAB cases.
 Global numeric-read fixtures execute prepared source and the real name-bound fallback,
 preserving cold unassigned reads, numeric-string spelling, binary64 bits, computed/assigned
 `NF`, type failures and cancellation before publication. They no longer instantiate retired

@@ -8,9 +8,6 @@ internal abstract record AwkReference
     public static AwkReference Scalar(AwkVariableName variable) =>
         new AwkScalarReference(variable);
 
-    public static AwkReference PreparedGlobalScalar(AwkVariableName variable, int index) =>
-        new AwkPreparedGlobalScalarReference(variable, index);
-
     public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression, AwkArrayBinding binding = default) =>
         new AwkArrayElementReference(variable, indexExpression, binding);
 
@@ -112,29 +109,6 @@ internal abstract record AwkReference
         catch { target.Dispose(); throw; }
     }
 
-    internal bool TryGetSynchronousScalar(out AwkResolvedReference target)
-    {
-        if (this is AwkPreparedGlobalScalarReference global && !AwkSpecialVariables.TryGetScalar(global.Variable, out _))
-        {
-            target = AwkResolvedReference.PreparedGlobalScalar(global.Variable, global.Index);
-            return true;
-        }
-        target = default;
-        return false;
-    }
-
-    internal virtual (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (0, 0);
-
-    internal virtual void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
-        throw new InvalidOperationException("Synchronous reference is required.");
-
-    internal virtual AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
-        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation) =>
-        throw new InvalidOperationException("Synchronous reference is required.");
-
-    internal virtual AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post) =>
-        throw new InvalidOperationException("Synchronous reference is required.");
-
     protected virtual ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
         Func<double, double> update,
@@ -175,101 +149,8 @@ internal sealed record AwkScalarReference(AwkVariableName Variable) : AwkReferen
         ValueTask.FromResult(AwkResolvedReference.Scalar(Variable));
 }
 
-internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable, int Index) : AwkReference
-{
-    private double ReadNumber(AwkRuntimeState state) =>
-        state.TryResolvePreparedGlobalNumber(Index, out var number)
-            ? number : state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint);
-
-    internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
-        context.State.AssignPreparedGlobalValue(Variable, Index, value);
-
-    internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
-        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation) =>
-        AssignCompound(context.State, ReadNumber(context.State), value.ResolveNumberSynchronous(context), operation);
-
-    internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
-    {
-        var previous = ReadNumber(context.State);
-        var result = AwkValue.FromNumber(previous + delta);
-        context.State.AssignPreparedGlobalValue(Variable, Index, result);
-        return post ? AwkValue.FromNumber(previous) : result;
-    }
-
-    protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(AwkResolvedReference.PreparedGlobalScalar(Variable, Index));
-
-    public override ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
-    {
-        context.State.AssignPreparedGlobalValue(Variable, Index, value);
-        return ValueTask.CompletedTask;
-    }
-
-    public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
-        AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)
-    {
-        var state = context.State;
-        var current = state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint);
-        var right = value.ResolveNumberAsync(context);
-        return right.IsCompletedSuccessfully
-            ? ValueTask.FromResult(AssignCompound(state, current, right.Result, operation))
-            : AwaitCompoundValueAsync(state, current, right, operation);
-    }
-
-    private async ValueTask<AwkValue> AwaitCompoundValueAsync(
-        AwkRuntimeState state, double current, ValueTask<double> pending, AwkCompoundAssignmentOperation operation) =>
-        AssignCompound(state, current, await pending.ConfigureAwait(false), operation);
-
-    private AwkValue AssignCompound(
-        AwkRuntimeState state, double current, double right, AwkCompoundAssignmentOperation operation)
-    {
-        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(
-            current, right, operation));
-        state.AssignPreparedGlobalValue(Variable, Index, result);
-        return result;
-    }
-
-    protected override ValueTask<AwkValue> ApplyNumericUpdateAsync(
-        AwkEvaluationContext context, Func<double, double> update, AwkNumericUpdateResult resultSelection)
-    {
-        var state = context.State;
-        var previous = AwkValue.FromNumber(
-            state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint));
-        var result = AwkValue.FromNumber(update(previous.AsNumber(state.CancellationCheckpoint)));
-        state.AssignPreparedGlobalValue(Variable, Index, result);
-        return ValueTask.FromResult(resultSelection is AwkNumericUpdateResult.Previous ? previous : result);
-    }
-}
-
 internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, AwkArrayBinding Binding = default) : AwkReference
 {
-    internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null)
-    {
-        var shape = IndexExpression.GetSynchronousShape(checkpoint);
-        return (shape.Depth + 1, shape.Calls);
-    }
-
-    internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value)
-    {
-        // As in ordinary assignment, the RHS is already evaluated when the key is resolved.
-        using var heldValue = context.State.MemoryAccounting.RetainValue(value);
-        var index = IndexExpression.ResolveKeySynchronous(context);
-        context.State.SetArrayAwkValue(Variable, index, value, Binding);
-    }
-
-    internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
-        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
-    {
-        var target = IndexExpression.PrepareUpdateSynchronous(context, Variable, Binding);
-        using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedTargetBytes);
-        return AssignCompound(context.State, target, value.ResolveNumberSynchronous(context), operation);
-    }
-
-    internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post) =>
-        ApplyNumeric(context.State, IndexExpression.PrepareUpdateSynchronous(context, Variable, Binding),
-            delta > 0 ? AwkNumericOperations.Increment : AwkNumericOperations.Decrement,
-            post ? AwkNumericUpdateResult.Previous : AwkNumericUpdateResult.Updated);
-
     public override async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
         // Plain assignment commonly inserts a new key; keep its owned-key path.

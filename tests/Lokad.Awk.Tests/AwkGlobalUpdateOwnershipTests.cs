@@ -11,56 +11,6 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FirstAssignmentWaitsForRhsAndFailedAdmissionCreatesNothing(bool vector)
-    {
-        using var memoryForState = State(vector);
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("value");
-        var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var expression = AwkExpression.Assignment(Reference(name), new PendingExpression(source.Task));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
-        Assert.False(result.IsCompleted);
-        Assert.False(state.HasScalar(name));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - before))
-        {
-            source.SetResult(AwkValue.FromNumber(7));
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => result);
-            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.False(state.HasScalar(name));
-            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        await Reference(name).AssignValueAsync(new AwkEvaluationContext(state), AwkValue.FromNumber(9));
-        Assert.Equal(9, state.ResolveVariableValue(name).AsNumber());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CompoundReadPrecedesPendingRhsAndSymbolTableEffects(bool vector)
-    {
-        using var memoryForState = State(vector);
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("value");
-        state.AssignVariableValue(name, AwkValue.FromNumber(7));
-        var reference = Reference(name);
-        var context = new AwkEvaluationContext(state);
-        var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var result = reference.ApplyCompoundAssignmentAsync(context, new PendingExpression(source.Task), AwkCompoundAssignmentOperation.Add).AsTask();
-        Assert.False(result.IsCompleted);
-        state.SetArrayAwkValue(AwkArrayName.FromText("SYMTAB"), new AwkArrayKey("value"), AwkValue.FromNumber(100));
-        source.SetResult(AwkValue.FromNumber(3));
-        Assert.Equal(10, (await result).AsNumber());
-        Assert.Equal(10, (await reference.EvaluateAsync(context)).AsNumber());
-        var slot = state.GetOrCreateGlobalScalarSlot(name);
-        Assert.Equal(10, state.GetGlobalScalarValue(slot).AsNumber());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
     public void FailedExistingSlotWriteRetainsValueAndCharge(bool vector)
     {
         using var memoryForState = State(vector);
@@ -122,24 +72,6 @@ public sealed class AwkGlobalUpdateOwnershipTests
     }
 
     [Fact]
-    public async Task CompoundReadPromotesUntypedOriginBeforeCanceledRhs()
-    {
-        using var memoryForState = State(true);
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("value");
-        Assert.True(state.TryResolveArrayArgument(name, out _));
-        Assert.False(state.HasScalar(name));
-        var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var result = Reference(name).ApplyCompoundAssignmentAsync(new AwkEvaluationContext(state), new PendingExpression(source.Task), AwkCompoundAssignmentOperation.Add).AsTask();
-        Assert.True(state.HasScalar(name));
-        source.SetCanceled();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => result);
-        Assert.True(state.HasScalar(name));
-        Assert.False(state.IsArray(new AwkArrayName(name.Identifier)));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    [Fact]
     public async Task CompiledUpdatesRetainExecutionOwnershipWithPendingHostsAndLocalShadowing()
     {
         var source = new MockFileSystem();
@@ -171,8 +103,6 @@ public sealed class AwkGlobalUpdateOwnershipTests
         await RunAsync("y 7\nx 9\n", "24 11\n", false);
     }
 
-    private static AwkReference Reference(AwkVariableName name) => AwkReference.PreparedGlobalScalar(name, 0);
-
     private static CooperativeTestMemory State(bool vector)
     {
 
@@ -184,8 +114,4 @@ public sealed class AwkGlobalUpdateOwnershipTests
         return testMemory.Initialize(() => state);
     }
 
-    private sealed class PendingExpression(Task<AwkValue> value) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => new(value);
-    }
 }
