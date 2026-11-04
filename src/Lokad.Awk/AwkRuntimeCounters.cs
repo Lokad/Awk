@@ -363,13 +363,6 @@ internal sealed class AwkRuntimeCounters
 
     public long ConcatenationBytesCopied { get; private set; }
 
-    public long ConcatenationArgumentBufferRents { get; private set; }
-
-    public void RecordConcatenationArgumentBufferRent()
-    {
-        if (_enabled) lock (_sync) ConcatenationArgumentBufferRents++;
-    }
-
     public long RuneSliceBytesScanned { get; private set; }
 
     public long RuneSliceIndexAllocations { get; private set; }

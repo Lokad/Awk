@@ -77,6 +77,12 @@ caching computed `NF` across effects or changing compatibility/local binding rul
 Record-cursor checks retain scanner semantics across chunk sizes and input sources. Pending
 refill cases keep UTF-8 fragments, partial records and funding across repeated actual suspension
 and host-ignored cancellation, including before the first record and after earlier output.
+Concatenation checks use native text slots across arities and actual pending host reads.
+Earlier prefixes survive deleted source entries and a nested concatenation; cancellation or
+runtime failure stops later operands and retains funding until actual completion. Cold storage
+and late admission failures preserve destinations and earlier effects without retries. Warm
+single-nonempty-part concatenations retain their allocation/copy bound through prepared source.
+The old pooled concatenation evaluator, continuation transport and rental counters are removed.
 Builtin counter cases cover contiguous execution-owned arguments at unary, binary and
 wide arities, with native field inputs and no retired argument-buffer activity. Pending
 call checks keep earlier builtin arguments alive across actual host suspension.

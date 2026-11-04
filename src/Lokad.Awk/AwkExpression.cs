@@ -37,8 +37,6 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Number(double value) => new NumberExpression(value);
 
-    public static AwkExpression Concat(IReadOnlyList<AwkExpression> parts) => new ConcatExpression(parts);
-
     public static AwkExpression Add(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Add);
 
     public static AwkExpression Subtract(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Subtract);

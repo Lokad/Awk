@@ -1576,7 +1576,6 @@ public sealed partial class AwkBenchmarkCounterTests
         var expectedOutput = new string('x', 64) + "\n";
         Assert.Equal(expectedOutput, interpreter.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(64, interpreter.Counters.ConcatenationBytesCopied);
-        Assert.Equal(0, interpreter.Counters.ConcatenationArgumentBufferRents);
     }
 
     [Fact]
@@ -1587,7 +1586,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("12\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, result.Counters.ConcatenationArgumentBufferRents);
         Assert.Equal(12, result.Counters.ConcatenationBytesCopied);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
