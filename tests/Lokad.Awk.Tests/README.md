@@ -82,6 +82,12 @@ parse after cancellation. Native increment/decrement cases retain numeric pre/po
 array-type rejection is shared with the native compound fixtures. The retired synchronous
 mutation nodes/selectors and prepared-global reference adapter are removed. Old synthetic
 pending scalar fixtures map to these native read/publication and SYMTAB cases.
+Native comparison fixtures retain left/index ordering across actual immediate/pending reads,
+record selection after indices, owned left fields across record replacement, failed indices
+without splitting, ignored cancellation and final refunds. Real host buffers may retain capacity
+after a result, so retirement checks avoid an exact payload-sized drop in aggregate funding.
+The old comparison trees, field-view eligibility and condition wrappers are removed; actual
+comparison primitives and deferred-conversion/error-order cases remain.
 Global numeric-read fixtures execute prepared source and the real name-bound fallback,
 preserving cold unassigned reads, numeric-string spelling, binary64 bits, computed/assigned
 `NF`, type failures and cancellation before publication. They no longer instantiate retired

@@ -41,15 +41,6 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Power(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Power);
 
-    public static AwkExpression Compare(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
-        left is DynamicFieldIndexExpression field && right is LiteralExpression literal
-            ? new FieldLiteralComparisonExpression(field.IndexExpression, literal, comparison)
-            : right is DynamicFieldIndexExpression rightField
-                ? new FieldValueComparisonExpression(left, rightField, comparison)
-                : TryGetSynchronousPair(left, right, out var syncLeft, out var syncRight)
-                    ? new SynchronousComparisonExpression(syncLeft, syncRight, comparison)
-                    : new ComparisonExpression(left, right, comparison);
-
     public static AwkExpression Assignment(AwkReference target, AwkExpression value) =>
         new AssignmentExpression(target, value);
 
@@ -114,24 +105,7 @@ internal abstract partial class AwkExpression
         return EvaluateCoreAsync(context);
     }
 
-    internal virtual ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
-    {
-        var pending = EvaluateAsync(context);
-        return pending.IsCompletedSuccessfully
-            ? ValueTask.FromResult(pending.Result.IsTruthy())
-            : AwaitConditionValueAsync(pending);
-    }
-
-    private static async ValueTask<bool> AwaitConditionValueAsync(ValueTask<AwkValue> pending) =>
-        (await pending.ConfigureAwait(false)).IsTruthy();
-
     /// <summary>Evaluates this expression after the cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 
-    /// <summary>Returns an integer literal only when its value is independent of the compatibility profile.</summary>
-    internal virtual bool TryGetIntegerConstant(out int value)
-    {
-        value = 0;
-        return false;
-    }
 }

@@ -9,7 +9,6 @@ internal abstract partial class AwkExpression
 {
     private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkSynchronousExpression
     {
-        internal override bool PreservesRecordBytes => indexExpression is AwkSynchronousExpression index && index.PreservesRecordBytes;
         public AwkExpression IndexExpression => indexExpression;
 
         internal override int SynchronousDepth => indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } index
@@ -19,11 +18,6 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             indexExpression is AwkSynchronousExpression index
                 ? ResolveField(context, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
-                : throw new InvalidOperationException("Synchronous field index is required.");
-
-        protected override AwkComparisonOperand EvaluateComparisonSynchronousCore(AwkEvaluationContext context) =>
-            indexExpression is AwkSynchronousExpression index
-                ? context.State.GetFieldComparison(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
@@ -51,19 +45,6 @@ internal abstract partial class AwkExpression
             var index = AwkFieldIndex.FromNumber(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false));
             context.State.AppendFieldByteText(destination, index.Value);
         }
-
-        public ValueTask<bool> CompareLeftAsync(AwkEvaluationContext context, AwkValue left, AwkComparison comparison)
-        {
-            context.State.Checkpoint();
-            var pending = indexExpression.ResolveNumberAsync(context);
-            return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(context.State.CompareValueField(left, AwkFieldIndex.FromNumber(pending.Result).Value, comparison))
-                : AwaitComparisonIndexAsync(context, left, comparison, pending);
-        }
-
-        private static async ValueTask<bool> AwaitComparisonIndexAsync(
-            AwkEvaluationContext context, AwkValue left, AwkComparison comparison, ValueTask<double> pending) =>
-            context.State.CompareValueField(left, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, comparison);
 
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
@@ -101,10 +82,8 @@ internal abstract partial class AwkExpression
 
     private sealed class LiteralExpression(string literal) : AwkSynchronousExpression
     {
-        internal override bool PreservesRecordBytes => true;
         private readonly AwkText _literalText = AwkText.FromSourceLiteralString(literal);
 
-        public AwkText LiteralText => _literalText;
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.CreateByteTextValue(_literalText);
@@ -112,7 +91,6 @@ internal abstract partial class AwkExpression
 
     private sealed class VariableExpression(AwkVariableName name) : AwkSynchronousExpression
     {
-        internal override bool PreservesRecordBytes => true;
 
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
@@ -144,24 +122,10 @@ internal abstract partial class AwkExpression
 
     private sealed class NumberExpression(double number) : AwkSynchronousExpression
     {
-        internal override bool PreservesRecordBytes => true;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             AwkValue.FromNumber(number);
 
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) => number;
 
-        internal override bool TryGetIntegerConstant(out int value)
-        {
-            if (Math.Abs(number % 1) < double.Epsilon &&
-                number >= int.MinValue &&
-                number <= int.MaxValue)
-            {
-                value = (int)number;
-                return true;
-            }
-
-            value = 0;
-            return false;
-        }
     }
 }

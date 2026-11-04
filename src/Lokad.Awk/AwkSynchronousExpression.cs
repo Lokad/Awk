@@ -3,9 +3,6 @@ namespace Lokad.Awk;
 // Prepared CPU-only expression regions. Async/host nodes never enter this tree.
 internal abstract class AwkSynchronousExpression : AwkExpression
 {
-    // A clean record view may survive only proven operands. In particular, array
-    // writes and unqualified calls can reach special variables through SYMTAB.
-    internal virtual bool PreservesRecordBytes => false;
     internal virtual int SynchronousDepth => 1;
     internal virtual int SynchronousCallDepth => 0;
     internal static AwkSynchronousExpression Unavailable { get; } = new UnavailableExpression();
@@ -15,15 +12,6 @@ internal abstract class AwkSynchronousExpression : AwkExpression
         context.State.Checkpoint();
         return EvaluateSynchronousCore(context);
     }
-
-    internal AwkComparisonOperand EvaluateComparisonSynchronous(AwkEvaluationContext context)
-    {
-        context.State.Checkpoint();
-        return EvaluateComparisonSynchronousCore(context);
-    }
-
-    protected virtual AwkComparisonOperand EvaluateComparisonSynchronousCore(AwkEvaluationContext context) =>
-        new(EvaluateSynchronousCore(context));
 
     internal double ResolveNumberSynchronous(AwkEvaluationContext context)
     {
@@ -68,7 +56,6 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousBinaryExpression(
         AwkSynchronousExpression left, AwkSynchronousExpression right, AwkNumericOperation operation) : AwkSynchronousExpression
     {
-        internal override bool PreservesRecordBytes { get; } = left.PreservesRecordBytes && right.PreservesRecordBytes;
         internal override int SynchronousDepth { get; } = 1 + Math.Max(left.SynchronousDepth, right.SynchronousDepth);
         internal override int SynchronousCallDepth { get; } = Math.Max(left.SynchronousCallDepth, right.SynchronousCallDepth);
 
@@ -87,36 +74,4 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class SynchronousComparisonExpression(
-        AwkSynchronousExpression left, AwkSynchronousExpression right, AwkComparison comparison) : AwkSynchronousExpression
-    {
-        internal override bool PreservesRecordBytes { get; } = left.PreservesRecordBytes && right.PreservesRecordBytes;
-        internal override int SynchronousDepth { get; } = 1 + Math.Max(left.SynchronousDepth, right.SynchronousDepth);
-
-        internal override int SynchronousCallDepth => Math.Max(left.SynchronousCallDepth, right.SynchronousCallDepth);
-
-        private readonly bool _canBorrowLeft = right.PreservesRecordBytes;
-        private readonly bool _usesFieldViews = right is DynamicFieldIndexExpression ||
-            left is DynamicFieldIndexExpression && right.PreservesRecordBytes;
-
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
-        {
-            if (_usesFieldViews) return EvaluateFieldViews(context);
-            var leftValue = left.EvaluateSynchronous(context);
-            using var leftLease = context.State.MemoryAccounting.RetainValue(leftValue);
-            var rightValue = right.EvaluateSynchronous(context);
-            return AwkValue.FromNumber(AwkComparisonOperations.Evaluate(leftValue, rightValue, comparison, context.State) ? 1 : 0);
-        }
-
-        // Keep the wider view operands out of ordinary numeric/owned comparison frames.
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        private AwkValue EvaluateFieldViews(AwkEvaluationContext context)
-        {
-            var leftValue = _canBorrowLeft ? left.EvaluateComparisonSynchronous(context)
-                : new AwkComparisonOperand(left.EvaluateSynchronous(context));
-            using var leftLease = leftValue.Retain(context.State);
-            var rightValue = right.EvaluateComparisonSynchronous(context);
-            return AwkValue.FromNumber(AwkComparisonOperations.Evaluate(leftValue, rightValue, comparison, context.State) ? 1 : 0);
-        }
-    }
 }
