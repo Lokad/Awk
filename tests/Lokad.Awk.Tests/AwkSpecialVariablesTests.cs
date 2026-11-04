@@ -4,6 +4,58 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSpecialVariablesTests
 {
+    [Theory]
+    [InlineData(nameof(AwkCompatibilityMode.GnuDefault))]
+    [InlineData(nameof(AwkCompatibilityMode.Posix))]
+    [InlineData(nameof(AwkCompatibilityMode.Traditional))]
+    public void SpecialBindingsReferenceRealCellsAndRespectLazyAndDisabledNames(string modeName)
+    {
+        var mode = Enum.Parse<AwkCompatibilityMode>(modeName);
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
+            static (_, _) => { }, mode: mode);
+        Assert.Null(variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator));
+        var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.OutputFieldSeparator);
+        variables.SetScalarValue(name, AwkValue.FromText("0007"));
+        var cell = variables.GetScalarCell(variables.GetOrCreateScalarSlot(name));
+        Assert.Same(cell, variables.GetSpecialScalarCell(AwkSpecialVariableId.OutputFieldSeparator));
+        variables.CaptureScalarMemoryBaseline();
+        variables.SetScalarValue(name, AwkValue.FromNumber(1.25));
+        Assert.Same(cell, variables.GetSpecialScalarCell(AwkSpecialVariableId.OutputFieldSeparator));
+        Assert.True(variables.GetScalarValue(cell).IsNumberValue);
+        variables.SetScalarValue(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator), AwkValue.FromText("\n"));
+        Assert.Equal(mode == AwkCompatibilityMode.GnuDefault,
+            variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is not null);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task ImplicitSeparatorsShareBoundCellsWithoutTextConversions(bool governed)
+    {
+        const int records = 128;
+        const string source = "{a[$1,$2]+=$3;$2=\"changed\";print $0,$1}END{print a[\"left\",\"right\"]}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("left right 2\n", records)));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        Assert.Equal(string.Concat(Enumerable.Repeat("left changed 2 left\n", records)) + "256\n",
+            host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.BoundSpecialScalarReads >= records * 4);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public void AwkSpecialVariables_RegistersMetadata()
     {

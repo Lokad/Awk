@@ -24,6 +24,7 @@ internal sealed partial class AwkVariables
     private readonly AwkMemoryAccounting _memoryAccounting;
     private readonly Dictionary<AwkVariableName, AwkGlobalSlotId> _scalarSlotsByName = new();
     private readonly List<AwkScalarCell> _scalarSlots = [];
+    private readonly AwkScalarCell?[] _specialScalarCells;
     private readonly AwkArrayKeyComparer _arrayKeyComparer;
     private readonly AwkArrayStorage _arrays;
     private readonly AwkSymbolTableArray _symbolTable;
@@ -104,6 +105,14 @@ internal sealed partial class AwkVariables
         _applyScalarAssignment = applyScalarAssignment;
         _resolveFieldCountValue = resolveFieldCountValue;
         _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
+        // Scalar IDs precede arrays. These are references to real owners, not a
+        // second value store; absent and disabled names keep ordinary resolution.
+        using (var bindingMemory = ReserveMemoryMutation(AwkRuntimeMemory.EstimateSpecialScalarBindingsBytes(), 0))
+        {
+            if (_memoryAccounting.IsEnabled) _checkpoint?.Invoke();
+            _specialScalarCells = new AwkScalarCell?[(int)AwkSpecialVariableId.ArgumentVector];
+            bindingMemory.Commit();
+        }
         _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint, counters, memoryAccounting);
         _arrays = new AwkArrayStorage(_arrayKeyComparer, counters);
         _symbolTable = new AwkSymbolTableArray(
@@ -928,6 +937,8 @@ internal sealed partial class AwkVariables
     // Cells stay valid when admission or OFS preparation grows the name/index tables.
     internal AwkScalarCell GetScalarCell(AwkGlobalSlotId id) => _scalarSlots[id.Value];
 
+    internal AwkScalarCell? GetSpecialScalarCell(AwkSpecialVariableId id) => _specialScalarCells[(int)id];
+
     private AwkGlobalSlotId GetOrCreateScalarSlotCore(AwkVariableName name)
     {
         if (_scalarSlotsByName.TryGetValue(name, out var existing))
@@ -947,11 +958,15 @@ internal sealed partial class AwkVariables
         using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(metadataBytes, slotBytes), 0);
         if (_memoryAccounting.IsEnabled) _checkpoint?.Invoke();
         _scalarSlotsByName.Add(name, id);
-        _scalarSlots.Add(new AwkScalarCell(
+        var cell = new AwkScalarCell(
             name,
             _governScalarMemory
                 ? AwkScalarState.Governed(slot, slotBytes)
-                : AwkScalarState.Ungoverned(slot)));
+                : AwkScalarState.Ungoverned(slot));
+        _scalarSlots.Add(cell);
+        if (AwkSpecialVariables.TryGetScalar(name, out var special) &&
+            AwkCompatibilityNames.EnablesSpecial(special, _mode))
+            _specialScalarCells[(int)special] = cell;
         mutation.Commit();
         return id;
     }

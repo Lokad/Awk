@@ -64,9 +64,10 @@ public sealed class AwkBorrowedArrayReadTests
         var accounting = memoryForAccounting.Accounting;
         var variables = new AwkVariables(accounting, counters, AwkValue.FromText, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
         var name = AwkArrayName.FromText("a");
+        var retained = accounting.CurrentCommittedBytes;
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));
         Assert.False(variables.ContainsArray(name));
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(retained, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
     }
 

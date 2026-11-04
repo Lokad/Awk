@@ -12,6 +12,7 @@ internal static partial class AwkGoldenCorpus
         DirectCases =
         [
         .. Tagged(VariableCases(), AwkGoldenTag.Variable),
+        .. Tagged(SpecialScalarBindingCases(), AwkGoldenTag.Variable, AwkGoldenTag.Field),
 
         .. Tagged(FieldCases(), AwkGoldenTag.Field),
         .. Tagged(CsvCases(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.CommandLine),

@@ -98,6 +98,7 @@ public sealed class AwkNestedArrayStorageTests
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = Variables(memory);
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("a"), 1);
+        var retained = memory.Budget.Reserved;
         variables.ClearArray(name);
         Assert.True(variables.TryGetOrdinaryArray(name, out var parent));
         var empty = memory.Budget.Reserved;
@@ -108,7 +109,7 @@ public sealed class AwkNestedArrayStorageTests
         Assert.True(grandchild.IsWithin(parent));
         Assert.InRange(memory.Budget.Reserved, empty + 4096, long.MaxValue);
         variables.RemoveFunctionLocalArray(name);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(retained, memory.Budget.Reserved);
     }
 
     [Fact]

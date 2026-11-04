@@ -87,6 +87,9 @@ internal static class AwkRuntimeMemory
     public static long EstimateGlobalReadSlotsBytes(int count) =>
         count <= 0 ? 0 : EstimateArrayBufferBytes(count, 16);
 
+    public static long EstimateSpecialScalarBindingsBytes() =>
+        EstimateArrayBufferBytes((int)AwkSpecialVariableId.ArgumentVector, ReferenceBytes);
+
     public static long EstimateUntypedArrayElementBytes(AwkArrayKey key) =>
         CheckedAdd(CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
             CheckedAdd(ArrayCellBytes, EstimateUntypedScalarBytes()));
