@@ -252,7 +252,6 @@ internal sealed class AwkRuntimeCounters
     }
 
     public long SynchronousExpressionRuns { get; private set; }
-    public long SynchronousFunctionRuns { get; private set; }
 
     public long FunctionNameLookups { get; private set; }
     public void RecordFunctionNameLookup()
@@ -393,12 +392,6 @@ internal sealed class AwkRuntimeCounters
     public void RecordInlineFunctionFrame()
     {
         if (_enabled) lock (_sync) InlineFunctionFrames++;
-    }
-
-    public void RecordSynchronousFunction()
-    {
-        if (!_enabled) return;
-        lock (_sync) SynchronousFunctionRuns++;
     }
 
     public void RecordFunctionArgumentBufferRent()

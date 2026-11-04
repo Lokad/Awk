@@ -142,14 +142,6 @@ internal abstract record AwkReference
 
     internal virtual (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (0, 0);
 
-    internal virtual bool TryPrepareFunctionCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkReference prepared, Action? checkpoint)
-    {
-        prepared = this;
-        return remainingDepth > 0 && TryGetSynchronousScalar(out _);
-    }
-
     internal virtual void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
         throw new InvalidOperationException("Synchronous reference is required.");
 
@@ -304,17 +296,6 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
     {
         var shape = IndexExpression.GetSynchronousShape(checkpoint);
         return (shape.Depth + 1, shape.Calls);
-    }
-
-    internal override bool TryPrepareFunctionCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkReference prepared, Action? checkpoint)
-    {
-        prepared = this;
-        if (remainingDepth <= 1 || !IndexExpression.TryPrepareFunctionCalls(functions,
-            remainingDepth - 1, out var index, checkpoint) || index.GetSynchronousShape(checkpoint).Depth == 0) return false;
-        if (!ReferenceEquals(index, IndexExpression)) prepared = new AwkArrayElementReference(Variable, index, Binding);
-        return true;
     }
 
     internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value)

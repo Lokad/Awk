@@ -51,21 +51,6 @@ internal abstract partial class AwkStatement
 
     private sealed class ExpressionStatement(AwkExpression expression) : AwkStatement
     {
-        internal override bool TryPrepareComputation(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkStatementPreparation prepared, Action? checkpoint)
-        {
-            prepared = default;
-            if (!expression.TryPrepareFunctionCalls(functions, remainingDepth, out var value, checkpoint)) return false;
-            prepared = new(new ExpressionStatement(value), value.SynchronousDepth, value.SynchronousCallDepth);
-            return true;
-        }
-
-        internal override AwkStatementFlow ExecuteComputation(AwkEvaluationContext context, ref AwkValue returned)
-        {
-            _ = ((AwkSynchronousExpression)expression).EvaluateSynchronous(context);
-            return AwkStatementFlow.Continue;
-        }
 
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {

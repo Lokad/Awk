@@ -51,45 +51,4 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.ThrowsAny<OperationCanceledException>(() => AwkRegionCompiler.TryCompile(syntax.Functions[0].BodyStatements, scope, out _));
         Assert.NotNull(Bind(source).Functions[AwkFunctionName.FromText("f")].Region);
     }
-
-    [Theory]
-    [InlineData("for")]
-    [InlineData("while")]
-    [InlineData("do")]
-    public async Task PreparedComputationalLoopsObserveCancellationAndUnwind(string kind)
-    {
-        using var cancellation = new CancellationTokenSource();
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token);
-        var iterations = 0;
-        var test = new CancelingOperand(() =>
-        {
-            if (++iterations == 20) cancellation.Cancel();
-        });
-        var loop = kind switch
-        {
-            "for" => AwkStatement.For(AwkStatement.NoOp(), new(test), AwkStatement.NoOp(), []),
-            "while" => AwkStatement.While(new(test), []),
-            _ => AwkStatement.DoWhile([], new(test))
-        };
-        var name = AwkFunctionName.FromText("f");
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
-            { [name] = new(name, AwkFunctionLocalLayout.Empty, [loop]) };
-        Assert.Single(AwkSynchronousFunction.Prepare(functions, null) ??
-            throw new InvalidOperationException("Expected a prepared function."));
-        state.InitializeFunctions(functions);
-        var host = new MockFileSystem();
-        var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        try
-        {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-                await functions[name].InvokeAsync([], new(state, output, io)));
-            Assert.Equal(20, iterations);
-            Assert.Equal(1, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
-            Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        finally { await io.CloseAsync(); }
-    }
 }

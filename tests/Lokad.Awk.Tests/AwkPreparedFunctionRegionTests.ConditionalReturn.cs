@@ -70,29 +70,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ConditionalReturnDepthIncludesConditionAndAlternative(bool alternative)
-    {
-        var name = AwkFunctionName.FromText("choose");
-        var value = AwkExpression.Number(1);
-        var deep = new TooDeepExpression();
-        var function = new AwkUserFunction(name, new([]),
-            [AwkStatement.If(new(alternative ? value : deep),
-                [AwkStatement.Return(AwkOptionalExpression.Some(value))]),
-             AwkStatement.Return(AwkOptionalExpression.Some(alternative ? deep : value))]);
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [name] = function };
-        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>>(
-            AwkSynchronousFunction.Prepare(functions, null)));
-    }
-
-    private sealed class TooDeepExpression : AwkSynchronousExpression
-    {
-        internal override int SynchronousDepth => 17;
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) => AwkValue.FromNumber(1);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
     public async Task ConditionalReturnPendingArgumentKeepsCallerAndCancellation(bool cancel)
     {
         var functions = Bind("function choose(x){if(x<3)return x+2;return x-2} BEGIN{}").Functions;
@@ -112,14 +89,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             Assert.False(pending.IsCompleted);
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+            Assert.Equal(0, counters.BoundFunctionRuns);
             state.AssignVariableValue(x, AwkValue.FromNumber(43));
             if (cancel) cancellation.Cancel();
             completion.SetResult(AwkValue.FromNumber(7));
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
             else Assert.Equal(5, (await pending).AsNumber());
             Assert.Equal(43, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(cancel ? 0 : 1, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+            Assert.Equal(cancel ? 0 : 1, counters.BoundFunctionRuns);
         }
         finally
         {

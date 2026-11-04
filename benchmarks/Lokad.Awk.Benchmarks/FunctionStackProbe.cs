@@ -113,10 +113,6 @@ internal static class FunctionStackProbe
             throw new InvalidOperationException("Stack probe failed: " + shape +
                 "; exit " + exit + "; output " + Encoding.UTF8.GetString(result.Output) +
                 "; error " + Encoding.UTF8.GetString(result.Error) + "; reads " + reads);
-        if (shape == "raised-syntax" && counters.FunctionStackSuspensions == 0)
-            throw new InvalidOperationException("Raised syntax budget did not retain every call boundary.");
-        if (preparedChain && counters.SynchronousFunctionRuns == 0)
-            throw new InvalidOperationException("Prepared function chain did not use synchronous execution.");
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             Shape = shape,
@@ -128,7 +124,7 @@ internal static class FunctionStackProbe
             counters.HostCalls,
             counters.StringDecodes,
             counters.Utf8Encodes,
-            counters.SynchronousFunctionRuns
+            counters.BoundFunctionRuns
         }));
     }
 }

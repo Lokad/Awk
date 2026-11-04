@@ -19,13 +19,6 @@ internal abstract record AwkArrayIndex
     internal virtual (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (0, 0);
     internal virtual AwkArrayKey ResolveKeySynchronous(AwkEvaluationContext context) =>
         throw new InvalidOperationException("Synchronous array index is required.");
-    internal virtual bool TryPrepareFunctionCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkArrayIndex prepared, Action? checkpoint)
-    {
-        prepared = this;
-        return false;
-    }
 
     internal virtual async ValueTask<AwkValue> ReadAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
         context.State.GetArrayAwkValue(array, await ResolveKeyAsync(context).ConfigureAwait(false), binding);
@@ -54,25 +47,6 @@ internal abstract record AwkArrayIndex
     internal virtual bool ContainsSynchronous(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding) =>
         context.State.ContainsArrayValue(array, ResolveKeySynchronous(context), binding);
 
-    protected static bool TryPrepareOperand(AwkExpression operand,
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkExpression prepared, Action? checkpoint)
-    {
-        checkpoint?.Invoke();
-        prepared = operand;
-        if (operand is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 }) return true;
-        if (AwkExpression.TryGetFieldIndexExpression(operand, out var fieldIndex))
-        {
-            if (remainingDepth <= 1 ||
-                !fieldIndex.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var index, checkpoint)) return false;
-            prepared = AwkExpression.FieldIndex(index);
-            return true;
-        }
-        if (!operand.TryPrepareFunctionCalls(functions, remainingDepth, out var expression, checkpoint)) return false;
-        prepared = expression;
-        return true;
-    }
-
     internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding = default) =>
         ResolveKeyAsync(context);
 
@@ -99,16 +73,6 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
     internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) =>
         Expression is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } expression
             ? (expression.SynchronousDepth, expression.SynchronousCallDepth) : (0, 0);
-
-    internal override bool TryPrepareFunctionCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkArrayIndex prepared, Action? checkpoint)
-    {
-        prepared = this;
-        if (!TryPrepareOperand(Expression, functions, remainingDepth, out var operand, checkpoint)) return false;
-        if (!ReferenceEquals(operand, Expression)) prepared = new AwkSimpleArrayIndex(operand);
-        return true;
-    }
 
     internal override AwkArrayKey ResolveKeySynchronous(AwkEvaluationContext context) =>
         Expression is AwkSynchronousExpression expression
@@ -229,22 +193,6 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
             calls = Math.Max(calls, expression.SynchronousCallDepth);
         }
         return (depth, calls);
-    }
-
-    internal override bool TryPrepareFunctionCalls(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkArrayIndex prepared, Action? checkpoint)
-    {
-        prepared = this;
-        var operands = new AwkExpression[Expressions.Count];
-        var changed = false;
-        for (var index = 0; index < operands.Length; index++)
-        {
-            if (!TryPrepareOperand(Expressions[index], functions, remainingDepth, out operands[index], checkpoint)) return false;
-            changed |= !ReferenceEquals(operands[index], Expressions[index]);
-        }
-        if (changed) prepared = new AwkCompositeArrayIndex(operands);
-        return true;
     }
 
     internal override AwkArrayKey ResolveKeySynchronous(AwkEvaluationContext context)

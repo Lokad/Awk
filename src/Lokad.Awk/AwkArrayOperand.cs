@@ -8,8 +8,6 @@ internal abstract record AwkArrayOperand
     public abstract ValueTask<AwkArrayTarget> CaptureAsync(AwkEvaluationContext context);
     internal abstract AwkArrayIdentity ResolveSynchronous(AwkEvaluationContext context);
     internal abstract (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null);
-    internal abstract bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkArrayOperand prepared, Action? checkpoint);
 
     internal sealed record Named(AwkArrayName Name, AwkArrayBinding Binding) : AwkArrayOperand
     {
@@ -23,14 +21,6 @@ internal abstract record AwkArrayOperand
             context.State.ResolveOrdinaryArray(Name, Binding);
 
         internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (1, 0);
-
-        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkArrayOperand prepared, Action? checkpoint)
-        {
-            checkpoint?.Invoke();
-            prepared = this;
-            return remainingDepth > 0;
-        }
     }
 
     internal sealed record Element : AwkArrayOperand
@@ -60,16 +50,6 @@ internal abstract record AwkArrayOperand
         {
             var shape = Path.GetSynchronousShape(checkpoint);
             return (shape.Depth > 0 ? shape.Depth + 1 : 0, shape.Calls);
-        }
-
-        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkArrayOperand prepared, Action? checkpoint)
-        {
-            prepared = this;
-            if (remainingDepth <= 1 || !Path.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var path, checkpoint))
-                return false;
-            if (!ReferenceEquals(path, Path)) prepared = new Element(path);
-            return true;
         }
     }
 }

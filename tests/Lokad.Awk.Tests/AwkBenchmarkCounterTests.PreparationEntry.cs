@@ -78,7 +78,7 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.SynchronousLoopRuns + counters.BoundRegionRuns);
-        Assert.Equal(functions == "used" ? records * count * iterations : 0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+        Assert.Equal(functions == "used" ? records * count * iterations : 0, counters.BoundFunctionRuns);
         Assert.Equal(records, counters.NumericFieldByteParses);
         Assert.InRange(counters.AwkTextAllocations, 0, 2);
         Assert.Equal(0, counters.StringDecodes);

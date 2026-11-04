@@ -38,7 +38,7 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.InRange(counters.AwkTextAllocations, 0, 32);
             Assert.True(counters.NumericFieldByteParses >= records);
         }
-        Assert.Equal(records, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+        Assert.Equal(records, counters.BoundFunctionRuns);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);

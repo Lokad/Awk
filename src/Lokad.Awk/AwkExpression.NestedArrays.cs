@@ -22,20 +22,6 @@ internal abstract partial class AwkExpression
         internal override int SynchronousDepth => _shape.Depth;
         internal override int SynchronousCallDepth => _shape.Calls;
 
-        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = this;
-            if (remainingDepth <= 0) return false;
-            if (SynchronousDepth > 0) return true;
-            if (remainingDepth <= 1 ||
-                !index.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var preparedIndex, preparationCheckpoint) ||
-                !operand.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var preparedOperand, preparationCheckpoint))
-                return false;
-            expression = new NestedArrayMembershipExpression(preparedIndex, preparedOperand);
-            return expression.SynchronousDepth is > 0 and <= 16;
-        }
-
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             EvaluateMembershipAsync(context, synchronousOperands: true).GetAwaiter().GetResult();
 
@@ -60,18 +46,6 @@ internal abstract partial class AwkExpression
         internal override int SynchronousDepth => _shape.Depth > 0 ? _shape.Depth + 1 : 0;
         internal override int SynchronousCallDepth => _shape.Calls;
 
-        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = this;
-            if (remainingDepth <= 0) return false;
-            if (SynchronousDepth > 0) return true;
-            if (remainingDepth <= 1 ||
-                !path.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var prepared, preparationCheckpoint)) return false;
-            expression = new NestedArrayElementExpression(prepared);
-            return expression.SynchronousDepth is > 0 and <= 16;
-        }
-
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) => path.ReadSynchronous(context);
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => path.ReadAsync(context);
     }
@@ -88,16 +62,6 @@ internal sealed record AwkNestedArrayElementReference : AwkReference
     {
         var shape = _path.GetSynchronousShape(checkpoint);
         return (shape.Depth > 0 ? shape.Depth + 1 : 0, shape.Calls);
-    }
-
-    internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkReference prepared, Action? checkpoint)
-    {
-        prepared = this;
-        if (remainingDepth <= 1 || !_path.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var path, checkpoint))
-            return false;
-        if (!ReferenceEquals(path, _path)) prepared = new AwkNestedArrayElementReference(path);
-        return true;
     }
 
     internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value)

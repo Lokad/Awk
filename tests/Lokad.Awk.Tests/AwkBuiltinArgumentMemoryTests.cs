@@ -44,46 +44,22 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task BuiltinArgumentCapacityShortfallPrecedesMutationAndAllowsRetry(bool observed, bool prepared)
+    [InlineData(false)] [InlineData(true)]
+    public void NativeBuiltinStorageAdmissionPrecedesArgumentEffects(bool observed)
     {
-        using var memoryForState = State(observed, CancellationToken.None);
-        var state = memoryForState.State;
+        using var memory = State(observed, CancellationToken.None);
+        var state = memory.State;
         var name = AwkVariableName.FromText("count");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
-        if (prepared)
-        {
-            state.InitializeGlobalReadSlots(1);
-            state.ResolvePreparedGlobalValue(name, 0);
-        }
-        Assert.True(AwkBuiltins.TryGetCallable(prepared ? "int" : "sqrt", out var builtin));
-        AwkExpression[] arguments = [AwkExpression.PreIncrement(prepared
-            ? AwkReference.PreparedGlobalScalar(name, 0) : AwkReference.Scalar(name))];
-        var invocation = AwkExpression.BuiltinCall(builtin, arguments);
-        if (prepared)
-        {
-            Assert.True(invocation.TryPrepareFunctionCalls(new Dictionary<AwkFunctionName, AwkSynchronousFunction>(),
-                16, out var computation));
-            invocation = computation;
-        }
-        var context = new AwkEvaluationContext(state);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - AwkRuntimeMemory.EstimateAwkValueArrayBytes(1) + 1))
-        {
-            var before = state.MemoryAccounting.CurrentCommittedBytes;
-            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await invocation.EvaluateAsync(context));
-            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
-            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        var retry = await invocation.EvaluateAsync(context);
-        Assert.Equal(1, retry.AsNumber());
-        Assert.Equal(1, state.ResolveVariableValue(name).AsNumber());
-        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
+        var parsed = AwkParser.Parse("BEGIN{result=int(++count)}");
+        Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+        using var storage = new AwkRegionStorage(state);
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
+        Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

@@ -41,25 +41,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void LocalAssignmentReturnBoundsIncludeBothExpressions(bool returned, bool calls)
-    {
-        var name = AwkFunctionName.FromText("step");
-        var local = AwkVariableName.FromText("t");
-        var value = AwkExpression.Number(1);
-        AwkExpression deep = calls ? new PrefixDeepCallExpression() : new TooDeepExpression();
-        var function = new AwkUserFunction(name, new([local]),
-            [AwkStatement.Assignment(AwkReference.LocalScalar(local, new(0)), returned ? value : deep),
-             AwkStatement.Return(AwkOptionalExpression.Some(returned ? deep : value))]);
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [name] = function };
-        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>>(
-            AwkSynchronousFunction.Prepare(functions, null)));
-    }
-
-    [Theory]
     [InlineData("default")]
     [InlineData("syntax")]
     [InlineData("lint")]
@@ -116,13 +97,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             Assert.False(pending.IsCompleted);
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(0, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+            Assert.Equal(0, counters.BoundFunctionRuns);
             if (cancel) cancellation.Cancel();
             completion.SetResult(AwkValue.FromNumber(7));
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
             else Assert.Equal(9, (await pending).AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(cancel ? 0 : 1, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+            Assert.Equal(cancel ? 0 : 1, counters.BoundFunctionRuns);
         }
         finally
         {
@@ -225,11 +206,5 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         }
         finally { state.PopFunctionFrame(); }
-    }
-
-    private sealed class PrefixDeepCallExpression : AwkSynchronousExpression
-    {
-        internal override int SynchronousCallDepth => 4;
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) => AwkValue.FromNumber(1);
     }
 }

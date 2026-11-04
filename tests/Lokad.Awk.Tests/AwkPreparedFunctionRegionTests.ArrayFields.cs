@@ -16,18 +16,17 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner: owner);
             var name = AwkArrayName.FromText("a");
             state.SetArrayAwkValue(name, new("keep"), AwkValue.FromNumber(7));
-            var target = AwkReference.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.Literal("missing")));
-            var expression = operation switch
+            var body = operation switch
             {
-                1 => AwkExpression.CompoundAssignment(target, AwkExpression.Number(1), AwkCompoundAssignmentOperation.Add),
-                2 => AwkExpression.PostIncrement(target),
-                3 => AwkExpression.PreDecrement(target),
-                _ => AwkExpression.Assignment(target, AwkExpression.Number(99))
+                1 => "a[\"missing\"]+=1", 2 => "a[\"missing\"]++", 3 => "--a[\"missing\"]",
+                _ => "a[\"missing\"]=99"
             };
-            Assert.True(expression.TryPrepareFunctionCalls(
-                new Dictionary<AwkFunctionName, AwkSynchronousFunction>(), 16, out var prepared));
+            var syntax = AwkParser.Parse("BEGIN{" + body + "}");
+            Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+            using var storage = new AwkRegionStorage(state);
+            storage.Initialize(region);
             budget.RefuseNextAdmissionMinimumGrowth = 1;
-            var error = Assert.Throws<AwkRuntimeException>(() => prepared.EvaluateSynchronous(new(state)));
+            var error = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.True(budget.Refusals > 0);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);

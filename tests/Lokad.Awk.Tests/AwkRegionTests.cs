@@ -127,13 +127,20 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task EmptyLoopRespondsToCancellationWithoutEffectOrCheckpointCounts(bool governed)
+    [InlineData(false, "while(1){}")] [InlineData(true, "while(1){}")]
+    [InlineData(false, "for(;;){}")] [InlineData(true, "for(;;){}")]
+    [InlineData(false, "do{}while(1)")] [InlineData(true, "do{}while(1)")]
+    public async Task FunctionLoopRespondsToCancellationAndUnwindsWithoutCheckpointCounts(bool governed, string body)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, governed);
-        var region = Compile("while(1){}", fixture.State);
+        var binding = AwkBinder.Bind(AwkParser.Parse("function repeat(){" + body + "}BEGIN{repeat()}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        fixture.State.InitializeGlobalNames(program.GlobalNames);
+        fixture.State.InitializeGlobalReadSlots(program.GlobalReadCount);
+        fixture.State.InitializeFunctions(program.Functions);
+        var region = Assert.Single(program.BeginActions).Region ?? throw new InvalidOperationException("The action was not prepared.");
         using var storage = new AwkRegionStorage(fixture.State);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         // This intentionally CPU-bound loop must not occupy a worker needed to
@@ -154,6 +161,11 @@ public sealed partial class AwkRegionTests
             try { await execution.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (OperationCanceledException) { }
         }
+        Assert.False(fixture.State.IsInsideFunction);
+        Assert.Equal(0, fixture.State.MemoryAccounting.CurrentReservedBytes);
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
     }
 
     [Fact]

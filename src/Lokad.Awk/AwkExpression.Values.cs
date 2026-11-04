@@ -279,19 +279,6 @@ internal abstract partial class AwkExpression
         internal override int SynchronousDepth => _shape.Depth > 0 ? _shape.Depth + 1 : 0;
         internal override int SynchronousCallDepth => _shape.Calls;
 
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = this;
-            if (remainingDepth <= 0) return false;
-            if (SynchronousDepth > 0) return true;
-            if (remainingDepth <= 1 || !indexExpression.TryPrepareFunctionCalls(functions,
-                remainingDepth - 1, out var index, preparationCheckpoint)) return false;
-            expression = new ArrayElementExpression(name, index, binding, preparationCheckpoint);
-            return expression.SynchronousDepth is > 0 and <= 16;
-        }
-
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             indexExpression.ReadSynchronous(context, name, binding);
 

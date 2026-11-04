@@ -39,7 +39,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.Equal(0, counters.GovernedArgumentBufferReuses);
         Assert.Equal(0, counters.FunctionArgumentBufferRents);
-        if (forwarding) Assert.Equal(records, (counters.SynchronousFunctionRuns + counters.BoundFunctionRuns));
+        if (forwarding) Assert.Equal(records, counters.BoundFunctionRuns);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);

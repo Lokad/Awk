@@ -9,14 +9,12 @@ internal sealed class AwkUserFunction
 {
     // Preparation finishes before the program is published to any execution.
     private AwkStatement[] _statements = [];
-    private AwkSynchronousFunction? _synchronous;
     internal AwkRegion? Region { get; private set; }
 
     internal void PrepareRegion(AwkRegion region)
     {
         Region = region;
         _statements = [];
-        _synchronous = null;
     }
 
     internal AwkUserFunction(AwkFunctionName name, AwkFunctionLocalLayout localLayout)
@@ -36,18 +34,6 @@ internal sealed class AwkUserFunction
 
     internal void PrepareBody(IReadOnlyList<AwkStatement> statements) =>
         _statements = AwkCollectionSnapshots.Copy(statements);
-
-    internal void PrepareSynchronousFunction(AwkSynchronousFunction function) =>
-        _synchronous = function;
-
-    internal bool TryPrepareSynchronousBody(
-        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        out AwkStatement[] body, out int depth, out int calls, Action? checkpoint)
-    {
-        if (Region is not null) { body = []; depth = calls = 0; return false; }
-        return AwkStatementBlockExecutor.TryPrepareComputation(_statements, functions, 16,
-            out body, out depth, out calls, checkpoint);
-    }
 
     public AwkFunctionName FunctionName { get; }
 
@@ -199,10 +185,6 @@ internal sealed class AwkUserFunction
         else
         {
             if (_statements.Length == 0 || !context.TryGetExecutionContext(out var execution)) return AwkValue.Unassigned();
-            if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
-                state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
-                state.FieldsCannotReportRegexDiagnostics && !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())
-                return prepared.EvaluateBody(context);
             flow = await AwkStatementBlockExecutor.ExecuteAsync(_statements, context).ConfigureAwait(false);
         }
         if (flow == AwkStatementFlow.ReturnFunction)

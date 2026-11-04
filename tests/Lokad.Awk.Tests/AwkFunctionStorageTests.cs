@@ -10,36 +10,24 @@ public sealed partial class AwkFunctionStorageTests
         const int count = 256;
         using var cancellation = new CancellationTokenSource();
         var visited = 0;
-        var value = (AwkSynchronousExpression)AwkExpression.Number(1);
-        var probe = new PreparationProbe(() => { if (++visited == 2) cancellation.Cancel(); }, value);
         var name = AwkFunctionName.FromText("score");
         var layout = new AwkFunctionLocalLayout(Enumerable.Range(0, count)
             .Select(index => AwkVariableName.FromText("p" + index)).ToArray());
-        var functions = new Dictionary<AwkFunctionName, AwkSynchronousFunction>
+        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
         {
-            [name] = new(layout, [AwkStatement.Return(AwkOptionalExpression.Some(value))],
-                value.SynchronousDepth, value.SynchronousCallDepth)
+            [name] = new(name, layout)
         };
-        var call = AwkExpression.FunctionCall(name, Enumerable.Repeat<AwkExpression>(probe, count).ToArray());
+        var parsed = AwkParser.Parse("BEGIN{value=score(" + string.Join(',', Enumerable.Repeat("1", count)) + ")}");
+        Assert.True(parsed.Success);
+        var scope = AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, checkpoint: () =>
+        {
+            if (++visited == 2) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }, functions: functions);
         if (preCanceled) cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() =>
-            call.TryPrepareFunctionCalls(functions, 16, out _, cancellation.Token.ThrowIfCancellationRequested));
+            AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), scope, -1, out _));
         Assert.True(visited < count);
-        if (preCanceled) Assert.Equal(0, visited);
-    }
-
-    private sealed class PreparationProbe(Action visit, AwkSynchronousExpression value) : AwkExpression
-    {
-        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            visit();
-            expression = value;
-            return true;
-        }
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            throw new InvalidOperationException("This expression is used only for preparation.");
     }
 
     [Theory]

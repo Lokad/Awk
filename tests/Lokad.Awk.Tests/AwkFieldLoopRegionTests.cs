@@ -38,25 +38,6 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData(14, true)]
-    [InlineData(15, false)]
-    public void FieldPreparationKeepsTheExistingSixteenNodeDepthBound(int depth, bool eligible)
-    {
-        AwkExpression index = AwkExpression.Number(1);
-        for (var current = 1; current < depth; current++)
-            index = AwkExpression.Add(index, AwkExpression.Number(0));
-        foreach (var expression in new[]
-        {
-            AwkExpression.Length(AwkExpression.FieldIndex(index), AwkOptionalIdentifier.None),
-            AwkExpression.Compare(AwkExpression.FieldIndex(index), AwkExpression.Literal("a"), AwkComparison.Equal)
-        })
-        {
-            var condition = new AwkCondition(expression);
-            Assert.Equal(eligible, condition.TryGetSynchronousExpression(out _));
-        }
-    }
-
-    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]

@@ -42,24 +42,6 @@ internal sealed class AwkArrayPath
         return (depth, calls);
     }
 
-    internal bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-        int remainingDepth, out AwkArrayPath prepared, Action? checkpoint)
-    {
-        prepared = this;
-        if (remainingDepth <= 0) return false;
-        AwkArrayIndex[]? indices = null;
-        for (var offset = 0; offset < _indices.Length; offset++)
-        {
-            checkpoint?.Invoke();
-            if (!_indices[offset].TryPrepareFunctionCalls(functions, remainingDepth, out var index, checkpoint))
-                return false;
-            if (!ReferenceEquals(index, _indices[offset])) indices ??= (AwkArrayIndex[])_indices.Clone();
-            if (indices is not null) indices[offset] = index;
-        }
-        if (indices is not null) prepared = new(_root, indices);
-        return prepared.GetSynchronousShape(checkpoint).Depth > 0;
-    }
-
     internal async ValueTask<AwkValue> ReadAsync(AwkEvaluationContext context)
     {
         if (_indices.Length == 1)

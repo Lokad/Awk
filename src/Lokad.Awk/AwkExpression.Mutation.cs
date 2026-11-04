@@ -18,19 +18,6 @@ internal abstract partial class AwkExpression
                 TryGetLiteralFieldIndex(valueExpression, out source);
         }
 
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = AwkSynchronousExpression.Unavailable;
-            if (remainingDepth <= 1 || !target.TryPrepareFunctionCalls(functions,
-                remainingDepth - 1, out var location, preparationCheckpoint) ||
-                !valueExpression.TryPrepareFunctionCalls(functions, remainingDepth - 1,
-                    out var value, preparationCheckpoint)) return false;
-            expression = new SynchronousAssignmentExpression(location, value, preparationCheckpoint);
-            return expression.SynchronousDepth <= 16;
-        }
-
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var pending = valueExpression.EvaluateAsync(context);
@@ -64,18 +51,6 @@ internal abstract partial class AwkExpression
         AwkExpression valueExpression,
         AwkCompoundAssignmentOperation operation) : AwkExpression
     {
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = AwkSynchronousExpression.Unavailable;
-            if (remainingDepth <= 1 || !target.TryPrepareFunctionCalls(functions,
-                remainingDepth - 1, out var location, preparationCheckpoint) ||
-                !valueExpression.TryPrepareFunctionCalls(functions, remainingDepth - 1,
-                    out var value, preparationCheckpoint)) return false;
-            expression = new SynchronousCompoundAssignmentExpression(location, value, operation, preparationCheckpoint);
-            return expression.SynchronousDepth <= 16;
-        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyCompoundAssignmentAsync(context, valueExpression, operation);
@@ -83,16 +58,6 @@ internal abstract partial class AwkExpression
 
     private sealed class PreIncrementExpression(AwkReference target) : AwkExpression
     {
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = AwkSynchronousExpression.Unavailable;
-            if (remainingDepth <= 0 || !target.TryPrepareFunctionCalls(functions,
-                remainingDepth, out var location, preparationCheckpoint)) return false;
-            expression = new SynchronousIncrementExpression(location, 1, false, preparationCheckpoint);
-            return expression.SynchronousDepth <= 16;
-        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyIncrementAsync(context);
@@ -100,16 +65,6 @@ internal abstract partial class AwkExpression
 
     private sealed class PreDecrementExpression(AwkReference target) : AwkExpression
     {
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = AwkSynchronousExpression.Unavailable;
-            if (remainingDepth <= 0 || !target.TryPrepareFunctionCalls(functions,
-                remainingDepth, out var location, preparationCheckpoint)) return false;
-            expression = new SynchronousIncrementExpression(location, -1, false, preparationCheckpoint);
-            return expression.SynchronousDepth <= 16;
-        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyDecrementAsync(context);
@@ -117,16 +72,6 @@ internal abstract partial class AwkExpression
 
     private sealed class PostIncrementExpression(AwkReference target) : AwkExpression
     {
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = AwkSynchronousExpression.Unavailable;
-            if (remainingDepth <= 0 || !target.TryPrepareFunctionCalls(functions,
-                remainingDepth, out var location, preparationCheckpoint)) return false;
-            expression = new SynchronousIncrementExpression(location, 1, true, preparationCheckpoint);
-            return expression.SynchronousDepth <= 16;
-        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyPostIncrementAsync(context);
@@ -134,16 +79,6 @@ internal abstract partial class AwkExpression
 
     private sealed class PostDecrementExpression(AwkReference target) : AwkExpression
     {
-        internal override bool TryPrepareFunctionCalls(
-            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
-            int remainingDepth, out AwkSynchronousExpression expression, Action? preparationCheckpoint = null)
-        {
-            expression = AwkSynchronousExpression.Unavailable;
-            if (remainingDepth <= 0 || !target.TryPrepareFunctionCalls(functions,
-                remainingDepth, out var location, preparationCheckpoint)) return false;
-            expression = new SynchronousIncrementExpression(location, -1, true, preparationCheckpoint);
-            return expression.SynchronousDepth <= 16;
-        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyPostDecrementAsync(context);
