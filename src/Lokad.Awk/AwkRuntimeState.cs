@@ -32,9 +32,10 @@ internal sealed class AwkRuntimeState : IDisposable
     private readonly AwkRandomRuntime _randomRuntime;
     private readonly AwkTimeRuntime _timeRuntime;
     private readonly AwkVariables _variables;
-    private readonly AwkGlobalSlotId _recordNumberSlot;
-    private readonly AwkGlobalSlotId _fileRecordNumberSlot;
-    private readonly AwkGlobalSlotId _ignoreCaseSlot;
+    private readonly AwkVariables.AwkScalarCell _recordNumberCell;
+    private readonly AwkVariables.AwkScalarCell _fileRecordNumberCell;
+    private readonly AwkVariables.AwkScalarCell? _ignoreCaseCell;
+    private AwkVariables.AwkScalarCell? _recordTerminatorCell;
     private readonly AwkRegexRuntime _regexRuntime;
     private readonly AwkStringEscapeWarnings _stringEscapeWarnings;
     private readonly AwkStringRuntime _stringRuntime;
@@ -142,11 +143,14 @@ internal sealed class AwkRuntimeState : IDisposable
             _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint, Counters);
             _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
             _specialVariables.InitializeScalars(fieldSeparator);
-            _recordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber));
-            _fileRecordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.FileRecordNumber));
-            _ignoreCaseSlot = CompatibilityMode == AwkCompatibilityMode.GnuDefault
-                ? _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase))
-                : default;
+            _recordNumberCell = _variables.GetScalarCell(_variables.GetOrCreateScalarSlot(
+                AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber)));
+            _fileRecordNumberCell = _variables.GetScalarCell(_variables.GetOrCreateScalarSlot(
+                AwkSpecialVariables.VariableName(AwkSpecialVariableId.FileRecordNumber)));
+            _ignoreCaseCell = CompatibilityMode == AwkCompatibilityMode.GnuDefault
+                ? _variables.GetScalarCell(_variables.GetOrCreateScalarSlot(
+                    AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase)))
+                : null;
             _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
             _globalRegexCaseSensitivity = ReadGlobalRegexCaseSensitivity();
             _variables.CaptureScalarMemoryBaseline();
@@ -771,7 +775,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (_globalReadSlots is { } slots)
         {
-            if (slots[index].Scalar is { } cell && _variables.TryGetScalarNumber(cell, out number))
+            if (slots[index].Scalar is { } cell && cell.State.Slot.TryGetNumber(out number))
             {
                 Counters.RecordNumericGlobalRead();
                 return true;
@@ -925,31 +929,31 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (id == AwkSpecialVariableId.FieldCount)
             return _recordFields.FieldCountValue;
-        // The initialized GNU scalar has a stable slot; functions retain name-based local resolution.
-        if (id == AwkSpecialVariableId.IgnoreCase && CompatibilityMode == AwkCompatibilityMode.GnuDefault && !_functions.IsInsideFunction)
-            return _variables.GetScalarValue(_ignoreCaseSlot);
-        return TryGetRecordCounterSlot(id, out var slot)
-            ? _variables.GetScalarValue(slot)
+        // Initialized headers share their real owner; functions retain local name resolution.
+        if (id == AwkSpecialVariableId.IgnoreCase && _ignoreCaseCell is { } ignoreCase && !_functions.IsInsideFunction)
+            return _variables.GetScalarValue(ignoreCase);
+        return TryGetRecordCounterCell(id, out var cell)
+            ? _variables.GetScalarValue(cell)
             : _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
     }
 
-    private bool TryGetRecordCounterSlot(AwkSpecialVariableId id, out AwkGlobalSlotId slot)
+    private bool TryGetRecordCounterCell(AwkSpecialVariableId id, [NotNullWhen(true)] out AwkVariables.AwkScalarCell? cell)
     {
         // Getline inside functions retains the existing local-special-name behavior.
         if (!_functions.IsInsideFunction)
         {
             if (id == AwkSpecialVariableId.RecordNumber)
             {
-                slot = _recordNumberSlot;
+                cell = _recordNumberCell;
                 return true;
             }
             if (id == AwkSpecialVariableId.FileRecordNumber)
             {
-                slot = _fileRecordNumberSlot;
+                cell = _fileRecordNumberCell;
                 return true;
             }
         }
-        slot = default;
+        cell = null;
         return false;
     }
 
@@ -964,8 +968,8 @@ internal sealed class AwkRuntimeState : IDisposable
             return;
         }
 
-        if (TryGetRecordCounterSlot(id, out var slot))
-            _variables.SetScalarValue(slot, value);
+        if (TryGetRecordCounterCell(id, out var cell))
+            _variables.SetScalarValue(cell, value);
         else
             _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
     }
@@ -995,8 +999,13 @@ internal sealed class AwkRuntimeState : IDisposable
         // names retain their ordinary resolution; storage still owns admission.
         if (_functions.IsInsideFunction)
             AssignVariableValue(RecordTerminatorVariableName, value);
+        else if (_recordTerminatorCell is { } cell)
+            _variables.SetScalarValue(cell, value);
         else
+        {
             _variables.SetScalarValue(RecordTerminatorVariableName, value);
+            _recordTerminatorCell = _variables.GetScalarCell(_variables.GetOrCreateScalarSlot(RecordTerminatorVariableName));
+        }
     }
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
@@ -1032,8 +1041,8 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (!_functions.IsInsideFunction)
         {
-            _variables.IncrementRecordCounter(_recordNumberSlot);
-            _variables.IncrementRecordCounter(_fileRecordNumberSlot);
+            _variables.IncrementRecordCounter(_recordNumberCell);
+            _variables.IncrementRecordCounter(_fileRecordNumberCell);
         }
         else
         {
@@ -1043,9 +1052,14 @@ internal sealed class AwkRuntimeState : IDisposable
         }
     }
 
-    private long EstimateRecordTerminatorMemoryGrowth(AwkValue value) =>
-        MemoryAccounting.IsEnabled && AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode)
-            ? _variables.EstimateScalarValueMemoryGrowth(RecordTerminatorVariableName, value) : 0;
+    private long EstimateRecordTerminatorMemoryGrowth(AwkValue value)
+    {
+        if (!MemoryAccounting.IsEnabled ||
+            !AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode)) return 0;
+        return _recordTerminatorCell is { } cell
+            ? _variables.EstimateScalarValueMemoryGrowth(cell, value)
+            : _variables.EstimateScalarValueMemoryGrowth(RecordTerminatorVariableName, value);
+    }
 
     public void SetErrno(AwkErrno errno)
     {
@@ -1218,7 +1232,7 @@ internal sealed class AwkRuntimeState : IDisposable
             : AwkRegexCaseSensitivity.CaseSensitive;
 
     private AwkRegexCaseSensitivity ReadGlobalRegexCaseSensitivity() =>
-        CompatibilityMode == AwkCompatibilityMode.GnuDefault && _variables.GetScalarValue(_ignoreCaseSlot).IsTruthy()
+        _ignoreCaseCell is { } cell && _variables.GetScalarValue(cell).IsTruthy()
             ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
 
     public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>

@@ -8,13 +8,14 @@ public sealed class AwkPreparedGlobalReadTests
     public void LayoutCopiesNamesAndExcludesSpecials()
     {
         var name = AwkVariableName.FromText("value");
-        var names = new HashSet<AwkVariableName> { name, AwkVariableName.FromText("FS") };
+        var specials = AwkSpecialVariables.Scalars.Select(variable => variable.VariableName).ToArray();
+        var names = new HashSet<AwkVariableName>(specials) { name };
         var layout = new AwkGlobalReadLayout(names, null);
         names.Clear();
         Assert.Equal(1, layout.Count);
         Assert.True(layout.TryGetIndex(name, out var index));
         Assert.Equal(0, index);
-        Assert.False(layout.TryGetIndex(AwkVariableName.FromText("FS"), out _));
+        foreach (var special in specials) Assert.False(layout.TryGetIndex(special, out _));
     }
 
     [Fact]

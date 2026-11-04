@@ -290,18 +290,23 @@ internal sealed partial class AwkVariables
     {
         var slot = AwkVariableSlot.FromValue(value);
         if (_scalarSlotsByName.TryGetValue(name, out var id))
-        {
-            if (!_governScalarMemory)
-                return 0;
-            var oldState = GetScalarCell(id).State;
-            var baseline = oldState.HasBaseline ? oldState.BaselineBytes : 0;
-            var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
-            return Math.Max(0, newCharge - oldState.ChargedBytes);
-        }
+            return EstimateScalarValueMemoryGrowth(GetScalarCell(id), slot);
         return _governScalarMemory
             ? AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length), EstimateScalarBytes(slot))
             : AwkRuntimeMemory.ScalarCellOverheadBytes;
+    }
+
+    internal long EstimateScalarValueMemoryGrowth(AwkScalarCell cell, AwkValue value) =>
+        EstimateScalarValueMemoryGrowth(cell, AwkVariableSlot.FromValue(value));
+
+    private long EstimateScalarValueMemoryGrowth(AwkScalarCell cell, AwkVariableSlot slot)
+    {
+        if (!_governScalarMemory) return 0;
+        var oldState = cell.State;
+        var baseline = oldState.HasBaseline ? oldState.BaselineBytes : 0;
+        var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
+        return Math.Max(0, newCharge - oldState.ChargedBytes);
     }
 
     public void CaptureScalarMemoryBaseline()
@@ -391,15 +396,15 @@ internal sealed partial class AwkVariables
     // Prepared ordinary-global ordinals exclude every special variable. Keep the
     // existing slot mutation owner, including retirement of old text and origins.
     internal void SetOrdinaryScalarNumber(AwkScalarCell cell, double number) =>
-        SetScalarSlot(cell, AwkVariableSlot.FromNumber(number));
+        StoreScalarSlot(cell, AwkVariableSlot.FromNumber(number), prepareOutputSeparator: false);
 
     // Input counters use existing scalar owners. A script may replace a counter
     // with text, so only the already-numeric case bypasses value conversion.
-    internal void IncrementRecordCounter(AwkGlobalSlotId id)
+    internal void IncrementRecordCounter(AwkScalarCell cell)
     {
-        var prior = GetScalarCell(id).State.Slot;
+        var prior = cell.State.Slot;
         var number = prior.TryGetNumber(out var numeric) ? numeric : CreateValue(prior).AsNumber(_checkpoint);
-        SetScalarSlot(id, AwkVariableSlot.FromNumber(Math.Truncate(number) + 1));
+        StoreScalarSlot(cell, AwkVariableSlot.FromNumber(Math.Truncate(number) + 1), prepareOutputSeparator: false);
     }
 
     public void InitializeArrayValues(AwkArrayName name, IReadOnlyList<KeyValuePair<AwkArrayKey, AwkValue>> values)
@@ -964,12 +969,15 @@ internal sealed partial class AwkVariables
 
     private void SetScalarSlot(AwkGlobalSlotId id, AwkVariableSlot slot) => SetScalarSlot(GetScalarCell(id), slot);
 
-    private void SetScalarSlot(AwkScalarCell cell, AwkVariableSlot slot)
+    private void SetScalarSlot(AwkScalarCell cell, AwkVariableSlot slot) =>
+        StoreScalarSlot(cell, slot, _governScalarMemory &&
+            string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal));
+
+    private void StoreScalarSlot(AwkScalarCell cell, AwkVariableSlot slot, bool prepareOutputSeparator)
     {
         if (!_governScalarMemory || !_memoryAccounting.IsEnabled)
         {
-            if (_governScalarMemory &&
-                string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal))
+            if (prepareOutputSeparator)
                 _prepareOutputFieldSeparatorAssignment();
             cell.State.SetUngovernedSlot(slot);
             return;
@@ -978,7 +986,7 @@ internal sealed partial class AwkVariables
         if (slot.Kind == AwkVariableSlotKind.Number &&
             cell.State.Slot.Kind == AwkVariableSlotKind.Number)
         {
-            if (string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal))
+            if (prepareOutputSeparator)
                 _prepareOutputFieldSeparatorAssignment();
             cell.State.Slot = slot;
             return;
@@ -992,7 +1000,7 @@ internal sealed partial class AwkVariables
         var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
         using var mutation = ReserveMemoryMutation(newCharge, oldCharge);
         if (newCharge > oldCharge) _checkpoint?.Invoke();
-        if (string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal))
+        if (prepareOutputSeparator)
             _prepareOutputFieldSeparatorAssignment();
         cell.State.SetSlot(slot, baselineBytes, newCharge);
         mutation.Commit();
