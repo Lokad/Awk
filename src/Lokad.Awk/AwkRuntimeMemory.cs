@@ -23,7 +23,7 @@ internal static class AwkRuntimeMemory
     private const int AwkRegexMatchBytes = 64;
     private const int AwkRegexGroupBytes = 32;
     private const int AwkValueBytes = 32;
-    internal const int FieldTextBytes = 24;
+    internal const int FieldTextBytes = 32;
     internal const int CachedFieldValueBytes = 32;
     internal const int ListBufferOverheadBytes = ListObjectBytes + ByteArrayObjectBytes;
     private const int AwkArrayKeyBytes = 32;

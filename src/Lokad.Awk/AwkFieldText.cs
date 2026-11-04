@@ -11,14 +11,18 @@ internal enum AwkFieldTextKind
 
 internal readonly struct AwkFieldText
 {
+    private const int NumericCacheSlot = -1;
     private readonly AwkText _ownedText;
+    private readonly double _numericValue;
     private readonly int _start;
     private readonly int _length;
 
-    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length, int cacheSlot = 0)
+    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length,
+        int cacheSlot = 0, double numericValue = 0)
     {
         Kind = kind;
         _ownedText = ownedText;
+        _numericValue = numericValue;
         _start = start;
         _length = length;
         CacheSlot = cacheSlot;
@@ -41,10 +45,23 @@ internal readonly struct AwkFieldText
 
     public AwkFieldTextKind Kind { get; }
 
-    // Zero means no cached field data. The owning frame interprets this slot; byte views ignore it.
+    // Positive slots index owned/classification values; -1 holds an inline number.
+    // The owning frame interprets caches; byte views preserve the original spelling.
     internal int CacheSlot { get; }
 
-    internal AwkFieldText WithCacheSlot(int slot) => new(Kind, _ownedText, _start, _length, slot);
+    internal AwkFieldText WithCacheSlot(int slot) => new(Kind, _ownedText, _start, _length, slot, _numericValue);
+
+    internal AwkFieldText WithNumericValue(double number) =>
+        new(Kind, _ownedText, _start, _length, NumericCacheSlot, number);
+
+    internal bool TryGetNumericValue(out double number)
+    {
+        number = _numericValue;
+        return CacheSlot == NumericCacheSlot;
+    }
+
+    internal AwkFieldText WithCacheFrom(AwkFieldText source) =>
+        new(Kind, _ownedText, _start, _length, source.CacheSlot, source._numericValue);
 
     public long RetainedTextByteLength =>
         Kind == AwkFieldTextKind.Owned

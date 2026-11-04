@@ -157,7 +157,7 @@ public sealed class AwkNumericFieldResourceTests
     [Fact]
     public void FieldBufferEstimateIncludesValueTypeEntriesAndArrayHeaders()
     {
-        Assert.Equal(24, Unsafe.SizeOf<AwkFieldText>());
+        Assert.Equal(32, Unsafe.SizeOf<AwkFieldText>());
         Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkFieldText>(), AwkRuntimeMemory.EstimateFieldTextListBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateFieldTextListBytes(0));
     }

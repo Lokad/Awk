@@ -3,6 +3,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkNumericFieldConsumptionTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void NumericCacheFollowsSlicesThroughCompletionAndReconstruction(bool governed)
+    {
+        using var memory = State(governed);
+        var state = memory.State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("k 0007 " +
+            string.Join(' ', Enumerable.Repeat("tail", 64))));
+        Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.Equal(1, state.Counters.NumericFieldByteParses);
+        Assert.Equal(66, state.FieldCount);
+        Assert.Equal(7, state.GetFieldNumber(2));
+        state.AssignFieldValue(3, AwkValue.FromText("changed"));
+        Assert.StartsWith("k 0007 changed ", state.CurrentRecordByteText.AsString());
+        Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.Equal(1, state.Counters.NumericFieldByteParses);
+        Assert.Equal("0007", state.GetFieldValue(2).AsString());
+        Assert.Equal(AwkRuntimeValueKind.NumericString, state.GetFieldValue(2).RuntimeKind);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void NumericReadsReuseInterpretationAndRespectRecordReplacementAndFieldWrites(bool governed)
@@ -78,7 +99,7 @@ public sealed class AwkNumericFieldConsumptionTests
             Assert.Equal(1,state.GetFieldNumber(1));
             Assert.Equal(record,state.CurrentRecordByteText);
         }
-        Assert.InRange(state.Counters.FieldValueCacheBufferAllocations,1,2);
+        Assert.Equal(0,state.Counters.FieldValueCacheBufferAllocations);
         Assert.Equal(records*fields,state.Counters.NumericFieldByteParses);
         Assert.Equal(0,state.Counters.StringDecodes);
         Assert.Equal(0,state.Counters.Utf8Encodes);
@@ -105,7 +126,7 @@ public sealed class AwkNumericFieldConsumptionTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void NumericReadsUsePreviouslyFundedOwnedCacheCapacity(bool governed)
+    public void NumericReadsLeavePreviouslyFundedOwnedCacheStorageUnchanged(bool governed)
     {
         using var memory=State(governed);
         var state=memory.State;
@@ -124,7 +145,7 @@ public sealed class AwkNumericFieldConsumptionTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void FullNumericCacheKeepsValuesAndCanGrowForActualScalarEscape(bool governed)
+    public void InlineNumbersKeepValuesAndCanMaterializeActualScalarEscapes(bool governed)
     {
         using var memory=State(governed);
         var state=memory.State;
@@ -135,13 +156,13 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(growths,state.Counters.FieldValueCacheBufferAllocations);
         Assert.Equal("0005",state.GetFieldValue(5).AsString());
         for(var repeat=0;repeat<8;repeat++)Assert.Equal(6,state.GetFieldNumber(6));
-        Assert.Equal(7,state.Counters.NumericFieldByteParses);
+        Assert.Equal(6,state.Counters.NumericFieldByteParses);
         Assert.Equal("1 2 3 4 0005 0006",state.CurrentRecordByteText.AsString());
         Assert.Equal(0,state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
-    public void NumericCacheAdmissionRefusalDoesNotChangeTheRecordOrLeaveReservations()
+    public void NumericReadsNeedNoAdmissionAndScalarEscapeRefusalKeepsTheRecord()
     {
         using var memory = State(true);
         var state = memory.State;
@@ -150,7 +171,10 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(2, state.FieldCount);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        Assert.Throws<AwkRuntimeException>(() => state.GetFieldNumber(2));
+        Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.Equal(0, state.Counters.FieldValueCacheBufferAllocations);
+        Assert.Throws<AwkRuntimeException>(() => state.GetFieldValue(2));
+        Assert.Equal(7, state.GetFieldNumber(2));
         Assert.Equal(record, state.CurrentRecordByteText);
         Assert.Equal(2, state.FieldCount);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
@@ -161,7 +185,7 @@ public sealed class AwkNumericFieldConsumptionTests
     public void NumericCacheUsesExistingRecordLayouts()
     {
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
-        Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldText>());
+        Assert.Equal(32, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldText>());
         var entry = Assert.IsAssignableFrom<Type>(typeof(AwkFieldFrame).GetNestedType("CachedFieldValue", System.Reflection.BindingFlags.NonPublic));
         var size = typeof(System.Runtime.CompilerServices.Unsafe).GetMethods()
             .Single(method => method.Name == nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))
