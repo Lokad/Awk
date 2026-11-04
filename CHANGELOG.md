@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare global array locations in user functions, reusing execution-owned identities
+  while keeping parameter aliases and file-phase global scope separate.
 - Pass compact completion signals through input scanning, scheduling and execution.
   Consume cursor-owned record metadata before publication or reentry, preserving
   pending-read ownership, paragraph EOF behavior and recoverable getline failures.
