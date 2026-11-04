@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Share immutable splitting configuration through compact record snapshots. Reuse preparation
+  for assignments of the same separator storage, preserving settings captured by admitted records.
 - Bind splitting and value construction to the record frame. Remove the forwarding record runtime
   and callback-only splitting paths, preserving value origins, snapshots and mutation preflights.
 - Bind implicit special-scalar reads to their existing execution-owned cells, preserving
