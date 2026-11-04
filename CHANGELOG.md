@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Bind implicit special-scalar reads to their existing execution-owned cells, preserving
-  computed fields, lazy names, current formatting and function scope.
+  computed fields, lazy names, current formatting and function scope. Consume stored text
+  without repeating numeric classification or value reconstruction.
 - Prepare global array locations in user functions, reusing execution-owned identities
   while keeping parameter aliases and file-phase global scope separate.
 - Pass compact completion signals through input scanning, scheduling and execution.

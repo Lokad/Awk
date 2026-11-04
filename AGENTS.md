@@ -70,6 +70,9 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
+- Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
+  NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;
+  numeric values still use current formatting and untyped origins retain scalar promotion.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 
