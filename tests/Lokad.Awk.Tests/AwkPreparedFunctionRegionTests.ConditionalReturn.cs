@@ -3,21 +3,19 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData("if(x<3)return x+2;return x-2", 1)]
-    [InlineData("if(x<3)return x+2;return x-2", 7)]
-    [InlineData("if(1/x)return x+2;return x-2", 0)]
-    [InlineData("if(x)return 1/0;return 9", 1)]
-    [InlineData("if(x)return 9;return 1/0", 0)]
-    [InlineData("if(x)return x;return 1/0", 1)]
-    public async Task ConditionalReturnsMatchOrdinary(string body, int argument)
+    [InlineData("if(x<3)return x+2;return x-2", 1, 3, 0, "3\n", "")]
+    [InlineData("if(x<3)return x+2;return x-2", 7, 5, 0, "5\n", "")]
+    [InlineData("if(1/x)return x+2;return x-2", 0, 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("if(x)return 1/0;return 9", 1, 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("if(x)return 9;return 1/0", 0, 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("if(x)return x;return 1/0", 1, 1, 0, "1\n", "")]
+    public async Task ConditionalReturnsPreserveResultsAndFailureOrder(string body, int argument, double expectedTotal, double expectedIndex, string expectedOutput, string expectedError)
     {
         var source = "function choose(x){" + body + "} BEGIN{total=5;total=choose(" + argument + ");print total}";
         {
-            var prepared = await RunAsync(source, false);
-            var ordinary = await RunAsync(source, true);
-            Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
-            Assert.Equal(0, ordinary.PreparedFunctions);
-            Assert.Equal(1, prepared.PreparedFunctions);
+            var prepared = await RunAsync(source);
+            AssertSemantics(prepared, expectedTotal, expectedIndex, expectedOutput, expectedError);
+            Assert.Equal(1, prepared.FunctionRuns);
         }
     }
 

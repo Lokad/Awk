@@ -3,21 +3,19 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData("t=x+1;if(t>3)return t;return x")]
-    [InlineData("t=x;if(1/(t-5))return t;return 0")]
-    [InlineData("t=1/(x-5);if(t)return t;return 0")]
-    [InlineData("t=x;if(t)return 1/(x-5);return 0")]
-    [InlineData("t=x;if(t<0)return 0;return 1/(x-5)")]
-    [InlineData("t=length(x);if(t)return t;return 0")]
-    public async Task LocalConditionalReturnsMatchOrdinary(string body)
+    [InlineData("t=x+1;if(t>3)return t;return x", 8, 3, "8\n", "")]
+    [InlineData("t=x;if(1/(t-5))return t;return 0", 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("t=1/(x-5);if(t)return t;return 0", 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("t=x;if(t)return 1/(x-5);return 0", 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("t=x;if(t<0)return 0;return 1/(x-5)", 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("t=length(x);if(t)return t;return 0", 1, 3, "1\n", "")]
+    public async Task LocalConditionsPreserveResultsAndFailureOrder(string body, double expectedTotal, double expectedIndex, string expectedOutput, string expectedError)
     {
         var source = "function step(x,t){" + body + "} BEGIN{total=5;for(i=0;i<3;i++)total=step(total);print total}";
         {
-            var prepared = await RunAsync(source, false);
-            var ordinary = await RunAsync(source, true);
-            Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
-            Assert.Equal(0, ordinary.PreparedFunctions);
-            Assert.True(prepared.PreparedFunctions > 0);
+            var prepared = await RunAsync(source);
+            AssertSemantics(prepared, expectedTotal, expectedIndex, expectedOutput, expectedError);
+            Assert.True(prepared.FunctionRuns > 0);
         }
     }
 

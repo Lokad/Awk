@@ -19,7 +19,10 @@ fixtures retain construction cancellation, array/builtin storage preflights, com
 ordering and return-value boundaries. Dedicated-thread for/while/do checks verify function-frame
 unwinding and cancellation in ordinary/governed execution without fixed checkpoint counts.
 Compiler failure cases retain enclosing-statement diagnostics, plain-block propagation and
-body-before-pattern diagnostic precedence. Pending output/publication fixtures bind source;
+body-before-pattern diagnostic precedence. Call/return cases assert explicit values and
+exact diagnostics; field-loop cases use prepared programs in ordinary/governed execution,
+including redirected reads that suspend and ignore cancellation until released.
+Pending output/publication fixtures bind source;
 they preserve actual borrows, cancellation ordering and refunds without injecting old bodies.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.

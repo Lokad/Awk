@@ -182,15 +182,9 @@ public sealed class AwkGlobalUpdateOwnershipTests
         await RunAsync("y 7\nx 9\n", "24 11\n", false);
     }
 
-    private static AwkReference Reference(AwkVariableName name, bool local = false)
-    {
-        var layout = new AwkGlobalReadLayout(new HashSet<AwkVariableName> { name }, null);
-        var scope = local ? AwkLoweringScope.Function(new AwkFunctionLocalLayout([name]), globalReads: layout) : AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, globalReads: layout);
-        var token = new AwkToken(AwkTokenKind.Identifier, name.Text, new AwkTextSpan(0, name.Text.Length));
-        var result = AwkLValueLowerer.Lower(new AwkExpressionSyntax(AwkExpressionKind.Variable, [token], [], token.Span), scope);
-        Assert.True(result.Succeeded);
-        return result.Reference;
-    }
+    private static AwkReference Reference(AwkVariableName name, bool local = false) => local
+        ? AwkReference.LocalScalar(name, new(0))
+        : AwkReference.PreparedGlobalScalar(name, 0);
 
     private static CooperativeTestMemory State(bool vector)
     {

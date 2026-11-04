@@ -3,21 +3,19 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData("t=x*3+y;return t")]
-    [InlineData("x=x*3+y;return x")]
-    [InlineData("t=x;return t+1")]
-    [InlineData("t=1/(x-5);return t")]
-    [InlineData("t=x+1;return 1/(x-5)")]
-    [InlineData("t=length(x);return t")]
-    public async Task LocalAssignmentReturnsMatchOrdinary(string body)
+    [InlineData("t=x*3+y;return t", 161, 3, "161\n", "")]
+    [InlineData("x=x*3+y;return x", 161, 3, "161\n", "")]
+    [InlineData("t=x;return t+1", 8, 3, "8\n", "")]
+    [InlineData("t=1/(x-5);return t", 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("t=x+1;return 1/(x-5)", 5, 0, "", "awk: division by zero attempted\n")]
+    [InlineData("t=length(x);return t", 1, 3, "1\n", "")]
+    public async Task LocalAssignmentsPreserveResultsAndFailureOrder(string body, double expectedTotal, double expectedIndex, string expectedOutput, string expectedError)
     {
         var source = "function step(x,y,t){" + body + "} BEGIN{total=5;for(i=0;i<3;i++)total=step(total,2);print total}";
         {
-            var prepared = await RunAsync(source, false);
-            var ordinary = await RunAsync(source, true);
-            Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
-            Assert.Equal(0, ordinary.PreparedFunctions);
-            Assert.True(prepared.PreparedFunctions > 0);
+            var prepared = await RunAsync(source);
+            AssertSemantics(prepared, expectedTotal, expectedIndex, expectedOutput, expectedError);
+            Assert.True(prepared.FunctionRuns > 0);
         }
     }
 

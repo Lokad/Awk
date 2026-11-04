@@ -73,6 +73,6 @@ public sealed class AwkGetlineExpressionTests
         Assert.True(parts.Source.HasValue);
         Assert.Equal(operation == "|" ? AwkGetlineSourceKind.InputPipe : AwkGetlineSourceKind.RedirectedFile,
             parts.SourceKind);
-        Assert.True(AwkGetlineLowerer.Lower(parts, AwkLoweringScope.Global).Succeeded);
+        Assert.True(AwkBinder.Bind(AwkParser.Parse("BEGIN{value=(" + text + ")}")).Success);
     }
 }

@@ -9,15 +9,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("function f(x){if(x){x++;return};x=99} BEGIN{total=f(7);print \"[\" total \"]\"}", "[]\n")]
     [InlineData("function f(x){x++;if(x<4)x++} BEGIN{total=f(7);print \"[\" total \"]\"}", "[]\n")]
     [InlineData("function f(x,i,j){for(i=0;i<3;i++){j=0;do{j++;if(j==2)continue;if(j==4)break;x+=i+j}while(j<8)};return x} BEGIN{total=f(7);print total}", "25\n")]
-    public async Task CompleteComputationalBodiesMatchOrdinaryExecution(string source, string output)
+    public async Task CompleteComputationalBodiesPreserveOutputs(string source, string output)
     {
-        var prepared = await RunAsync(source, false);
-        var ordinary = await RunAsync(source, true);
+        var prepared = await RunAsync(source);
+
         Assert.Equal(output, prepared.Output);
         Assert.Equal("", prepared.Error);
-        Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
-        Assert.Equal(0, ordinary.PreparedFunctions);
-        Assert.True(prepared.PreparedFunctions > 0);
+
+        Assert.True(prepared.FunctionRuns > 0);
     }
 
     [Theory]
@@ -28,12 +27,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var source = "function f(x){" + string.Join(';', Enumerable.Repeat("x++", count)) +
             ";return x} BEGIN{total=f(7);print total}";
-        var prepared = await RunAsync(source, false);
-        var ordinary = await RunAsync(source, true);
+        var prepared = await RunAsync(source);
+
         Assert.Equal(7 + count, prepared.Total);
-        Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
-        Assert.Equal(1, prepared.PreparedFunctions);
-        Assert.Equal(0, ordinary.PreparedFunctions);
+
+        Assert.Equal(1, prepared.FunctionRuns);
+
     }
 
     [Fact]
