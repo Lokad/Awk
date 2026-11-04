@@ -41,6 +41,8 @@ or environment dependencies.
 - Current-record payload buffers belong to their frame. Main-input staging writes the inactive
   buffer; getline keeps owned input. Escaping values own text, and raw field spans stay synchronous.
   Preserve record/counter/terminator preflights and funding through actual users and cleanup.
+- Internal record pulls return completion status. Take and clear cursor-owned metadata before
+  publication, reentry or another read; pending host users retain their existing buffer ownership.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
 - Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one

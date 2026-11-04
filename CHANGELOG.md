@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pass compact completion signals through input scanning, scheduling and execution.
+  Consume cursor-owned record metadata before publication or reentry, preserving
+  pending-read ownership, paragraph EOF behavior and recoverable getline failures.
 - Bind ordinary scalars and record headers to execution-owned storage, preserving
   lazy creation, value origins and function-local special names. Check cancellation
   requested during scalar admission before publishing a new name or value.
