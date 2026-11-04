@@ -26,6 +26,16 @@ Pending output/publication fixtures bind source;
 they preserve actual borrows, cancellation ordering and refunds without injecting old bodies.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.
+`AwkStatementCompletionTests` uses single-consumption host reads through public execution,
+covering immediate/pending completion before loop, return, next/nextfile and exit flow.
+Structured read failure remains recoverable `getline`; a faulted host operation produces a
+redacted command diagnostic. Prefixes are not replayed, suffixes stop appropriately and
+owners refund. `AwkFlushTests` checks direct channel publication and native statements waiting
+for a real append. `AwkStringRegionTests` covers complete byte-native computation and pending
+substring/Unicode-length arguments, including ignored cancellation before target publication.
+The removed tree constructors' list-copy/eligibility tests are retired; program/layout
+collection ownership remains covered. Native return lifetime checks fund the caller before
+callee cleanup; frame-cache weak-reference checks retain scalar-payload retirement coverage.
 `AwkControlRegionTests` binds source for loop and conditional checks: explicit branch values,
 refusal before assignment/increment, mandatory first do-iteration, cancellation before entry,
 and genuine pending reads without replay. Ordinary/governed cases retain execution context

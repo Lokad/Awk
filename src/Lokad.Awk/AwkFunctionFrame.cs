@@ -70,10 +70,6 @@ internal sealed class AwkFunctionFrame
         return false;
     }
 
-    public bool HasReturnValue { get; set; }
-
-    public AwkValue ReturnValue { get; set; } = AwkValue.Unassigned();
-
     public long RetainedMemoryBytes { get; set; }
 
     internal bool IsIncoming { get; set; }
@@ -100,8 +96,6 @@ internal sealed class AwkFunctionFrame
         Layout = AwkFunctionLocalLayout.Empty;
         _firstSlot = default;
         _secondSlot = default;
-        HasReturnValue = false;
-        ReturnValue = AwkValue.Unassigned();
         RetainedMemoryBytes = 0;
         IsIncoming = false;
         IncomingArgumentCount = 0;

@@ -42,40 +42,6 @@ public sealed class AwkProgramTests
     }
 
     [Fact]
-    public async Task AwkStatement_CopiesCallerOwnedControlBodyLists()
-    {
-        var body = new List<AwkStatement> { AwkStatement.Exit(AwkOptionalExpression.None) };
-        var statement = AwkStatement.If(TrueCondition(), body);
-        body.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-
-        var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());
-
-        Assert.Equal(AwkStatementFlow.ExitProgram, flow);
-
-        static AwkCondition TrueCondition() =>
-            new(AwkExpression.Number(1));
-    }
-
-    [Fact]
-    public async Task AwkStatement_CopiesCallerOwnedSwitchLists()
-    {
-        var caseBody = new List<AwkStatement> { AwkStatement.Exit(AwkOptionalExpression.None) };
-        var switchCase = new AwkSwitchCase(
-            AwkSwitchCasePattern.FromValue(AwkValue.FromNumber(1)),
-            caseBody);
-        caseBody.Clear();
-        var arms = new List<AwkSwitchArm> { switchCase };
-        var statement = AwkStatement.Switch(AwkExpression.Number(1), arms);
-        arms.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-
-        var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());
-
-        Assert.Equal(AwkStatementFlow.ExitProgram, flow);
-    }
-
-    [Fact]
     public async Task AwkExpression_CopiesCallerOwnedFunctionArguments()
     {
         var arguments = new List<AwkExpression> { AwkExpression.Number(4) };

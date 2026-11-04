@@ -6,49 +6,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFlushTests
 {
     [Theory]
-    [InlineData("none", false)]
-    [InlineData("stdout", false)]
-    [InlineData("diagnostic", false)]
-    [InlineData("both", false)]
-    [InlineData("none", true)]
-    [InlineData("stdout", true)]
-    [InlineData("diagnostic", true)]
-    [InlineData("both", true)]
-    public async Task StatementFlushGuardKeepsPayloadAndFlowBoundaries(string payload, bool stop)
+    [InlineData("none")] [InlineData("stdout")] [InlineData("diagnostic")] [InlineData("both")]
+    public async Task FlushPublishesEachPendingChannelOnce(string payload)
     {
         var host = new MockFileSystem();
         var appends = 0;
         host.AfterAppend = () => appends++;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var state = State(limits, counters);
+        using var state = State(limits, counters);
         var io = Io(host, limits, state);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var seen = false;
         const string warning = "awk: warning: block marker\n";
         var stdout = payload is "stdout" or "both" ? "payload\n" : "";
         var stderr = payload is "diagnostic" or "both" ? warning : "";
-        var flow = stop ? AwkStatementFlow.NextRecord : AwkStatementFlow.Continue;
-        AwkStatement[] statements =
-        [
-            new CallbackStatement(() =>
-            {
-                if (stdout.Length != 0) output.Append(AwkText.FromSourceLiteralString(stdout));
-                if (stderr.Length != 0) output.ReportDiagnostic(new(default,warning));
-            },flow),
-            new CallbackStatement(() =>
-            {
-                seen = true;
-                Assert.Equal(stdout,host.GetOutput(AwkFileDescriptor.StdOut));
-                Assert.Equal(stderr,host.GetOutput(AwkFileDescriptor.StdErr));
-            },AwkStatementFlow.Continue)
-        ];
-        Assert.Equal(flow, await AwkStatementBlockExecutor.ExecuteAsync(statements, new(state, output, io)));
-        Assert.Equal(!stop, seen);
+        if (stdout.Length != 0) output.Append(AwkText.FromSourceLiteralString(stdout));
+        if (stderr.Length != 0) output.ReportDiagnostic(new(default, warning));
+        await output.FlushAsync(io);
+        await output.FlushAsync(io);
         Assert.Equal(stdout, host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(stderr, host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal((stdout.Length != 0 ? 1 : 0) + (stderr.Length != 0 ? 1 : 0), appends);
-        Assert.Equal((payload == "none" ? 1 : 0) + (stop ? 0 : 1), counters.SkippedEmptyStatementFlushes);
         Assert.False(output.HasPendingOutput);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
@@ -69,18 +47,18 @@ public sealed class AwkFlushTests
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var continued = false;
-        AwkStatement[] statements =
-        [
-            new CallbackStatement(() => output.Append(AwkText.FromSourceLiteralString("held bytes\n")), AwkStatementFlow.Continue),
-            new CallbackStatement(() => continued = true, AwkStatementFlow.Continue)
-        ];
-        var pending = AwkStatementBlockExecutor.ExecuteAsync(statements, new(state, output, io)).AsTask();
+        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"held bytes\";continued=1}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        var continued = AwkVariableName.FromText("continued");
+        var pending = Assert.Single(program.MainActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.False(pending.IsCompleted);
-            Assert.False(continued);
+            Assert.Equal(0, state.ResolveVariableValue(continued).AsNumber());
             Assert.True(output.HasPendingOutput);
             Assert.Equal("held bytes\n", Encoding.UTF8.GetString(host.Content.Span));
             if (completion == "cancel")
@@ -96,15 +74,14 @@ public sealed class AwkFlushTests
                 if (completion == "success") Assert.Equal(AwkStatementFlow.Continue, await pending);
                 else await Assert.ThrowsAnyAsync<AwkRuntimeException>(async () => await pending);
             }
-            Assert.Equal(completion == "success", continued);
+            Assert.Equal(completion == "success" ? 1 : 0, state.ResolveVariableValue(continued).AsNumber());
             Assert.Equal(completion != "success", output.HasPendingOutput);
-            Assert.Equal(completion == "success" ? 1 : 0, counters.SkippedEmptyStatementFlushes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
             host.Release.TrySetResult(AwkAppendResult.Failure(default));
-            await io.CloseAsync();
+            await io.CloseForCleanupAsync();
         }
     }
 
@@ -125,15 +102,6 @@ public sealed class AwkFlushTests
         public ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => _files.ReadAsync(descriptor, count, token);
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => _files.RunCommandAsync(command, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => _files.CreatePipeAsync(token);
-    }
-
-    private sealed class CallbackStatement(Action run, AwkStatementFlow flow) : AwkStatement
-    {
-        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
-        {
-            run();
-            return ValueTask.FromResult(flow);
-        }
     }
 
     [Fact]

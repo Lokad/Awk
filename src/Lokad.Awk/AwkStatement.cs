@@ -7,57 +7,8 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal enum AwkStatementFlow
-{
-    Continue,
-    NextRecord,
-    NextFile,
-    BreakLoop,
-    ContinueLoop,
-    ReturnFunction,
-    ExitProgram
-}
-
-internal enum AwkCompoundAssignmentOperation
-{
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
-    Power
-}
-
-internal abstract class AwkSwitchArm
-{
-    protected AwkSwitchArm(IReadOnlyList<AwkStatement> statements)
-    {
-        Statements = AwkCollectionSnapshots.Copy(statements);
-    }
-
-    public AwkStatement[] Statements { get; }
-}
-
-internal sealed class AwkSwitchCase : AwkSwitchArm
-{
-    public AwkSwitchCase(
-        AwkSwitchCasePattern pattern,
-        IReadOnlyList<AwkStatement> statements) : base(statements)
-    {
-        Pattern = pattern;
-    }
-
-    public AwkSwitchCasePattern Pattern { get; }
-}
-
-internal sealed class AwkDefaultSwitchArm(IReadOnlyList<AwkStatement> statements) : AwkSwitchArm(statements)
-{
-}
-
 internal abstract partial class AwkStatement
 {
-    public static AwkStatement NoOp() => NoOpStatement.Instance;
-
     public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions) =>
         Print(expressions, AwkOutputTarget.Standard);
 
@@ -113,39 +64,6 @@ internal abstract partial class AwkStatement
 
     public static AwkStatement PostIncrement(AwkReference target) => Expression(AwkExpression.PostIncrement(target));
 
-    public static AwkStatement If(
-        AwkCondition condition,
-        IReadOnlyList<AwkStatement> body) =>
-        If(condition, body, []);
-
-    public static AwkStatement If(
-        AwkCondition condition,
-        IReadOnlyList<AwkStatement> body,
-        IReadOnlyList<AwkStatement> elseBody) =>
-        new IfStatement(
-            condition,
-            AwkCollectionSnapshots.Copy(body),
-            AwkCollectionSnapshots.Copy(elseBody));
-
-    public static AwkStatement Switch(
-        AwkExpression value,
-        IReadOnlyList<AwkSwitchArm> arms) =>
-        new SwitchStatement(
-            value,
-            AwkCollectionSnapshots.Copy(arms));
-
-    public static AwkStatement Break() => BreakStatement.Instance;
-
-    public static AwkStatement ContinueLoop() => ContinueStatement.Instance;
-
-    public static AwkStatement Next() => NextStatement.Instance;
-
-    public static AwkStatement NextFile() => NextFileStatement.Instance;
-
-    public static AwkStatement Return(AwkOptionalExpression value) => new ReturnStatement(value);
-
-    public static AwkStatement Exit(AwkOptionalExpression statusExpression) => new ExitStatement(statusExpression);
-
     public static AwkStatement UnsupportedCoprocess() => UnsupportedCoprocessStatement.Instance;
 
     public static AwkStatement Getline(AwkGetlineTarget target, AwkGetlineSource source) =>
@@ -169,11 +87,4 @@ internal abstract partial class AwkStatement
             ? execution
             : throw new InvalidOperationException("Statement execution requires an awk I/O context.");
 
-    private sealed class NoOpStatement : AwkStatement
-    {
-        public static readonly NoOpStatement Instance = new();
-
-        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkStatementFlow.Continue);
-    }
 }

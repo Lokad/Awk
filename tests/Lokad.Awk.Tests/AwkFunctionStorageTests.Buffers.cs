@@ -97,11 +97,11 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Fact]
-    public void CachedBackingReleasesScalarAndReturnReferences()
+    public void CachedBackingReleasesScalarReferences()
     {
         using var memory = new CooperativeTestMemory(4 << 20);
         var stack = Stack(memory);
-        var weak = FillAndReturn(stack);
+        var weak = FillAndPop(stack);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -135,12 +135,11 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> FillAndReturn(AwkFunctionCallStack stack)
+    private static WeakReference<AwkText> FillAndPop(AwkFunctionCallStack stack)
     {
         var text = AwkText.FromString(new string('x', 32_768));
         var value = AwkValue.FromText(text);
         stack.PushFrame(Layout(8), [AwkFunctionArgument.Scalar(value)]);
-        stack.SetReturnValue(value);
         stack.PopFrame(static _ => { });
         return new(text);
     }

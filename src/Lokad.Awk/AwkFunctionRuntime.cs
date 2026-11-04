@@ -62,12 +62,6 @@ internal sealed class AwkFunctionRuntime
     public void PopFrame() =>
         _calls.PopFrame(_removeFunctionLocalArray);
 
-    public void SetReturnValue(AwkValue value) =>
-        _calls.SetReturnValue(value);
-
-    public bool TryConsumeReturnValue(out AwkValue value) =>
-        _calls.TryConsumeReturnValue(out value);
-
     public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number) =>
         _calls.TryResolveLocalNumber(slotId, out number);
 

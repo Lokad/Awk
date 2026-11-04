@@ -456,16 +456,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal bool FieldsCannotReportRegexDiagnostics => _recordFields.CannotReportRegexDiagnostics;
 
-    public void SetFunctionReturnValue(AwkValue value)
-    {
-        _functions.SetReturnValue(value);
-    }
-
-    public bool TryConsumeFunctionReturnValue(out AwkValue value)
-    {
-        return _functions.TryConsumeReturnValue(out value);
-    }
-
     public AwkExecutionContextScope PushExecutionContext(AwkOutputSink output, AwkIo io)
     {
         return _executionContexts.Push(output, io);

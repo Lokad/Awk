@@ -4,26 +4,6 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal readonly struct AwkOptionalExpression
-{
-    private readonly AwkExpression _expression;
-
-    private AwkOptionalExpression(AwkExpression expression)
-    {
-        HasValue = true;
-        _expression = expression;
-    }
-
-    public bool HasValue { get; }
-
-    public AwkExpression Value =>
-        HasValue ? _expression : throw new InvalidOperationException("No awk expression is present.");
-
-    public static AwkOptionalExpression None => default;
-
-    public static AwkOptionalExpression Some(AwkExpression expression) => new(expression);
-}
-
 internal abstract record AwkSubstitutionTarget
 {
     public static AwkSubstitutionTarget CurrentRecord { get; } = new AwkCurrentRecordSubstitutionTarget();

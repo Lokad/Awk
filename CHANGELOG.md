@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Delete remaining tree control/block runners and standalone return-value bookkeeping.
+  Function results publish directly to the caller before callee storage retires.
+
 - Delete retired function-body/invocation and sorting-callback bridges, tree loop
   execution, intermediate function-argument storage and obsolete route counters.
   Calls and sorting callbacks use the common interpreter's explicit frames.

@@ -149,27 +149,17 @@ internal partial struct AwkRegionMachine
             else { Flow = flow; _finished = true; }
             return;
         }
-        if (flow is not (AwkStatementFlow.Continue or AwkStatementFlow.ReturnFunction))
+        if (flow != AwkStatementFlow.Continue)
         {
             _state.ValidateFunctionFlow(flow);
             throw new AwkFunctionFlowSignal(flow);
         }
-        var value = flow == AwkStatementFlow.ReturnFunction && _state.TryConsumeFunctionReturnValue(out var returned)
-            ? returned : AwkValue.Unassigned();
-        Return(value);
+        Return(AwkValue.Unassigned());
     }
 
     private void Return(AwkValue value)
     {
-        if (_cursor.Frame is not { } frame)
-        {
-            // An unmigrated caller still owns the root function frame. Its result
-            // remains funded there until that caller finishes the invocation.
-            _state.SetFunctionReturnValue(value);
-            Flow = AwkStatementFlow.ReturnFunction;
-            _finished = true;
-            return;
-        }
+        var frame = _cursor.Frame ?? throw new InvalidOperationException("A return requires an active function frame.");
         if (frame.Continuation is not { } continuation)
             throw new InvalidOperationException("A called function requires a caller.");
         // Escaping data is funded, or an immediate numeric consumer completes,

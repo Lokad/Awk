@@ -135,30 +135,4 @@ internal static class AwkStatementLoweringFacts
         AwkBuiltins.TryGetStatementDefinition(kind, out var definition) &&
         definition.Kind == AwkCallableKind.SpecialForm;
 
-    public static bool TryCreateArgumentlessStatement(AwkStatementKind kind, out AwkStatement statement)
-    {
-        statement = kind switch
-        {
-            AwkStatementKind.Break => AwkStatement.Break(),
-            AwkStatementKind.Continue => AwkStatement.ContinueLoop(),
-            AwkStatementKind.Next => AwkStatement.Next(),
-            AwkStatementKind.NextFile => AwkStatement.NextFile(),
-            _ => AwkStatement.NoOp()
-        };
-        return AwkStatementValidationFacts.IsArgumentless(kind);
-    }
-
-    public static bool TryCreateOptionalValueStatement(
-        AwkStatementKind kind,
-        AwkOptionalExpression value,
-        out AwkStatement statement)
-    {
-        statement = kind switch
-        {
-            AwkStatementKind.Return => AwkStatement.Return(value),
-            AwkStatementKind.Exit => AwkStatement.Exit(value),
-            _ => AwkStatement.NoOp()
-        };
-        return AwkStatementKindFacts.IsOptionalValue(kind);
-    }
 }

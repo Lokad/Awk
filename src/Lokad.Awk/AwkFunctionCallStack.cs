@@ -232,39 +232,6 @@ internal sealed class AwkFunctionCallStack(
         memoryAccounting.ReleaseCommitted(payloadBytes);
     }
 
-    public void SetReturnValue(AwkValue value)
-    {
-        if (!TryPeekLocalFrame(out var frame))
-            throw new AwkRuntimeException(AwkMessages.ErrorReturnOutsideFunction);
-
-        value = value.AsScalarCopy();
-        var oldBytes = memoryAccounting.IsEnabled && frame.HasReturnValue ? frame.ReturnValue.RetainedTextMemoryBytes : 0;
-        var bytes = memoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
-        var growth = bytes - oldBytes;
-        memoryAccounting.ReserveAndCommit(Math.Max(0, growth));
-        try
-        {
-            if (growth > 0) checkpoint?.Invoke();
-        }
-        catch { memoryAccounting.ReleaseCommitted(Math.Max(0, growth)); throw; }
-        frame.HasReturnValue = true;
-        frame.ReturnValue = value;
-        frame.RetainedMemoryBytes += growth;
-        if (growth < 0) memoryAccounting.ReleaseCommitted(-growth);
-    }
-
-    public bool TryConsumeReturnValue(out AwkValue value)
-    {
-        if (TryPeekLocalFrame(out var frame) && frame.HasReturnValue)
-        {
-            value = frame.ReturnValue;
-            return true;
-        }
-
-        value = AwkValue.FromText(string.Empty);
-        return false;
-    }
-
     public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number)
     {
         if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
