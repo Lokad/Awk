@@ -122,6 +122,22 @@ internal readonly struct AwkVariableSlot
             ? AwkNumberFormatter.ToAwkText(_number)
             : _text as AwkText ?? AwkText.Empty;
 
+    // Text-only consumers need neither numeric classification nor an AwkValue.
+    // Numbers still require the current formatting policy; untyped origins must
+    // retain scalar promotion and array rejection through ordinary value reads.
+    internal bool TryGetStoredScalarText(out AwkText text)
+    {
+        if (Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.NumericString or
+            AwkVariableSlotKind.PreparedNumericString or AwkVariableSlotKind.DeferredText or
+            AwkVariableSlotKind.Unassigned)
+        {
+            text = ByteText;
+            return true;
+        }
+        text = AwkText.Empty;
+        return false;
+    }
+
     public long RetainedTextMemoryBytes =>
         Kind == AwkVariableSlotKind.Number
             ? 0

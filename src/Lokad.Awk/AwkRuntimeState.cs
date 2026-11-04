@@ -939,8 +939,17 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id) =>
-        FormatStringByteText(ResolveSpecialVariableValue(id));
+    public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id)
+    {
+        if (id != AwkSpecialVariableId.FieldCount && !_functions.IsInsideFunction &&
+            _variables.GetSpecialScalarCell(id) is { } cell)
+        {
+            Counters.RecordBoundSpecialScalarRead();
+            return cell.State.Slot.TryGetStoredScalarText(out var text)
+                ? text : FormatStringByteText(_variables.GetScalarValue(cell));
+        }
+        return FormatStringByteText(ResolveSpecialVariableValue(id));
+    }
 
     public void AssignSpecialVariableValue(AwkSpecialVariableId id, AwkValue value)
     {

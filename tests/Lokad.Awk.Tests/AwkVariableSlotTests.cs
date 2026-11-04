@@ -5,6 +5,22 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkVariableSlotTests
 {
     [Fact]
+    public void StoredTextReadPreservesDeferredErrorsAndDoesNotPromoteUntypedOrigins()
+    {
+        var bytes = AwkText.FromSourceLiteralString("0x1.2");
+        var slot = AwkVariableSlot.FromValue(AwkValue.FromDeferredText(bytes, AwkNumberParsingMode.NonDecimalData));
+        Assert.True(slot.TryGetStoredScalarText(out var text));
+        Assert.Same(bytes, text);
+        var value = slot.ToValue(AwkValue.FromText, AwkValue.FromNumericString,
+            text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.NonDecimalData));
+        Assert.Throws<AwkRuntimeException>(() => value.AsNumber());
+        Assert.False(AwkVariableSlot.FromNumber(1.25).TryGetStoredScalarText(out _));
+        var origin = new AwkUntypedScalar();
+        Assert.False(AwkVariableSlot.FromUntypedScalar(origin).TryGetStoredScalarText(out _));
+        Assert.False(origin.IsScalar);
+    }
+
+    [Fact]
     public void AwkVariableSlot_StoresTextAsAwkText()
     {
         var slot = AwkVariableSlot.FromExternalText("café");

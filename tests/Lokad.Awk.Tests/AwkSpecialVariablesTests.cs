@@ -4,6 +4,36 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSpecialVariablesTests
 {
+    [Fact]
+    public void TextOnlySpecialReadsAvoidReclassificationAndNumbersKeepCurrentFormatting()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()))));
+        var state = memory.State;
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.SubscriptSeparator, AwkValue.FromNumericString("0007"));
+        var created = counters.ValuesCreated;
+        for (var i = 0; i < 128; i++)
+        {
+            Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator).EqualsAscii("0007"));
+            Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.ConversionFormat).EqualsAscii("%.6g"));
+        }
+        Assert.Equal(created, counters.ValuesCreated);
+        Assert.True(counters.BoundSpecialScalarReads >= 256);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.ConversionFormat, AwkValue.FromText("%.2f"));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromNumber(1.25));
+        Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator).EqualsAscii("1.25"));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.ConversionFormat, AwkValue.FromText("%.3f"));
+        Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator).EqualsAscii("1.250"));
+        Assert.True(state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator).IsNumberValue);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Theory]
     [InlineData(nameof(AwkCompatibilityMode.GnuDefault))]
     [InlineData(nameof(AwkCompatibilityMode.Posix))]
