@@ -213,7 +213,7 @@ public sealed class AwkIncrementalFieldTests
             Assert.Equal(64, frame.GetFieldCount());
             Assert.Equal(before + 64, counters.FieldsMaterialized);
             Assert.Equal(cached, frame.GetFieldValue(new(3)));
-            Assert.Same(AwkRecordSplitPlan.Empty, frame.SplitPlan);
+            Assert.Equal(default, frame.SplitPlan);
             frame.AssignFieldValue(new(2), AwkValue.FromText("changed"), AwkText.FromSourceLiteralString("|"));
             Assert.Equal(string.Join("|", words.Select((s, i) => i == 1 ? "changed" : s)), frame.RecordAwkText.AsString());
             frame.ResetRecord();

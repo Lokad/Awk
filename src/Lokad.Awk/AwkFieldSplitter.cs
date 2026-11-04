@@ -47,14 +47,19 @@ internal sealed class AwkFieldSplitter(
 
     public void AssignFieldSeparator(AwkText value)
     {
+        var separator = AwkFieldSeparatorSpec.FromByteText(value);
+        if (_fieldSplittingMode == AwkFieldSplittingMode.FieldSeparator && _fieldSeparator.HasSameStorage(separator))
+            return;
         ClearUnusedFieldWidths();
-        _fieldSeparator = AwkFieldSeparatorSpec.FromByteText(value);
+        _fieldSeparator = separator;
         _fieldSplittingMode = AwkFieldSplittingMode.FieldSeparator;
         PrepareRecordPlans();
     }
 
     public void AssignFieldPattern(AwkText value)
     {
+        if (_fieldSplittingMode == AwkFieldSplittingMode.FieldPattern && ReferenceEquals(_fieldPattern, value))
+            return;
         ClearUnusedFieldWidths();
         _fieldPattern = value;
         _fieldSplittingMode = AwkFieldSplittingMode.FieldPattern;
@@ -130,14 +135,15 @@ internal sealed class AwkFieldSplitter(
         separator = mode == AwkFieldSplittingMode.FieldSeparator ? separator : default;
         pattern = mode == AwkFieldSplittingMode.FieldPattern ? pattern : AwkText.Empty;
         widths = mode == AwkFieldSplittingMode.FieldWidths ? widths : [];
+        var configuration = new AwkRecordSplitPlan.Configuration(mode, separator, pattern, widths);
         return new(
-            new(mode, separator, pattern, widths, AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary),
-            new(mode, separator, pattern, widths, AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Paragraph),
-            new(mode, separator, pattern, widths, AwkRegexCaseSensitivity.IgnoreCase, AwkRecordFieldSplittingMode.Ordinary),
-            new(mode, separator, pattern, widths, AwkRegexCaseSensitivity.IgnoreCase, AwkRecordFieldSplittingMode.Paragraph));
+            new(configuration, AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary),
+            new(configuration, AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Paragraph),
+            new(configuration, AwkRegexCaseSensitivity.IgnoreCase, AwkRecordFieldSplittingMode.Ordinary),
+            new(configuration, AwkRegexCaseSensitivity.IgnoreCase, AwkRecordFieldSplittingMode.Paragraph));
     }
 
-    private sealed record PreparedRecordPlans(AwkRecordSplitPlan Ordinary,
+    private readonly record struct PreparedRecordPlans(AwkRecordSplitPlan Ordinary,
         AwkRecordSplitPlan Paragraph, AwkRecordSplitPlan OrdinaryIgnoreCase, AwkRecordSplitPlan ParagraphIgnoreCase)
     {
         public AwkRecordSplitPlan Get(AwkRecordFieldSplittingMode mode, AwkRegexCaseSensitivity sensitivity) =>

@@ -39,6 +39,12 @@ internal readonly record struct AwkFieldSeparatorSpec
 
     public bool UsesWhitespaceSemantics => _kind == AwkFieldSeparatorKind.Default;
 
+    // Reuse preparation only for the same immutable payload and provenance.
+    // Equal fresh text still replaces its storage owner; no text scan is needed.
+    internal bool HasSameStorage(AwkFieldSeparatorSpec other) =>
+        _kind == other._kind && PatternOrigin == other.PatternOrigin &&
+        ReferenceEquals(_customText, other._customText) && ReferenceEquals(WarningSite, other.WarningSite);
+
     private enum AwkFieldSeparatorKind
     {
         Default,

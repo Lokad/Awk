@@ -238,7 +238,7 @@ public sealed class AwkFieldCancellationTests
         armed = false;
         Assert.Equal(1, frame.GetFieldCount());
         Assert.Equal(1, counters.FieldsMaterialized);
-        Assert.Same(AwkRecordSplitPlan.Empty, frame.SplitPlan);
+        Assert.Equal(default, frame.SplitPlan);
     }
 
     [Fact]

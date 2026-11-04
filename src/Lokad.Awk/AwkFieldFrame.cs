@@ -104,7 +104,7 @@ internal sealed class AwkFieldFrame(
     private bool _recordWasRecomposed;
     private long _retainedMemoryBytes;
 
-    private AwkRecordSplitPlan _splitPlan = AwkRecordSplitPlan.Empty;
+    private AwkRecordSplitPlan _splitPlan;
 
     // Callers that can publish or invoke callbacks keep an independent value snapshot.
     public AwkRecordSplitPlan SplitPlan => _splitPlan;
@@ -122,7 +122,7 @@ internal sealed class AwkFieldFrame(
         _recordTextIsCurrent = true;
         ClearSplitFields(releaseCache: true);
         _fieldsAreSplit = true;
-        _splitPlan = AwkRecordSplitPlan.Empty;
+        _splitPlan = default;
     }
 
     internal AwkByteTextOperand RecordByteOperand
@@ -942,7 +942,7 @@ internal sealed class AwkFieldFrame(
         {
             _fieldsAreSplit = true;
             _fieldCountValue = AwkValue.FromNumber(fields.Count);
-            _splitPlan = AwkRecordSplitPlan.Empty;
+            _splitPlan = default;
         }
     }
 
@@ -1000,7 +1000,7 @@ internal sealed class AwkFieldFrame(
             _fieldPayloadByteLength = payloadByteLength;
             counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
-            _splitPlan = AwkRecordSplitPlan.Empty;
+            _splitPlan = default;
             if (ReferenceEquals(fieldTexts, reusable)) counters.RecordFieldListBufferReuse();
         }
         catch
