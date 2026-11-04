@@ -727,8 +727,8 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal bool TryGetBoundGlobalArray(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        // Getline can run file actions inside a function; retain name resolution in that context.
-        if (index >= 0 && !_functions.IsInsideFunction && _globalReadSlots is { } slots &&
+        // Parameters bind locally; root/file phases hide caller locals before executing bound code.
+        if (index >= 0 && _globalReadSlots is { } slots &&
             (uint)index < (uint)slots.Length && slots[index].Array is { } bound)
         {
             array = bound;
@@ -761,7 +761,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal void BindGlobalArray(AwkArrayBinding binding, AwkArrayName resolvedName)
     {
-        if (!binding.TryGetGlobalIndex(out var index) || _functions.IsInsideFunction) return;
+        if (!binding.TryGetGlobalIndex(out var index)) return;
         if (_globalReadSlots is { } slots && (uint)index < (uint)slots.Length &&
             _variables.TryGetOrdinaryArray(resolvedName, out var array))
             slots[index] = new(null, array);

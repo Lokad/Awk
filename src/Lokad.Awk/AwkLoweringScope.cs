@@ -49,8 +49,8 @@ internal sealed class AwkLoweringScope
     {
         var name = new AwkVariableName(identifier);
         if (TryGetFunctionLocalSlot(name, out var slot)) return AwkArrayBinding.Local(slot);
-        return !_hasFunctionLocals && TryGetGlobalReadIndex(name, out var index)
-            ? AwkArrayBinding.Global(index) : default;
+        if (!TryGetGlobalReadIndex(name, out var index)) return default;
+        return AwkArrayBinding.Global(index);
     }
 
     public AwkCompatibilityMode CompatibilityMode { get; }

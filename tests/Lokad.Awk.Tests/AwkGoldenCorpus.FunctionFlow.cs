@@ -11,6 +11,23 @@ internal static partial class AwkGoldenCorpus
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
         yield return ReentrantPhaseScratchCase;
+        yield return Passing("file-hook-global-array-keeps-caller-alias-separate",
+            ["function pull(a,v){a[\"k\"]=9;getline v;return v}" +
+             "BEGIN{a[\"k\"]=7;print a[\"k\"];print pull(b);print a[\"k\"],b[\"k\"]}" +
+             "BEGINFILE{print \"hook\",a[\"k\"]}", "/data"],
+            [new("/data", "row\n")], "7\nhook 7\nrow\n7 9\n");
+        yield return Passing("function-global-array-does-not-inherit-caller-parameter",
+            ["function bump(){a[\"k\"]++}function caller(a){a[\"k\"]=9;bump();print a[\"k\"]}" +
+             "BEGIN{a[\"k\"]=1;caller(b);print a[\"k\"],b[\"k\"]}"],
+            [], "9\n2 9\n");
+        yield return Passing("function-global-array-update-keeps-captured-prior-after-replacement",
+            ["function rhs(){delete a;a[\"k\"]=100;return 3}" +
+             "function update(){a[\"k\"]+=rhs();return a[\"k\"]}BEGIN{a[\"k\"]=7;print update(),a[\"k\"]}"],
+            [], "10 10\n");
+        yield return Passing("function-global-array-missing-read-membership-and-key-spelling",
+            ["function member(k){return(k in a)}function read(k){return a[k]+0}" +
+             "BEGIN{a[\"0007\"]=9;print member(\"0007\"),member(7),length(a);print read(7),member(7),length(a);print a[\"0007\"]}"],
+            [], "1 0 1\n0 1 2\n9\n");
         yield return Passing("print-unmigrated-operand-does-not-replay-earlier-effects",
             ["function once(){calls++;return \"[\"}{print once() substr($0,1,1);print calls}"],
             [], "[r\n1\n", "row\n");
