@@ -43,7 +43,9 @@ owners refund. `AwkFlushTests` checks direct channel publication and native stat
 for a real append. `AwkStringRegionTests` covers complete byte-native computation and pending
 substring/Unicode-length arguments, including ignored cancellation before target publication.
 The removed tree constructors' list-copy/eligibility tests are retired; program/layout
-collection ownership remains covered. Native return lifetime checks fund the caller before
+collection ownership remains covered. Resolved scalar-owner checks retain refused-write and scalar/array type failures without
+entering retired references. Public local-update and concurrent compiled-source cases retain
+same-name global isolation, pending hosts and execution ownership. Native return lifetime checks fund the caller before
 callee cleanup; frame-cache weak-reference checks retain scalar-payload retirement coverage.
 `AwkControlRegionTests` binds source for loop and conditional checks: explicit branch values,
 refusal before assignment/increment, mandatory first do-iteration, cancellation before entry,

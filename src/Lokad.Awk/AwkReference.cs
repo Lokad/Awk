@@ -11,9 +11,6 @@ internal abstract record AwkReference
     public static AwkReference PreparedGlobalScalar(AwkVariableName variable, int index) =>
         new AwkPreparedGlobalScalarReference(variable, index);
 
-    public static AwkReference LocalScalar(AwkVariableName variable, AwkFunctionLocalSlotId slotId) =>
-        new AwkLocalScalarReference(variable, slotId);
-
     public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression, AwkArrayBinding binding = default) =>
         new AwkArrayElementReference(variable, indexExpression, binding);
 
@@ -117,15 +114,13 @@ internal abstract record AwkReference
 
     internal bool TryGetSynchronousScalar(out AwkResolvedReference target)
     {
-        target = this switch
+        if (this is AwkPreparedGlobalScalarReference global && !AwkSpecialVariables.TryGetScalar(global.Variable, out _))
         {
-            AwkPreparedGlobalScalarReference global when !AwkSpecialVariables.TryGetScalar(global.Variable, out _) =>
-                AwkResolvedReference.PreparedGlobalScalar(global.Variable, global.Index),
-            AwkLocalScalarReference local => AwkResolvedReference.LocalScalar(local.Variable, local.SlotId),
-            _ => default
-        };
-        return this is AwkLocalScalarReference ||
-            this is AwkPreparedGlobalScalarReference scalar && !AwkSpecialVariables.TryGetScalar(scalar.Variable, out _);
+            target = AwkResolvedReference.PreparedGlobalScalar(global.Variable, global.Index);
+            return true;
+        }
+        target = default;
+        return false;
     }
 
     internal virtual (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (0, 0);
@@ -244,38 +239,6 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
         state.AssignPreparedGlobalValue(Variable, Index, result);
         return ValueTask.FromResult(resultSelection is AwkNumericUpdateResult.Previous ? previous : result);
     }
-}
-
-internal sealed record AwkLocalScalarReference(
-    AwkVariableName Variable,
-    AwkFunctionLocalSlotId SlotId) : AwkReference
-{
-    private double ReadNumber(AwkRuntimeState state) =>
-        state.ResolveFunctionLocalValue(SlotId, Variable).AsNumber(state.CancellationCheckpoint);
-
-    internal override void AssignValueSynchronous(AwkEvaluationContext context, AwkValue value) =>
-        context.State.AssignFunctionLocalValue(SlotId, Variable, value);
-
-    internal override AwkValue ApplyCompoundAssignmentSynchronous(AwkEvaluationContext context,
-        AwkSynchronousExpression value, AwkCompoundAssignmentOperation operation)
-    {
-        var previous = ReadNumber(context.State);
-        var right = value.ResolveNumberSynchronous(context);
-        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation));
-        context.State.AssignFunctionLocalValue(SlotId, Variable, result);
-        return result;
-    }
-
-    internal override AwkValue ApplyNumericUpdateSynchronous(AwkEvaluationContext context, int delta, bool post)
-    {
-        var previous = ReadNumber(context.State);
-        var result = AwkValue.FromNumber(previous + delta);
-        context.State.AssignFunctionLocalValue(SlotId, Variable, result);
-        return post ? AwkValue.FromNumber(previous) : result;
-    }
-
-    protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(AwkResolvedReference.LocalScalar(Variable, SlotId));
 }
 
 internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, AwkArrayBinding Binding = default) : AwkReference

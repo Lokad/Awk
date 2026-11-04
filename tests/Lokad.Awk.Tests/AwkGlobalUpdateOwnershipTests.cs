@@ -61,21 +61,20 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FailedExistingSlotWriteRetainsValueAndCharge(bool vector)
+    public void FailedExistingSlotWriteRetainsValueAndCharge(bool vector)
     {
         using var memoryForState = State(vector);
         var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
-        var reference = Reference(name);
-        var context = new AwkEvaluationContext(state);
-        await reference.AssignValueAsync(context, AwkValue.FromNumber(7));
-        Assert.Equal(7, (await reference.EvaluateAsync(context)).AsNumber());
+        using var reference = AwkResolvedReference.PreparedGlobalScalar(name, 0);
+        reference.AssignValue(state, AwkValue.FromNumber(7));
+        Assert.Equal(7, reference.Evaluate(state).AsNumber());
         var slot = state.GetOrCreateGlobalScalarSlot(name);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - before))
         {
             var text = AwkValue.FromText(new string('x', 1024));
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => reference.AssignValueAsync(context, text).AsTask());
+            var error = Assert.Throws<AwkRuntimeException>(() => reference.AssignValue(state, text));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(7, state.GetGlobalScalarValue(slot).AsNumber());
             Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
@@ -84,26 +83,25 @@ public sealed class AwkGlobalUpdateOwnershipTests
             Assert.Equal(7, state.GetGlobalScalarValue(slot).AsNumber());
         }
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        await reference.AssignValueAsync(context, AwkValue.FromNumber(9));
+        reference.AssignValue(state, AwkValue.FromNumber(9));
         Assert.Equal(9, state.GetGlobalScalarValue(slot).AsNumber());
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ArrayAdmissionBeforeFirstUseRetainsArrayAndRejectsUpdates(bool vector)
+    public void ArrayAdmissionBeforeFirstUseRetainsArrayAndRejectsUpdates(bool vector)
     {
         using var memoryForState = State(vector);
         var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
-        var reference = Reference(name);
+        using var reference = AwkResolvedReference.PreparedGlobalScalar(name, 0);
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(array, key, "kept");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var context = new AwkEvaluationContext(state);
-        var read = await Assert.ThrowsAsync<AwkRuntimeException>(() => reference.EvaluateAsync(context).AsTask());
-        var write = await Assert.ThrowsAsync<AwkRuntimeException>(() => reference.AssignValueAsync(context, AwkValue.FromNumber(7)).AsTask());
+        var read = Assert.Throws<AwkRuntimeException>(() => reference.Evaluate(state));
+        var write = Assert.Throws<AwkRuntimeException>(() => reference.AssignValue(state, AwkValue.FromNumber(7)));
         Assert.Equal("awk: attempt to use array `value' in a scalar context\n", AwkUtf8Codec.Decode(read.MessageBytes));
         Assert.Equal(AwkUtf8Codec.Decode(read.MessageBytes), AwkUtf8Codec.Decode(write.MessageBytes));
         Assert.Equal("kept", state.GetArrayByteText(array, key).AsString());
@@ -112,24 +110,15 @@ public sealed class AwkGlobalUpdateOwnershipTests
     }
 
     [Fact]
-    public async Task LoweredLocalStaysLocalWithGlobalSlotsPresent()
+    public async Task LocalUpdatePreservesSameNamedGlobalThroughPublicExecution()
     {
-        using var memoryForState = State(true);
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("value");
-        var reference = Reference(name, local: true);
-        state.AssignVariableValue(name, AwkValue.FromNumber(7));
-        state.PushFunctionFrame(new AwkFunctionLocalLayout([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(20))]);
-        try
-        {
-            var result = await reference.ApplyIncrementAsync(new AwkEvaluationContext(state));
-            Assert.Equal(21, result.AsNumber());
-        }
-        finally
-        {
-            state.PopFunctionFrame();
-        }
-        Assert.Equal(7, state.ResolveVariableValue(name).AsNumber());
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "function bump(value){return ++value}BEGIN{value=7;print bump(20),value}"));
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
+        Assert.Equal("21 7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
     }
 
     [Fact]
@@ -182,9 +171,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
         await RunAsync("y 7\nx 9\n", "24 11\n", false);
     }
 
-    private static AwkReference Reference(AwkVariableName name, bool local = false) => local
-        ? AwkReference.LocalScalar(name, new(0))
-        : AwkReference.PreparedGlobalScalar(name, 0);
+    private static AwkReference Reference(AwkVariableName name) => AwkReference.PreparedGlobalScalar(name, 0);
 
     private static CooperativeTestMemory State(bool vector)
     {
