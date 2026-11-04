@@ -9,8 +9,11 @@ internal sealed class AwkFieldFrame(
     AwkRuntimeCounters counters,
     AwkMemoryAccounting governor,
     Func<AwkValue, AwkText> formatStringByteText,
-        Action? checkpoint = null,
-    AwkFieldSplitter? fieldSplitter = null)
+    AwkFieldSplitter fieldSplitter,
+    Func<AwkText, AwkValue> createFieldValue,
+    Func<AwkText, AwkValue> createTextValue,
+    Func<AwkText> resolveOutputFieldSeparator,
+    Action? checkpoint = null)
 {
     private const int MutationCheckpointFields = 1024;
     // Tiny records are cheaper to finish once than to stage successive prefixes.
@@ -158,39 +161,34 @@ internal sealed class AwkFieldFrame(
         return available;
     }
 
-    public AwkValue GetRecordValue(
-        Func<AwkText, AwkValue> createRecordValue,
-        Func<AwkText, AwkValue> createRecomposedRecordValue)
+    public AwkValue GetRecordValue()
     {
         _ = OwnedRecordText();
         if (!_recordValueIsCurrent)
         {
-            _recordValue = (_recordWasRecomposed ? createRecomposedRecordValue : createRecordValue)(_recordText);
+            _recordValue = (_recordWasRecomposed ? createTextValue : createFieldValue)(_recordText);
             _recordValueIsCurrent = true;
         }
 
         return _recordValue;
     }
 
-    public int GetFieldCount(
-        Func<AwkText, List<AwkFieldText>> splitFields)
+    public int GetFieldCount()
     {
-        EnsureFields(splitFields);
+        EnsureFields();
         return _fieldTexts.Count;
     }
 
-    public AwkValue GetFieldCountValue(Func<AwkText, List<AwkFieldText>> splitFields)
+    public AwkValue GetFieldCountValue()
     {
-        EnsureFields(splitFields);
+        EnsureFields();
         return _fieldCountValue;
     }
 
     public AwkValue GetFieldValue(
-        AwkFieldIndex index,
-        Func<AwkText, List<AwkFieldText>> splitFields,
-        Func<AwkText, AwkValue> createFieldValue)
+        AwkFieldIndex index)
     {
-        EnsureField(index, splitFields);
+        EnsureField(index);
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
             return AwkValue.FromText(string.Empty);
 
@@ -203,23 +201,18 @@ internal sealed class AwkFieldFrame(
 
     public double GetFieldNumber(
         AwkFieldIndex index,
-        Func<AwkText, List<AwkFieldText>> splitFields,
-        Func<AwkText, AwkValue> createFieldValue,
         AwkNumberParsingMode mode) =>
-        ReadFieldArithmetic(index, splitFields, createFieldValue, mode, deferError: false).AsNumber(checkpoint);
+        ReadFieldArithmetic(index, mode, deferError: false).AsNumber(checkpoint);
 
     public AwkValue GetFieldArithmeticArgument(
         AwkFieldIndex index,
-        Func<AwkText, List<AwkFieldText>> splitFields,
-        Func<AwkText, AwkValue> createFieldValue,
         AwkNumberParsingMode mode) =>
-        ReadFieldArithmetic(index, splitFields, createFieldValue, mode, deferError: true);
+        ReadFieldArithmetic(index, mode, deferError: true);
 
     internal AwkComparisonOperand GetFieldComparison(AwkFieldIndex index,
-        Func<AwkText, List<AwkFieldText>> splitFields, Func<AwkText, AwkValue> createFieldValue,
         AwkNumberParsingMode mode)
     {
-        EnsureField(index, splitFields);
+        EnsureField(index);
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
             return new(AwkValue.FromText(string.Empty));
         var fieldIndex = index.Value - 1;
@@ -227,7 +220,7 @@ internal sealed class AwkFieldFrame(
         // A later $0 read can retire dirty record slices while reconstructing it.
         // Clean input storage survives all prepared computational operands.
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
-            return new(GetFieldValue(index, splitFields, createFieldValue));
+            return new(GetFieldValue(index));
         var bytes = field.AsSpan(RecordBytes(), checkpoint);
         var value = field.CacheSlot != 0 ? _fieldValueCache[field.CacheSlot - 1].Value : default;
         // Arithmetic caches a Number. Input classification uses its existing
@@ -242,11 +235,9 @@ internal sealed class AwkFieldFrame(
 
     private AwkValue ReadFieldArithmetic(
         AwkFieldIndex index,
-        Func<AwkText, List<AwkFieldText>> splitFields,
-        Func<AwkText, AwkValue> createFieldValue,
         AwkNumberParsingMode mode, bool deferError)
     {
-        EnsureField(index, splitFields);
+        EnsureField(index);
         if (!index.IsNamedField || index.Value > _fieldTexts.Count) return AwkValue.FromNumber(0);
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
@@ -255,18 +246,18 @@ internal sealed class AwkFieldFrame(
             var cached = _fieldValueCache[field.CacheSlot - 1];
             if (!cached.IsNumericOnly || cached.Value.IsNumberValue) return cached.Value;
             if (deferError && cached.Value.HasInputConversionError)
-                return GetFieldValue(index, splitFields, createFieldValue);
+                return GetFieldValue(index);
             return AwkValue.FromNumber(cached.Value.AsNumber(checkpoint));
         }
         if (field.Kind == AwkFieldTextKind.Owned)
-            return GetFieldValue(index, splitFields, createFieldValue);
+            return GetFieldValue(index);
 
         counters.RecordNumericFieldByteParse();
         var parsed = AwkNumberParser.Parse(field.AsSpan(RecordBytes(), checkpoint), mode, checkpoint);
         // Capturing an argument must not diagnose a conversion in an untaken callee branch.
         // The uncommon error retains its ordinary owned spelling and deferred-error behavior.
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent)
-            return GetFieldValue(index, splitFields, createFieldValue);
+            return GetFieldValue(index);
         parsed.ThrowIfError();
         var number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
         // Spare slots and number payloads are already funded: this changes neither
@@ -316,9 +307,9 @@ internal sealed class AwkFieldFrame(
     }
 
     public bool TryGetUnmaterializedFieldByteLength(
-        AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields, bool byteMode, out int length)
+        AwkFieldIndex index, bool byteMode, out int length)
     {
-        EnsureField(index, splitFields);
+        EnsureField(index);
         length = 0;
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
             return true;
@@ -344,9 +335,9 @@ internal sealed class AwkFieldFrame(
     }
 
     public bool TryGetUnmaterializedFieldBytes(
-        AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields, out ReadOnlySpan<byte> bytes)
+        AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
     {
-        EnsureField(index, splitFields);
+        EnsureField(index);
         bytes = default;
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
             return true;
@@ -360,18 +351,20 @@ internal sealed class AwkFieldFrame(
     }
 
     public bool TryGetUnmaterializedFieldText(
-        AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields,
+        AwkFieldIndex index,
         out AwkFieldText field, out ReadOnlySpan<byte> record)
     {
         // Reuse byte-view admission without transporting descriptors for existing byte consumers.
-        var borrowed = TryGetUnmaterializedFieldBytes(index, splitFields, out _);
+        var borrowed = TryGetUnmaterializedFieldBytes(index, out _);
         field = borrowed && index.IsNamedField && index.Value <= _fieldTexts.Count
             ? _fieldTexts[index.Value - 1] : AwkFieldText.Empty;
         record = RecordBytes();
         return borrowed;
     }
 
-    public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
+    public void SetRecordText(AwkText text) => SetRecordText(text, fieldSplitter.CaptureRecordPlan());
+
+    public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan)
     {
         ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan));
         _splitPlan = splitPlan;
@@ -389,8 +382,7 @@ internal sealed class AwkFieldFrame(
 
     public void SetRecordValue(
         AwkValue value,
-        Func<AwkValue, AwkText> formatStringByteText,
-        AwkRecordSplitPlan splitPlan = default)
+        AwkRecordSplitPlan splitPlan)
     {
         var text = formatStringByteText(value);
         ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan));
@@ -404,11 +396,10 @@ internal sealed class AwkFieldFrame(
         ClearSplitFields(reuseFieldBuffer: splitPlan.SupportsIncrementalFields);
     }
 
-    internal bool TryCopyInputField(AwkFieldIndex source, AwkFieldIndex destination,
-        Func<AwkText> resolveOutputFieldSeparator, Func<AwkText, List<AwkFieldText>> splitFields)
+    internal bool TryCopyInputField(AwkFieldIndex source, AwkFieldIndex destination)
     {
-        if (fieldSplitter is null || !source.IsNamedField || !destination.IsNamedField) return false;
-        EnsureField(source, splitFields);
+        if (!source.IsNamedField || !destination.IsNamedField) return false;
+        EnsureField(source);
         if (!_fieldsAreSplit || source.Value > _fieldTexts.Count || destination.Value > _fieldTexts.Count)
             return false;
         var from = source.Value - 1;
@@ -438,16 +429,10 @@ internal sealed class AwkFieldFrame(
     public void AssignFieldValue(
         AwkFieldIndex index,
         AwkValue value,
-        AwkText outputFieldSeparator,
-        Func<AwkText, List<AwkFieldText>> splitFields)
+        AwkText outputFieldSeparator)
     {
-        if (index.IsCurrentRecord)
-        {
-            SetRecordValue(value, formatStringByteText);
-            return;
-        }
-
-        EnsureFields(splitFields);
+        // The language boundary handles $0 before evaluating the separator.
+        EnsureFields();
         var fieldIndex = index.Value - 1;
         var oldFieldCount = _fieldTexts.Count;
         var newFieldCount = Math.Max(oldFieldCount, index.Value);
@@ -523,10 +508,9 @@ internal sealed class AwkFieldFrame(
     }
 
     public void ExtendFieldCountForReference(
-        AwkFieldIndex index,
-        Func<AwkText, List<AwkFieldText>> splitFields)
+        AwkFieldIndex index)
     {
-        EnsureFields(splitFields);
+        EnsureFields();
         if (index.Value <= _fieldTexts.Count)
             return;
 
@@ -561,17 +545,15 @@ internal sealed class AwkFieldFrame(
 
     public void AssignFieldCount(
         AwkFieldCount count,
-        AwkText outputFieldSeparator,
-        Func<AwkText, List<AwkFieldText>> splitFields) =>
-        AssignFieldCount(count, AwkValue.FromNumber(count.Value), outputFieldSeparator, splitFields);
+        AwkText outputFieldSeparator) =>
+        AssignFieldCount(count, AwkValue.FromNumber(count.Value), outputFieldSeparator);
 
     public void AssignFieldCount(
         AwkFieldCount count,
         AwkValue value,
-        AwkText outputFieldSeparator,
-        Func<AwkText, List<AwkFieldText>> splitFields)
+        AwkText outputFieldSeparator)
     {
-        EnsureFields(splitFields);
+        EnsureFields();
         var oldFieldCount = _fieldTexts.Count;
         var newFieldCount = count.Value;
         var newCapacity = PlanFieldCapacity(newFieldCount);
@@ -907,16 +889,16 @@ internal sealed class AwkFieldFrame(
             EnsureRecordText();
     }
 
-    private void EnsureField(AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields)
+    private void EnsureField(AwkFieldIndex index)
     {
         if (_fieldsAreSplit || (index.IsNamedField && index.Value <= _fieldTexts.Count))
             return;
         var upperBound = (long)RecordByteLength + 1;
-        if (fieldSplitter is null || RecordByteLength < IncrementalRecordBytes ||
+        if (RecordByteLength < IncrementalRecordBytes ||
             !index.IsNamedField ||
             index.Value >= upperBound || !_splitPlan.SupportsIncrementalFields)
         {
-            EnsureFields(splitFields);
+            EnsureFields();
             return;
         }
 
@@ -964,8 +946,7 @@ internal sealed class AwkFieldFrame(
         }
     }
 
-    private void EnsureFields(
-        Func<AwkText, List<AwkFieldText>> splitFields)
+    private void EnsureFields()
     {
         int SumFieldPayloadByteLength(List<AwkFieldText> fieldTexts)
         {
@@ -1000,21 +981,9 @@ internal sealed class AwkFieldFrame(
         if (reusable is not null) _fieldTexts = EmptyFieldTexts;
         try
         {
-            var fieldTexts = _hasBufferedRecord && fieldSplitter is not null && _splitPlan.SupportsIncrementalFields
+            var fieldTexts = _hasBufferedRecord && _splitPlan.SupportsIncrementalFields
                 ? fieldSplitter.SplitRecordByteFields(RecordBytes(), _splitPlan, reusable)
-                : reusable is not null && fieldSplitter is not null
-                    ? fieldSplitter.SplitRecordFields(OwnedRecordText(), _splitPlan, reusable)
-                    : splitFields(OwnedRecordText());
-            // A callback transfers its list to this frame. It may return that list again for
-            // a later record; cache slots from its previous use have no meaning in this one.
-            if (fieldSplitter is null)
-            {
-                for (var index = 0; index < fieldTexts.Count; index++)
-                {
-                    if ((index & 1023) == 0) checkpoint?.Invoke();
-                    fieldTexts[index] = fieldTexts[index].WithCacheSlot(0);
-                }
-            }
+                : fieldSplitter.SplitRecordFields(OwnedRecordText(), _splitPlan, reusable);
             // Completing an incremental split creates new descriptors for cached prefix fields.
             for (var index = 0; index < _fieldValueCache.Count; index++)
             {
@@ -1173,7 +1142,7 @@ internal sealed class AwkFieldFrame(
     private long EstimateFieldCacheBufferBytes(int capacity) =>
         governor.IsEnabled ? AwkRuntimeMemory.EstimateFieldValueListBytes(capacity) : 0;
 
-    private bool ReuseFieldBuffer(bool allowed) => allowed && fieldSplitter is not null &&
+    private bool ReuseFieldBuffer(bool allowed) => allowed &&
         _fieldTexts.Capacity <= MaxReusableFieldListCapacity;
 
     private bool ReuseCacheBuffer() =>

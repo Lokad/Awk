@@ -5,18 +5,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFieldFrameTests
 {
     [Fact]
-    public void AwkFieldFrame_AdoptsConcreteSplitterList()
+    public void AwkFieldFrame_UsesItsBoundSplitter()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var frame = CreateFrame(counters);
+        using var context = CreateFrame(counters);
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromString("alpha beta", counters, AwkMemoryAccounting.Disabled));
-        List<AwkFieldText> fieldList =
-        [
-            AwkFieldText.FromRecordSlice(0, 5),
-            AwkFieldText.FromRecordSlice(6, 4)
-        ];
-
-        var count = frame.GetFieldCount(_ => fieldList);
+        var count = frame.GetFieldCount();
 
         Assert.Equal(2, count);
     }
@@ -26,22 +21,18 @@ public sealed class AwkFieldFrameTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var governor = AwkMemoryAccounting.Disabled;
-        var frame = CreateFrame(counters);
+        using var context = CreateFrame(counters);
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromString("alpha beta", counters, governor));
 
-        var first = frame.GetFieldValue(new AwkFieldIndex(1), SplitAlphaBeta, AwkValue.FromText);
+        var first = frame.GetFieldValue(new AwkFieldIndex(1));
         var allocationsAfterFirstRead = counters.AwkTextAllocations;
-        var second = frame.GetFieldValue(new AwkFieldIndex(1), SplitAlphaBeta, AwkValue.FromText);
+        var second = frame.GetFieldValue(new AwkFieldIndex(1));
 
         Assert.Equal("alpha", first.AsString());
         Assert.Equal("alpha", second.AsString());
         Assert.Equal(allocationsAfterFirstRead, counters.AwkTextAllocations);
 
-        static List<AwkFieldText> SplitAlphaBeta(AwkText _) =>
-            [
-                AwkFieldText.FromRecordSlice(0, 5),
-            AwkFieldText.FromRecordSlice(6, 4)
-            ];
     }
 
     [Theory]
@@ -55,7 +46,8 @@ public sealed class AwkFieldFrameTests
     {
         using var memoryForGovernor = new CooperativeTestMemory(500, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, value => value.ByteText);
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, governor, format: value => value.ByteText);
+        var frame = context.Frame;
         var priorPlan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), priorPlan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -64,8 +56,7 @@ public sealed class AwkFieldFrameTests
         var exception = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (assignValue)
-                frame.SetRecordValue(
-                    AwkValue.FromText("new"), value => AwkText.FromString(value.AsString()), replacementPlan);
+                frame.SetRecordValue(AwkValue.FromText("new"), replacementPlan);
             else
                 frame.SetRecordText(AwkText.FromSourceLiteralString("new"), replacementPlan);
         });
@@ -83,23 +74,33 @@ public sealed class AwkFieldFrameTests
     [InlineData(2)]
     public void AwkFieldFrame_MaterializationReleasesRetainedPlan(int mode)
     {
-        using var memoryForGovernor = new CooperativeTestMemory(4_096, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(8 << 20, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, value => value.ByteText);
-        var plan = CreatePlan(mode, new string('x', 200));
-        frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), plan);
-        var committedBefore = governor.CurrentCommittedBytes;
-
-        Assert.Equal(1, frame.GetFieldCount(_ => [AwkFieldText.FromRecordSlice(0, 4)]));
-
-        Assert.Equal(default, frame.SplitPlan);
-        Assert.True(governor.CurrentCommittedBytes < committedBefore);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal("keep", frame.RecordAwkText.AsString());
-        frame.ResetRecord();
+        using (var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, governor))
+        {
+            var frame = context.Frame;
+            var plan = CreatePlan(mode, new string('x', 200));
+            var record = AwkText.FromSourceLiteralString("keep");
+            var expected = mode switch { 1 => 0, 2 => 4, _ => 1 };
+            // Cache owners remain alive after the record's captured plan retires.
+            var split = context.Splitter.SplitRecordFields(record, plan);
+            Assert.Equal(expected, split.Count);
+            var fieldBytes = AwkRuntimeMemory.EstimateFieldTextListBytes(split.Capacity);
+            var serviceBytes = governor.CurrentCommittedBytes;
+            frame.SetRecordText(record, plan);
+            var committedBefore = governor.CurrentCommittedBytes;
+            Assert.Equal(expected, frame.GetFieldCount());
+            Assert.Equal(default, frame.SplitPlan);
+            Assert.Equal(plan.RetainedMemoryBytes,
+                committedBefore + fieldBytes - governor.CurrentCommittedBytes);
+            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal("keep", frame.RecordAwkText.AsString());
+            frame.ResetRecord();
+            Assert.Equal(serviceBytes, governor.CurrentCommittedBytes);
+            Assert.Equal(0, frame.GetFieldCount());
+            Assert.Equal(string.Empty, frame.RecordAwkText.AsString());
+        }
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, frame.GetFieldCount(_ => throw new InvalidOperationException("Reset fields must be empty.")));
-        Assert.Equal(string.Empty, frame.RecordAwkText.AsString());
     }
 
     private static AwkRecordSplitPlan CreatePlan(int mode, string pattern)
@@ -114,7 +115,7 @@ public sealed class AwkFieldFrameTests
             AwkRecordFieldSplittingMode.Ordinary);
     }
 
-    private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
+    private static AwkFieldTestContext CreateFrame(AwkRuntimeCounters counters) =>
         new(
             counters, AwkMemoryAccounting.Disabled, value => value.ByteText);
 

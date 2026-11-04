@@ -35,6 +35,9 @@ or environment dependencies.
 - Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
   split completion, staged field changes and reconstruction. Escaping scalar values own their text;
   byte views do not interpret cache slots.
+- The record frame owns its splitting and value-construction services. Keep input and recomposed
+  value origins separate, captured plans immutable, and mutation separators evaluated at the
+  language boundary. Conditional field copies resolve their separator only after validating slices.
 - Numeric-only cache entries may hold input classification without text. Full value reads
   must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.

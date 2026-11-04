@@ -38,7 +38,7 @@ internal sealed class AwkRuntimeState : IDisposable
     private readonly AwkArrayRuntime _arrayRuntime;
     private readonly AwkFormattingRuntime _formattingRuntime;
     private readonly AwkFieldSplitter _fieldSplitter;
-    private readonly AwkRecordFieldRuntime _recordFields;
+    private readonly AwkFieldFrame _recordFields;
     private readonly AwkSpecialVariableDispatcher _specialVariables;
     private readonly AwkVariableRuntime _variableRuntime;
     private readonly AwkFunctionRuntime _functions;
@@ -76,10 +76,10 @@ internal sealed class AwkRuntimeState : IDisposable
         _cancellationToken = cancellationToken;
         CancellationCheckpoint = ThrowIfCancellationRequested;
         AwkSpecialVariableDispatcher? specialVariables = null;
-        AwkRecordFieldRuntime? recordFields = null;
+        AwkFieldFrame? recordFields = null;
         _variables = new AwkVariables(
             MemoryAccounting, Counters, CreateByteTextValue, CreateNumericStringValue, CreateDeferredTextValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .FieldCountValue, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+                .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
@@ -120,10 +120,8 @@ internal sealed class AwkRuntimeState : IDisposable
 
                 CompatibilityMode,
                 _regexRuntime.ResetWarningSite, csvInput);
-            _recordFields = new AwkRecordFieldRuntime(
-                _fieldSplitter, CreateStringValue, CreateByteTextValue, CreateNumericStringValue, FormatStringByteText, ResolveOutputFieldSeparator, () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
-                    ? AwkRecordFieldSplittingMode.Paragraph
-                    : AwkRecordFieldSplittingMode.Ordinary, Counters, MemoryAccounting,
+            _recordFields = new AwkFieldFrame(Counters, MemoryAccounting, FormatStringByteText,
+                _fieldSplitter, CreateNumericStringValue, CreateByteTextValue, ResolveOutputFieldSeparator,
                 CancellationCheckpoint);
             recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(
@@ -156,8 +154,9 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             if (AwkSpecialVariables.IsName(name, AwkSpecialVariableId.FieldCount))
             {
-                (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                    .AssignFieldCountValue(value);
+                if (recordFields is null)
+                    throw new InvalidOperationException("Record fields are not initialized.");
+                AssignFieldCountValue(value);
                 return;
             }
 
@@ -201,9 +200,9 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkRecordStorage InputRecordStorage => _recordFields.InputRecordStorage;
 
-    public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
+    public AwkText CurrentRecordByteText => _recordFields.RecordAwkText;
 
-    public int FieldCount => _recordFields.FieldCount;
+    public int FieldCount => _recordFields.GetFieldCount();
 
     public bool ExitRequested => _executionControl.ExitRequested;
 
@@ -445,7 +444,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _functions.EnterGlobalBindings();
 
-    internal bool FieldsCannotReportRegexDiagnostics => _recordFields.CannotReportRegexDiagnostics;
+    internal bool FieldsCannotReportRegexDiagnostics => _recordFields.SupportsIncrementalFields;
 
     public AwkExecutionContextScope PushExecutionContext(AwkOutputSink output, AwkIo io)
     {
@@ -470,7 +469,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool HasStringUnitAt(AwkText value, int index) =>
         _stringRuntime.IsByteMode ? index < value.ByteLength : value.HasRuneAt(index, CancellationCheckpoint);
 
-    internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.CurrentRecordByteOperand;
+    internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.RecordByteOperand;
 
     internal AwkByteTextOperand ResolveFieldByteOperand(int index)
     {
@@ -916,7 +915,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id)
     {
         if (id == AwkSpecialVariableId.FieldCount)
-            return _recordFields.FieldCountValue;
+            return _recordFields.GetFieldCountValue();
         // Implicit language operands share the actual scalar owners. Local
         // special names and not-yet-created scalars keep dynamic resolution.
         if (!_functions.IsInsideFunction && _variables.GetSpecialScalarCell(id) is { } cell)
@@ -955,7 +954,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (id == AwkSpecialVariableId.FieldCount)
         {
-            _recordFields.AssignFieldCountValue(value);
+            AssignFieldCountValue(value);
             return;
         }
 
@@ -1016,7 +1015,7 @@ internal sealed class AwkRuntimeState : IDisposable
         using var admission = MemoryAccounting.IsEnabled
             ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
                 _recordFields.EstimateRecordMemoryGrowth(record.TryGetStorage(out _) ? AwkText.Empty : record.RecordText,
-                    record.FieldSplittingMode), EstimateRecordTerminatorMemoryGrowth(terminator)))
+                    _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode)), EstimateRecordTerminatorMemoryGrowth(terminator)))
             : default;
         ThrowIfCancellationRequested();
         if (readsMainInput) AdvanceInputCounters();
@@ -1097,37 +1096,46 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal void SetCurrentRecord(AwkInputRecordResult record)
     {
-        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage.Content);
+        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage.Content, _fieldSplitter.CaptureRecordPlan());
         else SetCurrentRecord(record.RecordText);
     }
 
     public void SetCurrentRecord(AwkText line)
     {
-        _recordFields.SetCurrentRecord(line);
+        _recordFields.SetRecordText(line);
     }
 
     public void SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode mode) =>
         _fieldSplitter.SetRecordFieldSplittingMode(mode);
 
-    public AwkValue GetCurrentRecordValue() => _recordFields.CurrentRecordValue;
+    public AwkValue GetCurrentRecordValue() => _recordFields.GetRecordValue();
 
-    public AwkValue GetFieldValue(int index) => _recordFields.GetFieldValue(index);
+    public AwkValue GetFieldValue(int index) => _recordFields.GetFieldValue(new(index));
 
     public AwkValue GetFieldValue(AwkFieldIndex index) => _recordFields.GetFieldValue(index);
 
     public void SetCurrentRecordValue(AwkValue value) =>
-        _recordFields.SetCurrentRecordValue(value);
+        _recordFields.SetRecordValue(value, _fieldSplitter.CaptureRecordPlan(
+            ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
+                ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary));
 
     public void AssignField(int index, string value)
     {
-        _recordFields.AssignField(index, value);
+        AssignFieldValue(index, CreateStringValue(value));
     }
 
-    public void AssignFieldValue(int index, AwkValue value) =>
-        _recordFields.AssignFieldValue(index, value);
+    public void AssignFieldValue(int index, AwkValue value)
+    {
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        AssignFieldValue(new AwkFieldIndex(index), value);
+    }
 
-    public void AssignFieldValue(AwkFieldIndex index, AwkValue value) =>
-        _recordFields.AssignFieldValue(index, value);
+    public void AssignFieldValue(AwkFieldIndex index, AwkValue value)
+    {
+        if (index.IsCurrentRecord) SetCurrentRecordValue(value);
+        else _recordFields.AssignFieldValue(index, value,
+            ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator));
+    }
 
     internal bool TryCopyInputField(int source, int destination) =>
         _recordFields.TryCopyInputField(new(source), new(destination));
@@ -1135,8 +1143,21 @@ internal sealed class AwkRuntimeState : IDisposable
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
         _recordFields.ExtendFieldCountForReference(index);
 
-    public void AssignFieldCount(int count) =>
-        _recordFields.AssignFieldCount(count);
+    public void AssignFieldCount(int count)
+    {
+        if (count < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        _recordFields.AssignFieldCount(new(count), ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator));
+    }
+
+    private void AssignFieldCountValue(AwkValue value)
+    {
+        var count = Math.Truncate(value.AsNumber(CancellationCheckpoint));
+        if (count < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (!double.IsFinite(count) || count > int.MaxValue)
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        _recordFields.AssignFieldCount(new((int)count), value,
+            ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator));
+    }
 
     public AwkText ResolveSubscriptSeparatorText() =>
         ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator);

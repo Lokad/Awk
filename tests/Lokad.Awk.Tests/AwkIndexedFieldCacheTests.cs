@@ -44,20 +44,17 @@ public sealed class AwkIndexedFieldCacheTests
     [Fact]
     public void DefaultScalarIsACachedValueRatherThanAnAbsentEntry()
     {
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled,
-            value => value.ByteText);
-        frame.SetRecordText(AwkText.FromSourceLiteralString("x"));
         var calls = 0;
-        var first = frame.GetFieldValue(new(1), _ => [AwkFieldText.FromRecordSlice(0, 1)], _ =>
-        {
-            calls++;
-            return default;
-        });
-        var second = frame.GetFieldValue(new(1), NoSplit, _ => throw new InvalidOperationException("Cached."));
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled,
+            createInputValue: _ => { calls++; return default; });
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("x"));
+        var first = frame.GetFieldValue(new(1));
+        var second = frame.GetFieldValue(new(1));
         Assert.Equal(default(AwkValue), first);
         Assert.Equal(first, second);
         Assert.Equal(1, calls);
-        Assert.False(frame.TryGetUnmaterializedFieldBytes(new(1), NoSplit, out _));
+        Assert.False(frame.TryGetUnmaterializedFieldBytes(new(1), out _));
     }
 
     [Fact]
@@ -65,30 +62,30 @@ public sealed class AwkIndexedFieldCacheTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(8L << 20, counters);
-        var frame = new AwkFieldFrame(counters, memory.Accounting, value => value.ByteText);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, separator: "");
+        var frame = context.Frame;
         var record = AwkText.FromSourceLiteralString(new string('x', 1024));
         frame.SetRecordText(record);
-        Assert.Equal(1024, frame.GetFieldCount(_ => Enumerable.Range(0, 1024)
-            .Select(index => AwkFieldText.FromRecordSlice(index, 1)).ToList()));
+        Assert.Equal(1024, frame.GetFieldCount());
         var before = memory.Accounting.CurrentCommittedBytes;
-        Assert.Equal("x", frame.GetFieldValue(new(1), NoSplit, AwkValue.FromText).AsString());
+        Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
         for (var index = 2; index <= 4; index++)
-            _ = frame.GetFieldValue(new(index), NoSplit, AwkValue.FromText);
+            _ = frame.GetFieldValue(new(index));
         Assert.True(memory.Accounting.CurrentCommittedBytes - before < 1024);
         var committed = memory.Accounting.CurrentCommittedBytes;
         var allocations = counters.FieldValueCacheBufferAllocations;
-        Assert.Equal(string.Empty, frame.GetFieldValue(new(int.MaxValue), NoSplit, AwkValue.FromText).AsString());
+        Assert.Equal(string.Empty, frame.GetFieldValue(new(int.MaxValue)).AsString());
         Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1024), NoSplit, AwkValue.FromText));
+        var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1024)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(1024), NoSplit, out _));
-        Assert.Equal("x", frame.GetFieldValue(new(1), NoSplit, _ => throw new InvalidOperationException("Cached.")).AsString());
+        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(1024), out _));
+        Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
         frame.ResetRecord();
         Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Budget.Reserved);
@@ -103,31 +100,31 @@ public sealed class AwkIndexedFieldCacheTests
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         long allocations = 0;
-        var frame = new AwkFieldFrame(counters, memory.Accounting, value => value.ByteText, () =>
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, checkpoint: () =>
         {
             if (armed && counters.FieldValueCacheBufferAllocations > allocations) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        });
+        }, separator: "");
+        var frame = context.Frame;
         var record = AwkText.FromSourceLiteralString(new string('x', 8192));
         frame.SetRecordText(record);
-        Assert.Equal(8192, frame.GetFieldCount(_ => Enumerable.Range(0, 8192)
-            .Select(index => AwkFieldText.FromRecordSlice(index, 1)).ToList()));
-        var first = frame.GetFieldValue(new(1), NoSplit, AwkValue.FromText);
+        Assert.Equal(8192, frame.GetFieldCount());
+        var first = frame.GetFieldValue(new(1));
         for (var index = 2; index <= 4; index++)
-            _ = frame.GetFieldValue(new(index), NoSplit, AwkValue.FromText);
+            _ = frame.GetFieldValue(new(index));
         allocations = counters.FieldValueCacheBufferAllocations;
         var committed = memory.Accounting.CurrentCommittedBytes;
         armed = true;
-        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(8192), NoSplit, AwkValue.FromText));
+        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(8192)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         armed = false;
         Assert.Same(record, frame.RecordAwkText);
-        Assert.Equal(8192, frame.GetFieldCount(NoSplit));
-        Assert.Equal(first, frame.GetFieldValue(new(1), NoSplit, _ => throw new InvalidOperationException("Cached.")));
-        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(8192), NoSplit, out _));
+        Assert.Equal(8192, frame.GetFieldCount());
+        Assert.Equal(first, frame.GetFieldValue(new(1)));
+        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(8192), out _));
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Equal("x", frame.GetFieldValue(new(8192), NoSplit, AwkValue.FromText).AsString());
+        Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
         frame.ResetRecord();
         Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Budget.Reserved);
@@ -139,17 +136,16 @@ public sealed class AwkIndexedFieldCacheTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(8L << 20, counters, enabled: governed);
-        var frame = new AwkFieldFrame(counters, memory.Accounting, value => value.ByteText);
-        List<AwkFieldText> fields = Enumerable.Range(0, 8192)
-            .Select(index => AwkFieldText.FromRecordSlice(index, 1)).ToList();
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, separator: "");
+        var frame = context.Frame;
         var record = AwkText.FromSourceLiteralString(new string('x', 8192));
         long allocations = 0;
         for (var row = 0; row < 3; row++)
         {
             frame.SetRecordText(record);
-            Assert.Equal(8192, frame.GetFieldCount(_ => fields));
+            Assert.Equal(8192, frame.GetFieldCount());
             var before = memory.Accounting.CurrentCommittedBytes;
-            Assert.Equal("x", frame.GetFieldValue(new(8192), NoSplit, AwkValue.FromText).AsString());
+            Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
             Assert.InRange(memory.Accounting.CurrentCommittedBytes - before, 0, 1024);
             if (row == 0) allocations = counters.FieldValueCacheBufferAllocations;
             else Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
@@ -183,6 +179,4 @@ public sealed class AwkIndexedFieldCacheTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static List<AwkFieldText> NoSplit(AwkText _) =>
-        throw new InvalidOperationException("Fields must already be split.");
 }

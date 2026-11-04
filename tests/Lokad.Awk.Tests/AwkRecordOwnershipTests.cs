@@ -212,9 +212,10 @@ public sealed class AwkRecordOwnershipTests
         var budget = new CooperativeTestBudget(32 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, value => value.ByteText);
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting, format: value => value.ByteText);
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromString("left right"));
-        Assert.Equal(2, frame.GetFieldCount(_ => [AwkFieldText.FromRecordSlice(0, 4), AwkFieldText.FromRecordSlice(5, 5)]));
+        Assert.Equal(2, frame.GetFieldCount());
         var separator = Mutate(frame, fields);
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -230,7 +231,7 @@ public sealed class AwkRecordOwnershipTests
     private static WeakReference<AwkText> Mutate(AwkFieldFrame frame, int fields)
     {
         var separator = AwkText.FromString(new string('x', 1_000_000));
-        frame.AssignFieldCount(new(fields), separator, _ => throw new InvalidOperationException("Unexpected split"));
+        frame.AssignFieldCount(new(fields), separator);
         return new(separator);
     }
 

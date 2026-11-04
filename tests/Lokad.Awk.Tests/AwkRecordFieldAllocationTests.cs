@@ -45,15 +45,13 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finiteMemory);
         var governor = memory.Accounting;
-        var frame = new AwkFieldFrame(counters, governor, value => value.ByteText);
+        using var context = new AwkFieldTestContext(counters, governor, format: value => value.ByteText);
+        var frame = context.Frame;
         var record = AwkText.FromString("alpha beta");
-        List<AwkFieldText> fields =
-        [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];
-        Func<AwkText, List<AwkFieldText>> splitFields = _ => fields;
         for (var index = 0; index < 100; index++)
         {
             frame.SetRecordText(record);
-            _ = frame.GetFieldCount(splitFields);
+            _ = frame.GetFieldCount();
         }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -61,7 +59,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         for (var index = 0; index < 10_000; index++)
         {
             frame.SetRecordText(record);
-            total += frame.GetFieldCount(splitFields);
+            total += frame.GetFieldCount();
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -118,28 +116,27 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void GovernedSmallFieldCacheRemainsChargedAndReusesStorage()
+    public void GovernedWholeRecordFieldCacheRemainsChargedAndReusesStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForAccounting = new CooperativeTestMemory(4_096, counters);
         var accounting = memoryForAccounting.Accounting;
-        var frame = new AwkFieldFrame(counters, accounting, value => value.ByteText);
+        using var context = new AwkFieldTestContext(counters, accounting, format: value => value.ByteText);
+        var frame = context.Frame;
         var record = AwkText.FromSourceLiteralString("row");
-        List<AwkFieldText> fields = [AwkFieldText.Empty];
-        Func<AwkText, List<AwkFieldText>> split = _ => fields;
         for (var index = 0; index < 100; index++)
         {
             frame.SetRecordText(record);
-            _ = frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText);
+            _ = frame.GetFieldValue(new AwkFieldIndex(1));
         }
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
         {
             frame.SetRecordText(record);
-            _ = frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText);
+            _ = frame.GetFieldValue(new AwkFieldIndex(1));
         }
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        output.WriteLine("10,000 governed empty-field cache reads: {0} allocated bytes.", allocated);
+        output.WriteLine("10,000 governed whole-record field cache reads: {0} allocated bytes.", allocated);
         Assert.InRange(allocated, 0, 800_000);
         Assert.Equal(10_100, counters.FieldSplits);
         Assert.Equal(10_100, counters.FieldsMaterialized);
@@ -158,13 +155,12 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var budget = new CooperativeTestBudget(4_096);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, value => value.ByteText);
-        List<AwkFieldText> fields = [AwkFieldText.FromRecordSlice(0, 3)];
-        Func<AwkText, List<AwkFieldText>> split = _ => fields;
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting, format: value => value.ByteText);
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromSourceLiteralString("one"));
-        Assert.Equal("one", frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText).AsString());
+        Assert.Equal("one", frame.GetFieldValue(new AwkFieldIndex(1)).AsString());
         frame.SetRecordText(AwkText.FromSourceLiteralString("two"));
-        Assert.Equal("two", frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText).AsString());
+        Assert.Equal("two", frame.GetFieldValue(new AwkFieldIndex(1)).AsString());
         frame.SetRecordText(AwkText.Empty);
         var retained = budget.Reserved;
         Assert.True(retained > 0);

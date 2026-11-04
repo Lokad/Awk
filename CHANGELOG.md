@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bind splitting and value construction to the record frame. Remove the forwarding record runtime
+  and callback-only splitting paths, preserving value origins, snapshots and mutation preflights.
 - Bind implicit special-scalar reads to their existing execution-owned cells, preserving
   computed fields, lazy names, current formatting and function scope. Consume stored text
   without repeating numeric classification or value reconstruction.

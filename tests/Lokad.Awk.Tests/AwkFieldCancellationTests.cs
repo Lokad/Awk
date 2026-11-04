@@ -222,22 +222,22 @@ public sealed class AwkFieldCancellationTests
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 2);
-        var frame = Frame(counters, governor, () => { if (armed) cancel(); });
+        using var context = Frame(counters, governor, () => { if (armed) cancel(); });
+        var frame = context.Frame;
         var record = AwkText.FromString(new string('a', LongScan));
         var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.FieldSeparator, AwkFieldSeparatorSpec.FromText(","), AwkText.Empty, [], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
         frame.SetRecordText(record, plan);
         var committed = governor.CurrentCommittedBytes;
-        var fields = Enumerable.Range(0, LongScan).Select(index => AwkFieldText.FromRecordSlice(index, 1)).ToList();
         armed = true;
-        Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount(_ => fields));
+        Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount());
         Assert.Same(record, frame.RecordAwkText);
         Assert.Equal(plan, frame.SplitPlan);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, counters.FieldsMaterialized);
         armed = false;
-        Assert.Equal(LongScan, frame.GetFieldCount(_ => fields));
-        Assert.Equal(LongScan, counters.FieldsMaterialized);
+        Assert.Equal(1, frame.GetFieldCount());
+        Assert.Equal(1, counters.FieldsMaterialized);
         Assert.Equal(default, frame.SplitPlan);
     }
 
@@ -250,17 +250,18 @@ public sealed class AwkFieldCancellationTests
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 9);
-        var frame = Frame(counters, governor, () => { if (armed) cancel(); });
+        using var context = Frame(counters, governor, () => { if (armed) cancel(); });
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromString("old"));
         var pending = AwkValue.FromDeferredText(AwkText.FromString(new string('a', LongScan)), AwkNumberParsingMode.Decimal);
-        frame.AssignFieldValue(new(1), pending, AwkText.FromString("|"), _ => [AwkFieldText.FromRecordSlice(0, 3)]);
+        frame.AssignFieldValue(new(1), pending, AwkText.FromString("|"));
         var committed = governor.CurrentCommittedBytes;
         armed = true;
         Assert.Throws<OperationCanceledException>(() => frame.RecordAwkText);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
-        Assert.Equal(new string('a', LongScan), frame.GetFieldValue(new(1), _ => throw new InvalidOperationException("Already split."), AwkValue.FromText).AsString());
+        Assert.Equal(new string('a', LongScan), frame.GetFieldValue(new(1)).AsString());
         Assert.Equal(new string('a', LongScan), frame.RecordAwkText.AsString());
     }
 
@@ -273,26 +274,26 @@ public sealed class AwkFieldCancellationTests
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 4);
-        var frame = Frame(counters, governor, () => { if (armed) cancel(); });
+        using var context = Frame(counters, governor, () => { if (armed) cancel(); });
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromString(new string('a', LongScan) + ",b"));
-        List<AwkFieldText> Split(AwkText _) => [AwkFieldText.FromRecordSlice(0, LongScan), AwkFieldText.FromRecordSlice(LongScan + 1, 1)];
-        Assert.Equal(2, frame.GetFieldCount(Split));
+        Assert.Equal(2, frame.GetFieldCount());
         var committed = governor.CurrentCommittedBytes;
         var allocations = counters.AwkTextAllocations;
         armed = true;
-        Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1), Split, AwkValue.FromText));
+        Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1)));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
-        Assert.Equal(new string('a', LongScan), frame.GetFieldValue(new(1), Split, AwkValue.FromText).AsString());
+        Assert.Equal(new string('a', LongScan), frame.GetFieldValue(new(1)).AsString());
         Assert.Equal(allocations + 1, counters.AwkTextAllocations);
-        _ = frame.GetFieldValue(new(1), Split, AwkValue.FromText);
+        _ = frame.GetFieldValue(new(1));
         Assert.Equal(allocations + 1, counters.AwkTextAllocations);
     }
 
-    private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, value => value.ByteText, checkpoint);
+    private static AwkFieldTestContext Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
+        new(counters, governor, value => value.ByteText, checkpoint, separator: ",");
 
     private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
         new CooperativeTestMemory(8 << 20, counters);

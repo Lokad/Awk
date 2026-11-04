@@ -16,23 +16,24 @@ public sealed class AwkFieldMemoryModeTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         Assert.Equal(governed, accounting.IsEnabled);
-        var frame = Frame(accounting, counters);
+        using var context = Frame(accounting, counters);
+        var frame = context.Frame;
         var target = staged ? 1537 : 4;
         for (var iteration = 0; iteration < 2; iteration++)
         {
             frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
-            Assert.Equal("café", frame.GetFieldValue(new(1), Split, AwkValue.FromText).AsString());
-            Assert.Equal(2, frame.GetFieldCount(AlreadySplit));
-            frame.AssignFieldValue(new(1), AwkValue.FromNumber(1.25), Separator, AlreadySplit);
+            Assert.Equal("café", frame.GetFieldValue(new(1)).AsString());
+            Assert.Equal(2, frame.GetFieldCount());
+            frame.AssignFieldValue(new(1), AwkValue.FromNumber(1.25), Separator);
             Assert.Equal("1.25|beta", frame.RecordAwkText.AsString());
-            frame.AssignFieldValue(new(target), AwkValue.FromText("tail"), Separator, AlreadySplit);
-            Assert.Equal(target, frame.GetFieldCount(AlreadySplit));
+            frame.AssignFieldValue(new(target), AwkValue.FromText("tail"), Separator);
+            Assert.Equal(target, frame.GetFieldCount());
             Assert.Equal("1.25|beta" + new string('|', target - 2) + "tail", frame.RecordAwkText.AsString());
-            frame.AssignFieldCount(new(1), AwkValue.FromText("01.8"), Separator, AlreadySplit);
-            Assert.Equal("01.8", frame.GetFieldCountValue(AlreadySplit).AsString());
+            frame.AssignFieldCount(new(1), AwkValue.FromText("01.8"), Separator);
+            Assert.Equal("01.8", frame.GetFieldCountValue().AsString());
             Assert.Equal("1.25", frame.RecordAwkText.AsString());
             frame.ResetRecord();
-            Assert.Equal(0, frame.GetFieldCount(AlreadySplit));
+            Assert.Equal(0, frame.GetFieldCount());
             Assert.Equal("", frame.RecordAwkText.AsString());
             Assert.Equal(0, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -48,9 +49,10 @@ public sealed class AwkFieldMemoryModeTests
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
-        var frame = Frame(accounting, counters);
+        using var context = Frame(accounting, counters);
+        var frame = context.Frame;
         frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
-        Assert.Equal("café", frame.GetFieldValue(new(1), Split, AwkValue.FromText).AsString());
+        Assert.Equal("café", frame.GetFieldValue(new(1)).AsString());
         var record = frame.RecordAwkText;
         var committed = accounting.CurrentCommittedBytes;
         var materialized = counters.FieldsMaterialized;
@@ -58,17 +60,17 @@ public sealed class AwkFieldMemoryModeTests
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (count)
-                frame.AssignFieldCount(new(32), Separator, AlreadySplit);
+                frame.AssignFieldCount(new(32), Separator);
             else
-                frame.AssignFieldValue(new(3), AwkValue.FromText(new string('x', 32)), Separator, AlreadySplit);
+                frame.AssignFieldValue(new(3), AwkValue.FromText(new string('x', 32)), Separator);
         });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(2, frame.GetFieldCount(AlreadySplit));
+        Assert.Equal(2, frame.GetFieldCount());
         Assert.Same(record, frame.RecordAwkText);
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         Assert.Equal(materialized, counters.FieldsMaterialized);
-        frame.AssignFieldValue(new(1), AwkValue.FromText("z"), Separator, AlreadySplit);
+        frame.AssignFieldValue(new(1), AwkValue.FromText("z"), Separator);
         Assert.Equal("z|beta", frame.RecordAwkText.AsString());
         frame.ResetRecord();
         Assert.Equal(0, accounting.CurrentCommittedBytes);
@@ -86,22 +88,26 @@ public sealed class AwkFieldMemoryModeTests
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         using var cancellation = new CancellationTokenSource();
         var token = cancellation.Token;
-        var frame = Frame(accounting, counters, () => token.ThrowIfCancellationRequested());
-        frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
-        Assert.Equal(2, frame.GetFieldCount(Split));
-        var committed = accounting.CurrentCommittedBytes;
         var creations = 0;
-        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1), AlreadySplit, text =>
-        {
-            creations++;
-            cancellation.Cancel();
-            return AwkValue.FromText(text);
-        }));
+        var cancelCreation = true;
+        using var context = new AwkFieldTestContext(counters, accounting,
+            checkpoint: () => token.ThrowIfCancellationRequested(), createInputValue: text =>
+            {
+                creations++;
+                if (cancelCreation) cancellation.Cancel();
+                return AwkValue.FromText(text);
+            });
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
+        Assert.Equal(2, frame.GetFieldCount());
+        var committed = accounting.CurrentCommittedBytes;
+        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         token = CancellationToken.None;
-        var value = frame.GetFieldValue(new(1), AlreadySplit, text => { creations++; return AwkValue.FromText(text); });
+        cancelCreation = false;
+        var value = frame.GetFieldValue(new(1));
         Assert.Equal("café", value.AsString());
         Assert.Equal(2, creations);
         frame.ResetRecord();
@@ -110,12 +116,8 @@ public sealed class AwkFieldMemoryModeTests
     }
 
 
-    private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, Action? checkpoint = null) =>
+    private static AwkFieldTestContext Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, Action? checkpoint = null) =>
         new(counters, accounting, static value => AwkText.FromString(value.AsString()), checkpoint);
 
-    private static List<AwkFieldText> Split(AwkText _) =>
-        [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];
 
-    private static List<AwkFieldText> AlreadySplit(AwkText _) =>
-        throw new InvalidOperationException("Fields must already be split.");
 }
