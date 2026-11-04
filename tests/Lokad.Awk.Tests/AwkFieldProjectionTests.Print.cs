@@ -69,14 +69,21 @@ public sealed partial class AwkFieldProjectionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var bytes = "before 007 café"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
-        var io = new AwkIo(new MockFileSystem(), AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+        var host = new MockFileSystem();
+        var binding = AwkBinder.Bind(AwkParser.Parse("{print $1,$3,$2}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        var region = Assert.Single(program.MainActions);
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
         var allocations = counters.AwkTextAllocations;
-        await Statement().ExecuteAsync(new(state, output, io));
+        await region.ExecuteAsync(state, io, output);
         Array.Fill(bytes, (byte)'X');
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("next 8 😀"));
-        await Statement().ExecuteAsync(new(state, output, io));
-        Assert.Equal("before café 007\nnext 😀 8\n", output.ToString());
+        await region.ExecuteAsync(state, io, output);
+        Assert.Equal("before café 007\nnext 😀 8\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(2, counters.FieldListPrintRuns);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -106,10 +113,6 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal(4, builder.Length);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
-
-    private static AwkStatement Statement() => AwkStatement.Print([Field(1), Field(3), Field(2)]);
-    private static AwkExpression Field(int index) => AwkExpression.FieldIndex(
-        AwkExpression.Number(index));
 
     private static async Task<PrintResult> RunPrintAsync(bool owned, AwkRuntimeLimits limits)
     {

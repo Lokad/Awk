@@ -13,234 +13,149 @@ public sealed partial class AwkPrintStagingMemoryTests
                 yield return [observed, format];
     }
 
-    [Theory]
-    [MemberData(nameof(Formats))]
-    public void PrintSegmentsHoldTheirArrayAndNewNumericTextUntilDisposal(bool observed, string format)
-    {
-        using var memoryForState = State(observed, format);
-        var state = memoryForState.State;
-        var values = Numbers(format);
-        var text = values.Select(state.FormatPrintByteText).ToArray();
-        var payload = text.Sum(static value => AwkRuntimeMemory.EstimateTextBytes(value.ByteLength));
-        var container = SegmentBytes(values.Length);
-        var required = container + payload + (format == "wide" ? 8_192 : 0);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - required);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var segments = AwkPrintRuntime.Stage(values, AwkValue.FromText(Separator), AwkValue.FromText(Terminator), state))
-        {
-            Assert.Equal(string.Join("|", text.Select(static value => value.AsString())) + "!", string.Concat(segments.Segments.ToArray().Select(static value => value.AsString())));
-            Assert.Equal(before + container + payload, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
+
+
 
     [Theory]
-    [MemberData(nameof(Formats))]
-    public void SegmentShortfallReleasesStagingAndAllowsRetry(bool observed, string format)
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task RefusedExecutionStoragePrecedesArgumentMutationAndOutput(bool observed, bool printf)
     {
-        using var memoryForState = State(observed, format);
-        var state = memoryForState.State;
-        var values = Numbers(format);
-        var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
-        var required = SegmentBytes(values.Length) + payload + (format == "wide" ? 8_192 : 0);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - required + 1))
-        {
-            var before = state.MemoryAccounting.CurrentCommittedBytes;
-            var failure = Assert.Throws<AwkRuntimeException>(() => AwkPrintRuntime.Stage(values, AwkValue.FromText(Separator), AwkValue.FromText(Terminator), state));
-            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        using (var retry = AwkPrintRuntime.Stage(values, AwkValue.FromText(Separator), AwkValue.FromText(Terminator), state))
-            Assert.Equal(values.Length * 2, retry.Segments.Length);
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AlreadyOwnedTextNeedsOnlySegmentCapacity(bool observed)
-    {
-        using var memoryForState = State(observed, "default");
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("stored");
-        state.AssignVariableValue(name, AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 16_000))));
-        var value = state.ResolveVariableValue(name);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - SegmentBytes(2));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var segments = AwkPrintRuntime.Stage(new[] { value, value }, AwkValue.FromText(Separator), AwkValue.FromText(Terminator), state))
-        {
-            Assert.Same(value.ByteText, segments.Segments[0]);
-            Assert.Same(value.ByteText, segments.Segments[2]);
-            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
-        }
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task ArgumentCapacityFailurePrecedesOperandMutationAndOutput(bool observed, bool printf)
-    {
-        using var memoryForState = State(observed, "default");
-        var state = memoryForState.State;
+        using var memory = State(observed, "default");
+        var state = memory.State;
         var name = AwkVariableName.FromText("count");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
+        var operands = string.Join(',', Enumerable.Repeat("++count", 5));
+        var region = BindPrint(state, (printf ? "printf \"%d%d%d%d%d\"," : "print ") + operands);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
-        var host = new MockFileSystem();
-        var io = Io(state, host);
-        var operands = Enumerable.Range(0, 5).Select(_ => AwkExpression.PreIncrement(AwkReference.Scalar(name))).ToArray();
-        var statement = printf ? AwkStatement.Printf(AwkExpression.Literal("%d%d%d%d"), operands) : AwkStatement.Print(operands);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - AwkRuntimeMemory.EstimateAwkValueArrayBytes(5) + 1))
-        {
-            var before = state.MemoryAccounting.CurrentCommittedBytes;
-            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-                statement.ExecuteAsync(new AwkEvaluationContext(state, output, io)).AsTask());
-            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
-            Assert.Equal("kept:", output.ToString());
-            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        }
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        var io = Io(state, new MockFileSystem());
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, io, output));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
+        Assert.Equal("kept:", output.ToString());
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(1, memory.Budget.Refusals);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        await io.CloseForCleanupAsync();
+    }
+
+    public static IEnumerable<object[]> OutputFormats()
+    {
+        foreach (var row in Formats()) foreach (var printf in new[] { false, true })
+            yield return [row[0], row[1], printf];
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task RedirectedOutputKeepsFormattingChargedDuringTheHostWrite(bool observed, bool printf)
+    [MemberData(nameof(OutputFormats))]
+    public async Task RedirectedOutputKeepsFormattingFundedThroughTheWrite(bool observed, string format, bool printf)
     {
-        using var memoryForState = State(observed, "default");
-        var state = memoryForState.State;
+        using var memory = State(observed, format);
+        var state = memory.State;
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(Separator));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(Terminator));
+        var region = BindPrint(state, PrintNumbers(format, printf));
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var host = new PendingWriteHost();
         host.Allow.TrySetResult();
         var io = Io(state, host);
-        var values = Numbers("default");
-        var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
-        var operands = values.Select(value => AwkExpression.Number(value.AsNumber())).ToArray();
-        var redirection = new AwkOutputRedirection(AwkExpression.Literal("result"), AwkOutputRedirectionKind.Write);
-        var statement = printf ? AwkStatement.Printf(AwkExpression.Literal("%.2f|%.2f|%.2f!"), operands, redirection)
-            : AwkStatement.Print(operands, redirection);
-        if (!printf)
-        {
-            state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(Separator));
-            state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(Terminator));
-        }
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         long duringWrite = -1;
         host.Inner.AfterAppend = () => duringWrite = state.MemoryAccounting.CurrentCommittedBytes;
-
-        await statement.ExecuteAsync(new AwkEvaluationContext(state, output, io));
+        await region.ExecuteAsync(state, io, output);
         await io.CloseAsync();
-
-        Assert.Equal("1.25|2.25|3.25!", host.Inner.ReadFile("/result"));
-        var retained = printf ? host.BufferCapacity :
-            AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
-        Assert.True(duringWrite >= baseline + retained);
-        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(3), state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(ExpectedNumbers(format), host.Inner.ReadFile("/result"));
+        Assert.True(duringWrite >= baseline + host.BufferCapacity);
+        Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, baseline, duringWrite - 1);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(string.Empty, output.ToString());
+        Assert.Empty(output.ToString());
+        output.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
-    [InlineData(false, 1)]
-    [InlineData(false, 2)]
-    [InlineData(true, 1)]
-    [InlineData(true, 2)]
-    public void NumericSeparatorsStayChargedAndUnusedOfsIsNotFormatted(bool observed, int count)
+    [InlineData(false, 1)] [InlineData(false, 2)]
+    [InlineData(true, 1)] [InlineData(true, 2)]
+    public async Task NumericSeparatorsPreserveSingleAndMultipleValueFormatting(bool observed, int count)
     {
-        using var memoryForState = State(observed, "default");
-        var state = memoryForState.State;
-        var ofs = AwkValue.FromNumber(1.25);
-        var ors = AwkValue.FromNumber(2.25);
-        var values = Enumerable.Repeat(AwkValue.FromText(AwkText.FromSourceLiteralString("x")), count).ToArray();
-        var payload = AwkRuntimeMemory.EstimateTextBytes(4) * (count == 1 ? 1 : 2);
-        var containers = SegmentBytes(count);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers - payload);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var segments = AwkPrintRuntime.Stage(values, ofs, ors, state))
-        {
-            Assert.Equal(count == 1 ? "x2.25" : "x1.25x2.25",
-                string.Concat(segments.Segments.ToArray().Select(static value => value.AsString())));
-            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
-        }
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        using var memory = State(observed, "default");
+        var state = memory.State;
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromNumber(1.25));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromNumber(2.25));
+        var region = BindPrint(state, "print " + string.Join(',', Enumerable.Repeat("\"x\"", count)));
+        var host = new MockFileSystem();
+        var io = Io(state, host);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        await region.ExecuteAsync(state, io, output);
+        Assert.Equal(count == 1 ? "x2.25" : "x1.25x2.25", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseAsync();
+        output.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    public static IEnumerable<object[]> PendingFormattingWrites()
+    {
+        foreach (var row in OutputFormats()) foreach (var cancel in new[] { false, true })
+            yield return [row[0], row[1], row[2], cancel];
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public async Task FormattingStorageSurvivesAPendingHostWriteAndReleasesOnCompletionOrCancellation(bool observed, bool printf, bool cancel)
+    [MemberData(nameof(PendingFormattingWrites))]
+    public async Task FormattingOwnersSurvivePendingWritesAndReleaseAfterCompletion(bool observed, string format, bool printf, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
-        using var memoryForState = State(observed, "default", cancellation.Token);
-        var state = memoryForState.State;
+        using var memory = State(observed, format, cancellation.Token);
+        var state = memory.State;
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(Separator));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(Terminator));
+        var region = BindPrint(state, PrintNumbers(format, printf));
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new PendingWriteHost();
         var io = Io(state, host, cancellation.Token);
-        var values = Numbers("default");
-        var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
-        var operands = values.Select(value => AwkExpression.Number(value.AsNumber())).ToArray();
-        var target = new AwkOutputRedirection(AwkExpression.Literal("result"), AwkOutputRedirectionKind.Write);
-        var statement = printf ? AwkStatement.Printf(AwkExpression.Literal("%.2f|%.2f|%.2f!"), operands, target)
-            : AwkStatement.Print(operands, target);
-        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(Separator));
-        state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(Terminator));
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        var pending = statement.ExecuteAsync(new AwkEvaluationContext(state, output, io)).AsTask();
+        var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.False(pending.IsCompleted);
-            var retained = printf ? host.BufferCapacity :
-                AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
-            var duringWrite = state.MemoryAccounting.CurrentCommittedBytes;
-            Assert.True(duringWrite >= baseline + retained);
+            Assert.False(run.IsCompleted);
+            var held = state.MemoryAccounting.CurrentCommittedBytes;
+            Assert.True(held >= baseline + host.BufferCapacity);
             Assert.Equal("kept:", output.ToString());
             if (cancel)
             {
                 cancellation.Cancel();
-                var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+                var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
                 Assert.Equal(cancellation.Token, failure.CancellationToken);
             }
             else
             {
                 host.Allow.TrySetResult();
-                await pending.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
             }
             await host.Finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, baseline, duringWrite - 1);
+            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, baseline, held - 1);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-            Assert.Equal("kept:", output.ToString());
+            Assert.Equal(cancel ? "kept:" : "", output.ToString());
+            Assert.Equal(cancel ? "" : "kept:", host.Inner.GetOutput(AwkFileDescriptor.StdOut));
         }
         finally
         {
             host.Allow.TrySetResult();
+            try { await run; } catch (OperationCanceledException) when (cancel) { }
             await io.CloseForCleanupAsync();
+            output.Dispose();
+            memory.Dispose();
+            Assert.Equal(0, host.Inner.OpenFileCount);
+            Assert.Equal(0, memory.Budget.Reserved);
         }
-        Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(3), state.MemoryAccounting.CurrentCommittedBytes);
-        if (!cancel) Assert.Equal("1.25|2.25|3.25!", host.Inner.ReadFile("/result"));
-        Assert.Equal(0, host.Inner.OpenFileCount);
+        if (!cancel) Assert.Equal(ExpectedNumbers(format), host.Inner.ReadFile("/result"));
     }
 
     [Theory]
@@ -256,7 +171,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var earlier = new string('k', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
         var text = new string('x', 10_000);
-        var statement = printf ? AwkStatement.Printf(AwkExpression.Literal(text), []) : AwkStatement.Print([AwkExpression.Literal(text)]);
+        var region = BindPrint(state, (printf ? "printf " : "print ") + "\"" + text + "\"");
         var io = Io(state, new MockFileSystem());
         var headroom = printf ? AwkRuntimeMemory.EstimateTextBytes(text.Length) + 16_384 : 131_072 - 1;
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
@@ -264,7 +179,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-            statement.ExecuteAsync(new AwkEvaluationContext(state, output, io)).AsTask());
+            region.ExecuteAsync(state, io, output).AsTask());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(earlier, output.ToString());
@@ -304,25 +219,6 @@ public sealed partial class AwkPrintStagingMemoryTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CanceledTextOnlyStagingDoesNotAllocateOrPublishSegments(bool observed)
-    {
-        using var cancellation = new CancellationTokenSource();
-        using var memoryForState = State(observed, "default", cancellation.Token);
-        var state = memoryForState.State;
-        var values = Enumerable.Repeat(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")), 4_096).ToArray();
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        cancellation.Cancel();
-
-        var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkPrintRuntime.Stage(values, AwkValue.FromText(Separator), AwkValue.FromText(Terminator), state));
-
-        Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
 
     [Theory]
     [InlineData(false)]
@@ -335,16 +231,13 @@ public sealed partial class AwkPrintStagingMemoryTests
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new MockFileSystem();
         var io = Io(state, host);
-        var format = AwkExpression.Literal("%s:%d");
-        AwkExpression[] arguments = [AwkExpression.Literal("payload")];
-        var statement = redirected ? AwkStatement.Printf(format, arguments,
-            new AwkOutputRedirection(AwkExpression.Literal("result"), AwkOutputRedirectionKind.Write)) : AwkStatement.Printf(format, arguments);
+        var region = BindPrint(state, "printf \"%s:%d\",\"payload\"" + (redirected ? ">\"result\"" : ""));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => statement.ExecuteAsync(new(state, output, io)).AsTask());
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
         Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("kept:", output.ToString());
         Assert.False(host.FileExists("/result"));
-        Assert.Equal(before + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
@@ -444,10 +337,29 @@ public sealed partial class AwkPrintStagingMemoryTests
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Inner.CreatePipeAsync(token);
     }
 
-    private static AwkValue[] Numbers(string format) =>
-        Enumerable.Range(1, 3).Select(index => AwkValue.FromNumber(format == "integer" ? index : index + .25)).ToArray();
+    private static AwkRegion BindPrint(AwkRuntimeState state, string body)
+    {
+        var result = AwkBinder.Bind(AwkParser.Parse("{" + body + "}"));
+        Assert.True(result.Success);
+        var program = result.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        return Assert.Single(program.MainActions);
+    }
 
-    private static long SegmentBytes(int valueCount) => 24L + valueCount * 2L * 8L;
+    private static string PrintNumbers(string format, bool printf)
+    {
+        var values = format == "integer" ? "1,2,3" : "1.25,2.25,3.25";
+        var specifier = format == "integer" ? "%d" : format == "wide" ? "%8192.2f" : "%.2f";
+        return (printf ? "printf \"" + string.Join('|', Enumerable.Repeat(specifier, 3)) + "!\"," : "print ") + values + ">\"result\"";
+    }
+
+    private static string ExpectedNumbers(string format)
+    {
+        var values = format == "integer" ? new[] { "1", "2", "3" } : new[] { "1.25", "2.25", "3.25" };
+        return string.Join('|', values.Select(value => format == "wide" ? value.PadLeft(8192) : value)) + "!";
+    }
 
     private static AwkIo Io(AwkRuntimeState state, IAwkHost host, CancellationToken token = default) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,

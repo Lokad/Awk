@@ -2,43 +2,11 @@
 
 ## Unreleased
 
-- Remove unused tree I/O/mutation statement adapters, flush targets and argument-binding
-  forwarding. Binding tests exercise the runtime owners used by prepared execution.
-
-- Delete remaining tree control/block runners and standalone return-value bookkeeping.
-  Function results publish directly to the caller before callee storage retires.
-
-- Delete retired function-body/invocation and sorting-callback bridges, tree loop
-  execution, intermediate function-argument storage and obsolete route counters.
-  Calls and sorting callbacks use the common interpreter's explicit frames.
-
-- Store prepared rules directly and remove the old action wrapper and statement-list
-  execution entry. Phase and reentrant execution retain separate funded scratch.
-
-- Delete retired tree lowerers and test-only comparison passes. Call and field-processing
-  checks use prepared programs, real host suspension and explicit expected behavior.
-
-- Delete the retired synchronous-function optimizer, recursive tree preparation and its
-  function counter. Native call, cancellation, mutation-preflight and return-value checks
-  cover the retained contracts.
-
-- Separate source literals, getline syntax and diagnostic construction from retired
-  tree lowering. Builtin destinations validate location shape; the common compiler binds
-  their operands, including deeply nested substitution targets.
-
-- Delete the unused tree-based rule-pattern dispatcher and its obsolete action parameter.
-
-- Publish prepared rules and functions without tree-execution fallbacks; remove the main
-  driver's fallback action/callee completion routes while preserving frontend diagnostics.
-
-
-- Replace recursive symbol, semantic-validation, statement-diagnostic, block and ordinary
-  operator/call/control/location and special-form preparation with explicit continuation state, preserving scope, evaluation order
-  and statement cleanup.
-
-- Remove the superseded action delegates and specialized loop runner, including their
-  preparation guards and internal action counter. Ordinary computation keeps the common
-  prepared interpreter; host effects and mutation admission retain their contracts.
+- Run prepared rules, computation and calls through the common interpreter, with explicit
+  function continuations for actual host suspension and separate scratch for reentrant phases.
+- Replace recursive source preparation with explicit work stacks. Remove retired action and
+  statement dispatch, tree lowerers, function preparation/transport and duplicate bookkeeping,
+  preserving qualified diagnostics, cancellation and admission before effects.
 
 - Run user sorting callbacks through ordinary interpreter frames, including `sorted_in`
   traversal. Keep stable comparisons, admitted snapshots, mutation and publication rules

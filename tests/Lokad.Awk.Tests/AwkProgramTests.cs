@@ -42,102 +42,44 @@ public sealed class AwkProgramTests
     }
 
     [Fact]
-    public async Task AwkExpression_CopiesCallerOwnedFunctionArguments()
+    public void PreparedConcatenationReusesTemporaryStorage()
     {
-        var arguments = new List<AwkExpression> { AwkExpression.Number(4) };
-        Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var definition));
-        var expression = AwkExpression.BuiltinCall(definition, arguments);
-        arguments.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-
-        var value = await expression.EvaluateAsync(new AwkEvaluationContext(state));
-
-        Assert.Equal(2, value.AsNumber());
-    }
-
-    [Fact]
-    public async Task AwkExpression_ReusesConcatenationTemporaryStorage()
-    {
-        var parts = Enumerable.Range(0, 32)
-            .Select(static _ => AwkExpression.Literal("x"))
-            .ToArray();
-        var expression = AwkExpression.Concat(parts);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var context = new AwkEvaluationContext(state);
-        _ = await expression.EvaluateAsync(context);
-
+        var source = "BEGIN{result=" + string.Join(' ', Enumerable.Repeat("s", 32)) + "}";
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.AssignVariableValue(AwkVariableName.FromText("s"), AwkValue.FromText("x"));
+        var result = AwkVariableName.FromText("result");
+        var region = Assert.Single(program.BeginActions);
+        using var storage = new AwkRegionStorage(state);
+        region.Execute(state, storage);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
         {
-            var value = await expression.EvaluateAsync(context);
-            if (value.ByteText.ByteLength != 32)
+            region.Execute(state, storage);
+            if (state.ResolveVariableValue(result).ByteText.ByteLength != 32)
                 throw new InvalidOperationException("Concatenation returned an unexpected value.");
         }
-
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
         Assert.True(allocatedBytes < 1_500_000, "Allocated bytes: " + allocatedBytes);
     }
 
     [Fact]
-    public async Task AwkStatement_CopiesCallerOwnedPrintParts()
+    public async Task PreparedRedirectedPrintWritesThroughTheHost()
     {
-        var expressions = new List<AwkExpression>
-        {
-            AwkExpression.Literal("x")
-        };
-        var statement = AwkStatement.Print(expressions);
-        expressions.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var output = AwkTestHarness.CreateOutputSink();
-
-        var flow = await statement.ExecuteAsync(state, output, CreateIo());
-
-        Assert.Equal(AwkStatementFlow.Continue, flow);
-        Assert.Equal("x\n", output.ToString());
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"x\">\"/out.txt\"}"));
+        var exit = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("x\n", host.ReadFile("/out.txt"));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
     }
-
-    [Fact]
-    public async Task AwkStatement_RedirectedPrintWritesDirectlyToIo()
-    {
-        var output = AwkTestHarness.CreateOutputSink();
-        var host = new TestOperationVisitor([]);
-        host.EnqueueOpenAwkFileDescriptor(3);
-        host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var io = new AwkIo(
-            host,
-            AwkPath.Root,
-            AwkFileDescriptor.StdIn,
-            AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr,
-            CancellationToken.None,
-            AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            state,
-            static _ => []);
-        var statement = AwkStatement.Print(
-            [AwkExpression.Literal("x")],
-            new AwkOutputRedirection(AwkExpression.Literal("/out.txt"), AwkOutputRedirectionKind.Write));
-        var flow = await statement.ExecuteAsync(state, output, io);
-
-        Assert.Equal(AwkStatementFlow.Continue, flow);
-        Assert.Equal("x\n", host.GetAppendedOutput(new AwkFileDescriptor(3)));
-    }
-
-    private static AwkIo CreateIo() =>
-        new(
-            new TestOperationVisitor([]),
-            AwkPath.Root,
-            AwkFileDescriptor.StdIn,
-            AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr,
-            CancellationToken.None,
-            AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None),
-            static _ => []);
 }

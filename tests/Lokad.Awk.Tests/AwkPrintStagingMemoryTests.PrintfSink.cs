@@ -10,16 +10,15 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         var host = new MockFileSystem();
         var io = Io(state, host);
-        var statement = AwkStatement.Printf(AwkExpression.Literal("%s:%d"), [AwkExpression.Literal("payload")]);
+        var region = BindPrint(state, "printf \"%s:%d\",\"payload\"");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => statement.ExecuteAsync(new(state, output, io)).AsTask());
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
 
         Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("", output.ToString());
-        Assert.Equal(before + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, state.Counters.PrintfSinkFormats);
         await output.FlushAsync(io);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         await io.CloseAsync();
@@ -57,7 +56,6 @@ public sealed partial class AwkPrintStagingMemoryTests
         var error = Assert.ThrowsAny<OperationCanceledException>(() => output.TryFormatPrintf("prefix:%s", arguments, state));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("", output.ToString());
-        Assert.Equal(0, state.Counters.PrintfSinkFormats);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

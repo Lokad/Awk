@@ -8,23 +8,7 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    // The prepared program keeps literal text alive throughout execution.
-    internal bool IsTextLiteral => this is LiteralExpression;
-
-    internal bool IsCurrentRecord => this is FieldZeroExpression;
-
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
-
-    internal static int[] PrepareLiteralFieldIndices(AwkExpression[] arguments, int maximum)
-    {
-        if (arguments.Length == 0 || arguments.Length > maximum) return [];
-        foreach (var argument in arguments)
-            if (!TryGetLiteralFieldIndex(argument, out _)) return [];
-        var fields = new int[arguments.Length];
-        for (var index = 0; index < fields.Length; index++)
-            TryGetLiteralFieldIndex(arguments[index], out fields[index]);
-        return fields;
-    }
 
     internal static bool TryGetLiteralFieldIndex(AwkExpression expression, out int index)
     {
@@ -48,18 +32,6 @@ internal abstract partial class AwkExpression
         if (expression is DynamicFieldIndexExpression field)
         {
             indexExpression = field.IndexExpression;
-            return true;
-        }
-        indexExpression = null;
-        return false;
-    }
-
-    internal static bool TryGetNumericFieldIndexExpression(
-        AwkExpression expression, [NotNullWhen(true)] out AwkExpression? indexExpression)
-    {
-        if (expression is DynamicFieldIndexExpression { IndexExpression: NumberExpression number })
-        {
-            indexExpression = number;
             return true;
         }
         indexExpression = null;

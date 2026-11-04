@@ -252,6 +252,13 @@ forwarding, with deferred-error text funded through record replacement and pendi
 Counter checks compare ordinary/prepared numeric inputs and text-sensitive controls at multiple arities.
 Numeric builtin checks cover direct and forwarded field arguments, later-argument mutation,
 deferred errors and actual pending/canceled operands with complete refunds.
+Print checks bind source across numeric/default/wide formats, ordinary and governed execution,
+real pending reads/writes, cancellation and refusal before publishing bytes. Native field-list
+counters retain byte-copy ownership checks after record reuse; concatenation checks measure the
+common prepared interpreter after warmup. The retained single-value and printf-sink primitives
+have direct low-level admission/rollback checks. Tests of the removed print segment containers,
+small-staging eligibility/headroom and output-target wrappers are retired with those APIs;
+complete-program formatting, borrow lifetime, ordering and final refunds remain covered.
 Argument and print/printf checks preserve formatting, funded backing reuse, arity-change
 refusal before effects, host-buffer lifetimes and final refunds.
 `AwkArgumentStorageTests` binds nested calls whose earlier text argument stays funded after
