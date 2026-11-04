@@ -202,8 +202,6 @@ internal abstract partial class AwkExpression
     private sealed class VariableExpression(AwkVariableName name) : AwkSynchronousExpression
     {
         internal override bool PreservesRecordBytes => true;
-        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument) =>
-            state.TryResolveArrayArgument(name, out argument);
 
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
@@ -221,15 +219,6 @@ internal abstract partial class AwkExpression
         internal override bool PreservesRecordBytes => true;
         internal bool IsBoundScalarFor(AwkRuntimeState state, AwkIdentifier identifier) =>
             name.Identifier == identifier && state.HasBoundGlobalScalar(index);
-
-        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
-        {
-            if (!state.HasBoundGlobalScalar(index))
-                return state.TryResolveArrayArgument(name, out argument);
-            state.Counters.RecordBoundScalarArgument();
-            argument = default;
-            return false;
-        }
 
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
@@ -252,15 +241,6 @@ internal abstract partial class AwkExpression
         AwkFunctionLocalSlotId slotId) : AwkSynchronousExpression
     {
         internal override bool PreservesRecordBytes => true;
-        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
-        {
-            if (state.HasPreparedLocalScalarArgument(slotId))
-            {
-                argument = default;
-                return false;
-            }
-            return state.TryResolveArrayArgument(slotId, name, out argument);
-        }
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveFunctionLocalValue(slotId, name);

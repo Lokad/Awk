@@ -40,39 +40,6 @@ internal abstract partial class AwkStatement
         AwkOutputTarget target) =>
         new PrintfStatement(format, AwkCollectionSnapshots.Copy(arguments), target);
 
-    public static AwkStatement DeleteArrayElement(AwkArrayName arrayName, AwkArrayIndex index) =>
-        new DeleteArrayElementStatement(arrayName, index);
-
-    public static AwkStatement DeleteArrayElement(AwkArrayOperand array, AwkArrayIndex index) =>
-        new DeleteNestedArrayElementStatement(array, index);
-
-    public static AwkStatement DeleteArray(AwkArrayName arrayName) =>
-        new DeleteArrayStatement(arrayName);
-
-    public static AwkStatement Assignment(AwkReference target, AwkExpression value) =>
-        Expression(AwkExpression.Assignment(target, value));
-
-    public static AwkStatement Expression(AwkExpression expression) =>
-        expression.TryGetFieldCopy(out var source, out var destination)
-            ? new FieldCopyStatement(expression, source, destination) : new ExpressionStatement(expression);
-
-    public static AwkStatement CompoundAssignment(
-        AwkReference target,
-        AwkExpression value,
-        AwkCompoundAssignmentOperation operation) =>
-        Expression(AwkExpression.CompoundAssignment(target, value, operation));
-
-    public static AwkStatement PostIncrement(AwkReference target) => Expression(AwkExpression.PostIncrement(target));
-
-    public static AwkStatement UnsupportedCoprocess() => UnsupportedCoprocessStatement.Instance;
-
-    public static AwkStatement Getline(AwkGetlineTarget target, AwkGetlineSource source) =>
-        new GetlineStatement(target, source);
-
-    public static AwkStatement Fflush(AwkFflushTarget target) => new FflushStatement(target);
-
-    public static AwkStatement Close(AwkExpression targetExpression) => new CloseStatement(targetExpression);
-
     public ValueTask<AwkStatementFlow> ExecuteAsync(
             AwkRuntimeState state,
             AwkOutputSink output,

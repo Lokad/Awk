@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Remove unused tree I/O/mutation statement adapters, flush targets and argument-binding
+  forwarding. Binding tests exercise the runtime owners used by prepared execution.
+
 - Delete remaining tree control/block runners and standalone return-value bookkeeping.
   Function results publish directly to the caller before callee storage retires.
 

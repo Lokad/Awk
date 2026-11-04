@@ -92,8 +92,6 @@ public sealed class AwkExpressionCompletionTests
     [InlineData(1, true)]
     [InlineData(2, false)]
     [InlineData(2, true)]
-    [InlineData(3, false)]
-    [InlineData(3, true)]
     [InlineData(4, false)]
     [InlineData(4, true)]
     public async Task FailedChildIsConsumedOnceAndStopsFollowingEffects(int operation, bool pending)
@@ -113,11 +111,9 @@ public sealed class AwkExpressionCompletionTests
             _ => child
         };
         var context = new AwkEvaluationContext(state);
-        Task result = operation == 3
-            ? AwkStatement.Expression(expression).ExecuteAsync(context).AsTask()
-            : operation == 4
-                ? expression.ResolveNumberAsync(context).AsTask()
-                : expression.EvaluateAsync(context).AsTask();
+        Task result = operation == 4
+            ? expression.ResolveNumberAsync(context).AsTask()
+            : expression.EvaluateAsync(context).AsTask();
         if (pending)
             first.Fail(error);
 

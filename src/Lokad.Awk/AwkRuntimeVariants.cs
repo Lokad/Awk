@@ -188,30 +188,6 @@ internal readonly struct AwkResolvedGetlineSource
     private string SourceName => _name ?? throw new InvalidOperationException("Missing getline source name.");
 }
 
-internal abstract record AwkFflushTarget
-{
-    public static AwkFflushTarget All { get; } = new AwkAllFflushTarget();
-
-    public static AwkFflushTarget ExpressionTarget(AwkExpression expression) =>
-        new AwkExpressionFflushTarget(expression);
-
-    /// <summary>Flushes the represented output set and emits any runtime warnings.</summary>
-    public abstract ValueTask<int> FlushAsync(AwkEvaluationContext context, AwkExecutionContext execution);
-}
-
-internal sealed record AwkAllFflushTarget : AwkFflushTarget
-{
-    public override ValueTask<int> FlushAsync(AwkEvaluationContext context, AwkExecutionContext execution) =>
-        AwkFflushRuntime.FlushAllAsync(execution);
-}
-
-internal sealed record AwkExpressionFflushTarget(AwkExpression Expression) : AwkFflushTarget
-{
-    public override async ValueTask<int> FlushAsync(AwkEvaluationContext context, AwkExecutionContext execution) =>
-        await AwkFflushRuntime.FlushAsync(
-            await Expression.EvaluateAsync(context).ConfigureAwait(false), context.State, execution).ConfigureAwait(false);
-}
-
 internal readonly record struct AwkSwitchCasePattern
 {
     private readonly AwkValue _value;

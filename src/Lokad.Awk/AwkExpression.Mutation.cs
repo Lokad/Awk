@@ -10,14 +10,6 @@ internal abstract partial class AwkExpression
 
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
-        internal override bool TryGetFieldCopy(out int source, out int destination)
-        {
-            source = destination = 0;
-            return target is AwkFieldReference field &&
-                field.FieldIndexExpression.TryGetIntegerConstant(out destination) && destination > 0 &&
-                TryGetLiteralFieldIndex(valueExpression, out source);
-        }
-
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var pending = valueExpression.EvaluateAsync(context);

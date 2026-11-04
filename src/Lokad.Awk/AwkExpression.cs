@@ -309,12 +309,6 @@ internal abstract partial class AwkExpression
     private static async ValueTask<bool> AwaitConditionValueAsync(ValueTask<AwkValue> pending) =>
         (await pending.ConfigureAwait(false)).IsTruthy();
 
-    internal virtual bool TryGetFieldCopy(out int source, out int destination)
-    {
-        source = destination = 0;
-        return false;
-    }
-
     /// <summary>Evaluates this expression after the cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 
@@ -322,15 +316,6 @@ internal abstract partial class AwkExpression
     internal virtual bool TryGetIntegerConstant(out int value)
     {
         value = 0;
-        return false;
-    }
-
-    // Binding knowledge belongs to a reference, independently of whether its caller suspends.
-    internal virtual bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
-    {
-        if (TryGetVariableName(out var name))
-            return state.TryResolveArrayArgument(name, out argument);
-        argument = default;
         return false;
     }
 

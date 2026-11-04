@@ -3,26 +3,23 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentBindingTests
 {
     [Fact]
-    public async Task GlobalReferenceKeepsUntouchedOriginsAndSymbolTableChanges()
+    public void GlobalBindingKeepsUntouchedOriginsAndSymbolTableChanges()
     {
         using var fixture = State();
         var state = fixture.State;
         var name = AwkVariableName.FromText("x");
         state.InitializeGlobalReadSlots(1);
-        var expression = AwkExpression.PreparedGlobalVariable(name, 0);
         Assert.False(state.HasScalar(name));
-        Assert.True(expression.TryResolveArrayArgument(state, out var untouched));
+        Assert.True(state.TryResolveArrayArgument(name, out var untouched));
         Assert.Equal(AwkFunctionArgumentKind.PotentialArray, untouched.Kind);
         Assert.Equal(new AwkArrayName(name.Identifier), untouched.ArrayName);
         Assert.True(untouched.Value.IsUntypedValue);
-        Assert.Equal(0, state.Counters.BoundScalarArguments);
         state.AssignVariableValue(name, AwkValue.FromText("0007"));
         state.ResolvePreparedGlobalValue(name, 0);
-        Assert.False(expression.TryResolveArrayArgument(state, out _));
+        Assert.False(state.TryResolveArrayArgument(name, out _));
         state.SetArrayString(AwkArrayName.FromText("SYMTAB"), new AwkArrayKey("x"), "0009");
-        Assert.False(expression.TryResolveArrayArgument(state, out _));
-        Assert.Equal("0009", (await expression.EvaluateAsync(new(state))).AsString());
-        Assert.Equal(2, state.Counters.BoundScalarArguments);
+        Assert.False(state.TryResolveArrayArgument(name, out _));
+        Assert.Equal("0009", state.ResolvePreparedGlobalValue(name, 0).AsString());
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -38,16 +35,15 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
         try
         {
-            var expression = AwkExpression.LocalVariable(name, new(0));
-            Assert.False(expression.TryResolveArrayArgument(state, out _));
+            Assert.False(state.TryResolveArrayArgument(new(0), name, out _));
             using (state.EnterGlobalBindings())
             {
-                Assert.True(expression.TryResolveArrayArgument(state, out var argument));
+                Assert.True(state.TryResolveArrayArgument(new(0), name, out var argument));
                 Assert.Equal(AwkFunctionArgumentKind.Array, argument.Kind);
                 Assert.Equal(global, argument.ArrayName);
                 Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
             }
-            Assert.False(expression.TryResolveArrayArgument(state, out _));
+            Assert.False(state.TryResolveArrayArgument(new(0), name, out _));
             Assert.Equal(42, state.ResolveVariableValue(name).AsNumber());
         }
         finally { state.PopFunctionFrame(); }
@@ -66,8 +62,7 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Array(array)]);
         try
         {
-            var expression = AwkExpression.LocalVariable(name, new(99));
-            Assert.True(expression.TryResolveArrayArgument(state, out var argument));
+            Assert.True(state.TryResolveArrayArgument(new(99), name, out var argument));
             Assert.Equal(AwkFunctionArgumentKind.Array, argument.Kind);
             Assert.Equal(array, argument.ArrayName);
             Assert.Equal("kept", state.GetArrayAwkValue(array, new AwkArrayKey("key")).AsString());
