@@ -52,7 +52,6 @@ internal sealed class AwkRuntimeState : IDisposable
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _globalRegexCaseSensitivity;
     private long _recordSeparatorVersion;
-    private AwkArgumentStorage<AwkValue>? _valueArgumentStorage;
 
     internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -478,53 +477,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal bool HasStringUnitAt(AwkText value, int index) =>
         _stringRuntime.IsByteMode ? index < value.ByteLength : value.HasRuneAt(index, CancellationCheckpoint);
-
-    internal AwkValue IndexOfShortField(ReadOnlySpan<byte> source, AwkValue needle)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(source.Length, AwkRuntimeMemory.TextRuneCheckpointStride);
-        Counters.RecordBorrowedFieldIndexSearch();
-        return AwkValue.FromNumber(_stringRuntime.IndexOfUnits(source, FormatStringByteText(needle), IsCaseInsensitive));
-    }
-
-    internal AwkValue CreateShortFieldSubstring(ReadOnlySpan<byte> source, AwkValue startValue,
-        AwkValue lengthValue, int argumentCount)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(source.Length, AwkRuntimeMemory.TextRuneCheckpointStride);
-        Counters.RecordBorrowedFieldSubstring();
-        var start = (int)startValue.AsNumber(CancellationCheckpoint);
-        if (start < 1) start = 1;
-        var byteMode = _stringRuntime.IsByteMode;
-        if (!byteMode) Resources.Checkpoint();
-        var sourceLength = byteMode ? source.Length : AwkText.CountRunes(source, CancellationCheckpoint);
-        if (start > sourceLength) return AwkValue.FromText(string.Empty);
-        var zeroBasedStart = start - 1;
-        var length = argumentCount == 2 ? sourceLength - zeroBasedStart
-            : (int)lengthValue.AsNumber(CancellationCheckpoint);
-        if (length <= 0) return AwkValue.FromText(string.Empty);
-        length = Math.Min(length, sourceLength - zeroBasedStart);
-        Resources.Checkpoint();
-        var byteStart = zeroBasedStart;
-        var byteEnd = zeroBasedStart + length;
-        if (!byteMode)
-        {
-            byteStart = 0;
-            var offset = 0;
-            for (var rune = 0; rune < zeroBasedStart + length; rune++)
-            {
-                if (rune == zeroBasedStart) byteStart = offset;
-                if (Rune.DecodeFromUtf8(source[offset..], out _, out var consumed) != System.Buffers.OperationStatus.Done)
-                    throw new InvalidOperationException("Field contains invalid UTF-8.");
-                offset += consumed;
-            }
-            byteEnd = offset;
-            Counters.RecordRuneSliceBytesScanned(byteEnd);
-        }
-        var owned = AwkText.AllocateOwnedBytes(byteEnd - byteStart, MemoryAccounting);
-        AwkText.CopyBytes(source[byteStart..byteEnd], owned, CancellationCheckpoint);
-        var text = byteMode ? AwkText.FromOwnedBytes(owned, Counters, CancellationCheckpoint)
-            : AwkText.FromTrustedOwnedBytes(owned, Counters);
-        return CreateDeferredTextValue(text);
-    }
 
     internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.CurrentRecordByteOperand;
 
@@ -1465,16 +1417,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void ReplaceMatchCaptureArray(AwkArrayTarget target, AwkLeasedRegexMatch match) =>
         _arrayRuntime.ReplaceMatchCaptures(target, match);
 
-    internal AwkArgumentBuffer<AwkValue> RentValueArguments(int count)
-    {
-        if (count == 0 || !MemoryAccounting.IsEnabled)
-            return AwkArgumentBuffer<AwkValue>.RentPooled(count);
-        _valueArgumentStorage ??= new(MemoryAccounting, AwkRuntimeMemory.EstimateAwkValueArrayBytes);
-        var buffer = _valueArgumentStorage.Rent(count, CancellationCheckpoint, out var reused);
-        Counters.RecordGovernedArgumentBuffer(reused);
-        return buffer;
-    }
-
     public void Dispose()
     {
         try { _regexRuntime.Dispose(); }
@@ -1486,7 +1428,6 @@ internal sealed class AwkRuntimeState : IDisposable
                 var rangeBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
                 _rangePatterns = [];
                 if (rangeBytes > 0) MemoryAccounting.ReleaseCommitted(rangeBytes);
-                _valueArgumentStorage?.Dispose();
             }
         }
     }

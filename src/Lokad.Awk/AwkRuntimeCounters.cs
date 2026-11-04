@@ -74,20 +74,6 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) NumericArraySlotReads++;
     }
 
-    public long BorrowedFieldSubstrings { get; private set; }
-
-    public long BorrowedFieldIndexSearches { get; private set; }
-
-    public void RecordBorrowedFieldIndexSearch()
-    {
-        if (_enabled) lock (_sync) BorrowedFieldIndexSearches++;
-    }
-
-    public void RecordBorrowedFieldSubstring()
-    {
-        if (_enabled) lock (_sync) BorrowedFieldSubstrings++;
-    }
-
     public void RecordBorrowedFieldTargetSnapshot()
     {
         if (_enabled) lock (_sync) BorrowedFieldTargetSnapshots++;
@@ -341,19 +327,6 @@ internal sealed class AwkRuntimeCounters
     {
         if (!_enabled) return;
         lock (_sync) BoundScalarArguments++;
-    }
-
-    public long GovernedArgumentBufferAllocations { get; private set; }
-    public long GovernedArgumentBufferReuses { get; private set; }
-
-    public void RecordGovernedArgumentBuffer(bool reused)
-    {
-        if (!_enabled) return;
-        lock (_sync)
-        {
-            if (reused) GovernedArgumentBufferReuses++;
-            else GovernedArgumentBufferAllocations++;
-        }
     }
 
     public long InlineFunctionFrames { get; private set; }

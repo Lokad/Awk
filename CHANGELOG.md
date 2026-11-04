@@ -5,7 +5,8 @@
 - Run prepared rules, computation and calls through the common interpreter, with explicit
   function continuations for actual host suspension and separate scratch for reentrant phases.
 - Replace recursive source preparation with explicit work stacks. Remove retired action and
-  statement/getline dispatch, tree lowerers, function preparation/transport and duplicate bookkeeping,
+  statement/getline dispatch, tree lowerers, function preparation/transport, builtin argument
+  staging and duplicate bookkeeping,
   preserving qualified diagnostics, cancellation and admission before effects.
 
 - Run user sorting callbacks through ordinary interpreter frames, including `sorted_in`

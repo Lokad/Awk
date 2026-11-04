@@ -46,33 +46,6 @@ public sealed class AwkBoundedSubstringTests
         Assert.Empty(result.ByteText.AsSpan().ToArray());
     }
 
-    [Fact]
-    public async Task RefusedResultPreservesAssignmentAndRecord()
-    {
-        const int limit = 8 << 20;
-        var budget = new CooperativeTestBudget(limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
-        {
-            using var state = State(owner, AwkRuntimeCounters.CreateEnabled());
-            var record = AwkText.FromSourceLiteralString("é" + new string('q', 100_000));
-            state.SetCurrentRecord(record);
-            var target = AwkVariableName.FromText("saved");
-            state.AssignVariableValue(target, AwkValue.FromText("keep"));
-            Assert.True(AwkBuiltins.TryGetCallable("substr", out var builtin));
-            var call = AwkExpression.BuiltinCall(builtin,
-                [AwkExpression.FieldIndex(AwkExpression.Number(0)), AwkExpression.Number(1), AwkExpression.Number(1)]);
-            var assignment = AwkExpression.Assignment(AwkReference.Scalar(target), call);
-            using (var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes))
-            {
-                var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await assignment.EvaluateAsync(new(state)));
-                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-                Assert.Equal("keep", state.ResolveVariableValue(target).AsString());
-                Assert.Same(record, state.CurrentRecordByteText);
-            }
-        }
-        Assert.Equal(0, budget.Reserved);
-    }
-
     private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, bool bytes = false)
     {
         var limits = AwkRuntimeLimits.CreateDefault();

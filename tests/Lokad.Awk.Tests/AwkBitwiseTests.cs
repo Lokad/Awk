@@ -31,16 +31,17 @@ public sealed class AwkBitwiseTests
     public async Task BitwiseBuiltinsStayNumericWithoutAllocatingOrDecoding(string name, double expected)
     {
         // Allocation measurements must not include unrelated work on xUnit's workers.
-        var (counters, allocations, argumentCount) = await Task.Factory.StartNew(() =>
+        var (counters, allocations) = await Task.Factory.StartNew(() =>
         {
             var counters = AwkRuntimeCounters.CreateEnabled();
             var state = CreateState(counters, AwkRuntimeLimits.CreateDefault());
             Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
-            AwkExpression[] expressions = name == "compl"
-                ? [AwkExpression.Number(6)]
-                : [AwkExpression.Number(6), AwkExpression.Number(3)];
+            Assert.True(builtin.TryGetScalarComputation(out var computation));
+            AwkValue[] values = name == "compl"
+                ? [AwkValue.FromNumber(6)]
+                : [AwkValue.FromNumber(6), AwkValue.FromNumber(3)];
             var context = new AwkEvaluationContext(state);
-            // Measure warm argument reuse, independently of collection/pool maintenance.
+            // Measure the actual evaluated-slot primitive, independently of caller storage.
             Assert.True(GC.TryStartNoGCRegion(16 << 20));
             try
             {
@@ -48,7 +49,7 @@ public sealed class AwkBitwiseTests
                 EvaluateMany();
                 var before = GC.GetAllocatedBytesForCurrentThread();
                 EvaluateMany();
-                return (counters, GC.GetAllocatedBytesForCurrentThread() - before, expressions.Length);
+                return (counters, GC.GetAllocatedBytesForCurrentThread() - before);
             }
             finally { GC.EndNoGCRegion(); }
 
@@ -61,10 +62,7 @@ public sealed class AwkBitwiseTests
 
             void Evaluate()
             {
-                var pending = builtin.EvaluateAsync(expressions, context);
-                if (!pending.IsCompletedSuccessfully)
-                    throw new InvalidOperationException("Numeric bitwise arguments should complete synchronously.");
-                var value = pending.Result;
+                var value = computation.EvaluateBound(values, 0, values.Length, context);
                 if (!value.IsNumberValue || value.AsNumber() != expected)
                     throw new InvalidOperationException("Unexpected bitwise result.");
             }

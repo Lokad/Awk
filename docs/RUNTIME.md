@@ -188,7 +188,9 @@ interrupt a caller through `getline`; default and single-value output retain the
 flush/diagnostic contract. Multi-value output stages operands before formatting and keeps
 fixed-field lists byte-native across arities. Rebuilding `$0` or mutating/suspending operands
 retain owned captures. Preparation has no flat block-size or argument-count cutoff;
-managed stack protection still applies. There is no public execution-engine selector.
+managed stack protection still applies. Builtins consume evaluated caller slots; earlier
+arguments stay funded across nested calls and pending host operations. Cancellation alone does
+not retire those users. There is no public execution-engine selector.
 Array traversal keeps its existing leased key snapshot in execution-owned scratch. Loop
 progression shares the computation driver; source mutation does not change the snapshot.
 `asort`, `asorti` and `sorted_in` callbacks use the same function frames and continuations as

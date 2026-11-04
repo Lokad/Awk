@@ -119,7 +119,7 @@ public sealed class AwkScanCancellationTests
     [InlineData("tolower")]
     [InlineData("toupper")]
     [InlineData("sprintf")]
-    public async Task BuiltinsObserveCancellationAfterArgumentEvaluation(string name)
+    public void LongBuiltinPrimitivesObserveCancellation(string name)
     {
         using var cancellation = new CancellationTokenSource();
         using var memoryForState = CreateState(cancellation.Token);
@@ -127,12 +127,13 @@ public sealed class AwkScanCancellationTests
         var value = AwkValue.FromDeferredText(
             AwkText.FromString(name is "tolower" or "toupper" ? new string('a', LongScan) : new string('0', LongScan)),
             AwkNumberParsingMode.Decimal);
-        var canceling = new CancelAfterValueExpression(cancellation, value);
+        cancellation.Cancel();
         Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
-        AwkExpression[] arguments = name == "sprintf" ? [AwkExpression.Literal("%d"), canceling] : [canceling];
+        AwkValue[] arguments = name == "sprintf" ? [AwkValue.FromText("%d"), value] : [value];
 
-        var error = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-            await builtin.EvaluateAsync(arguments, new AwkEvaluationContext(state)));
+        Assert.True(builtin.TryGetScalarComputation(out var computation));
+        var error = Assert.ThrowsAny<OperationCanceledException>(() =>
+            computation.EvaluateBound(arguments, 0, arguments.Length, new(state)));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -200,13 +201,5 @@ public sealed class AwkScanCancellationTests
                     testMemory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                         new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
                         AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance))));
-    }
-    private sealed class CancelAfterValueExpression(CancellationTokenSource cancellation, AwkValue value) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            cancellation.Cancel();
-            return ValueTask.FromResult(value);
-        }
     }
 }

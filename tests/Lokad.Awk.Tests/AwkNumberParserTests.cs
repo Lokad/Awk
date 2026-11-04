@@ -62,15 +62,16 @@ public sealed class AwkNumberParserTests
     [InlineData("012z", 10)]
     [InlineData("0109", 109)]
     [InlineData("1.2x", 1.2)]
-    public async Task StrtonumByteConversionDoesNotDecodeOrFormatItsArgument(string source, double expected)
+    public void StrtonumByteConversionDoesNotDecodeOrFormatItsArgument(string source, double expected)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = CreateState(counters, AwkRuntimeLimits.CreateDefault());
         Assert.True(AwkBuiltins.TryGetCallable("strtonum", out var builtin));
         var context = new AwkEvaluationContext(state);
-        AwkExpression[] arguments = [AwkExpression.Literal(source)];
+        Assert.True(builtin.TryGetScalarComputation(out var computation));
+        AwkValue[] arguments = [AwkValue.FromText(AwkText.FromSourceLiteralString(source))];
 
-        var result = await builtin.EvaluateAsync(arguments, context);
+        var result = computation.EvaluateBound(arguments, 0, arguments.Length, context);
 
         Assert.True(result.IsNumberValue);
         Assert.Equal(expected, result.AsNumber());
@@ -81,7 +82,7 @@ public sealed class AwkNumberParserTests
     }
 
     [Fact]
-    public async Task StrtonumNumericArgumentRetainsEveryBitAndAvoidsByteWork()
+    public void StrtonumNumericArgumentRetainsEveryBitAndAvoidsByteWork()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = CreateState(counters, AwkRuntimeLimits.CreateDefault());
@@ -89,8 +90,9 @@ public sealed class AwkNumberParserTests
         foreach (var number in new double[] { 1d / 3, -0d, double.Epsilon, Math.CopySign(double.NaN, -1) })
         {
             var context = new AwkEvaluationContext(state);
-            AwkExpression[] arguments = [AwkExpression.Number(number)];
-            var result = await builtin.EvaluateAsync(arguments, context);
+            Assert.True(builtin.TryGetScalarComputation(out var computation));
+            AwkValue[] arguments = [AwkValue.FromNumber(number)];
+            var result = computation.EvaluateBound(arguments, 0, arguments.Length, context);
             Assert.Equal(BitConverter.DoubleToUInt64Bits(number), BitConverter.DoubleToUInt64Bits(result.AsNumber()));
         }
         Assert.Equal(0, counters.StringDecodes);

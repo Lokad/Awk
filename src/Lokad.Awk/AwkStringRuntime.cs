@@ -52,20 +52,6 @@ internal sealed class AwkStringRuntime
             : AwkText.CountRunes(source.AsSpan(_checkpoint)[..position], _checkpoint) + 1;
     }
 
-    internal int IndexOfUnits(ReadOnlySpan<byte> source, AwkText value, bool ignoreCase)
-    {
-        if (!ignoreCase)
-            _checkpoint?.Invoke();
-        var needle = value.AsSpan(_checkpoint);
-        var position = ignoreCase
-            ? AwkCaseText.IndexOf(source, needle, _unitMode, _checkpoint)
-            : source.IndexOf(needle);
-        if (!ignoreCase) _checkpoint?.Invoke();
-        if (position < 0) return 0;
-        return _unitMode is AwkStringUnitMode.Byte
-            ? position + 1 : AwkText.CountRunes(source[..position], _checkpoint) + 1;
-    }
-
     public AwkText SubstringByUnits(
         AwkText source,
         int start,

@@ -72,7 +72,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         var expectedState = CreateState(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Local);
         _ = await EvaluateAsync(
             "srand",
-            [AwkExpression.Number(timestamp)],
+            [AwkValue.FromNumber(timestamp)],
             expectedState);
         var expectedFirstRandom = (await EvaluateAsync("rand", [], expectedState)).AsNumber();
 
@@ -149,23 +149,23 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             "1970-01-01 02:00:00 +02:00",
             (await EvaluateAsync(
                 "strftime",
-                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(0)],
+                [AwkValue.FromText("%Y-%m-%d %H:%M:%S %Z"), AwkValue.FromNumber(0)],
                 state)).AsString());
         Assert.Equal(
             "1970-01-01 00:00:00 UTC",
             (await EvaluateAsync(
                 "strftime",
                 [
-                    AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"),
-                    AwkExpression.Number(0),
-                    AwkExpression.Number(1)
+                    AwkValue.FromText("%Y-%m-%d %H:%M:%S %Z"),
+                    AwkValue.FromNumber(0),
+                    AwkValue.FromNumber(1)
                 ],
                 state)).AsString());
         Assert.Equal(
             0,
             (await EvaluateAsync(
                 "mktime",
-                [AwkExpression.Literal("1970 01 01 02 00 00")],
+                [AwkValue.FromText("1970 01 01 02 00 00")],
                 state)).AsNumber());
     }
 
@@ -193,27 +193,28 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             "2020-01-01 01:00:00 +01:00",
             (await EvaluateAsync(
                 "strftime",
-                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(winterTimestamp)],
+                [AwkValue.FromText("%Y-%m-%d %H:%M:%S %Z"), AwkValue.FromNumber(winterTimestamp)],
                 state)).AsString());
         Assert.Equal(
             "2020-07-01 02:00:00 +02:00",
             (await EvaluateAsync(
                 "strftime",
-                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(summerTimestamp)],
+                [AwkValue.FromText("%Y-%m-%d %H:%M:%S %Z"), AwkValue.FromNumber(summerTimestamp)],
                 state)).AsString());
         Assert.Equal(
             summerTimestamp,
             (await EvaluateAsync(
                 "mktime",
-                [AwkExpression.Literal("2020 07 01 02 00 00")],
+                [AwkValue.FromText("2020 07 01 02 00 00")],
                 state)).AsNumber());
     }
 
-    private static ValueTask<AwkValue> EvaluateAsync(
-        string name,
-        IReadOnlyList<AwkExpression> arguments,
-        AwkRuntimeState state) =>
-        AwkBuiltins.EvaluateAsync(name, arguments, new AwkEvaluationContext(state));
+    private static ValueTask<AwkValue> EvaluateAsync(string name, AwkValue[] values, AwkRuntimeState state)
+    {
+        Assert.True(AwkBuiltins.TryGetCallable(name, out var definition));
+        Assert.True(definition.TryGetScalarComputation(out var computation));
+        return ValueTask.FromResult(computation.EvaluateBound(values, 0, values.Length, new(state)));
+    }
 
     private static AwkRuntimeState CreateState(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,

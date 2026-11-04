@@ -6,28 +6,19 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBuiltinsTests
 {
     [Fact]
-    public async Task AwkBuiltins_ReusesSynchronousArgumentStorage()
+    public void EvaluatedScalarBuiltinDoesNotAllocateArgumentTransport()
     {
         Assert.True(AwkBuiltins.TryGetCallable("int", out var definition));
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        Assert.True(definition.TryGetScalarComputation(out var computation));
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var context = new AwkEvaluationContext(state);
-        AwkExpression[] arguments = [AwkExpression.Number(42)];
-        _ = await definition.EvaluateAsync(arguments, context);
-
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-
+        AwkValue[] values = [AwkValue.FromNumber(42)];
+        for (var index = 0; index < 10_000; index++) _ = computation.EvaluateBound(values, 0, 1, context);
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
-        {
-            var value = await definition.EvaluateAsync(arguments, context);
-            if (value.AsNumber() != 42)
-                throw new InvalidOperationException("The synchronous builtin returned an unexpected value.");
-        }
-
-        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-        Assert.True(allocatedBytes < 1_024, "Allocated bytes: " + allocatedBytes);
+            if (computation.EvaluateBound(values, 0, 1, context).AsNumber() != 42)
+                throw new InvalidOperationException("The scalar builtin returned an unexpected value.");
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedBefore, 0, 1_024);
     }
 
     [Fact]

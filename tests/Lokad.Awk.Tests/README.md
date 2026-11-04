@@ -88,8 +88,15 @@ Read loops check native numeric status/argument transport. Pending destination c
 simple, composite and nested keys across file-phase mutation and ignored cancellation;
 setup/read/publication phases are separate so unrelated preparation gaps cannot mask the read.
 String and formatting argument cases preserve earlier fields while later arguments suspend
-and mutate the record. Inactive argument capacity can remain funded until the state ends;
+and mutate the record. Execution-owned scratch funds captured arguments through actual completion;
 checks require failure ordering, no pending users and final refunds instead of old route counts.
+`AwkBuiltinArgumentMemoryTests` executes actual prepared calls at every argument position,
+with single pending host reads, runtime failure and ignored cancellation. Earlier text remains
+funded after its source is cleared and nested calls use their own scratch. Old expression-based
+builtin staging, inactive-buffer reuse and eligibility tests are removed with their owners.
+`AwkFieldStringTests` retains owned escaping results, strict byte/scalar boundaries, spelling,
+case and coordinate behavior, cached numeric search results and refusal before publication.
+The old short-literal string eligibility thresholds and route counters are retired.
 Native string-operation counters cover cached field and array values across dirty-record
 reconstruction, byte-native processing and final governor refunds in both execution modes.
 Membership checks cover composite keys with default/empty `SUBSEP`, no key-copy allocation

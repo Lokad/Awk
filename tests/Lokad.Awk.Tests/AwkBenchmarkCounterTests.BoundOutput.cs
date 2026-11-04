@@ -53,7 +53,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.InRange(counters.StringDecodes, 0, 2);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
@@ -99,7 +98,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.InRange(counters.StringDecodes, 0, 1);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
@@ -139,7 +137,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.GovernedArgumentBufferAllocations);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

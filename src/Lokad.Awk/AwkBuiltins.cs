@@ -67,12 +67,9 @@ internal static partial class AwkBuiltins
         Definitions =
         new Dictionary<string, AwkBuiltinDefinition>(StringComparer.Ordinal)
         {
-            [Name(AwkBuiltinId.Length)] = PosixFunctionWithLowering(
-                AwkBuiltinId.Length,
-                AwkArity.Range(0, 1),
-                EvaluateLength,
-                [AwkBuiltinArgumentRole.ScalarOrArray],
-                AwkBuiltinLoweringKind.Length),
+            [Name(AwkBuiltinId.Length)] = CallableMetadata(AwkBuiltinId.Length, AwkArity.Range(0, 1),
+                AwkCallableKind.Function, AwkBuiltinCompatibility.Posix,
+                [AwkBuiltinArgumentRole.ScalarOrArray], AwkStatementKind.Unknown, AwkBuiltinLoweringKind.Length),
             [Name(AwkBuiltinId.Index)] = PosixFunction(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
             [Name(AwkBuiltinId.Substr)] = PosixFunction(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
             [Name(AwkBuiltinId.ToLower)] = PosixFunction(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
@@ -97,7 +94,8 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Rshift)] = GnuFunction(AwkBuiltinId.Rshift, AwkArity.Exact(2), EvaluateRshift, arithmeticInputs: true),
             [Name(AwkBuiltinId.Sprintf)] = PosixFunction(AwkBuiltinId.Sprintf, AwkArity.AtLeast(1), EvaluateSprintf),
             [Name(AwkBuiltinId.Strtonum)] = GnuFunction(AwkBuiltinId.Strtonum, AwkArity.Exact(1), EvaluateStrtonum),
-            [Name(AwkBuiltinId.Gensub)] = GnuFunction(AwkBuiltinId.Gensub, AwkArity.Range(3, 4), EvaluateGensub),
+            [Name(AwkBuiltinId.Gensub)] = CallableMetadata(AwkBuiltinId.Gensub, AwkArity.Range(3, 4),
+                AwkCallableKind.Function, AwkBuiltinCompatibility.Gnu, [], AwkStatementKind.Unknown, AwkBuiltinLoweringKind.Ordinary),
             [Name(AwkBuiltinId.Close)] = PosixFunctionAsync(AwkBuiltinId.Close, AwkArity.Range(1, 2), EvaluateCloseAsync, AwkStatementKind.Close),
             [Name(AwkBuiltinId.Fflush)] = PosixFunctionAsync(AwkBuiltinId.Fflush, AwkArity.Range(0, 1), EvaluateFflushAsync, AwkStatementKind.Fflush),
             [Name(AwkBuiltinId.System)] = PosixFunction(AwkBuiltinId.System, AwkArity.Exact(1), EvaluateSystem),
@@ -217,12 +215,12 @@ internal static partial class AwkBuiltins
             if (!context.TryGetExecutionContext(out var execution))
                 return AwkValue.FromNumber(-1);
 
-            var path = await context.GetStringAsync(0).ConfigureAwait(false);
+            var path = context.GetString(0);
             using var heldName = context.State.MemoryAccounting.ReserveTransient(
                 AwkRuntimeMemory.EstimateUtf16StringBytes(path.Length));
             if (context.ArgumentCount == 2)
             {
-                var directionText = await context.GetStringAsync(1).ConfigureAwait(false);
+                var directionText = context.GetString(1);
                 if (directionText is not ("to" or "from"))
                     throw new AwkRuntimeException(AwkMessages.ErrorInvalidCloseMode);
             }
@@ -246,7 +244,7 @@ internal static partial class AwkBuiltins
             var status = context.ArgumentCount == 0
                 ? await AwkFflushRuntime.FlushAllAsync(execution).ConfigureAwait(false)
                 : await AwkFflushRuntime.FlushAsync(
-                    await context.GetValueAsync(0).ConfigureAwait(false), context.State, execution).ConfigureAwait(false);
+                    context.GetValue(0), context.State, execution).ConfigureAwait(false);
             return AwkValue.FromNumber(status);
         }
         static AwkValue EvaluateInt(AwkBuiltinContext context)
@@ -401,21 +399,6 @@ internal static partial class AwkBuiltins
             parsed.ThrowIfError();
             return AwkValue.FromNumber(parsed.Number);
         }
-        static AwkValue EvaluateGensub(AwkBuiltinContext context)
-        {
-            if (context.ArgumentCount is < 3 or > 4) return AwkValue.FromText(string.Empty);
-            return AwkSubstitutionRuntime.Gensub(context.Evaluation, context.GetRegexPattern(0),
-                context.GetValue(1), context.GetValue(2),
-                context.ArgumentCount == 4 ? context.GetValue(3) : context.State.GetCurrentRecordValue());
-        }
-        static AwkValue EvaluateLength(AwkBuiltinContext context)
-        {
-            if (context.ArgumentCount != 1)
-                return AwkValue.FromNumber(0);
-
-            return AwkValue.FromNumber(context.State.CountStringUnits(context.GetByteText(0)));
-        }
-
         static AwkValue EvaluateIndex(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 2)
@@ -534,15 +517,6 @@ internal static partial class AwkBuiltins
             AwkArity arity,
             AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
             Function(id, arity, AwkBuiltinCompatibility.Gnu, [], evaluator, arithmeticInputs);
-        static AwkBuiltinDefinition PosixFunctionWithLowering(
-            AwkBuiltinId id,
-            AwkArity arity,
-            AwkBuiltinEvaluator evaluator,
-            IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-            AwkBuiltinLoweringKind loweringKind) =>
-            Function(id, arity, AwkBuiltinCompatibility.Posix, argumentRoles, evaluator,
-                AwkStatementKind.Unknown, loweringKind);
-
         static AwkBuiltinDefinition PosixSpecialFormWithStatement(
             AwkBuiltinId id,
             AwkArity arity,
@@ -611,39 +585,6 @@ internal static partial class AwkBuiltins
 
         kind = AwkStatementKind.Expression;
         return false;
-    }
-
-    public static ValueTask<AwkValue> EvaluateAsync(
-        string name,
-        IReadOnlyList<AwkExpression> arguments,
-        AwkEvaluationContext context)
-    {
-        return EvaluateByNameAsyncCore(name, arguments, context);
-        static ValueTask<AwkValue> EvaluateByNameAsyncCore(
-            string name,
-            IReadOnlyList<AwkExpression> arguments,
-            AwkEvaluationContext context)
-        {
-            if (!Definitions.TryGetValue(name, out var definition))
-                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(name));
-
-            return EvaluateAsyncCore(definition, name, arguments, context);
-        }
-    }
-    public static ValueTask<AwkValue> EvaluateAsync(
-        AwkBuiltinDefinition definition,
-        IReadOnlyList<AwkExpression> arguments,
-        AwkEvaluationContext context) =>
-        EvaluateAsyncCore(definition, definition.Name, arguments, context);
-
-    private static ValueTask<AwkValue> EvaluateAsyncCore(
-        AwkBuiltinDefinition definition,
-        string name,
-        IReadOnlyList<AwkExpression> arguments,
-        AwkEvaluationContext context)
-    {
-        ValidateInvocationCore(definition, name, arguments.Count, context);
-        return definition.EvaluateAsync(arguments, context);
     }
 
     internal static void ValidateInvocation(AwkBuiltinDefinition definition, int argumentCount,
