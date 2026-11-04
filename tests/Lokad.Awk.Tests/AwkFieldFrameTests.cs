@@ -90,7 +90,7 @@ public sealed class AwkFieldFrameTests
             frame.SetRecordText(record, plan);
             var committedBefore = governor.CurrentCommittedBytes;
             Assert.Equal(expected, frame.GetFieldCount());
-            Assert.Equal(default, frame.SplitPlan);
+            Assert.Same(AwkRecordSplitPlan.Empty, frame.SplitPlan);
             Assert.Equal(plan.RetainedMemoryBytes,
                 committedBefore + fieldBytes - governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);

@@ -3,6 +3,30 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkIncrementalFieldTests
 {
     [Fact]
+    public void RecordKeepsTheSeparatorCapturedBeforeAnAdmissionCallbackChangesConfiguration()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, memory.Accounting, separator: "|");
+        var armed = true;
+        memory.Budget.OnGrowth = _ =>
+        {
+            if (!armed) return;
+            armed = false;
+            context.Splitter.AssignFieldSeparator(AwkText.FromSourceLiteralString(","));
+        };
+        context.Frame.SetRecordText(AwkText.FromSourceLiteralString("left|right"));
+        Assert.False(armed);
+        Assert.Equal(2, context.Frame.GetFieldCount());
+        Assert.Equal("right", context.Frame.GetFieldValue(new(2)).AsString());
+        context.Frame.SetRecordText(AwkText.FromSourceLiteralString("next,row"));
+        Assert.Equal(2, context.Frame.GetFieldCount());
+        Assert.Equal("row", context.Frame.GetFieldValue(new(2)).AsString());
+        context.Frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
     public async Task RefusedRecordReplacementPreservesTheOwnedSmallBuffer()
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -189,7 +213,7 @@ public sealed class AwkIncrementalFieldTests
             Assert.Equal(64, frame.GetFieldCount());
             Assert.Equal(before + 64, counters.FieldsMaterialized);
             Assert.Equal(cached, frame.GetFieldValue(new(3)));
-            Assert.Equal(default, frame.SplitPlan);
+            Assert.Same(AwkRecordSplitPlan.Empty, frame.SplitPlan);
             frame.AssignFieldValue(new(2), AwkValue.FromText("changed"), AwkText.FromSourceLiteralString("|"));
             Assert.Equal(string.Join("|", words.Select((s, i) => i == 1 ? "changed" : s)), frame.RecordAwkText.AsString());
             frame.ResetRecord();

@@ -137,7 +137,7 @@ internal sealed class AwkFieldSplitter(
             new(mode, separator, pattern, widths, AwkRegexCaseSensitivity.IgnoreCase, AwkRecordFieldSplittingMode.Paragraph));
     }
 
-    private readonly record struct PreparedRecordPlans(AwkRecordSplitPlan Ordinary,
+    private sealed record PreparedRecordPlans(AwkRecordSplitPlan Ordinary,
         AwkRecordSplitPlan Paragraph, AwkRecordSplitPlan OrdinaryIgnoreCase, AwkRecordSplitPlan ParagraphIgnoreCase)
     {
         public AwkRecordSplitPlan Get(AwkRecordFieldSplittingMode mode, AwkRegexCaseSensitivity sensitivity) =>

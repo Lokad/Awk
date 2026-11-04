@@ -104,7 +104,7 @@ internal sealed class AwkFieldFrame(
     private bool _recordWasRecomposed;
     private long _retainedMemoryBytes;
 
-    private AwkRecordSplitPlan _splitPlan;
+    private AwkRecordSplitPlan _splitPlan = AwkRecordSplitPlan.Empty;
 
     // Callers that can publish or invoke callbacks keep an independent value snapshot.
     public AwkRecordSplitPlan SplitPlan => _splitPlan;
@@ -122,7 +122,7 @@ internal sealed class AwkFieldFrame(
         _recordTextIsCurrent = true;
         ClearSplitFields(releaseCache: true);
         _fieldsAreSplit = true;
-        _splitPlan = default;
+        _splitPlan = AwkRecordSplitPlan.Empty;
     }
 
     internal AwkByteTextOperand RecordByteOperand
@@ -942,7 +942,7 @@ internal sealed class AwkFieldFrame(
         {
             _fieldsAreSplit = true;
             _fieldCountValue = AwkValue.FromNumber(fields.Count);
-            _splitPlan = default;
+            _splitPlan = AwkRecordSplitPlan.Empty;
         }
     }
 
@@ -1000,7 +1000,7 @@ internal sealed class AwkFieldFrame(
             _fieldPayloadByteLength = payloadByteLength;
             counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
-            _splitPlan = default;
+            _splitPlan = AwkRecordSplitPlan.Empty;
             if (ReferenceEquals(fieldTexts, reusable)) counters.RecordFieldListBufferReuse();
         }
         catch
@@ -1075,7 +1075,7 @@ internal sealed class AwkFieldFrame(
         _retainedMemoryBytes = newBytes;
     }
 
-    private long EstimateEmptyRecordBytes(AwkText text, in AwkRecordSplitPlan plan) =>
+    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan) =>
         !governor.IsEnabled ? 0 : AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes),

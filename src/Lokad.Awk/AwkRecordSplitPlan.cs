@@ -1,10 +1,10 @@
 namespace Lokad.Awk;
 
 /// <summary>Immutable splitting configuration retained while a record's fields are lazy.</summary>
-internal readonly record struct AwkRecordSplitPlan
+internal sealed record AwkRecordSplitPlan
 {
-    private readonly AwkText? _fieldPattern;
-    private readonly IReadOnlyList<AwkFieldWidth>? _fieldWidths;
+    public static AwkRecordSplitPlan Empty { get; } = new(AwkFieldSplittingMode.FieldSeparator,
+        default, AwkText.Empty, [], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
 
     public AwkRecordSplitPlan(
         AwkFieldSplittingMode mode,
@@ -14,18 +14,20 @@ internal readonly record struct AwkRecordSplitPlan
         AwkRegexCaseSensitivity caseSensitivity,
         AwkRecordFieldSplittingMode recordMode)
     {
+        ArgumentNullException.ThrowIfNull(fieldPattern);
+        ArgumentNullException.ThrowIfNull(fieldWidths);
         Mode = mode;
         Separator = separator;
-        _fieldPattern = fieldPattern;
-        _fieldWidths = fieldWidths;
+        FieldPattern = fieldPattern;
+        FieldWidths = fieldWidths;
         CaseSensitivity = caseSensitivity;
         RecordMode = recordMode;
     }
 
     public AwkFieldSplittingMode Mode { get; }
     public AwkFieldSeparatorSpec Separator { get; }
-    public AwkText FieldPattern => _fieldPattern ?? AwkText.Empty;
-    public IReadOnlyList<AwkFieldWidth> FieldWidths => _fieldWidths ?? [];
+    public AwkText FieldPattern { get; }
+    public IReadOnlyList<AwkFieldWidth> FieldWidths { get; }
     public AwkRegexCaseSensitivity CaseSensitivity { get; }
     public AwkRecordFieldSplittingMode RecordMode { get; }
 
