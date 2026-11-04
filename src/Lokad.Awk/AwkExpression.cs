@@ -143,8 +143,7 @@ internal abstract partial class AwkExpression
     public static AwkExpression Sub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
         new SubstitutionExpression(pattern, replacement, target, global: false);
 
-    public static AwkExpression Getline(AwkGetlineTarget target, AwkGetlineSource source) =>
-        new GetlineExpression(target, source);
+
 
     public static AwkExpression Length(AwkExpression value, AwkOptionalIdentifier arrayName) =>
         !arrayName.HasValue && value is DynamicFieldIndexExpression field

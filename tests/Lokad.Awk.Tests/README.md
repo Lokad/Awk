@@ -79,6 +79,11 @@ Redirected-output cases cover numeric target conversion after argument effects, 
 names, field views across arities, and pending writes inside calls with live caller keys.
 Refusal/format failures preserve existing files and avoid creating new outputs. Prepared
 pipe cases retain opaque command names, logical flush and command close status.
+Destination tests bind native `getline`, preserving record/counter/terminator state when
+admission cancels, refusal before input opening or destination mutation, and untyped array
+destination admission before a canceled host read. Repeated actual EOF reads keep key handling
+byte-native after the filename's host-boundary conversion. The removed tree source/target
+adapters and diagnostic-policy selector are not execution alternatives.
 Read loops check native numeric status/argument transport. Pending destination cases retain
 simple, composite and nested keys across file-phase mutation and ignored cancellation;
 setup/read/publication phases are separate so unrelated preparation gaps cannot mask the read.

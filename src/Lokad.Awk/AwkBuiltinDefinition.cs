@@ -177,24 +177,10 @@ internal sealed class AwkBuiltinDefinition(
     internal bool TryGetScalarComputation(
         [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
     {
-        // The common driver can retain values across suspending arguments and
-        // publish diagnostics at its ordinary boundaries. It does not need the
-        // old synchronous-tree eligibility rules. Regex origins and special-form
-        // lvalues/aliases still need their own operand preparation in Stage C.
+        // Ordinary scalar calls consume evaluated slots. Special forms prepare their
+        // regex origins, captures, lvalues and aliases separately.
         if (LoweringKind == AwkBuiltinLoweringKind.Ordinary && Id != AwkBuiltinId.Gensub &&
             implementation is AwkBuiltinImplementation.SyncBuiltinImplementation synchronous)
-        {
-            computation = synchronous;
-            return true;
-        }
-        computation = null;
-        return false;
-    }
-
-    internal bool TryGetComputation(
-        [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
-    {
-        if (implementation is AwkBuiltinImplementation.SyncBuiltinImplementation { CanPrepareComputation: true } synchronous)
         {
             computation = synchronous;
             return true;
@@ -217,9 +203,8 @@ internal sealed class AwkBuiltinDefinition(
 
 internal abstract class AwkBuiltinImplementation
 {
-    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false,
-        bool canPrepareComputation = false) =>
-        new SyncBuiltinImplementation(evaluator, arithmeticInputs, canPrepareComputation);
+    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
+        new SyncBuiltinImplementation(evaluator, arithmeticInputs);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
@@ -232,27 +217,12 @@ internal abstract class AwkBuiltinImplementation
     public abstract ValueTask<AwkValue> EvaluateAsync(
         IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context);
 
-    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, bool arithmeticInputs,
-        bool canPrepareComputation) : AwkBuiltinImplementation
+    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, bool arithmeticInputs) : AwkBuiltinImplementation
     {
         internal override bool ConsumesArithmeticInputs => arithmeticInputs;
-        // These builtins do not queue diagnostics or mutate records themselves.
-        // Operand effects and their retained values belong to the executing caller.
-        internal bool CanPrepareComputation => canPrepareComputation;
 
         internal AwkValue EvaluateBound(AwkValue[] values, int start, int count, AwkEvaluationContext context) =>
             evaluator(new AwkBuiltinContext(null, values, count, context, start));
-
-        internal AwkValue EvaluatePrepared(IReadOnlyList<AwkExpression> originalArguments,
-            IReadOnlyList<AwkSynchronousExpression> operands, AwkEvaluationContext context)
-        {
-            using var buffer = AwkValueBuffer.Rent(operands.Count, context.State);
-            for (var index = 0; index < operands.Count; index++)
-                buffer.Set(index, arithmeticInputs
-                    ? operands[index].EvaluateArithmeticArgumentSynchronous(context)
-                    : operands[index].EvaluateSynchronous(context));
-            return evaluator(new AwkBuiltinContext(originalArguments, buffer.Values, operands.Count, context));
-        }
 
         private ValueTask<AwkValue> EvaluateArgument(AwkExpression argument, AwkEvaluationContext context) =>
             arithmeticInputs ? argument.EvaluateArithmeticArgumentAsync(context) : argument.EvaluateAsync(context);

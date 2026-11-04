@@ -22,7 +22,7 @@ public sealed class AwkGetlineDestinationTests
         host.AddFile("/data", "new\n");
         using var output = AwkTestHarness.CreateOutputSink();
         var io = CreateIo(host, state, limits, cancellation.Token);
-        var context = new AwkEvaluationContext(state, output, io);
+        var region = Bind(state, "getline <\"data\"");
         var canceledAdmission = false;
         memory.Budget.OnGrowth = bytes =>
         {
@@ -32,9 +32,7 @@ public sealed class AwkGetlineDestinationTests
             canceledAdmission = true;
             cancellation.Cancel();
         };
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => AwkGetlineRuntime.ExecuteAsync(
-            AwkGetlineTarget.CurrentRecord, AwkGetlineSource.Redirection(AwkExpression.Literal("data")),
-            context, new AwkExecutionContext(output, io), AwkPendingDiagnosticPolicy.Preserve).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, io, output));
         memory.Budget.OnGrowth = null;
         Assert.True(canceledAdmission);
         Assert.Equal("keep", state.CurrentRecordByteText.AsString());
@@ -54,7 +52,7 @@ public sealed class AwkGetlineDestinationTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task DestinationAdmissionFailurePrecedesOpeningTheInput(bool field, bool memory)
+    public async Task RefusedStoragePrecedesOpeningInputAndDestinationMutation(bool field, bool memory)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = CreateOptions(limits, AwkRuntimeCounters.Disabled);
@@ -66,20 +64,16 @@ public sealed class AwkGetlineDestinationTests
         if (!field && !memory)
             state.SetArrayAwkValue(array, new AwkArrayKey("kept"), AwkValue.FromNumber(7));
         var key = memory ? new string('k', 600) : "new";
-        var reference = field ? AwkReference.Field(AwkExpression.Number(30)) :
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(AwkExpression.Literal(key)));
+        var destination = field ? "$30" : "a[\"" + key + "\"]";
+        var region = Bind(state, "status=(getline " + destination + "<\"data\")");
         var host = new MockFileSystem();
         host.AddFile("/data", "record\n");
         using var output = AwkTestHarness.CreateOutputSink();
         var io = CreateIo(host, state, limits, CancellationToken.None);
-        var context = new AwkEvaluationContext(state, output, io);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
         ownedMemory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => AwkGetlineRuntime.ExecuteAsync(
-            AwkGetlineTarget.ReferenceTarget(reference),
-            AwkGetlineSource.Redirection(AwkExpression.Literal("data")),
-            context, new AwkExecutionContext(output, io), AwkPendingDiagnosticPolicy.Preserve).AsTask());
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, io, output));
 
         Assert.Equal("awk: memory limit exceeded\n",
             AwkUtf8Codec.Decode(error.MessageBytes));
@@ -120,17 +114,15 @@ public sealed class AwkGetlineDestinationTests
         };
         using var output = AwkTestHarness.CreateOutputSink();
         var io = CreateIo(host, state, limits, cancellation.Token);
-        var context = new AwkEvaluationContext(state, output, io);
+        var region = Bind(state, "status=(getline a[\"key\"]<\"data\")");
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, io, output));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => AwkGetlineRuntime.ExecuteAsync(
-            AwkGetlineTarget.ReferenceTarget(AwkReference.ArrayElement(array,
-                AwkArrayIndex.Simple(AwkExpression.Literal("key")))),
-            AwkGetlineSource.Redirection(AwkExpression.Literal("data")),
-            context, new AwkExecutionContext(output, io), AwkPendingDiagnosticPolicy.Preserve).AsTask());
 
         Assert.True(readEntered);
         Assert.True(state.TryPeekArrayAwkValue(array, key, out _));
         Assert.Equal(0, state.RecordNumber);
+        await io.CloseForCleanupAsync();
+        Assert.Equal(0, host.OpenFileCount);
     }
 
     [Fact]
@@ -139,19 +131,36 @@ public sealed class AwkGetlineDestinationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             CreateOptions(AwkRuntimeLimits.CreateDefault(), counters));
-        var array = new AwkArrayName(AwkVariableName.FromText("a").Identifier);
-        var target = AwkGetlineTarget.ReferenceTarget(AwkReference.ArrayElement(array,
-            AwkArrayIndex.Simple(AwkExpression.Literal("κ"))));
-        var context = new AwkEvaluationContext(state);
-
-        for (var index = 0; index < 200; index++)
-            _ = await target.ResolveAsync(context);
-
-        Assert.Equal(0, counters.StringDecodes);
+        using var ownedState = state;
+        var array = AwkArrayName.FromText("a");
+        var region = Bind(state, "for(i=0;i<200;i++)status=(getline a[\"κ\"]<\"data\")");
+        var host = new MockFileSystem();
+        host.AddFile("/data", "");
+        var io = CreateIo(host, state, state.Limits, CancellationToken.None);
+        using var output = AwkTestHarness.CreateOutputSink();
+        await region.ExecuteAsync(state, io, output);
+        var decodes = counters.StringDecodes; // The filename crosses the host boundary once.
+        await region.ExecuteAsync(state, io, output);
+        Assert.Equal(decodes, counters.StringDecodes);
+        Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("status")).AsNumber());
         Assert.True(state.TryGetExistingArrayCount(array, out var count));
         Assert.Equal(1, count);
         Assert.True(state.TryPeekArrayAwkValue(array, new AwkArrayKey("κ"), out var value));
         Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseAsync();
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    private static AwkRegion Bind(AwkRuntimeState state, string body)
+    {
+        var binding = AwkBinder.Bind(AwkParser.Parse("{" + body + "}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        return Assert.Single(program.MainActions);
     }
 
     private static AwkRuntimeOptions CreateOptions(AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>

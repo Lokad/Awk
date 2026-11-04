@@ -11,7 +11,7 @@ public sealed class AwkCooperativeCancellationTests
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             cancellation.Token, AwkRuntimeOptions.CreateSystemDefault());
         Assert.True(AwkBuiltins.TryGetCallable(name, out var definition));
-        Assert.True(definition.TryGetComputation(out var implementation));
+        Assert.True(definition.TryGetScalarComputation(out var implementation));
         var values = Enumerable.Repeat(AwkValue.FromNumber(1), 4096).ToArray();
         cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() =>

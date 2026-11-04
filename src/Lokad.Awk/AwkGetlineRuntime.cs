@@ -1,12 +1,4 @@
-using System.Threading.Tasks;
-
 namespace Lokad.Awk;
-
-internal enum AwkPendingDiagnosticPolicy
-{
-    Preserve,
-    Flush
-}
 
 internal static class AwkGetlineRuntime
 {
@@ -43,30 +35,4 @@ internal static class AwkGetlineRuntime
         }
     }
 
-    public static async ValueTask<AwkGetlineResult> ExecuteAsync(
-        AwkGetlineTarget target,
-        AwkGetlineSource source,
-        AwkEvaluationContext context,
-        AwkExecutionContext execution,
-        AwkPendingDiagnosticPolicy pendingDiagnosticPolicy)
-    {
-        var readMainInput = source.ReadsMainInput;
-        if (readMainInput)
-        {
-            await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
-        }
-        else if (pendingDiagnosticPolicy is AwkPendingDiagnosticPolicy.Flush)
-        {
-            await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
-        }
-
-        var resolvedSource = await source.ResolveAsync(context).ConfigureAwait(false);
-        using var sourceLease = context.State.MemoryAccounting.ReserveTransient(resolvedSource.RetainedNameBytes);
-        using var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
-        using var targetLease = context.State.MemoryAccounting.ReserveTransient(resolvedTarget.RetainedKeyBytes);
-        var result = await resolvedSource.ReadAsync(execution).ConfigureAwait(false);
-
-        ApplyResult(context.State, resolvedTarget, source.ReadsMainInput, result);
-        return result;
-    }
 }
