@@ -5,263 +5,209 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [Fact]
     public async Task CompositeFieldComponentsSurvivePendingIndexAndReusedRecordStorage()
     {
-        using var memory = State();
-        var state = memory.State;
+        await using var execution = new NativeArrayExecution(
+            "function selected(v){effects++;getline v<\"/index\";return v}BEGIN{values[$1,$(selected())]=7}",
+            true, new InputGate("/index", "2\n", true));
+        var state = execution.State;
         var original = "old tail"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(original, 0, original.Length));
-        var selector = new ValueSource(2, pending: true);
-        var effects = 0;
-        var index = AwkArrayIndex.Composite([
-            AwkExpression.FieldIndex(AwkExpression.Number(1)),
-            AwkExpression.FieldIndex(new EffectExpression(selector, () => effects++))]);
-        var pending = index.ResolveKeyAsync(new(state));
+        var pending = execution.Start();
+        await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(pending.IsCompleted);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("new selected"));
         Array.Fill(original, (byte)'z');
-        selector.Complete();
-        Assert.Equal(new AwkArrayKey("old" + (char)28 + "selected"), await pending);
-        Assert.Equal(1, effects);
-        Assert.Equal(1, selector.Consumptions);
+        execution.Inputs[0].Release.TrySetResult();
+        Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+        var name = AwkArrayName.FromText("values");
+        Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("old" + (char)28 + "selected")).AsNumber());
+        Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
+        Assert.Equal(1, execution.Reads);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        memory.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
     }
-
-    private static AwkArrayIndex LiteralField(int index) => AwkArrayIndex.Simple(
-        AwkExpression.FieldIndex(AwkExpression.Number(index)));
 
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task DynamicFieldSelectionCompletesBeforeTargetReadAndSurvivesPendingRight(bool pendingIndex, bool pendingRight)
     {
-        using var memory = State();
-        var state = memory.State;
+        var source = "function selected(v){selectors++;$0=\"selected row\";getline v<\"/index\";return v}" +
+            "function rhs(v){delete values[\"selected\"];$0=\"later row\";values[\"selected\"]=100;getline v<\"/rhs\";return v}" +
+            "BEGIN{result=(values[$(selected())]+=rhs())}";
+        await using var execution = new NativeArrayExecution(source, true,
+            new InputGate("/index", "1\n", pendingIndex), new InputGate("/rhs", "3\n", pendingRight));
+        var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("selected");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(11));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("earlier row"));
-        var selector = new ValueSource(1, pendingIndex);
-        var selectorEffects = 0;
-        var index = AwkArrayIndex.Simple(AwkExpression.FieldIndex(new EffectExpression(selector, () =>
-        {
-            selectorEffects++;
-            if (!pendingIndex) state.SetCurrentRecord(AwkText.FromSourceLiteralString("selected row"));
-        })));
-        var right = new ValueSource(3, pendingRight);
-        var update = AwkReference.ArrayElement(name, index).ApplyCompoundAssignmentAsync(new(state),
-            new EffectExpression(right, () =>
-            {
-                state.DeleteArrayValue(name, key);
-                state.SetCurrentRecord(AwkText.FromSourceLiteralString("later row"));
-                state.SetArrayAwkValue(name, key, AwkValue.FromNumber(100));
-            }), AwkCompoundAssignmentOperation.Add);
+        var run = execution.Start();
+        await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         if (pendingIndex)
         {
-            Assert.False(update.IsCompleted);
-            Assert.Equal(0, state.Counters.BorrowedFieldTargetSnapshots);
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString("selected row"));
-            selector.Complete();
+            Assert.False(execution.Inputs[1].Entered.Task.IsCompleted);
+            Assert.Equal(11, state.GetArrayAwkValue(name, key).AsNumber());
+            execution.Inputs[0].Release.TrySetResult();
         }
-        if (pendingRight) right.Complete();
-        Assert.Equal(14, (await update).AsNumber());
+        await execution.Inputs[1].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        if (pendingRight)
+        {
+            Assert.False(run.IsCompleted);
+            Assert.Equal(100, state.GetArrayAwkValue(name, key).AsNumber());
+            execution.Inputs[1].Release.TrySetResult();
+        }
+        Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(14, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(14, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("earlier")));
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("later")));
-        Assert.Equal(1, selectorEffects);
-        Assert.Equal(1, selector.Consumptions);
-        Assert.Equal(1, right.Consumptions);
-        Assert.Equal(1, state.Counters.BorrowedFieldTargetSnapshots);
+        Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("selectors")).AsNumber());
+        Assert.Equal(2, execution.Reads);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(false)] [InlineData(true)]
     public async Task LiteralFieldSnapshotSurvivesPendingRightAndRecordReuse(bool pending)
     {
-        using var memoryForState = State();
-        var state = memoryForState.State;
+        await using var execution = new NativeArrayExecution(
+            "function rhs(v){delete values[\"hit\"];$0=\"other record\";values[\"hit\"]=100;getline v<\"/rhs\";return v}" +
+            "BEGIN{result=(values[$1]+=rhs())}", true, new InputGate("/rhs", "3\n", pending));
+        var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         var bytes = "hit old"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
-        var rightSource = new ValueSource(3, pending);
-        var right = new EffectExpression(rightSource, () =>
-        {
-            Assert.Equal(1, state.Counters.BorrowedFieldTargetSnapshots);
-            state.DeleteArrayValue(name, key);
-            Array.Fill(bytes, (byte)'x');
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString("other record"));
-            state.SetArrayAwkValue(name, key, AwkValue.FromNumber(100));
-        });
-        var result = AwkReference.ArrayElement(name, LiteralField(1)).ApplyCompoundAssignmentAsync(
-            new(state), right, AwkCompoundAssignmentOperation.Add);
+        var run = execution.Start();
+        await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Array.Fill(bytes, (byte)'x');
         if (pending)
         {
-            Assert.False(result.IsCompleted);
+            Assert.False(run.IsCompleted);
             Assert.Equal(100, state.GetArrayAwkValue(name, key).AsNumber());
-            rightSource.Complete();
+            execution.Inputs[0].Release.TrySetResult();
         }
-        Assert.Equal(10, (await result).AsNumber());
+        Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(10, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("other")));
-        Assert.Equal(1, rightSource.Consumptions);
+        Assert.Equal(1, execution.Reads);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
     public async Task LiteralFieldSnapshotRightFailureKeepsOriginalText(bool pending, bool cancel)
     {
-        using var memoryForState = State();
-        var state = memoryForState.State;
+        await using var execution = new NativeArrayExecution(
+            "function rhs(v){getline v<\"/rhs\";return 1/0}BEGIN{result=(values[$1]+=rhs())}",
+            true, new InputGate("/rhs", "3\n", pending));
+        var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromText("007"));
+        state.SetArrayAwkValue(name, key, cancel ? AwkValue.FromNumber(7) : AwkValue.FromText("007"));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
-        var source = new ValueSource(3, true);
-        Exception error = cancel ? new OperationCanceledException() : new AwkRuntimeException("test RHS failure"u8.ToArray());
-        if (!pending) source.Fail(error);
-        var result = AwkReference.ArrayElement(name, LiteralField(1)).ApplyCompoundAssignmentAsync(new(state),
-            new EffectExpression(source, () => { }), AwkCompoundAssignmentOperation.Add);
+        execution.CancelOnReadCompletion = cancel;
+        var run = execution.Start();
+        await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         if (pending)
         {
-            Assert.False(result.IsCompleted);
-            source.Fail(error);
+            Assert.False(run.IsCompleted);
+            if (cancel) execution.Cancel();
+            execution.Inputs[0].Release.TrySetResult();
         }
-        var observed = await Record.ExceptionAsync(() => result.AsTask());
-        Assert.Same(error, observed);
-        Assert.Equal("007", state.GetArrayAwkValue(name, key).AsString());
-        Assert.Equal(1, state.Counters.BorrowedFieldTargetSnapshots);
-        Assert.Equal(1, source.Consumptions);
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+        else
+        {
+            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        }
+        Assert.Equal(cancel ? "7" : "007", state.GetArrayAwkValue(name, key).AsString());
+        Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
+        Assert.Equal(1, execution.Reads);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public async Task LiteralFieldSnapshotKeepsFullArrayHitsAndMissingRefusal(int mode, bool missing)
+    [InlineData(false, false)] [InlineData(true, false)] [InlineData(true, true)]
+    public async Task LiteralFieldTargetPreservesHitsAndRefusesMissingAdmission(bool governed, bool missing)
     {
-        var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance) { MemoryOwner = owner };
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        await using var execution = new NativeArrayExecution(
+            "function rhs(){effects++;return 3}BEGIN{result=(values[$" + (missing ? "2" : "1") + "]+=rhs())}", governed);
+        var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
-        var effects = 0;
-        var source = new ValueSource(3, false);
-        var target = AwkReference.ArrayElement(name, LiteralField(missing ? 2 : 1));
-        var right = new EffectExpression(source, () => effects++);
-        if (missing) budget.RefuseNextAdmissionMinimumGrowth = 1;
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(execution.Region);
         if (missing)
         {
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-                await target.ApplyCompoundAssignmentAsync(new(state), right, AwkCompoundAssignmentOperation.Add));
+            execution.Memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            var error = Assert.Throws<AwkRuntimeException>(() => execution.Region.Execute(state, storage));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.False(state.HasScalar(AwkVariableName.FromText("effects")));
+            Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
+            Assert.Equal(0, execution.Memory.Budget.GrowthAttemptsAfterRefusal);
         }
-        else Assert.Equal(10, (await target.ApplyCompoundAssignmentAsync(new(state), right, AwkCompoundAssignmentOperation.Add)).AsNumber());
-        Assert.Equal(missing ? 0 : 1, effects);
-        Assert.Equal(missing ? 0 : 1, source.Consumptions);
-        Assert.Equal(missing ? 0 : 1, counters.BorrowedFieldTargetSnapshots);
+        else
+        {
+            Assert.Equal(AwkStatementFlow.Continue, execution.Region.Execute(state, storage));
+            Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+            Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
+        }
         Assert.Equal(missing ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
         Assert.Same(record, state.CurrentRecordByteText);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        await owner.DisposeAsync();
-        Assert.Equal(0, budget.Reserved);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task LiteralFieldSnapshotMatchesOriginal(bool missing)
+    [InlineData(false)] [InlineData(true)]
+    public async Task LiteralFieldTargetPublishesExplicitHitAndMissingResults(bool missing)
     {
-        {
-            var fast = await RunFieldTarget(false, missing);
-            var original = await RunFieldTarget(true, missing);
-            Assert.Equal(original, fast with { Snapshots = original.Snapshots });
-            Assert.Equal(missing ? 0 : 1, fast.Snapshots);
-            Assert.Equal(0, original.Snapshots);
-        }
-    }
-
-    private static async Task<FieldTargetResult> RunFieldTarget(bool original, bool missing)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        await using var execution = new NativeArrayExecution(
+            "BEGIN{result=(values[$" + (missing ? "2" : "1") + "]+=3)}", false);
+        var state = execution.State;
         var name = AwkArrayName.FromText("values");
-        var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.SetArrayAwkValue(name, new AwkArrayKey("hit"), AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit missing"));
-        var effects = 0;
-        var source = new ValueSource(3, false);
-        var index = LiteralField(missing ? 2 : 1);
-        var error = "";
-        try
-        {
-            await AwkReference.ArrayElement(name, original ? new ForwardingFieldTarget(index) : index)
-                .ApplyCompoundAssignmentAsync(new(state), new EffectExpression(source, () => effects++), AwkCompoundAssignmentOperation.Add);
-        }
-        catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        var exists = state.TryPeekArrayAwkValue(name, new AwkArrayKey(missing ? "missing" : "hit"), out var value);
+        Assert.Equal(AwkStatementFlow.Continue, await execution.Start());
+        var expected = missing ? 3 : 10;
+        Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        Assert.Equal(expected, state.GetArrayAwkValue(name, new AwkArrayKey(missing ? "missing" : "hit")).AsNumber());
+        if (missing) Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("hit")).AsNumber());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        return new(exists, exists ? value.AsNumber() : 0, effects, counters.MemoryPeakLiveBytes, counters.BorrowedFieldTargetSnapshots, error);
     }
-
-    private sealed record ForwardingFieldTarget(AwkArrayIndex Inner) : AwkArrayIndex
-    {
-        public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) => Inner.ResolveKeyAsync(context);
-        internal override ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array, AwkArrayBinding binding = default) =>
-            Inner.ResolveTargetKeyAsync(context, array, binding);
-    }
-
-    private readonly record struct FieldTargetResult(bool Exists, double Value, int Effects, long Peak, long Snapshots, string Error);
 
     [Theory]
-    [InlineData(1.5)]
-    [InlineData(1)]
-    [InlineData(8)]
-    [InlineData(0)]
-    [InlineData(-1)]
+    [InlineData(1.5)] [InlineData(1)] [InlineData(8)] [InlineData(0)] [InlineData(-1)]
     public async Task ResolvedNumericFieldTargetIndicesPreserveUpdates(double number)
     {
-        var results = new List<(double Value, string Error)>();
-        foreach (var original in new[] { false, true })
+        var literal = number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await using var execution = new NativeArrayExecution("BEGIN{result=(values[$(" + literal + ")]+=3)}", true);
+        var state = execution.State;
+        var name = AwkArrayName.FromText("values");
+        const string record = "hit hit hit hit hit hit hit hit";
+        var key = new AwkArrayKey(number == 0 ? record : "hit");
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
+        var run = execution.Start();
+        if (number < 0)
         {
-            using var memoryForState = State();
-            var state = memoryForState.State;
-            var name = AwkArrayName.FromText("values");
-            const string record = "hit hit hit hit hit hit hit hit";
-            var key = new AwkArrayKey(number == 0 ? record : "hit");
-            state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
-            var index = AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number(number)));
-            var error = "";
-            try
-            {
-                await AwkReference.ArrayElement(name, original ? new ForwardingFieldTarget(index) : index)
-                    .ApplyCompoundAssignmentAsync(new(state), AwkExpression.Number(3), AwkCompoundAssignmentOperation.Add);
-            }
-            catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-            results.Add((state.GetArrayAwkValue(name, key).AsNumber(), error));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => run);
+            Assert.Equal("awk: negative field index\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
         }
-        Assert.Equal(results[1], results[0]);
-        Assert.Equal(number < 0 ? 7 : 10, results[0].Value);
-        Assert.Equal(number < 0 ? "awk: negative field index\n" : "", results[0].Error);
+        else
+        {
+            Assert.Equal(AwkStatementFlow.Continue, await run);
+            Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        }
+        Assert.Equal(number < 0 ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

@@ -62,13 +62,10 @@ or environment dependencies.
   Derive scalar language coordinates only when requested; do not restore core UTF-16 bookkeeping.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
   output and capture arrays should not partially mutate on failure.
-- Governed argument staging shares one implementation for its two concrete buffer types.
-  Execution state owns one cleared inactive array per type. Keep capacity funded; never reuse
-  active/pending buffers or evict/retry after refusal. Check cancellation after cold admission.
-- Ordinary and prepared user calls share reference-argument binding. Keep dynamic scalar
-  guards and caller scope; known local slots use the same array conversion as name lookup,
-  with name fallback when local bindings are hidden or unavailable. A replacement execution
-  representation must preserve these semantics, without retaining the particular hook hierarchy.
+- Builtins consume contiguous caller scratch; user arguments bind into admitted incoming
+  frames while evaluation remains in caller scope. Preserve argument order, live pending
+  storage, scalar captures and current array aliases. Bound locals retain name resolution
+  when local bindings are hidden or unavailable. Refusal fails the command without retry.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 

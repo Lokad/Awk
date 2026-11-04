@@ -95,12 +95,7 @@ internal sealed class AwkRuntimeCounters
 
     public long FieldsMaterialized { get; private set; }
 
-    public long SkippedEmptyStatementFlushes { get; private set; }
 
-    public void RecordSkippedEmptyStatementFlush()
-    {
-        if (_enabled) lock (_sync) SkippedEmptyStatementFlushes++;
-    }
     public long FieldListBufferReuses { get; private set; }
 
     public long FieldValueCacheBufferAllocations { get; private set; }
@@ -220,7 +215,6 @@ internal sealed class AwkRuntimeCounters
 
     public long StringInteropFallbacks { get; private set; }
 
-    public long SynchronousExpressionRuns { get; private set; }
 
     public long FunctionNameLookups { get; private set; }
     public void RecordFunctionNameLookup()
@@ -228,7 +222,6 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) FunctionNameLookups++;
     }
 
-    public long BoundScalarArguments { get; private set; }
 
     public long BoundScalarLengths { get; private set; }
 
@@ -323,11 +316,6 @@ internal sealed class AwkRuntimeCounters
         lock (_sync) NumericLocalReads++;
     }
 
-    public void RecordBoundScalarArgument()
-    {
-        if (!_enabled) return;
-        lock (_sync) BoundScalarArguments++;
-    }
 
     public long InlineFunctionFrames { get; private set; }
 
@@ -541,10 +529,6 @@ internal sealed class AwkRuntimeCounters
             StringInteropFallbacks++;
     }
 
-    public void RecordSynchronousExpression()
-    {
-        if (_enabled) lock (_sync) SynchronousExpressionRuns++;
-    }
 
     public void RecordHostCall()
     {

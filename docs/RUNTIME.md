@@ -240,8 +240,8 @@ values own their spelling. Array updates preserve captured keys/prior values and
 after RHS work. Borrowed byte spans remain local to synchronous consumption.
 Array membership consumes field bytes or a completed composite-key buffer synchronously;
 misses do not insert elements. Earlier key components remain owned across suspending calls.
-Unmigrated constructs retain existing interpretation and protection; diagnostic acceptance
-still precedes later effects. Cancellation is checked during preparation, bounded computation,
+All accepted programs use this interpreter; there is no retained tree evaluator or alternative
+execution backend. Diagnostic acceptance still precedes later effects. Cancellation is checked during preparation, bounded computation,
 calls and host interactions, including after admission callbacks and before mutation.
 Ordinary newline main input reuses two admitted buffers for small current records.
 Staging leaves the previous record intact until admission succeeds. Fields use scoped
@@ -277,15 +277,11 @@ Function argument/slot buffers are admitted before allocation. Cached frames and
 capacity remain funded until execution ends. Governed frames reuse cleared slot backing for
 matching layouts and retire incompatible inactive backing before admission. Unwinding releases
 active scalar payloads and clears references; retained backing keeps its own funding.
-Governed argument staging shares one implementation for values and typed user arguments,
-retaining one cleared, funded array per type at execution state. Matching arity reuses it;
-incompatible inactive capacity retires before new admission. Active/pending buffers stay
-separate. Payload charges end at consumption; capacity refunds at retirement or completion.
-Cold admission checks cancellation before allocation. Default execution uses the BCL pool;
-caller scope, argument order and callee frame activation are unchanged.
-Ordinary and prepared user calls share reference binding. Bound local arrays avoid resolving
-their parameter names again, while hidden or absent local bindings retain global resolution.
-Scalar values are still captured before later operands; arrays retain their alias semantics.
+Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted
+incoming frames; later argument evaluation remains in caller scope. Pending and nested calls
+retain separate active storage. Bound local arrays use their current parameter slots, with
+name resolution when local bindings are hidden or unavailable. Scalar captures and array aliases
+retain their distinct semantics; cancellation after admission precedes publication.
 Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
 loop body or comparator clears its original owner. These scoped estimates can temporarily count
 shared text twice; Awk does not track object aliases.
