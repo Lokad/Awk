@@ -46,9 +46,9 @@ public sealed class AwkRangeParagraphTests
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
 
-        var first = await cursor.ReadAsync();
-        var last = await cursor.ReadAsync();
-        var eof = await cursor.ReadAsync();
+        var first = await cursor.ReadRecordAsync();
+        var last = await cursor.ReadRecordAsync();
+        var eof = await cursor.ReadRecordAsync();
 
         Assert.True(first.RecordText.AsSpan().SequenceEqual("a\r\nbéx"u8));
         Assert.True(first.Terminator.ByteText.AsSpan().SequenceEqual("\r\n\r\n"u8));
@@ -109,12 +109,12 @@ public sealed class AwkRangeParagraphTests
             "a\n\nx\r\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
-        _ = await cursor.ReadAsync();
+        _ = await cursor.ReadRecordAsync();
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 2;
         state.MemoryAccounting.Reserve(pressure);
 
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await cursor.ReadAsync());
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await cursor.ReadRecordAsync());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
@@ -122,7 +122,7 @@ public sealed class AwkRangeParagraphTests
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
         state.MemoryAccounting.ReleaseReserved(pressure);
-        var record = await cursor.ReadAsync();
+        var record = await cursor.ReadRecordAsync();
         Assert.True(record.RecordText.EqualsAscii("x"));
         Assert.True(record.Terminator.ByteText.AsSpan().SequenceEqual("\r\n"u8));
         Assert.Single(host.ReadByteCounts);

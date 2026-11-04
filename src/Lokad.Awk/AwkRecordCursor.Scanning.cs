@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRecordCursor
 {
-    private BufferedReadResult TryReadBuffered(RecordSeparator separator, AwkRecordStorage? recordStorage)
+    private BufferedReadStatus TryReadBuffered(RecordSeparator separator, AwkRecordStorage? recordStorage)
     {
         var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
         if (_bufferStart == buffer.Length)
@@ -17,7 +17,7 @@ internal sealed partial class AwkRecordCursor
             ClearRegexInput();
             return _descriptorReachedEof
                 ? ParagraphEndOfFile(separator)
-                : BufferedReadResult.NeedMoreData;
+                : BufferedReadStatus.NeedMoreData;
         }
 
         var content = buffer.AsSpan()[_bufferStart..];
@@ -34,7 +34,7 @@ internal sealed partial class AwkRecordCursor
             _ => throw new InvalidOperationException("Unexpected awk record separator strategy.")
         };
 
-        BufferedReadResult TryReadCsvRecord(ReadOnlySpan<byte> content)
+        BufferedReadStatus TryReadCsvRecord(ReadOnlySpan<byte> content)
         {
             var start = GetRelativeScanStart(content);
             long nextCheckpoint = start;
@@ -58,7 +58,7 @@ internal sealed partial class AwkRecordCursor
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
 
-        BufferedReadResult TryReadNewlineRecord(ReadOnlySpan<byte> content, AwkRecordStorage? storage)
+        BufferedReadStatus TryReadNewlineRecord(ReadOnlySpan<byte> content, AwkRecordStorage? storage)
         {
             var scanStart = GetRelativeScanStart(content);
             var candidate = content[scanStart..];
@@ -82,7 +82,7 @@ internal sealed partial class AwkRecordCursor
                 AwkRecordFieldSplittingMode.Ordinary, storage);
         }
 
-        BufferedReadResult TryReadSingleByte(
+        BufferedReadStatus TryReadSingleByte(
             ReadOnlySpan<byte> content,
             SingleByteSeparator separator)
         {
@@ -104,7 +104,7 @@ internal sealed partial class AwkRecordCursor
                     AwkRecordFieldSplittingMode.Ordinary);
         }
 
-        BufferedReadResult TryReadByteSet(
+        BufferedReadStatus TryReadByteSet(
             ReadOnlySpan<byte> content,
             ByteSetSeparator separator)
         {
@@ -130,7 +130,7 @@ internal sealed partial class AwkRecordCursor
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
 
-        BufferedReadResult TryReadByteRun(
+        BufferedReadStatus TryReadByteRun(
             ReadOnlySpan<byte> content,
             ByteRunSeparator separator)
         {
@@ -175,7 +175,7 @@ internal sealed partial class AwkRecordCursor
                 _pendingSeparatorStart = _bufferStart + separatorIndex;
                 _pendingSeparatorEnd = _bufferStart + separatorEnd;
                 _scanOffset = _pendingSeparatorEnd;
-                return BufferedReadResult.NeedMoreData;
+                return BufferedReadStatus.NeedMoreData;
             }
 
             return ConsumeRecord(
@@ -184,7 +184,7 @@ internal sealed partial class AwkRecordCursor
                 AwkRecordTerminator.FromText(CreateText(content[separatorIndex..separatorEnd])),
                 AwkRecordFieldSplittingMode.Ordinary);
 
-            BufferedReadResult ContinueByteRun(
+            BufferedReadStatus ContinueByteRun(
                 ReadOnlySpan<byte> content,
                 ByteRunSeparator separator)
             {
@@ -205,7 +205,7 @@ internal sealed partial class AwkRecordCursor
                 _pendingSeparatorEnd = _bufferStart + separatorEnd;
                 _scanOffset = _pendingSeparatorEnd;
                 if (separatorEnd == content.Length && !_descriptorReachedEof)
-                    return BufferedReadResult.NeedMoreData;
+                    return BufferedReadStatus.NeedMoreData;
 
                 return ConsumeRecord(
                     content[..separatorStart],
@@ -215,7 +215,7 @@ internal sealed partial class AwkRecordCursor
             }
         }
 
-        BufferedReadResult TryReadLiteral(
+        BufferedReadStatus TryReadLiteral(
             ReadOnlySpan<byte> content,
             LiteralSeparator separator)
         {
@@ -240,12 +240,12 @@ internal sealed partial class AwkRecordCursor
                     AwkRecordFieldSplittingMode.Ordinary);
         }
 
-        BufferedReadResult TryReadRegex(RegexSeparator separator)
+        BufferedReadStatus TryReadRegex(RegexSeparator separator)
         {
             var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
             var input = GetRegexInput(buffer);
             if (input.ByteLength == _bufferStart && !_descriptorReachedEof)
-                return BufferedReadResult.NeedMoreData;
+                return BufferedReadStatus.NeedMoreData;
             var recordStart = _bufferStart;
             var searchOffset = recordStart;
             var regex = _hasConsumedDescriptorBytes ? separator.Continuing : separator.Value;
@@ -280,11 +280,11 @@ internal sealed partial class AwkRecordCursor
                             _state.CancellationCheckpoint),
                         remainingLength,
                         AwkRecordTerminator.Empty)
-                    : BufferedReadResult.NeedMoreData;
+                    : BufferedReadStatus.NeedMoreData;
             }
 
             if (!_descriptorReachedEof && match.ByteIndex + match.ByteLength == input.ByteLength)
-                return BufferedReadResult.NeedMoreData;
+                return BufferedReadStatus.NeedMoreData;
 
             var recordLength = match.ByteIndex - recordStart;
             var record = input.CopyByteSlice(
@@ -303,12 +303,12 @@ internal sealed partial class AwkRecordCursor
             var consumedLength = next - recordStart;
             _bufferStart += consumedLength;
             _hasConsumedDescriptorBytes |= consumedLength > 0;
-            return BufferedReadResult.FromRecord(AwkInputRecordResult.Record(
+            return PublishRecord(AwkInputRecordResult.Record(
                 record,
                 terminator,
                 AwkRecordFieldSplittingMode.Ordinary));
 
-            BufferedReadResult ConsumeExistingText(
+            BufferedReadStatus ConsumeExistingText(
                 AwkText record,
                 int consumedLength,
                 AwkRecordTerminator terminator)
@@ -316,7 +316,7 @@ internal sealed partial class AwkRecordCursor
                 _bufferStart += consumedLength;
                 _hasConsumedDescriptorBytes |= consumedLength > 0;
                 ResetSeparatorSearch();
-                return BufferedReadResult.FromRecord(AwkInputRecordResult.Record(
+                return PublishRecord(AwkInputRecordResult.Record(
                     record,
                     terminator,
                     AwkRecordFieldSplittingMode.Ordinary));
@@ -356,7 +356,7 @@ internal sealed partial class AwkRecordCursor
 
         }
 
-        BufferedReadResult TryReadParagraph(ReadOnlySpan<byte> content)
+        BufferedReadStatus TryReadParagraph(ReadOnlySpan<byte> content)
         {
             var previous = new ParagraphReadPosition(
                 _bufferStart, _scanOffset, _pendingSeparatorStart, _pendingSeparatorEnd,
@@ -381,7 +381,7 @@ internal sealed partial class AwkRecordCursor
             }
         }
 
-        BufferedReadResult ReadParagraph(ReadOnlySpan<byte> content)
+        BufferedReadStatus ReadParagraph(ReadOnlySpan<byte> content)
         {
             if (_pendingSeparatorStart >= 0)
                 return ContinueParagraphSeparator(content);
@@ -403,7 +403,7 @@ internal sealed partial class AwkRecordCursor
                     _paragraphLeaderScanLength = recordStart;
                     return _descriptorReachedEof
                         ? ParagraphEndOfFile(ParagraphSeparator.Instance)
-                        : BufferedReadResult.NeedMoreData;
+                        : BufferedReadStatus.NeedMoreData;
                 }
             }
 
@@ -417,7 +417,7 @@ internal sealed partial class AwkRecordCursor
                     ResetSeparatorSearch();
                 return _descriptorReachedEof
                     ? ParagraphEndOfFile(ParagraphSeparator.Instance)
-                    : BufferedReadResult.NeedMoreData;
+                    : BufferedReadStatus.NeedMoreData;
             }
 
             _paragraphLeaderScanLength = recordStart;
@@ -434,7 +434,7 @@ internal sealed partial class AwkRecordCursor
                 if (!_descriptorReachedEof)
                 {
                     MarkScannedThroughEnd(3);
-                    return BufferedReadResult.NeedMoreData;
+                    return BufferedReadStatus.NeedMoreData;
                 }
 
                 var recordLength = TrimTrailingRecordNewlines(content, _scanCheckpoint);
@@ -459,7 +459,7 @@ internal sealed partial class AwkRecordCursor
                 _pendingSeparatorStart = _bufferStart + recordStart + separatorIndex;
                 _pendingSeparatorEnd = _bufferStart + recordStart + separatorIndex + separatorLength;
                 _scanOffset = _pendingSeparatorEnd;
-                return BufferedReadResult.NeedMoreData;
+                return BufferedReadStatus.NeedMoreData;
             }
 
             var terminator = AwkRecordTerminator.FromText(CreateText(
@@ -470,7 +470,7 @@ internal sealed partial class AwkRecordCursor
                 terminator,
                 AwkRecordFieldSplittingMode.Paragraph);
 
-            BufferedReadResult ContinueParagraphSeparator(ReadOnlySpan<byte> content)
+            BufferedReadStatus ContinueParagraphSeparator(ReadOnlySpan<byte> content)
             {
                 var separatorStart = _pendingSeparatorStart - _bufferStart;
                 var separatorEnd = _pendingSeparatorEnd - _bufferStart;
@@ -493,7 +493,7 @@ internal sealed partial class AwkRecordCursor
                     (separatorEnd == content.Length ||
                         separatorEnd == content.Length - 1 && content[separatorEnd] == (byte)'\r'))
                 {
-                    return BufferedReadResult.NeedMoreData;
+                    return BufferedReadStatus.NeedMoreData;
                 }
 
                 var terminator = AwkRecordTerminator.FromText(CreateText(

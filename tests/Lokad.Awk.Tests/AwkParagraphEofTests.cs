@@ -80,9 +80,9 @@ public sealed class AwkParagraphEofTests
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
 
-        var eof = await cursor.ReadAsync();
+        var eof = await cursor.ReadRecordAsync();
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var repeated = await cursor.ReadAsync();
+        var repeated = await cursor.ReadRecordAsync();
 
         Assert.False(eof.HasRecord);
         Assert.True(eof.ClearsRecordTerminator);
@@ -106,11 +106,11 @@ public sealed class AwkParagraphEofTests
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
         for (var index = 0; index < 16; index++)
-            _ = await cursor.ReadAsync();
+            _ = await cursor.ReadRecordAsync();
         var before = GC.GetAllocatedBytesForCurrentThread();
 
         for (var index = 0; index < 1_000; index++)
-            _ = await cursor.ReadAsync();
+            _ = await cursor.ReadRecordAsync();
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
 #if DEBUG
@@ -152,11 +152,11 @@ public sealed class AwkParagraphEofTests
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn),
             retain ? AwkParagraphLeaderPolicy.Retain : AwkParagraphLeaderPolicy.Discard);
 
-        Assert.True((await cursor.ReadAsync()).ClearsRecordTerminator);
+        Assert.True((await cursor.ReadRecordAsync()).ClearsRecordTerminator);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         for (var index = 0; index < 5; index++)
         {
-            var eof = await cursor.ReadAsync();
+            var eof = await cursor.ReadRecordAsync();
             Assert.False(eof.HasRecord);
             Assert.Equal(retain, eof.ClearsRecordTerminator);
         }
@@ -174,7 +174,7 @@ public sealed class AwkParagraphEofTests
 
         state.AssignVariableValue(AwkVariableName.FromText("RS"),
             AwkValue.FromText(AwkText.FromSourceLiteralString("\n")));
-        var reinterpreted = await cursor.ReadAsync();
+        var reinterpreted = await cursor.ReadRecordAsync();
         Assert.Equal(retain, reinterpreted.HasRecord);
         if (retain)
             Assert.True(reinterpreted.RecordText.EqualsAscii(""));
@@ -200,12 +200,12 @@ public sealed class AwkParagraphEofTests
             {
                 GC.WaitForPendingFinalizers();
                 for (var index = 0; index < 16; index++)
-                    _ = cursor.ReadAsync().GetAwaiter().GetResult();
+                    _ = cursor.ReadRecordAsync().GetAwaiter().GetResult();
                 var committed = state.MemoryAccounting.CurrentCommittedBytes;
                 var before = GC.GetAllocatedBytesForCurrentThread();
                 for (var index = 0; index < 1_000; index++)
                 {
-                    var pending = cursor.ReadAsync();
+                    var pending = cursor.ReadRecordAsync();
                     if (!pending.IsCompletedSuccessfully || pending.Result.HasRecord)
                         throw new InvalidOperationException("Retained EOF must complete synchronously without a record.");
                 }
@@ -245,11 +245,11 @@ public sealed class AwkParagraphEofTests
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn),
             retain ? AwkParagraphLeaderPolicy.Retain : AwkParagraphLeaderPolicy.Discard);
 
-        await Assert.ThrowsAsync<AwkHostReadException>(() => cursor.ReadAsync().AsTask());
+        await Assert.ThrowsAsync<AwkHostReadException>(() => cursor.ReadRecordAsync().AsTask());
 
         Assert.True(state.CurrentRecordByteText.EqualsAscii("seed fields"));
         Assert.True(state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.EqualsAscii("marker"));
-        var recovered = await cursor.ReadAsync();
+        var recovered = await cursor.ReadRecordAsync();
         Assert.False(recovered.HasRecord);
         Assert.Equal(retain, recovered.ClearsRecordTerminator);
         Assert.Equal(3, host.ReadByteCounts.Count);
@@ -275,7 +275,7 @@ public sealed class AwkParagraphEofTests
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => cursor.ReadAsync().AsTask());
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => cursor.ReadRecordAsync().AsTask());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.True(state.CurrentRecordByteText.EqualsAscii("seed fields"));
@@ -310,7 +310,7 @@ public sealed class AwkParagraphEofTests
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
-        var pending = cursor.ReadAsync().AsTask();
+        var pending = cursor.ReadRecordAsync().AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));

@@ -8,6 +8,14 @@ namespace Lokad.Awk.Tests;
 
 internal static class AwkTestHarness
 {
+    // Semantic cursor tests consume the same one-shot production handoff.
+    // Completion/lifetime tests exercise MoveNextAsync and TakeRecord directly.
+    public static async ValueTask<AwkInputRecordResult> ReadRecordAsync(this IAwkInputRecordReader reader)
+    {
+        await reader.MoveNextAsync().ConfigureAwait(false);
+        return reader.TakeRecord();
+    }
+
     public static AwkExecutionPolicy CreatePolicy() =>
         AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
 

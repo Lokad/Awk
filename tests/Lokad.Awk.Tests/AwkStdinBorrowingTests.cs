@@ -118,8 +118,8 @@ public sealed class AwkStdinBorrowingTests
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
         var allocated = counters.AwkTextPayloadBytes;
         foreach (var expected in new[] { "a", "b", "c" })
-            Assert.Equal(expected, (await cursor.ReadAsync()).RecordText.AsString());
-        Assert.False((await cursor.ReadAsync()).HasRecord);
+            Assert.Equal(expected, (await cursor.ReadRecordAsync()).RecordText.AsString());
+        Assert.False((await cursor.ReadRecordAsync()).HasRecord);
         Assert.Equal(3, counters.AwkTextPayloadBytes - allocated);
         Assert.Equal(0, counters.RecordSeparatorBytesScanned);
         Assert.Equal(1, host.Reads);

@@ -110,7 +110,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), true, 4 << 10);
         using var cursor = new AwkRecordCursor(state, reader);
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
-            async () => await cursor.ReadAsync());
+            async () => await cursor.ReadRecordAsync());
 
         Assert.Equal(InvalidUtf8Diagnostic, AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(0, state.RecordNumber);

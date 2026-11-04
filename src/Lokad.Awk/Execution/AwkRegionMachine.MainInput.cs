@@ -64,12 +64,13 @@ internal partial struct AwkRegionMachine
         }
     }
 
-    private void CompleteMainRead(AwkInputRecordResult input)
+    private void CompleteMainRead(bool hasRecord)
     {
         _mainRead = default;
         _pending = Pending.None;
-        if (!input.HasRecord) { _finished = true; return; }
-        BeginMainRecord(input);
+        if (!hasRecord) { _finished = true; return; }
+        if (_mainInput is not { } input) throw new InvalidOperationException("A completed main read requires input.");
+        BeginMainRecord(input.TakeRecord());
     }
 
     internal void BeginMainRecord(AwkInputRecordResult input)

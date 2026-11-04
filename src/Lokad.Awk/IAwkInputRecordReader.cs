@@ -4,5 +4,8 @@ namespace Lokad.Awk;
 
 internal interface IAwkInputRecordReader
 {
-    ValueTask<AwkInputRecordResult> ReadAsync();
+    ValueTask<bool> MoveNextAsync();
+
+    // Consume metadata once after completion, before further reads or reentrant work.
+    AwkInputRecordResult TakeRecord();
 }

@@ -264,7 +264,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         var payloadBytes = counters.AwkTextPayloadBytes;
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
 
-        Assert.False((await cursor.ReadAsync()).HasRecord);
+        Assert.False((await cursor.ReadRecordAsync()).HasRecord);
 
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(payloadBytes, counters.AwkTextPayloadBytes);

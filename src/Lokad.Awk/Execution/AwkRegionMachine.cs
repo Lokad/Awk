@@ -18,7 +18,7 @@ internal partial struct AwkRegionMachine
     private bool _finished;
     private readonly AwkRegion[]? _mainActions;
     private readonly AwkInputScheduler? _mainInput;
-    private ValueTask<AwkInputRecordResult> _mainRead;
+    private ValueTask<bool> _mainRead;
     private AwkActionPhaseScope _recordPhase;
     private int _mainIndex;
 

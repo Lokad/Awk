@@ -60,7 +60,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         var byteReader = descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, byteReader);
-        var read = cursor.ReadAsync();
+        var read = cursor.MoveNextAsync();
         Assert.Equal(1, reads);
         if (pending)
         {
@@ -76,20 +76,23 @@ public sealed partial class AwkNewlineCursorCompletionTests
 
         if (outcome <= 1)
         {
-            var result = await read;
+            Assert.Equal(outcome == 0, await read);
+            var result = cursor.TakeRecord();
             Assert.Equal(outcome == 0, result.HasRecord);
             if (outcome == 0)
             {
                 Assert.Equal("café", result.RecordText.AsString());
                 Assert.Equal(AwkRecordTerminator.NewLine, result.Terminator);
                 Assert.Equal(AwkRecordFieldSplittingMode.Ordinary, result.FieldSplittingMode);
-                var final = await cursor.ReadAsync();
+                Assert.True(await cursor.MoveNextAsync());
+                var final = cursor.TakeRecord();
                 Assert.Equal("last", final.RecordText.AsString());
                 Assert.Equal(AwkRecordTerminator.Empty, final.Terminator);
                 Assert.Equal(2, reads);
                 Assert.Equal(11, counters.BytesRead);
             }
-            Assert.False((await cursor.ReadAsync()).HasRecord);
+            Assert.False(await cursor.MoveNextAsync());
+            Assert.False(cursor.TakeRecord().HasRecord);
             Assert.Equal(outcome == 0 ? 2 : 1, reads);
         }
         else

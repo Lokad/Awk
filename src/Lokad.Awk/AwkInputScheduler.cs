@@ -38,9 +38,12 @@ internal sealed class AwkInputScheduler(
             input.Cursor.PreserveBorrowedInput(releaseDescriptor: true);
     }
 
-    public ValueTask<AwkInputRecordResult> ReadAsync() => ReadAsync(null);
+    public AwkInputRecordResult TakeRecord() =>
+        _currentInput is { } input ? input.Cursor.TakeRecord() : AwkInputRecordResult.EndOfFile;
 
-    private ValueTask<AwkInputRecordResult> ReadAsync(AwkRecordStorage? storage)
+    public ValueTask<bool> MoveNextAsync() => MoveNextAsync(null);
+
+    private ValueTask<bool> MoveNextAsync(AwkRecordStorage? storage)
     {
         if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInBeginFile);
@@ -48,56 +51,57 @@ internal sealed class AwkInputScheduler(
         if (_mainInputReadProhibition == MainInputReadProhibition.EndFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInEndFile);
 
-        if (state.ExitRequested) return ValueTask.FromResult(AwkInputRecordResult.EndOfFile);
+        if (state.ExitRequested) return ValueTask.FromResult(false);
         if (_currentInput is not { } input)
             return AdvanceInputAsync(storage, default, hasRead: false);
 
         if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
-        var pending = input.Cursor.ReadAsync(storage);
+        var pending = input.Cursor.MoveNextAsync(storage);
         if (pending.IsCompletedSuccessfully)
         {
-            var record = pending.Result;
-            if (record.HasRecord)
+            if (pending.Result)
             {
                 state.Checkpoint();
-                return ValueTask.FromResult(record);
+                return ValueTask.FromResult(true);
             }
-            pending = ValueTask.FromResult(record);
+            pending = ValueTask.FromResult(false);
         }
         return AdvanceInputAsync(storage, pending, hasRead: true);
     }
 
-    private async ValueTask<AwkInputRecordResult> AdvanceInputAsync(AwkRecordStorage? storage,
-        ValueTask<AwkInputRecordResult> pending, bool hasRead)
+    private async ValueTask<bool> AdvanceInputAsync(AwkRecordStorage? storage,
+        ValueTask<bool> pending, bool hasRead)
     {
         while (!state.ExitRequested)
         {
             if (!hasRead)
             {
                 if (_currentInput is null && !await TryOpenNextInputAsync().ConfigureAwait(false))
-                    return AwkInputRecordResult.EndOfFile;
+                    return false;
                 var input = _currentInput ??
                     throw new InvalidOperationException("Main input was not initialized after a successful open.");
                 if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
-                pending = input.Cursor.ReadAsync(storage);
+                pending = input.Cursor.MoveNextAsync(storage);
             }
-            var record = await pending.ConfigureAwait(false);
-            if (record.HasRecord)
+            if (await pending.ConfigureAwait(false))
             {
                 state.Checkpoint();
-                return record;
+                return true;
             }
 
+            var completedInput = _currentInput ??
+                throw new InvalidOperationException("A completed read requires an input cursor.");
+            var record = completedInput.Cursor.TakeRecord();
             if (record.ClearsRecordTerminator)
                 state.SetRecordTerminator(AwkRecordTerminator.Empty);
 
             var endFileFlow = await CompleteCurrentInputAsync(EndFileAction.Execute).ConfigureAwait(false);
             if (endFileFlow == AwkStatementFlow.ExitProgram)
-                return AwkInputRecordResult.EndOfFile;
+                return false;
             hasRead = false;
         }
 
-        return AwkInputRecordResult.EndOfFile;
+        return false;
 
         async ValueTask<bool> TryOpenNextInputAsync()
         {
@@ -268,7 +272,7 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    internal ValueTask<AwkInputRecordResult> ReadForProcessingAsync() => ReadAsync(state.InputRecordStorage);
+    internal ValueTask<bool> ReadForProcessingAsync() => MoveNextAsync(state.InputRecordStorage);
 
     internal ValueTask<AwkStatementFlow> CompleteActionAsync(AwkStatementFlow flow) =>
         CompleteCurrentInputAsync(flow == AwkStatementFlow.ExitProgram ? EndFileAction.Skip : EndFileAction.Execute);
