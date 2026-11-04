@@ -538,7 +538,6 @@ public sealed class AwkPublicBoundaryTests
     [Fact]
     public void Awk_InternalValueObjectsExposeNonNullDefaultViews()
     {
-        Assert.Empty(default(AwkAction).Statements);
         Assert.Equal(string.Empty, default(AwkSourceUnit).Text);
         Assert.Empty(default(AwkSourceUnit).Segments);
         Assert.Equal(string.Empty, default(AwkSourceName).Text);

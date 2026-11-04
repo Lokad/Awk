@@ -28,6 +28,16 @@ internal sealed class AwkRegion(
         finally { machine.Cleanup(); }
     }
 
+    // Phase/reentrant execution owns scratch separately from the continuing main driver.
+    internal async ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkIo io, AwkOutputSink output)
+    {
+        using var header = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.ScopedRegionStorageBytes);
+        state.ThrowIfCancellationRequested();
+        using var storage = new AwkRegionStorage(state);
+        using var context = state.PushExecutionContext(output, io);
+        return await ExecuteAsync(state, storage, output, io).ConfigureAwait(false);
+    }
+
     internal ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkRegionStorage storage,
         AwkOutputSink output, AwkIo io)
     {

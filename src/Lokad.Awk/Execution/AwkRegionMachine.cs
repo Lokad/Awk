@@ -19,7 +19,7 @@ internal partial struct AwkRegionMachine
     private int _destination;
     private AwkFunctionFrame? _enteringFrame;
     private bool _finished;
-    private readonly AwkAction[]? _mainActions;
+    private readonly AwkRegion[]? _mainActions;
     private readonly AwkInputScheduler? _mainInput;
     private ValueTask<AwkInputRecordResult> _mainRead;
     private AwkActionPhaseScope _recordPhase;

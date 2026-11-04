@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    internal AwkRegionMachine(AwkRuntimeState state, AwkAction[] actions, AwkRegionStorage storage,
+    internal AwkRegionMachine(AwkRuntimeState state, AwkRegion[] actions, AwkRegionStorage storage,
         AwkOutputSink output, AwkIo io, AwkInputScheduler? input = null)
     {
         _state = state;
@@ -57,8 +57,7 @@ internal partial struct AwkRegionMachine
                 // File-hook-only programs still publish records and counters.
                 if (actions.Length == 0) continue;
             }
-            ref readonly var action = ref actions[_mainIndex];
-            var region = action.Region ?? throw new InvalidOperationException("An action has not been prepared.");
+            var region = actions[_mainIndex];
             _cursor = new(region, _rootStorage, 0, null);
             Initialize();
             return;

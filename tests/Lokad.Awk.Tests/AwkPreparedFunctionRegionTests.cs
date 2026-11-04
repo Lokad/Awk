@@ -378,122 +378,135 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task PendingArgumentKeepsTheWholeScalarActionOnItsOriginalPath(bool cancel, bool multiple)
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task PendingArgumentsPreserveCallerAndEarlierEffects(bool governed, bool cancel, bool multiple)
     {
-        var program = Bind(Functions + " function pair(x,y){return x+y} BEGIN{i=inc(i);total=twice(7)}");
-        var functions = program.Functions.ToDictionary(p => p.Key, p => p.Value);
-        var reads = new AwkGlobalReadLayout(program.GlobalNames, null);
+        var argument = "((getline incoming<\"/side\")?incoming:0)";
+        var call = multiple ? "pair(inc(7)," + argument + ")" : "twice(" + argument + ")";
+        var program = Bind(Functions + " function pair(x,y){return x+y}" +
+            "function outer(x){i=inc(i);total=" + call + ";caller=x}BEGIN{outer(42)}");
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(2L << 20);
+        await using var owner = governed ? AwkExecutionMemoryOwner.Create(budget, cancellation.Token) : AwkExecutionMemoryOwner.Disabled;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, owner);
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
         var i = AwkVariableName.FromText("i");
         var total = AwkVariableName.FromText("total");
-        Assert.True(reads.TryGetIndex(i, out var indexSlot));
-        Assert.True(reads.TryGetIndex(total, out var totalSlot));
-        using var cancellation = new CancellationTokenSource();
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token);
-        state.InitializeGlobalReadSlots(reads.Count);
-        state.InitializeFunctions(functions);
+        var x = AwkVariableName.FromText("x");
         state.AssignVariableValue(i, AwkValue.FromNumber(5));
         state.AssignVariableValue(total, AwkValue.FromNumber(5));
-        var x = AwkVariableName.FromText("x");
-        state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
-        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var operand = new PendingOperand(completion.Task);
-        var action = new AwkAction(
-            [AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(i, indexSlot),
-                AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), [AwkExpression.PreparedGlobalVariable(i, indexSlot)])),
-             AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(total, totalSlot),
-                multiple
-                    ? AwkExpression.FunctionCall(AwkFunctionName.FromText("pair"),
-                        [AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), [AwkExpression.Number(7)]), operand])
-                    : AwkExpression.FunctionCall(AwkFunctionName.FromText("twice"), [operand]))]);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entries = 0;
         var host = new MockFileSystem();
+        host.AddFile("/side", "7\n");
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
+        {
+            entries++;
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var pending = action.ExecuteAsync(state, io, output).AsTask();
+        var pending = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(pending.IsCompleted);
             Assert.Equal(6, state.ResolveVariableValue(i).AsNumber());
             Assert.Equal(5, state.ResolveVariableValue(total).AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
             state.AssignVariableValue(x, AwkValue.FromNumber(43));
-            if (cancel) cancellation.Cancel();
-            completion.SetResult(AwkValue.FromNumber(7));
-            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
-            else Assert.Equal(AwkStatementFlow.Continue, await pending);
+            if (cancel)
+            {
+                cancellation.Cancel();
+                Assert.False(pending.IsCompleted);
+                if (governed) Assert.True(budget.Reserved > 0);
+            }
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
+            else Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(6, state.ResolveVariableValue(i).AsNumber());
             Assert.Equal(cancel ? 5 : multiple ? 15 : 9, state.ResolveVariableValue(total).AsNumber());
-            Assert.Equal(43, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(1, operand.Entries);
-            Assert.Equal(multiple ? 1 : 0, counters.FunctionArgumentBufferRents);
+            Assert.Equal(cancel ? 0 : 43, state.ResolveVariableValue(AwkVariableName.FromText("caller")).AsNumber());
+            Assert.Equal(1, entries);
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
-            completion.TrySetResult(AwkValue.FromNumber(7));
+            release.TrySetResult();
             try { await pending; } catch (OperationCanceledException) when (cancel) { }
-            state.PopFunctionFrame();
-            await io.CloseAsync();
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            await owner.DisposeAsync();
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
         }
-        Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, true)]
-    [InlineData(true, true, true)]
-    public async Task CancellationInsideCallRegionsPreservesCallerAndRefunds(bool governed, bool scalarAction, bool multiple)
+    [InlineData(false, false, false)] [InlineData(true, false, false)]
+    [InlineData(false, true, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(true, false, true)]
+    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    public async Task CancellationDuringCallArgumentsPreservesCompletedUpdates(bool governed, bool scalarAction, bool multiple)
     {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(2L << 20);
+        await using var owner = governed ? AwkExecutionMemoryOwner.Create(budget, cancellation.Token) : AwkExecutionMemoryOwner.Disabled;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, owner);
+        var body = "total+=inc(" + (multiple ? "1," : "") + "next_value())";
+        var program = Bind((multiple ? "function inc(x,y){return x+y}" : "function inc(x){return x+1}") +
+            "function next_value(v){getline v<\"/side\";return v}BEGIN{" +
+            (scalarAction ? body + ";" + body + ";" + body : "for(i=0;i<8;i++){" + body + "}") + "}");
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        var i = AwkVariableName.FromText("i");
+        var total = AwkVariableName.FromText("total");
+        state.AssignVariableValue(total, AwkValue.FromNumber(5));
+        if (scalarAction) state.AssignVariableValue(i, AwkValue.FromNumber(2));
+        var host = new MockFileSystem();
+        host.AddFile("/side", "7\n7\n7\n");
+        var reads = 0;
+        ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
         {
-            var budget = new CooperativeTestBudget(2L << 20);
-            await using (var owner = governed ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None)
-                : AwkExecutionMemoryOwner.Disabled)
-            {
-                using var cancellation = new CancellationTokenSource();
-                var counters = AwkRuntimeCounters.CreateEnabled();
-                var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, owner);
-                var functions = Bind((multiple ? "function inc(x,y){return x+y}" : "function inc(x){return x+1}") +
-                    " BEGIN{}").Functions.ToDictionary(p => p.Key, p => p.Value);
-                state.InitializeFunctions(functions);
-                var i = AwkVariableName.FromText("i");
-                var total = AwkVariableName.FromText("total");
-                var reads = new AwkGlobalReadLayout(new HashSet<AwkVariableName> { i, total }, null);
-                Assert.True(reads.TryGetIndex(i, out var indexSlot));
-                Assert.True(reads.TryGetIndex(total, out var totalSlot));
-                state.InitializeGlobalReadSlots(reads.Count);
-                state.AssignVariableValue(total, AwkValue.FromNumber(5));
-                if (scalarAction) state.AssignVariableValue(i, AwkValue.FromNumber(2));
-                var index = AwkExpression.PreparedGlobalVariable(i, indexSlot);
-                var indexTarget = AwkReference.PreparedGlobalScalar(i, indexSlot);
-                var evaluations = 0;
-                var operand = new CancelingOperand(() => { if (++evaluations == 3) cancellation.Cancel(); });
-                var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(total, totalSlot), AwkExpression.Add(
-                    AwkExpression.PreparedGlobalVariable(total, totalSlot), AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), multiple
-                        ? [AwkExpression.Number(1), operand] : [operand])));
-                var loop = AwkStatement.For(AwkStatement.Assignment(indexTarget, AwkExpression.Number(0)), new(AwkExpression.Compare(index, AwkExpression.Number(8), AwkComparison.LessThan)), AwkStatement.PostIncrement(indexTarget), [body]);
-                var action = new AwkAction([body, body, body]);
-                var host = new MockFileSystem();
-                var io = Io(state, host, counters);
-                using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-                var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-                    await (scalarAction ? action.ExecuteAsync(state, io, output) : loop.ExecuteAsync(new(state, output, io))));
-                Assert.Equal(cancellation.Token, error.CancellationToken);
-                Assert.Equal(3, evaluations);
-                Assert.Equal(21, state.ResolveVariableValue(total).AsNumber());
-                Assert.Equal(2, state.ResolveVariableValue(i).AsNumber());
-                Assert.False(state.IsInsideFunction);
-                Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-                await io.CloseAsync();
-            }
+            if (++reads == 3) cancellation.Cancel();
+            host.ReadAsyncOverride = null;
+            var result = host.ReadAsync(descriptor, Math.Min(maximum, 2), CancellationToken.None);
+            host.ReadAsyncOverride = Read;
+            return result;
+        }
+        host.ReadAsyncOverride = Read;
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        try
+        {
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.Equal(3, reads);
+            Assert.Equal(21, state.ResolveVariableValue(total).AsNumber());
+            Assert.Equal(2, state.ResolveVariableValue(i).AsNumber());
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally
+        {
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            await owner.DisposeAsync();
+            Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);
         }
     }
@@ -787,15 +800,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             Entries++;
             return new(completion);
-        }
-    }
-
-    private sealed class CancelingOperand(Action evaluate) : AwkSynchronousExpression
-    {
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
-        {
-            evaluate();
-            return AwkValue.FromNumber(7);
         }
     }
 

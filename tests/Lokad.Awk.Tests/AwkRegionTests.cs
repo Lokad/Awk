@@ -140,7 +140,7 @@ public sealed partial class AwkRegionTests
         fixture.State.InitializeGlobalNames(program.GlobalNames);
         fixture.State.InitializeGlobalReadSlots(program.GlobalReadCount);
         fixture.State.InitializeFunctions(program.Functions);
-        var region = Assert.Single(program.BeginActions).Region ?? throw new InvalidOperationException("The action was not prepared.");
+        var region = Assert.Single(program.BeginActions);
         using var storage = new AwkRegionStorage(fixture.State);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         // This intentionally CPU-bound loop must not occupy a worker needed to

@@ -10,22 +10,22 @@ internal readonly struct AwkProgram
         new ReadOnlyDictionary<AwkFunctionName, AwkUserFunction>(
             new Dictionary<AwkFunctionName, AwkUserFunction>());
 
-    private readonly AwkAction[]? _beginActions;
-    private readonly AwkAction[]? _mainActions;
-    private readonly AwkAction[]? _endActions;
-    private readonly AwkAction[]? _beginFileActions;
-    private readonly AwkAction[]? _endFileActions;
+    private readonly AwkRegion[]? _beginActions;
+    private readonly AwkRegion[]? _mainActions;
+    private readonly AwkRegion[]? _endActions;
+    private readonly AwkRegion[]? _beginFileActions;
+    private readonly AwkRegion[]? _endFileActions;
     private readonly IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? _functions;
     private readonly FrozenSet<AwkVariableName>? _globalNames;
 
     public static AwkProgram Empty => default;
 
     public AwkProgram(
-        IReadOnlyList<AwkAction> beginActions,
-        IReadOnlyList<AwkAction> mainActions,
-        IReadOnlyList<AwkAction> endActions,
-        IReadOnlyList<AwkAction> beginFileActions,
-        IReadOnlyList<AwkAction> endFileActions,
+        IReadOnlyList<AwkRegion> beginActions,
+        IReadOnlyList<AwkRegion> mainActions,
+        IReadOnlyList<AwkRegion> endActions,
+        IReadOnlyList<AwkRegion> beginFileActions,
+        IReadOnlyList<AwkRegion> endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         IReadOnlySet<AwkVariableName>? globalNames = null,
         int globalReadCount = 0, int rangeCount = 0)
@@ -51,15 +51,15 @@ internal readonly struct AwkProgram
         RangeCount = rangeCount;
     }
 
-    public AwkAction[] BeginActions => _beginActions ?? [];
+    public AwkRegion[] BeginActions => _beginActions ?? [];
 
-    public AwkAction[] MainActions => _mainActions ?? [];
+    public AwkRegion[] MainActions => _mainActions ?? [];
 
-    public AwkAction[] EndActions => _endActions ?? [];
+    public AwkRegion[] EndActions => _endActions ?? [];
 
-    public AwkAction[] BeginFileActions => _beginFileActions ?? [];
+    public AwkRegion[] BeginFileActions => _beginFileActions ?? [];
 
-    public AwkAction[] EndFileActions => _endFileActions ?? [];
+    public AwkRegion[] EndFileActions => _endFileActions ?? [];
 
     public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions =>
         _functions ?? EmptyFunctions;

@@ -26,6 +26,12 @@ Pending output/publication fixtures bind source;
 they preserve actual borrows, cancellation ordering and refunds without injecting old bodies.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.
+`AwkControlRegionTests` binds source for loop and conditional checks: explicit branch values,
+refusal before assignment/increment, mandatory first do-iteration, cancellation before entry,
+and genuine pending reads without replay. Ordinary/governed cases retain execution context
+and funding until an ignoring host completes, then require cleanup and refunds. Call-argument
+cases preserve earlier updates and live caller values across the same host boundary; they
+also check cancellation during a later input argument after two completed updates.
 `AwkSortingContinuationTests` checks pending comparator calls through the shared function frames,
 including nested sorts, deleted source arrays, captured values, destination publication,
 refused admission, ignored cancellation and final refunds. Counters verify that asort/asorti

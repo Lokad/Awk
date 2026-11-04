@@ -73,7 +73,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     }
 
     private async ValueTask<AwkStatementFlow> ExecutePhaseActionsAsync(
-        AwkAction[] actions,
+        AwkRegion[] actions,
         AwkActionPhase phase,
         AwkRuntimeState state,
         AwkIo io)

@@ -128,7 +128,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var call = "step(" + string.Join(",", Enumerable.Repeat("1", arguments)) + ")";
         var parametersSource = "function step(" + parameters + "){x=1;return x}{total=" + call + "}";
         var program = Bind(parametersSource);
-        Assert.NotNull(program.MainActions[0].Region);
+        Assert.Single(program.MainActions);
         Assert.Equal(expected, program.Functions[AwkFunctionName.FromText("step")].Region is not null);
     }
     [Fact]

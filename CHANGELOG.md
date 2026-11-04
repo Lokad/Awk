@@ -2,14 +2,15 @@
 
 ## Unreleased
 
+- Store prepared rules directly and remove the old action wrapper and statement-list
+  execution entry. Phase and reentrant execution retain separate funded scratch.
+
 - Delete retired tree lowerers and test-only comparison passes. Call and field-processing
   checks use prepared programs, real host suspension and explicit expected behavior.
-
 
 - Delete the retired synchronous-function optimizer, recursive tree preparation and its
   function counter. Native call, cancellation, mutation-preflight and return-value checks
   cover the retained contracts.
-
 
 - Separate source literals, getline syntax and diagnostic construction from retired
   tree lowering. Builtin destinations validate location shape; the common compiler binds

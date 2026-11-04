@@ -11,7 +11,9 @@ public sealed class AwkProgramTests
     [Fact]
     public void AwkProgram_CopiesCallerOwnedCollections()
     {
-        var beginActions = new List<AwkAction> { new([]) };
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{}"));
+        Assert.True(binding.Success);
+        var beginActions = new List<AwkRegion> { Assert.Single(binding.Program.Program.BeginActions) };
         var firstFunctionName = AwkFunctionName.FromText("first");
         var secondFunctionName = AwkFunctionName.FromText("second");
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
@@ -27,20 +29,6 @@ public sealed class AwkProgramTests
         Assert.Single(program.BeginActions);
         Assert.Single(program.Functions);
         Assert.Contains(firstFunctionName, program.Functions.Keys);
-    }
-
-    [Fact]
-    public async Task AwkAction_CopiesCallerOwnedStatementList()
-    {
-        var statements = new List<AwkStatement> { AwkStatement.Exit(AwkOptionalExpression.None) };
-        var action = new AwkAction(statements);
-        statements.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        using var output = AwkTestHarness.CreateOutputSink();
-
-        var flow = await action.ExecuteAsync(state, CreateIo(), output);
-
-        Assert.Equal(AwkStatementFlow.ExitProgram, flow);
     }
 
     [Fact]

@@ -39,11 +39,11 @@ internal static partial class AwkProgramLowerer
                 : AwkLoweringResult.Failure(syntax, "Expected awk pattern or action.");
         }
 
-        var beginActions = new List<AwkAction>();
-        var mainActions = new List<AwkAction>();
-        var endActions = new List<AwkAction>();
-        var beginFileActions = new List<AwkAction>();
-        var endFileActions = new List<AwkAction>();
+        var beginActions = new List<AwkRegion>();
+        var mainActions = new List<AwkRegion>();
+        var endActions = new List<AwkRegion>();
+        var beginFileActions = new List<AwkRegion>();
+        var endFileActions = new List<AwkRegion>();
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>(syntax.Functions.Count);
         var globalReads = new AwkGlobalReadLayout(globalNames, checkpoint);
 
@@ -135,9 +135,9 @@ internal static partial class AwkProgramLowerer
                 new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout));
         }
 
-        static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex) =>
+        static AwkLoweringOutcome<AwkRegion> LowerRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex) =>
             AwkRegionCompiler.TryCompileRule(rule, scope, rangeIndex, out var region, out var diagnostic)
-                ? AwkLoweringOutcome<AwkAction>.Success(new AwkAction(region))
-                : AwkLoweringOutcome<AwkAction>.Failure(diagnostic);
+                ? AwkLoweringOutcome<AwkRegion>.Success(region)
+                : AwkLoweringOutcome<AwkRegion>.Failure(diagnostic);
     }
 }

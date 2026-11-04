@@ -4,7 +4,7 @@ namespace Lokad.Awk.Tests;
 // record, so refusal/cancellation can inspect state without retaining an old loop.
 internal sealed class AwkRecordTestExecution : IDisposable
 {
-    private readonly AwkAction[] _actions;
+    private readonly AwkRegion[] _actions;
     private readonly AwkOutputSink _output;
     private readonly AwkRegionStorage _storage;
 

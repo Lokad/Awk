@@ -90,7 +90,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
         var host = new MockFileSystem(); var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var region = Assert.IsType<AwkRegion>(program.MainActions[0].Region);
+        var region = Assert.Single(program.MainActions);
         using var scratch = new AwkRegionStorage(state);
         scratch.Prepare(region.Layout);
         using var execution = state.PushExecutionContext(output, io);
