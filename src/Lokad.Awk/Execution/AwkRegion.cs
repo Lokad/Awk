@@ -1,6 +1,6 @@
 namespace Lokad.Awk;
 
-// Migration representation: bound computation regions, not a selectable backend.
+// The interpreter's bound computation representation, not a selectable backend.
 // The syntax compiler emits operands once; execution does not revisit expression trees.
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,

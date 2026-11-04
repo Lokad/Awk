@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Consume bound numeric comparison operands directly, preserving value origins and
+  the captured left value across right-operand admission or mutation.
 - Run prepared rules, computation and calls through the common interpreter, with explicit
   function continuations for actual host suspension and separate scratch for reentrant phases.
 - Replace recursive source preparation with explicit work stacks. Remove retired action and

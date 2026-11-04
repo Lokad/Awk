@@ -25,7 +25,7 @@ internal static class AwkComparisonOperations
         return EvaluateTextComparison(state.CompareByteText(left.Text(state), right.Text(state)), comparison);
     }
 
-    private static bool EvaluateNumbers(double leftNumber, double rightNumber, AwkComparison comparison)
+    internal static bool EvaluateNumbers(double leftNumber, double rightNumber, AwkComparison comparison)
     {
         return comparison switch
         {

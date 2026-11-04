@@ -2,8 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
-// Lowering covers scalar/array computation, direct calls and synchronous builtins. Unmigrated constructs
-// remain an explicit migration boundary; there are no arity/block-size/script guards.
+// Prepare the interpreter's operands, effects and control flow without arity,
+// block-size or script-shape eligibility guards.
 internal sealed partial class AwkRegionCompiler
 {
     private readonly AwkLoweringScope _scope;

@@ -96,6 +96,32 @@ public sealed class AwkGlobalNumericLeafTests
         Assert.Equal(0, state.Counters.Utf8Encodes);
     }
 
+    [Fact]
+    public void ComparisonKeepsLeftNumberAcrossRightFieldAdmission()
+    {
+        using var memory = State();
+        var state = memory.State;
+        var name = AwkVariableName.FromText("x");
+        var region = Bind(state, "(x<NF)");
+        state.AssignVariableValue(name, AwkValue.FromNumber(2));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("one two"));
+        using var storage = new AwkRegionStorage(state);
+        Assert.Equal(0, Read(region, state, storage));
+
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("field", 300))));
+        var admitted = false;
+        memory.Budget.OnGrowth = _ =>
+        {
+            memory.Budget.OnGrowth = null;
+            admitted = true;
+            state.AssignVariableValue(name, AwkValue.FromNumber(999));
+        };
+        Assert.Equal(1, Read(region, state, storage));
+        Assert.True(admitted);
+        Assert.Equal(999, state.ResolveVariableValue(name).AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private static double Read(AwkRegion region, AwkRuntimeState state, AwkRegionStorage storage)
     {
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));

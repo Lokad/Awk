@@ -358,9 +358,28 @@ internal partial struct AwkRegionMachine
                         numbers[instruction.Left], numbers[instruction.Right], (AwkCompoundAssignmentOperation)instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Compare:
-                    numbers[instruction.Target] = AwkComparisonOperations.Evaluate(
-                        ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, state) ? 1 : 0;
+                {
+                    var comparison = (AwkComparison)instruction.Detail;
+                    bool result;
+                    if (TryNumberOperand(instruction.Left, out var leftNumber))
+                    {
+                        if (TryNumberOperand(instruction.Right, out var rightNumber))
+                            result = AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison);
+                        else
+                        {
+                            // Reading the RHS can admit storage and invoke a host callback.
+                            // Keep the captured left number even if that changes its source.
+                            var right = ComparisonOperand(instruction.Right);
+                            result = right.Value.TryGetNumber(out rightNumber)
+                                ? AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison)
+                                : AwkComparisonOperations.Evaluate(new(AwkValue.FromNumber(leftNumber)), right, comparison, state);
+                        }
+                    }
+                    else result = AwkComparisonOperations.Evaluate(
+                        ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), comparison, state);
+                    numbers[instruction.Target] = result ? 1 : 0;
                     break;
+                }
                 case AwkRegionInstructionKind.CompareText:
                     if (state.NumberParsingMode != AwkNumberParsingMode.Decimal)
                     {
@@ -714,6 +733,33 @@ internal partial struct AwkRegionMachine
         bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionArgument argument) => variable.Kind == AwkRegionVariableKind.Local
             ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.Index), variable.Name, out argument)
             : state.TryResolveArrayArgument(variable.Name, out argument);
+
+        // Only inspect already numeric storage here. Failed probes have no admission,
+        // insertion, conversion or diagnostic effects; the ordinary operand path owns those.
+        bool TryNumberOperand(int index, out double number)
+        {
+            var operand = operands[index];
+            if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
+            {
+                number = numbers[operand.Index];
+                return true;
+            }
+            if (operand.Kind == AwkRegionOperandKind.ValueTemporary && storage.Values[operand.Index].IsNumberValue)
+            {
+                number = storage.Values[operand.Index].AsNumber();
+                return true;
+            }
+            if (operand.Kind == AwkRegionOperandKind.Variable)
+            {
+                var variable = variables[operand.Index];
+                if (variable.Kind == AwkRegionVariableKind.Global)
+                    return state.TryResolvePreparedGlobalNumber(variable.Index, out number);
+                if (variable.Kind == AwkRegionVariableKind.Local && frame is not null)
+                    return TryLocalNumber(variable.Index, out number);
+            }
+            number = 0;
+            return false;
+        }
 
         AwkComparisonOperand ComparisonOperand(int index)
         {
