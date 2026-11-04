@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bind ordinary scalars and record headers to execution-owned storage, preserving
+  lazy creation, value origins and function-local special names. Check cancellation
+  requested during scalar admission before publishing a new name or value.
 - Consume bound numeric comparison operands directly, preserving value origins and
   the captured left value across right-operand admission or mutation.
 - Run prepared rules, computation and calls through the common interpreter, with explicit

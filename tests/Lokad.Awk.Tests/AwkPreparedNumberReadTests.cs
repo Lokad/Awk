@@ -27,16 +27,24 @@ public sealed class AwkPreparedNumberReadTests
     }
 
     [Fact]
-    public void ComputedFieldCountRetainsItsLiveValueAfterBinding()
+    public void ComputedFieldCountRetainsItsLiveValueInPreparedExecution()
     {
         using var memoryForState = State();
         var state = memoryForState.State;
-        var reference = AwkResolvedReference.PreparedGlobalScalar(AwkVariableName.FromText("NF"), 0);
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{result=+NF}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        using var storage = new AwkRegionStorage(state);
+        var action = Assert.Single(program.BeginActions);
+        var result = AwkVariableName.FromText("result");
         state.SetCurrentRecord(AwkText.FromString("old tail"));
-        Assert.Equal(2, reference.EvaluateNumber(state));
-        Assert.True(state.HasBoundGlobalScalar(0));
+        Assert.Equal(AwkStatementFlow.Continue, action.Execute(state, storage));
+        Assert.Equal(2, state.ResolveVariableValue(result).AsNumber());
         state.SetCurrentRecord(AwkText.FromString("next has three"));
-        Assert.Equal(3, reference.EvaluateNumber(state));
+        Assert.Equal(AwkStatementFlow.Continue, action.Execute(state, storage));
+        Assert.Equal(3, state.ResolveVariableValue(result).AsNumber());
         Assert.Equal(0, state.Counters.NumericGlobalReads);
     }
 
