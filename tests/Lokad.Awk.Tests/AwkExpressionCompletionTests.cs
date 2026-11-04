@@ -1,568 +1,187 @@
 using System.Threading.Tasks.Sources;
-using Xunit;
 
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkExpressionCompletionTests
 {
-    [Theory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, false, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(true, true, true, false)]
-    [InlineData(false, false, false, true)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, false, true)]
-    [InlineData(false, true, true, true)]
-    public async Task OperandsAreOrderedAndConsumedOnce(bool comparison, bool pendingLeft, bool pendingRight, bool numeric)
+    public static IEnumerable<object[]> Programs()
     {
-        var (state, counters) = CreateState();
-        var left = new ValueSource(2, pendingLeft);
-        var right = new ValueSource(3, pendingRight);
-        var expression = comparison
-            ? AwkExpression.Compare(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan)
-            : AwkExpression.Add(new SourceExpression(left), new SourceExpression(right));
-
-        var result = numeric
-            ? WrapNumberAsync(expression.ResolveNumberAsync(new AwkEvaluationContext(state)))
-            : expression.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingLeft)
+        var cases = new (string Body, string First, string Second, string Expected, int Reads)[]
         {
-            Assert.False(result.IsCompleted);
-            Assert.False(right.Started.Task.IsCompleted);
-            left.Complete();
-        }
-        await right.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        if (pendingRight)
-        {
-            Assert.False(result.IsCompleted);
-            right.Complete();
-        }
-
-        Assert.Equal(comparison ? 1 : 5, (await result).AsNumber());
-        Assert.Equal(1, left.Consumptions);
-        Assert.Equal(1, right.Consumptions);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task AssignmentWaitsForValueThenIndexBeforeMutation(bool pendingValue, bool pendingIndex)
-    {
-        var (state, counters) = CreateState();
-        var array = AwkArrayName.FromText("a");
-        var key = AwkArrayKey.FromOrdinal(2);
-        state.SetArrayString(array, key, "kept");
-        var value = new ValueSource(7, pendingValue);
-        var index = new ValueSource(2, pendingIndex);
-        var expression = AwkExpression.Assignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))), new SourceExpression(value));
-
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingValue)
-        {
-            Assert.False(index.Started.Task.IsCompleted);
-            Assert.Equal("kept", state.FormatStringByteText(state.GetArrayAwkValue(array, key)).AsString());
-            value.Complete();
-        }
-        await index.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        if (pendingIndex)
-        {
-            Assert.False(result.IsCompleted);
-            Assert.Equal("kept", state.FormatStringByteText(state.GetArrayAwkValue(array, key)).AsString());
-            index.Complete();
-        }
-
-        Assert.Equal(7, (await result).AsNumber());
-        Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(1, value.Consumptions);
-        Assert.Equal(1, index.Consumptions);
-    }
-
-    [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    [InlineData(4, false)]
-    [InlineData(4, true)]
-    public async Task FailedChildIsConsumedOnceAndStopsFollowingEffects(int operation, bool pending)
-    {
-        var (state, _) = CreateState();
-        var first = new ValueSource(2, pending: true);
-        var following = new ValueSource(3, pending: false);
-        var error = new AwkRuntimeException("test child failure"u8.ToArray());
-        if (!pending)
-            first.Fail(error);
-        var child = new SourceExpression(first);
-        var expression = operation switch
-        {
-            0 or 4 => AwkExpression.Add(child, new SourceExpression(following)),
-            1 => AwkExpression.Compare(child, new SourceExpression(following), AwkComparison.LessThan),
-            2 => AwkExpression.Assignment(AwkReference.Field(new SourceExpression(following)), child),
-            _ => child
+            ("result=first()+second();print result,order", "2", "3", "5 LR\n", 2),
+            ("print (first()<second()),order", "2", "3", "1 LR\n", 2),
+            ("if(first()<second())result=1;else result=0;print result,order", "4", "3", "0 LR\n", 2),
+            ("a[2]=\"kept\";result=(a[second()]=first());print result,a[2],order", "7", "2", "7 7 LR\n", 2),
+            ("a[2]=\"007\";result=(a[first()]+=mutating());print result,a[2],order", "2", "3", "10 10 LR\n", 2),
+            ("a[1]=\"007\";$0=\"key 3\";result=(a[first()]+=$(mutating()));print result,a[1],order", "1", "2", "10 10 LR\n", 2),
+            ("a[2]=\"007\";result=++a[first()];print result,a[2],typeof(result),order", "2", "", "8 8 number L\n", 1),
+            ("a[2]=\"007\";result=a[first()]++;print result,a[2],typeof(result),order", "2", "", "7 8 number L\n", 1),
+            ("a[2]=\"007\";result=--a[first()];print result,a[2],typeof(result),order", "2", "", "6 6 number L\n", 1),
+            ("a[2]=\"007\";result=a[first()]--;print result,a[2],typeof(result),order", "2", "", "7 6 number L\n", 1),
+            ("$0=\"one two\";result=$(first());print \"[\" result \"]\",order", "0", "", "[one two] L\n", 1),
+            ("$0=\"one two\";result=$(first());print \"[\" result \"]\",order", "1", "", "[one] L\n", 1),
+            ("$0=\"one two\";result=$(first());print \"[\" result \"]\",order", "3", "", "[] L\n", 1),
+            ("$0=\"one two\";print ($(first())==\"one\"),order", "1", "", "1 L\n", 1),
+            ("$0=\"one two\";if($(first())==\"one\")result=1;else result=0;print result,order", "3", "", "0 L\n", 1),
+            ("result=(arg(\"G\",0)&&arg(\"S\",1))||((first()&&arg(\"T\",1))||arg(\"F\",0));print result,order", "1", "", "1 GLT\n", 1),
+            ("result=(arg(\"G\",0)&&arg(\"S\",1))||((first()&&arg(\"T\",1))||arg(\"F\",0));print result,order", "0", "", "0 GLF\n", 1),
+            ("result=first()?second():arg(\"F\",5);print result,order", "1", "9", "9 LR\n", 2),
+            ("result=first()?second():arg(\"F\",5);print result,order", "0", "", "5 LF\n", 1),
+            ("$0=\"new 0008\";print ($(first())~/^0008$/),order", "2", "", "1 L\n", 1)
         };
-        var context = new AwkEvaluationContext(state);
-        Task result = operation == 4
-            ? expression.ResolveNumberAsync(context).AsTask()
-            : expression.EvaluateAsync(context).AsTask();
-        if (pending)
-            first.Fail(error);
-
-        Assert.Same(error, await Assert.ThrowsAsync<AwkRuntimeException>(() => result));
-        Assert.False(following.Started.Task.IsCompleted);
-        Assert.Equal(1, first.Consumptions);
+        foreach (var item in cases)
+        for (var mask = 0; mask < (1 << item.Reads); mask++)
+        foreach (var governed in new[] { false, true })
+            yield return [item.Body, item.First, item.Second, item.Expected, item.Reads, mask, governed];
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task CompoundUpdateReadsTargetBeforeRightHandEffects(bool pendingIndex, bool pendingValue)
+    [MemberData(nameof(Programs))]
+    public Task NativeOperandsKeepOrderAndConsumeActualHostReadsOnce(
+        string body, string first, string second, string expected, int reads, int pendingMask, bool governed) =>
+        Run(body, first, second, expected, reads, pendingMask, governed, "success");
+
+    public static IEnumerable<object[]> FailedPrograms()
     {
-        var (state, counters) = CreateState();
-        var array = AwkArrayName.FromText("a");
-        var key = AwkArrayKey.FromOrdinal(2);
-        state.SetArrayString(array, key, "7");
-        var index = new ValueSource(2, pendingIndex);
-        var value = new ValueSource(3, pendingValue);
-        var expression = AwkExpression.CompoundAssignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))), new EffectSourceExpression(value, () => state.SetArrayString(array, key, "100")), AwkCompoundAssignmentOperation.Add);
-
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingIndex)
+        foreach (var body in new[]
         {
-            Assert.False(value.Started.Task.IsCompleted);
-            Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
-            index.Complete();
-        }
-        await value.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        if (pendingValue)
-        {
-            Assert.False(result.IsCompleted);
-            Assert.Equal(100, state.GetArrayAwkValue(array, key).AsNumber());
-            value.Complete();
-        }
-
-        Assert.Equal(10, (await result).AsNumber());
-        Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(1, index.Consumptions);
-        Assert.Equal(1, value.Consumptions);
+            "result=bad()+late()", "result=(bad()<late())", "if(bad()&&late())print \"bad\"",
+            "$(late())=bad()", "a[2]=7;a[2]+=$(bad())", "$0=\"one two\";result=($(bad())==\"one\")",
+            "result=($(bad())~/^one$/)", "result=1+bad()", "result=(1==bad())"
+        })
+        foreach (var outcome in new[] { "runtime-fault", "host-fault", "cancel" })
+        foreach (var pending in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+            yield return [body, outcome, pending, governed];
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public async Task NumericUpdatesConsumeIndexOnceAndReturnNumericValues(bool decrement, bool post, bool pendingIndex)
+    [MemberData(nameof(FailedPrograms))]
+    public Task FailedOrCanceledChildStopsLaterEffectsAndUnwinds(
+        string body, string outcome, bool pending, bool governed) =>
+        Run(body, "2", "", "", 1, pending ? 1 : 0, governed, outcome);
+
+    private static async Task Run(string body, string first, string second, string expected,
+        int reads, int pendingMask, bool governed, string outcome)
     {
-        var (state, counters) = CreateState();
-        var array = AwkArrayName.FromText("a");
-        var key = AwkArrayKey.FromOrdinal(2);
-        state.SetArrayString(array, key, "007");
-        var index = new ValueSource(2, pendingIndex);
-        var target = AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index)));
-        var expression = (decrement, post) switch
+        using var cancellation = new CancellationTokenSource();
+        var host = new MockFileSystem();
+        host.AddFile("/first", first + "\n");
+        host.AddFile("/second", second + "\n");
+        var operations = Enumerable.Range(0, reads).Select(_ => new SingleConsumptionRead()).ToArray();
+        var readCount = 0;
+        host.ReadAsyncOverride = Read;
+        ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
         {
-            (true, true) => AwkExpression.PostDecrement(target),
-            (true, false) => AwkExpression.PreDecrement(target),
-            (false, true) => AwkExpression.PostIncrement(target),
-            _ => AwkExpression.PreIncrement(target)
-        };
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingIndex)
-        {
-            Assert.False(result.IsCompleted);
-            Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
-            index.Complete();
+            host.ReadAsyncOverride = null;
+            try
+            {
+                var value = host.ReadAsync(descriptor, maximum, token);
+                if (descriptor == AwkFileDescriptor.StdIn) return value;
+                Assert.True(value.IsCompletedSuccessfully);
+                var index = readCount++;
+                var operation = operations[index];
+                operation.Begin(value.Result);
+                if ((pendingMask & (1 << index)) == 0) Complete(operation);
+                return operation.Value;
+            }
+            finally { host.ReadAsyncOverride = Read; }
         }
-
-        var value = await result;
-        var updated = decrement ? 6 : 8;
-        Assert.True(value.IsNumberValue);
-        Assert.Equal(post ? 7 : updated, value.AsNumber());
-        Assert.Equal(updated, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(1, index.Consumptions);
-    }
-
-    [Theory]
-    [InlineData(0, false, "one two")]
-    [InlineData(0, true, "one two")]
-    [InlineData(1, false, "one")]
-    [InlineData(1, true, "one")]
-    [InlineData(3, false, "")]
-    [InlineData(3, true, "")]
-    public async Task DynamicFieldReadsWaitAndConsumeIndexOnce(int field, bool pendingIndex, string expected)
-    {
-        var (state, counters) = CreateState();
-        state.SetCurrentRecord(AwkText.FromString("one two"));
-        var index = new ValueSource(field, pendingIndex);
-        var expression = AwkExpression.FieldIndex(new SourceExpression(index));
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingIndex)
+        void Complete(SingleConsumptionRead operation)
         {
-            Assert.False(result.IsCompleted);
-            Assert.Equal(0, counters.FieldSplits);
-            index.Complete();
+            if (outcome == "cancel") cancellation.Cancel();
+            operation.Complete(outcome == "host-fault");
         }
-
-        Assert.Equal(expected, state.FormatStringByteText(await result).AsString());
-        Assert.Equal(1, index.Consumptions);
-        Assert.Equal(field == 0 ? 0 : 1, counters.FieldSplits);
-    }
-
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public async Task ConditionsKeepTruthinessOrderAndShortCircuiting(bool truthy, bool pending, bool general)
-    {
-        var (state, counters) = CreateState();
-        var chosen = new ValueSource(truthy ? 1 : 0, pending);
-        var guard = new ValueSource(0, pending: false);
-        var skipped = new ValueSource(1, pending: false);
-        var last = new ValueSource(1, pending: false);
-        var fallback = new ValueSource(0, pending: false);
-        AwkCondition condition = general
-            ? new(AwkExpression.LogicalOr(
-                AwkExpression.LogicalAnd(new SourceExpression(guard), new SourceExpression(skipped)),
-                AwkExpression.LogicalOr(
-                    AwkExpression.LogicalAnd(new SourceExpression(chosen), new SourceExpression(last)),
-                    new SourceExpression(fallback))))
-            : new(new SourceExpression(chosen));
-        var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pending)
-        {
-            Assert.False(result.IsCompleted);
-            Assert.False(last.Started.Task.IsCompleted);
-            Assert.False(fallback.Started.Task.IsCompleted);
-            chosen.Complete();
-        }
-
-        Assert.Equal(truthy, await result);
-        Assert.Equal(1, chosen.Consumptions);
-        Assert.False(skipped.Started.Task.IsCompleted);
-        if (general)
-        {
-            Assert.Equal(1, guard.Consumptions);
-            Assert.Equal(truthy, last.Started.Task.IsCompleted);
-            Assert.Equal(!truthy, fallback.Started.Task.IsCompleted);
-        }
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task FailedConditionsStopLaterClauses(bool pending, bool general)
-    {
-        var (state, _) = CreateState();
-        var first = new ValueSource(1, pending: true);
-        var later = new ValueSource(1, pending: false);
-        var error = new AwkRuntimeException("test condition failure"u8.ToArray());
-        if (!pending)
-            first.Fail(error);
-        AwkCondition condition = general
-            ? new(AwkExpression.LogicalAnd(new SourceExpression(first), new SourceExpression(later)))
-            : new(new SourceExpression(first));
-        var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pending)
-            first.Fail(error);
-
-        Assert.Same(error, await Assert.ThrowsAsync<AwkRuntimeException>(() => result.AsTask()));
-        Assert.False(later.Started.Task.IsCompleted);
-        Assert.Equal(1, first.Consumptions);
-    }
-
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public async Task ComparisonConditionsKeepOrderAndSingleConsumption(bool truthy, bool pendingLeft, bool pendingRight)
-    {
-        var (state, counters) = CreateState();
-        var left = new ValueSource(truthy ? 2 : 4, pendingLeft);
-        var right = new ValueSource(3, pendingRight);
-        var condition = new AwkCondition(AwkExpression.Compare(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan));
-        var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingLeft)
-        {
-            Assert.False(right.Started.Task.IsCompleted);
-            left.Complete();
-        }
-        await right.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        if (pendingRight)
-        {
-            Assert.False(result.IsCompleted);
-            right.Complete();
-        }
-        Assert.Equal(truthy, await result);
-        Assert.Equal(1, left.Consumptions);
-        Assert.Equal(1, right.Consumptions);
-    }
-
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public async Task ComparisonConditionFailuresStopOperandsAndConsumeOnce(bool pending, bool failRight, bool canceled)
-    {
-        var (state, _) = CreateState();
-        var failed = new ValueSource(2, pending: true);
-        var other = new ValueSource(3, pending: false);
-        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("test comparison failure"u8.ToArray());
-        if (!pending) failed.Fail(error);
-        var left = failRight ? new SourceExpression(other) : new SourceExpression(failed);
-        var right = failRight ? new SourceExpression(failed) : new SourceExpression(other);
-        var result = new AwkCondition(AwkExpression.Compare(left, right, AwkComparison.Equal))
-            .EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
-        if (pending) failed.Fail(error);
-        var observed = await Record.ExceptionAsync(() => result);
-        Assert.Same(error, observed);
-        Assert.Equal(1, failed.Consumptions);
-        Assert.Equal(failRight ? 1 : 0, other.Consumptions);
-        Assert.Equal(failRight, other.Started.Task.IsCompleted);
-    }
-
-    [Theory]
-    [InlineData(1, false, false)]
-    [InlineData(1, false, true)]
-    [InlineData(1, true, false)]
-    [InlineData(1, true, true)]
-    [InlineData(3, false, false)]
-    [InlineData(3, false, true)]
-    [InlineData(3, true, false)]
-    [InlineData(3, true, true)]
-    public async Task FieldLiteralComparisonsWaitForIndexAndConsumeItOnce(int field, bool pendingIndex, bool condition)
-    {
-        var (state, counters) = CreateState();
-        state.SetCurrentRecord(AwkText.FromString("one two"));
-        var index = new ValueSource(field, pendingIndex);
-        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)), AwkExpression.Literal("one"), AwkComparison.Equal);
-        var result = condition
-            ? expression.EvaluateConditionAsync(new AwkEvaluationContext(state))
-            : ReadNumericBooleanAsync(expression.EvaluateAsync(new AwkEvaluationContext(state)));
-        if (pendingIndex)
-        {
-            Assert.False(result.IsCompleted);
-            Assert.Equal(0, counters.FieldSplits);
-            index.Complete();
-        }
-        Assert.Equal(field == 1, await result);
-        Assert.Equal(1, index.Consumptions);
-        Assert.Equal(1, counters.ByteTextComparisons);
-
-        static async ValueTask<bool> ReadNumericBooleanAsync(ValueTask<AwkValue> pending)
-        {
-            var value = await pending;
-            Assert.True(value.IsNumberValue);
-            return value.AsNumber() != 0;
-        }
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task FieldLiteralComparisonIndexFailureDoesNotSplitOrEvaluateLiteral(bool pendingIndex, bool canceled)
-    {
-        var (state, counters) = CreateState();
-        state.SetCurrentRecord(AwkText.FromString("one two"));
-        var index = new ValueSource(1, pending: true);
-        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("test index failure"u8.ToArray());
-        if (!pendingIndex)
-            index.Fail(error);
-        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)), AwkExpression.Literal("one"), AwkComparison.Equal);
-        var result = expression.EvaluateConditionAsync(new AwkEvaluationContext(state)).AsTask();
-        if (pendingIndex)
-            index.Fail(error);
-        Assert.Same(error, await Record.ExceptionAsync(() => result));
-        Assert.Equal(1, index.Consumptions);
-        Assert.Equal(0, counters.FieldSplits);
-        Assert.Equal(0, counters.ByteTextComparisons);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task NumericFieldCompoundUpdateReadsTargetBeforePendingFieldIndex(bool pendingKey, bool pendingField)
-    {
-        var (state, counters) = CreateState();
-        var array = AwkArrayName.FromText("a");
-        var key = AwkArrayKey.FromOrdinal(1);
-        state.SetArrayString(array, key, "7");
-        state.SetCurrentRecord(AwkText.FromString("key 3"));
-        var targetIndex = new ValueSource(1, pendingKey);
-        var fieldIndex = new ValueSource(2, pendingField);
-        var rhs = AwkExpression.FieldIndex(new EffectSourceExpression(fieldIndex, () => state.SetArrayString(array, key, "100")));
-        var expression = AwkExpression.CompoundAssignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(targetIndex))), rhs, AwkCompoundAssignmentOperation.Add);
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        if (pendingKey)
-        {
-            Assert.False(fieldIndex.Started.Task.IsCompleted);
-            targetIndex.Complete();
-        }
-        await fieldIndex.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        if (pendingField)
-        {
-            Assert.False(result.IsCompleted);
-            Assert.Equal(100, state.GetArrayAwkValue(array, key).AsNumber());
-            fieldIndex.Complete();
-        }
-        Assert.Equal(10, (await result).AsNumber());
-        Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(1, targetIndex.Consumptions);
-        Assert.Equal(1, fieldIndex.Consumptions);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task NumericFieldIndexFailureDoesNotUpdateArrayOrSplitRecord(bool pendingIndex, bool canceled)
-    {
-        var (state, counters) = CreateState();
-        var array = AwkArrayName.FromText("a");
-        var key = AwkArrayKey.FromOrdinal(1);
-        state.SetArrayString(array, key, "7");
-        state.SetCurrentRecord(AwkText.FromString("key 3"));
-        var index = new ValueSource(2, pending: true);
-        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("numeric index failure"u8.ToArray());
-        if (!pendingIndex)
-            index.Fail(error);
-        var expression = AwkExpression.CompoundAssignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(AwkExpression.Number(1))),
-            AwkExpression.FieldIndex(new SourceExpression(index)), AwkCompoundAssignmentOperation.Add);
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
-        if (pendingIndex)
-            index.Fail(error);
-        Assert.Same(error, await Record.ExceptionAsync(() => result));
-        Assert.Equal(1, index.Consumptions);
-        Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(0, counters.FieldSplits);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    private sealed class EffectSourceExpression(ValueSource source, Action effect) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            effect();
-            return source.Start();
-        }
-    }
-
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task LiteralRegexConsumesSuspendingFieldIndexOnce(bool failure)
-    {
-        var (state, _) = CreateState();
+        var source = "function first(v){order=order \"L\";getline v<\"/first\";return v}" +
+            "function second(v){order=order \"R\";getline v<\"/second\";return v}" +
+            "function mutating(v){order=order \"R\";a[1]=100;a[2]=100;getline v<\"/second\";return v}" +
+            "function arg(tag,v){order=order tag;return v}" +
+            "function bad(v){getline v<\"/first\";return 1/0}" +
+            "function late(){print \"late\";return 1}" +
+            "BEGIN{print \"prefix\";" + body + ";print \"suffix\"}";
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
+        var run = tool.ExecuteAsync(host, policy, cancellation.Token);
         try
         {
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString("left 0007"));
-            var source = new ValueSource(2, pending: true);
-            var regex = state.CreateRegex(new AwkRegexPattern("^0008$"));
-            var expression = AwkExpression.RegexMatch(AwkExpression.FieldIndex(new SourceExpression(source)),
-                regex, AwkRegexMatchPolarity.Positive);
-            var pending = expression.EvaluateAsync(new AwkEvaluationContext(state));
-            await source.Started.Task;
-            Assert.False(pending.IsCompleted);
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString("new 0008"));
-            if (failure)
+            foreach (var operation in operations)
             {
-                source.Fail(new AwkRuntimeException("index failed"u8.ToArray()));
-                await Assert.ThrowsAsync<AwkRuntimeException>(async () => await pending);
+                await operation.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                if (operation.IsPending)
+                {
+                    Assert.False(run.IsCompleted);
+                    Assert.Equal("prefix\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                    if (governed) Assert.True(budget.Reserved > 0);
+                    if (outcome == "cancel")
+                    {
+                        cancellation.Cancel();
+                        Assert.False(run.IsCompleted);
+                    }
+                    Complete(operation);
+                }
             }
+            if (outcome == "cancel")
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             else
+                Assert.Equal(outcome == "success" ? AwkExitCode.Success : AwkExitCode.FatalError,
+                    await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal("prefix\n" + (outcome == "success" ? expected + "suffix\n" : ""), host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(outcome switch
             {
-                source.Complete();
-                Assert.Equal(1, (await pending).AsNumber());
-            }
-            Assert.Equal(1, source.Consumptions);
+                "host-fault" => "awk: execution failed without exposing host exception details\n",
+                "runtime-fault" => "awk: division by zero attempted\n",
+                _ => ""
+            }, host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(reads, readCount);
+            Assert.All(operations, operation => Assert.Equal(1, operation.Consumptions));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
         }
-        finally { state.Dispose(); }
+        finally
+        {
+            foreach (var operation in operations)
+                if (operation.IsPending) Complete(operation);
+            try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (OperationCanceledException) when (outcome == "cancel") { }
+        }
     }
 
-    private static (AwkRuntimeState State, AwkRuntimeCounters Counters) CreateState()
+    private sealed class SingleConsumptionRead : IValueTaskSource<AwkReadBuffer>
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
-    }
-
-    private static async ValueTask<AwkValue> WrapNumberAsync(ValueTask<double> pending) =>
-        AwkValue.FromNumber(await pending.ConfigureAwait(false));
-
-    private sealed class SourceExpression(ValueSource source) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => source.Start();
-    }
-
-    private sealed class ValueSource : IValueTaskSource<AwkValue>
-    {
-        private ManualResetValueTaskSourceCore<AwkValue> _source = new() { RunContinuationsAsynchronously = true };
-        private readonly AwkValue _value;
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private ManualResetValueTaskSourceCore<AwkReadBuffer> _completion = new() { RunContinuationsAsynchronously = true };
+        private AwkReadBuffer? _buffer;
+        private bool _completed;
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsPending => _buffer is not null && !_completed;
         public int Consumptions { get; private set; }
-
-        public ValueSource(double value, bool pending)
+        public ValueTask<AwkReadBuffer> Value => new(this, _completion.Version);
+        public void Begin(AwkReadBuffer buffer)
         {
-            _value = AwkValue.FromNumber(value);
-            if (!pending)
-                Complete();
+            Assert.Null(_buffer);
+            _buffer = buffer;
+            Entered.TrySetResult();
         }
-
-        public ValueTask<AwkValue> Start()
+        public void Complete(bool fail)
         {
-            Assert.True(Started.TrySetResult());
-            return new(this, _source.Version);
+            Assert.False(_completed);
+            _completed = true;
+            var buffer = _buffer ?? throw new InvalidOperationException("No host read entered.");
+            if (fail)
+            {
+                buffer.Dispose();
+                _completion.SetException(new IOException("private host failure"));
+            }
+            else _completion.SetResult(buffer);
         }
-
-        public void Complete() => _source.SetResult(_value);
-        public void Fail(Exception exception) => _source.SetException(exception);
-        public ValueTaskSourceStatus GetStatus(short token) => _source.GetStatus(token);
-        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags) =>
-            _source.OnCompleted(continuation, state, token, flags);
-        public AwkValue GetResult(short token)
+        public AwkReadBuffer GetResult(short token)
         {
             Assert.Equal(0, Consumptions++);
-            return _source.GetResult(token);
+            return _completion.GetResult(token);
         }
+        public ValueTaskSourceStatus GetStatus(short token) => _completion.GetStatus(token);
+        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags) =>
+            _completion.OnCompleted(continuation, state, token, flags);
     }
 }

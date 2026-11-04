@@ -181,27 +181,6 @@ internal abstract partial class AwkExpression
             AwkNumericOperations.Apply(leftValue, await pending.ConfigureAwait(false), operation);
     }
 
-    private sealed class NumberConversionExpression(AwkExpression expression) : AwkExpression
-    {
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
-    }
-
-    private sealed class NegateExpression(AwkExpression expression) : AwkExpression
-    {
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            AwkValue.FromNumber(-(await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
-    }
-
-    private sealed class NotExpression(AwkExpression expression) : AwkExpression
-    {
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy() ? 0 : 1);
-    }
-
     private class ComparisonExpression(
         AwkExpression left,
         AwkExpression right,
@@ -332,69 +311,6 @@ internal abstract partial class AwkExpression
             AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
     }
 
-    private sealed class LogicalExpression(
-        AwkExpression left,
-        AwkExpression right,
-        LogicalOperation operation) : AwkExpression
-    {
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            var leftTruthy = (await left.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy();
-            if (operation == LogicalOperation.And && !leftTruthy)
-                return AwkValue.FromNumber(0);
-
-            if (operation == LogicalOperation.Or && leftTruthy)
-                return AwkValue.FromNumber(1);
-
-            return AwkValue.FromNumber((await right.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy() ? 1 : 0);
-        }
-    }
-
-    private sealed class RegexMatchExpression(
-        AwkExpression valueExpression,
-        AwkExpression patternExpression,
-        AwkRegexMatchPolarity polarity) : AwkExpression
-    {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            var inputValue = (await valueExpression.EvaluateAsync(context).ConfigureAwait(false)).AsScalarCopy();
-            using var heldInput = context.State.MemoryAccounting.ReserveTransient(inputValue.RetainedTextMemoryBytes);
-            var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
-            var input = context.State.FormatStringByteText(inputValue, heldInput);
-            var matched = context.State.IsRegexMatch(
-                context.State.CreateRegex(pattern),
-                input);
-            return AwkValue.FromNumber(matched != (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
-        }
-    }
-
-    private sealed class PrecompiledRegexMatchExpression(
-        AwkExpression valueExpression,
-        AwkRegex regex,
-        AwkRegexMatchPolarity polarity) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            if (valueExpression.TryResolveSynchronousByteText(context, out var input))
-                return ValueTask.FromResult(Match(context, input));
-            var pending = valueExpression.ResolveByteTextAsync(context);
-            return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(Match(context, new AwkByteTextOperand(pending.Result)))
-                : AwaitInputAsync(context, pending);
-        }
-
-        private AwkValue Match(AwkEvaluationContext context, AwkByteTextOperand input) =>
-            AwkValue.FromNumber(context.State.IsRegexMatch(regex, input) !=
-                (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
-
-        private async ValueTask<AwkValue> AwaitInputAsync(AwkEvaluationContext context, ValueTask<AwkText> pending)
-        {
-            var input = await pending.ConfigureAwait(false);
-            return Match(context, new AwkByteTextOperand(input));
-        }
-    }
-
     private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName,
         AwkArrayBinding binding, Action? checkpoint = null) : AwkSynchronousExpression
     {
@@ -409,27 +325,4 @@ internal abstract partial class AwkExpression
             AwkValue.FromNumber(await indexExpression.ContainsAsync(context, arrayName, binding).ConfigureAwait(false) ? 1 : 0);
     }
 
-    private sealed class TernaryExpression(
-        AwkExpression condition,
-        AwkExpression whenTrue,
-        AwkExpression whenFalse) : AwkExpression
-    {
-
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            (await condition.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy()
-                ? await whenTrue.EvaluateAsync(context).ConfigureAwait(false)
-                : await whenFalse.EvaluateAsync(context).ConfigureAwait(false);
-    }
-
-    private enum LogicalOperation
-    {
-        And,
-        Or
-    }
-}
-
-internal enum AwkRegexMatchPolarity
-{
-    Positive,
-    Negated
 }

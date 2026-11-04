@@ -33,18 +33,6 @@ internal abstract record AwkReference
         target.AssignValue(context.State, value);
     }
 
-    internal async ValueTask<AwkResolvedSubstitutionTarget> ResolveSubstitutionTargetAsync(
-        AwkEvaluationContext context)
-    {
-        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
-        try
-        {
-            target.PrepareForSubstitution(context.State);
-            return AwkResolvedSubstitutionTarget.ReferenceTarget(target);
-        }
-        catch { target.Dispose(); throw; }
-    }
-
     public virtual ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context,
         AwkExpression value,

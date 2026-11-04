@@ -381,28 +381,21 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_RegexCaptureMemoryLimitFailsBeforeChangingMatchState()
+    public void Awk_MatchAdmissionFailurePreservesCaptureAndPositionState()
     {
         using var memoryForState = CreateGovernedState(1_000);
         var state = memoryForState.State;
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayString(arrayName, AwkArrayKey.FromOrdinal(1), "keep");
         SetMatchState(state, start: 41, length: 42);
-        var expression = CreateCaptureMatchExpression(arrayName);
-
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
-            () => expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask());
+        var exception = Assert.Throws<AwkRuntimeException>(() => AwkMatchRuntime.Execute(state,
+            AwkText.FromSourceLiteralString("abcd"), new AwkRegexPattern("(ab)(cd)"), new AwkArrayTarget(arrayName)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("keep", FormatArrayValue(state, arrayName, AwkArrayKey.FromOrdinal(1)));
         Assert.True(state.TryGetExistingArrayCount(arrayName, out var count));
         Assert.Equal(1, count);
         AssertMatchState(state, start: 41, length: 42);
-        var retainedTextBytes = AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.EstimateTextBytes(byteLength: 4),
-            AwkRuntimeMemory.CheckedAdd(
-                AwkRuntimeMemory.EstimateTextBytes(byteLength: 2),
-                AwkRuntimeMemory.EstimateTextBytes(byteLength: 2)));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -411,14 +404,13 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
-        var expression = AwkExpression.RegexMatch(
-            AwkExpression.Literal("abc"),
-            AwkExpression.Literal("a"),
-            AwkRegexMatchPolarity.Positive);
-
-        await Assert.ThrowsAsync<OperationCanceledException>(
-            () => expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask());
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print (\"abc\"~/a/)}"));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
     }
 
     [Fact]
@@ -1283,12 +1275,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
     private static string FormatVariableValue(AwkRuntimeState state, AwkVariableName name) =>
         state.FormatStringByteText(state.ResolveVariableValue(name)).AsString(state.Counters);
-
-    private static AwkExpression CreateCaptureMatchExpression(AwkArrayName arrayName) =>
-        AwkExpression.Match(
-            AwkExpression.Literal("abcd"),
-            AwkExpression.Literal("(ab)(cd)"),
-            new AwkArrayOperand.Named(arrayName, default));
 
     private static void SetMatchState(AwkRuntimeState state, int start, int length)
     {

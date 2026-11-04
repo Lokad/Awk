@@ -1,5 +1,3 @@
-using System.Threading.Tasks.Sources;
-
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkFieldLengthTests
@@ -7,7 +5,7 @@ public sealed class AwkFieldLengthTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AsciiLengthReadsAvoidFieldCopiesAndRetainedCacheGrowth(bool governed)
+    public void AsciiLengthReadsAvoidFieldCopiesAndRetainedCacheGrowth(bool governed)
     {
         using var memory = State(governed);
         var state = memory.State;
@@ -19,9 +17,8 @@ public sealed class AwkFieldLengthTests
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var allocations = counters.AwkTextAllocations;
         var values = counters.ValuesCreated;
-        var expression = Length(AwkExpression.Number(1));
         for (var index = 0; index < 100; index++)
-            Assert.Equal(4, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
+            Assert.Equal(4, state.CountFieldStringUnits(1));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(values, counters.ValuesCreated);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
@@ -37,7 +34,7 @@ public sealed class AwkFieldLengthTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NonAsciiReadsRetainTheExistingCachedValue(bool governed)
+    public void NonAsciiReadsRetainTheExistingCachedValue(bool governed)
     {
         using var memory = State(governed);
         var state = memory.State;
@@ -45,12 +42,11 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
         Assert.Equal(governed, memory.Budget.Reserved > 0);
-        var expression = Length(AwkExpression.Number(1));
-        Assert.Equal(4, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
+        Assert.Equal(4, state.CountFieldStringUnits(1));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var allocations = counters.AwkTextAllocations;
         for (var index = 0; index < 100; index++)
-            Assert.Equal(4, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
+            Assert.Equal(4, state.CountFieldStringUnits(1));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -59,89 +55,90 @@ public sealed class AwkFieldLengthTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task IndexEffectsCompleteBeforeReadingTheCurrentRecordAndConsumeOnce(bool pending)
+    [InlineData(false, "success")] [InlineData(true, "success")]
+    [InlineData(false, "fault")] [InlineData(true, "fault")]
+    [InlineData(false, "cancel")] [InlineData(true, "cancel")]
+    public async Task NativeIndexCompletionSelectsCurrentRecordAndFailureDoesNotSplit(bool suspend, string outcome)
     {
-        using var memory = State(true);
+        using var cancellation = new CancellationTokenSource();
+        using var memory = State(true, cancellation.Token);
         var state = memory.State;
-        var counters = state.Counters;
-        Assert.True(state.MemoryAccounting.IsEnabled);
-        state.SetCurrentRecord(AwkText.FromString("before"));
-        var source = new IndexSource(pending);
-        var expression = Length(new IndexExpression(source));
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        state.SetCurrentRecord(AwkText.FromString("after next"));
-        if (pending)
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("before"));
+        state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("function field(v){getline v<\"/side\";return " +
+            (outcome == "fault" ? "1/0" : "v") + "}BEGIN{target=length($(field()))}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        var host = new MockFileSystem();
+        host.AddFile("/side", "1\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
         {
-            Assert.False(result.IsCompleted);
-            source.Complete();
-        }
-        Assert.Equal(pending ? 5 : 6, (await result).AsNumber());
-        Assert.Equal(1, source.Consumptions);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        memory.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailedIndexDoesNotSplitOrChargeTheRecord(bool canceled)
-    {
-        using var memory = State(true);
-        var state = memory.State;
-        var counters = state.Counters;
-        Assert.True(state.MemoryAccounting.IsEnabled);
-        state.SetCurrentRecord(AwkText.FromString("before next"));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var source = new IndexSource(true);
-        var expression = Length(new IndexExpression(source));
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
-        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("index failure"u8.ToArray());
-        source.Fail(error);
-        var observed = await Record.ExceptionAsync(() => result.AsTask());
-        Assert.Same(error, observed);
-        Assert.Equal(1, source.Consumptions);
-        Assert.Equal(0, counters.FieldSplits);
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        memory.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
-    }
-
-    private static AwkExpression Length(AwkExpression index) =>
-        AwkExpression.Length(AwkExpression.FieldIndex(index), AwkOptionalIdentifier.None);
-
-    private sealed class IndexExpression(IndexSource source) : AwkExpression
-    {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => source.Start();
-    }
-
-    private sealed class IndexSource(bool pending) : IValueTaskSource<AwkValue>
-    {
-        private ManualResetValueTaskSourceCore<AwkValue> _source = Create(pending);
-        public int Consumptions { get; private set; }
-        private static ManualResetValueTaskSourceCore<AwkValue> Create(bool pending)
+            reads++;
+            entered.TrySetResult();
+            if (suspend) await release.Task.ConfigureAwait(false);
+            if (outcome == "cancel") cancellation.Cancel();
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
+        try
         {
-            var source = new ManualResetValueTaskSourceCore<AwkValue> { RunContinuationsAsynchronously = true };
-            if (!pending) source.SetResult(AwkValue.FromNumber(1));
-            return source;
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (suspend)
+            {
+                Assert.False(run.IsCompleted);
+                Assert.Equal(0, state.Counters.FieldSplits);
+                state.SetCurrentRecord(AwkText.FromSourceLiteralString("after next"));
+                if (outcome == "cancel") cancellation.Cancel();
+                Assert.False(run.IsCompleted);
+                Assert.True(memory.Budget.Reserved > 0);
+                release.TrySetResult();
+            }
+            if (outcome == "success")
+            {
+                Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+                Assert.Equal(suspend ? 5 : 6, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
+            }
+            else
+            {
+                if (outcome == "cancel")
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+                else
+                {
+                    var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+                    Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+                }
+                Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
+                Assert.Equal(0, state.Counters.FieldSplits);
+            }
+            Assert.Equal(1, reads);
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
-        public ValueTask<AwkValue> Start() => new(this, _source.Version);
-        public void Complete() => _source.SetResult(AwkValue.FromNumber(1));
-        public void Fail(Exception error) => _source.SetException(error);
-        public ValueTaskSourceStatus GetStatus(short token) => _source.GetStatus(token);
-        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags) =>
-            _source.OnCompleted(continuation, state, token, flags);
-        public AwkValue GetResult(short token)
+        finally
         {
-            Assert.Equal(0, Consumptions++);
-            return _source.GetResult(token);
+            release.TrySetResult();
+            try { await run; }
+            catch (AwkRuntimeException) when (outcome == "fault") { }
+            catch (OperationCanceledException) when (outcome == "cancel") { }
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            memory.Dispose();
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, memory.Budget.Reserved);
         }
     }
 
-    private static CooperativeTestMemory State(bool governed)
+    private static CooperativeTestMemory State(bool governed, CancellationToken token = default)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -149,6 +146,6 @@ public sealed class AwkFieldLengthTests
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
-            AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options)));
+            AwkFieldSeparatorSpec.Default, token, memory.Configure(options)));
     }
 }

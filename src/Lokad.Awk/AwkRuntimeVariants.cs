@@ -4,29 +4,6 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal abstract record AwkSubstitutionTarget
-{
-    public static AwkSubstitutionTarget CurrentRecord { get; } = new AwkCurrentRecordSubstitutionTarget();
-
-    public static AwkSubstitutionTarget ReferenceTarget(AwkReference reference) =>
-        new AwkReferenceSubstitutionTarget(reference);
-
-    /// <summary>Evaluates the mutable location once; its value is read at substitution.</summary>
-    public abstract ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context);
-}
-
-internal sealed record AwkCurrentRecordSubstitutionTarget : AwkSubstitutionTarget
-{
-    public override ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(AwkResolvedSubstitutionTarget.CurrentRecord);
-}
-
-internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : AwkSubstitutionTarget
-{
-    public override ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context) =>
-        Reference.ResolveSubstitutionTargetAsync(context);
-}
-
 internal readonly struct AwkResolvedSubstitutionTarget : IDisposable
 {
     private readonly AwkResolvedReference _reference;

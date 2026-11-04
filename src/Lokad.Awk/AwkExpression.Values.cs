@@ -117,83 +117,12 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldCountExpression : AwkSynchronousExpression
-    {
-        internal override bool PreservesRecordBytes => true;
-        public static readonly FieldCountExpression Instance = new();
-
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount);
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount));
-    }
-
-    private sealed class FieldNfExpression : AwkExpression
-    {
-        public static readonly FieldNfExpression Instance = new();
-
-        internal override ValueTask<AwkValue> EvaluateArithmeticArgumentAsync(AwkEvaluationContext context)
-        {
-            context.State.Checkpoint();
-            return ValueTask.FromResult(context.State.GetFieldArithmeticArgument(context.State.FieldCount));
-        }
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.FieldCount == 0
-                ? context.State.GetCurrentRecordValue()
-                : context.State.GetFieldValue(context.State.FieldCount));
-    }
-
-    private sealed class FieldZeroExpression : AwkExpression
-    {
-        public static readonly FieldZeroExpression Instance = new();
-
-        internal override bool TryResolveSynchronousByteText(AwkEvaluationContext context,
-            out AwkByteTextOperand operand)
-        {
-            context.State.Checkpoint();
-            operand = context.State.ResolveFieldByteOperand(0);
-            return true;
-        }
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.GetCurrentRecordValue());
-    }
-
-    private sealed class RecordNumberExpression : AwkExpression
-    {
-        public static readonly RecordNumberExpression Instance = new();
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber));
-    }
-
-    private sealed class FileRecordNumberExpression : AwkExpression
-    {
-        public static readonly FileRecordNumberExpression Instance = new();
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber));
-    }
-
-    private sealed class FileNameExpression : AwkExpression
-    {
-        public static readonly FileNameExpression Instance = new();
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FileName));
-    }
-
-    private sealed class LiteralExpression(string literal,
-        AwkRegexPatternOrigin patternOrigin = AwkRegexPatternOrigin.Runtime) : AwkSynchronousExpression
+    private sealed class LiteralExpression(string literal) : AwkSynchronousExpression
     {
         internal override bool PreservesRecordBytes => true;
         private readonly AwkText _literalText = AwkText.FromSourceLiteralString(literal);
 
         public AwkText LiteralText => _literalText;
-
-        internal override AwkRegexPatternOrigin RegexPatternOrigin => patternOrigin;
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.CreateByteTextValue(_literalText);
@@ -217,10 +146,8 @@ internal abstract partial class AwkExpression
     private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkSynchronousExpression
     {
         internal override bool PreservesRecordBytes => true;
-        internal bool IsBoundScalarFor(AwkRuntimeState state, AwkIdentifier identifier) =>
-            name.Identifier == identifier && state.HasBoundGlobalScalar(index);
-
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
+
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolvePreparedGlobalValue(name, index);
 

@@ -26,6 +26,15 @@ Pending output/publication fixtures bind source;
 they preserve actual borrows, cancellation ordering and refunds without injecting old bodies.
 Repeated-preparation counters cover constant values across multiple rules and recycled function
 frames, including nested calls, native field processing and final refunds.
+`AwkExpressionCompletionTests` uses actual single-consumption host reads through public
+execution for operand order, RHS-before-assignment-index order, captured updates, numeric
+increment origins, fields, comparisons, logical and ternary short-circuiting. Immediate and
+pending reads cover ordinary/governed execution; raw host faults, runtime failures and ignored
+cancellation stop later effects and close/refund actual users. The retired condition wrapper,
+logical depth/eligibility tests and paired old/new evaluator assertions are removed.
+`AwkPredicateRegionTests` retains byte-native computed-field checks and short-circuit effects.
+Native length fixtures retain cold unassigned and warm scalar/array behavior, allocation-free
+field lengths, current-record selection after a pending index, and no split on index failure.
 `AwkStatementCompletionTests` uses single-consumption host reads through public execution,
 covering immediate/pending completion before loop, return, next/nextfile and exit flow.
 Structured read failure remains recoverable `getline`; a faulted host operation produces a
@@ -104,6 +113,8 @@ per lookup, no insertion on misses, and live prefixes across pending calls and r
 Nested read/assignment/update cases include composite prefixes captured before a pending key
 or RHS call changes the record. They check actual pending funding, cancellation and cleanup;
 independent storage cases retain intermediate-child refusal and detached-owner repair coverage.
+Captured-path storage tests call the actual funded Begin/Append owner directly; obsolete nested
+expression/path resolution wrappers and their synchronous/asynchronous eligibility split are removed.
 Nested membership keeps the existing key-before-owner contract across suspended owner indices.
 Deletion evaluates every key before searching and does not create missing children; pinned
 GNU checks cover that distinction. Membership order has a documented GNU difference.

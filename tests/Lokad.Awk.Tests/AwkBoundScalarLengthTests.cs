@@ -3,59 +3,58 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBoundScalarLengthTests
 {
     [Fact]
-    public async Task BoundReadsKeepCurrentValuesAndRequireMatchingNames()
+    public void NativeLengthDistinguishesCurrentScalarsAndArrays()
     {
-        using var memoryForState = State();
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("s");
-        var array = AwkArrayName.FromText("a");
-        state.AssignPreparedGlobalValue(name, 0, AwkValue.FromText("abc"));
-        state.SetArrayAwkValue(array, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
-        var scalar = AwkExpression.PreparedGlobalVariable(name, 0);
-        var expression = AwkExpression.Length(scalar, AwkOptionalIdentifier.Some(name.Identifier));
-        var context = new AwkEvaluationContext(state);
-
-        Assert.Equal(3, (await expression.EvaluateAsync(context)).AsNumber());
-        state.AssignVariableValue(name, AwkValue.FromText("updated"));
-        Assert.Equal(7, (await expression.EvaluateAsync(context)).AsNumber());
-        Assert.Equal(2, state.Counters.BoundScalarLengths);
-
-        var mismatched = AwkExpression.Length(scalar, AwkOptionalIdentifier.Some(array.Identifier));
-        Assert.Equal(1, (await mismatched.EvaluateAsync(context)).AsNumber());
-        var arrayExpression = AwkExpression.Length(
-            AwkExpression.PreparedGlobalVariable(new(array.Identifier), 1), AwkOptionalIdentifier.Some(array.Identifier));
-        Assert.Equal(1, (await arrayExpression.EvaluateAsync(context)).AsNumber());
-        Assert.Equal(2, state.Counters.BoundScalarLengths);
-        Assert.False(state.HasBoundGlobalScalar(1));
+        using var memory = State();
+        var state = memory.State;
+        var region = Bind(state, "BEGIN{result=length(s);count=length(a)}");
+        state.AssignVariableValue(AwkVariableName.FromText("s"), AwkValue.FromText("abc"));
+        state.SetArrayAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
+        using var storage = new AwkRegionStorage(state);
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(3, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("count")).AsNumber());
+        var lengths = state.Counters.BoundScalarLengths;
+        state.AssignVariableValue(AwkVariableName.FromText("s"), AwkValue.FromText("updated"));
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(7, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("count")).AsNumber());
+        Assert.Equal(lengths + 1, state.Counters.BoundScalarLengths);
         Assert.Equal(0, state.Counters.StringDecodes);
         Assert.Equal(0, state.Counters.Utf8Encodes);
     }
 
     [Fact]
-    public async Task FirstMissingReadKeepsNormalResolutionBeforeBinding()
+    public void FirstMissingReadKeepsUnassignedSemanticsBeforeBinding()
     {
-        using var memoryForState = State();
-        var state = memoryForState.State;
-        var name = AwkVariableName.FromText("missing");
-        var expression = AwkExpression.Length(AwkExpression.PreparedGlobalVariable(name, 0),
-            AwkOptionalIdentifier.Some(name.Identifier));
-        var context = new AwkEvaluationContext(state);
-        Assert.False(state.HasBoundGlobalScalar(0));
-        Assert.Equal(0, (await expression.EvaluateAsync(context)).AsNumber());
-        Assert.Equal(0, state.Counters.BoundScalarLengths);
-        Assert.True(state.HasBoundGlobalScalar(0));
-        Assert.Equal(0, (await expression.EvaluateAsync(context)).AsNumber());
-        Assert.Equal(1, state.Counters.BoundScalarLengths);
+        using var memory = State();
+        var state = memory.State;
+        var region = Bind(state, "BEGIN{result=length(missing)}");
+        using var storage = new AwkRegionStorage(state);
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        var lengths = state.Counters.BoundScalarLengths;
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        Assert.Equal(lengths + 1, state.Counters.BoundScalarLengths);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static CooperativeTestMemory State(AwkRuntimeLimits? limits = null)
+    private static AwkRegion Bind(AwkRuntimeState state, string source)
     {
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        return Assert.Single(program.BeginActions);
+    }
 
-        var testMemory = new CooperativeTestMemory(1 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()), regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
-        state.InitializeGlobalReadSlots(2);
-        return testMemory.Initialize(() => state);
+    private static CooperativeTestMemory State()
+    {
+        var memory = new CooperativeTestMemory(1 << 20);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault()))));
     }
 }

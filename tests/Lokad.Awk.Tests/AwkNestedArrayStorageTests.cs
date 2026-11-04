@@ -3,7 +3,7 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkNestedArrayStorageTests
 {
     [Fact]
-    public void PreparedCaptureUsesSynchronousResolversAndRebindsDetachedOwners()
+    public void CapturedPathRebindsDetachedOwnersAfterLaterKeyEffects()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
@@ -13,18 +13,13 @@ public sealed class AwkNestedArrayStorageTests
         var leaf = new AwkArrayKey("leaf");
         var original = state.GetSubarray(name, row, default);
         state.SetArrayAwkValue(original, leaf, AwkValue.FromNumber(7));
-        var replacement = original;
-        var parent = new AwkArrayOperand.Element(new AwkArrayOperand.Named(name, default),
-            new SynchronousIndex(_ => row));
-        var path = new AwkArrayPath(parent, new SynchronousIndex(context =>
+        using (var captured = AwkCapturedArrayPath.Begin(state, name, default, 2))
         {
-            context.State.ClearArray(name);
-            replacement = context.State.GetSubarray(name, row, default);
-            context.State.SetArrayAwkValue(replacement, leaf, AwkValue.FromNumber(9));
-            return leaf;
-        }));
-        using (var captured = path.CaptureSynchronous(new(state)))
-        {
+            captured.Append(state, 0, row);
+            state.ClearArray(name);
+            var replacement = state.GetSubarray(name, row, default);
+            state.SetArrayAwkValue(replacement, leaf, AwkValue.FromNumber(9));
+            captured.Append(state, 1, leaf);
             Assert.True(original.IsDetached);
             Assert.NotSame(original, replacement);
             Assert.Same(replacement, captured.ResolveOwner(state));
@@ -32,14 +27,6 @@ public sealed class AwkNestedArrayStorageTests
         }
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
-    }
-
-    private sealed record SynchronousIndex(Func<AwkEvaluationContext, AwkArrayKey> Resolve) : AwkArrayIndex
-    {
-        internal override (int Depth, int Calls) GetSynchronousShape(Action? checkpoint = null) => (1, 0);
-        internal override AwkArrayKey ResolveKeySynchronous(AwkEvaluationContext context) => Resolve(context);
-        public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) =>
-            throw new InvalidOperationException("Prepared capture entered an asynchronous resolver.");
     }
 
     [Fact]
