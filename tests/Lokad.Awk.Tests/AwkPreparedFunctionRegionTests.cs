@@ -443,7 +443,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
             else Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(6, state.ResolveVariableValue(i).AsNumber());
             Assert.Equal(cancel ? 5 : multiple ? 15 : expected, state.ResolveVariableValue(total).AsNumber());
-            Assert.Equal(cancel ? 0 : 43, state.ResolveVariableValue(AwkVariableName.FromText("caller")).AsNumber());
+            var caller = AwkVariableName.FromText("caller");
+            if (cancel) Assert.False(state.HasScalar(caller));
+            else Assert.Equal(43, state.ResolveVariableValue(caller).AsNumber());
             Assert.Equal(1, entries);
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

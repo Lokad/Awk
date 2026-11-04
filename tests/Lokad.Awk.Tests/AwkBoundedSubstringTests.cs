@@ -30,6 +30,7 @@ public sealed class AwkBoundedSubstringTests
                 Assert.InRange(counters.RuneSliceBytesScanned, 0, 256);
             }
         }
+        memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
 

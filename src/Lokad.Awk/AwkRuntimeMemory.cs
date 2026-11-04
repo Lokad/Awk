@@ -39,6 +39,7 @@ internal static class AwkRuntimeMemory
     internal const int ScopedRegionStorageBytes = 256;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
+    internal const int ScalarCellOverheadBytes = 24;
     private const int RuntimeDiagnosticBytes = 64;
     internal const int TextRuneCheckpointStride = 64;
 
@@ -94,6 +95,10 @@ internal static class AwkRuntimeMemory
         CheckedAdd(
             SymbolMetadataBytes,
             CheckedAdd(StringObjectBytes, CheckedMultiply(characterCount, sizeof(char))));
+
+    // A separate scalar cell adds its object header and the list's reference.
+    public static long EstimateScalarSymbolMetadataBytes(int characterCount) =>
+        CheckedAdd(EstimateSymbolMetadataBytes(characterCount), ScalarCellOverheadBytes);
 
     // Charge retained dictionary capacity, including empty slots left by deletion.
     // The existing coarse entry estimate covers buckets/entries and small headers.

@@ -5,10 +5,16 @@ namespace Lokad.Awk.Tests;
 // Test host adapter, deliberately outside the library's production contracts.
 internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
 {
-    private readonly long _limit = limit;
+    private long _limit = limit;
     private readonly object _gate = new();
     private long _reserved;
     public long Limit => _limit;
+    // Configure payload pressure after admitting the fixture's real bootstrap storage.
+    public void SetAvailableBytes(long bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        lock (_gate) _limit = checked(_reserved + bytes);
+    }
     public long Reserved { get { lock (_gate) return _reserved; } }
     public long Peak { get; private set; }
     public int ScopesCreated { get; private set; }

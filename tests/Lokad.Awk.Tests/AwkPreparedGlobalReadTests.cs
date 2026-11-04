@@ -32,7 +32,7 @@ public sealed class AwkPreparedGlobalReadTests
         var admitted = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
         Assert.True(state.HasScalar(name));
-        Assert.Equal(AwkRuntimeMemory.EstimateSymbolMetadataBytes(name.Text.Length) + 24,
+        Assert.Equal(AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length) + 24,
             state.MemoryAccounting.CurrentCommittedBytes - admitted);
         var typed = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
@@ -121,6 +121,59 @@ public sealed class AwkPreparedGlobalReadTests
         await Task.WhenAll(RunAsync("x 10\ny 20\n", "20 10 20\n", true),
             RunAsync("padding 99\ny 40\nx 30\n", "30 30 40\n", true));
         await RunAsync("y 7\nx 9\n", "9 9 7\n", false);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task BoundScalarUpdateSurvivesTableGrowthAndPendingRhs(bool governed, bool cancel)
+    {
+        const string source = "function rhs(v,i){for(i=0;i<1024;i++)SYMTAB[\"p\"i]=i;" +
+            "x=100;print \"ready\";getline v<\"/side\";return v}" +
+            "BEGIN{x=7;keep=\"0007\";result=(x+=rhs());print result,x,keep,SYMTAB[\"p1023\"]}";
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var host = new MockFileSystem();
+        host.AddFile("/side", "3\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = ReadAsync;
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+        {
+            Assert.True(entered.TrySetResult());
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, count, CancellationToken.None).ConfigureAwait(false);
+        }
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var run = compiled.ExecuteAsync(host, cancellation.Token,
+            AwkTestHarness.CreateRuntimeOptions() with { MemoryBudget = governed ? budget : null });
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            if (governed) Assert.True(budget.Reserved > 0);
+            if (cancel)
+            {
+                cancellation.Cancel();
+                Assert.False(run.IsCompleted);
+            }
+        }
+        finally { release.TrySetResult(); }
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+        else
+        {
+            Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal("ready\n10 10 0007 1023\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        }
+        if (cancel) Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
     }
 
     private static CooperativeTestMemory State(CancellationToken token)

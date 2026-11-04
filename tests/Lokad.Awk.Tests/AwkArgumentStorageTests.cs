@@ -70,8 +70,8 @@ public sealed class AwkArgumentStorageTests
                     Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(failure.MessageBytes));
                 }
                 Assert.Equal("012", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
-                Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("observed")).AsNumber());
-                Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+                Assert.False(state.HasScalar(AwkVariableName.FromText("observed")));
+                Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
             }
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);

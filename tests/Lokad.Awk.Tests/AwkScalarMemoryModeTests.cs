@@ -87,6 +87,8 @@ public sealed class AwkScalarMemoryModeTests
         Assert.Equal(3, variables.GetScalarValue(nf).AsNumber());
         Assert.Equal(0, preparations);
         variables.CaptureScalarMemoryBaseline();
+        var baselineBytes = accounting.CurrentCommittedBytes;
+        var baselineReservation = budget.Reserved;
         variables.SetScalarText(ofs, "|");
         Assert.Equal(1, preparations);
         variables.SetScalarValue(AwkVariableName.FromText("NF"), AwkValue.FromNumber(2));
@@ -99,9 +101,9 @@ public sealed class AwkScalarMemoryModeTests
             Assert.Equal(new string('a', 4096), variables.GetOrCreateScalarValue(name).AsString());
             variables.SetScalarValue(name, AwkValue.FromNumber(7));
             Assert.Equal(7, variables.GetOrCreateScalarValue(name).AsNumber());
-            Assert.Equal(0, accounting.CurrentCommittedBytes);
+            Assert.Equal(baselineBytes, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(baselineReservation, budget.Reserved);
         }
     }
 
@@ -121,12 +123,14 @@ public sealed class AwkScalarMemoryModeTests
         variables.SetScalarText(ofs, " ");
         Assert.Equal(0, preparations);
         variables.CaptureScalarMemoryBaseline();
+        var committed = accounting.CurrentCommittedBytes;
+        var reserved = budget.Reserved;
         Assert.Same(error, Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(ofs, new string('|', 4096))));
         Assert.Equal(1, preparations);
         Assert.Equal(" ", variables.GetOrCreateScalarValue(ofs).AsString());
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(reserved, budget.Reserved);
     }
     [Fact]
     public async Task SharedAdmissionRefusalPrecedesOfsPreparation()
@@ -141,15 +145,43 @@ public sealed class AwkScalarMemoryModeTests
         var ofs = AwkVariableName.FromText("OFS");
         variables.SetScalarText(ofs, " ");
         variables.CaptureScalarMemoryBaseline();
+        var committed = accounting.CurrentCommittedBytes;
+        var reserved = budget.Reserved;
         Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(ofs, new string('|', 4096)));
         Assert.Equal(0, preparations);
         Assert.Equal(" ", variables.GetOrCreateScalarValue(ofs).AsString());
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(reserved, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void CancellationDuringScalarAdmissionPreventsPublication(bool existing)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+            static (_, _) => { }, static () => 0, static () => { }, cancellation.Token.ThrowIfCancellationRequested);
+        var name = AwkVariableName.FromText("target");
+        if (existing) variables.SetScalarText(name, "kept");
+        variables.CaptureScalarMemoryBaseline();
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var reserved = memory.Budget.Reserved;
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+
+        Assert.ThrowsAny<OperationCanceledException>(() => variables.SetScalarText(name, new string('x', 4096)));
+
+        Assert.Equal(existing, variables.ContainsScalar(name));
+        if (existing) Assert.Equal("kept", variables.GetOrCreateScalarValue(name).AsString());
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(reserved, memory.Budget.Reserved);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
-        Action<string, AwkValue> assign, Func<int> fieldCount, Action prepareOfs) =>
-        new(accounting, counters, static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs);
+        Action<string, AwkValue> assign, Func<int> fieldCount, Action prepareOfs, Action? checkpoint = null) =>
+        new(accounting, counters, static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs, checkpoint: checkpoint);
 }

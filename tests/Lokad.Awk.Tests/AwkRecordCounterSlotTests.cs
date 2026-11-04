@@ -41,7 +41,8 @@ public sealed class AwkRecordCounterSlotTests
     [MemberData(nameof(CounterProfiles))]
     public void CounterReplacementPreflightsBeforeChangingTheSharedValue(int modeValue, bool fileCounter)
     {
-        using var memoryForState = CreateState((AwkCompatibilityMode)modeValue, 128);
+        using var memoryForState = CreateState((AwkCompatibilityMode)modeValue, 1 << 20);
+        memoryForState.Budget.SetAvailableBytes(128);
         var state = memoryForState.State;
         var special = fileCounter ? AwkSpecialVariableId.FileRecordNumber : AwkSpecialVariableId.RecordNumber;
         var global = state.GetOrCreateGlobalScalarSlot(AwkSpecialVariables.VariableName(special));

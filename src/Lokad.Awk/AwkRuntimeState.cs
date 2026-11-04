@@ -760,19 +760,18 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!binding.TryGetGlobalIndex(out var index) || _functions.IsInsideFunction) return;
         if (_globalReadSlots is { } slots && (uint)index < (uint)slots.Length &&
             _variables.TryGetOrdinaryArray(resolvedName, out var array))
-            slots[index] = new(0, array);
+            slots[index] = new(null, array);
     }
 
     // Bind only after the original operation succeeds; no failed admission can publish a binding.
     internal bool HasBoundGlobalScalar(int index) =>
-        _globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index].ScalarSlot > 0;
+        _globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index].Scalar is not null;
 
     internal bool TryResolvePreparedGlobalNumber(int index, out double number)
     {
         if (_globalReadSlots is { } slots)
         {
-            var encoded = slots[index].ScalarSlot;
-            if (encoded > 0 && _variables.TryGetScalarNumber(new AwkGlobalSlotId(encoded - 1), out number))
+            if (slots[index].Scalar is { } cell && _variables.TryGetScalarNumber(cell, out number))
             {
                 Counters.RecordNumericGlobalRead();
                 return true;
@@ -786,16 +785,15 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (_globalReadSlots is not { } slots)
             return ResolveVariableValue(name);
-        var encoded = slots[index].ScalarSlot;
-        if (encoded > 0)
-            return GetGlobalScalarValue(new AwkGlobalSlotId(encoded - 1));
+        if (slots[index].Scalar is { } cell)
+            return _variables.GetScalarValue(cell);
 
         if (slots[index].Array is not null)
             return ResolveVariableValue(name);
 
         var value = ResolveVariableValue(name);
         var slot = GetOrCreateGlobalScalarSlot(name);
-        slots[index] = new(slot.Value + 1, null);
+        slots[index] = new(_variables.GetScalarCell(slot), null);
         return value;
     }
 
@@ -832,10 +830,9 @@ internal sealed class AwkRuntimeState : IDisposable
             AssignVariableValue(name, value);
             return;
         }
-        var encoded = slots[index].ScalarSlot;
-        if (encoded > 0)
+        if (slots[index].Scalar is { } cell)
         {
-            AssignVariableValue(new AwkGlobalSlotId(encoded - 1), value);
+            _variables.SetScalarValue(cell, value);
             return;
         }
         if (slots[index].Array is not null)
@@ -847,13 +844,13 @@ internal sealed class AwkRuntimeState : IDisposable
         // Preserve first-write admission and failure timing; bind only after success.
         AssignVariableValue(name, value);
         var slot = GetOrCreateGlobalScalarSlot(name);
-        slots[index] = new(slot.Value + 1, null);
+        slots[index] = new(_variables.GetScalarCell(slot), null);
     }
 
     internal bool TryAssignPreparedGlobalNumber(int index, double number)
     {
-        if (_globalReadSlots is not { } slots || slots[index].ScalarSlot <= 0) return false;
-        _variables.SetOrdinaryScalarNumber(new(slots[index].ScalarSlot - 1), number);
+        if (_globalReadSlots is not { } slots || slots[index].Scalar is not { } cell) return false;
+        _variables.SetOrdinaryScalarNumber(cell, number);
         return true;
     }
 

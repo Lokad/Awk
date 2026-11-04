@@ -1308,8 +1308,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
     private static CooperativeTestMemory CreateGovernedState(int memoryBudgetBytes)
     {
-        var testMemory = new CooperativeTestMemory(memoryBudgetBytes);
-        return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(
+        var testMemory = new CooperativeTestMemory(16L << 20);
+        testMemory.Initialize(AwkTestHarness.CreateRuntimeState(
                     AwkFieldSeparatorSpec.Default,
                     CancellationToken.None,
                     testMemory.Configure(new AwkRuntimeOptions(
@@ -1318,5 +1318,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                         new AwkRandomGenerator(),
                         AwkRuntimeCounters.Disabled,
                         AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance))));
+        testMemory.Budget.SetAvailableBytes(memoryBudgetBytes);
+        return testMemory;
     }
 }

@@ -110,7 +110,8 @@ public sealed class AwkPreparedNumericInputTests
     [Fact]
     public void RejectedStoredInputPreservesTheOldElementAndCharge()
     {
-        using var memoryForState = CreateState(memoryBudgetBytes: 1024);
+        using var memoryForState = CreateState();
+        memoryForState.Budget.SetAvailableBytes(1024);
         var state = memoryForState.State;
         Store(state, state.CreateNumericStringValue("123"), storage: 1);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;

@@ -1,4 +1,4 @@
 namespace Lokad.Awk;
 
-// Zero scalar slot is unbound; positive is slot+1. Arrays bind their stable owner.
-internal readonly record struct AwkGlobalBinding(int ScalarSlot, AwkArrayIdentity? Array);
+// Both bindings refer to storage owned by this execution, never the prepared program.
+internal readonly record struct AwkGlobalBinding(AwkVariables.AwkScalarCell? Scalar, AwkArrayIdentity? Array);
