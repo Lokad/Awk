@@ -31,24 +31,6 @@ internal abstract partial class AwkExpression
                 ? context.State.GetFieldNumber(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
-        protected override AwkValue EvaluateArithmeticArgumentSynchronousCore(AwkEvaluationContext context) =>
-            indexExpression is AwkSynchronousExpression index
-                ? context.State.GetFieldArithmeticArgument(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
-                : throw new InvalidOperationException("Synchronous field index is required.");
-
-        internal override ValueTask<AwkValue> EvaluateArithmeticArgumentAsync(AwkEvaluationContext context)
-        {
-            context.State.Checkpoint();
-            var pending = indexExpression.ResolveNumberAsync(context);
-            return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(context.State.GetFieldArithmeticArgument(AwkFieldIndex.FromNumber(pending.Result).Value))
-                : AwaitArithmeticArgumentIndexAsync(context, pending);
-        }
-
-        private static async ValueTask<AwkValue> AwaitArithmeticArgumentIndexAsync(
-            AwkEvaluationContext context, ValueTask<double> pending) =>
-            context.State.GetFieldArithmeticArgument(AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value);
-
         internal override bool TryResolveSynchronousByteText(AwkEvaluationContext context,
             out AwkByteTextOperand operand)
         {
@@ -135,48 +117,6 @@ internal abstract partial class AwkExpression
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveVariableValue(name);
-
-        public override bool TryGetVariableName(out AwkVariableName variableName)
-        {
-            variableName = name;
-            return true;
-        }
-    }
-
-    private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkSynchronousExpression
-    {
-        internal override bool PreservesRecordBytes => true;
-        internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
-
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            context.State.ResolvePreparedGlobalValue(name, index);
-
-        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
-            context.State.TryResolvePreparedGlobalNumber(index, out var number)
-                ? number
-                : EvaluateSynchronousCore(context).AsNumber(context.State.CancellationCheckpoint);
-
-        public override bool TryGetVariableName(out AwkVariableName variableName)
-        {
-            variableName = name;
-            return true;
-        }
-    }
-
-    private sealed class LocalVariableExpression(
-        AwkVariableName name,
-        AwkFunctionLocalSlotId slotId) : AwkSynchronousExpression
-    {
-        internal override bool PreservesRecordBytes => true;
-
-        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            context.State.ResolveFunctionLocalValue(slotId, name);
-
-        public override bool TryGetVariableName(out AwkVariableName variableName)
-        {
-            variableName = name;
-            return true;
-        }
     }
 
     private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression,

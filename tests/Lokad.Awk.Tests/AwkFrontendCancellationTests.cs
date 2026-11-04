@@ -47,18 +47,6 @@ public sealed class AwkFrontendCancellationTests
         Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
 
-    [Fact]
-    public async Task SourceNumberExecutionDoesNotUseThePreparationCancellationCallback()
-    {
-        using var preparation = new CancellationTokenSource();
-        var number = AwkSourceLiterals.PrepareSourceNumber("2", 2,
-            AwkCompatibilityMode.Posix, preparation.Token.ThrowIfCancellationRequested);
-        var expression = AwkExpression.Number(number);
-        preparation.Cancel();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        Assert.Equal(2, (await expression.EvaluateAsync(new(state))).AsNumber());
-    }
-
     [Theory]
     [InlineData("decimal")]
     [InlineData("leading-dot")]

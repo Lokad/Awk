@@ -72,6 +72,10 @@ Substitution cases cover pending pattern/replacement/target expressions, field a
 locations, late numeric replacement conversion, dynamic-pattern failure order and final refunds.
 Gensub checks include all pending argument positions, default-record input, pattern retention
 after its source is cleared, large/nonfinite occurrence selectors and byte-native counters.
+Global numeric-read fixtures execute prepared source and the real name-bound fallback,
+preserving cold unassigned reads, numeric-string spelling, binary64 bits, computed/assigned
+`NF`, type failures and cancellation before publication. They no longer instantiate retired
+variable nodes. Existing compiled-source reuse cases retain preparation-token independence.
 Special-scalar counters cover native reads through function calls and field mutation, without
 caching computed `NF` across effects or changing compatibility/local binding rules.
 Record-cursor checks retain scanner semantics across chunk sizes and input sources. Pending

@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -25,12 +23,6 @@ internal abstract partial class AwkExpression
     public static AwkExpression Literal(string literal) => new LiteralExpression(literal);
 
     public static AwkExpression Variable(AwkVariableName name) => new VariableExpression(name);
-
-    public static AwkExpression PreparedGlobalVariable(AwkVariableName name, int index) =>
-        new PreparedGlobalVariableExpression(name, index);
-
-    public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>
-        new LocalVariableExpression(name, slotId);
 
     public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index, AwkArrayBinding binding = default,
         Action? checkpoint = null) => new ArrayElementExpression(name, index, binding, checkpoint);
@@ -77,15 +69,6 @@ internal abstract partial class AwkExpression
     public static AwkExpression PostIncrement(AwkReference target) => new PostIncrementExpression(target);
 
     public static AwkExpression PostDecrement(AwkReference target) => new PostDecrementExpression(target);
-
-    public async ValueTask<string> ResolveStringAsync(AwkEvaluationContext context) =>
-        context.State.FormatStringByteText(
-                await EvaluateAsync(context).ConfigureAwait(false))
-            .AsString(context.State.Counters, context.State.CancellationCheckpoint);
-
-    public async ValueTask<AwkText> ResolveByteTextAsync(AwkEvaluationContext context) =>
-        context.State.FormatStringByteText(
-            await EvaluateAsync(context).ConfigureAwait(false));
 
     internal virtual bool TryResolveSynchronousByteText(AwkEvaluationContext context,
         out AwkByteTextOperand operand)
@@ -134,9 +117,6 @@ internal abstract partial class AwkExpression
         return EvaluateCoreAsync(context);
     }
 
-    internal virtual ValueTask<AwkValue> EvaluateArithmeticArgumentAsync(AwkEvaluationContext context) =>
-        EvaluateAsync(context);
-
     internal virtual ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
     {
         var pending = EvaluateAsync(context);
@@ -155,13 +135,6 @@ internal abstract partial class AwkExpression
     internal virtual bool TryGetIntegerConstant(out int value)
     {
         value = 0;
-        return false;
-    }
-
-    /// <summary>Returns the scalar variable name only when this expression is exactly a variable reference.</summary>
-    public virtual bool TryGetVariableName(out AwkVariableName name)
-    {
-        name = default;
         return false;
     }
 }
