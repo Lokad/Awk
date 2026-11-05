@@ -620,6 +620,9 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Return:
                     Return(instruction.Left < 0 ? AwkValue.Unassigned() : Value(instruction.Left));
                     goto Resume;
+                case AwkRegionInstructionKind.ReturnNumber:
+                    ReturnNumber(numbers[instruction.Left]);
+                    goto Resume;
                 case AwkRegionInstructionKind.Jump:
                     position = instruction.Target - 1;
                     break;

@@ -169,6 +169,22 @@ internal partial struct AwkRegionMachine
         _cursor = continuation.Caller;
     }
 
+    private void ReturnNumber(double number)
+    {
+        var frame = _cursor.Frame ?? throw new InvalidOperationException("A return requires an active function frame.");
+        if (frame.Continuation is not { } continuation)
+            throw new InvalidOperationException("A called function requires a caller.");
+        var destination = continuation.Destination;
+        // Keep ready numbers unboxed through the continuation; a value consumer
+        // still receives the ordinary scalar before the callee retires.
+        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
+            continuation.Caller.Storage.Numbers[destination.Index] = number;
+        else
+            continuation.Caller.Storage.StoreValue(destination.Index, AwkValue.FromNumber(number));
+        _state.PopFunctionFrame();
+        _cursor = continuation.Caller;
+    }
+
     private void UnwindFrames()
     {
         if (_enteringFrame is not null)

@@ -10,6 +10,9 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("function-computed-number-return-keeps-other-return-origins",
+            ["function f(x){if(x==0)return;if(x==1)return \"0007\";return 3+4}BEGIN{for(i=0;i<3;i++){v=f(i);print \"[\"v\"]\",typeof(v),f(i)+0}}"], [],
+            "[] unassigned 0\n[0007] string 7\n[7] number 7\n");
         yield return ReentrantPhaseScratchCase;
         yield return Passing("file-hook-global-array-keeps-caller-alias-separate",
             ["function pull(a,v){a[\"k\"]=9;getline v;return v}" +

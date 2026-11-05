@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prepare numeric function returns without intermediate scalar-value conversion.
 - Reuse recognized short-integer digits during numeric conversion; preserve the floating-point
   fallback, input spelling and cooperative cancellation.
 - Prepare admitted record splitting once and defer RT numeric conversion until use. An absent
