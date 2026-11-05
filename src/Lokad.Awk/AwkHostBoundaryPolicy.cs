@@ -8,7 +8,14 @@ namespace Lokad.Awk;
 internal static class AwkHostBoundaryPolicy
 {
     // Await the actual user before observing cancellation; borrowed storage stays alive.
-    public static async Task<T> AwaitAsync<T>(Task<T> operation, CancellationToken cancellationToken)
+    public static Task<T> AwaitAsync<T>(Task<T> operation, CancellationToken cancellationToken)
+    {
+        if (operation is { IsCompletedSuccessfully: true } && !cancellationToken.IsCancellationRequested)
+            return operation;
+        return AwaitCompletionAsync(operation, cancellationToken);
+    }
+
+    private static async Task<T> AwaitCompletionAsync<T>(Task<T> operation, CancellationToken cancellationToken)
     {
         var result = await operation.ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
