@@ -456,7 +456,7 @@ internal partial struct AwkRegionMachine
                         state.AssignFieldValue(instruction.Target, Value(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
-                    storage.StoreTarget(instruction.Target, PrepareArrayUpdate(instruction.Left));
+                    storage.StoreTarget(instruction.Target, PrepareArrayUpdate(instruction.Left, complete: false));
                     break;
                 case AwkRegionInstructionKind.ArrayUpdate:
                 {
@@ -467,7 +467,7 @@ internal partial struct AwkRegionMachine
                     // array/key owners remain live throughout RHS conversion and commit.
                     // Captures spanning script instructions retain funded scratch storage.
                     var capturedUpdate = updateSite.PrepareAccess >= 0
-                        ? PrepareArrayUpdate(updateSite.PrepareAccess) : storage.Targets[updateSite.Slot];
+                        ? PrepareArrayUpdate(updateSite.PrepareAccess, complete: true) : storage.Targets[updateSite.Slot];
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         ReadUpdateNumber(updateSite.Right),
                         (AwkCompoundAssignmentOperation)instruction.Detail);
@@ -759,16 +759,20 @@ internal partial struct AwkRegionMachine
         };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        AwkArrayUpdateTarget PrepareArrayUpdate(int accessIndex)
+        AwkArrayUpdateTarget PrepareArrayUpdate(int accessIndex, bool complete)
         {
             var access = arrays[accessIndex];
             var key = operands[access.Key];
-            return key.Kind switch
+            var target = key.Kind switch
             {
                 AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(key), access.Binding),
                 AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index], access.Binding),
                 _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
             };
+            // The complete operation captured an owned key before retiring scratch,
+            // in the same order as the separate ArrayPrepare/KeyEnd instructions.
+            if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Clear();
+            return target;
         }
 
         double ReadUpdateNumber(AwkRegionOperand operand)

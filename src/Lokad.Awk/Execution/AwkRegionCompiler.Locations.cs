@@ -88,7 +88,6 @@ internal sealed partial class AwkRegionCompiler
             }
             var captured = compiler._updates.Count;
             var slot = compiler._activeUpdates++;
-            compiler._updateSlots = Math.Max(compiler._updateSlots, compiler._activeUpdates);
             compiler._updates.Add(new(compiler._arrays[location.Access].Name, slot));
             compiler.Emit(new(AwkRegionInstructionKind.ArrayPrepare, slot, location.Access));
             compiler.FinishKey(location.Access);
@@ -185,14 +184,20 @@ internal sealed partial class AwkRegionCompiler
             var source = _operands[right];
             if (source.Kind == AwkRegionOperandKind.ValueTemporary) source = _operands[CaptureNumber(right)];
             var site = _updates[update.Target.Capture] with { Right = source };
-            if (_code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.ArrayPrepare } capture &&
+            var captureIndex = _code.Count - 1;
+            // Key retirement is part of the same prepared operation, not RHS work.
+            if (captureIndex >= 0 && _code[captureIndex].Kind == AwkRegionInstructionKind.KeyEnd)
+                captureIndex--;
+            if (captureIndex >= 0 && _code[captureIndex] is { Kind: AwkRegionInstructionKind.ArrayPrepare } capture &&
                 capture.Target == site.Slot)
             {
-                // No intervening script work: capture still precedes RHS conversion.
-                _code.RemoveAt(_code.Count - 1);
-                _straightLine--;
+                var removed = _code.Count - captureIndex;
+                _code.RemoveRange(captureIndex, removed);
+                _straightLine -= removed;
                 site = site with { PrepareAccess = capture.Left };
             }
+            // Only captures crossing instructions need storage and rule retirement.
+            if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);
             _updates[update.Target.Capture] = site;
             Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture,
                 Detail: (int)operation));

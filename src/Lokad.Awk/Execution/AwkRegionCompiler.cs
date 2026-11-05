@@ -81,7 +81,8 @@ internal sealed partial class AwkRegionCompiler
             for (var index = firstUpdate; index < _updates.Count; index++)
             {
                 if ((index & 127) == 127) _scope.CheckCancellation();
-                after = after with { Targets = Math.Max(after.Targets, _updates[index].Slot + 1) };
+                if (_updates[index].PrepareAccess < 0)
+                    after = after with { Targets = Math.Max(after.Targets, _updates[index].Slot + 1) };
             }
             // Number registers and immutable program operands retain no payload.
             // Emit cleanup only for scratch that can actually own a live user.
