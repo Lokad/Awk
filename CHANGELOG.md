@@ -19,6 +19,8 @@
   caches without classifying discarded empty text.
 - Cache arithmetic field numbers in their funded descriptors, retaining original spelling
   for comparisons and escaping values. Remove separate numeric-cache entries and growth.
+- Consume ready field numbers directly; retain owned argument values and deferred conversion
+  errors through the shared field producer.
 - Share immutable splitting configuration through compact record snapshots. Reuse preparation
   for assignments of the same separator storage, preserving settings captured by admitted records.
 - Bind splitting and value construction to the record frame. Remove the forwarding record runtime

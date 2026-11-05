@@ -185,6 +185,8 @@ work detaches an owner. Pending getline destinations keep their keys funded unti
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.
+Numeric reads consume ready field numbers directly. Existing owned field values keep their
+spelling and origin; their cache is read before any later mutation or suspension.
 Comparisons and introspection can reuse record-local classification and bytes. Values that
 escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
 keep owned capture. Caller order and deferred conversion errors remain unchanged.

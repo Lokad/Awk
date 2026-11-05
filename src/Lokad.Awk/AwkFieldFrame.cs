@@ -214,12 +214,17 @@ internal sealed class AwkFieldFrame(
     public double GetFieldNumber(
         AwkFieldIndex index,
         AwkNumberParsingMode mode) =>
-        ReadFieldArithmetic(index, mode, deferError: false).AsNumber(checkpoint);
+        TryReadFieldNumber(index, mode, deferError: false, out var number, out var cachedValue)
+            ? number : ReadFieldArithmeticValue(index, cachedValue).AsNumber(checkpoint);
 
     public AwkValue GetFieldArithmeticArgument(
         AwkFieldIndex index,
         AwkNumberParsingMode mode) =>
-        ReadFieldArithmetic(index, mode, deferError: true);
+        TryReadFieldNumber(index, mode, deferError: true, out var number, out var cachedValue)
+            ? AwkValue.FromNumber(number) : ReadFieldArithmeticValue(index, cachedValue);
+
+    private AwkValue ReadFieldArithmeticValue(AwkFieldIndex index, int cachedValue) =>
+        cachedValue >= 0 ? _fieldValueCache[cachedValue].Value : GetFieldValue(index);
 
     internal AwkComparisonOperand GetFieldComparison(AwkFieldIndex index,
         AwkNumberParsingMode mode)
@@ -245,38 +250,50 @@ internal sealed class AwkFieldFrame(
         return new(value, bytes);
     }
 
-    private AwkValue ReadFieldArithmetic(
+    // Keep byte parsing/cache publication with the numeric consumer, without an
+    // AwkValue round trip or an extra cold parser-result transport boundary.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private bool TryReadFieldNumber(
         AwkFieldIndex index,
-        AwkNumberParsingMode mode, bool deferError)
+        AwkNumberParsingMode mode, bool deferError, out double number, out int cachedValue)
     {
         EnsureField(index);
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return AwkValue.FromNumber(0);
+        number = 0;
+        cachedValue = -1;
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return true;
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
-        if (field.TryGetNumericValue(out var numeric)) return AwkValue.FromNumber(numeric);
+        if (field.TryGetNumericValue(out number)) return true;
         if (field.CacheSlot > 0)
         {
             var cached = _fieldValueCache[field.CacheSlot - 1];
-            if (!cached.IsClassificationOnly) return cached.Value;
+            if (!cached.IsClassificationOnly)
+            {
+                // No callback/suspension separates this already-funded cache read
+                // from its immediate consumer. Keep its owned value and origin.
+                cachedValue = field.CacheSlot - 1;
+                return false;
+            }
             if (deferError && cached.Value.HasInputConversionError)
-                return GetFieldValue(index);
-            return AwkValue.FromNumber(cached.Value.AsNumber(checkpoint));
+                return false;
+            number = cached.Value.AsNumber(checkpoint);
+            return true;
         }
         if (field.Kind == AwkFieldTextKind.Owned)
-            return GetFieldValue(index);
+            return false;
 
         counters.RecordNumericFieldByteParse();
         var parsed = AwkNumberParser.Parse(field.AsSpan(RecordBytes(), checkpoint), mode, checkpoint);
         // Capturing an argument must not diagnose a conversion in an untaken callee branch.
         // The uncommon error retains its ordinary owned spelling and deferred-error behavior.
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent)
-            return GetFieldValue(index);
+            return false;
         parsed.ThrowIfError();
-        var number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
+        number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
         // Numeric payload is funded with the descriptor; it needs no owning-value
         // cache entry or growth. Byte views still use the original record slice.
         _fieldTexts[fieldIndex] = field.WithNumericValue(number);
-        return AwkValue.FromNumber(number);
+        return true;
     }
 
     private AwkValue ClassifyFieldBytes(ReadOnlySpan<byte> bytes, AwkNumberParsingMode mode)
