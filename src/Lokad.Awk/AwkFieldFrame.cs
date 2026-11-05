@@ -40,7 +40,8 @@ internal sealed class AwkFieldFrame(
     private int RecordByteLength => HasBufferedRecord ? BufferedRecord.Length : _recordText.ByteLength;
     private ReadOnlySpan<byte> RecordBytes()
     {
-        checkpoint?.Invoke();
+        // Borrowed-byte inspection is bounded and has no callback or effect.
+        // Owners and long consumers poll; owned text keeps its materialization check.
         return HasBufferedRecord ? BufferedRecord.Span : _recordText.AsSpan(checkpoint);
     }
 

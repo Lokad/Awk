@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep cancellation checks with record owners and long consumers, avoiding a duplicate poll
+  when inspecting already-admitted record bytes.
 - Stage already-numeric field arguments directly into prepared function frames.
 - Prepare numeric function returns without intermediate scalar-value conversion.
 - Reuse recognized short-integer digits during numeric conversion; preserve the floating-point
