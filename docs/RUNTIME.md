@@ -193,8 +193,9 @@ function targets. Computed values such as `NF` still resolve at their actual use
 Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
 capacity checks and initialization. Switching bodies refreshes preparation without retaining
 unrelated scratch payloads.
-Main records, covered computation, branches, loops, calls and rule conditions share a
-continuing driver. It keeps input/rule/call positions across actual host suspension;
+Main input, rule conditions/bodies and record backedges form one prepared program, sharing
+the computation and call driver. Ordinary records retain their cursor and operand tables;
+rule completion retires its reference scratch. Actual host suspension saves its continuation;
 available records use synchronous recognition, while pending refills retain their cursor and
 storage until actual completion. Record/header publication retains its admission and
 cancellation preflight. Command-wide host services are reused; reentrant scopes retain actual
@@ -259,7 +260,9 @@ misses do not insert elements. Earlier key components remain owned across suspen
 All accepted programs use this interpreter; there is no retained tree evaluator or alternative
 execution backend. Diagnostic acceptance still precedes later effects. Cancellation is checked during preparation, bounded computation,
 calls and host interactions, including after admission callbacks and before mutation.
-Ordinary newline main input reuses two admitted buffers for small current records.
+Ordinary newline main input uses two frame-owned slots with admitted fallback buffers.
+An immutable host slice can remain borrowed until the reader retires it, then the owner
+promotes its live users into funded storage before releasing the borrow.
 Staging leaves the previous record intact until admission succeeds. Fields use scoped
 bytes; scalar escapes and regex operands that survive later evaluation own their text.
 Immediate synchronous consumers may borrow record or field bytes. Plain

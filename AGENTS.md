@@ -30,6 +30,9 @@ or environment dependencies.
   Do not restore the abandoned backend as an alternative, add public engine-selection flags
   or VM policy/qualification machinery, or introduce dynamic IL. Existing preparation paths
   are useful foundations, not a requirement to retain their current representation.
+- Main input, rule conditions/bodies and record backedges use one prepared program.
+  Preserve rule-scratch retirement and actual pending-host continuations; do not restore
+  a parallel per-rule scheduler or reset/rebind the main cursor on ordinary record progression.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
