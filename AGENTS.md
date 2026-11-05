@@ -33,20 +33,25 @@ or environment dependencies.
 - Main input, rule conditions/bodies and record backedges use one prepared program.
   Preserve rule-scratch retirement and actual pending-host continuations; do not restore
   a parallel per-rule scheduler or reset/rebind the main cursor on ordinary record progression.
+- Complete synchronous array updates keep targets local and capture owned keys before retiring
+  key scratch and evaluating the RHS. Only cross-instruction captures need retained target slots
+  and rule cleanup. Preserve admitted owners and stable cells across mutation/calls/suspension;
+  never retain a dictionary entry reference across RHS evaluation.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
-- Field cache slots belong to their owning record frame. Preserve or rebind their mapping during
-  split completion, staged field changes and reconstruction. Escaping scalar values own their text;
-  byte views do not interpret cache slots.
+- Persistent record cells contain slices, numeric caches and frame-cache indices without managed
+  references. Owned spelling and scalar values live in the frame cache; detached byte views carry
+  no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
+  Text-only decoded CSV entries must not invoke the input-value factory early.
 - The record frame owns its splitting and value-construction services. Keep input and recomposed
   value origins separate, captured plans immutable, and mutation separators evaluated at the
   language boundary. Conditional field copies resolve their separator only after validating slices.
-  All record producers write into the frame's funded descriptor destination. Keep staging in frame
+  All record producers write into the frame's funded record-cell destination. Keep staging in frame
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
   Scanners bound long work by bytes; owners keep admission and publication cancellation checks.
   Byte-backed CSV/character/width fields need no whole-record text copy. Regex retains its owned subject.
-- Arithmetic field numbers live in their funded descriptors. Separate classification entries
+- Arithmetic field numbers live in their funded record cells. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
 - The frame owns two record payload slots and their bounded funded fallback storage. A current

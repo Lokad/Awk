@@ -189,6 +189,9 @@ work detaches an owner. Pending getline destinations keep their keys funded unti
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.
+Persistent record cells hold slices, numeric interpretations and cache indices without text
+references. The frame cache owns decoded/assigned spelling and scalar values; decoded CSV text
+stays distinct from input-value classification. Byte-only consumers read record slices directly.
 Numeric reads consume ready field numbers directly. Existing owned field values keep their
 spelling and origin; their cache is read before any later mutation or suspension.
 Comparisons and introspection can reuse record-local classification and bytes. Values that
@@ -196,8 +199,10 @@ escape still own their spelling; dirty reconstruction and potentially invalidati
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Interpreter preparation binds operands, scalar/array locations, special-scalar reads and
 function targets. Computed values such as `NF` still resolve at their actual use.
-Array updates bind their numeric RHS at preparation. Adjacent capture/conversion/commit runs
-as one operation; earlier captures remain funded across RHS mutation or suspension.
+Array updates bind their numeric RHS at preparation. Complete synchronous updates keep their
+stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.
+Only captures that cross instructions retain target storage and its cleanup. Earlier captures
+remain funded across RHS mutation, calls or suspension.
 Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
 capacity checks and initialization. Switching bodies refreshes preparation without retaining
 unrelated scratch payloads.

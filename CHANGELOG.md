@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Separate compact record cells from byte views, retaining owned spelling and scalar values in
+  the record frame. Preserve lazy field classification, CSV decoding, mutation and cleanup.
+- Execute complete array updates with local targets, including composite keys. Remove unused
+  retained-target storage and rule cleanup; preserve funded captures across effects and suspension.
+
 - Keep cancellation checks with record owners and long consumers, avoiding a duplicate poll
   when inspecting already-admitted record bytes.
 - Stage already-numeric field arguments directly into prepared function frames.
