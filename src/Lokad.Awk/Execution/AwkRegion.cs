@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
-    AwkArrayName[] targetNames,
+    AwkRegionArrayUpdate[] updates,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
@@ -70,7 +70,7 @@ internal sealed class AwkRegion(
     internal AwkRegionVariable[] Variables => variables;
     internal AwkText[] Literals => literals;
     internal AwkRegionArrayAccess[] Arrays => arrays;
-    internal AwkArrayName[] TargetNames => targetNames;
+    internal AwkRegionArrayUpdate[] Updates => updates;
     internal AwkRegionCall[] Calls => calls;
     internal AwkRegionBuiltin[] Builtins => builtins;
     internal AwkRegionPrint[] Prints => prints;
@@ -97,6 +97,7 @@ internal enum AwkRegionVariableKind : byte { Dynamic, Global, Local, Special }
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, AwkRegionVariableKind Kind, int Index);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
+internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte
 {
@@ -112,7 +113,7 @@ internal enum AwkRegionInstructionKind : byte
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
 
-// Prepared ownership bounds for one rule's monotonic scratch allocation. Shared
+// Prepared ownership bounds for one rule's scratch, including reused update slots. Shared
 // builder/incoming-frame slots retain their ordinary whole-owner cleanup.
 internal sealed class AwkRegionRuleScope(AwkRegionStorageLayout before, AwkRegionStorageLayout after)
 {

@@ -14,7 +14,9 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkText> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
-    private readonly List<AwkArrayName> _targetNames = [];
+    private readonly List<AwkRegionArrayUpdate> _updates = [];
+    private int _activeUpdates;
+    private int _updateSlots;
     private readonly List<AwkRegionPath> _paths = [];
     private readonly List<int> _builderSeparators = [];
     private readonly List<AwkRegionCall> _calls = [];
@@ -70,11 +72,17 @@ internal sealed partial class AwkRegionCompiler
 
     internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic)
     {
-        var before = StorageLayout();
+        var before = StorageLayout() with { Targets = 0 };
+        var firstUpdate = _updates.Count;
         var success = AppendMainRuleBody(rule, rangeIndex);
         if (success)
         {
-            var after = StorageLayout();
+            var after = StorageLayout() with { Targets = 0 };
+            for (var index = firstUpdate; index < _updates.Count; index++)
+            {
+                if ((index & 127) == 127) _scope.CheckCancellation();
+                after = after with { Targets = Math.Max(after.Targets, _updates[index].Slot + 1) };
+            }
             // Number registers and immutable program operands retain no payload.
             // Emit cleanup only for scratch that can actually own a live user.
             if (after.Values != before.Values || after.Texts != before.Texts ||
@@ -202,10 +210,10 @@ internal sealed partial class AwkRegionCompiler
     }
 
     private AwkRegionStorageLayout StorageLayout() =>
-        new(_numbers, _values, _texts, _targetNames.Count, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
+        new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
 
     private AwkRegion CreateRegion() => new(_code.ToArray(), _operands.ToArray(),
-            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _targetNames.ToArray(),
+            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(),
             StorageLayout(),
             _calls.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray());

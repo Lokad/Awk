@@ -3,11 +3,19 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkMainProgramContinuationTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task RulesRetainCapturedUpdatesThroughPendingCalls(bool governed, bool cancel)
+    [InlineData(false, false, false)] [InlineData(false, true, false)]
+    [InlineData(true, false, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(false, true, true)]
+    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    public async Task RulesRetainCapturedUpdatesThroughPendingCalls(bool governed, bool cancel, bool nested)
     {
-        const string source = """
+        var source = nested ? """
+            function read(t){getline t<"/side";return t}
+            {a[$1]+=$2;b[$1]=2;keep=$0;print "ready",$1}
+            {a[$1]+=(b[$1]+=read())}
+            {print keep,a[$1],b[$1]}
+            END{print "done"}
+            """ : """
             function read(t){getline t<"/side";return t}
             {a[$1]+=$2;keep=$0;print "ready",$1}
             {a[$1]+=read()}
@@ -56,7 +64,8 @@ public sealed class AwkMainProgramContinuationTests
             release.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
-            Assert.Equal("ready a\n" + (cancel ? "" : "a 0007 10\nready b\nb 8 12\ndone\n"),
+            var completed = nested ? "a 0007 12 5\nready b\nb 8 14 6\ndone\n" : "a 0007 10\nready b\nb 8 12\ndone\n";
+            Assert.Equal("ready a\n" + (cancel ? "" : completed),
                 host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);

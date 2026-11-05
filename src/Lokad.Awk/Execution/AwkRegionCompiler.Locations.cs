@@ -86,11 +86,13 @@ internal sealed partial class AwkRegionCompiler
                 compiler.Emit(new(AwkRegionInstructionKind.PathNumber, number, compiler._arrays[location.Access].Path));
                 return Complete(new(new(location.Operand, -1), prior));
             }
-            var captured = compiler._targetNames.Count;
-            compiler._targetNames.Add(compiler._arrays[location.Access].Name);
-            compiler.Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, location.Access));
+            var captured = compiler._updates.Count;
+            var slot = compiler._activeUpdates++;
+            compiler._updateSlots = Math.Max(compiler._updateSlots, compiler._activeUpdates);
+            compiler._updates.Add(new(compiler._arrays[location.Access].Name, slot));
+            compiler.Emit(new(AwkRegionInstructionKind.ArrayPrepare, slot, location.Access));
             compiler.FinishKey(location.Access);
-            return Complete(new(new(location.Operand, captured), compiler.Operand(AwkRegionOperandKind.ArrayPrevious, captured)));
+            return Complete(new(new(location.Operand, captured), compiler.Operand(AwkRegionOperandKind.ArrayPrevious, slot)));
         }
     }
 
@@ -180,6 +182,7 @@ internal sealed partial class AwkRegionCompiler
         {
             Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture,
                 NumericRegister(right), (int)operation));
+            _activeUpdates--;
         }
         else
         {

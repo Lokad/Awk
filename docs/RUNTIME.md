@@ -240,10 +240,10 @@ File and one-way pipe output retain their prepared target and reusable payload b
 until the host write actually finishes, including when it ignores cancellation. Formatting
 preflights before file creation or truncation; authorization remains at the host boundary.
 Immediate numeric consumers of function returns write directly to numeric scratch; other
-returns preserve their value kind and spelling. Text remains funded through conversion,
-including local type changes. Bound numeric reads and writes use their active function frame;
-spelling and alias transitions retain their ordinary ownership preflights. Text stays owned
-including after a genuinely pending host operation. Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
+returns preserve their value kind and spelling. Bound numeric reads and writes use their active
+function frame; spelling and alias transitions retain their ownership preflights. Text remains
+funded through conversion, type changes and genuinely pending host operations. Numeric builtins
+share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Scalar string operations consume prebound operands directly. Stable synchronous reads keep
 their existing owners; captures remain funded before intervening computation, array reads or
@@ -256,7 +256,9 @@ EOF and recoverable errors preserve the ordinary status, `RT` and `ERRNO` behavi
 Concatenation preserves operand formatting order and lazy text composition. Computed fields
 reuse record caches; discarded fixed-field copies can retain record-backed text. Escaping
 values own their spelling. Array updates preserve captured keys/prior values and rebind owners
-after RHS work. Borrowed byte spans remain local to synchronous consumption.
+after RHS work. Prepared update sites are separate from reused capture slots; those slots stay
+funded through their final RHS/commit users, including suspension. Borrowed byte spans remain
+local to synchronous consumption.
 Array membership consumes field bytes or a completed composite-key buffer synchronously;
 misses do not insert elements. Earlier key components remain owned across suspending calls.
 All accepted programs use this interpreter; there is no retained tree evaluator or alternative

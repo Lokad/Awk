@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> MainProgramCases()
     {
+        yield return Passing("nested-captured-updates-and-postfix-results",
+            ["BEGIN{a[\"x\"]=1;a[\"y\"]=2;a[\"z\"]=3;v=(a[\"x\"]+=(a[\"y\"]+=(a[\"z\"]++)));print v,a[\"x\"],a[\"y\"],a[\"z\"];w=a[\"x\"]+++a[\"y\"]+++a[\"z\"]++;print w,a[\"x\"],a[\"y\"],a[\"z\"]}"],
+            [], "6 6 5 4\n15 7 6 5\n");
         var rules = string.Concat(Enumerable.Range(1, 37).Select(index =>
             "{a[\"k" + index + "\"]+=$2+" + index + ";s+=" + index + "}"));
         yield return Passing("many-rules-preserve-constants-and-shared-updates",

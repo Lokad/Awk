@@ -470,13 +470,14 @@ internal partial struct AwkRegionMachine
                 {
                     // Capture survives RHS admission/mutation. No dictionary reference
                     // or borrowed key outlives its synchronous lookup.
-                    var capturedUpdate = storage.Targets[instruction.Left];
+                    var updateSite = region.Updates[instruction.Left];
+                    var capturedUpdate = storage.Targets[updateSite.Slot];
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         numbers[instruction.Right],
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
-                    state.CommitArrayUpdate(region.TargetNames[instruction.Left], capturedUpdate, updated);
-                    storage.ReleaseTarget(instruction.Left);
+                    state.CommitArrayUpdate(updateSite.Name, capturedUpdate, updated);
+                    storage.ReleaseTarget(updateSite.Slot);
                     numbers[instruction.Target] = updated;
                     break;
                 }
