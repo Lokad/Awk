@@ -81,7 +81,7 @@ internal sealed class AwkFieldFrame(
         _hasBufferedRecord = true;
         _bufferedAscii = null;
         _recordWasRecomposed = false;
-        _recordValue = AwkValue.FromText(string.Empty);
+        _recordValue = default;
         _recordValueIsCurrent = false;
         _recordTextIsCurrent = true;
         ClearSplitFields(reuseFieldBuffer: plan.SupportsIncrementalFields);
@@ -370,7 +370,7 @@ internal sealed class AwkFieldFrame(
         ClearBufferedRecord();
         _recordText = text;
         _recordWasRecomposed = false;
-        _recordValue = AwkValue.FromText(string.Empty);
+        _recordValue = default;
         _recordValueIsCurrent = false;
         _recordTextIsCurrent = true;
         ClearSplitFields(reuseFieldBuffer: splitPlan.SupportsIncrementalFields);
@@ -1055,7 +1055,7 @@ internal sealed class AwkFieldFrame(
 
     private void MarkRecordForRecomposition(AwkText outputFieldSeparator)
     {
-        _recordValue = AwkValue.FromText(string.Empty);
+        _recordValue = default;
         _recordValueIsCurrent = false;
         _recordTextIsCurrent = false;
         _recompositionSeparator = _fieldTexts.Count > 1 ? outputFieldSeparator : AwkText.Empty;
