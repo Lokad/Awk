@@ -171,7 +171,9 @@ the active shared budget; it does not copy those snapshots again.
 Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.
 Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
 before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
-Record splitting reuses funded descriptors and admits capacity growth. Escaped CSV text is
+Record splitting reuses funded descriptors and admits capacity growth. Incremental whitespace
+and single-byte prefixes append within that capacity; cancellation discards the unpublished
+tail while retaining the prior prefix and numeric caches. Escaped CSV text is
 admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps
 an immutable owned subject. Unpublished scan storage stays owned until publication or cleanup.
 Lowering's name-to-ordinal table is temporary; prepared execution retains its count and

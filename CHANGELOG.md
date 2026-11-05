@@ -11,7 +11,8 @@
 - Unify record field publication and admission across splitting modes. Avoid whole-record text
   copies for CSV, character and width fields; decode CSV escapes in one field scan.
 - Reuse funded descriptors for whitespace and single-byte field splitting. Admit growth before
-  allocation and keep unpublished storage funded through cancellation and cleanup.
+  allocation, extend incremental prefixes within admitted capacity and copy descriptors only
+  when capacity grows. Keep unpublished storage funded through cancellation and cleanup.
 - Bind numeric RHS sources directly to complete array updates, preserving prior values,
   funded captures and aliases across RHS effects and suspension.
 - Return newline processing to available host buffers after crossing records, preserving

@@ -4,6 +4,13 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> NumericFieldConsumptionCases()
     {
+        foreach (var separator in new[] { " ", "|" })
+        {
+            var fields = string.Join(separator, Enumerable.Repeat("000007", 64)) + "\n";
+            yield return Passing("numeric-field-consumption-fixed-loop-" + (separator == " " ? "space" : "literal"),
+                ["BEGIN{FS=\"" + separator + "\"}{saved=$1;for(i=1;i<=64;i++)total+=$i;print total,saved,$64,NF,typeof($1)}"],
+                [], "448 000007 000007 64 strnum\n896 000007 000007 64 strnum\n", fields + fields);
+        }
         foreach (var count in new[] { 16, 17, 64 })
         {
             var steps = string.Concat(Enumerable.Repeat("sum+=int($1);", count));

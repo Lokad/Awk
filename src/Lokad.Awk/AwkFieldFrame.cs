@@ -939,34 +939,46 @@ internal sealed class AwkFieldFrame(
             counters.RecordFieldSplit();
             checkpoint?.Invoke();
         }
-        var stagingBytes = governor.IsEnabled
-            ? AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.EstimateFieldTextListBytes(index.Value), 2)
-            : 0;
+        var fields = _fieldTexts;
+        var previousCapacity = fields.Capacity;
+        var grows = previousCapacity < index.Value;
+        var capacity = grows ? (int)Math.Max(index.Value, Math.Min(Array.MaxLength, (long)previousCapacity * 2))
+            : previousCapacity;
+        // Only actual growth needs another destination. A known prefix fits the
+        // admitted capacity before scanning, so the writer cannot admit mid-append.
+        var stagingBytes = governor.IsEnabled && grows ? AwkRuntimeMemory.EstimateFieldTextListBytes(capacity) : 0;
         var staging = governor.ReserveTransient(stagingBytes);
+        var copiedFields = 0;
         try
         {
-            var fields = new List<AwkFieldText>(index.Value);
-            for (var i = 0; i < previousCount; i++)
+            if (grows)
             {
-                if ((i & 1023) == 0)
-                    checkpoint?.Invoke();
-                fields.Add(_fieldTexts[i]);
+                fields = new List<AwkFieldText>(capacity);
+                counters.RecordFieldPrefixStage();
+                for (var i = 0; i < previousCount; i++)
+                {
+                    if ((i & 1023) == 0) checkpoint?.Invoke();
+                    fields.Add(_fieldTexts[i]);
+                    copiedFields++;
+                }
             }
             var writer = new AwkRecordFieldWriter(fields, governor, checkpoint ?? (static () => { }), ref staging);
             var position = fieldSplitter.ExtendRecordFields(RecordBytes(), _splitPlan, _splitPosition, index.Value, ref writer);
             var complete = position < 0;
-            if (complete)
-                fields.TrimExcess();
             var payloadBytes = AwkRuntimeMemory.CheckedAdd(_fieldPayloadByteLength, writer.PayloadBytes);
-            var retained = governor.IsEnabled ? EstimateRetainedBytes(
-                AwkRuntimeMemory.EstimateTextBytes(_recordText), fields, _fieldValueCache, default, 0) : 0;
-            if (!complete && governor.IsEnabled)
-                retained = AwkRuntimeMemory.CheckedAdd(retained, _splitPlan.RetainedMemoryBytes);
+            // Incremental producers append record slices: existing cached/owned
+            // payload is unchanged. Charge the actual capacity delta, not a scan.
+            var retained = governor.IsEnabled ? AdjustEstimate(_retainedMemoryBytes,
+                AwkRuntimeMemory.EstimateFieldTextListBytes(previousCapacity),
+                AwkRuntimeMemory.EstimateFieldTextListBytes(fields.Capacity)) : 0;
+            if (complete && governor.IsEnabled)
+                retained = AdjustEstimate(retained, _splitPlan.RetainedMemoryBytes, 0);
             checkpoint?.Invoke();
             PublishStagedFields(fields, _fieldValueCache, retained, staging, stagingBytes);
             _splitPosition = position;
             _fieldPayloadByteLength = payloadBytes;
             counters.RecordFieldsMaterialized(fields.Count - previousCount);
+            if (!grows && previousCount == 0) counters.RecordFieldListBufferReuse();
             if (complete)
             {
                 _fieldsAreSplit = true;
@@ -974,8 +986,18 @@ internal sealed class AwkFieldFrame(
                 _splitPlan = default;
             }
         }
+        catch
+        {
+            // Append has no host/admission boundary after capacity is established.
+            // Cancellation/failure discards the unpublished tail; the prior cache
+            // mapping and descriptor buffer remain owned and funded.
+            if (!grows && fields.Count > previousCount)
+                fields.RemoveRange(previousCount, fields.Count - previousCount);
+            throw;
+        }
         finally
         {
+            counters.RecordFieldDescriptorCopies(copiedFields);
             staging.Dispose();
         }
     }

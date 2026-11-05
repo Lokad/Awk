@@ -119,6 +119,8 @@ internal sealed class AwkRuntimeCounters
 
 
     public long FieldListBufferReuses { get; private set; }
+    public long FieldPrefixStages { get; private set; }
+    public long FieldDescriptorCopies { get; private set; }
 
     public long FieldValueCacheBufferAllocations { get; private set; }
 
@@ -420,6 +422,16 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             FieldsMaterialized += count;
+    }
+
+    public void RecordFieldPrefixStage()
+    {
+        if (_enabled) lock (_sync) FieldPrefixStages++;
+    }
+
+    public void RecordFieldDescriptorCopies(int count)
+    {
+        if (_enabled && count > 0) lock (_sync) FieldDescriptorCopies += count;
     }
 
     public void RecordFieldListBufferReuse()

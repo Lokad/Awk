@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -85,14 +85,15 @@ internal static class ReferenceWorkloads
             return new(name, scale, scalarRows, 2, scalarProgram,
                 Bytes(scalarInput.ToString()), [], Bytes((scalarTotal * (fieldCalls || fieldNumbers ? 8 : 1)).ToString(CultureInfo.InvariantCulture) + "\n"));
         }
-        if (name == "numeric-wide")
+        if (name is "numeric-wide" or "fixed-field-loop")
         {
             const int numericFields = 128;
             var numericRows = scale switch { "small" => 16, "medium" => 256, "large" => 4096, _ => throw new ArgumentException("Unknown scale.") };
             var numericRow = string.Join(' ', Enumerable.Range(1, numericFields)) + "\n";
             var numericTotal = (long)numericRows * numericFields * (numericFields + 1) / 2;
             return new(name, scale, numericRows, numericFields,
-                "{for(i=1;i<=NF;i++)total+=($i+0)}END{print total}",
+                name == "numeric-wide" ? "{for(i=1;i<=NF;i++)total+=($i+0)}END{print total}"
+                    : "{for(i=1;i<=128;i++)total+=($i+0)}END{print total}",
                 Bytes(string.Concat(Enumerable.Repeat(numericRow, numericRows))), [],
                 Bytes(numericTotal.ToString(CultureInfo.InvariantCulture) + "\n"));
         }
