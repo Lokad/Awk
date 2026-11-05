@@ -591,7 +591,7 @@ internal sealed class AwkFunctionCallStack(
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
         TryAssignLocal(slotId, AwkVariableSlot.FromValue(value));
 
-    internal bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
+    private bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
     {
         if (!TryPeekLocalFrame(out var frame))
             return false;

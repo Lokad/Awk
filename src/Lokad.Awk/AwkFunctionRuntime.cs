@@ -109,6 +109,4 @@ internal sealed class AwkFunctionRuntime
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
         _calls.TryAssignLocal(slotId, value);
 
-    internal bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value) =>
-        _calls.TryAssignLocal(slotId, value);
 }

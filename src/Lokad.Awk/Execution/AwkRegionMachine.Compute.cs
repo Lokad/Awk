@@ -426,7 +426,9 @@ internal partial struct AwkRegionMachine
                     state.ThrowIfCancellationRequested();
                     var local = variables[instruction.Target];
                     var number = numbers[instruction.Left];
-                    if (!state.TryAssignFunctionLocalNumber(new(local.Index), number))
+                    if (frame is { } localFrame && localFrame.TryWriteNumber(local.Index, number))
+                        state.Counters.RecordBoundFrameNumberWrite();
+                    else
                         state.AssignFunctionLocalValue(new(local.Index), local.Name, AwkValue.FromNumber(number));
                     break;
                 }

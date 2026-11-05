@@ -845,9 +845,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return true;
     }
 
-    internal bool TryAssignFunctionLocalNumber(AwkFunctionLocalSlotId slot, double number) =>
-        _functions.TryAssignLocal(slot, AwkVariableSlot.FromNumber(number));
-
     public void AssignVariable(AwkVariableName name, string value)
     {
         _variableRuntime.AssignVariable(name, value);

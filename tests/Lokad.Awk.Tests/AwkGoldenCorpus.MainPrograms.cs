@@ -12,5 +12,8 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("nonlocal-next-skips-later-rules",
             ["function bump(k){a[k]++;if(NR%2)next}{a[$1]+=$2}{bump($1);a[$1]+=100}{tail++}END{print a[\"a\"],a[\"b\"],tail}"],
             [], "18 109 1\n", "a 0007\nb 8\na 9\n");
+        yield return Passing("local-numeric-writes-retain-prior-spelling-and-type-transitions",
+            ["function step(x,spelling){spelling=x;x+=1;x+=2;x=\"0005\";x+=1;x+=2;return spelling \":\" x}{print step($2)}"],
+            [], "0007:8\n", "k 0007\n");
     }
 }

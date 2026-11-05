@@ -70,6 +70,18 @@ internal sealed class AwkFunctionFrame
         return false;
     }
 
+    internal bool TryWriteNumber(int index, double number)
+    {
+        ref var slot = ref GetSlot(index);
+        // Numeric and omitted-local cells own no text, alias or pending user. The
+        // caller has already checked cancellation before the observable store.
+        if (slot.Kind != AwkFunctionLocalSlotKind.MissingScalar &&
+            (slot.Kind != AwkFunctionLocalSlotKind.Scalar || slot.Value.Kind != AwkVariableSlotKind.Number))
+            return false;
+        slot = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
+        return true;
+    }
+
     public long RetainedMemoryBytes { get; set; }
 
     internal bool IsIncoming { get; set; }

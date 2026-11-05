@@ -241,6 +241,8 @@ until the host write actually finishes, including when it ignores cancellation. 
 preflights before file creation or truncation; authorization remains at the host boundary.
 Immediate numeric consumers of function returns write directly to numeric scratch; other
 returns preserve their value kind and spelling. Text remains funded through conversion,
+including local type changes. Bound numeric reads and writes use their active function frame;
+spelling and alias transitions retain their ordinary ownership preflights. Text stays owned
 including after a genuinely pending host operation. Numeric builtins share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Scalar string operations consume prebound operands directly. Stable synchronous reads keep
