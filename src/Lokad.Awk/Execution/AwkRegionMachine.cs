@@ -112,6 +112,7 @@ internal partial struct AwkRegionMachine
 
     private void CompleteHostOperation()
     {
+        var completed = _pending;
         if (_pending == Pending.Output)
         {
             _cursor.Storage.Builders[0].Clear();
@@ -120,6 +121,12 @@ internal partial struct AwkRegionMachine
         _hostCompletion = Task.CompletedTask;
         _pending = Pending.None;
         _state.ThrowIfCancellationRequested();
+        if (completed == Pending.Flush)
+        {
+            var instruction = _cursor.Region.Instructions[_cursor.Position - 1];
+            if (instruction.Kind == AwkRegionInstructionKind.StatementBoundary && instruction.Detail > 0)
+                _state.PrepareAdmittedFields(instruction.Detail);
+        }
     }
 
     private void CompleteBuiltinValue(AwkValue value)

@@ -9,18 +9,32 @@ internal sealed partial class AwkRegionCompiler
         var boundary = -1;
         var first = 0;
         var maximum = 0;
+        var readyThrough = 0;
         for (var index = 0; index < _code.Count; index++)
         {
             if ((index & 127) == 127) _scope.CheckCancellation();
             var instruction = _code[index];
-            if (instruction.Kind == AwkRegionInstructionKind.Poll)
+            if (instruction.Kind is AwkRegionInstructionKind.Poll or AwkRegionInstructionKind.StatementBoundary or
+                AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue or
+                AwkRegionInstructionKind.JumpIfZero or AwkRegionInstructionKind.JumpIfNonzero)
             {
+                if (boundary >= 0 && (instruction.Kind is AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue))
+                    OperandDemand(instruction.Left);
                 Finish();
+                // Conditional metadata belongs to fallthrough; the taken target
+                // has its own label. Statement metadata runs after actual flush.
                 boundary = index;
                 first = maximum = 0;
+                if (instruction.Kind == AwkRegionInstructionKind.Poll) readyThrough = 0;
                 continue;
             }
-            if (boundary < 0) continue;
+            if (boundary < 0)
+            {
+                // Intervening work can replace the record. Keep no dominating
+                // prefix fact when this window no longer classifies its effects.
+                readyThrough = 0;
+                continue;
+            }
             var continues = instruction.Kind switch
             {
                 AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Negate or
@@ -42,7 +56,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.PrintField or AwkRegionInstructionKind.PrintValue => TerminalOperand(instruction.Left),
                 AwkRegionInstructionKind.PrintList => TerminalFields(_prints[instruction.Left].Fields),
                 AwkRegionInstructionKind.Printf => TerminalFields(_printfs[instruction.Left].Fields),
-                _ => false
+                _ => InvalidatingBoundary()
             };
             if (!continues) Finish();
         }
@@ -53,15 +67,19 @@ internal sealed partial class AwkRegionCompiler
             // An initial high field already admits all smaller demands. Only an
             // increasing prefix can remove repeated extension/publication work.
             if (boundary >= 0 && maximum > first)
-                _code[boundary] = _code[boundary] with { Target = maximum };
+                _code[boundary] = _code[boundary] with { Detail = maximum };
             boundary = -1;
         }
 
         bool Field(int field)
         {
             if (field <= 0) return false;
+            // A dominating demand already parsed this prefix, or reached EOF.
+            // Preserve that fact through statement completion and fallthrough.
+            if (field <= readyThrough) return true;
             if (first == 0) first = field;
             maximum = Math.Max(maximum, field);
+            readyThrough = field;
             return true;
         }
 
@@ -78,6 +96,12 @@ internal sealed partial class AwkRegionCompiler
             };
         }
 
+        bool InvalidatingBoundary()
+        {
+            readyThrough = 0;
+            return false;
+        }
+
         bool Access(int access)
         {
             var value = _arrays[access];
@@ -86,13 +110,9 @@ internal sealed partial class AwkRegionCompiler
 
         bool CompleteUpdate(AwkRegionArrayUpdate update)
         {
-            if (update.PrepareAccess >= 0 && Access(update.PrepareAccess)) OperandDemandForUpdate(update.Right);
+            if (update.PrepareAccess >= 0 && Access(update.PrepareAccess) && update.Right.Kind == AwkRegionOperandKind.Field)
+                Field(update.Right.Index);
             return false;
-        }
-
-        void OperandDemandForUpdate(AwkRegionOperand operand)
-        {
-            if (operand.Kind == AwkRegionOperandKind.Field) Field(operand.Index);
         }
 
         bool TerminalAccess(int access) { Access(access); return false; }

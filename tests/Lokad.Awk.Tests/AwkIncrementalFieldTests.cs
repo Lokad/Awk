@@ -40,6 +40,38 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void PreparedPrefixNeverMaterializesDeferredRecordBytes(bool alreadyMaterialized)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting);
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("warm two three tail"));
+        Assert.Equal(4, frame.GetFieldCount());
+        var record = AwkText.FromSourceLiteralString("one ").Concat(
+            AwkText.FromSourceLiteralString("two three tail"), counters, memory.Accounting);
+        if (alreadyMaterialized) _ = record.AsSpan();
+        frame.SetRecordText(record);
+        var materialized = counters.FieldsMaterialized;
+        var texts = counters.AwkTextAllocations;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        frame.PrepareAdmittedFields(3);
+        Assert.Equal(0, memory.Budget.Refusals);
+        Assert.Equal(texts, counters.AwkTextAllocations);
+        Assert.Equal(materialized + (alreadyMaterialized ? 3 : 0), counters.FieldsMaterialized);
+        Assert.Same(record, frame.RecordAwkText);
+        var fields = counters.FieldsMaterialized;
+        var failure = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1)));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        Assert.Equal(fields, counters.FieldsMaterialized);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void CanceledPreparedPrefixRollsBackItsTailAndKeepsCachedValuesFunded()
     {

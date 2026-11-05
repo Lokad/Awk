@@ -931,7 +931,9 @@ internal sealed class AwkFieldFrame(
         // Do not move allocation/admission ahead of its language operation. Warm
         // record-local storage can publish a shared prefix without another owner.
         if (_fieldsAreSplit || maximum <= _fieldTexts.Count || maximum > _fieldTexts.Capacity ||
-            !_splitPlan.SupportsIncrementalFields) return;
+            !_splitPlan.SupportsIncrementalFields ||
+            (!HasBufferedRecord && !_recordText.HasAvailableBytes) ||
+            (!_splitPlan.Separator.UsesWhitespaceSemantics && !_splitPlan.Separator.ByteText.HasAvailableBytes)) return;
         TryExtendFields(maximum, requireComplete: false);
     }
 

@@ -51,7 +51,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Poll:
                     state.ThrowIfCancellationRequested();
-                    if (instruction.Target > 0) state.PrepareAdmittedFields(instruction.Target);
+                    if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.StatementBoundary:
                     if (output is { HasPendingOutput: true })
@@ -62,6 +62,7 @@ internal partial struct AwkRegionMachine
                         _pending = Pending.Flush;
                         goto Resume;
                     }
+                    if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.MoveNumber:
                     numbers[instruction.Target] = numbers[instruction.Left];
@@ -643,15 +644,19 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.JumpIfFalse:
                     if (!Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfTrue:
                     if (Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfZero:
                     if (numbers[instruction.Left] == 0) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfNonzero:
                     if (numbers[instruction.Left] != 0) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfCase:
                     if (region.SwitchCases[instruction.Right].Matches(Value(instruction.Left), state)) position = instruction.Target - 1;

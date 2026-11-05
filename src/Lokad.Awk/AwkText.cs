@@ -52,6 +52,10 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public int ByteLength => _byteLength;
 
+    internal bool HasAvailableBytes => _concatenation is null ||
+        Volatile.Read(ref _concatenation.MaterializedBytes) is not null;
+
+
     public long EstimatedRetainedMemoryBytes { get; }
 
     public int RuneLength => GetRuneLength();
