@@ -10,6 +10,39 @@ public sealed class AwkRecordCursorContextTests
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]
     [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task CrossingNewlinePreservesTheRestOfTheBorrow(
+        bool governed, bool changeSeparator, bool suspend)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInput(changeSeparator ? "a\n123456789\nleft:right:tail" : "a\n123456789\nlast");
+        host.ReadAsyncOverride = ReadAsync;
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            if (suspend) await Task.Yield();
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, Math.Min(maximum, 8), token).ConfigureAwait(false); }
+            finally { host.ReadAsyncOverride = ReadAsync; }
+        }
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var source = (changeSeparator ? "NR==2{RS=\":\"}" : "") + "{print NR,length($0),$0}";
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(changeSeparator
+            ? "1 1 a\n2 9 123456789\n3 4 left\n4 5 right\n5 4 tail\n"
+            : "1 1 a\n2 9 123456789\n3 4 last\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
     public async Task PendingRefillsKeepPartialRecordsAndFundingUntilActualCompletion(
         bool governed, bool afterPrefix, bool cancel)
     {

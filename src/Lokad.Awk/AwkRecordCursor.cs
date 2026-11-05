@@ -85,7 +85,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             _discardedParagraphLeader = false;
             _state.ThrowIfCancellationRequested();
             var separator = GetCurrentSeparator();
-            if (_buffer is null && separator is NewlineSeparator)
+            if (PrepareNewlineReader(separator))
             {
                 var pending = _reader.TryBufferAsync();
                 if (!pending.IsCompletedSuccessfully)
@@ -118,7 +118,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         }
         while (true)
         {
-            await AppendNextBatchAsync().ConfigureAwait(false);
+            await AppendNextBatchAsync(separator).ConfigureAwait(false);
             _state.ThrowIfCancellationRequested();
             separator = GetCurrentSeparator();
             var result = ReadAvailable(separator, storage);
@@ -128,7 +128,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
 
     private BufferedReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage)
     {
-        if (_buffer is null && separator is NewlineSeparator)
+        if (PrepareNewlineReader(separator))
         {
             var bytes = _reader.Content;
             var newline = bytes.Span.IndexOf((byte)'\n');
@@ -155,13 +155,32 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         return result;
     }
 
-    private async Task AppendNextBatchAsync()
+    private bool PrepareNewlineReader(RecordSeparator separator)
+    {
+        if (separator is not NewlineSeparator) return false;
+        if (_buffer is not { } buffer) return true;
+        if (_bufferStart != buffer.Length || _borrowBytesCopied != _borrowBytesCommitted) return false;
+        if (buffer.Length != 0 || _borrowBytesCopied != 0)
+        {
+            ClearRegexInput();
+            buffer.Clear();
+            _bufferStart = 0;
+            _validatedRegexBytes = 0;
+            _borrowBufferStart = 0;
+            _borrowBytesCopied = 0;
+            _borrowBytesCommitted = 0;
+            ResetSeparatorSearch();
+        }
+        return true;
+    }
+
+    private async Task AppendNextBatchAsync(RecordSeparator separator)
     {
         if (_descriptorReachedEof)
             throw new InvalidOperationException("Cannot append input after reaching end of file.");
 
         CompactBufferBeforeAppend();
-        if (!_pendingRead)
+        if (!_pendingRead && _borrowBytesCopied - _borrowBytesCommitted == _reader.Content.Length)
         {
             // More bytes are needed to recognize a record. Retain the copied
             // prefix in our funded builder before ending its host borrow.
@@ -173,16 +192,12 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             _pendingRead = true;
         }
 
-        var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
         _state.ThrowIfCancellationRequested();
-        ClearRegexInput();
-        var bytes = _reader.Content;
-        var start = buffer.Length;
-        buffer.Append(bytes.Span, _state.CancellationCheckpoint);
-        _borrowBufferStart = start;
-        _borrowBytesCopied = bytes.Length;
-        _borrowBytesCommitted = 0;
-        _descriptorReachedEof = _reader.ReachedEof;
+        var bytes = _reader.Content.Span[(_borrowBytesCopied - _borrowBytesCommitted)..];
+        // Complete only the crossing record. The rest of the host borrow can
+        // return to the direct newline reader after this owned prefix is consumed.
+        var newline = separator is NewlineSeparator ? bytes.IndexOf((byte)'\n') : -1;
+        AppendBorrowedPrefix(newline >= 0 ? newline + 1 : bytes.Length);
         _pendingRead = false;
 
         void CompactBufferBeforeAppend()
@@ -314,9 +329,9 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     }
 
 
-    // Record-separator changes keep the current borrow mapped into the owned
-    // scanner. Switching independent stdin cursors explicitly transfers read-ahead
-    // into their existing funded storage before releasing the descriptor borrow.
+    // Keep the copied prefix mapped into the owned scanner. Its uncopied suffix
+    // stays with the reader until needed. Switching stdin cursors transfers all
+    // read-ahead into funded storage before releasing the descriptor borrow.
     public void PreserveBorrowedInput(bool releaseDescriptor = false)
     {
         if (_buffer is null)
@@ -339,11 +354,28 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         }
         if (releaseDescriptor)
         {
+            if (_borrowBytesCopied - _borrowBytesCommitted < _reader.Content.Length)
+                AppendBorrowedPrefix(_reader.Content.Length - (_borrowBytesCopied - _borrowBytesCommitted));
             if (!_reader.Content.IsEmpty) _reader.Advance(_reader.Content.Length);
             _reader.ReleaseBorrow();
             _borrowBytesCopied = 0;
             _borrowBytesCommitted = 0;
         }
+    }
+
+    private void AppendBorrowedPrefix(int length)
+    {
+        var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
+        ClearRegexInput();
+        var bytes = _reader.Content.Span.Slice(_borrowBytesCopied - _borrowBytesCommitted, length);
+        var start = buffer.Length;
+        buffer.Append(bytes, _state.CancellationCheckpoint);
+        if (_borrowBytesCopied == 0) _borrowBufferStart = start;
+        _borrowBytesCopied += length;
+        // EOF is visible to the owned scanner only after its entire final borrow
+        // has been copied. A changed RS can still need the uncopied suffix.
+        _descriptorReachedEof = _reader.ReachedEof &&
+            _borrowBytesCopied - _borrowBytesCommitted == _reader.Content.Length;
     }
 
     private void CommitBufferedConsumption()
