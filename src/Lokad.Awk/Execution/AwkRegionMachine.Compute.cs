@@ -516,9 +516,19 @@ internal partial struct AwkRegionMachine
                         }
                     }
                     AwkFunctionArgument argument;
-                    if (instruction.Detail == 0 && operand.Kind == AwkRegionOperandKind.Variable && TryArrayArgument(variables[operand.Index], out argument)) { }
-                    else argument = AwkFunctionArgument.FromValue(call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right) && IsField(operand)
-                        ? state.GetFieldArithmeticArgument(FieldOrdinal(operand)) : Value(instruction.Left));
+                    if (IsField(operand) && call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right))
+                    {
+                        var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
+                        if (fieldArgument.IsNumberValue)
+                        {
+                            state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, fieldArgument.AsNumber());
+                            break;
+                        }
+                        // Owned/error values retain their spelling and deferred conversion.
+                        argument = AwkFunctionArgument.FromValue(fieldArgument);
+                    }
+                    else if (instruction.Detail == 0 && operand.Kind == AwkRegionOperandKind.Variable && TryArrayArgument(variables[operand.Index], out argument)) { }
+                    else argument = AwkFunctionArgument.FromValue(Value(instruction.Left));
                     state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
                     break;
                 case AwkRegionInstructionKind.Call:
