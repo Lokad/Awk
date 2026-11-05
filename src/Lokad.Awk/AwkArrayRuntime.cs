@@ -352,7 +352,7 @@ internal sealed partial class AwkArrayRuntime
             : AwkSeparatorCaptureMode.Omit;
         using var splitLease = _state.MemoryAccounting.ReserveTransient(
             csv ? _state.MemoryAccounting.IsEnabled
-                    ? AwkCsvFields.EstimateMemory(input, materialize: true, _state.CancellationCheckpoint) : 0
+                    ? AwkCsvFields.EstimateSplitTextMemory(input, _state.CancellationCheckpoint) : 0
                 : EstimateSplitBuffers(input.ByteLength, captureMode));
         var result = csv ? AwkCsvFields.SplitText(input, _state.MemoryAccounting, _state.Counters, _state.CancellationCheckpoint)
             : _fieldSplitter.SplitFieldTextsBySeparator(

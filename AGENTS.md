@@ -38,8 +38,9 @@ or environment dependencies.
 - The record frame owns its splitting and value-construction services. Keep input and recomposed
   value origins separate, captured plans immutable, and mutation separators evaluated at the
   language boundary. Conditional field copies resolve their separator only after validating slices.
-  Whitespace/single-byte scans reuse funded descriptors and admit capacity growth before allocation.
-  Their staging handle belongs to frame cleanup, including failed or canceled scans.
+  All record producers write into the frame's funded descriptor destination. Keep staging in frame
+  cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
+  Byte-backed CSV/character/width fields need no whole-record text copy. Regex retains its owned subject.
 - Arithmetic field numbers live in their funded descriptors. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.

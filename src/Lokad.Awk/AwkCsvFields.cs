@@ -3,7 +3,7 @@ namespace Lokad.Awk;
 // CSV framing belongs to the record cursor; this decoder also serves split(text,array).
 internal static class AwkCsvFields
 {
-    public static long EstimateMemory(AwkText text, bool materialize, Action checkpoint)
+    public static long EstimateSplitTextMemory(AwkText text, Action checkpoint)
     {
         var scanner = new Scanner(text.AsSpan(checkpoint), checkpoint);
         var count = 0;
@@ -11,25 +11,28 @@ internal static class AwkCsvFields
         while (scanner.MoveNext(out var field))
         {
             count++;
-            if ((materialize || field.HasEscapes) && field.Length > 0)
+            if (field.Length > 0)
                 bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateTextBytes(field.DecodedLength));
         }
-        return AwkRuntimeMemory.CheckedAdd(bytes, materialize
-            ? AwkRuntimeMemory.EstimateReferenceListBytes(count)
-            : AwkRuntimeMemory.EstimateFieldTextListBytes(count));
+        return AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(count));
     }
 
-    public static List<AwkFieldText> SplitRecord(AwkText text, AwkMemoryAccounting memory,
-        AwkRuntimeCounters counters, Action checkpoint)
+    public static void FillRecord(ReadOnlySpan<byte> text, AwkMemoryAccounting memory,
+        AwkRuntimeCounters counters, Action checkpoint, ref AwkRecordFieldWriter writer)
     {
-        var count = Count(text, checkpoint);
-        var fields = new List<AwkFieldText>(count);
-        var scanner = new Scanner(text.AsSpan(checkpoint), checkpoint);
+        var scanner = new Scanner(text, checkpoint);
         while (scanner.MoveNext(out var field))
-            fields.Add(field.HasEscapes
-                ? AwkFieldText.FromOwned(Decode(text, field, memory, counters, checkpoint))
-                : AwkFieldText.FromRecordSlice(field.Start, field.Length));
-        return fields;
+        {
+            if (field.HasEscapes)
+            {
+                // Keep the returned text funded until the writer takes retained ownership.
+                using var admission = memory.IsEnabled
+                    ? memory.AdmitMutation(AwkRuntimeMemory.EstimateTextBytes(field.DecodedLength)) : default;
+                checkpoint();
+                writer.AddOwned(Decode(text, field, memory, counters, checkpoint));
+            }
+            else writer.Add(new(field.Start, field.Length));
+        }
     }
 
     public static AwkTextSplitResult SplitText(AwkText text, AwkMemoryAccounting memory,
@@ -38,7 +41,7 @@ internal static class AwkCsvFields
         var fields = new List<AwkText>(Count(text, checkpoint));
         var scanner = new Scanner(text.AsSpan(checkpoint), checkpoint);
         while (scanner.MoveNext(out var field))
-            fields.Add(Decode(text, field, memory, counters, checkpoint));
+            fields.Add(Decode(text.AsSpan(checkpoint), field, memory, counters, checkpoint));
         return new(fields, []);
     }
 
@@ -50,13 +53,13 @@ internal static class AwkCsvFields
         return count;
     }
 
-    private static AwkText Decode(AwkText text, Field field, AwkMemoryAccounting memory,
+    private static AwkText Decode(ReadOnlySpan<byte> text, Field field, AwkMemoryAccounting memory,
         AwkRuntimeCounters counters, Action checkpoint)
     {
         if (!field.HasEscapes)
-            return text.CopyByteSlice(field.Start, field.Length, counters, memory, checkpoint);
+            return AwkText.CopyTrustedBytes(text.Slice(field.Start, field.Length), counters, memory, checkpoint);
         using var builder = new AwkUtf8Builder(memory, field.DecodedLength);
-        var bytes = text.AsSpan(checkpoint).Slice(field.Start, field.Length);
+        var bytes = text.Slice(field.Start, field.Length);
         var start = 0;
         for (var i = 0; i < bytes.Length; i++)
         {
@@ -83,7 +86,6 @@ internal static class AwkCsvFields
         {
             field = default;
             if (_finished) return false;
-            _checkpoint();
             var start = _next;
             var position = start;
             var decodedLength = 0;

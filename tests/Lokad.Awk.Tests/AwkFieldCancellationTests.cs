@@ -17,10 +17,13 @@ public sealed class AwkFieldCancellationTests
         var text = AwkText.FromString(" \t" + ascii + "\t" + unicode + " \n");
         if (mode == "record")
         {
-            var fields = splitter.SplitRecordFields(text);
-            Assert.Equal(2, fields.Count);
-            Assert.True(fields[0].AsSpan(text).SequenceEqual(AwkUtf8Codec.Encode(ascii).Span));
-            Assert.True(fields[1].AsSpan(text).SequenceEqual(AwkUtf8Codec.Encode(unicode).Span));
+            using var context = new AwkFieldTestContext(counters, AwkMemoryAccounting.Disabled);
+            context.Frame.SetRecordText(text);
+            Assert.Equal(2, context.Frame.GetFieldCount());
+            Assert.True(context.Frame.TryGetUnmaterializedFieldBytes(new(1), out var first));
+            Assert.True(context.Frame.TryGetUnmaterializedFieldBytes(new(2), out var second));
+            Assert.True(first.SequenceEqual(AwkUtf8Codec.Encode(ascii).Span));
+            Assert.True(second.SequenceEqual(AwkUtf8Codec.Encode(unicode).Span));
         }
         else
         {
@@ -170,6 +173,9 @@ public sealed class AwkFieldCancellationTests
             .Concat(AwkText.FromString("1"), counters, governor);
         using var cancellation = new CancellationTokenSource();
         var splitter = Splitter(cancellation.Token.ThrowIfCancellationRequested, counters, governor);
+        using var recordContext = new AwkFieldTestContext(counters, governor,
+            checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        recordContext.Frame.SetRecordText(source);
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() =>
         {
@@ -178,7 +184,7 @@ public sealed class AwkFieldCancellationTests
                 case "widths": _ = splitter.PrepareFieldWidths(source); break;
                 case "separator": splitter.ValidateFieldSeparator(source); break;
                 case "pattern": splitter.ValidateFieldPattern(source); break;
-                case "record": _ = splitter.SplitRecordFields(source); break;
+                case "record": _ = recordContext.Frame.GetFieldCount(); break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));
             }
         });
@@ -205,16 +211,17 @@ public sealed class AwkFieldCancellationTests
             ? new AwkRecordSplitPlan(AwkFieldSplittingMode.FieldSeparator, AwkFieldSeparatorSpec.FromText(","), AwkText.Empty, [], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Paragraph)
             : new AwkRecordSplitPlan(AwkFieldSplittingMode.FieldWidths, default, AwkText.Empty, [new(new(0), new(int.MaxValue))], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
         if (paragraph) splitter.ValidateFieldSeparator(plan.Separator.ByteText);
+        using var context = Frame(counters, governor, checkpoint);
+        context.Frame.SetRecordText(text, plan);
         armed = true;
-        Assert.Throws<OperationCanceledException>(() => splitter.SplitRecordFields(text, plan));
+        Assert.Throws<OperationCanceledException>(() => context.Frame.GetFieldCount());
         armed = false;
-        var retry = splitter.SplitRecordFields(text, plan);
-        Assert.Equal(paragraph ? 2 : 1, retry.Count);
-        Assert.Equal(paragraph ? new string('a', LongScan) : source, retry[0].AsString(text, counters));
+        Assert.Equal(paragraph ? 2 : 1, context.Frame.GetFieldCount());
+        Assert.Equal(paragraph ? new string('a', LongScan) : source, context.Frame.GetFieldValue(new(1)).AsString());
     }
 
     [Fact]
-    public void CanceledSplitPayloadSummationPreservesLazyFieldsMemoryAndPlan()
+    public void CanceledFieldPublicationPreservesLazyFieldsMemoryAndPlan()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor(counters);

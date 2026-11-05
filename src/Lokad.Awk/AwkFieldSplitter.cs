@@ -153,33 +153,46 @@ internal sealed class AwkFieldSplitter(
     }
 
     internal int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, int position,
-        int targetCount, List<AwkFieldText> fields) =>
-        _byteSplitter.ExtendRecordFields(line, plan.Separator, position, targetCount, fields);
+        int targetCount, ref AwkRecordFieldWriter writer) =>
+        _byteSplitter.ExtendRecordFields(line, plan.Separator, position, targetCount, ref writer);
 
-    internal int FillRecordByteFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan,
-        List<AwkFieldText> fields, ref AwkMemoryLease staging) =>
-        _byteSplitter.FillRecordByteFields(line, plan.Separator, fields, ref staging);
+    public void FillRecordFields(AwkText line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
+    {
+        if (!plan.RequiresRegexSubject)
+        {
+            FillRecordFields(line.AsSpan(throwIfCancellationRequested), plan, ref writer);
+            return;
+        }
+        throwIfCancellationRequested();
+        if (plan.Mode == AwkFieldSplittingMode.FieldPattern)
+            _byteSplitter.FillFieldPattern(line, new AwkRegexPattern(plan.FieldPattern, warningSite: this),
+                plan.CaseSensitivity, ref writer);
+        else
+            _byteSplitter.FillRegexRecordFields(line, plan.Separator, plan.CaseSensitivity, ref writer);
+    }
 
-    public int ExtendRecordFields(AwkText line, AwkRecordSplitPlan plan, int position,
-        int targetCount, List<AwkFieldText> fields) =>
-        _byteSplitter.ExtendRecordFields(line, plan.Separator, position, targetCount, fields);
-
-    public List<AwkFieldText> SplitRecordFields(AwkText line) =>
-        SplitRecordFields(line, CaptureRecordPlan());
-
-    public List<AwkFieldText> SplitRecordFields(AwkText line, AwkRecordSplitPlan plan,
-        List<AwkFieldText>? fieldBuffer = null)
+    public void FillRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
     {
         throwIfCancellationRequested();
         if (compatibilityMode != AwkCompatibilityMode.GnuDefault &&
             plan.Mode == AwkFieldSplittingMode.FieldSeparator && plan.Separator.ByteText.ByteLength == 0)
         {
-            if (line.ByteLength == 0)
-                return [];
-            return plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph
-                ? _byteSplitter.SplitRecordFieldsBySeparator(line,
-                    NewlineSeparator, plan.CaseSensitivity)
-                : [AwkFieldText.FromRecordSlice(0, line.ByteLength)];
+            if (line.IsEmpty) return;
+            if (plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph)
+                _byteSplitter.FillRecordFields(line, NewlineSeparator, false, ref writer);
+            else writer.Add(new(0, line.Length));
+            return;
+        }
+        if (plan.Mode == AwkFieldSplittingMode.Csv)
+        {
+            AwkCsvFields.FillRecord(line, memoryAccounting, counters, throwIfCancellationRequested, ref writer);
+            return;
+        }
+        if (plan.Mode != AwkFieldSplittingMode.FieldWidths)
+        {
+            _byteSplitter.FillRecordFields(line, plan.Separator,
+                plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph, ref writer);
+            return;
         }
         var fieldWidths = plan.FieldWidths;
         static int AddFieldWidthUnits(int position, int value)
@@ -190,130 +203,102 @@ internal sealed class AwkFieldSplitter(
             return position + value;
         }
 
-        List<AwkFieldText> SplitFieldWidthRecordFields()
+        if (stringUnitMode is AwkStringUnitMode.Byte) SplitByteFields(line, ref writer);
+        else SplitRuneFields(line, ref writer);
+
+        void SplitRuneFields(ReadOnlySpan<byte> content, ref AwkRecordFieldWriter writer)
         {
-            List<AwkFieldText> SplitRuneFields()
+            void AdvanceRuneOffset(
+                ReadOnlySpan<byte> content,
+                ref int runePosition,
+                ref int bytePosition,
+                int targetRunePosition,
+                ref long nextCheckpoint)
             {
-                void AdvanceRuneOffset(
-                    ReadOnlySpan<byte> content,
-                    ref int runePosition,
-                    ref int bytePosition,
-                    int targetRunePosition,
-                    ref long nextCheckpoint)
+                while (runePosition < targetRunePosition && bytePosition < content.Length)
                 {
-                    while (runePosition < targetRunePosition && bytePosition < content.Length)
+                    if (bytePosition >= nextCheckpoint)
                     {
-                        if (bytePosition >= nextCheckpoint)
-                        {
-                            throwIfCancellationRequested();
-                            nextCheckpoint = (long)bytePosition + AwkRuntimeLimits.CancellationCheckBytes;
-                        }
-                        var status = Rune.DecodeFromUtf8(content[bytePosition..], out _, out var consumed);
-                        if (status != OperationStatus.Done)
-                            throw new InvalidOperationException("AwkText contains invalid UTF-8.");
-
-                        bytePosition += consumed;
-                        runePosition++;
-                    }
-                }
-
-                var fields = new List<AwkFieldText>(fieldWidths.Count);
-                var position = 0;
-                var bytePosition = 0;
-                var runePosition = 0;
-                long nextCheckpoint = 0;
-                var content = line.AsSpan(throwIfCancellationRequested);
-                for (var index = 0; index < fieldWidths.Count; index++)
-                {
-                    if ((index & 1023) == 0)
                         throwIfCancellationRequested();
-                    if (bytePosition >= content.Length)
-                        break;
-                    var width = fieldWidths[index];
-                    var fieldStartRune = AddFieldWidthUnits(position, width.Skip.Value);
-                    AdvanceRuneOffset(content, ref runePosition, ref bytePosition, fieldStartRune, ref nextCheckpoint);
-                    if (runePosition < fieldStartRune)
-                    {
-                        fields.Add(AwkFieldText.Empty);
-                        position = AddFieldWidthUnits(fieldStartRune, width.Width.Value);
-                        continue;
+                        nextCheckpoint = (long)bytePosition + AwkRuntimeLimits.CancellationCheckBytes;
                     }
+                    var status = Rune.DecodeFromUtf8(content[bytePosition..], out _, out var consumed);
+                    if (status != OperationStatus.Done)
+                        throw new InvalidOperationException("AwkText contains invalid UTF-8.");
 
-                    var fieldStartByte = bytePosition;
+                    bytePosition += consumed;
+                    runePosition++;
+                }
+            }
+
+            var position = 0;
+            var bytePosition = 0;
+            var runePosition = 0;
+            long nextCheckpoint = 0;
+            for (var index = 0; index < fieldWidths.Count; index++)
+            {
+                if ((index & 1023) == 0)
+                    throwIfCancellationRequested();
+                if (bytePosition >= content.Length)
+                    break;
+                var width = fieldWidths[index];
+                var fieldStartRune = AddFieldWidthUnits(position, width.Skip.Value);
+                AdvanceRuneOffset(content, ref runePosition, ref bytePosition, fieldStartRune, ref nextCheckpoint);
+                if (runePosition < fieldStartRune)
+                {
+                    writer.Add(default);
                     position = AddFieldWidthUnits(fieldStartRune, width.Width.Value);
-                    AdvanceRuneOffset(content, ref runePosition, ref bytePosition, position, ref nextCheckpoint);
-                    fields.Add(AwkFieldText.FromRecordSlice(fieldStartByte, bytePosition - fieldStartByte));
+                    continue;
                 }
 
-                return fields;
+                var fieldStartByte = bytePosition;
+                position = AddFieldWidthUnits(fieldStartRune, width.Width.Value);
+                AdvanceRuneOffset(content, ref runePosition, ref bytePosition, position, ref nextCheckpoint);
+                writer.Add(new(fieldStartByte, bytePosition - fieldStartByte));
             }
 
-            List<AwkFieldText> SplitByteFields()
-            {
-                void ThrowIfNotUtf8Boundary(AwkText text, int position)
-                {
-                    if (position <= 0 || position >= text.ByteLength)
-                        return;
-
-                    if ((text.AsSpan(throwIfCancellationRequested)[position] & 0xC0) != 0x80)
-                        return;
-
-                    throw new AwkRuntimeException(
-                        AwkMessages.ErrorUnsupportedByteModeFieldWidths,
-                        AwkDiagnosticId.UnsupportedPolicy);
-                }
-
-                var fields = new List<AwkFieldText>(fieldWidths.Count);
-                var position = 0;
-                var sourceLength = line.ByteLength;
-                for (var index = 0; index < fieldWidths.Count; index++)
-                {
-                    if ((index & 1023) == 0)
-                        throwIfCancellationRequested();
-                    if (position >= sourceLength)
-                        break;
-                    var width = fieldWidths[index];
-                    position = AddFieldWidthUnits(position, width.Skip.Value);
-                    ThrowIfNotUtf8Boundary(line, position);
-                    if (position >= sourceLength)
-                    {
-                        fields.Add(AwkFieldText.Empty);
-                        break;
-                    }
-
-                    var length = Math.Min(width.Width.Value, sourceLength - position);
-                    ThrowIfNotUtf8Boundary(line, position + length);
-                    fields.Add(AwkFieldText.FromRecordSlice(position, length));
-                    position = AddFieldWidthUnits(position, width.Width.Value);
-                }
-
-                return fields;
-            }
-
-            if (fieldWidths.Count == 0)
-                return [];
-
-            return stringUnitMode is AwkStringUnitMode.Byte
-                ? SplitByteFields()
-                : SplitRuneFields();
         }
 
-        return plan.Mode switch
+        void SplitByteFields(ReadOnlySpan<byte> line, ref AwkRecordFieldWriter writer)
         {
-            AwkFieldSplittingMode.Csv => AwkCsvFields.SplitRecord(line, memoryAccounting, counters, throwIfCancellationRequested),
-            AwkFieldSplittingMode.FieldPattern => _byteSplitter.PatsplitRecordFields(
-                line, new AwkRegexPattern(plan.FieldPattern, warningSite: this), plan.CaseSensitivity),
-            AwkFieldSplittingMode.FieldWidths => SplitFieldWidthRecordFields(),
-            _ => plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph
-                ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(
-                    line,
-                    plan.Separator,
-                    plan.CaseSensitivity, fieldBuffer)
-                : _byteSplitter.SplitRecordFieldsBySeparator(
-                    line,
-                    plan.Separator,
-                    plan.CaseSensitivity, fieldBuffer)
-        };
+            void ThrowIfNotUtf8Boundary(ReadOnlySpan<byte> text, int position)
+            {
+                if (position <= 0 || position >= text.Length)
+                    return;
+
+                if ((text[position] & 0xC0) != 0x80)
+                    return;
+
+                throw new AwkRuntimeException(
+                    AwkMessages.ErrorUnsupportedByteModeFieldWidths,
+                    AwkDiagnosticId.UnsupportedPolicy);
+            }
+
+            var position = 0;
+            var sourceLength = line.Length;
+            for (var index = 0; index < fieldWidths.Count; index++)
+            {
+                if ((index & 1023) == 0)
+                    throwIfCancellationRequested();
+                if (position >= sourceLength)
+                    break;
+                var width = fieldWidths[index];
+                position = AddFieldWidthUnits(position, width.Skip.Value);
+                ThrowIfNotUtf8Boundary(line, position);
+                if (position >= sourceLength)
+                {
+                    writer.Add(default);
+                    break;
+                }
+
+                var length = Math.Min(width.Width.Value, sourceLength - position);
+                ThrowIfNotUtf8Boundary(line, position + length);
+                writer.Add(new(position, length));
+                position = AddFieldWidthUnits(position, width.Width.Value);
+            }
+
+        }
+
     }
 
     public AwkTextSplitResult SplitFieldTextsBySeparator(

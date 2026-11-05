@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Unify record field publication and admission across splitting modes. Avoid whole-record text
+  copies for CSV, character and width fields; decode CSV escapes in one field scan.
 - Reuse funded descriptors for whitespace and single-byte field splitting. Admit growth before
   allocation and keep unpublished storage funded through cancellation and cleanup.
 - Complete captured numeric array updates with their existing bound loads, preserving prior

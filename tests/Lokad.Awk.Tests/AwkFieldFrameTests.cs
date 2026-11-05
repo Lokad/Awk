@@ -83,9 +83,10 @@ public sealed class AwkFieldFrameTests
             var record = AwkText.FromSourceLiteralString("keep");
             var expected = mode switch { 1 => 0, 2 => 4, _ => 1 };
             // Cache owners remain alive after the record's captured plan retires.
-            var split = context.Splitter.SplitRecordFields(record, plan);
-            Assert.Equal(expected, split.Count);
-            var fieldBytes = AwkRuntimeMemory.EstimateFieldTextListBytes(split.Capacity);
+            frame.SetRecordText(record, plan);
+            Assert.Equal(expected, frame.GetFieldCount());
+            frame.ResetRecord();
+            var fieldBytes = AwkRuntimeMemory.EstimateFieldTextListBytes(expected);
             var serviceBytes = governor.CurrentCommittedBytes;
             frame.SetRecordText(record, plan);
             var committedBefore = governor.CurrentCommittedBytes;
@@ -101,6 +102,85 @@ public sealed class AwkFieldFrameTests
             Assert.Equal(string.Empty, frame.RecordAwkText.AsString());
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    [InlineData(3, true)]
+    [InlineData(4, false)]
+    [InlineData(4, true)]
+    public void BufferedFieldsOwnOnlyDecodedEscapesOrRequiredRegexSubjects(int mode, bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, governed);
+        var accounting = memory.Accounting;
+        using (var context = new AwkFieldTestContext(counters, accounting))
+        {
+            var source = mode switch { 0 => "é,007", 1 => "a,\"b\"\"c\",007", 2 => "é7", 3 => "é127", _ => "é::007" };
+            var expected = mode switch
+            {
+                0 => new[] { "é", "007" }, 1 => ["a", "b\"c", "007"],
+                2 => ["é", "7"], 3 => ["é1", "27"], _ => ["é", "007"]
+            };
+            var separator = AwkText.FromSourceLiteralString(mode == 4 ? ":+" : "");
+            var plan = new AwkRecordSplitPlan(mode < 2 ? AwkFieldSplittingMode.Csv : mode == 3
+                ? AwkFieldSplittingMode.FieldWidths : AwkFieldSplittingMode.FieldSeparator,
+                AwkFieldSeparatorSpec.FromByteText(separator), AwkText.Empty,
+                mode == 3 ? [new(new(0), new(2)), new(new(0), new(2))] : [],
+                AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
+            if (plan.RequiresRegexSubject) context.Splitter.ValidateFieldSeparator(separator);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(source);
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                var allocations = counters.AwkTextAllocations;
+                var encodes = counters.Utf8Encodes;
+                var decodes = counters.StringDecodes;
+                context.Frame.SetBufferedRecord(bytes, plan);
+                if (governed && repeat > 0 && mode is 0 or 2 or 3)
+                    memory.Budget.SetAvailableBytes(0);
+
+                Assert.Equal(expected.Length, context.Frame.GetFieldCount());
+                Assert.Equal(mode is 1 or 4 ? 1 : 0, counters.AwkTextAllocations - allocations);
+                Assert.Equal(encodes, counters.Utf8Encodes);
+                Assert.Equal(decodes, counters.StringDecodes);
+                memory.Budget.SetAvailableBytes(8 << 20);
+                for (var field = 0; field < expected.Length; field++)
+                    Assert.Equal(expected[field], context.Frame.GetFieldValue(new(field + 1)).AsString());
+                Assert.Equal(source, context.Frame.RecordAwkText.AsString());
+            }
+        }
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void RefusedCsvPreparationCannotAllocateDecodedFieldsOrPublishDescriptors()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting);
+        var bytes = System.Text.Encoding.UTF8.GetBytes("\"" + new string('x', 16_384) + "\"\"y\",z");
+        var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
+            AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
+        context.Frame.SetBufferedRecord(bytes, plan);
+        memory.Budget.SetAvailableBytes(0);
+
+        var error = Assert.Throws<AwkRuntimeException>(() => context.Frame.GetFieldCount());
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.FieldsMaterialized);
+        Assert.True(context.Frame.TryGetBufferedRecordBytes(out var unchanged));
+        Assert.True(unchanged.SequenceEqual(bytes));
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        context.Frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     private static AwkRecordSplitPlan CreatePlan(int mode, string pattern)
