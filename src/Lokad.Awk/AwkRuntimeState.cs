@@ -1030,7 +1030,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (readsMainInput) AdvanceInputCounters();
         if (hasTerminator) SetRecordTerminatorValue(terminator);
         SetRecordFieldSplittingMode(record.FieldSplittingMode);
-        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage.Content, splitPlan);
+        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage, record.StorageSlot, splitPlan);
         else _recordFields.SetRecordText(record.RecordText, splitPlan);
     }
 

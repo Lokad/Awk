@@ -141,7 +141,9 @@ public sealed class AwkFieldFrameTests
                 var allocations = counters.AwkTextAllocations;
                 var encodes = counters.Utf8Encodes;
                 var decodes = counters.StringDecodes;
-                context.Frame.SetBufferedRecord(bytes, plan);
+                var storage = context.Frame.InputRecordStorage;
+                storage.StageValidated(bytes);
+                context.Frame.SetBufferedRecord(storage, storage.CurrentSlot, plan);
                 if (governed && repeat > 0 && mode is 0 or 2 or 3)
                     memory.Budget.SetAvailableBytes(0);
 
@@ -168,7 +170,9 @@ public sealed class AwkFieldFrameTests
         var bytes = System.Text.Encoding.UTF8.GetBytes("\"" + new string('x', 16_384) + "\"\"y\",z");
         var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
             AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
-        context.Frame.SetBufferedRecord(bytes, plan);
+        var storage = context.Frame.InputRecordStorage;
+        storage.StageValidated(bytes);
+        context.Frame.SetBufferedRecord(storage, storage.CurrentSlot, plan);
         memory.Budget.SetAvailableBytes(0);
 
         var error = Assert.Throws<AwkRuntimeException>(() => context.Frame.GetFieldCount());

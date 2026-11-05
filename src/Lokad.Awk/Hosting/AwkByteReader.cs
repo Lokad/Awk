@@ -13,6 +13,7 @@ internal sealed class AwkByteReader(
     private AwkReadCompletion _completion;
     private AwkOperationError _error;
     private bool _borrowIsAscii;
+    private AwkRecordStorage? _recordStorage;
 
     public ReadOnlyMemory<byte> Content => _borrow is { } borrow ? borrow.Content[_offset..] : default;
     public bool ReachedEof => _completion == AwkReadCompletion.EndOfFile;
@@ -68,11 +69,21 @@ internal sealed class AwkByteReader(
 
     public void ReleaseBorrow()
     {
+        var storage = _recordStorage;
+        _recordStorage = null;
+        storage?.PreserveBorrowedRecords(this);
         var borrow = _borrow;
         _borrow = null;
         _offset = 0;
         _borrowIsAscii = false;
         borrow?.Dispose();
+    }
+
+    internal void AttachRecordStorage(AwkRecordStorage storage)
+    {
+        if (ReferenceEquals(_recordStorage, storage)) return;
+        _recordStorage?.PreserveBorrowedRecords(this);
+        _recordStorage = storage;
     }
 
     public void Dispose() => ReleaseBorrow();

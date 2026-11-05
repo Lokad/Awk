@@ -28,35 +28,38 @@ internal sealed class AwkFieldFrame(
     private static readonly List<AwkFieldText> EmptyFieldTexts = [];
 
     private AwkRecordStorage? _inputStorage;
+    private AwkRecordStorage? _bufferedStorage;
     private ReadOnlyMemory<byte> _bufferedRecord;
-    private bool _hasBufferedRecord;
+    private int _bufferedSlot;
+    private bool HasBufferedRecord => _bufferedStorage is not null;
     private bool? _bufferedAscii;
 
     internal AwkRecordStorage InputRecordStorage =>
-        _inputStorage ??= new(governor, counters, checkpoint ?? (static () => { }));
+        _inputStorage ??= new(governor, counters, checkpoint ?? (static () => { }), this);
 
-    private int RecordByteLength => _hasBufferedRecord ? _bufferedRecord.Length : _recordText.ByteLength;
+    private ReadOnlyMemory<byte> BufferedRecord => _bufferedRecord;
+    private int RecordByteLength => HasBufferedRecord ? BufferedRecord.Length : _recordText.ByteLength;
     private ReadOnlySpan<byte> RecordBytes()
     {
         checkpoint?.Invoke();
-        return _hasBufferedRecord ? _bufferedRecord.Span : _recordText.AsSpan(checkpoint);
+        return HasBufferedRecord ? BufferedRecord.Span : _recordText.AsSpan(checkpoint);
     }
 
     private void ClearBufferedRecord()
     {
+        _bufferedStorage = null;
         _bufferedRecord = default;
-        _hasBufferedRecord = false;
         _bufferedAscii = null;
     }
 
     private AwkText OwnedRecordText()
     {
         EnsureRecordText();
-        if (!_hasBufferedRecord) return _recordText;
+        if (!HasBufferedRecord) return _recordText;
         var retained = AdjustEstimate(_retainedMemoryBytes, 0,
-            AwkRuntimeMemory.EstimateTextBytes(_bufferedRecord.Length));
+            AwkRuntimeMemory.EstimateTextBytes(BufferedRecord.Length));
         using var admission = governor.AdmitMutation(Math.Max(0, retained - _retainedMemoryBytes));
-        var text = AwkText.CopyTrustedBytes(_bufferedRecord.Span, counters, governor, checkpoint);
+        var text = AwkText.CopyTrustedBytes(BufferedRecord.Span, counters, governor, checkpoint);
         checkpoint?.Invoke();
         ReplaceRetainedMemory(retained);
         _recordText = text;
@@ -66,25 +69,33 @@ internal sealed class AwkFieldFrame(
 
     private AwkText MaterializeField(AwkFieldText field)
     {
-        if (!_hasBufferedRecord || field.Kind != AwkFieldTextKind.RecordSlice)
+        if (!HasBufferedRecord || field.Kind != AwkFieldTextKind.RecordSlice)
             return field.Materialize(_recordText, counters, governor, checkpoint);
         return field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
             AwkText.CopyTrustedBytes(field.AsSpan(RecordBytes(), checkpoint), counters, governor, checkpoint);
     }
 
-    internal void SetBufferedRecord(ReadOnlyMemory<byte> bytes, AwkRecordSplitPlan plan)
+    internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordSplitPlan plan)
     {
         ReplaceRetainedMemory(EstimateEmptyRecordBytes(AwkText.Empty, plan));
         _splitPlan = plan;
         _recordText = AwkText.Empty;
-        _bufferedRecord = bytes;
-        _hasBufferedRecord = true;
+        _bufferedStorage = storage;
+        _bufferedSlot = slot;
+        _bufferedRecord = storage.ContentAt(slot);
         _bufferedAscii = null;
         _recordWasRecomposed = false;
         _recordValue = default;
         _recordValueIsCurrent = false;
         _recordTextIsCurrent = true;
         ClearSplitFields();
+    }
+
+    // Only the owning storage can change this view before retiring a host borrow.
+    internal void RebindBufferedRecord(AwkRecordStorage storage, int slot, ReadOnlyMemory<byte> bytes)
+    {
+        if (ReferenceEquals(_bufferedStorage, storage) && _bufferedSlot == slot)
+            _bufferedRecord = bytes;
     }
 
     private AwkText _recordText = AwkText.Empty;
@@ -131,15 +142,15 @@ internal sealed class AwkFieldFrame(
         get
         {
             EnsureRecordText();
-            return _hasBufferedRecord ? new(_bufferedRecord.Span) : new(_recordText);
+            return HasBufferedRecord ? new(BufferedRecord.Span) : new(_recordText);
         }
     }
 
     internal bool TryGetBufferedRecordBytes(out ReadOnlySpan<byte> bytes)
     {
         EnsureRecordText();
-        bytes = _hasBufferedRecord ? _bufferedRecord.Span : default;
-        return _hasBufferedRecord;
+        bytes = HasBufferedRecord ? BufferedRecord.Span : default;
+        return HasBufferedRecord;
     }
 
     public AwkText RecordAwkText
@@ -321,7 +332,7 @@ internal sealed class AwkFieldFrame(
         if (!byteMode && field.Kind == AwkFieldTextKind.RecordSlice)
         {
             // The text caches this fact: repeated length reads cannot rescan the record.
-            var ascii = _hasBufferedRecord
+            var ascii = HasBufferedRecord
                 ? (_bufferedAscii ??= Ascii.IsValid(RecordBytes()))
                 : _recordText.IsAscii(out _, checkpoint);
             checkpoint?.Invoke();

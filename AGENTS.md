@@ -44,9 +44,12 @@ or environment dependencies.
 - Arithmetic field numbers live in their funded descriptors. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
-- Current-record payload buffers belong to their frame. Main-input staging writes the inactive
-  buffer; getline keeps owned input. Escaping values own text, and raw field spans stay synchronous.
-  Preserve record/counter/terminator preflights and funding through actual users and cleanup.
+- The frame owns two record payload slots and their bounded funded fallback storage. A current
+  record may borrow immutable host bytes; the reader promotes matching slots before ending that
+  borrow, without allocation or user/cancellation callbacks. Only the owner rebinds the frame's
+  cached view. Main-input staging uses the inactive slot; getline keeps owned input. Escaping
+  values own text and raw spans stay synchronous. Preserve publication preflights and funding
+  through actual users and cleanup.
 - A crossing newline copies only the required prefix. Preserve the uncopied suffix through RS
   changes and transfer all read-ahead before releasing a stdin borrow. Invalid record-value
   caches need no dummy text value; genuine initialization and observed-value origins stay distinct.

@@ -83,6 +83,8 @@ failed record is never published as successful EOF. An explicit later getline ma
 new read after returning -1; Awk does not automatically retry a failed operation.
 The reader can reuse proof that an immutable borrow is ASCII for its record slices.
 Other records retain strict validation; inspecting later bytes never rejects them early.
+Current records may reference the live read borrow. Before retiring it, Awk preserves retained
+record bytes in already-funded storage; escaping scalar values own their text.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,

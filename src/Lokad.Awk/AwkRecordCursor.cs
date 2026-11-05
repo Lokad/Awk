@@ -141,7 +141,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 {
                     if (!_reader.ContentIsAscii)
                         AwkText.ThrowIfInvalidUtf8(line.RecordBytes.Span, _state.CancellationCheckpoint);
-                    storage.StageValidated(line.RecordBytes.Span);
+                    storage.StageBorrowed(_reader, line.RecordBytes);
                     record = AwkInputRecordResult.Buffered(storage, line.Terminator);
                 }
                 else
@@ -873,7 +873,7 @@ internal readonly record struct AwkInputRecordResult
         ClearsRecordTerminator = clearsRecordTerminator;
     }
 
-    public bool HasRecord => _kind == AwkInputRecordResultKind.Record;
+    public bool HasRecord => _kind != AwkInputRecordResultKind.EndOfFile;
 
     public bool ClearsRecordTerminator { get; }
 
@@ -893,7 +893,10 @@ internal readonly record struct AwkInputRecordResult
     }
 
     internal static AwkInputRecordResult Buffered(AwkRecordStorage storage, AwkRecordTerminator terminator) =>
-        new(AwkInputRecordResultKind.Record, storage, terminator, AwkRecordFieldSplittingMode.Ordinary);
+        new(storage.CurrentSlot == 0 ? AwkInputRecordResultKind.FirstBuffer : AwkInputRecordResultKind.SecondBuffer,
+            storage, terminator, AwkRecordFieldSplittingMode.Ordinary);
+
+    internal int StorageSlot => _kind == AwkInputRecordResultKind.FirstBuffer ? 0 : 1;
 
     public AwkRecordTerminator Terminator { get; }
 
@@ -919,6 +922,8 @@ internal readonly record struct AwkInputRecordResult
     private enum AwkInputRecordResultKind
     {
         EndOfFile,
-        Record
+        Record,
+        FirstBuffer,
+        SecondBuffer
     }
 }

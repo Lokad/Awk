@@ -353,6 +353,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("70000\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.BufferedInputRecords);
+        // Whole borrows fund most records directly; only crossing/retained records copy.
+        Assert.InRange(counters.InputRecordBytesCopied, 0, records);
         Assert.True(counters.InputRecordBufferReuses >= records - 4);
         Assert.InRange(counters.AwkTextAllocations, 0, 16);
         Assert.Equal(0, counters.Utf8Encodes);

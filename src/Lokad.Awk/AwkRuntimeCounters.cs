@@ -40,13 +40,27 @@ internal sealed class AwkRuntimeCounters
 
     public long BufferedInputRecords { get; private set; }
     public long InputRecordBufferReuses { get; private set; }
-    public void RecordBufferedInputRecord(bool reused)
+    public long BorrowedInputRecords { get; private set; }
+    public long InputRecordBytesCopied { get; private set; }
+    public long InputRecordPromotions { get; private set; }
+    public void RecordBufferedInputRecord(bool reused, bool borrowed = false)
     {
         if (!_enabled) return;
         lock (_sync)
         {
             BufferedInputRecords++;
+            if (borrowed) BorrowedInputRecords++;
             if (reused) InputRecordBufferReuses++;
+        }
+    }
+
+    internal void RecordInputRecordCopy(int bytes, bool promotion = false)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            InputRecordBytesCopied += bytes;
+            if (promotion) InputRecordPromotions++;
         }
     }
 
