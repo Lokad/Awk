@@ -368,12 +368,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
-    public void Awk_RuntimeOptionsDefaultExecutionEngineKeepsInterpreter()
-    {
-        var options = AwkTestHarness.CreateRuntimeOptions();
-    }
-
-    [Fact]
     public async Task Awk_RuntimeCountersTrackFormattingFallbacks()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
