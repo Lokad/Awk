@@ -6,6 +6,46 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordCursorContextTests
 {
     [Theory]
+    [InlineData("invalid-same", false)] [InlineData("invalid-same", true)]
+    [InlineData("invalid-refill", false)] [InlineData("invalid-refill", true)]
+    [InlineData("invalid-exit-same", false)] [InlineData("invalid-exit-same", true)]
+    [InlineData("invalid-exit-refill", false)] [InlineData("invalid-exit-refill", true)]
+    [InlineData("unicode-refill", false)] [InlineData("unicode-refill", true)]
+    [InlineData("unicode-split", false)] [InlineData("unicode-split", true)]
+    public async Task InputValidationPreservesPrefixesAcrossBorrows(string scenario, bool governed)
+    {
+        var invalid = scenario.StartsWith("invalid", StringComparison.Ordinal);
+        var exitEarly = scenario.Contains("exit", StringComparison.Ordinal);
+        var host = new MockFileSystem();
+        host.SetStandardInputBytes(invalid ? [.. "ok\n"u8, 0x80, 0x0A] : "ok\né\n"u8.ToArray());
+        var reads = 0;
+        host.ReadAsyncOverride = ReadAsync;
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            reads++;
+            var size = scenario.EndsWith("same", StringComparison.Ordinal) ? maximum :
+                scenario == "unicode-split" && reads > 1 ? 1 : 3;
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, Math.Min(maximum, size), token).ConfigureAwait(false); }
+            finally { host.ReadAsyncOverride = ReadAsync; }
+        }
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var source = exitEarly ? "{print $1;exit}" : "{print $1}";
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(invalid && !exitEarly ? 2 : 0, exit.Value);
+        Assert.Equal(invalid ? "ok\n" : "ok\né\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(invalid && !exitEarly ? "awk: invalid UTF-8 input\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
+        if (exitEarly) Assert.Equal(1, reads); // Later chunks must remain unread.
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(false, false, true)]
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]
