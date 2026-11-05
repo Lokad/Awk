@@ -17,7 +17,6 @@ internal sealed class AwkFieldFrame(
 {
     private const int MutationCheckpointFields = 1024;
     // Tiny records are cheaper to finish once than to stage successive prefixes.
-    private const int IncrementalRecordBytes = 128;
     private const int MaxReusableBufferBytes = 4096;
     // Bound descriptor payload; its list/array headers are admitted separately.
     private const int MaxReusableFieldListCapacity =
@@ -426,8 +425,10 @@ internal sealed class AwkFieldFrame(
     internal bool TryCopyInputField(AwkFieldIndex source, AwkFieldIndex destination)
     {
         if (!source.IsNamedField || !destination.IsNamedField) return false;
-        EnsureField(source);
-        if (!_fieldsAreSplit || source.Value > _fieldTexts.Count || destination.Value > _fieldTexts.Count)
+        // Field mutation needs the complete record. Finish its owner before taking
+        // views, independently of which prefixes the RHS has already read.
+        EnsureFields();
+        if (source.Value > _fieldTexts.Count || destination.Value > _fieldTexts.Count)
             return false;
         var from = source.Value - 1;
         var to = destination.Value - 1;
@@ -925,14 +926,20 @@ internal sealed class AwkFieldFrame(
         if (_fieldsAreSplit || (index.IsNamedField && index.Value <= _fieldTexts.Count))
             return;
         var upperBound = (long)RecordByteLength + 1;
-        if (RecordByteLength < IncrementalRecordBytes ||
-            !index.IsNamedField ||
+        if (!index.IsNamedField ||
             index.Value >= upperBound || !_splitPlan.SupportsIncrementalFields)
         {
             EnsureFields();
             return;
         }
 
+        TryExtendFields(index.Value, requireComplete: false);
+    }
+
+    // Completion publishes only if the remaining fields fit the admitted destination.
+    // Otherwise discard the tentative tail and let the full producer stage growth.
+    private bool TryExtendFields(int targetCount, bool requireComplete)
+    {
         var previousCount = _fieldTexts.Count;
         if (previousCount == 0)
         {
@@ -941,14 +948,15 @@ internal sealed class AwkFieldFrame(
         }
         var fields = _fieldTexts;
         var previousCapacity = fields.Capacity;
-        var grows = previousCapacity < index.Value;
-        var capacity = grows ? (int)Math.Max(index.Value, Math.Min(Array.MaxLength, (long)previousCapacity * 2))
+        var grows = previousCapacity < targetCount;
+        var capacity = grows ? (int)Math.Max(targetCount, Math.Min(Array.MaxLength, (long)previousCapacity * 2))
             : previousCapacity;
         // Only actual growth needs another destination. A known prefix fits the
         // admitted capacity before scanning, so the writer cannot admit mid-append.
         var stagingBytes = governor.IsEnabled && grows ? AwkRuntimeMemory.EstimateFieldTextListBytes(capacity) : 0;
         var staging = governor.ReserveTransient(stagingBytes);
         var copiedFields = 0;
+        var published = false;
         try
         {
             if (grows)
@@ -963,18 +971,24 @@ internal sealed class AwkFieldFrame(
                 }
             }
             var writer = new AwkRecordFieldWriter(fields, governor, checkpoint ?? (static () => { }), ref staging);
-            var position = fieldSplitter.ExtendRecordFields(RecordBytes(), _splitPlan, _splitPosition, index.Value, ref writer);
+            var position = fieldSplitter.ExtendRecordFields(RecordBytes(), _splitPlan, _splitPosition, targetCount, ref writer);
             var complete = position < 0;
+            if (requireComplete && !complete) return false;
             var payloadBytes = AwkRuntimeMemory.CheckedAdd(_fieldPayloadByteLength, writer.PayloadBytes);
             // Incremental producers append record slices: existing cached/owned
             // payload is unchanged. Charge the actual capacity delta, not a scan.
-            var retained = governor.IsEnabled ? AdjustEstimate(_retainedMemoryBytes,
+            var retained = governor.IsEnabled && grows ? AdjustEstimate(_retainedMemoryBytes,
                 AwkRuntimeMemory.EstimateFieldTextListBytes(previousCapacity),
-                AwkRuntimeMemory.EstimateFieldTextListBytes(fields.Capacity)) : 0;
+                AwkRuntimeMemory.EstimateFieldTextListBytes(fields.Capacity)) : _retainedMemoryBytes;
             if (complete && governor.IsEnabled)
                 retained = AdjustEstimate(retained, _splitPlan.RetainedMemoryBytes, 0);
-            checkpoint?.Invoke();
-            PublishStagedFields(fields, _fieldValueCache, retained, staging, stagingBytes);
+            if (grows) PublishStagedFields(fields, _fieldValueCache, retained, staging, stagingBytes);
+            else
+            {
+                checkpoint?.Invoke();
+                ReplaceRetainedMemory(retained);
+            }
+            published = true;
             _splitPosition = position;
             _fieldPayloadByteLength = payloadBytes;
             counters.RecordFieldsMaterialized(fields.Count - previousCount);
@@ -985,18 +999,15 @@ internal sealed class AwkFieldFrame(
                 _fieldCountValue = AwkValue.FromNumber(fields.Count);
                 _splitPlan = default;
             }
+            return complete;
         }
-        catch
+        finally
         {
             // Append has no host/admission boundary after capacity is established.
             // Cancellation/failure discards the unpublished tail; the prior cache
             // mapping and descriptor buffer remain owned and funded.
-            if (!grows && fields.Count > previousCount)
+            if (!published && !grows && fields.Count > previousCount)
                 fields.RemoveRange(previousCount, fields.Count - previousCount);
-            throw;
-        }
-        finally
-        {
             counters.RecordFieldDescriptorCopies(copiedFields);
             staging.Dispose();
         }
@@ -1005,6 +1016,10 @@ internal sealed class AwkFieldFrame(
     private void EnsureFields()
     {
         if (_fieldsAreSplit)
+            return;
+
+        if (_fieldTexts.Count > 0 && _splitPlan.SupportsIncrementalFields &&
+            TryExtendFields(_fieldTexts.Capacity, requireComplete: true))
             return;
 
         if (_fieldTexts.Count == 0)

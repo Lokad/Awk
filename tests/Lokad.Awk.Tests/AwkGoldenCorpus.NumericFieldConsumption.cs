@@ -10,6 +10,14 @@ internal static partial class AwkGoldenCorpus
             yield return Passing("numeric-field-consumption-fixed-loop-" + (separator == " " ? "space" : "literal"),
                 ["BEGIN{FS=\"" + separator + "\"}{saved=$1;for(i=1;i<=64;i++)total+=$i;print total,saved,$64,NF,typeof($1)}"],
                 [], "448 000007 000007 64 strnum\n896 000007 000007 64 strnum\n", fields + fields);
+            yield return Passing("numeric-field-consumption-prefix-to-nf-" + (separator == " " ? "space" : "literal"),
+                ["BEGIN{FS=\"" + separator + "\"}{saved=$1;total+=$1;for(i=2;i<=NF;i++)total+=$i;print total,saved,$64,NF,typeof($1)}"],
+                [], "448 000007 000007 64 strnum\n896 000007 000007 64 strnum\n", fields + fields);
+            var copyInput = "000007" + separator + "old" + separator +
+                string.Join(separator, Enumerable.Repeat("tail", 62)) + "\n";
+            yield return Passing("numeric-field-consumption-wide-copy-" + (separator == " " ? "space" : "literal"),
+                ["BEGIN{FS=\"" + separator + "\"}{$2=$1;print $1,$2,$64,NF,typeof($2)}"],
+                [], "000007 000007 tail 64 strnum\n", copyInput);
         }
         foreach (var count in new[] { 16, 17, 64 })
         {

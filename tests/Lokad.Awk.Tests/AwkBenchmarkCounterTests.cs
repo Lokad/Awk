@@ -614,16 +614,18 @@ public sealed partial class AwkBenchmarkCounterTests
         }
     }
 
-    [Fact]
-    internal async Task DiscardedInputFieldCopiesAvoidOwnedValueMaterialization()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    internal async Task DiscardedInputFieldCopiesAvoidOwnedValueMaterialization(bool wide)
     {
-        const string input = "0007 old tail\ncafé old last\n";
+        var tail = wide ? " " + string.Join(' ', Enumerable.Repeat("tail", 61)) : "";
+        var input = "0007 old tail" + tail + "\ncafé old last" + tail + "\n";
         var copied = await RunAsync(["{$2=$1;print}"], input, false);
         var cached = await RunAsync(["{owned=$1;$2=$1;print}"], input, false);
         foreach (var result in new[] { copied, cached })
         {
             Assert.Equal(0, result.ExitCode);
-            Assert.Equal("0007 0007 tail\ncafé café last\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("0007 0007 tail" + tail + "\ncafé café last" + tail + "\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, result.Counters.StringDecodes);
             Assert.Equal(0, result.Counters.Utf8Encodes);
@@ -631,17 +633,19 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.True(copied.Counters.AwkTextAllocations + copied.Counters.RecordsRead <= cached.Counters.AwkTextAllocations);
     }
 
-    [Fact]
-    public async Task RecordOnlyOutputAvoidsOwnedRecompositionButEscapingRecordsMaterialize()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RecordOnlyOutputAvoidsOwnedRecompositionButEscapingRecordsMaterialize(bool wide)
     {
         const int records = 128;
-        var input = string.Concat(Enumerable.Repeat("0007 old café\n", records));
+        var tail = wide ? " " + string.Join(' ', Enumerable.Repeat("tail", 61)) : "";
+        var input = string.Concat(Enumerable.Repeat("0007 old café" + tail + "\n", records));
         var printed = await RunAsync(["{$2=$1;print}"], input, false);
         var escaped = await RunAsync(["{$2=$1;saved=$0;print saved}"], input, false);
         foreach (var result in new[] { printed, escaped })
         {
             Assert.Equal(0, result.ExitCode);
-            Assert.Equal(string.Concat(Enumerable.Repeat("0007 0007 café\n", records)), result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Concat(Enumerable.Repeat("0007 0007 café" + tail + "\n", records)), result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(records, result.Counters.RecordsRead);
             Assert.Equal(0, result.Counters.StringDecodes);

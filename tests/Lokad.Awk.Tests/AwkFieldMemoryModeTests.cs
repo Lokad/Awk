@@ -53,6 +53,7 @@ public sealed class AwkFieldMemoryModeTests
         var frame = context.Frame;
         frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
         Assert.Equal("café", frame.GetFieldValue(new(1)).AsString());
+        Assert.Equal(2, frame.GetFieldCount());
         var record = frame.RecordAwkText;
         var committed = accounting.CurrentCommittedBytes;
         var materialized = counters.FieldsMaterialized;
