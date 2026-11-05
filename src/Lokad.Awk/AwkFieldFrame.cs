@@ -969,7 +969,8 @@ internal sealed class AwkFieldFrame(
 
         if (_fieldTexts.Count == 0)
             counters.RecordFieldSplit();
-        using var splitLease = governor.ReserveTransient(
+        var fillsRecordSlices = _splitPlan.SupportsIncrementalFields;
+        var splitLease = fillsRecordSlices ? AwkMemoryLease.Disabled : governor.ReserveTransient(
             !governor.IsEnabled ? 0 : _splitPlan.Mode == AwkFieldSplittingMode.Csv
                 ? AwkCsvFields.EstimateMemory(_recordText, materialize: false, checkpoint ?? (static () => { }))
                 : AwkRuntimeMemory.EstimateSplitBufferBytes(
@@ -984,9 +985,18 @@ internal sealed class AwkFieldFrame(
         if (reusable is not null) _fieldTexts = EmptyFieldTexts;
         try
         {
-            var fieldTexts = _hasBufferedRecord && _splitPlan.SupportsIncrementalFields
-                ? fieldSplitter.SplitRecordByteFields(RecordBytes(), _splitPlan, reusable)
-                : fieldSplitter.SplitRecordFields(OwnedRecordText(), _splitPlan, reusable);
+            List<AwkFieldText> fieldTexts;
+            int payloadByteLength;
+            if (fillsRecordSlices)
+            {
+                fieldTexts = reusable ?? [];
+                payloadByteLength = fieldSplitter.FillRecordByteFields(RecordBytes(), _splitPlan, fieldTexts, ref splitLease);
+            }
+            else
+            {
+                fieldTexts = fieldSplitter.SplitRecordFields(OwnedRecordText(), _splitPlan, reusable);
+                payloadByteLength = SumFieldPayloadByteLength(fieldTexts);
+            }
             // Complete splitting without discarding numbers already read from a prefix.
             for (var index = 0; index < previousCount; index++)
             {
@@ -1000,11 +1010,15 @@ internal sealed class AwkFieldFrame(
                 var field = _fieldValueCache[index].FieldIndex;
                 fieldTexts[field] = fieldTexts[field].WithCacheSlot(index + 1);
             }
-            var payloadByteLength = SumFieldPayloadByteLength(fieldTexts);
             var retainedBytes = EstimateRetainedBytes(_recordText, fieldTexts, _fieldValueCache);
-            checkpoint?.Invoke();
-            ReplaceRetainedMemory(retainedBytes);
-            _fieldTexts = fieldTexts;
+            if (fillsRecordSlices)
+                PublishStagedFields(fieldTexts, _fieldValueCache, retainedBytes, splitLease, splitLease.Bytes);
+            else
+            {
+                checkpoint?.Invoke();
+                ReplaceRetainedMemory(retainedBytes);
+                _fieldTexts = fieldTexts;
+            }
             _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
             _fieldPayloadByteLength = payloadByteLength;
             counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
@@ -1020,6 +1034,10 @@ internal sealed class AwkFieldFrame(
                 _fieldTexts = reusable.Capacity == reusableCapacity ? reusable : [];
             }
             throw;
+        }
+        finally
+        {
+            splitLease.Dispose();
         }
     }
 

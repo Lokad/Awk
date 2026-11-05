@@ -37,8 +37,8 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(false, 1_600_000)]
-    [InlineData(true, 1_900_000)]
+    [InlineData(false, 64_000)]
+    [InlineData(true, 64_000)]
     public void RecordResetAndLazyFieldCountHaveBoundedAllocation(bool finiteMemory, long allocationLimit)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

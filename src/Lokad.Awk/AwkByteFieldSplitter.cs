@@ -226,17 +226,16 @@ internal sealed class AwkByteFieldSplitter(
         return literalScanner.Completed ? -1 : literalScanner.Position;
     }
 
-    internal List<AwkFieldText> SplitRecordByteFields(ReadOnlySpan<byte> line,
-        AwkFieldSeparatorSpec separator, List<AwkFieldText>? fieldBuffer)
+    internal int FillRecordByteFields(ReadOnlySpan<byte> line,
+        AwkFieldSeparatorSpec separator, List<AwkFieldText> fields, ref AwkMemoryLease staging)
     {
         throwIfCancellationRequested();
-        if (line.IsEmpty) return [];
+        if (line.IsEmpty) return 0;
+        var sink = new AdmittedRecordFieldSink(fields, memoryAccounting, throwIfCancellationRequested, ref staging);
         if (separator.UsesWhitespaceSemantics)
-            return ScanWhitespaceFields<RecordListFieldSink, List<AwkFieldText>>(line,
-                new RecordListFieldSink(0, fieldBuffer));
+            return ScanWhitespaceFields<AdmittedRecordFieldSink, int>(line, ref sink);
         var literal = separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
-        return ScanSingleByteFields<RecordListFieldSink, List<AwkFieldText>>(line, literal,
-            new RecordListFieldSink(CountSingleByteFields(line, literal), fieldBuffer));
+        return ScanSingleByteFields<AdmittedRecordFieldSink, int>(line, literal, ref sink);
     }
 
     public List<AwkFieldText> SplitRecordFieldsBySeparator(
@@ -476,11 +475,15 @@ internal sealed class AwkByteFieldSplitter(
             new RecordListFieldSink());
 
     private TFields ScanWhitespaceFields<TSink, TFields>(AwkText line, TSink sink)
-        where TSink : struct, IFieldSink<TFields> =>
+        where TSink : struct, IFieldSink<TFields>, allows ref struct =>
         ScanWhitespaceFields<TSink, TFields>(line.AsSpan(throwIfCancellationRequested), sink);
 
     private TFields ScanWhitespaceFields<TSink, TFields>(ReadOnlySpan<byte> line, TSink sink)
-        where TSink : struct, IFieldSink<TFields>
+        where TSink : struct, IFieldSink<TFields>, allows ref struct =>
+        ScanWhitespaceFields<TSink, TFields>(line, ref sink);
+
+    private TFields ScanWhitespaceFields<TSink, TFields>(ReadOnlySpan<byte> line, ref TSink sink)
+        where TSink : struct, IFieldSink<TFields>, allows ref struct
     {
         var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters);
         while (scanner.MoveNext(out var field, out _))
@@ -494,7 +497,7 @@ internal sealed class AwkByteFieldSplitter(
         AwkText line,
         AwkStringUnitMode unitMode,
         TSink sink)
-        where TSink : struct, IFieldSink<TFields>
+        where TSink : struct, IFieldSink<TFields>, allows ref struct
     {
         var scanner = new AwkCharacterFieldScanner(line, unitMode, throwIfCancellationRequested);
         while (scanner.MoveNext(out var field))
@@ -505,11 +508,15 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     private TFields ScanSingleByteFields<TSink, TFields>(AwkText line, byte separator, TSink sink)
-        where TSink : struct, IFieldSink<TFields> =>
+        where TSink : struct, IFieldSink<TFields>, allows ref struct =>
         ScanSingleByteFields<TSink, TFields>(line.AsSpan(throwIfCancellationRequested), separator, sink);
 
     private TFields ScanSingleByteFields<TSink, TFields>(ReadOnlySpan<byte> line, byte separator, TSink sink)
-        where TSink : struct, IFieldSink<TFields>
+        where TSink : struct, IFieldSink<TFields>, allows ref struct =>
+        ScanSingleByteFields<TSink, TFields>(line, separator, ref sink);
+
+    private TFields ScanSingleByteFields<TSink, TFields>(ReadOnlySpan<byte> line, byte separator, ref TSink sink)
+        where TSink : struct, IFieldSink<TFields>, allows ref struct
     {
         var scanner = new AwkSingleByteFieldScanner(line, separator, throwIfCancellationRequested);
         while (scanner.MoveNext(out var field, out _))
@@ -523,7 +530,7 @@ internal sealed class AwkByteFieldSplitter(
         AwkText line,
         AwkRegex separator,
         TSink sink)
-        where TSink : struct, IFieldSink<TFields>
+        where TSink : struct, IFieldSink<TFields>, allows ref struct
     {
         var position = 0;
         using var matches = enumerateMatchSpans(separator, line);
@@ -612,6 +619,45 @@ internal sealed class AwkByteFieldSplitter(
                 checkpoint);
 
         public readonly AwkText[] Complete() => fields;
+    }
+
+    private ref struct AdmittedRecordFieldSink : IFieldSink<int>
+    {
+        private readonly List<AwkFieldText> _fields;
+        private readonly AwkMemoryAccounting _accounting;
+        private readonly Action _checkpoint;
+        private ref AwkMemoryLease _staging;
+        private int _payloadBytes;
+
+        public AdmittedRecordFieldSink(List<AwkFieldText> fields, AwkMemoryAccounting accounting,
+            Action checkpoint, ref AwkMemoryLease staging)
+        {
+            _fields = fields;
+            _accounting = accounting;
+            _checkpoint = checkpoint;
+            // The frame owns this handle through success, refusal and cancellation.
+            _staging = ref staging;
+        }
+
+        public void Add(AwkByteRange field)
+        {
+            if (_fields.Count == _fields.Capacity)
+            {
+                var capacity = _fields.Capacity == 0 ? 4 : AwkRuntimeMemory.CheckedToInt32(
+                    AwkRuntimeMemory.CheckedMultiply(_fields.Capacity, 2));
+                // The old array remains live while its replacement is allocated.
+                if (ReferenceEquals(_staging, AwkMemoryLease.Disabled))
+                    _staging = _accounting.CreateTransientLease();
+                _staging.ReserveAdditional(AwkRuntimeMemory.EstimateFieldTextListBytes(capacity));
+                _checkpoint();
+                _fields.EnsureCapacity(capacity);
+            }
+            _fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
+            // Scanner ranges are disjoint and bounded by the input's byte length.
+            _payloadBytes += field.Length;
+        }
+
+        public readonly int Complete() => _payloadBytes;
     }
 
     private readonly struct RecordListFieldSink : IFieldSink<List<AwkFieldText>>

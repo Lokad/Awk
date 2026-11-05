@@ -395,6 +395,107 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("|")]
+    public async Task WarmFieldStorageNeedsNoAdmissionForRecordLength(string separator)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        using var context = Frame(accounting, counters, separator);
+        var frame = context.Frame;
+        var middle = separator == " " ? new string(' ', 16_384) : "|" + new string('x', 16_384) + "|";
+        var record = AwkText.FromSourceLiteralString("01" + middle + "02");
+        var fields = separator == " " ? 2 : 3;
+        frame.SetRecordText(record);
+        Assert.Equal(fields, frame.GetFieldCount());
+        frame.SetRecordText(record);
+        var committed = accounting.CurrentCommittedBytes;
+        budget.SetAvailableBytes(0);
+
+        Assert.Equal(fields, frame.GetFieldCount());
+        Assert.Equal(1, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        Assert.Equal(2, frame.GetFieldNumber(new(fields), AwkNumberParsingMode.Decimal));
+        Assert.InRange(accounting.CurrentCommittedBytes, 0, committed);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(1, counters.FieldListBufferReuses);
+        Assert.Same(record, frame.RecordAwkText);
+        frame.ResetRecord();
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("|")]
+    public async Task RefusedDescriptorGrowthLeavesRecordAndPublishedFieldsUnchanged(string separator)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        using var context = Frame(accounting, counters, separator);
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("old" + separator + "value"));
+        Assert.Equal(2, frame.GetFieldCount());
+        var record = AwkText.FromSourceLiteralString(string.Join(separator, Enumerable.Repeat("x", 128)));
+        frame.SetRecordText(record);
+        var committed = accounting.CurrentCommittedBytes;
+        var publishedFields = counters.FieldsMaterialized;
+        budget.SetAvailableBytes(0);
+
+        var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldCount());
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Same(record, frame.RecordAwkText);
+        Assert.Equal(publishedFields, counters.FieldsMaterialized);
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("|")]
+    public async Task CancellationDuringStagedGrowthRefundsUnpublishedStorage(string separator)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        using var cancellation = new CancellationTokenSource();
+        var observeCancellation = true;
+        using var context = Frame(accounting, counters, separator, () =>
+        {
+            if (observeCancellation) cancellation.Token.ThrowIfCancellationRequested();
+        });
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("old" + separator + "value"));
+        Assert.Equal(2, frame.GetFieldCount());
+        var record = AwkText.FromSourceLiteralString(string.Join(separator, Enumerable.Repeat("x", 128)));
+        frame.SetRecordText(record);
+        var committed = accounting.CurrentCommittedBytes;
+        var publishedFields = counters.FieldsMaterialized;
+        budget.OnGrowth = _ =>
+        {
+            // Cancel with some construction storage already live, before publication.
+            if (accounting.CurrentCommittedBytes > committed) cancellation.Cancel();
+        };
+
+        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount());
+
+        observeCancellation = false;
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Same(record, frame.RecordAwkText);
+        Assert.Equal(publishedFields, counters.FieldsMaterialized);
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, budget.Reserved);
+    }
+
     private static string Read(AwkFieldFrame frame, AwkFieldSplitter splitter, int index)
     {
         Assert.True(frame.TryGetUnmaterializedFieldBytes(new(index), out var bytes));
