@@ -980,7 +980,15 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
             return;
 
-        SetRecordTerminatorValue(CreateByteTextValue(terminator.ByteText));
+        SetRecordTerminatorValue(PrepareRecordTerminatorValue(terminator));
+    }
+
+    private AwkValue PrepareRecordTerminatorValue(AwkRecordTerminator terminator)
+    {
+        var text = terminator.ByteText;
+        if (text.ByteLength != 0) return CreateDeferredTextValue(text);
+        Counters.RecordValueCreated();
+        return AwkValue.Unassigned();
     }
 
     private void SetRecordTerminatorValue(AwkValue value)
@@ -998,7 +1006,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
         var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
-        var value = hasTerminator ? CreateByteTextValue(terminator.ByteText) : default;
+        var value = hasTerminator ? PrepareRecordTerminatorValue(terminator) : default;
         using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(value));
         ThrowIfCancellationRequested();
         AdvanceInputCounters();
@@ -1011,17 +1019,19 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void PublishInputRecord(AwkInputRecordResult record, bool readsMainInput)
     {
         var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
-        var terminator = hasTerminator ? CreateByteTextValue(record.Terminator.ByteText) : default;
+        var terminator = hasTerminator ? PrepareRecordTerminatorValue(record.Terminator) : default;
+        var splitPlan = _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode);
         using var admission = MemoryAccounting.IsEnabled
             ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
                 _recordFields.EstimateRecordMemoryGrowth(record.TryGetStorage(out _) ? AwkText.Empty : record.RecordText,
-                    _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode)), EstimateRecordTerminatorMemoryGrowth(terminator)))
+                    splitPlan), EstimateRecordTerminatorMemoryGrowth(terminator)))
             : default;
         ThrowIfCancellationRequested();
         if (readsMainInput) AdvanceInputCounters();
         if (hasTerminator) SetRecordTerminatorValue(terminator);
         SetRecordFieldSplittingMode(record.FieldSplittingMode);
-        SetCurrentRecord(record);
+        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage.Content, splitPlan);
+        else _recordFields.SetRecordText(record.RecordText, splitPlan);
     }
 
     private void AdvanceInputCounters()
@@ -1092,12 +1102,6 @@ internal sealed class AwkRuntimeState : IDisposable
             SetArgvIndex(argvIndex);
         }
         SetErrno(AwkErrno.None);
-    }
-
-    internal void SetCurrentRecord(AwkInputRecordResult record)
-    {
-        if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage.Content, _fieldSplitter.CaptureRecordPlan());
-        else SetCurrentRecord(record.RecordText);
     }
 
     public void SetCurrentRecord(AwkText line)

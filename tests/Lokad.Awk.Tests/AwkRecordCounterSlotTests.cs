@@ -206,6 +206,71 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PublicationRetainsTheSplitCaseAdmittedBeforeAHostCallback(bool mainInput)
+    {
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, 1 << 20);
+        var state = memory.State;
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator, AwkValue.FromText("a+"));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase, AwkValue.FromNumber(0));
+        state.RecordNumber = 4;
+        state.FileRecordNumber = 3;
+        var changed = false;
+        memory.Budget.OnGrowth = _ =>
+        {
+            if (changed) return;
+            changed = true;
+            // The numeric cell is already admitted; this callback needs no nested growth.
+            state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase, AwkValue.FromNumber(1));
+        };
+        var record = AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("leftAAright"),
+            AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(new string('x', 8192))),
+            AwkRecordFieldSplittingMode.Ordinary);
+
+        state.PublishInputRecord(record, mainInput);
+
+        memory.Budget.OnGrowth = null;
+        Assert.True(changed);
+        Assert.Equal(mainInput ? 5 : 4, state.RecordNumber);
+        Assert.Equal(mainInput ? 4 : 3, state.FileRecordNumber);
+        Assert.Equal(1, state.FieldCount);
+        Assert.Equal("leftAAright", state.GetFieldValue(1).AsString());
+        state.PublishInputRecord(record, mainInput);
+        Assert.Equal(2, state.FieldCount);
+        Assert.Equal("left", state.GetFieldValue(1).AsString());
+        Assert.Equal("right", state.GetFieldValue(2).AsString());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TerminatorPublicationDoesNotMaterializeTextBeforeNumericUse(int entry)
+    {
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, 1 << 20);
+        var state = memory.State;
+        var text = AwkText.FromSourceLiteralString(new string(' ', 16_384)).Concat(
+            AwkText.FromSourceLiteralString("1"), state.Counters, state.MemoryAccounting);
+        var copied = state.Counters.ConcatenationBytesCopied;
+        var terminator = AwkRecordTerminator.FromText(text);
+
+        if (entry == 0) state.SetRecordTerminator(terminator);
+        else if (entry == 1) state.AdvanceMainInputRecord(terminator);
+        else state.PublishInputRecord(AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("row"),
+            terminator, AwkRecordFieldSplittingMode.Ordinary), readsMainInput: true);
+
+        Assert.Equal(copied, state.Counters.ConcatenationBytesCopied);
+        var value = state.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordTerminator);
+        Assert.Equal(copied, state.Counters.ConcatenationBytesCopied);
+        Assert.True(value.IsTruthy());
+        Assert.Equal(1, value.AsNumber(state.CancellationCheckpoint));
+        Assert.Equal(copied + text.ByteLength, state.Counters.ConcatenationBytesCopied);
+        Assert.Equal(0, state.Counters.Utf8Encodes);
+        Assert.Equal(0, state.Counters.StringDecodes);
+    }
+
     private static CooperativeTestMemory CreateState(AwkCompatibilityMode mode, long memory)
     {
 

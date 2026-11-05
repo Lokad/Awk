@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare admitted record splitting once and defer RT numeric conversion until use. An absent
+  terminator now gives RT an unassigned value, matching GNU type and comparison behavior.
 - Unify record field publication and admission across splitting modes. Avoid whole-record text
   copies for CSV, character and width fields; decode CSV escapes in one field scan.
 - Reuse funded descriptors for whitespace and single-byte field splitting. Admit growth before

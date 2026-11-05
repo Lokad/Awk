@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RecordValueCases() =>
     [
+        Passing("record-terminator-keeps-string-origin-and-numeric-use",
+            ["BEGIN{RS=\"[0-9]+\"}{print \"[\"RT\"]\",typeof(RT),(RT?1:0),RT+0,(RT==0)}"], [],
+            "[0042] string 1 42 0\n[0] string 1 0 1\n[] unassigned 0 0 1\n", "a0042b0c"),
+        Passing("record-terminator-getline-keeps-string-origin-and-numeric-use",
+            ["BEGIN{RS=\"[0-9]+\";while((getline x)>0)print \"[\"RT\"]\",typeof(RT),(RT?1:0),RT+0,(RT==0)}"], [],
+            "[0042] string 1 42 0\n[0] string 1 0 1\n[] unassigned 0 0 1\n", "a0042b0c"),
         Passing("record-value-raw-and-reconstructed-origins-stay-distinct",
             ["{raw=$0;before=typeof(raw);$1=$1;rebuilt=$0;print before,typeof(rebuilt),typeof(raw),\"[\"raw\"]\",\"[\"rebuilt\"]\"}"], [],
             "strnum string strnum [0007] [0007]\nstrnum string strnum [7e0] [7e0]\n", "0007\n7e0\n"),

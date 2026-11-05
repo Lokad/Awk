@@ -52,6 +52,8 @@ or environment dependencies.
   caches need no dummy text value; genuine initialization and observed-value origins stay distinct.
 - Internal record pulls return completion status. Take and clear cursor-owned metadata before
   publication, reentry or another read; pending host users retain their existing buffer ownership.
+  Reuse the admitted split plan for publication. RT text keeps string origin with conversion on use;
+  absent terminators are unassigned. Keep header preflights before observable changes.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
 - Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one

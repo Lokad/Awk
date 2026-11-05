@@ -61,7 +61,9 @@ awk diagnostics and a nonzero status; caller cancellation propagates as cancella
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 Record publication checks cancellation after admission, before changing the record or counters.
 Main input and record-target `getline` share header/record publication: terminator preparation
-is reused for admission and assignment; numeric input counters update their existing owners.
+and the captured split plan are reused for admission and assignment; numeric input counters
+update their existing owners. `RT` preserves terminator spelling and string origin, converting
+on numeric use; an absent terminator is unassigned.
 Reader metadata is consumed before publication or reentrant execution; it does not retain a
 previous owned getline value after that value's user retires it.
 Scalar publication also checks cancellation requested during admission before changing names
