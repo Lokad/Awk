@@ -43,6 +43,8 @@ or environment dependencies.
   language boundary. Conditional field copies resolve their separator only after validating slices.
   All record producers write into the frame's funded descriptor destination. Keep staging in frame
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
+  Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
+  Scanners bound long work by bytes; owners keep admission and publication cancellation checks.
   Byte-backed CSV/character/width fields need no whole-record text copy. Regex retains its owned subject.
 - Arithmetic field numbers live in their funded descriptors. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;

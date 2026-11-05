@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -85,15 +85,26 @@ internal static class ReferenceWorkloads
             return new(name, scale, scalarRows, 2, scalarProgram,
                 Bytes(scalarInput.ToString()), [], Bytes((scalarTotal * (fieldCalls || fieldNumbers ? 8 : 1)).ToString(CultureInfo.InvariantCulture) + "\n"));
         }
-        if (name is "numeric-wide" or "fixed-field-loop")
+        if (name == "wide-field-rewrite")
+        {
+            var numeric = Create("numeric-wide", scale);
+            var copiedRow = string.Join(' ', Enumerable.Range(1, numeric.Fields).Select(field => field == 2 ? 1 : field)) + "\n";
+            return new(name, scale, numeric.Records, numeric.Fields, "{$2=$1;print}",
+                numeric.StandardInput, numeric.Files, Bytes(string.Concat(Enumerable.Repeat(copiedRow, numeric.Records))));
+        }
+        if (name is "numeric-wide" or "fixed-field-loop" or "prefix-nf-loop")
         {
             const int numericFields = 128;
             var numericRows = scale switch { "small" => 16, "medium" => 256, "large" => 4096, _ => throw new ArgumentException("Unknown scale.") };
             var numericRow = string.Join(' ', Enumerable.Range(1, numericFields)) + "\n";
             var numericTotal = (long)numericRows * numericFields * (numericFields + 1) / 2;
             return new(name, scale, numericRows, numericFields,
-                name == "numeric-wide" ? "{for(i=1;i<=NF;i++)total+=($i+0)}END{print total}"
-                    : "{for(i=1;i<=128;i++)total+=($i+0)}END{print total}",
+                name switch
+                {
+                    "fixed-field-loop" => "{for(i=1;i<=128;i++)total+=($i+0)}END{print total}",
+                    "prefix-nf-loop" => "{total+=$1;for(i=2;i<=NF;i++)total+=($i+0)}END{print total}",
+                    _ => "{for(i=1;i<=NF;i++)total+=($i+0)}END{print total}"
+                },
                 Bytes(string.Concat(Enumerable.Repeat(numericRow, numericRows))), [],
                 Bytes(numericTotal.ToString(CultureInfo.InvariantCulture) + "\n"));
         }
