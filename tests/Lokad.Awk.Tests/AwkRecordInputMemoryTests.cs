@@ -4,6 +4,47 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordInputMemoryTests
 {
+    public static IEnumerable<object[]> RetainedRecordCases()
+    {
+        var cases = new (string Source, string Output, string[] Batches)[]
+        {
+            ("{sum+=$2}END{print sum,$0}", "15 second 8\n", ["first 0007\n", "second 8\n"]),
+            ("NR==1{getline v;print \"[\"$0\"]\",\"[\"v\"]\"}END{print \"[\"$0\"]\"}",
+                "[first 0007] [second 8]\n[first 0007]\n", ["first 0007\n", "second 8\n"]),
+            ("NR==1{getline;print $1,$2}END{print $0}", "second 8\nsecond 8\n", ["first 0007\n", "second 8\n"]),
+            ("{$2=$1;getline v;print $0,\"[\"v\"]\";exit}END{print $0}",
+                "first first [second 8]\nfirst first\n", ["first 0007\n", "second 8\n"]),
+            ("{print $1;exit}END{print $0}", "first\nfirst 0007\n", ["first 0007\nsecond 8\n"]),
+            ("{nextfile}ENDFILE{print \"file\",$0}END{print \"end\",$0}",
+                "file first 0007\nend first 0007\n", ["first 0007\nsecond 8\n"]),
+            ("{print $1}ENDFILE{print \"file\",$0}END{print \"end\",$0}",
+                "first\nsecond\nfile second 8\nend second 8\n", ["first 0007\n", "second 8\n"]),
+            ("NR==1{RS=\"|\";print $0;next}{print $0}END{print \"[\"$0\"]\"}",
+                "a 0007\nb 8\nc 9\n[c 9]\n", ["a 0007\nb 8|", "c 9|"]),
+            ("{print $0}END{print $0}", "first 0007\nsecond 8\nsecond 8\n", ["first ", "0007\nsecond 8\n"])
+        };
+        foreach (var governed in new[] { false, true })
+            foreach (var item in cases)
+                yield return [governed, item.Source, item.Output, item.Batches];
+    }
+
+    [Theory]
+    [MemberData(nameof(RetainedRecordCases))]
+    public async Task CurrentRecordSurvivesCommittedHostBytesBeingOverwritten(
+        bool governed, string source, string expected, string[] batches)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var host = new InputHost(budget, batches) { PoisonConsumedBytes = true };
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(
+            AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], [])).ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(expected, host.Output);
+        Assert.Equal("", host.Error);
+        AssertRefunded(budget);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -332,6 +373,7 @@ public sealed class AwkRecordInputMemoryTests
         public List<long> OutputAdmission { get; } = [];
         public Func<Task>? PendingOutput { get; init; }
         public Action? OnRead { get; init; }
+        public bool PoisonConsumedBytes { get; init; }
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
         public async Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
@@ -358,6 +400,7 @@ public sealed class AwkRecordInputMemoryTests
                 _batchIndex + 1 == _batches.Length && _batchOffset + length == batch.Length
                     ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData, consumed =>
                 {
+                    if (PoisonConsumedBytes) content.Span[..consumed].Fill(0xFF);
                     _batchOffset += consumed;
                     if (_batchOffset == batch.Length) { _batchIndex++; _batchOffset = 0; }
                 }));
