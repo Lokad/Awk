@@ -120,6 +120,12 @@ internal sealed class AwkRuntimeCounters
 
     public long FieldListBufferReuses { get; private set; }
     public long FieldPrefixStages { get; private set; }
+    public long FieldPrefixExtensions { get; private set; }
+    public void RecordFieldPrefixExtension()
+    {
+        if (_enabled) lock (_sync) FieldPrefixExtensions++;
+    }
+
     public long FieldDescriptorCopies { get; private set; }
 
     public long FieldValueCacheBufferAllocations { get; private set; }

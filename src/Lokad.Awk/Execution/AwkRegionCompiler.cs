@@ -213,11 +213,15 @@ internal sealed partial class AwkRegionCompiler
     private AwkRegionStorageLayout StorageLayout() =>
         new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
 
-    private AwkRegion CreateRegion() => new(_code.ToArray(), _operands.ToArray(),
+    private AwkRegion CreateRegion()
+    {
+        PrepareFieldDemands();
+        return new(_code.ToArray(), _operands.ToArray(),
             _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(),
             StorageLayout(),
             _calls.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray());
+    }
 
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements) =>
         PrepareWork(new StatementsWork(statements));

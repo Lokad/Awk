@@ -51,6 +51,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Poll:
                     state.ThrowIfCancellationRequested();
+                    if (instruction.Target > 0) state.PrepareAdmittedFields(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.StatementBoundary:
                     if (output is { HasPendingOutput: true })

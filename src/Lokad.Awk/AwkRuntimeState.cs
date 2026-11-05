@@ -469,6 +469,8 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool HasStringUnitAt(AwkText value, int index) =>
         _stringRuntime.IsByteMode ? index < value.ByteLength : value.HasRuneAt(index, CancellationCheckpoint);
 
+    internal void PrepareAdmittedFields(int maximum) => _recordFields.PrepareAdmittedFields(maximum);
+
     internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.RecordByteOperand;
 
     internal AwkByteTextOperand ResolveFieldByteOperand(int index)

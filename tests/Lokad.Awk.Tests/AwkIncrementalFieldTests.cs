@@ -2,6 +2,109 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkIncrementalFieldTests
 {
+    [Theory]
+    [InlineData(" ")] [InlineData("|")]
+    public void PreparedPrefixUsesOnlyAdmittedCellsAndCapturedConfiguration(string separator)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: separator);
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(separator, "warm", "two", "three", "tail")));
+        Assert.Equal(4, frame.GetFieldCount());
+        var record = AwkText.FromSourceLiteralString(string.Join(separator, "one", "two", "three", "tail"));
+        frame.SetRecordText(record);
+        var materialized = counters.FieldsMaterialized;
+        var text = counters.AwkTextAllocations;
+        var growth = 0;
+        memory.Budget.SetAvailableBytes(0);
+        memory.Budget.OnGrowth = _ => growth++;
+        frame.PrepareAdmittedFields(3);
+        Assert.Equal(0, growth);
+        Assert.Equal(materialized + 3, counters.FieldsMaterialized);
+        Assert.Equal(text, counters.AwkTextAllocations);
+        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(3), out var bytes));
+        Assert.True(bytes.SequenceEqual("three"u8));
+        memory.Budget.OnGrowth = null;
+        memory.Budget.SetAvailableBytes(8 << 20);
+        context.Splitter.AssignFieldSeparator(AwkText.FromSourceLiteralString(","));
+        Assert.Equal(4, frame.GetFieldCount());
+        Assert.Equal("tail", frame.GetFieldValue(new(4)).AsString());
+        frame.SetRecordText(AwkText.FromSourceLiteralString("next,row"));
+        Assert.Equal(2, frame.GetFieldCount());
+        Assert.Equal("row", frame.GetFieldValue(new(2)).AsString());
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void CanceledPreparedPrefixRollsBackItsTailAndKeepsCachedValuesFunded()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var cancellation = new CancellationTokenSource();
+        var token = cancellation.Token;
+        var armed = false;
+        long scanned = 0;
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, checkpoint: () =>
+        {
+            if (armed && counters.WhitespaceFieldSearchBytes - scanned >= 4096) cancellation.Cancel();
+            token.ThrowIfCancellationRequested();
+        });
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("warm two three tail"));
+        Assert.Equal(4, frame.GetFieldCount());
+        var record = AwkText.FromSourceLiteralString("keep two " + new string('x', 16_384) + " tail");
+        frame.SetRecordText(record);
+        var kept = frame.GetFieldValue(new(1));
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var materialized = counters.FieldsMaterialized;
+        scanned = counters.WhitespaceFieldSearchBytes;
+        armed = true;
+        var failure = Assert.ThrowsAny<OperationCanceledException>(() => frame.PrepareAdmittedFields(3));
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.Equal(materialized, counters.FieldsMaterialized);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(kept, frame.GetFieldValue(new(1)));
+        armed = false;
+        token = CancellationToken.None;
+        Assert.Same(record, frame.RecordAwkText);
+        frame.PrepareAdmittedFields(3);
+        Assert.Equal("two", frame.GetFieldValue(new(2)).AsString());
+        Assert.Equal(16_384, frame.GetFieldValue(new(3)).ByteText.ByteLength);
+        Assert.Equal(4, frame.GetFieldCount());
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void PreparedPrefixLeavesColdAdmissionToTheActualFieldRead()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting);
+        var frame = context.Frame;
+        var record = AwkText.FromSourceLiteralString("one two three");
+        frame.SetRecordText(record);
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        frame.PrepareAdmittedFields(3);
+        Assert.Equal(0, counters.FieldPrefixExtensions);
+        Assert.Equal(0, memory.Budget.Refusals);
+        var failure = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1)));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        Assert.Same(record, frame.RecordAwkText);
+        Assert.Equal(0, counters.FieldsMaterialized);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void RecordKeepsTheSeparatorCapturedBeforeAnAdmissionCallbackChangesConfiguration()
     {

@@ -926,6 +926,15 @@ internal sealed class AwkFieldFrame(
             EnsureRecordText();
     }
 
+    internal void PrepareAdmittedFields(int maximum)
+    {
+        // Do not move allocation/admission ahead of its language operation. Warm
+        // record-local storage can publish a shared prefix without another owner.
+        if (_fieldsAreSplit || maximum <= _fieldTexts.Count || maximum > _fieldTexts.Capacity ||
+            !_splitPlan.SupportsIncrementalFields) return;
+        TryExtendFields(maximum, requireComplete: false);
+    }
+
     private void EnsureField(AwkFieldIndex index)
     {
         if (_fieldsAreSplit || (index.IsNamedField && index.Value <= _fieldTexts.Count))
@@ -945,6 +954,7 @@ internal sealed class AwkFieldFrame(
     // Otherwise discard the tentative tail and let the full producer stage growth.
     private bool TryExtendFields(int targetCount, bool requireComplete)
     {
+        counters.RecordFieldPrefixExtension();
         var previousCount = _fieldTexts.Count;
         if (previousCount == 0)
         {
