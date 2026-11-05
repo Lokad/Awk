@@ -23,8 +23,9 @@ internal static class AwkRuntimeMemory
     private const int AwkRegexMatchBytes = 64;
     private const int AwkRegexGroupBytes = 32;
     private const int AwkValueBytes = 32;
-    internal const int FieldTextBytes = 32;
-    internal const int CachedFieldValueBytes = 32;
+    internal const int FieldTextBytes = 24;
+    internal const int RecordFieldBytes = 24;
+    internal const int CachedFieldValueBytes = 40;
     internal const int ListBufferOverheadBytes = ListObjectBytes + ByteArrayObjectBytes;
     private const int AwkArrayKeyBytes = 32;
     private const int ArraySortEntryBytes = 96;
@@ -226,6 +227,10 @@ internal static class AwkRuntimeMemory
     public static long EstimateFieldTextListBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
             EstimateArrayBufferBytes(Math.Max(4, count), FieldTextBytes));
+
+    internal static long EstimateRecordFieldListBytes(int count) =>
+        count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
+            EstimateArrayBufferBytes(Math.Max(4, count), RecordFieldBytes));
 
     internal static long EstimateFieldTextArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, FieldTextBytes);

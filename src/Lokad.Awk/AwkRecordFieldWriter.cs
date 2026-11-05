@@ -11,43 +11,74 @@ internal interface IAwkFieldSink<out TFields>
 // The frame owns the destination and funding handle, including interrupted scans.
 internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
 {
-    private readonly List<AwkFieldText> _fields;
+    private readonly List<AwkRecordField> _fields;
+    private readonly List<AwkFieldFrame.CachedFieldValue> _initialValues;
+    private readonly int _initialValueCount;
+    private List<AwkFieldFrame.CachedFieldValue> _values;
     private readonly AwkMemoryAccounting _accounting;
+    private readonly AwkRuntimeCounters _counters;
     private readonly Action _checkpoint;
     private readonly ref AwkMemoryLease _staging;
 
-    public AwkRecordFieldWriter(List<AwkFieldText> fields, AwkMemoryAccounting accounting,
-        Action checkpoint, ref AwkMemoryLease staging)
+    public AwkRecordFieldWriter(List<AwkRecordField> fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting,
+        AwkRuntimeCounters counters, Action checkpoint, ref AwkMemoryLease staging)
     {
         _fields = fields;
+        _values = _initialValues = values;
+        _initialValueCount = values.Count;
         _accounting = accounting;
+        _counters = counters;
         _checkpoint = checkpoint;
         _staging = ref staging;
     }
 
     public int PayloadBytes { get; private set; }
-    public long OwnedTextBytes { get; private set; }
     public readonly int Count => _fields.Count;
+    internal readonly List<AwkFieldFrame.CachedFieldValue> Values => _values;
+
+    internal readonly void RetireUnpublishedValues(bool published)
+    {
+        if ((!published || !ReferenceEquals(_values, _initialValues)) && _initialValues.Count > _initialValueCount)
+            _initialValues.RemoveRange(_initialValueCount, _initialValues.Count - _initialValueCount);
+    }
 
     public void Add(AwkFieldRange field)
     {
         EnsureCapacity();
-        _fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
+        _fields.Add(AwkRecordField.FromRecordSlice(field.Start, field.Length));
         // Producer ranges are disjoint and bounded by the admitted record.
         PayloadBytes += field.Length;
     }
 
     public void AddOwned(AwkText text)
     {
-        var field = AwkFieldText.FromOwned(text);
-        if (_accounting.IsEnabled)
+        if (text.ByteLength == 0)
         {
-            var retained = field.RetainedTextByteLength;
-            Fund(retained);
-            OwnedTextBytes = AwkRuntimeMemory.CheckedAdd(OwnedTextBytes, retained);
+            Add(default);
+            return;
         }
         EnsureCapacity();
-        _fields.Add(field);
+        if (_accounting.IsEnabled)
+        {
+            var retained = text.EstimatedRetainedMemoryBytes;
+            Fund(retained);
+        }
+        if (_values.Count == _values.Capacity)
+        {
+            var capacity = _values.Count == 0 ? 4 : AwkRuntimeMemory.CheckedToInt32(
+                AwkRuntimeMemory.CheckedMultiply(_values.Capacity, 2));
+            Fund(AwkRuntimeMemory.EstimateFieldValueListBytes(capacity));
+            var values = new List<AwkFieldFrame.CachedFieldValue>(capacity);
+            _counters.RecordFieldValueCacheBufferAllocation();
+            for (var index = 0; index < _values.Count; index++)
+            {
+                if ((index & 1023) == 0) _checkpoint();
+                values.Add(_values[index]);
+            }
+            _values = values;
+        }
+        _values.Add(new(_fields.Count, AwkFieldCacheKind.TextOnly, default, text));
+        _fields.Add(AwkRecordField.FromOwned(_values.Count, text.ByteLength));
         PayloadBytes += text.ByteLength;
     }
 
@@ -66,7 +97,7 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
         if (_fields.Count != _fields.Capacity) return;
         var capacity = _fields.Capacity == 0 ? 4 : AwkRuntimeMemory.CheckedToInt32(
             AwkRuntimeMemory.CheckedMultiply(_fields.Capacity, 2));
-        Fund(AwkRuntimeMemory.EstimateFieldTextListBytes(capacity));
+        Fund(AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity));
         _fields.EnsureCapacity(capacity);
     }
 }

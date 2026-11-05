@@ -187,6 +187,99 @@ public sealed class AwkFieldFrameTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 5)]
+    [InlineData(true, 1)]
+    [InlineData(true, 5)]
+    public void InterruptedEscapedCsvStagingRetiresUnpublishedTextAndCanRetry(bool cancel, int decodedFields)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var cancellation = new CancellationTokenSource();
+        var token = cancellation.Token;
+        var creations = 0;
+        using var context = new AwkFieldTestContext(counters, memory.Accounting,
+            checkpoint: () => token.ThrowIfCancellationRequested(), createInputValue: text =>
+            {
+                creations++;
+                return AwkValue.FromText(text);
+            });
+        var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
+            AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(',', Enumerable.Repeat("\"a\"\"b\"", 4))), plan);
+        Assert.Equal(4, frame.GetFieldCount());
+        var record = AwkText.FromSourceLiteralString(string.Join(',', Enumerable.Repeat("\"c\"\"d\"", 6)));
+        frame.SetRecordText(record, plan);
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var allocations = counters.AwkTextAllocations;
+        var materialized = counters.FieldsMaterialized;
+        memory.Budget.OnGrowth = _ =>
+        {
+            if (counters.AwkTextAllocations - allocations < decodedFields) return;
+            memory.Budget.OnGrowth = null;
+            if (cancel) cancellation.Cancel();
+            else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        };
+
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => frame.GetFieldCount());
+        else
+        {
+            var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldCount());
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        }
+        Assert.Equal(0, creations);
+        Assert.Equal(materialized, counters.FieldsMaterialized);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Same(record, frame.RecordAwkText);
+
+        memory.Budget.OnGrowth = null;
+        token = CancellationToken.None;
+        Assert.Equal(6, frame.GetFieldCount());
+        Assert.Equal(0, creations);
+        for (var index = 1; index <= 6; index++)
+            Assert.Equal("c\"d", frame.GetFieldValue(new(index)).AsString());
+        Assert.Equal(6, creations);
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReconstructedCsvClassificationAndCopyKeepOnlyTheirOwnedPayload(bool classify)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting,
+            resolveOutputFieldSeparator: static () => AwkText.Empty);
+        var frame = context.Frame;
+        var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
+            AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
+        frame.SetRecordText(AwkText.FromSourceLiteralString("\"a\"\"b\",\"c\"\"d\",007"), plan);
+        Assert.Equal(3, frame.GetFieldCount());
+        frame.AssignFieldCount(new(3), AwkText.Empty);
+        Assert.Equal("a\"bc\"d007", frame.RecordAwkText.AsString());
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        if (classify)
+        {
+            Assert.True(frame.GetFieldComparison(new(2), AwkNumberParsingMode.Decimal).IsBorrowed);
+            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        }
+        Assert.True(frame.TryCopyInputField(new(1), new(2)));
+        Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(3), committed - memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal("a\"ba\"b007", frame.RecordAwkText.AsString());
+        Assert.Equal("a\"b", frame.GetFieldValue(new(2)).AsString());
+        Assert.Equal(7, frame.GetFieldNumber(new(3), AwkNumberParsingMode.Decimal));
+        Assert.Equal("007", frame.GetFieldValue(new(3)).AsString());
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     private static AwkRecordSplitPlan CreatePlan(int mode, string pattern)
     {
         var text = AwkText.FromSourceLiteralString(pattern);

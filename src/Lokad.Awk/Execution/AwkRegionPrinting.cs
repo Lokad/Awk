@@ -92,10 +92,10 @@ internal static class AwkRegionPrinting
         {
             var redirected = storage.Builders[0];
             redirected.Clear();
-            redirected.AppendRecord(fields, record, storage.Texts[print.Texts + print.Count],
+            redirected.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
                 storage.Texts[print.Texts + print.Count + 1], state.CancellationCheckpoint);
         }
-        else output.AppendRecord(fields, record, storage.Texts[print.Texts + print.Count], storage.Texts[print.Texts + print.Count + 1]);
+        else output.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count], storage.Texts[print.Texts + print.Count + 1]);
         storage.ReleasePrint(print);
     }
 }

@@ -106,7 +106,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    public void AppendRecord(ReadOnlySpan<AwkFieldText> fields, ReadOnlySpan<byte> record,
+    public void AppendRecord(AwkRecordFields fields, ReadOnlySpan<byte> record,
         AwkText separator, AwkText terminator, Action? checkpoint = null)
     {
         ThrowIfDisposed();

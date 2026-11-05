@@ -182,15 +182,14 @@ public sealed class AwkNumericFieldConsumptionTests
     }
 
     [Fact]
-    public void NumericCacheUsesExistingRecordLayouts()
+    public void RecordCellAndTextLayoutsMatchTheirOwners()
     {
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
-        Assert.Equal(32, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldText>());
-        var entry = Assert.IsAssignableFrom<Type>(typeof(AwkFieldFrame).GetNestedType("CachedFieldValue", System.Reflection.BindingFlags.NonPublic));
-        var size = typeof(System.Runtime.CompilerServices.Unsafe).GetMethods()
-            .Single(method => method.Name == nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))
-            .MakeGenericMethod(entry).Invoke(null, []);
-        Assert.Equal(32, Assert.IsType<int>(size));
+        Assert.Equal(AwkRuntimeMemory.FieldTextBytes, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldText>());
+        Assert.Equal(AwkRuntimeMemory.RecordFieldBytes, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkRecordField>());
+        Assert.False(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<AwkRecordField>());
+        Assert.Equal(AwkRuntimeMemory.CachedFieldValueBytes,
+            System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldFrame.CachedFieldValue>());
     }
 
     [Fact]

@@ -42,7 +42,7 @@ public sealed partial class AwkFieldProjectionTests
         using var cancellation = new CancellationTokenSource();
         memoryForState.Budget.OnGrowth = _ => cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => builder.AppendRecord(
-            [AwkFieldText.FromRecordSlice(0, record.ByteLength), AwkFieldText.FromOwned(AwkText.FromSourceLiteralString("É"))],
+            new AwkRecordFields([AwkFieldText.FromRecordSlice(0, record.ByteLength), AwkFieldText.FromOwned(AwkText.FromSourceLiteralString("É"))]),
             record.AsSpan(), AwkText.FromSourceLiteralString("|"), AwkText.FromSourceLiteralString("!"),
             cancellation.Token.ThrowIfCancellationRequested));
         Assert.True(cancellation.IsCancellationRequested);

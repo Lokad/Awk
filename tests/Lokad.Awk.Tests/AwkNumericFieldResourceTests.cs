@@ -157,9 +157,11 @@ public sealed class AwkNumericFieldResourceTests
     [Fact]
     public void FieldBufferEstimateIncludesValueTypeEntriesAndArrayHeaders()
     {
-        Assert.Equal(32, Unsafe.SizeOf<AwkFieldText>());
+        Assert.Equal(AwkRuntimeMemory.FieldTextBytes, Unsafe.SizeOf<AwkFieldText>());
         Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkFieldText>(), AwkRuntimeMemory.EstimateFieldTextListBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateFieldTextListBytes(0));
+        Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkRecordField>(), AwkRuntimeMemory.EstimateRecordFieldListBytes(4));
+        Assert.Equal(0, AwkRuntimeMemory.EstimateRecordFieldListBytes(0));
     }
 
     private static void AssertMemoryFailure(AwkRuntimeException error, AwkRuntimeState state, long committed)

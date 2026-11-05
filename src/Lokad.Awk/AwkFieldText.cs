@@ -11,21 +11,16 @@ internal enum AwkFieldTextKind
 
 internal readonly struct AwkFieldText
 {
-    private const int NumericCacheSlot = -1;
     private readonly AwkText _ownedText;
-    private readonly double _numericValue;
     private readonly int _start;
     private readonly int _length;
 
-    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length,
-        int cacheSlot = 0, double numericValue = 0)
+    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length)
     {
         Kind = kind;
         _ownedText = ownedText;
-        _numericValue = numericValue;
         _start = start;
         _length = length;
-        CacheSlot = cacheSlot;
     }
 
     public static AwkFieldText Empty { get; } =
@@ -45,29 +40,6 @@ internal readonly struct AwkFieldText
 
     public AwkFieldTextKind Kind { get; }
 
-    // Positive slots index owned/classification values; -1 holds an inline number.
-    // The owning frame interprets caches; byte views preserve the original spelling.
-    internal int CacheSlot { get; }
-
-    internal AwkFieldText WithCacheSlot(int slot) => new(Kind, _ownedText, _start, _length, slot, _numericValue);
-
-    internal AwkFieldText WithNumericValue(double number) =>
-        new(Kind, _ownedText, _start, _length, NumericCacheSlot, number);
-
-    internal bool TryGetNumericValue(out double number)
-    {
-        number = _numericValue;
-        return CacheSlot == NumericCacheSlot;
-    }
-
-    internal AwkFieldText WithCacheFrom(AwkFieldText source) =>
-        new(Kind, _ownedText, _start, _length, source.CacheSlot, source._numericValue);
-
-    public long RetainedTextByteLength =>
-        Kind == AwkFieldTextKind.Owned
-            ? AwkRuntimeMemory.EstimateTextBytes(_ownedText)
-            : 0;
-
     public int ByteLength() =>
         Kind switch
         {
@@ -76,9 +48,6 @@ internal readonly struct AwkFieldText
             AwkFieldTextKind.RecordSlice => _length,
             _ => 0
         };
-
-    internal bool IsWholeRecord(int byteLength) =>
-        Kind == AwkFieldTextKind.RecordSlice && _start == 0 && _length == byteLength;
 
     internal ReadOnlySpan<byte> AsSpan(ReadOnlySpan<byte> recordBytes, Action? checkpoint = null) =>
         Kind switch
