@@ -300,7 +300,9 @@ the variable's current value. Zero- and one-field records do not retain an unuse
 Printing dirty text fields to stdout copies into owned output; escaping `$0` still owns its
 reconstructed text. Numeric fields retain reconstruction's formatting checkpoint.
 Main-input records can use bounded frame-owned UTF-8 buffers; larger records retain ordinary
-owned storage. Immediate synchronous text consumers may borrow record/field bytes. They do
+owned storage. Completing a newline across host batches keeps the remaining suffix with its
+reader; stdin-alias transfers preserve all unread bytes before releasing the borrow.
+Immediate synchronous text consumers may borrow record/field bytes. They do
 not retain views across record mutation, subsequent operands or suspension. Escaping values,
 dynamic regex subjects and capture searches retain immutable owned text. Provider handles
 stay pinned through matching, and record capacity remains funded until its owner ends.

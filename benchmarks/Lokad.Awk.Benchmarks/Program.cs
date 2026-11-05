@@ -261,7 +261,7 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Array names resolved | Numeric array reads | Bound array updates | Bound aliases | Indexed local arrays | Regex coordinate bytes | Field number parses | Memory peak |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | Buffered RS scan bytes | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Array names resolved | Numeric array reads | Bound array updates | Bound aliases | Indexed local arrays | Regex coordinate bytes | Field number parses | Memory peak |");
         Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", 29)));
 
         for (var index = 0; index < Scenarios.Length; index++)

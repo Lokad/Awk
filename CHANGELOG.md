@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Complete captured numeric array updates with their existing bound loads, preserving prior
+  values and aliases across RHS effects and suspension.
+- Return newline processing to available host buffers after crossing records, preserving
+  unread suffixes, separator changes and pending-read ownership. Clear invalid record-value
+  caches without classifying discarded empty text.
 - Cache arithmetic field numbers in their funded descriptors, retaining original spelling
   for comparisons and escaping values. Remove separate numeric-cache entries and growth.
 - Share immutable splitting configuration through compact record snapshots. Reuse preparation
