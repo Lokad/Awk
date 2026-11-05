@@ -91,7 +91,7 @@ public sealed class AwkControlRegionTests
         };
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var run = Assert.Single(program.MainActions).ExecuteAsync(state, io, output).AsTask();
+        var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -147,7 +147,7 @@ public sealed class AwkControlRegionTests
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-                await Assert.Single(program.MainActions).ExecuteAsync(state, io, output));
+                await program.MainProgram.ExecuteAsync(state, io, output));
             Assert.Equal(7, Number(state, "x"));
             Assert.Equal(42, Number(state, "i"));
             Assert.False(state.TryGetExecutionContext(out _));
@@ -167,7 +167,7 @@ public sealed class AwkControlRegionTests
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        Assert.Equal(AwkStatementFlow.Continue, await Assert.Single(program.MainActions).ExecuteAsync(state, io, output));
+        Assert.Equal(AwkStatementFlow.Continue, await program.MainProgram.ExecuteAsync(state, io, output));
         Assert.Equal(count, Number(state, "executed"));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
@@ -205,7 +205,7 @@ public sealed class AwkControlRegionTests
             for (var run = 0; run < repetitions; run++)
             {
                 if (pendingOutput) output.Append(AwkText.FromSourceLiteralString("prior"));
-                await Assert.Single(program.MainActions).ExecuteAsync(state, io, output);
+                await program.MainProgram.ExecuteAsync(state, io, output);
             }
         }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }

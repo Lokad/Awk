@@ -51,7 +51,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 var io = Io(state, host, counters);
                 using var output = new AwkOutputSink(state.MemoryAccounting, counters);
                 if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
-                await program.MainActions[0].ExecuteAsync(state, io, output);
+                await program.MainProgram.ExecuteAsync(state, io, output);
                 Assert.Equal(6, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
                 Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
                 Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -104,7 +104,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal("beta", state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString());
         Assert.Equal(12, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -129,7 +129,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal(capturedRegex ? "left" : "left,right",
             state.ResolveVariableValue(AwkVariableName.FromText("x")).AsString());
         Assert.Equal(2, state.ResolveVariableValue(AwkVariableName.FromText("y")).AsNumber());
@@ -152,7 +152,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal(count, state.ResolveVariableValue(AwkVariableName.FromText("x")).AsNumber());
         Assert.Equal(1, counters.BoundRegionRuns);
         await io.CloseAsync();
@@ -177,7 +177,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await program.MainActions[0].ExecuteAsync(state, io, output));
+            await program.MainProgram.ExecuteAsync(state, io, output));
         Assert.Equal(7, state.ResolveVariableValue(x).AsNumber());
         Assert.Equal(8, state.ResolveVariableValue(y).AsNumber());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -193,7 +193,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             : failMemory ? "{s=\"ok\";" + work + "}"
                 : "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))}";
         var program = Bind(source);
-        var action = Assert.Single(program.MainActions);
+        var action = program.MainProgram;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memory = new CooperativeTestMemory(1 << 20, enabled: failMemory);
@@ -282,7 +282,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior\n"));
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal((boundary == "pending" ? "prior\n" : "") + "27\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.BoundRegionRuns);
         Assert.False(state.IsInsideFunction);
@@ -313,7 +313,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior\n"));
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal(9, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Equal(boundary == "pending" ? "prior\n" : "", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.BoundRegionRuns);
@@ -336,7 +336,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal(8, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Equal(1, counters.BoundRegionRuns);
         Assert.Equal(count, counters.BoundFunctionRuns);
@@ -364,7 +364,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        await program.MainActions[0].ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal(7, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Equal(1, counters.BoundRegionRuns);
         Assert.False(state.IsInsideFunction);
@@ -582,7 +582,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
-        await Assert.Single(program.MainActions).ExecuteAsync(state, io, output);
+        await program.MainProgram.ExecuteAsync(state, io, output);
         var value = state.ResolveVariableValue(AwkVariableName.FromText("total"));
         Assert.Equal(9, value.AsNumber());
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));

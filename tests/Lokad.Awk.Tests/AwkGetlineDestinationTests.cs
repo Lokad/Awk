@@ -160,7 +160,7 @@ public sealed class AwkGetlineDestinationTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
-        return Assert.Single(program.MainActions);
+        return program.MainProgram;
     }
 
     private static AwkRuntimeOptions CreateOptions(AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>

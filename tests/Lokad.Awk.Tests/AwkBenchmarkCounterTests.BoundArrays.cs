@@ -51,7 +51,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(total.ToString(CultureInfo.InvariantCulture) + " " + keys + " " + keys + "\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.BoundRegionRuns);
+
         Assert.True(counters.ArrayCellCommits >= records);
         Assert.Equal(records, counters.NumericFieldByteParses);
         Assert.InRange(counters.AwkTextAllocations, 0, 4 * keys + 32);

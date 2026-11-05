@@ -21,7 +21,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1536\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.BoundRegionRuns);
+
         Assert.InRange(counters.AwkTextAllocations, 0, 32);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, counters.StringDecodes);
@@ -48,7 +48,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("14336 3072 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.BoundRegionRuns);
+
         Assert.Equal(2 * records, counters.NumericFieldByteParses);
         Assert.InRange(counters.AwkTextAllocations, 0, 32);
         Assert.Equal(0, counters.Utf8Encodes);

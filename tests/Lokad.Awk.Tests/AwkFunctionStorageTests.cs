@@ -26,7 +26,7 @@ public sealed partial class AwkFunctionStorageTests
         }, functions: functions);
         if (preCanceled) cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() =>
-            AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), scope, -1, out _));
+            AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), scope, -1, out _));
         Assert.True(visited < count);
     }
 

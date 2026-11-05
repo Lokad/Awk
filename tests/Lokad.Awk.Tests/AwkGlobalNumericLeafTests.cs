@@ -133,7 +133,7 @@ public sealed class AwkGlobalNumericLeafTests
         var parsed = AwkParser.Parse("BEGIN{result=+" + name + "}");
         if (!preparedBinding)
         {
-            Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+            Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
             return region;
         }
         var binding = AwkBinder.Bind(parsed);

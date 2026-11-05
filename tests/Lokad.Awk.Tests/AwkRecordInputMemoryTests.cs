@@ -139,7 +139,7 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Fact]
-    public async Task RelinquishedBeginPayloadRefundsBeforeLaterMainActions()
+    public async Task RelinquishedBeginPayloadRefundsBeforeLaterRules()
     {
         var budget = new CooperativeTestBudget(16 << 20);
         var host = new InputHost(budget, "row\n");

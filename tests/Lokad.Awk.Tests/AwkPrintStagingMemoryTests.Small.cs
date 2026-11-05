@@ -21,7 +21,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await Assert.Single(program.MainActions).ExecuteAsync(state, io, output));
+            await program.MainProgram.ExecuteAsync(state, io, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(earlier, output.ToString());
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);

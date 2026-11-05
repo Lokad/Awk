@@ -12,7 +12,7 @@ public sealed partial class AwkRegionTests
     {
         var parsed = AwkParser.Parse(source);
         Assert.True(parsed.Success);
-        Assert.False(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
+        Assert.False(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
             -1, out var region, out var diagnostic));
         Assert.Null(region);
         Assert.Equal(expected, diagnostic.Message);
@@ -26,7 +26,7 @@ public sealed partial class AwkRegionTests
         var source = "BEGIN{" + new string('{', depth) + "value=7" + new string('}', depth + 1);
         var parsed = AwkParser.Parse(source, depth + 8);
         Assert.True(parsed.Success);
-        Assert.True(AwkRegionCompiler.TryCompileRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var region));
+        Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var region));
         using var fixture = State(CancellationToken.None, true);
         using var storage = new AwkRegionStorage(fixture.State);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(fixture.State, storage));

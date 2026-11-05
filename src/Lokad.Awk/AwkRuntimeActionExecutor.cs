@@ -53,10 +53,11 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     internal async Task ExecuteMainInputAsync(AwkRuntimeState state, AwkIo io, AwkInputScheduler input)
     {
         using var execution = state.PushExecutionContext(_output, io);
-        var machine = new AwkRegionMachine(state, _program.MainActions, _regionStorage, _output, io, input);
+        var machine = new AwkRegionMachine(state, _program.MainProgram, _regionStorage, _output, io, input);
         var pending = false;
         try
         {
+            machine.Initialize();
             if (!machine.Run())
             {
                 pending = true;

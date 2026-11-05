@@ -4,13 +4,13 @@ namespace Lokad.Awk.Tests;
 // record, so refusal/cancellation can inspect state without retaining an old loop.
 internal sealed class AwkRecordTestExecution : IDisposable
 {
-    private readonly AwkRegion[] _actions;
+    private readonly AwkRegion _program;
     private readonly AwkOutputSink _output;
     private readonly AwkRegionStorage _storage;
 
     internal AwkRecordTestExecution(AwkProgram program, AwkRuntimeState state)
     {
-        _actions = program.MainActions;
+        _program = program.MainProgram;
         _output = new(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         _storage = new(state);
     }
@@ -19,11 +19,12 @@ internal sealed class AwkRecordTestExecution : IDisposable
         AwkInputRecordResult record)
     {
         using var execution = state.PushExecutionContext(_output, io);
-        var machine = new AwkRegionMachine(state, _actions, _storage, _output, io);
+        var machine = new AwkRegionMachine(state, _program, _storage, _output, io);
         var pending = false;
         try
         {
             machine.BeginMainRecord(record);
+            machine.Initialize();
             if (machine.Run()) return machine.Flow;
             pending = true;
             return await AwkRegionMachine.ResumeAsync(machine).ConfigureAwait(false);

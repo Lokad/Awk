@@ -455,7 +455,26 @@ internal sealed class AwkRegionStorage : IDisposable
         ReleaseTexts(print.Texts, print.Count + 2);
     }
 
-    internal void ClearValues()
+    internal void ClearRuleValues(AwkRegionRuleScope scope)
+    {
+        ref readonly var before = ref scope.Before;
+        ref readonly var after = ref scope.After;
+        ClearIncomingFrames();
+        for (var index = after.Sorts - 1; index >= before.Sorts; index--) ReleaseSort(index);
+        Array.Clear(_values, before.Values, after.Values - before.Values);
+        Array.Clear(_targets, before.Targets, after.Targets - before.Targets);
+        for (var index = before.Paths; index < after.Paths; index++) ReleasePath(index);
+        for (var index = before.Iterators; index < after.Iterators; index++) ReleaseIterator(index);
+        for (var index = before.GetlineTargets; index < after.GetlineTargets; index++) _getlineTargets[index].Dispose();
+        Array.Clear(_getlineTargets, before.GetlineTargets, after.GetlineTargets - before.GetlineTargets);
+        Array.Clear(_arrayTargets, before.ArrayTargets, after.ArrayTargets - before.ArrayTargets);
+        Array.Fill(_texts, AwkText.Empty, before.Texts, after.Texts - before.Texts);
+        Array.Clear(_printSegments, before.PrintSegments, after.PrintSegments - before.PrintSegments);
+        Array.Clear(_borrowedPrintFields, before.PrintSegments, after.PrintSegments - before.PrintSegments);
+        ClearBuildersAndPayload();
+    }
+
+    private void ClearIncomingFrames()
     {
         for (var index = 0; index < _incoming.Length; index++)
         {
@@ -463,6 +482,17 @@ internal sealed class AwkRegionStorage : IDisposable
             _incoming[index] = null;
             _state.DiscardIncomingFunctionFrame(frame);
         }
+    }
+
+    private void ClearBuildersAndPayload()
+    {
+        foreach (var builder in _builders) builder.Clear();
+        if (_payload.Bytes > 0) _payload.Release(_payload.Bytes);
+    }
+
+    internal void ClearValues()
+    {
+        ClearIncomingFrames();
         for (var index = _sorts.Length - 1; index >= 0; index--) ReleaseSort(index);
         Array.Clear(_values);
         Array.Clear(_targets);
@@ -474,8 +504,7 @@ internal sealed class AwkRegionStorage : IDisposable
         Array.Fill(_texts, AwkText.Empty);
         Array.Clear(_printSegments);
         Array.Clear(_borrowedPrintFields);
-        foreach (var builder in _builders) builder.Clear();
-        if (_payload.Bytes > 0) _payload.Release(_payload.Bytes);
+        ClearBuildersAndPayload();
     }
 
     public void Dispose()

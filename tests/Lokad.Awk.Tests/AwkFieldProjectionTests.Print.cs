@@ -75,7 +75,7 @@ public sealed partial class AwkFieldProjectionTests
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
-        var region = Assert.Single(program.MainActions);
+        var region = program.MainProgram;
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
         var allocations = counters.AwkTextAllocations;

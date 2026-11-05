@@ -21,7 +21,7 @@ public sealed class AwkProgramTests
             [firstFunctionName] = new AwkUserFunction(firstFunctionName, AwkFunctionLocalLayout.Empty)
         };
 
-        var program = new AwkProgram(beginActions, [], [], [], [], functions);
+        var program = new AwkProgram(beginActions, null, [], [], [], functions);
 
         beginActions.Clear();
         functions[secondFunctionName] = new AwkUserFunction(secondFunctionName, AwkFunctionLocalLayout.Empty);

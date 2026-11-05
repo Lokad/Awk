@@ -40,7 +40,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try
         {
-            await Assert.Single(program.MainActions).ExecuteAsync(state, io, output);
+            await program.MainProgram.ExecuteAsync(state, io, output);
             var value = state.ResolveVariableValue(AwkVariableName.FromText("total"));
             Assert.Equal(5, value.AsNumber());
             Assert.Equal(1, counters.BoundFunctionRuns);

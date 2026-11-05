@@ -8,6 +8,7 @@ internal partial struct AwkRegionMachine
     private readonly AwkOutputSink? _output;
     private readonly AwkIo? _io;
     private readonly AwkRegionStorage _rootStorage;
+    private readonly AwkRegion _rootRegion;
     private AwkRegionCursor _cursor;
     private Pending _pending;
     private Task _hostCompletion;
@@ -16,22 +17,22 @@ internal partial struct AwkRegionMachine
     private int _destination;
     private AwkFunctionFrame? _enteringFrame;
     private bool _finished;
-    private readonly AwkRegion[]? _mainActions;
     private readonly AwkInputScheduler? _mainInput;
     private ValueTask<bool> _mainRead;
     private AwkActionPhaseScope _recordPhase;
-    private int _mainIndex;
 
     internal AwkStatementFlow Flow { get; private set; }
 
     internal AwkRegionMachine(AwkRuntimeState state, AwkRegion region, AwkRegionStorage storage,
-        AwkOutputSink? output, AwkIo? io)
+        AwkOutputSink? output, AwkIo? io, AwkInputScheduler? input = null)
     {
         _state = state;
         _output = output;
         _io = io;
         _rootStorage = storage;
-        _cursor = new(region, storage, 0, null);
+        _rootRegion = region;
+        _mainInput = input;
+        _cursor = new(region, storage, input is null && region.MainBodyStart >= 0 ? region.MainBodyStart : 0, null);
         _hostCompletion = Task.CompletedTask;
     }
 
@@ -145,7 +146,7 @@ internal partial struct AwkRegionMachine
     {
         if (_cursor.Frame is null)
         {
-            if (_mainActions is not null) CompleteMainAction(flow);
+            if (IsProcessingMainRecord) CompleteMainFlow(flow);
             else { Flow = flow; _finished = true; }
             return;
         }
@@ -247,7 +248,7 @@ internal partial struct AwkRegionMachine
                 }
                 catch (AwkFunctionFlowSignal signal) when (machine.IsProcessingMainRecord)
                 {
-                    machine.CompleteMainAction(signal.Flow);
+                    machine.CompleteMainFlow(signal.Flow);
                 }
             }
             return machine.Flow;

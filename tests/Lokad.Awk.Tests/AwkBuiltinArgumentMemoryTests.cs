@@ -114,7 +114,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
         var name = AwkVariableName.FromText("count");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
         var parsed = AwkParser.Parse("BEGIN{result=int(++count)}");
-        Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+        Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
         var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));

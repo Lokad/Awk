@@ -22,12 +22,6 @@ internal partial struct AwkRegionMachine
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
-        if (!_cursor.HasRegion)
-        {
-            AdvanceMain();
-            if (_finished) return true;
-            if (_pending != Pending.None) goto Resume;
-        }
         region = _cursor.Region;
         storage = _cursor.Storage;
         frame = _cursor.Frame;
@@ -44,6 +38,17 @@ internal partial struct AwkRegionMachine
             var instruction = instructions[position];
             switch (instruction.Kind)
             {
+                case AwkRegionInstructionKind.MainRead:
+                    if (!ReadMainRecord())
+                    {
+                        _cursor = _cursor with { Position = position + 1 };
+                        goto Resume;
+                    }
+                    if (_finished) return true;
+                    break;
+                case AwkRegionInstructionKind.RuleEnd:
+                    storage.ClearRuleValues(region.RuleScopes[instruction.Left]);
+                    break;
                 case AwkRegionInstructionKind.Poll:
                     state.ThrowIfCancellationRequested();
                     break;

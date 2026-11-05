@@ -53,7 +53,7 @@ public sealed class AwkFlushTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var continued = AwkVariableName.FromText("continued");
-        var pending = Assert.Single(program.MainActions).ExecuteAsync(state, io, output).AsTask();
+        var pending = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));

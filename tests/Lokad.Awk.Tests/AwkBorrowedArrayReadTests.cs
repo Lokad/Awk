@@ -194,8 +194,8 @@ public sealed class AwkBorrowedArrayReadTests
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
         var parsed = AwkParser.Parse("BEGIN{++a[$1]}BEGIN{a[$2]+=++count}");
-        Assert.True(AwkRegionCompiler.TryCompileRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var first));
-        Assert.True(AwkRegionCompiler.TryCompileRule(parsed.Syntax.Rules[1], AwkLoweringScope.Global, -1, out var missing));
+        Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var first));
+        Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[1], AwkLoweringScope.Global, -1, out var missing));
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, first.Execute(state, storage));
         Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());

@@ -242,7 +242,7 @@ public sealed class AwkFieldValueComparisonTests
         state.SetCurrentRecord(AwkText.FromString("0007 old"));
         _ = state.FieldCount;
         var syntax = AwkParser.Parse("$1==later++{}");
-        Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+        Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
         using var pressure = state.MemoryAccounting.ReserveTransient(
@@ -265,7 +265,7 @@ public sealed class AwkFieldValueComparisonTests
         _ = state.ResolvePreparedGlobalValue(name, 0);
         state.SetCurrentRecord(AwkText.FromString("0x1.1 rest"));
         var syntax = AwkParser.Parse((reverse ? "later++==$1" : "$1==later++") + "{}");
-        Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+        Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         var error = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
         Assert.Equal("awk: hexadecimal floating point constants require an exponent\n", AwkUtf8Codec.Decode(error.MessageBytes));

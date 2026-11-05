@@ -40,7 +40,6 @@ internal static partial class AwkProgramLowerer
         }
 
         var beginActions = new List<AwkRegion>();
-        var mainActions = new List<AwkRegion>();
         var endActions = new List<AwkRegion>();
         var beginFileActions = new List<AwkRegion>();
         var endFileActions = new List<AwkRegion>();
@@ -78,13 +77,20 @@ internal static partial class AwkProgramLowerer
         }
 
         var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, functions);
+        var main = AwkRegionCompiler.CreateMain(globalScope);
         var rangeCount = 0;
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
         {
             checkpoint?.Invoke();
             var rule = syntax.Rules[ruleIndex];
             var rangeIndex = rule.PatternSyntax is AwkRangePatternSyntax ? rangeCount++ : -1;
-            var actionLowering = LowerRule(rule, globalScope, rangeIndex);
+            if (rule.Kind == AwkRuleKind.Main)
+            {
+                if (!main.AppendMainRule(rule, rangeIndex, out var diagnostic))
+                    return AwkLoweringResult.Failure([diagnostic]);
+                continue;
+            }
+            var actionLowering = LowerPhase(rule, globalScope);
             if (!actionLowering.Succeeded)
             {
                 return AwkLoweringResult.Failure(actionLowering.Diagnostics);
@@ -105,15 +111,12 @@ internal static partial class AwkProgramLowerer
                 case AwkRuleKind.EndFile:
                     endFileActions.Add(action);
                     break;
-                default:
-                    mainActions.Add(action);
-                    break;
             }
         }
 
         checkpoint?.Invoke();
-        var program = new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions,
-            globalNames, globalReads.Count, rangeCount);
+        var program = new AwkProgram(beginActions, main.BuildMain(), endActions, beginFileActions, endFileActions, functions,
+            globalNames, globalReads.Count, rangeCount, main.HasMainRules);
         checkpoint?.Invoke();
         return AwkLoweringResult.SuccessResult(program);
 
@@ -135,8 +138,8 @@ internal static partial class AwkProgramLowerer
                 new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout));
         }
 
-        static AwkLoweringOutcome<AwkRegion> LowerRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex) =>
-            AwkRegionCompiler.TryCompileRule(rule, scope, rangeIndex, out var region, out var diagnostic)
+        static AwkLoweringOutcome<AwkRegion> LowerPhase(AwkRuleSyntax rule, AwkLoweringScope scope) =>
+            AwkRegionCompiler.TryCompilePhase(rule, scope, out var region, out var diagnostic)
                 ? AwkLoweringOutcome<AwkRegion>.Success(region)
                 : AwkLoweringOutcome<AwkRegion>.Failure(diagnostic);
     }

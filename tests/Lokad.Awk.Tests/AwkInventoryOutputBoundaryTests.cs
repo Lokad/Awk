@@ -91,7 +91,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         var counters = Counters(observed);
         using var memoryForState = State(counters, cancellation.Token);
         var state = memoryForState.State;
-        var program = new AwkProgram([], [], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        var program = new AwkProgram([], null, [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
         using var executor = new AwkRuntimeActionExecutor(program, state);
         executor.Output.Append(AwkText.FromSourceLiteralString("kept:"));
         cancellation.Cancel();

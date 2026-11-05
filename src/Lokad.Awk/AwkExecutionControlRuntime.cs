@@ -44,5 +44,6 @@ internal sealed class AwkExecutionControlRuntime
 internal readonly struct AwkActionPhaseScope(
     AwkExecutionControlRuntime? control, AwkActionPhase previous) : System.IDisposable
 {
+    internal bool IsActive => control is not null;
     public void Dispose() => control?.RestorePhase(previous);
 }

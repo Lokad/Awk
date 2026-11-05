@@ -64,7 +64,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try
         {
-            await Assert.Single(program.MainActions).ExecuteAsync(state, io, output);
+            await program.MainProgram.ExecuteAsync(state, io, output);
             var value = state.ResolveVariableValue(AwkVariableName.FromText("total"));
             Assert.Equal(9, value.AsNumber());
             Assert.Equal(1, counters.BoundFunctionRuns);
@@ -90,7 +90,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var call = "step(" + string.Join(",", Enumerable.Repeat("1", arguments)) + ")";
         var parametersSource = "function step(" + parameters + "){x=1;return x}{total=" + call + "}";
         var program = Bind(parametersSource);
-        Assert.Single(program.MainActions);
+
         Assert.Equal(expected, program.Functions[AwkFunctionName.FromText("step")].Region is not null);
     }
 

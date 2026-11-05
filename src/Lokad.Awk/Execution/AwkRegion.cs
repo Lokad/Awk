@@ -10,11 +10,14 @@ internal sealed class AwkRegion(
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
     AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches,
-    AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind)
+    AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind,
+    int mainBodyStart = -1, AwkRegionRuleScope[]? ruleScopes = null)
 {
     internal AwkRegionKind Kind => kind;
     internal AwkRegionStorageLayout Layout => layout;
     internal int InstructionCount => instructions.Length;
+    internal int MainBodyStart => mainBodyStart;
+    internal AwkRegionRuleScope[] RuleScopes => ruleScopes ?? [];
 
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
     {
@@ -97,6 +100,7 @@ internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArray
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte
 {
+    MainRead, RuleEnd,
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber, ArrayPreviousNumber,
     Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
@@ -107,6 +111,14 @@ internal enum AwkRegionInstructionKind : byte
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
+
+// Prepared ownership bounds for one rule's monotonic scratch allocation. Shared
+// builder/incoming-frame slots retain their ordinary whole-owner cleanup.
+internal sealed class AwkRegionRuleScope(AwkRegionStorageLayout before, AwkRegionStorageLayout after)
+{
+    internal readonly AwkRegionStorageLayout Before = before;
+    internal readonly AwkRegionStorageLayout After = after;
+}
 
 internal readonly record struct AwkRegionCall
 {
@@ -122,7 +134,6 @@ internal readonly record struct AwkRegionCursor
     private readonly AwkRegionStorage? _storage;
     internal AwkRegionCursor(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame) =>
         (_region, _storage, Position, Frame) = (region, storage, position, frame);
-    internal bool HasRegion => _region is not null;
     internal AwkRegion Region => _region ?? throw new InvalidOperationException("An uninitialized cursor has no region.");
     internal AwkRegionStorage Storage => _storage ?? throw new InvalidOperationException("An uninitialized cursor has no storage.");
     internal int Position { get; init; }

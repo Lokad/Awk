@@ -165,7 +165,7 @@ public sealed class AwkRuntimeStartupTests
             var name = AwkFunctionName.FromText("f" + index);
             functions.Add(name, new(name, AwkFunctionLocalLayout.Empty));
         }
-        var program = new AwkProgram([], [], [], [], [], functions);
+        var program = new AwkProgram([], null, [], [], [], functions);
         functions.Clear();
         for (var index = 0; index < 2; index++) Create().InitializeFunctions(program.Functions);
         var runtime = Create();

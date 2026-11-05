@@ -36,6 +36,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(RecordSplitCompatibilityRepairs(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.Regex),
 
         .. Tagged(RecordSchedulingCases(), AwkGoldenTag.Record),
+        .. Tagged(MainProgramCases(), AwkGoldenTag.Record, AwkGoldenTag.Array),
         .. Tagged(AutomaticInputCases(), AwkGoldenTag.Record, AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
         .. Tagged(InputMetadataCompatibilityRepairs(), AwkGoldenTag.Record),

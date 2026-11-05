@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Lokad.Awk;
@@ -8,6 +9,20 @@ namespace Lokad.Awk.Tests;
 
 internal static class AwkTestHarness
 {
+    internal static bool TryPrepareRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
+        [NotNullWhen(true)] out AwkRegion? region) => TryPrepareRule(rule, scope, rangeIndex, out region, out _);
+
+    internal static bool TryPrepareRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
+        [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic)
+    {
+        if (rule.Kind != AwkRuleKind.Main)
+            return AwkRegionCompiler.TryCompilePhase(rule, scope, out region, out diagnostic);
+        var compiler = AwkRegionCompiler.CreateMain(scope);
+        var success = compiler.AppendMainRule(rule, rangeIndex, out diagnostic);
+        region = success ? compiler.BuildMain() : null;
+        return success;
+    }
+
     // Semantic cursor tests consume the same one-shot production handoff.
     // Completion/lifetime tests exercise MoveNextAsync and TakeRecord directly.
     public static async ValueTask<AwkInputRecordResult> ReadRecordAsync(this IAwkInputRecordReader reader)

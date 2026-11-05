@@ -77,7 +77,7 @@ public sealed class AwkFieldLoopRegionTests
         };
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var run = Assert.Single(program.MainActions).ExecuteAsync(state, io, output).AsTask();
+        var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -129,7 +129,7 @@ public sealed class AwkFieldLoopRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         var error = "";
-        try { await Assert.Single(program.MainActions).ExecuteAsync(state, io, output); }
+        try { await program.MainProgram.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(),

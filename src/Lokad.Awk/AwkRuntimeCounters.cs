@@ -16,6 +16,7 @@ internal sealed class AwkRuntimeCounters
 
     public bool IsEnabled => _enabled;
 
+    // Entries into prepared record programs; loop iterations are RecordsRead.
     public long BoundRegionRuns { get; private set; }
     public long BoundFunctionRuns { get; private set; }
     public long BoundPhaseRuns { get; private set; }

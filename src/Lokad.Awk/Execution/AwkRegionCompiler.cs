@@ -31,6 +31,7 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkRegionGensub> _gensubs = [];
     private readonly List<AwkRegionSort> _sorts = [];
     private readonly List<AwkRegionIteration> _iterations = [];
+    private readonly List<AwkRegionRuleScope> _ruleScopes = [];
     private int _sortSlots;
     private int _activeCalls;
     private int _incomingCalls;
@@ -47,8 +48,50 @@ internal sealed partial class AwkRegionCompiler
     private int _straightLine;
     private bool _usesOutputBuilder;
     private AwkDiagnostic? _diagnostic;
+    private int _mainBodyStart = -1;
+    internal bool HasMainRules { get; private set; }
 
     private AwkRegionCompiler(AwkLoweringScope scope, AwkRegionKind kind) => (_scope, _kind) = (scope, kind);
+
+    internal static AwkRegionCompiler CreateMain(AwkLoweringScope scope)
+    {
+        var compiler = new AwkRegionCompiler(scope, AwkRegionKind.Record);
+        // Reading already polls at the input boundary; body labels poll computation.
+        compiler.Emit(new(AwkRegionInstructionKind.MainRead));
+        compiler._mainBodyStart = compiler._code.Count;
+        return compiler;
+    }
+
+    internal AwkRegion BuildMain()
+    {
+        Emit(new(AwkRegionInstructionKind.Jump, 0));
+        return CreateRegion();
+    }
+
+    internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic)
+    {
+        var before = StorageLayout();
+        var success = AppendMainRuleBody(rule, rangeIndex);
+        if (success)
+        {
+            var after = StorageLayout();
+            // Number registers and immutable program operands retain no payload.
+            // Emit cleanup only for scratch that can actually own a live user.
+            if (after.Values != before.Values || after.Texts != before.Texts ||
+                after.Targets != before.Targets || after.Paths != before.Paths ||
+                after.GetlineTargets != before.GetlineTargets || after.Iterators != before.Iterators ||
+                after.ArrayTargets != before.ArrayTargets || after.Sorts != before.Sorts ||
+                after.PrintSegments != before.PrintSegments || after.Builders > 0 || after.Incoming > 0)
+            {
+                var scope = _ruleScopes.Count;
+                _ruleScopes.Add(new(before, after));
+                Emit(new(AwkRegionInstructionKind.RuleEnd, Left: scope));
+            }
+            HasMainRules = true;
+        }
+        diagnostic = _diagnostic ?? (success ? default : InvalidRule(rule));
+        return success;
+    }
 
     internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
         AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region) =>
@@ -63,15 +106,21 @@ internal sealed partial class AwkRegionCompiler
         return success;
     }
 
-    internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
-        [NotNullWhen(true)] out AwkRegion? region) => TryCompileRule(rule, scope, rangeIndex, out region, out _);
-
-    internal static bool TryCompileRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
+    internal static bool TryCompilePhase(AwkRuleSyntax rule, AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic)
+    {
+        var compiler = new AwkRegionCompiler(scope, AwkRegionKind.Phase);
+        var success = compiler.CompileBody(rule.ActionStatements, null, defaultPrint: false);
+        region = success ? compiler.CreateRegion() : null;
+        diagnostic = compiler._diagnostic ?? (success ? default : InvalidRule(rule));
+        return success;
+    }
+
+    private bool AppendMainRuleBody(AwkRuleSyntax rule, int rangeIndex)
     {
         AwkExpressionSyntax? condition = null;
         AwkExpressionSyntax? rangeEnd = null;
-        if (rule.Kind == AwkRuleKind.Main && rule.PatternTokens.Count != 0)
+        if (rule.PatternTokens.Count != 0)
         {
             if (rule.PatternSyntax is AwkSinglePatternSyntax { Expression: { } expression })
                 condition = expression;
@@ -83,21 +132,18 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                region = null;
-                diagnostic = InvalidRule(rule);
+                _diagnostic = InvalidRule(rule);
                 return false;
             }
         }
-        var compiler = new AwkRegionCompiler(scope, rule.Kind == AwkRuleKind.Main ? AwkRegionKind.Record : AwkRegionKind.Phase);
-        var success = compiler.Compile(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, out region, rangeEnd, rangeIndex);
-        if (!success && compiler._diagnostic is null && rule.HasExplicitAction)
+        var success = CompileBody(rule.ActionStatements, condition, defaultPrint: !rule.HasExplicitAction, rangeEnd, rangeIndex);
+        if (!success && _diagnostic is null && rule.HasExplicitAction)
         {
             // Body diagnostics have always preceded pattern-lowering failures.
             // Preparing a body cannot execute effects or publish a partial program.
-            var body = new AwkRegionCompiler(scope, AwkRegionKind.Record);
-            if (!body.Compile(rule.ActionStatements, null, defaultPrint: false, out _)) compiler._diagnostic = body._diagnostic;
+            var body = new AwkRegionCompiler(_scope, AwkRegionKind.Record);
+            if (!body.Compile(rule.ActionStatements, null, defaultPrint: false, out _)) _diagnostic = body._diagnostic;
         }
-        diagnostic = compiler._diagnostic ?? (success ? default : InvalidRule(rule));
         return success;
     }
 
@@ -108,6 +154,14 @@ internal sealed partial class AwkRegionCompiler
         bool defaultPrint, [NotNullWhen(true)] out AwkRegion? region,
         AwkExpressionSyntax? rangeEnd = null, int rangeIndex = -1)
     {
+        var success = CompileBody(statements, condition, defaultPrint, rangeEnd, rangeIndex);
+        region = success ? CreateRegion() : null;
+        return success;
+    }
+
+    private bool CompileBody(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
+        bool defaultPrint, AwkExpressionSyntax? rangeEnd = null, int rangeIndex = -1)
+    {
         Label();
         List<int>? skipped = null;
         if (condition is not null)
@@ -116,7 +170,6 @@ internal sealed partial class AwkRegionCompiler
             var active = rangeEnd is null ? -1 : Emit(new(AwkRegionInstructionKind.JumpIfRangeActive, Left: rangeIndex));
             if (!Branch(condition, whenTrue: false, skipped))
             {
-                region = null;
                 return false;
             }
             if (rangeEnd is not null)
@@ -124,14 +177,13 @@ internal sealed partial class AwkRegionCompiler
                 Emit(new(AwkRegionInstructionKind.SetRangeState, rangeIndex, Detail: 1));
                 Patch(active, Label());
                 var continuing = new List<int>();
-                if (!Branch(rangeEnd, whenTrue: false, continuing)) { region = null; return false; }
+                if (!Branch(rangeEnd, whenTrue: false, continuing)) return false;
                 Emit(new(AwkRegionInstructionKind.SetRangeState, rangeIndex));
                 PatchBranches(continuing, Label());
             }
         }
         if (!Statements(statements))
         {
-            region = null;
             return false;
         }
         if (defaultPrint)
@@ -146,13 +198,17 @@ internal sealed partial class AwkRegionCompiler
             // action boundary even when none of its statements executes.
             Emit(new(AwkRegionInstructionKind.StatementBoundary));
         }
-        region = new(_code.ToArray(), _operands.ToArray(),
-            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _targetNames.ToArray(),
-            new(_numbers, _values, _texts, _targetNames.Count, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots),
-            _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind);
         return true;
     }
+
+    private AwkRegionStorageLayout StorageLayout() =>
+        new(_numbers, _values, _texts, _targetNames.Count, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
+
+    private AwkRegion CreateRegion() => new(_code.ToArray(), _operands.ToArray(),
+            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _targetNames.ToArray(),
+            StorageLayout(),
+            _calls.ToArray(),
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray());
 
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements) =>
         PrepareWork(new StatementsWork(statements));

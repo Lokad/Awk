@@ -11,7 +11,7 @@ internal readonly struct AwkProgram
             new Dictionary<AwkFunctionName, AwkUserFunction>());
 
     private readonly AwkRegion[]? _beginActions;
-    private readonly AwkRegion[]? _mainActions;
+    private readonly AwkRegion? _mainProgram;
     private readonly AwkRegion[]? _endActions;
     private readonly AwkRegion[]? _beginFileActions;
     private readonly AwkRegion[]? _endFileActions;
@@ -22,13 +22,13 @@ internal readonly struct AwkProgram
 
     public AwkProgram(
         IReadOnlyList<AwkRegion> beginActions,
-        IReadOnlyList<AwkRegion> mainActions,
+        AwkRegion? mainProgram,
         IReadOnlyList<AwkRegion> endActions,
         IReadOnlyList<AwkRegion> beginFileActions,
         IReadOnlyList<AwkRegion> endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         IReadOnlySet<AwkVariableName>? globalNames = null,
-        int globalReadCount = 0, int rangeCount = 0)
+        int globalReadCount = 0, int rangeCount = 0, bool hasMainRules = false)
     {
         static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
@@ -41,7 +41,8 @@ internal readonly struct AwkProgram
         }
 
         _beginActions = AwkCollectionSnapshots.Copy(beginActions);
-        _mainActions = AwkCollectionSnapshots.Copy(mainActions);
+        _mainProgram = mainProgram;
+        HasMainRules = hasMainRules;
         _endActions = AwkCollectionSnapshots.Copy(endActions);
         _beginFileActions = AwkCollectionSnapshots.Copy(beginFileActions);
         _endFileActions = AwkCollectionSnapshots.Copy(endFileActions);
@@ -53,7 +54,8 @@ internal readonly struct AwkProgram
 
     public AwkRegion[] BeginActions => _beginActions ?? [];
 
-    public AwkRegion[] MainActions => _mainActions ?? [];
+    public AwkRegion MainProgram => _mainProgram ?? throw new InvalidOperationException("The program has no prepared main input.");
+    public bool HasMainRules { get; }
 
     public AwkRegion[] EndActions => _endActions ?? [];
 

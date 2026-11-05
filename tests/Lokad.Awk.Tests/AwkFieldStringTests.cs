@@ -174,7 +174,7 @@ public sealed class AwkFieldStringTests
     private static AwkRegion Bind(string expression)
     {
         var parsed = AwkParser.Parse("BEGIN{target=" + expression + "}");
-        Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+        Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         return region;
     }
 

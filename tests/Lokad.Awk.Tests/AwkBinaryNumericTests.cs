@@ -15,7 +15,7 @@ public sealed class AwkBinaryNumericTests
         _ = state.FieldCount;
         var allocations = counters.AwkTextAllocations;
         var parsed = AwkParser.Parse("BEGIN{result=$1*2+$2}");
-        Assert.True(AwkRegionCompiler.TryCompileRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
+        Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         var result = AwkVariableName.FromText("result");
