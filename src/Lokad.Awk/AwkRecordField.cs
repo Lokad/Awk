@@ -23,6 +23,12 @@ internal readonly struct AwkRecordField
     internal int ByteLength() => _length;
     internal bool IsWholeRecord(int length) => Kind == AwkFieldTextKind.RecordSlice && _start == 0 && _length == length;
 
+    // Numeric/borrowed consumers have already excluded owned spelling. Read the
+    // admitted record directly instead of constructing a detached owning-text view.
+    internal ReadOnlySpan<byte> BytesInRecord(ReadOnlySpan<byte> record) =>
+        Kind == AwkFieldTextKind.RecordSlice ? record.Slice(_start, _length) : ReadOnlySpan<byte>.Empty;
+
+
     internal static AwkRecordField FromRecordSlice(int start, int length) =>
         length == 0 ? Empty : new(AwkFieldTextKind.RecordSlice, start, length);
 

@@ -72,7 +72,7 @@ internal sealed class AwkFieldFrame(
         if (!HasBufferedRecord || field.Kind != AwkFieldTextKind.RecordSlice)
             return FieldText(field).Materialize(_recordText, counters, governor, checkpoint);
         return field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
-            AwkText.CopyTrustedBytes(FieldText(field).AsSpan(RecordBytes(), checkpoint), counters, governor, checkpoint);
+            AwkText.CopyTrustedBytes(field.BytesInRecord(RecordBytes()), counters, governor, checkpoint);
     }
 
     internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordSplitPlan plan)
@@ -266,7 +266,7 @@ internal sealed class AwkFieldFrame(
         // Clean input storage survives all prepared computational operands.
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
             return new(GetFieldValue(index));
-        var bytes = FieldText(field).AsSpan(RecordBytes(), checkpoint);
+        var bytes = field.BytesInRecord(RecordBytes());
         var value = field.CacheSlot > 0 ? _fieldValueCache[field.CacheSlot - 1].Value : default;
         // Classification preserves numeric-string/text origins independently of
         // inline arithmetic caches and fully materialized scalar values.
@@ -312,7 +312,7 @@ internal sealed class AwkFieldFrame(
             return false;
 
         counters.RecordNumericFieldByteParse();
-        var parsed = AwkNumberParser.Parse(FieldText(field).AsSpan(RecordBytes(), checkpoint), mode, checkpoint);
+        var parsed = AwkNumberParser.Parse(field.BytesInRecord(RecordBytes()), mode, checkpoint);
         // Capturing an argument must not diagnose a conversion in an untaken callee branch.
         // The uncommon error retains its ordinary owned spelling and deferred-error behavior.
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent)
@@ -405,7 +405,7 @@ internal sealed class AwkFieldFrame(
         var field = _fieldTexts[fieldIndex];
         if (HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
             return false;
-        bytes = FieldText(field).AsSpan(RecordBytes(), checkpoint);
+        bytes = field.BytesInRecord(RecordBytes());
         return true;
     }
 
@@ -1034,6 +1034,7 @@ internal sealed class AwkFieldFrame(
             ReuseFieldBuffer() ? _fieldTexts : null;
         var reusableCapacity = reusable?.Capacity ?? 0;
         var previousCount = _fieldTexts.Count;
+        var previousCacheCount = _fieldValueCache.Count;
         // Keep a private empty view until staging succeeds; later field mutation owns its list.
         if (reusable is not null) _fieldTexts = EmptyFieldTexts;
         var fieldTexts = reusable ?? [];
@@ -1053,7 +1054,8 @@ internal sealed class AwkFieldFrame(
                 if (_fieldTexts[index].TryGetNumericValue(out var number))
                     fieldTexts[index] = fieldTexts[index].WithNumericValue(number);
             }
-            for (var index = 0; index < _fieldValueCache.Count; index++)
+            // Writer-owned escaped text already has its final cell mapping.
+            for (var index = 0; index < previousCacheCount; index++)
             {
                 if ((index & 1023) == 0) checkpoint?.Invoke();
                 var field = _fieldValueCache[index].FieldIndex;
