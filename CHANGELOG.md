@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reuse recognized short-integer digits during numeric conversion; preserve the floating-point
+  fallback, input spelling and cooperative cancellation.
 - Prepare admitted record splitting once and defer RT numeric conversion until use. An absent
   terminator now gives RT an unassigned value, matching GNU type and comparison behavior.
 - Unify record field publication and admission across splitting modes. Avoid whole-record text

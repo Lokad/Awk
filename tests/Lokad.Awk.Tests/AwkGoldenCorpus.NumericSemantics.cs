@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> NumericSemanticsCases()
     {
+        yield return Passing("numeric-decimal-boundaries-preserve-input-spelling",
+            ["{x=$1+0;print sprintf(\"%.0f\",x),\"[\"$1\"]\",typeof($1)}"], [],
+            "999999999999999 [999999999999999] strnum\n" +
+            "1000000000000000 [1000000000000000] strnum\n" +
+            "9007199254740992 [9007199254740993] strnum\n0 [-0] strnum\n" +
+            "7 [+0007] strnum\n12 [12tail] string\n-12 [-12e+bad] string\n" +
+            "0 [.25] strnum\n100 [1.e2] strnum\n",
+            "999999999999999\n1000000000000000\n9007199254740993\n-0\n+0007\n12tail\n-12e+bad\n.25\n1.e2\n");
+
         yield return AwkGoldenCaseBuilder
             .Create("numeric-default-general-exponents",
                 ["BEGIN{x=1.23456789e-9;tiny=4.9406564584124654e-324;print x,-x,tiny;" +

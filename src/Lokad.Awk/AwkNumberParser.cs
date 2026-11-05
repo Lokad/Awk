@@ -126,13 +126,23 @@ internal static class AwkNumberParser
         var index = start;
         if (index < text.Length && text[index] is (byte)'+' or (byte)'-')
             index++;
-        var digits = 0;
+        var digitStart = index;
+        var integerLimit = index + Math.Min(15, text.Length - index);
+        ulong integer = 0;
+        while (index < integerLimit && IsDigit(text[index]))
+        {
+            CheckScanProgress(index, checkpoint);
+            integer = integer * 10 + (uint)(text[index] - (byte)'0');
+            index++;
+        }
+        // Longer input still needs its extent, but no unused accumulator arithmetic.
         while (index < text.Length && IsDigit(text[index]))
         {
             CheckScanProgress(index, checkpoint);
-            digits++;
             index++;
         }
+        var digits = index - digitStart;
+        var integerEnd = index;
         if (index < text.Length && text[index] == (byte)'.')
         {
             index++;
@@ -160,6 +170,14 @@ internal static class AwkNumberParser
                 index = marker;
         }
         checkpoint?.Invoke();
+        // Up to fifteen decimal digits are exact in a double. Reuse the recognized
+        // digits instead of sending the same integer bytes through a second parser.
+        // Longer integers and every fraction/exponent retain ordinary rounding.
+        if (index == integerEnd && digits <= 15)
+        {
+            var value = (double)integer;
+            return new(AwkNumberParseStatus.Number, text[start] == (byte)'-' ? -value : value, index);
+        }
         return Utf8Parser.TryParse(text[start..index], out double number, out var consumed) && consumed == index - start
             ? new(AwkNumberParseStatus.Number, number, index)
             : default;

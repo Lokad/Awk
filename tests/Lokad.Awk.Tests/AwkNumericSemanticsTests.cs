@@ -5,6 +5,29 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkNumericSemanticsTests
 {
     [Theory]
+    [InlineData("0", 0d, false)]
+    [InlineData("-0", 0d, true)]
+    [InlineData(" -000000000000000", 0d, true)]
+    [InlineData("+0007", 7d, false)]
+    [InlineData("999999999999999", 999999999999999d, false)]
+    [InlineData("-999999999999999", -999999999999999d, false)]
+    [InlineData("1000000000000000", 1000000000000000d, false)]
+    [InlineData("9007199254740993", 9007199254740992d, false)]
+    [InlineData("0000000000000000000007", 7d, false)]
+    [InlineData("12tail", 12d, false)]
+    [InlineData("-12e+bad", -12d, false)]
+    [InlineData(".25", 0.25d, false)]
+    [InlineData("1.e2", 100d, false)]
+    public void DecimalInputPreservesBinaryValueAndOriginalBytes(string spelling, double number, bool negativeZero)
+    {
+        var text = AwkText.FromSourceLiteralString(spelling);
+        var value = AwkValue.FromNumericString(text);
+        var expectedBits = negativeZero ? long.MinValue : BitConverter.DoubleToInt64Bits(number);
+        Assert.Equal(expectedBits, BitConverter.DoubleToInt64Bits(value.AsNumber()));
+        Assert.Same(text, value.ByteText);
+    }
+
+    [Theory]
     [InlineData(" ", true)]
     [InlineData("\t", true)]
     [InlineData("\n", true)]
