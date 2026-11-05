@@ -346,6 +346,8 @@ long formats retain cancellation checkpoints and shared-memory admission before 
 CPU control uses the caller's `CancellationToken`, including caller-owned `CancelAfter`
 deadlines. Checkpoints remain active with observational counters disabled. Cancellation
 requests that runtime and host work stop; it cannot forcibly terminate a non-cooperating host.
+Short numeric conversions use the surrounding computational checkpoints. Long scans retain
+their own checks; admission callbacks and observable mutations retain their boundary checks.
 
 Awk awaits actual completion. Acquired descriptors and delivered buffers remain owned while
 cancellation unwinds. Essential cleanup uses an uncancelled token, attempts every acquired

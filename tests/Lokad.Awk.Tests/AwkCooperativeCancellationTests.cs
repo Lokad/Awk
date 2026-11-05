@@ -19,18 +19,26 @@ public sealed class AwkCooperativeCancellationTests
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
+    [InlineData(false, false, "scalar")]
+    [InlineData(false, true, "scalar")]
+    [InlineData(true, false, "scalar")]
+    [InlineData(true, true, "scalar")]
+    [InlineData(false, false, "cached-field")]
+    [InlineData(true, false, "cached-field")]
+    [InlineData(false, false, "new-field")]
+    [InlineData(true, false, "new-field")]
+    [InlineData(false, false, "text")]
+    [InlineData(true, false, "text")]
     public async Task MidflightCancellationStopsLoopsAndDelayedReadsWithFiniteMemory(
-        bool observed, bool delayed, bool cachedField)
+        bool observed, bool delayed, string values)
     {
-        var source = cachedField
-            ? "BEGIN{$0=\"7\";seed=$1+0;getline x<\"/input\";while(1){x+=($1+0)}}"
-            : "BEGIN{getline x<\"/input\";while(1){x++}}";
+        var source = values switch
+        {
+            "cached-field" => "BEGIN{$0=\"7\";seed=$1+0;getline x<\"/input\";while(1){x+=($1+0)}}",
+            "new-field" => "BEGIN{getline x<\"/input\";while(1){$0=\"0007\";total+=$1+0}}",
+            "text" => "BEGIN{getline x<\"/input\";while(1){x=\"0007\";total+=x+0}}",
+            _ => "BEGIN{getline x<\"/input\";while(1){x++}}"
+        };
         await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -45,7 +53,8 @@ public sealed class AwkCooperativeCancellationTests
         };
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = new CooperativeTestBudget(1 << 20) };
+        var budget = new CooperativeTestBudget(1 << 20);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = budget };
         var run = Task.Run(() => compiled.ExecuteAsync(host, cancellation.Token, options));
         try
         {
@@ -56,10 +65,11 @@ public sealed class AwkCooperativeCancellationTests
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
             if (observed)
             {
                 Assert.True(counters.CancellationChecks > 0);
-                if (cachedField) Assert.Equal(1, counters.NumericFieldByteParses);
+                if (values == "cached-field") Assert.Equal(1, counters.NumericFieldByteParses);
                 Assert.InRange(counters.MemoryPeakLiveBytes, 1, 1 << 20);
             }
         }

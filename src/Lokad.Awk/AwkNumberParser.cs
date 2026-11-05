@@ -169,7 +169,11 @@ internal static class AwkNumberParser
             if (index == exponentDigits)
                 index = marker;
         }
-        checkpoint?.Invoke();
+        // Short scans contain no admission or host callback. The interpreter's
+        // region and pre-effect boundaries cover them; long scans still poll
+        // during recognition and before the non-cooperative conversion below.
+        if (text.Length >= AwkRuntimeLimits.CancellationCheckBytes)
+            checkpoint?.Invoke();
         // Up to fifteen decimal digits are exact in a double. Reuse the recognized
         // digits instead of sending the same integer bytes through a second parser.
         // Longer integers and every fraction/exponent retain ordinary rounding.
