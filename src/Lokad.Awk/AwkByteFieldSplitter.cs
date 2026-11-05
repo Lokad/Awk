@@ -600,7 +600,8 @@ internal sealed class AwkByteFieldSplitter(
             : this(line.AsSpan(checkpoint), checkpoint, counters, position) { }
 
         private int _position = position;
-        private long _nextCheckpoint;
+        // Owners check entry/admission and publication; the scanner bounds long work.
+        private long _nextCheckpoint = (long)position + AwkRuntimeLimits.CancellationCheckBytes;
 
         public readonly int Position => _position;
 
@@ -708,6 +709,7 @@ internal sealed class AwkByteFieldSplitter(
 
         private int _position = position;
         private bool _completed;
+        private long _nextCheckpoint = (long)position + AwkRuntimeLimits.CancellationCheckBytes;
 
         public readonly int Position => _position;
         public readonly bool Completed => _completed;
@@ -724,8 +726,12 @@ internal sealed class AwkByteFieldSplitter(
             var next = -1;
             for (var searchOffset = _position; searchOffset < _content.Length;)
             {
-                checkpoint();
-                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, _content.Length - searchOffset);
+                if (searchOffset >= _nextCheckpoint)
+                {
+                    checkpoint();
+                    _nextCheckpoint = (long)searchOffset + AwkRuntimeLimits.CancellationCheckBytes;
+                }
+                var length = (int)Math.Min(_content.Length - searchOffset, _nextCheckpoint - searchOffset);
                 var found = _content.Slice(searchOffset, length).IndexOf(separator);
                 if (found >= 0)
                 {

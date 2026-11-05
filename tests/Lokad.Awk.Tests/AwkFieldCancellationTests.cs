@@ -5,6 +5,44 @@ public sealed class AwkFieldCancellationTests
     private const int LongScan = 16_384;
 
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void WhitespaceSearchCancellationStopsWithinOneByteRegion(bool governed, bool prefix)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var cancellation = new CancellationTokenSource();
+        var armed = false;
+        void Check()
+        {
+            if (armed && counters.WhitespaceFieldSearchBytes > 0) cancellation.Cancel();
+            if (armed) cancellation.Token.ThrowIfCancellationRequested();
+        }
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, checkpoint: Check);
+        var source = AwkText.FromSourceLiteralString(new string('a', 3 * AwkRuntimeLimits.CancellationCheckBytes + 17) + " b");
+        context.Frame.SetRecordText(source);
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var published = counters.FieldsMaterialized;
+        armed = true;
+        var error = Assert.Throws<OperationCanceledException>(() =>
+        {
+            if (prefix) context.Frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal);
+            else context.Frame.GetFieldCount();
+        });
+        armed = false;
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.InRange(counters.WhitespaceFieldSearchBytes, 1, AwkRuntimeLimits.CancellationCheckBytes);
+        Assert.Equal(published, counters.FieldsMaterialized);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Same(source, context.Frame.RecordAwkText);
+        Assert.Equal(2, context.Frame.GetFieldCount());
+        Assert.Equal("b", context.Frame.GetFieldValue(new(2)).AsString());
+        context.Frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("record")]
     [InlineData("split")]
     [InlineData("captures")]
