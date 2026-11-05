@@ -79,17 +79,18 @@ internal sealed partial class AwkRegionCompiler
             var location = CompletedResult<PreparedLocation>(completed);
             if (location.Access < 0)
                 return Complete(new(new(location.Operand, -1), compiler.CaptureNumber(location.Operand)));
-            var number = compiler._numbers++;
-            var prior = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
             if (compiler._arrays[location.Access].Path >= 0)
             {
+                var number = compiler._numbers++;
+                var prior = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
                 compiler.Emit(new(AwkRegionInstructionKind.PathNumber, number, compiler._arrays[location.Access].Path));
                 return Complete(new(new(location.Operand, -1), prior));
             }
-            var captured = compiler._targets++;
-            compiler.Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, location.Access, number));
+            var captured = compiler._targetNames.Count;
+            compiler._targetNames.Add(compiler._arrays[location.Access].Name);
+            compiler.Emit(new(AwkRegionInstructionKind.ArrayPrepare, captured, location.Access));
             compiler.FinishKey(location.Access);
-            return Complete(new(new(location.Operand, captured), prior));
+            return Complete(new(new(location.Operand, captured), compiler.Operand(AwkRegionOperandKind.ArrayPrevious, captured)));
         }
     }
 
@@ -145,12 +146,7 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[1]);
                 return true;
             }
-            var number = compiler._numbers++;
-            compiler.Emit(new(AwkRegionInstructionKind.Compound, number, compiler.NumericRegister(_update.Prior),
-                compiler.NumericRegister(CompletedResult<int>(completed)), (int)operation));
-            var result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
-            compiler.Store(_update.Target, result);
-            return Complete(result);
+            return Complete(compiler.Update(_update, CompletedResult<int>(completed), operation));
         }
     }
 
@@ -168,13 +164,29 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var update = CompletedResult<PreparedUpdate>(completed);
-            var number = compiler._numbers++;
             var decrement = syntax.OperatorTokens[0].Kind is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
-            compiler.Emit(new(AwkRegionInstructionKind.Arithmetic, number, compiler.NumericRegister(update.Prior),
-                compiler.NumericRegister(compiler.Constant(decrement ? -1 : 1)), (int)AwkNumericOperation.Add));
-            var result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
-            compiler.Store(update.Target, result);
-            return Complete(syntax.Kind == AwkExpressionKind.Postfix ? update.Prior : result);
+            // Postfix owns the old number beyond release of the captured target.
+            var previous = syntax.Kind == AwkExpressionKind.Postfix ? compiler.CaptureNumber(update.Prior) : -1;
+            var result = compiler.Update(update, compiler.Constant(decrement ? -1 : 1), AwkCompoundAssignmentOperation.Add);
+            return Complete(previous >= 0 ? previous : result);
         }
+    }
+
+    private int Update(PreparedUpdate update, int right, AwkCompoundAssignmentOperation operation)
+    {
+        var number = _numbers++;
+        var result = Operand(AwkRegionOperandKind.NumberTemporary, number);
+        if (update.Target.Capture >= 0)
+        {
+            Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture,
+                NumericRegister(right), (int)operation));
+        }
+        else
+        {
+            Emit(new(AwkRegionInstructionKind.Compound, number, NumericRegister(update.Prior),
+                NumericRegister(right), (int)operation));
+            Store(update.Target.Operand, result);
+        }
+        return result;
     }
 }

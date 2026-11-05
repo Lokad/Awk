@@ -1341,23 +1341,21 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
         _arrayRuntime.PrepareUpdate(name, key, binding);
 
-    internal AwkValue CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
+    internal void CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
     {
-        var result = AwkValue.FromNumber(number);
         if (target.Array is { IsDetached: false } array)
         {
             if (_variables.TrySetCapturedArrayNumber(target.Cell, number))
             {
                 Counters.RecordArrayCellCommit();
                 Counters.RecordBoundArrayUpdate();
-                return result;
+                return;
             }
             // Retired/retyped entries retain the ordinary current-owner lookup.
-            _variables.SetArrayValue(array, target.Key, result);
+            _variables.SetArrayValue(array, target.Key, AwkValue.FromNumber(number));
             Counters.RecordBoundArrayUpdate();
         }
-        else SetArrayAwkValue(name, target.Key, result);
-        return result;
+        else SetArrayAwkValue(name, target.Key, AwkValue.FromNumber(number));
     }
 
     public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>

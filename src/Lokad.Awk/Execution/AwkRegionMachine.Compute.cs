@@ -101,6 +101,9 @@ internal partial struct AwkRegionMachine
                         : state.GetArrayNumber(numeric.Name, Key(numeric), numeric.Binding);
                     break;
                 }
+                case AwkRegionInstructionKind.ArrayPreviousNumber:
+                    numbers[instruction.Target] = storage.Targets[instruction.Left].Previous;
+                    break;
                 case AwkRegionInstructionKind.ArrayContains:
                 {
                     var membership = arrays[instruction.Left];
@@ -455,14 +458,21 @@ internal partial struct AwkRegionMachine
                         _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
                     };
                     storage.StoreTarget(instruction.Target, target);
-                    numbers[instruction.Right] = target.Previous;
                     break;
-                case AwkRegionInstructionKind.ArrayCommit:
+                case AwkRegionInstructionKind.ArrayUpdate:
+                {
+                    // Capture survives RHS admission/mutation. No dictionary reference
+                    // or borrowed key outlives its synchronous lookup.
+                    var capturedUpdate = storage.Targets[instruction.Left];
+                    var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
+                        numbers[instruction.Right],
+                        (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
-                    state.CommitArrayUpdate(arrays[instruction.Right].Name,
-                        storage.Targets[instruction.Target], numbers[instruction.Left]);
-                    storage.ReleaseTarget(instruction.Target);
+                    state.CommitArrayUpdate(region.TargetNames[instruction.Left], capturedUpdate, updated);
+                    storage.ReleaseTarget(instruction.Left);
+                    numbers[instruction.Target] = updated;
                     break;
+                }
                 case AwkRegionInstructionKind.ArrayAssign:
                     var assigned = arrays[instruction.Target];
                     if (assigned.Path >= 0)
@@ -687,6 +697,7 @@ internal partial struct AwkRegionMachine
             return operand.Kind switch
             {
                 AwkRegionOperandKind.NumberTemporary => AwkValue.FromNumber(numbers[operand.Index]),
+                AwkRegionOperandKind.ArrayPrevious => AwkValue.FromNumber(storage.Targets[operand.Index].Previous),
                 AwkRegionOperandKind.Variable => ReadVariable(variables[operand.Index]),
                 AwkRegionOperandKind.Literal => state.CreateByteTextValue(literals[operand.Index]),
                 AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => ReadField(FieldOrdinal(operand)),

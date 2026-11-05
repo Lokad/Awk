@@ -14,6 +14,7 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkText> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
+    private readonly List<AwkArrayName> _targetNames = [];
     private readonly List<AwkRegionPath> _paths = [];
     private readonly List<int> _builderSeparators = [];
     private readonly List<AwkRegionCall> _calls = [];
@@ -41,7 +42,6 @@ internal sealed partial class AwkRegionCompiler
     private int _values;
     private int _texts;
     private int _printSegments;
-    private int _targets;
     private int _iterators;
     private int _arrayTargets;
     private int _straightLine;
@@ -147,8 +147,8 @@ internal sealed partial class AwkRegionCompiler
             Emit(new(AwkRegionInstructionKind.StatementBoundary));
         }
         region = new(_code.ToArray(), _operands.ToArray(),
-            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(),
-            new(_numbers, _values, _texts, _targets, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots),
+            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _targetNames.ToArray(),
+            new(_numbers, _values, _texts, _targetNames.Count, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots),
             _calls.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind);
         return true;
@@ -420,18 +420,16 @@ internal sealed partial class AwkRegionCompiler
         _activeBuilders--;
     }
 
-    private void Store(PreparedTarget target, int value)
+    private void Store(int target, int value)
     {
-        var operand = _operands[target.Operand];
-        if (target.Capture >= 0)
-            Emit(new(AwkRegionInstructionKind.ArrayCommit, target.Capture, NumericRegister(value), operand.Index));
-        else if (operand.Kind == AwkRegionOperandKind.ArrayElement)
+        var operand = _operands[target];
+        if (operand.Kind == AwkRegionOperandKind.ArrayElement)
         {
             Emit(new(AwkRegionInstructionKind.ArrayAssign, operand.Index, value));
             FinishKey(operand.Index);
         }
         else if (operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
-            Emit(new(AwkRegionInstructionKind.AssignField, target.Operand, value));
+            Emit(new(AwkRegionInstructionKind.AssignField, target, value));
         else Assign(operand.Index, value);
     }
 
@@ -666,6 +664,7 @@ internal sealed partial class AwkRegionCompiler
         }
         var kind = source.Kind switch
         {
+            AwkRegionOperandKind.ArrayPrevious => AwkRegionInstructionKind.ArrayPreviousNumber,
             AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
             AwkRegionOperandKind.DynamicField => AwkRegionInstructionKind.DynamicFieldNumber,
             AwkRegionOperandKind.Literal => AwkRegionInstructionKind.LiteralNumber,

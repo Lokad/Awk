@@ -13,6 +13,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("local", false)] [InlineData("local", true)]
     [InlineData("switch-local", false)] [InlineData("switch-local", true)]
     [InlineData("field", false)] [InlineData("field", true)]
+    [InlineData("array", false)] [InlineData("array", true)]
     [InlineData("nested", false)] [InlineData("nested", true)]
     public async Task NumericUpdatesConsumeFieldRhsWithoutOwnedTransport(string target, bool governed)
     {
@@ -24,6 +25,7 @@ public sealed partial class AwkBenchmarkCounterTests
                 "local" => "function update(x){x" + operation + "=$2;return x}{total+=update(8)}",
                 "switch-local" => "function update(x){switch(x){default:break}x" + operation + "=$2;return x}{total+=update(8)}",
                 "field" => "{$1" + operation + "=$2;total+=$1}",
+                "array" => "{a[\"row\"]=8;a[\"row\"]" + operation + "=$2;total+=a[\"row\"]}",
                 "nested" => "{a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]" + operation + "=$2;total+=a[\"row\"][\"sum\"]}",
                 _ => "{x=8;x" + operation + "=$2;total+=x}"
             };
