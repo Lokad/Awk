@@ -4,6 +4,21 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> NumericSemanticsCases()
     {
+        yield return Passing("compound-arithmetic-agrees-across-value-locations",
+            ["""
+             function steps(x){x+=3;x-=1;x*=2;x/=4;x%=5;x^=3;return x}
+             BEGIN{
+                 g=12;g+=3;g-=1;g*=2;g/=4;g%=5;g^=3
+                 $0="12 12";$1+=3;$1-=1;$1*=2;$1/=4;$1%=5;$1^=3
+                 i=2;$(i)+=3;$(i)-=1;$(i)*=2;$(i)/=4;$(i)%=5;$(i)^=3
+                 a["k"]["v"]=12;a["k"]["v"]+=3;a["k"]["v"]-=1;a["k"]["v"]*=2
+                 a["k"]["v"]/=4;a["k"]["v"]%=5;a["k"]["v"]^=3
+                 NR=12;NR+=3;NR-=1;NR*=2;NR/=4;NR%=5;NR^=3
+                 print g,steps(12),$1,$2,a["k"]["v"],NR
+                 $0=12;$0+=3;$0-=1;$0*=2;$0/=4;$0%=5;$0^=3;print $0
+             }
+             """], [], "8 8 8 8 8 8\n8\n");
+
         yield return Passing("numeric-decimal-boundaries-preserve-input-spelling",
             ["{x=$1+0;print sprintf(\"%.0f\",x),\"[\"$1\"]\",typeof($1)}"], [],
             "999999999999999 [999999999999999] strnum\n" +
