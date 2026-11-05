@@ -191,6 +191,7 @@ public sealed class AwkRecordCounterSlotTests
         var decodes = state.Counters.StringDecodes;
         var encodes = state.Counters.Utf8Encodes;
         var values = state.Counters.ValuesCreated;
+        var terminatorSlots = state.Counters.PreparedRecordTerminatorSlots;
 
         const int records = 1024;
         for (var index = 0; index < records; index++) state.PublishInputRecord(record, readsMainInput: true);
@@ -201,7 +202,11 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(texts, state.Counters.AwkTextAllocations);
         Assert.Equal(decodes, state.Counters.StringDecodes);
         Assert.Equal(encodes, state.Counters.Utf8Encodes);
-        Assert.InRange(state.Counters.ValuesCreated - values, 0, records * 2 + 16);
+        Assert.InRange(state.Counters.ValuesCreated - values, 0, 16);
+        if (mode == AwkCompatibilityMode.GnuDefault)
+            Assert.True(state.Counters.PreparedRecordTerminatorSlots - terminatorSlots >= records);
+        else
+            Assert.Equal(terminatorSlots, state.Counters.PreparedRecordTerminatorSlots);
         Assert.Equal(retained, memory.Budget.Reserved);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }

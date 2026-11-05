@@ -181,6 +181,13 @@ internal sealed class AwkRuntimeCounters
 
     public long ValuesCreated { get; private set; }
 
+    public long PreparedRecordTerminatorSlots { get; private set; }
+
+    public void RecordPreparedRecordTerminatorSlot()
+    {
+        if (_enabled) lock (_sync) PreparedRecordTerminatorSlots++;
+    }
+
     public long StringDecodes { get; private set; }
 
     public long Utf8Encodes { get; private set; }

@@ -295,21 +295,20 @@ internal sealed partial class AwkVariables
         _governScalarMemory && _resolveFieldCountValue is not null &&
         string.Equals(name.Text, FieldCountName, StringComparison.Ordinal);
 
-    public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value)
+    public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value) =>
+        EstimateScalarSlotMemoryGrowth(name, AwkVariableSlot.FromValue(value));
+
+    internal long EstimateScalarSlotMemoryGrowth(AwkVariableName name, AwkVariableSlot slot)
     {
-        var slot = AwkVariableSlot.FromValue(value);
         if (_scalarSlotsByName.TryGetValue(name, out var id))
-            return EstimateScalarValueMemoryGrowth(GetScalarCell(id), slot);
+            return EstimateScalarSlotMemoryGrowth(GetScalarCell(id), slot);
         return _governScalarMemory
             ? AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length), EstimateScalarBytes(slot))
             : AwkRuntimeMemory.ScalarCellOverheadBytes;
     }
 
-    internal long EstimateScalarValueMemoryGrowth(AwkScalarCell cell, AwkValue value) =>
-        EstimateScalarValueMemoryGrowth(cell, AwkVariableSlot.FromValue(value));
-
-    private long EstimateScalarValueMemoryGrowth(AwkScalarCell cell, AwkVariableSlot slot)
+    internal long EstimateScalarSlotMemoryGrowth(AwkScalarCell cell, AwkVariableSlot slot)
     {
         if (!_governScalarMemory) return 0;
         var oldState = cell.State;
@@ -406,6 +405,16 @@ internal sealed partial class AwkVariables
     // existing slot mutation owner, including retirement of old text and origins.
     internal void SetOrdinaryScalarNumber(AwkScalarCell cell, double number) =>
         StoreScalarSlot(cell, AwkVariableSlot.FromNumber(number), prepareOutputSeparator: false);
+
+    // Implicit RT publication has no assignment callback. Reuse its prepared
+    // representation while keeping mutation admission with the actual owner.
+    internal void SetRecordTerminatorSlot(AwkVariableSlot slot)
+    {
+        if (GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is { } cell)
+            StoreScalarSlot(cell, slot, prepareOutputSeparator: false);
+        else
+            SetScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator), slot);
+    }
 
     // Input counters use existing scalar owners. A script may replace a counter
     // with text, so only the already-numeric case bypasses value conversion.

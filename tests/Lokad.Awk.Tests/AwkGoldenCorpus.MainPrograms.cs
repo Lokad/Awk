@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> MainProgramCases()
     {
+        yield return Passing("record-terminator-slots-retain-string-spelling-after-user-assignment",
+            ["BEGIN{RS=\"7\";getline x;print x,\"[\"RT\"]\",typeof(RT),(RT==7);RT=100;RS=\":\";getline x;print x,\"[\"RT\"]\",typeof(RT)}"],
+            [], "left [7] string 1\nright [:] string\n", "left7right:tail");
         yield return Passing("nested-captured-updates-and-postfix-results",
             ["BEGIN{a[\"x\"]=1;a[\"y\"]=2;a[\"z\"]=3;v=(a[\"x\"]+=(a[\"y\"]+=(a[\"z\"]++)));print v,a[\"x\"],a[\"y\"],a[\"z\"];w=a[\"x\"]+++a[\"y\"]+++a[\"z\"]++;print w,a[\"x\"],a[\"y\"],a[\"z\"]}"],
             [], "6 6 5 4\n15 7 6 5\n");

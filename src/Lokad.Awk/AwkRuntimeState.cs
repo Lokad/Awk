@@ -977,37 +977,38 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
             return;
 
-        SetRecordTerminatorValue(PrepareRecordTerminatorValue(terminator));
+        SetRecordTerminatorSlot(PrepareRecordTerminatorSlot(terminator));
     }
 
-    private AwkValue PrepareRecordTerminatorValue(AwkRecordTerminator terminator)
+    private AwkVariableSlot PrepareRecordTerminatorSlot(AwkRecordTerminator terminator)
     {
         var text = terminator.ByteText;
-        if (text.ByteLength != 0) return CreateDeferredTextValue(text);
-        Counters.RecordValueCreated();
-        return AwkValue.Unassigned();
+        Counters.RecordPreparedRecordTerminatorSlot();
+        return new(text, text.ByteLength == 0 ? AwkVariableSlotKind.Unassigned : AwkVariableSlotKind.DeferredText);
     }
 
-    private void SetRecordTerminatorValue(AwkValue value)
+    private void SetRecordTerminatorSlot(AwkVariableSlot slot)
     {
         // RT is a known scalar with no assignment callback effects. Function-local
         // names retain their ordinary resolution; storage still owns admission.
         if (_functions.IsInsideFunction)
-            AssignVariableValue(RecordTerminatorVariableName, value);
-        else if (_variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is { } cell)
-            _variables.SetScalarValue(cell, value);
+        {
+            Counters.RecordValueCreated();
+            AssignVariableValue(RecordTerminatorVariableName, slot.Kind == AwkVariableSlotKind.Unassigned
+                ? AwkValue.Unassigned() : AwkValue.FromDeferredText(slot.ByteText, NumberParsingMode));
+        }
         else
-            _variables.SetScalarValue(RecordTerminatorVariableName, value);
+            _variables.SetRecordTerminatorSlot(slot);
     }
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
         var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
-        var value = hasTerminator ? PrepareRecordTerminatorValue(terminator) : default;
-        using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(value));
+        var slot = hasTerminator ? PrepareRecordTerminatorSlot(terminator) : default;
+        using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(slot));
         ThrowIfCancellationRequested();
         AdvanceInputCounters();
-        if (hasTerminator) SetRecordTerminatorValue(value);
+        if (hasTerminator) SetRecordTerminatorSlot(slot);
     }
 
     // Main input and record-target getline share one preparation/admission.
@@ -1016,7 +1017,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void PublishInputRecord(AwkInputRecordResult record, bool readsMainInput)
     {
         var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
-        var terminator = hasTerminator ? PrepareRecordTerminatorValue(record.Terminator) : default;
+        var terminator = hasTerminator ? PrepareRecordTerminatorSlot(record.Terminator) : default;
         var splitPlan = _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode);
         using var admission = MemoryAccounting.IsEnabled
             ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
@@ -1025,7 +1026,7 @@ internal sealed class AwkRuntimeState : IDisposable
             : default;
         ThrowIfCancellationRequested();
         if (readsMainInput) AdvanceInputCounters();
-        if (hasTerminator) SetRecordTerminatorValue(terminator);
+        if (hasTerminator) SetRecordTerminatorSlot(terminator);
         SetRecordFieldSplittingMode(record.FieldSplittingMode);
         if (record.TryGetStorage(out var storage)) _recordFields.SetBufferedRecord(storage, record.StorageSlot, splitPlan);
         else _recordFields.SetRecordText(record.RecordText, splitPlan);
@@ -1046,13 +1047,13 @@ internal sealed class AwkRuntimeState : IDisposable
         }
     }
 
-    private long EstimateRecordTerminatorMemoryGrowth(AwkValue value)
+    private long EstimateRecordTerminatorMemoryGrowth(AwkVariableSlot slot)
     {
         if (!MemoryAccounting.IsEnabled ||
             !AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode)) return 0;
         return _variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is { } cell
-            ? _variables.EstimateScalarValueMemoryGrowth(cell, value)
-            : _variables.EstimateScalarValueMemoryGrowth(RecordTerminatorVariableName, value);
+            ? _variables.EstimateScalarSlotMemoryGrowth(cell, slot)
+            : _variables.EstimateScalarSlotMemoryGrowth(RecordTerminatorVariableName, slot);
     }
 
     public void SetErrno(AwkErrno errno)
