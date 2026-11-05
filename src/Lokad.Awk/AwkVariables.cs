@@ -990,20 +990,21 @@ internal sealed partial class AwkVariables
 
     private void StoreScalarSlot(AwkScalarCell cell, AwkVariableSlot slot, bool prepareOutputSeparator)
     {
-        if (!_governScalarMemory || !_memoryAccounting.IsEnabled)
-        {
-            if (prepareOutputSeparator)
-                _prepareOutputFieldSeparatorAssignment();
-            cell.State.SetUngovernedSlot(slot);
-            return;
-        }
-
+        // A number overwrite retains its owner in either memory mode.
         if (slot.Kind == AwkVariableSlotKind.Number &&
             cell.State.Slot.Kind == AwkVariableSlotKind.Number)
         {
             if (prepareOutputSeparator)
                 _prepareOutputFieldSeparatorAssignment();
             cell.State.Slot = slot;
+            return;
+        }
+
+        if (!_governScalarMemory || !_memoryAccounting.IsEnabled)
+        {
+            if (prepareOutputSeparator)
+                _prepareOutputFieldSeparatorAssignment();
+            cell.State.SetUngovernedSlot(slot);
             return;
         }
 

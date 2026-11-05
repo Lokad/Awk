@@ -33,12 +33,13 @@ public sealed class AwkScalarMemoryModeTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void NumericOfsPublicationReacquiresStorageAfterPreparation(bool fail)
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void NumericOfsPublicationReacquiresStorageAfterPreparation(bool fail, bool governed)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         Action prepare = static () => { };
-        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+        var variables = CreateVariables(governed ? memory.Accounting : AwkMemoryAccounting.Disabled, AwkRuntimeCounters.Disabled,
             static (_, _) => { }, static () => 0, () => prepare());
         var ofs = AwkVariableName.FromText("OFS");
         variables.SetScalarValue(ofs, AwkValue.FromNumber(42));
