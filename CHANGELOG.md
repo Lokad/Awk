@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Reuse funded descriptors during ordinary field splitting. Admit capacity growth before
+- Reuse funded descriptors for whitespace and single-byte field splitting. Admit growth before
   allocation and keep unpublished storage funded through cancellation and cleanup.
 - Complete captured numeric array updates with their existing bound loads, preserving prior
   values and aliases across RHS effects and suspension.
