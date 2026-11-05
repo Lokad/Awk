@@ -137,8 +137,13 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 var length = newline >= 0 ? newline + 1 : bytes.Length;
                 var line = AwkRecordLine.SplitDefaultNewline(bytes[..length]);
                 AwkInputRecordResult record;
-                if (storage is not null && storage.TryStage(line.RecordBytes.Span))
+                if (storage is not null && AwkRecordStorage.CanStage(line.RecordBytes.Length))
+                {
+                    if (!_reader.ContentIsAscii)
+                        AwkText.ThrowIfInvalidUtf8(line.RecordBytes.Span, _state.CancellationCheckpoint);
+                    storage.StageValidated(line.RecordBytes.Span);
                     record = AwkInputRecordResult.Buffered(storage, line.Terminator);
+                }
                 else
                     record = AwkInputRecordResult.Record(AwkText.CopyHostBytes(line.RecordBytes.Span,
                         _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint),
@@ -444,9 +449,14 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null)
     {
-        var record = storage is not null && storage.TryStage(recordBytes)
-            ? AwkInputRecordResult.Buffered(storage, terminator)
-            : AwkInputRecordResult.Record(CreateText(recordBytes), terminator, fieldSplittingMode);
+        AwkInputRecordResult record;
+        if (storage is not null && AwkRecordStorage.CanStage(recordBytes.Length))
+        {
+            AwkText.ThrowIfInvalidUtf8(recordBytes, _state.CancellationCheckpoint);
+            storage.StageValidated(recordBytes);
+            record = AwkInputRecordResult.Buffered(storage, terminator);
+        }
+        else record = AwkInputRecordResult.Record(CreateText(recordBytes), terminator, fieldSplittingMode);
         _bufferStart += consumedLength;
         _hasConsumedDescriptorBytes |= consumedLength > 0;
         ResetSeparatorSearch();

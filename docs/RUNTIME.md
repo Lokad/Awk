@@ -81,6 +81,8 @@ may carry a usable prefix. Awk recognizes records across chunks and validates st
 including source files. Complete prefix records precede a read-error diagnostic; an incomplete
 failed record is never published as successful EOF. An explicit later getline may attempt a
 new read after returning -1; Awk does not automatically retry a failed operation.
+The reader can reuse proof that an immutable borrow is ASCII for its record slices.
+Other records retain strict validation; inspecting later bytes never rejects them early.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,

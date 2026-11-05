@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Lokad.Awk;
 
 // Owns the current descriptor borrow. Record/source storage remains in its existing owners.
@@ -10,9 +12,11 @@ internal sealed class AwkByteReader(
     private int _offset;
     private AwkReadCompletion _completion;
     private AwkOperationError _error;
+    private bool _borrowIsAscii;
 
     public ReadOnlyMemory<byte> Content => _borrow is { } borrow ? borrow.Content[_offset..] : default;
     public bool ReachedEof => _completion == AwkReadCompletion.EndOfFile;
+    internal bool ContentIsAscii => _borrowIsAscii;
 
     public ValueTask<bool> TryBufferAsync() => !Content.IsEmpty
         ? ValueTask.FromResult(true) : ReadBufferAsync();
@@ -33,9 +37,24 @@ internal sealed class AwkByteReader(
         if (borrow.Content.Length > ReadSize)
             throw new AwkHostReadException(descriptor,
                 new(AwkOperationErrorKind.IoFailure, "Read exceeded the requested byte count."));
-        if (!borrow.Content.IsEmpty) return true;
+        if (!borrow.Content.IsEmpty)
+        {
+            _borrowIsAscii = IsAsciiBorrow(borrow.Content.Span);
+            return true;
+        }
         if (borrow.Failed) ThrowReadFailure();
         return false;
+    }
+
+    private bool IsAsciiBorrow(ReadOnlySpan<byte> bytes)
+    {
+        while (bytes.Length > AwkRuntimeLimits.CancellationCheckBytes)
+        {
+            if (!Ascii.IsValid(bytes[..AwkRuntimeLimits.CancellationCheckBytes])) return false;
+            resources.Checkpoint(cancellationToken);
+            bytes = bytes[AwkRuntimeLimits.CancellationCheckBytes..];
+        }
+        return Ascii.IsValid(bytes);
     }
 
     public void Advance(int count)
@@ -52,6 +71,7 @@ internal sealed class AwkByteReader(
         var borrow = _borrow;
         _borrow = null;
         _offset = 0;
+        _borrowIsAscii = false;
         borrow?.Dispose();
     }
 

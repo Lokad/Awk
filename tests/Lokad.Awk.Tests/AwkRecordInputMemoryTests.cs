@@ -276,13 +276,13 @@ public sealed class AwkRecordInputMemoryTests
         using var cancellation = new CancellationTokenSource();
         using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled,
             cancellation.Token.ThrowIfCancellationRequested);
-        Assert.True(storage.TryStage("old 0007"u8));
+        storage.StageValidated("old 0007"u8);
         var original = storage.Content;
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var next = Encoding.UTF8.GetBytes(new string('x', 3000));
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => storage.TryStage(next));
-        else Assert.Throws<AwkRuntimeException>(() => storage.TryStage(next));
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => storage.StageValidated(next));
+        else Assert.Throws<AwkRuntimeException>(() => storage.StageValidated(next));
         Assert.Equal("old 0007", Encoding.UTF8.GetString(storage.Content.Span));
         Assert.Equal(original, storage.Content);
         storage.Dispose();
@@ -297,13 +297,14 @@ public sealed class AwkRecordInputMemoryTests
         foreach (var count in new[] { 1, 32, 4096, 128, 2048, 1, 4096, 16 })
         {
             var bytes = Encoding.UTF8.GetBytes(new string('x', count));
-            Assert.True(storage.TryStage(bytes));
+            Assert.True(AwkRecordStorage.CanStage(bytes.Length));
+            storage.StageValidated(bytes);
             Assert.True(storage.Content.Span.SequenceEqual(bytes));
             Assert.InRange(memory.Budget.Reserved, 1, 8192);
         }
         var held = memory.Budget.Reserved;
         var last = storage.Content;
-        Assert.False(storage.TryStage(new byte[8192]));
+        Assert.False(AwkRecordStorage.CanStage(8192));
         Assert.Equal(last, storage.Content);
         Assert.Equal(held, memory.Budget.Reserved);
         storage.Dispose();

@@ -13,10 +13,11 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
 
     internal ReadOnlyMemory<byte> Content => _current?.AsMemory() ?? ReadOnlyMemory<byte>.Empty;
 
-    internal bool TryStage(ReadOnlySpan<byte> bytes)
+    internal static bool CanStage(int length) => length is > 0 and <= MaxReusableRecordBytes;
+
+    // The cursor proves UTF-8 validity before entering the funded storage writer.
+    internal void StageValidated(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.IsEmpty || bytes.Length > MaxReusableRecordBytes) return false;
-        AwkText.ThrowIfInvalidUtf8(bytes, checkpoint);
         var reused = _spare is not null;
         _spare ??= new(memory, (int)BitOperations.RoundUpToPowerOf2((uint)bytes.Length));
         var next = _spare;
@@ -26,7 +27,6 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         _spare = _current;
         _current = next;
         counters.RecordBufferedInputRecord(reused);
-        return true;
     }
 
     public void Dispose()
