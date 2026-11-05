@@ -97,7 +97,8 @@ internal enum AwkRegionVariableKind : byte { Dynamic, Global, Local, Special }
 internal readonly record struct AwkRegionVariable(AwkVariableName Name, AwkRegionVariableKind Kind, int Index);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
-internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot);
+internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,
+    AwkRegionOperand Right = default, int PrepareAccess = -1);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte
 {

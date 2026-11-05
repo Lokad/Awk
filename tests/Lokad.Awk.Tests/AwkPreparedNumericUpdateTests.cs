@@ -7,6 +7,39 @@ public sealed class AwkPreparedNumericUpdateTests
     private static readonly AwkVariableName Result = AwkVariableName.FromText("result");
 
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void CompleteUpdatesKeepThePriorNumberAcrossRightAdmission(bool arrayTarget)
+    {
+        using var memory = State(true);
+        var state = memory.State;
+        var array = AwkArrayName.FromText("values");
+        var key = new AwkArrayKey("k");
+        var region = Bind(state, arrayTarget ? "values[\"k\"]+=NF" : "value+=NF");
+        if (arrayTarget) state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        else state.AssignVariableValue(Value, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("field", 300))));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
+        var admitted = false;
+        memory.Budget.OnGrowth = bytes =>
+        {
+            if (bytes < 4096) return;
+            memory.Budget.OnGrowth = null;
+            admitted = true;
+            if (arrayTarget) state.SetArrayAwkValue(array, key, AwkValue.FromNumber(100));
+            else state.AssignVariableValue(Value, AwkValue.FromNumber(100));
+        };
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.True(admitted);
+        Assert.Equal(307, state.ResolveVariableValue(Result).AsNumber());
+        Assert.Equal(307, arrayTarget ? state.GetArrayAwkValue(array, key).AsNumber() : state.ResolveVariableValue(Value).AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(false, false, true)]
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]

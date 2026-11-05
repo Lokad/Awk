@@ -190,6 +190,8 @@ escape still own their spelling; dirty reconstruction and potentially invalidati
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
 Interpreter preparation binds operands, scalar/array locations, special-scalar reads and
 function targets. Computed values such as `NF` still resolve at their actual use.
+Array updates bind their numeric RHS at preparation. Adjacent capture/conversion/commit runs
+as one operation; earlier captures remain funded across RHS mutation or suspension.
 Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
 capacity checks and initialization. Switching bodies refreshes preparation without retaining
 unrelated scratch payloads.

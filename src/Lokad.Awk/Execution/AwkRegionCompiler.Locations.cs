@@ -180,8 +180,22 @@ internal sealed partial class AwkRegionCompiler
         var result = Operand(AwkRegionOperandKind.NumberTemporary, number);
         if (update.Target.Capture >= 0)
         {
+            // Owned results keep immediate conversion (including funded call returns).
+            // Other sources are already bound and belong to this complete operation.
+            var source = _operands[right];
+            if (source.Kind == AwkRegionOperandKind.ValueTemporary) source = _operands[CaptureNumber(right)];
+            var site = _updates[update.Target.Capture] with { Right = source };
+            if (_code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.ArrayPrepare } capture &&
+                capture.Target == site.Slot)
+            {
+                // No intervening script work: capture still precedes RHS conversion.
+                _code.RemoveAt(_code.Count - 1);
+                _straightLine--;
+                site = site with { PrepareAccess = capture.Left };
+            }
+            _updates[update.Target.Capture] = site;
             Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture,
-                NumericRegister(right), (int)operation));
+                Detail: (int)operation));
             _activeUpdates--;
         }
         else
