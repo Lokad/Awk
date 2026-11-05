@@ -456,21 +456,24 @@ internal partial struct AwkRegionMachine
                         state.AssignFieldValue(instruction.Target, Value(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
-                    PrepareArrayUpdate(instruction.Left, instruction.Target);
+                    storage.StoreTarget(instruction.Target, PrepareArrayUpdate(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.ArrayUpdate:
                 {
                     // Capture survives RHS admission/mutation. No dictionary reference
                     // or borrowed key outlives its synchronous lookup.
                     var updateSite = region.Updates[instruction.Left];
-                    if (updateSite.PrepareAccess >= 0) PrepareArrayUpdate(updateSite.PrepareAccess, updateSite.Slot);
-                    var capturedUpdate = storage.Targets[updateSite.Slot];
+                    // A complete synchronous operation keeps its target locally. Its
+                    // array/key owners remain live throughout RHS conversion and commit.
+                    // Captures spanning script instructions retain funded scratch storage.
+                    var capturedUpdate = updateSite.PrepareAccess >= 0
+                        ? PrepareArrayUpdate(updateSite.PrepareAccess) : storage.Targets[updateSite.Slot];
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         ReadUpdateNumber(updateSite.Right),
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
                     state.CommitArrayUpdate(updateSite.Name, capturedUpdate, updated);
-                    storage.ReleaseTarget(updateSite.Slot);
+                    if (updateSite.PrepareAccess < 0) storage.ReleaseTarget(updateSite.Slot);
                     numbers[instruction.Target] = updated;
                     break;
                 }
@@ -756,17 +759,16 @@ internal partial struct AwkRegionMachine
         };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        void PrepareArrayUpdate(int accessIndex, int slot)
+        AwkArrayUpdateTarget PrepareArrayUpdate(int accessIndex)
         {
             var access = arrays[accessIndex];
             var key = operands[access.Key];
-            var target = key.Kind switch
+            return key.Kind switch
             {
                 AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(key), access.Binding),
                 AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index], access.Binding),
                 _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
             };
-            storage.StoreTarget(slot, target);
         }
 
         double ReadUpdateNumber(AwkRegionOperand operand)
