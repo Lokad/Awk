@@ -188,6 +188,12 @@ internal static partial class AwkGoldenCorpus
             [], "6\n", "0002 0007\n");
         yield return Passing("prepared-parameter-omitted-and-untyped-arguments",
             ["function add(x){return x+1}BEGIN{print add(),add(z),z==0,z==\"\"}"], [], "1 1 1 1\n");
+        yield return Passing("alternating-call-layouts-keep-spelling-omissions-and-local-arrays",
+            ["function wide(a,b,c,d,e,f,g,h){h=\"temp\";return a}function tiny(x){return x}" +
+             "function middle(x,p,q){q[1]=x;return q[1]}BEGIN{" +
+             "print \"[\"wide(\"0007\")\"]\",\"[\"tiny(\"0008\")\"]\";" +
+             "print \"[\"middle(\"0009\")\"]\",\"[\"wide(\"0010\",1,2,3,4,5,6)\"]\"}"],
+            [], "[0007] [0008]\n[0009] [0010]\n");
         yield return Passing("prepared-parameter-later-getline-keeps-earlier-value",
             ["function score(x,y){return x+y}function more(){getline;return $1}BEGIN{$0=\"0002 old\";print score($1,more()),$1;exit}"],
             [], "7 5\n", "5 new\n");

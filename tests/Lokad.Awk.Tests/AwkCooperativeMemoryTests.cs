@@ -3,6 +3,45 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCooperativeMemoryTests
 {
     [Fact]
+    public async Task ExistingPositiveChargeFundsUnchangedAndNestedMutationRequests()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        Assert.True(owner.TryResizeTracked(30));
+        using (owner.AdmitMutation(50))
+        {
+            var requests = budget.ResizeCalls;
+            Assert.True(owner.TryResizeTracked(40));
+            using (owner.AdmitMutation(10))
+            {
+                Assert.True(owner.TryResizeTracked(45));
+                Assert.Equal(80, budget.Reserved);
+                Assert.Equal(requests, budget.ResizeCalls);
+                Assert.True(budget.TryReserve(20, out var other));
+                using (other) Assert.Equal(100, budget.Reserved);
+            }
+            Assert.Equal(requests, budget.ResizeCalls);
+        }
+        Assert.Equal(45, budget.Reserved);
+        Assert.Equal(0, budget.UnchangedResizeCalls);
+        Assert.True(owner.TryResizeTracked(0));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(0)] [InlineData(20)]
+    public async Task ElidingUnchangedChargeDoesNotConcealDisposedAncestry(long bytes)
+    {
+        var budget = new CooperativeTestBudget(100);
+        using var parent = budget.CreateScope();
+        await using var owner = AwkExecutionMemoryOwner.Create(parent, CancellationToken.None);
+        Assert.True(owner.TryResizeTracked(bytes));
+        parent.Dispose();
+        Assert.Equal(0, budget.Reserved);
+        Assert.Throws<ObjectDisposedException>(() => owner.TryResizeTracked(bytes));
+    }
+
+    [Fact]
     public async Task SharedAdmissionRejectsCombinedDemandAndRefundsForReuse()
     {
         var budget = new CooperativeTestBudget(100);

@@ -314,9 +314,12 @@ stays funded through active executions, including when disposal prevents further
 An open command funds its command/environment snapshot; it does not retain charges for
 unrelated records or completed writes. Closing it releases that snapshot after command completion.
 Function argument/slot buffers are admitted before allocation. Cached frames and alias-index
-capacity remain funded until execution ends. Governed frames reuse cleared slot backing for
-matching layouts and retire incompatible inactive backing before admission. Unwinding releases
-active scalar payloads and clears references; retained backing keeps its own funding.
+capacity remain funded until execution ends. Frames reuse sufficient cleared backing across
+different arities, including smaller and inline activations. A larger layout retires insufficient
+inactive backing before admitting its replacement. Unwinding releases active scalar payloads;
+local and temporary cleanup uses the activation's bounds, while retained capacity stays funded.
+Only actual array/untyped arguments need entry reconciliation; alias registration still follows
+it, preserving later-argument mutation and admission order.
 Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted
 incoming frames; later argument evaluation remains in caller scope. Pending and nested calls
 retain separate active storage. Bound local arrays use their current parameter slots, with

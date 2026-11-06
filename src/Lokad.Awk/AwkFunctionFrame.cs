@@ -47,7 +47,7 @@ internal sealed class AwkFunctionFrame
     private AwkFunctionLocalSlot _secondSlot;
     private AwkFunctionLocalSlot[] _slots = [];
 
-    // The call stack owns exact-sized reusable backing for non-inline locals.
+    // The call stack funds retained capacity, including across smaller activations.
     public AwkFunctionLocalLayout Layout { get; private set; } = AwkFunctionLocalLayout.Empty;
 
     public bool UsesInlineSlots => Layout.SlotCount is 1 or 2;
@@ -85,7 +85,9 @@ internal sealed class AwkFunctionFrame
     public long RetainedMemoryBytes { get; set; }
 
     internal bool IsIncoming { get; set; }
-    internal int IncomingArgumentCount { get; set; }
+    internal int ReconcileEnd { get; private set; }
+    internal int PotentialAliasEnd { get; private set; }
+    internal int AliasEnd { get; private set; }
     internal AwkRegionContinuation? Continuation { get; set; }
     private AwkRegionStorage? _regionStorage;
     internal AwkRegionStorage GetRegionStorage(AwkRuntimeState state) => _regionStorage ??= new(state);
@@ -102,17 +104,45 @@ internal sealed class AwkFunctionFrame
         _slots = slots;
     }
 
+    internal void InitializeOmittedArguments(int arguments, Action? checkpoint)
+    {
+        // Omitted destinations are known before argument evaluation. They remain
+        // hidden with the incoming frame until activation publishes the locals.
+        for (var index = Math.Min(arguments, Layout.SlotCount); index < Layout.SlotCount; index++)
+        {
+            if ((index & 63) == 63) checkpoint?.Invoke();
+            GetSlot(index) = AwkFunctionLocalSlot.MissingScalar();
+        }
+    }
+
+    internal void RecordArgument(int index, AwkFunctionLocalSlotKind kind)
+    {
+        if (kind is AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.UntypedScalar)
+            ReconcileEnd = Math.Max(ReconcileEnd, index + 1);
+        if (kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+            PotentialAliasEnd = Math.Max(PotentialAliasEnd, index + 1);
+        RecordAlias(index, kind);
+    }
+
+    internal void RecordAlias(int index, AwkFunctionLocalSlotKind kind)
+    {
+        if (kind is AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias)
+            AliasEnd = Math.Max(AliasEnd, index + 1);
+    }
+
     public void Reset()
     {
-        Array.Clear(_slots);
+        if (!UsesInlineSlots && Layout.SlotCount > 0) Array.Clear(_slots, 0, Layout.SlotCount);
         Layout = AwkFunctionLocalLayout.Empty;
         _firstSlot = default;
         _secondSlot = default;
         RetainedMemoryBytes = 0;
         IsIncoming = false;
-        IncomingArgumentCount = 0;
+        ReconcileEnd = 0;
+        PotentialAliasEnd = 0;
+        AliasEnd = 0;
         Continuation = null;
-        _regionStorage?.ClearValues();
+        _regionStorage?.RetireActivation();
         Id = 0;
     }
 }

@@ -96,6 +96,9 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
+- Recycled frames retain sufficient funded capacity across arities. Initialize omitted locals
+  before publishing the activation; reconcile actual mutable arguments before registering aliases.
+  Active local/scratch bounds govern cleanup; backing capacity and pending users keep their funding.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
   NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;
   numeric values still use current formatting and untyped origins retain scalar promotion.

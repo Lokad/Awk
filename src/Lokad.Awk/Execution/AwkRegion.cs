@@ -13,8 +13,9 @@ internal sealed class AwkRegion(
     AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind,
     int mainBodyStart = -1, AwkRegionRuleScope[]? ruleScopes = null)
 {
+    private readonly AwkRegionStorageLayout _layout = layout;
     internal AwkRegionKind Kind => kind;
-    internal AwkRegionStorageLayout Layout => layout;
+    internal ref readonly AwkRegionStorageLayout Layout => ref _layout;
     internal int InstructionCount => instructions.Length;
     internal int MainBodyStart => mainBodyStart;
     internal AwkRegionRuleScope[] RuleScopes => ruleScopes ?? [];

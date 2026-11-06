@@ -90,7 +90,7 @@ internal sealed class AwkFunctionCallStack(
         var cached = newFrame ? null : _recycledFrames.Peek();
         var bufferBytes = 0L;
         var capacity = layout.SlotCount > 2 ? layout.SlotCount : 0;
-        if (cached is not null && cached.SlotCapacity != capacity)
+        if (cached is not null && cached.SlotCapacity < capacity)
         {
             var retiredBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(cached.SlotCapacity);
             cached.DiscardSlotBuffer();
@@ -118,7 +118,7 @@ internal sealed class AwkFunctionCallStack(
             else frame = _recycledFrames.Pop();
             frame.Initialize(++_nextFrameId, layout);
             unpublishedBytes -= bufferBytes;
-            frame.IncomingArgumentCount = argumentCount;
+            frame.InitializeOmittedArguments(argumentCount, checkpoint);
             frame.IsIncoming = true;
             _incomingFrames++;
             _counters.RecordFunctionFramePrepared(bufferBytes > 0);
@@ -149,6 +149,7 @@ internal sealed class AwkFunctionCallStack(
                 AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
                 _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
             };
+            frame.RecordArgument(index, frame.GetSlot(index).Kind);
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
         }
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
@@ -167,13 +168,11 @@ internal sealed class AwkFunctionCallStack(
         var registered = 0;
         try
         {
-            for (var index = 0; index < frame.Layout.SlotCount; index++)
+            for (var index = 0; index < frame.ReconcileEnd; index++)
             {
                 if ((index & 63) == 63) checkpoint?.Invoke();
                 ref var slot = ref frame.GetSlot(index);
-                if (index >= frame.IncomingArgumentCount)
-                    slot = AwkFunctionLocalSlot.MissingScalar();
-                else if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+                if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
                 {
                     if (slot.Value.TryGetArrayBinding(out var array))
                     {
@@ -186,7 +185,7 @@ internal sealed class AwkFunctionCallStack(
                     slot.Value.TryGetUntypedScalar(out var origin) && origin.IsDetached)
                     slot = AwkFunctionLocalSlot.MissingScalar();
             }
-            for (; registered < frame.Layout.SlotCount; registered++)
+            for (; registered < frame.PotentialAliasEnd; registered++)
             {
                 if ((registered & 63) == 63) checkpoint?.Invoke();
                 var slot = frame.GetSlot(registered);
@@ -197,7 +196,7 @@ internal sealed class AwkFunctionCallStack(
             _frames.Push(frame);
             _incomingFrames--;
             frame.IsIncoming = false;
-            _counters.RecordFunctionActivationSlots(2 * frame.Layout.SlotCount);
+            _counters.RecordFunctionActivationSlots(frame.ReconcileEnd + frame.PotentialAliasEnd);
         }
         catch
         {
@@ -219,7 +218,7 @@ internal sealed class AwkFunctionCallStack(
     public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray)
     {
         var frame = _frames.Pop();
-        for (var index = 0; index < frame.Layout.SlotCount; index++)
+        for (var index = 0; index < frame.AliasEnd; index++)
         {
             var slot = frame.GetSlot(index);
             if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
@@ -232,7 +231,7 @@ internal sealed class AwkFunctionCallStack(
         }
 
         var payloadBytes = frame.RetainedMemoryBytes;
-        _counters.RecordFunctionRetirementSlots(frame.Layout.SlotCount);
+        _counters.RecordFunctionRetirementSlots(frame.AliasEnd);
         RecycleFrame(frame);
         memoryAccounting.ReleaseCommitted(payloadBytes);
     }
@@ -643,6 +642,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 if (growth > 0) checkpoint?.Invoke();
                 frame.GetSlot(slotId.Index) = newSlot;
+                frame.RecordAlias(slotId.Index, newSlot.Kind);
             }
             catch
             {

@@ -36,23 +36,50 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Fact]
-    public void IncompatibleInactiveCapacityRetiresBeforeSmallAndDeeperCalls()
+    public void LargerInactiveCapacityStaysFundedAcrossSmallAndDeeperCalls()
     {
         using var memory = new CooperativeTestMemory(4 << 20);
         var stack = Stack(memory);
         stack.PushFrame(Layout(10_000), []);
         stack.PopFrame(static _ => { });
         Assert.InRange(memory.Budget.Reserved, 480_000, 810_000);
+        var retained = memory.Budget.Reserved;
         stack.PushFrame(Layout(3), []);
         stack.PopFrame(static _ => { });
-        Assert.InRange(memory.Budget.Reserved, 144, 4096);
+        Assert.Equal(retained, memory.Budget.Reserved);
         var small = Layout(1);
         for (var i = 0; i < 32; i++) stack.PushFrame(small, []);
-        Assert.InRange(memory.Budget.Reserved, 1, 32 * 1024);
+        Assert.InRange(memory.Budget.Reserved, retained, retained + 32 * 1024);
         for (var i = 0; i < 32; i++) stack.PopFrame(static _ => { });
         Assert.False(stack.IsInsideFunction);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void AlternatingArityDoesNotAllocateOrRefundReusableBacking()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var stack = Stack(memory);
+        var layouts = new[] { Layout(8), Layout(1), Layout(3) };
+        AwkFunctionArgument[] arguments = [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))];
+        for (var index = 0; index < 100; index++) Cycle();
+        var retained = memory.Budget.Reserved;
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 10_000; index++) Cycle();
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
+        Assert.Equal(retained, memory.Budget.Reserved);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+
+        void Cycle()
+        {
+            foreach (var layout in layouts)
+            {
+                stack.PushFrame(layout, arguments);
+                stack.PopFrame(static _ => { });
+            }
+        }
     }
 
     [Fact]

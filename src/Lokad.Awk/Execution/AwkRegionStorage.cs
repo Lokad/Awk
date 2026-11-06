@@ -459,7 +459,7 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         ref readonly var before = ref scope.Before;
         ref readonly var after = ref scope.After;
-        ClearIncomingFrames();
+        ClearIncomingFrames(_incoming.Length);
         for (var index = after.Sorts - 1; index >= before.Sorts; index--) ReleaseSort(index);
         Array.Clear(_values, before.Values, after.Values - before.Values);
         Array.Clear(_targets, before.Targets, after.Targets - before.Targets);
@@ -474,9 +474,9 @@ internal sealed class AwkRegionStorage : IDisposable
         ClearBuildersAndPayload();
     }
 
-    private void ClearIncomingFrames()
+    private void ClearIncomingFrames(int count)
     {
-        for (var index = 0; index < _incoming.Length; index++)
+        for (var index = 0; index < count; index++)
         {
             if (_incoming[index] is not { } frame) continue;
             _incoming[index] = null;
@@ -485,26 +485,44 @@ internal sealed class AwkRegionStorage : IDisposable
     }
 
     private void ClearBuildersAndPayload()
+        => ClearBuildersAndPayload(_builders.Length);
+
+    private void ClearBuildersAndPayload(int count)
     {
-        foreach (var builder in _builders) builder.Clear();
+        for (var index = 0; index < count; index++) _builders[index].Clear();
         if (_payload.Bytes > 0) _payload.Release(_payload.Bytes);
+    }
+
+    internal void RetireActivation()
+    {
+        if (_preparedRegion is { } region) ClearValues(in region.Layout);
+        else ClearValues(); // Failed preparation can leave unpublished storage.
     }
 
     internal void ClearValues()
     {
-        ClearIncomingFrames();
-        for (var index = _sorts.Length - 1; index >= 0; index--) ReleaseSort(index);
-        Array.Clear(_values);
-        Array.Clear(_targets);
-        for (var index = 0; index < _paths.Length; index++) ReleasePath(index);
-        for (var index = 0; index < _iterators.Length; index++) ReleaseIterator(index);
-        foreach (var target in _getlineTargets) target.Dispose();
-        Array.Clear(_getlineTargets);
-        Array.Clear(_arrayTargets);
-        Array.Fill(_texts, AwkText.Empty);
-        Array.Clear(_printSegments);
-        Array.Clear(_borrowedPrintFields);
-        ClearBuildersAndPayload();
+        var all = new AwkRegionStorageLayout(0, _values.Length, _texts.Length, _targets.Length,
+            _builders.Length, _incoming.Length, _printSegments.Length, _getlineTargets.Length,
+            _paths.Length, _iterators.Length, _arrayTargets.Length, _sorts.Length);
+        ClearValues(in all);
+    }
+
+    private void ClearValues(in AwkRegionStorageLayout active)
+    {
+        ClearIncomingFrames(active.Incoming);
+        for (var index = active.Sorts - 1; index >= 0; index--) ReleaseSort(index);
+        Array.Clear(_values, 0, active.Values);
+        Array.Clear(_targets, 0, active.Targets);
+        for (var index = 0; index < active.Paths; index++) ReleasePath(index);
+        for (var index = 0; index < active.Iterators; index++) ReleaseIterator(index);
+        var reads = active.GetlineTargets;
+        for (var index = 0; index < reads; index++) _getlineTargets[index].Dispose();
+        Array.Clear(_getlineTargets, 0, reads);
+        Array.Clear(_arrayTargets, 0, active.ArrayTargets);
+        Array.Fill(_texts, AwkText.Empty, 0, active.Texts);
+        Array.Clear(_printSegments, 0, active.PrintSegments);
+        Array.Clear(_borrowedPrintFields, 0, active.PrintSegments);
+        ClearBuildersAndPayload(active.Builders);
     }
 
     public void Dispose()

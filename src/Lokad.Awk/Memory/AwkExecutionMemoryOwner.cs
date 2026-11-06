@@ -74,7 +74,14 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         var reservation = _reservation;
         if (reservation is null) return true;
         var current = AwkRuntimeMemory.CheckedAdd(trackedBytes, temporaryBytes);
-        if (!reservation.TryResize(Math.Max(_mutationFloor, current))) return false;
+        var charge = Math.Max(_mutationFloor, current);
+        var reusable = trackedBytes == _trackedBytes && temporaryBytes == _temporaryBytes ||
+            _mutationFloor > 0 && current <= _mutationFloor;
+        // A positive charge still held by the provider proves live ownership.
+        // Zero cannot do that: disposed reservations/ancestors also report zero.
+        // Ordinary growth still makes one provider call. Inspect the held charge
+        // only when reusing unchanged state or an already-admitted mutation floor.
+        if ((!reusable || charge == 0 || charge != reservation.Bytes) && !reservation.TryResize(charge)) return false;
         _trackedBytes = trackedBytes;
         _temporaryBytes = temporaryBytes;
         return true;
@@ -88,7 +95,8 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         var previous = _mutationFloor;
         var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), growth));
-        if (!reservation.TryResize(Math.Max(reservation.Bytes, floor)))
+        var charged = reservation.Bytes;
+        if (floor > charged && !reservation.TryResize(floor))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         _mutationFloor = floor;
         return new(this, previous);
