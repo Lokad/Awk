@@ -4,6 +4,14 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> AssignmentOperandCompatibilityRepairs()
     {
+        yield return Passing("bound-arithmetic-keeps-number-origins-spelling-and-missing-reads",
+            ["function calc(x,y){return -x+y*2}BEGIN{x=\"0007\";a[\"k\"]=\"0003\";$0=\"0005 0002\";print calc(x,$2),$1+$2,x-a[\"k\"],a[\"missing\"]+1,(\"missing\" in a),$1,$2,x,a[\"k\"]}"],
+            [], "-3 7 4 1 1 0005 0002 0007 0003\n");
+        yield return AwkGoldenCaseBuilder.Create("arithmetic-keeps-field-prior-before-rhs-record-replacement",
+            ["function rhs(){$0=\"new 100\";return 3}{print $2+rhs(),$2}"], [])
+            .WithStandardInput("old 0007\n").WithStdOut("10 100\n")
+            .WithNondeterminismNote("Lokad captures the left number before RHS effects; operand evaluation order may differ between implementations.")
+            .Build();
         yield return Passing("numeric-field-reuse-copy-does-not-alias-cache-slots",
             ["{a=$2+0;b=$3+0}{$3=$2}{$2=\"0009\"}{print $0,$2+0,$3+0;NF=2;print $0}"],
             [], "k 0009 0007 9 7\nk 0009\n", "k 0007 0008\n");

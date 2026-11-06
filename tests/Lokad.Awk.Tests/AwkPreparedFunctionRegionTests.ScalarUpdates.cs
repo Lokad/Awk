@@ -3,15 +3,24 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
-    public async Task CapturedScalarNumbersSurvivePendingRhsUsers(bool governed, bool local, bool cancel)
+    [InlineData(false, 0, false)] [InlineData(false, 0, true)]
+    [InlineData(false, 1, false)] [InlineData(false, 1, true)]
+    [InlineData(false, 2, false)] [InlineData(false, 2, true)]
+    [InlineData(false, 3, false)] [InlineData(false, 3, true)]
+    [InlineData(true, 0, false)] [InlineData(true, 0, true)]
+    [InlineData(true, 1, false)] [InlineData(true, 1, true)]
+    [InlineData(true, 2, false)] [InlineData(true, 2, true)]
+    [InlineData(true, 3, false)] [InlineData(true, 3, true)]
+    public async Task CapturedPriorNumbersSurvivePendingRhsUsers(bool governed, int shape, bool cancel)
     {
-        var source = local
-            ? "function rhs(x){x=100;print \"hold\";return 3}function f(x){return x++ + rhs(x)}BEGIN{print f(7);exit}"
-            : "function rhs(){x=100;print \"hold\";return 3}BEGIN{x=7;print (x+=rhs()),x;exit}";
+        var (source, expected) = shape switch
+        {
+            0 => ("function rhs(){x=100;print \"hold\";return 3}BEGIN{x=7;print (x+=rhs()),x;exit}", "hold\n10 10\n"),
+            1 => ("function rhs(x){x=100;print \"hold\";return 3}function f(x){return x++ + rhs(x)}BEGIN{print f(7);exit}", "hold\n10\n"),
+            2 => ("function rhs(){x=100;print \"hold\";return 3}BEGIN{x=\"0007\";print x+rhs(),x;exit}", "hold\n10 100\n"),
+            3 => ("function rhs(){$0=\"new 100\";print \"hold\";return 3}BEGIN{$0=\"old 0007\";print $2+rhs(),$2;exit}", "hold\n10 100\n"),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape))
+        };
         if (!Awk.TryParse(AwkTestHarness.BuildInvocation("awk", source), out var command))
             throw new InvalidOperationException("Expected an awk invocation.");
         var budget = new CooperativeTestBudget(8 << 20);
@@ -53,7 +62,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         else
         {
             Assert.Equal(AwkExitCode.Success, await execution);
-            Assert.Equal(local ? "hold\n10\n" : "hold\n10 10\n", string.Concat(writes));
+            Assert.Equal(expected, string.Concat(writes));
         }
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);

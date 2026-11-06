@@ -902,6 +902,22 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    internal async Task ArithmeticSourcesKeepFieldAndLocalNumbersByteNative()
+    {
+        const string source = "function calc(x,y){return -(x*3-y)/2}{sum+=calc($1,$2)}END{print sum}";
+        var result = await RunAsync([source], "0007 0003\n0007 0003\n", false);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("-18\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(4, result.Counters.NumericFieldByteParses);
+        Assert.Equal(4, result.Counters.NumericLocalReads);
+        Assert.Equal(2, result.Counters.BoundFunctionRuns);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, 8);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Fact]
     internal async Task ParsedMixedFunctionLayoutsRecycleWithoutStaleLocals()
     {
         const string source = "function one(x){return ++x} function zero(){return 3} function two(x,y){return x+y} " +
