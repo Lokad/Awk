@@ -19,7 +19,7 @@ internal sealed partial class AwkRegionCompiler
     private int _activeUpdates;
     private int _updateSlots;
     private readonly List<AwkRegionPath> _paths = [];
-    private readonly List<int> _builderSeparators = [];
+    private int _builderCount;
     private readonly List<AwkRegionCall> _calls = [];
     private readonly List<AwkRegionBuiltin> _builtins = [];
     private readonly List<AwkRegionStringCall> _strings = [];
@@ -212,7 +212,7 @@ internal sealed partial class AwkRegionCompiler
     }
 
     private AwkRegionStorageLayout StorageLayout() =>
-        new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderSeparators.Count, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
+        new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderCount, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
 
     private AwkRegion CreateRegion()
     {

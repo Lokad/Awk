@@ -8,7 +8,6 @@ internal sealed partial class AwkRegionCompiler
     {
         private int _position = -1;
         private int _builder;
-        private int _separator;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {
@@ -20,9 +19,8 @@ internal sealed partial class AwkRegionCompiler
                 if (parts.Count - first > 1)
                 {
                     _builder = compiler._activeBuilders++;
-                    if (_builder == compiler._builderSeparators.Count) compiler._builderSeparators.Add(compiler._values++);
-                    _separator = compiler._builderSeparators[_builder];
-                    compiler.Emit(new(AwkRegionInstructionKind.KeyBegin, _builder, _separator));
+                    compiler._builderCount = Math.Max(compiler._builderCount, compiler._activeBuilders);
+                    compiler.Emit(new(AwkRegionInstructionKind.KeyBegin, _builder));
                 }
             }
             else
@@ -33,10 +31,10 @@ internal sealed partial class AwkRegionCompiler
                 _position++;
                 if (_position == parts.Count)
                 {
-                    compiler.Emit(new(AwkRegionInstructionKind.ReleaseValue, _separator));
+                    compiler.Emit(new(AwkRegionInstructionKind.KeyReady, _builder));
                     return Complete(compiler.Operand(AwkRegionOperandKind.KeyBuilder, _builder));
                 }
-                compiler.Emit(new(AwkRegionInstructionKind.KeySeparator, _builder, _separator));
+                compiler.Emit(new(AwkRegionInstructionKind.KeySeparator, _builder));
             }
             next = compiler.CreateOperandWork(parts[_position]);
             return true;
@@ -160,7 +158,7 @@ internal sealed partial class AwkRegionCompiler
                     {
                         // Finish conversion before the RHS can change its owner or CONVFMT.
                         var builder = compiler._activeBuilders++;
-                        if (builder == compiler._builderSeparators.Count) compiler._builderSeparators.Add(compiler._values++);
+                        compiler._builderCount = Math.Max(compiler._builderCount, compiler._activeBuilders);
                         compiler.Emit(new(AwkRegionInstructionKind.KeyEnd, builder));
                         compiler.Emit(new(AwkRegionInstructionKind.KeyAppend, builder, _key));
                         _key = compiler.Operand(AwkRegionOperandKind.KeyBuilder, builder);

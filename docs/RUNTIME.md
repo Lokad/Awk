@@ -277,6 +277,8 @@ funded through their final RHS/commit users, including suspension. Borrowed byte
 local to synchronous consumption.
 Ordinary captured key/cell holding space is admitted with those reusable slots; larger live
 captures admit their excess. Holding capacity remains charged until its owner retires.
+Composite-key scratch owns its separator snapshot through component evaluation and retires
+it before the completed bytes are consumed; nested or pending components keep that funding.
 Array membership consumes field bytes or a completed composite-key buffer synchronously;
 misses do not insert elements. Earlier key components remain owned across suspending calls.
 All accepted programs use this interpreter; there is no retained tree evaluator or alternative

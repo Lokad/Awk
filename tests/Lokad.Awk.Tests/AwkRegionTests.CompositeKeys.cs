@@ -15,11 +15,14 @@ public sealed partial class AwkRegionTests
         region.Execute(state, storage);
         var builder = Assert.Single(storage.Builders);
         var warm = fixture.Budget.Reserved;
+        if (governed) fixture.Budget.SetAvailableBytes(0);
         for (var index = 0; index < 20; index++)
         {
             region.Execute(state, storage);
-            Assert.Same(builder, Assert.Single(storage.Builders));
-            Assert.Equal(0, builder.Length);
+            var current = Assert.Single(storage.Builders);
+            Assert.Same(builder.Buffer, current.Buffer);
+            Assert.Same(AwkText.Empty, current.Separator);
+            Assert.Equal(0, builder.Buffer.Length);
             Assert.All(storage.Values, value => Assert.Equal(0, value.RetainedTextMemoryBytes));
             Assert.All(storage.Targets, target => Assert.Null(target.Array));
             Assert.Equal(warm, fixture.Budget.Reserved);
@@ -39,7 +42,7 @@ public sealed partial class AwkRegionTests
         using var storage = new AwkRegionStorage(state);
         region.Execute(state, storage);
         Assert.Equal(2, storage.Builders.Length);
-        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Length));
+        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
         storage.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
@@ -54,6 +57,7 @@ public sealed partial class AwkRegionTests
         using var fixture = State(cancellation.Token, true);
         var state = fixture.State;
         var region = Compile("a[(component=1),2]+=(later=9)", state);
+        state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(new string(':', 128)));
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(region.Layout);
         var before = fixture.Budget.Reserved;
@@ -64,7 +68,7 @@ public sealed partial class AwkRegionTests
         Assert.False(state.HasScalar(AwkVariableName.FromText("component")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(before, fixture.Budget.Reserved);
-        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Length));
+        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
         storage.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
@@ -86,7 +90,7 @@ public sealed partial class AwkRegionTests
         Assert.Equal(7, state.GetArrayAwkValue(array, new AwkArrayKey("keep")).AsNumber());
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(0, fixture.Budget.GrowthAttemptsAfterRefusal);
-        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Length));
+        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
         storage.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
@@ -110,7 +114,7 @@ public sealed partial class AwkRegionTests
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("later")).AsNumber());
         Assert.Equal(1, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.Equal(before, fixture.Budget.Reserved);
-        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Length));
+        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
         storage.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);

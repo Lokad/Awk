@@ -110,7 +110,7 @@ internal partial struct AwkRegionMachine
                     var membership = arrays[instruction.Left];
                     var keyOperand = operands[membership.Key];
                     var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
-                        ? state.ContainsArrayValue(membership.Name, storage.Builders[keyOperand.Index].AsMemory().Span, membership.Binding)
+                        ? state.ContainsArrayValue(membership.Name, storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
                         : IsField(keyOperand)
                             ? state.ContainsArrayField(membership.Name, FieldOrdinal(keyOperand), membership.Binding)
                             : state.ContainsArrayValue(membership.Name, state.ToArrayKey(Value(membership.Key)), membership.Binding);
@@ -280,23 +280,23 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.KeyBegin:
-                    storage.Builders[instruction.Target].Clear();
-                    // Only the snapshot's original bytes are consumed.
-                    storage.StoreValue(instruction.Left, AwkValue.FromDeferredText(
-                        state.ResolveSubscriptSeparatorText(), AwkNumberParsingMode.Decimal));
+                    storage.BeginKey(instruction.Target, state.ResolveSubscriptSeparatorText());
                     break;
                 case AwkRegionInstructionKind.KeySeparator:
-                    storage.Builders[instruction.Target].Append(storage.Values[instruction.Left].ByteText, state.CancellationCheckpoint);
+                    storage.Builders[instruction.Target].Buffer.Append(storage.Builders[instruction.Target].Separator, state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.KeyAppend:
                     var component = operands[instruction.Left];
                     if (IsField(component))
-                        state.AppendFieldByteText(storage.Builders[instruction.Target], FieldOrdinal(component));
+                        state.AppendFieldByteText(storage.Builders[instruction.Target].Buffer, FieldOrdinal(component));
                     else
-                        storage.Builders[instruction.Target].Append(state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
+                        storage.Builders[instruction.Target].Buffer.Append(state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
+                    break;
+                case AwkRegionInstructionKind.KeyReady:
+                    storage.CompleteKey(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.KeyEnd:
-                    storage.Builders[instruction.Target].Clear();
+                    storage.Builders[instruction.Target].Buffer.Clear();
                     break;
                 case AwkRegionInstructionKind.PathBegin:
                     storage.BeginPath(instruction.Target, region.Paths[instruction.Target]);
@@ -311,7 +311,7 @@ internal partial struct AwkRegionMachine
                     var membershipPath = storage.Path(instruction.Left);
                     var membershipOwner = state.GetSubarray(membershipPath.ResolveOwner(state), membershipPath.Key);
                     numbers[instruction.Target] = membershipOwner.Slots.GetAlternateLookup<ReadOnlySpan<byte>>()
-                        .ContainsKey(storage.Builders[instruction.Right].AsMemory().Span) ? 1 : 0;
+                        .ContainsKey(storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.ArrayDelete:
                     var deleted = arrays[instruction.Target];
@@ -717,13 +717,13 @@ internal partial struct AwkRegionMachine
         }
 
         AwkArrayKey CaptureKey(int index) => operands[index] is { Kind: AwkRegionOperandKind.KeyBuilder } builder
-            ? new AwkArrayKey(storage.Builders[builder.Index].CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
+            ? new AwkArrayKey(storage.Builders[builder.Index].Buffer.CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
             : state.ToArrayKey(Value(index));
 
         AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
         {
             { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldKey(access.Name, FieldOrdinal(field), access.Binding),
-            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index], access.Binding),
+            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
             _ => state.ToArrayKey(Value(access.Key))
         };
 
@@ -737,7 +737,7 @@ internal partial struct AwkRegionMachine
             return operands[access.Key] switch
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldOrdinal(field), access.Binding),
-                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index], access.Binding),
+                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
                 _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
             };
         }
@@ -752,7 +752,7 @@ internal partial struct AwkRegionMachine
             return operands[access.Key] switch
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldNumber(access.Name, FieldOrdinal(field), access.Binding),
-                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index], access.Binding),
+                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
                 _ => state.GetArrayNumber(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
             };
         }
@@ -773,12 +773,12 @@ internal partial struct AwkRegionMachine
             var target = key.Kind switch
             {
                 AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(key), access.Binding),
-                AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index], access.Binding),
+                AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding),
                 _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
             };
             // The complete operation captured an owned key before retiring scratch,
             // in the same order as the separate ArrayPrepare/KeyEnd instructions.
-            if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Clear();
+            if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
             return target;
         }
 

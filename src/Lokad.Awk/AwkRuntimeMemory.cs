@@ -31,8 +31,9 @@ internal static class AwkRuntimeMemory
     // Each prepared capture slot funds an ordinary key and retired cell up front.
     // This is a coarse holding estimate, not a key-length limit; larger live
     // captures admit the excess separately and refund it after their final user.
-    internal static readonly long ArrayUpdateTargetHoldingBytes =
-        ArrayCellBytes + EstimateTextBytes(32);
+    // Rounded constants cover small text/metadata without a general helper initializer.
+    internal const int ArrayUpdateTargetHoldingBytes = 320;
+    internal const int KeySeparatorHoldingBytes = 256;
     private const int ArraySortEntryBytes = 96;
     // Four references, seven ints and three flags, including an aligned object header.
     internal const int ArrayMergeProgressBytes = 96;
@@ -162,8 +163,9 @@ internal static class AwkRuntimeMemory
     internal static long EstimateBooleanArrayBytes(int count) =>
         CheckedAdd(EstimateArrayBufferBytes(count, sizeof(bool)), 7) & ~7L;
 
-    public static long EstimateUtf8BuilderArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, ReferenceBytes);
+    public static long EstimateRegionBuilderArrayBytes(int count) =>
+        CheckedAdd(EstimateArrayBufferBytes(count, 2 * ReferenceBytes),
+            CheckedMultiply(count, KeySeparatorHoldingBytes));
 
     internal static long EstimateCapturedPathArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);

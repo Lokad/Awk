@@ -36,7 +36,7 @@ internal static class AwkRegionPrinting
     {
         if (target.IsRedirected)
         {
-            var redirected = storage.Builders[0];
+            var redirected = storage.Builders[0].Buffer;
             redirected.Clear();
             AwkFormattingRuntime.FormatPrintfToBuilder(redirected, format, arguments, state);
             state.ThrowIfCancellationRequested();
@@ -90,7 +90,7 @@ internal static class AwkRegionPrinting
         state.ThrowIfCancellationRequested();
         if (print.Output.IsRedirected)
         {
-            var redirected = storage.Builders[0];
+            var redirected = storage.Builders[0].Buffer;
             redirected.Clear();
             redirected.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
                 storage.Texts[print.Texts + print.Count + 1], state.CancellationCheckpoint);

@@ -6,6 +6,35 @@ public sealed class AwkEvaluationOwnershipTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task CapturedSeparatorStaysFundedThroughActualPendingComponent(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(32 << 20);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new OwnershipHost { PendingHeld = () => { entered.SetResult(); return release.Task; } };
+        var run = ExecuteAsync("function wipe(){SUBSEP=\"\";print \"held\";return 0}" +
+            "BEGIN{SUBSEP=sprintf(\"%01000000d\",0);a[wipe(),1]=1;print length(a)}",
+            host, budget, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var held = budget.Reserved;
+            Assert.True(held >= 1_000_000);
+            if (cancel) cancellation.Cancel();
+            Assert.False(run.IsCompleted);
+            Assert.Equal(held, budget.Reserved);
+        }
+        finally { release.TrySetResult(); }
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+        else Assert.Equal(0, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal(cancel ? "held\n" : "held\n1\n", host.Output);
+        Assert.Empty(host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task ForwardedArrayUpdateSurvivesReplacementAndPendingHostOutput(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();

@@ -107,7 +107,7 @@ internal partial struct AwkRegionMachine
         _state.ThrowIfCancellationRequested();
         _destination = output.Value;
         _pending = Pending.Output;
-        _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].AsMemory()));
+        _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()));
     }
 
     private void CompleteHostOperation()
@@ -115,7 +115,7 @@ internal partial struct AwkRegionMachine
         var completed = _pending;
         if (_pending == Pending.Output)
         {
-            _cursor.Storage.Builders[0].Clear();
+            _cursor.Storage.Builders[0].Buffer.Clear();
             _cursor.Storage.ReleaseValue(_destination);
         }
         _hostCompletion = Task.CompletedTask;
