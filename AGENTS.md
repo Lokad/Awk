@@ -110,8 +110,10 @@ or environment dependencies.
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
-- Recycled frames retain sufficient funded capacity across arities. Initialize omitted locals
-  before publishing the activation; reconcile actual mutable arguments before registering aliases.
+- Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already
+  represent missing arguments with an unassigned value; retire prior references before reuse,
+  without another omitted-local initialization traversal. Reconcile actual mutable arguments
+  before registering aliases.
   Active local/scratch bounds govern cleanup; backing capacity and pending users keep their funding.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
   NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;

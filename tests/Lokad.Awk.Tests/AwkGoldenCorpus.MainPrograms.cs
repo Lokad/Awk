@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> MainProgramCases()
     {
+        yield return Passing("omitted-locals-preserve-unassigned-and-array-use-after-frame-reuse",
+            ["function wide(a,b,c,d,e,f,g,h){b=7;c[\"k\"]=9;h=\"0003\";return a+b+c[\"k\"]+h}function narrow(x){return x}function probe(a,b,c){print \"[\"a\"]\",(a==0),(c==\"\");b[\"k\"]=4;return b[\"k\"]}BEGIN{print wide(1);print narrow(\"0002\");print probe();print wide(2);print probe()}"],
+            [], "20\n0002\n[] 1 1\n4\n21\n[] 1 1\n4\n");
         yield return Passing("array-assignment-evaluates-rhs-before-field-destination",
             ["function rhs(){$1=\"new\";return \"0007\"}{a[\"new\"]=\"seed\";a[$1]=rhs();print (\"old\" in a),a[\"new\"],typeof(a[\"new\"]),length(a)}"],
             [], "0 0007 string 1\n", "old value\n");

@@ -4,6 +4,40 @@ public sealed class AwkIncomingFrameTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void ReusedFramesKeepMissingOriginsAcrossInlineAndBufferedLayouts(bool governed)
+    {
+        using var fixture = State(CancellationToken.None, governed);
+        var state = fixture.State;
+        foreach (var width in new[] { 8, 1, 3, 12, 2, 7 })
+        {
+            var names = Enumerable.Range(0, width).Select(index => AwkVariableName.FromText("p" + index)).ToArray();
+            var frame = state.PrepareFunctionFrame(new(names));
+            for (var index = 0; index < width; index++)
+            {
+                ref readonly var slot = ref frame.GetSlot(index);
+                Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, slot.Kind);
+                Assert.Equal(AwkVariableSlotKind.Unassigned, slot.Value.Kind);
+            }
+            Assert.False(state.IsInsideFunction);
+            state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromText("")));
+            state.ActivateFunctionFrame(frame);
+            try
+            {
+                Assert.Equal(AwkRuntimeValueKind.String, state.ResolveFunctionLocalValue(new(0), names[0]).RuntimeKind);
+                for (var index = 1; index < width; index++)
+                {
+                    Assert.Equal(AwkRuntimeValueKind.Unassigned, state.ResolveFunctionLocalValue(new(index), names[index]).RuntimeKind);
+                    state.AssignFunctionLocalValue(new(index), names[index], AwkValue.FromNumericString("0007"));
+                }
+            }
+            finally { state.PopFunctionFrame(); }
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void IncomingLocalsStayHiddenDuringNestedCallerWork(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
@@ -11,10 +45,10 @@ public sealed class AwkIncomingFrameTests
         var x = AwkVariableName.FromText("x");
         var layout = new AwkFunctionLocalLayout([x]);
         state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
-        var outer = state.PrepareFunctionFrame(layout, 1);
+        var outer = state.PrepareFunctionFrame(layout);
         state.StageFunctionArgument(outer, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)));
         Assert.Equal(42, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
-        var inner = state.PrepareFunctionFrame(layout, 1);
+        var inner = state.PrepareFunctionFrame(layout);
         state.StageFunctionArgument(inner, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9)));
         state.ActivateFunctionFrame(inner);
         Assert.Equal(9, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
@@ -39,7 +73,7 @@ public sealed class AwkIncomingFrameTests
         var parent = new AwkArrayKey("row");
         var child = state.GetSubarray(name, parent, default);
         state.SetArrayAwkValue(child, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
-        var frame = state.PrepareFunctionFrame(new([AwkVariableName.FromText("p")]), 1);
+        var frame = state.PrepareFunctionFrame(new([AwkVariableName.FromText("p")]));
         state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(child));
         state.DeleteArrayValue(name, parent);
         state.ActivateFunctionFrame(frame);
@@ -59,7 +93,7 @@ public sealed class AwkIncomingFrameTests
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
         var state = fixture.State;
-        var frame = state.PrepareFunctionFrame(new([AwkVariableName.FromText("p")]), 1);
+        var frame = state.PrepareFunctionFrame(new([AwkVariableName.FromText("p")]));
         var before = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;

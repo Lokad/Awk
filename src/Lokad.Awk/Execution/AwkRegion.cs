@@ -130,10 +130,9 @@ internal sealed class AwkRegionRuleScope(AwkRegionStorageLayout before, AwkRegio
 internal readonly record struct AwkRegionCall
 {
     private readonly AwkUserFunction? _function;
-    internal AwkRegionCall(AwkUserFunction function, int slot, int arguments) => (_function, Slot, Arguments) = (function, slot, arguments);
+    internal AwkRegionCall(AwkUserFunction function, int slot) => (_function, Slot) = (function, slot);
     internal AwkUserFunction Function => _function ?? throw new InvalidOperationException("An uninitialized call has no function.");
     internal int Slot { get; }
-    internal int Arguments { get; }
 }
 internal readonly record struct AwkRegionResumePoint(int Position, AwkRegionOperand Destination);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,

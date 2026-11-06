@@ -160,7 +160,7 @@ internal sealed class AwkRegionStorage : IDisposable
         AwkRuntimeMemory.EstimateFieldTextArrayBytes(count), AwkRuntimeMemory.EstimateBooleanArrayBytes(count));
 
     internal void BeginCall(AwkRegionCall call) =>
-        _incoming[call.Slot] = _state.PrepareFunctionFrame(call.Function.LocalLayout, call.Arguments);
+        _incoming[call.Slot] = _state.PrepareFunctionFrame(call.Function.LocalLayout);
 
     internal AwkFunctionFrame IncomingFrame(int slot) => _incoming[slot] ??
         throw new InvalidOperationException("No incoming function frame.");

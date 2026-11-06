@@ -21,7 +21,7 @@ internal partial struct AwkRegionMachine
         if (operation.IsComparing) operation.AcceptComparison(storage.Numbers[comparison]);
         if (operation.TryNextComparison())
         {
-            var call = new AwkRegionCall(operation.Function, callSlot, 4);
+            var call = new AwkRegionCall(operation.Function, callSlot);
             storage.BeginCall(call);
             var frame = storage.IncomingFrame(call.Slot);
             for (var index = 0; index < 4; index++)

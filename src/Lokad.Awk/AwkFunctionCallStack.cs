@@ -68,7 +68,7 @@ internal sealed class AwkFunctionCallStack(
     {
         if (_depth >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
-        var frame = PrepareFrame(layout, arguments.Length);
+        var frame = PrepareFrame(layout);
         try
         {
             for (var index = 0; index < Math.Min(arguments.Length, layout.SlotCount); index++)
@@ -88,7 +88,7 @@ internal sealed class AwkFunctionCallStack(
 
     private int _incomingFrames;
 
-    internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout, int argumentCount)
+    internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout)
     {
         var newFrame = _recycledFrames.Count == 0;
         var cached = newFrame ? null : _recycledFrames.Peek();
@@ -121,7 +121,6 @@ internal sealed class AwkFunctionCallStack(
             else frame = _recycledFrames.Pop();
             frame.Initialize(++_nextFrameId, layout);
             unpublishedBytes -= bufferBytes;
-            frame.InitializeOmittedArguments(argumentCount, checkpoint);
             frame.IsIncoming = true;
             _incomingFrames++;
             _counters.RecordFunctionFramePrepared(bufferBytes > 0);

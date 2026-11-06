@@ -430,7 +430,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _functions.PopFrame();
     }
 
-    internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout, int arguments) => _functions.PrepareFrame(layout, arguments);
+    internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout) => _functions.PrepareFrame(layout);
     internal void StageFunctionArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _functions.StageArgument(frame, index, argument);
     internal void StageFunctionNumber(AwkFunctionFrame frame, int index, double number) => _functions.StageNumber(frame, index, number);
     internal void ActivateFunctionFrame(AwkFunctionFrame frame)

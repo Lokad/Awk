@@ -328,6 +328,8 @@ capacity remain funded until execution ends. Frames reuse sufficient cleared bac
 different arities, including smaller and inline activations. A larger layout retires insufficient
 inactive backing before admitting its replacement. Unwinding releases active scalar payloads;
 local and temporary cleanup uses the activation's bounds, while retained capacity stays funded.
+Cleared local cells already represent omitted arguments with an unassigned value; supplied
+arguments replace those cells in caller evaluation order.
 Only actual array/untyped arguments need entry reconciliation; alias registration still follows
 it, preserving later-argument mutation and admission order.
 Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted

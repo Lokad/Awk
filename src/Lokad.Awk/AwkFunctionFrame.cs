@@ -132,17 +132,6 @@ internal sealed class AwkFunctionFrame
         _slots = slots;
     }
 
-    internal void InitializeOmittedArguments(int arguments, Action? checkpoint)
-    {
-        // Omitted destinations are known before argument evaluation. They remain
-        // hidden with the incoming frame until activation publishes the locals.
-        for (var index = Math.Min(arguments, Layout.SlotCount); index < Layout.SlotCount; index++)
-        {
-            if ((index & 63) == 63) checkpoint?.Invoke();
-            GetSlot(index) = AwkFunctionLocalSlot.MissingScalar();
-        }
-    }
-
     internal void RecordArgument(int index, AwkFunctionLocalSlotKind kind)
     {
         if (kind is AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.UntypedScalar)
@@ -181,19 +170,24 @@ internal sealed class AwkFunctionFrame
 
 internal readonly struct AwkFunctionLocalSlot
 {
+    private readonly AwkVariableSlot _value;
+
     private AwkFunctionLocalSlot(
         AwkFunctionLocalSlotKind kind,
         AwkVariableSlot value,
         AwkArrayName arrayName)
     {
         Kind = kind;
-        Value = value;
+        _value = value;
         ArrayName = arrayName;
     }
 
     public AwkFunctionLocalSlotKind Kind { get; }
 
-    public AwkVariableSlot Value { get; }
+    // Cleared cells are missing locals. Their language value is unassigned,
+    // independently of the ordinary scalar slot's text-valued default.
+    public AwkVariableSlot Value => Kind == AwkFunctionLocalSlotKind.MissingScalar
+        ? new(AwkText.Empty, AwkVariableSlotKind.Unassigned) : _value;
 
     public AwkArrayName ArrayName { get; }
 
@@ -209,11 +203,7 @@ internal readonly struct AwkFunctionLocalSlot
         value.TryGetArrayName(out var name) ? ArrayAlias(name) :
         value.IsUntypedValue ? UntypedScalar(value) : Scalar(value);
 
-    public static AwkFunctionLocalSlot MissingScalar() =>
-        new(
-            AwkFunctionLocalSlotKind.MissingScalar,
-            new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned),
-            default);
+    public static AwkFunctionLocalSlot MissingScalar() => default;
 
     public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName, AwkArrayIdentity? array = null) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias,
@@ -233,8 +223,8 @@ internal readonly struct AwkFunctionLocalSlot
 
 internal enum AwkFunctionLocalSlotKind
 {
-    Scalar,
     MissingScalar,
+    Scalar,
     ArrayAlias,
     PotentialArrayAlias,
     UntypedScalar

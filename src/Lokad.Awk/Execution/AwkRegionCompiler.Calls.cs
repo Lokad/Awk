@@ -51,7 +51,7 @@ internal sealed partial class AwkRegionCompiler
                 var slot = compiler._activeCalls++;
                 compiler._incomingCalls = Math.Max(compiler._incomingCalls, compiler._activeCalls);
                 _call = compiler._calls.Count;
-                compiler._calls.Add(new(function, slot, syntax.Children.Count - 1));
+                compiler._calls.Add(new(function, slot));
                 compiler.Emit(new(AwkRegionInstructionKind.BeginCall, Left: _call));
             }
             else

@@ -55,7 +55,7 @@ internal sealed class AwkFunctionRuntime
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments) =>
         _calls.PushFrame(layout, arguments);
 
-    internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout, int arguments) => _calls.PrepareFrame(layout, arguments);
+    internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout) => _calls.PrepareFrame(layout);
     internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, argument);
     internal void StageNumber(AwkFunctionFrame frame, int index, double number) => _calls.StageNumber(frame, index, number);
     internal void ActivateFrame(AwkFunctionFrame frame) => _calls.ActivateFrame(frame);
