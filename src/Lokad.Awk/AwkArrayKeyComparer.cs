@@ -29,12 +29,19 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     AwkArrayKey IAlternateEqualityComparer<AwkArrayKey, AwkArrayKey>.Create(AwkArrayKey key) => key;
 
-    AwkArrayKey IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>.Create(ReadOnlySpan<byte> bytes) =>
-        new(AwkText.CopyTrustedBytes(bytes, _counters, _accounting, _checkpoint), _checkpoint);
+    AwkArrayKey IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>.Create(ReadOnlySpan<byte> bytes)
+    {
+        var key = new AwkArrayKey(AwkText.CopyTrustedBytes(bytes, _counters, _accounting, _checkpoint), _checkpoint);
+        if (_counters.IsEnabled) _counters.RecordArrayAlternateKeyCopy(bytes.Length);
+        return key;
+    }
 
-    public bool Equals(ReadOnlySpan<byte> bytes, AwkArrayKey key) =>
-        key.Equals(bytes, bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ||
+    public bool Equals(ReadOnlySpan<byte> bytes, AwkArrayKey key)
+    {
+        if (_counters.IsEnabled) _counters.RecordArrayEquality();
+        return key.Equals(bytes, bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ||
             key.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
+    }
 
     public int GetHashCode(ReadOnlySpan<byte> bytes)
     {
@@ -43,15 +50,24 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
         var hash = new System.HashCode();
         hash.AddBytes(bytes);
         checkpoint?.Invoke();
+        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes.Length, borrowed: true);
         return hash.ToHashCode();
     }
 
-    public bool Equals(AwkArrayKey left, AwkArrayKey right) =>
-        left.Equals(right, left.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ||
+    public bool Equals(AwkArrayKey left, AwkArrayKey right)
+    {
+        if (_counters.IsEnabled) _counters.RecordArrayEquality();
+        return left.Equals(right, left.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ||
             right.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
+    }
 
-    public int GetHashCode(AwkArrayKey key) =>
+    public int GetHashCode(AwkArrayKey key)
+    {
         // Small keys retain bounded initialization/inspection behavior. Long hashes
         // check before and after the framework call, before dictionary mutation.
-        key.GetRandomizedHashCode(key.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
+        var bytes = key.ByteLength;
+        var hash = key.GetRandomizedHashCode(bytes >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
+        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes, borrowed: false);
+        return hash;
+    }
 }

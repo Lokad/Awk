@@ -111,6 +111,40 @@ internal sealed class AwkRuntimeCounters
     public long NumericArraySlotReads { get; private set; }
     public long ArrayCellCommits { get; private set; }
 
+    // Comparer work, not Dictionary's internal collision-probe count.
+    public long ArrayBorrowedHashCalls { get; private set; }
+    public long ArrayOwnedHashCalls { get; private set; }
+    public long ArrayHashBytes { get; private set; }
+    public long ArrayEqualityCalls { get; private set; }
+    public long ArrayAlternateKeyCopies { get; private set; }
+    public long ArrayAlternateKeyBytesCopied { get; private set; }
+
+    internal void RecordArrayHash(int bytes, bool borrowed)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            if (borrowed) ArrayBorrowedHashCalls++;
+            else ArrayOwnedHashCalls++;
+            ArrayHashBytes += bytes;
+        }
+    }
+
+    internal void RecordArrayEquality()
+    {
+        if (_enabled) lock (_sync) ArrayEqualityCalls++;
+    }
+
+    internal void RecordArrayAlternateKeyCopy(int bytes)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            ArrayAlternateKeyCopies++;
+            ArrayAlternateKeyBytesCopied += bytes;
+        }
+    }
+
     public void RecordArrayCellCommit()
     {
         if (_enabled) lock (_sync) ArrayCellCommits++;

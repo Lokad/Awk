@@ -5,6 +5,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayKeyTests
 {
     [Fact]
+    public void RuntimeComparerMeasuresOwnedAndBorrowedWorkInBytes()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters, AwkMemoryAccounting.Disabled);
+        var key = new AwkArrayKey("café");
+
+        Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode("café"u8));
+        Assert.True(comparer.Equals(key, new AwkArrayKey("café")));
+        Assert.True(comparer.Equals("café"u8, key));
+        var copy = ((IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>)comparer).Create("café"u8);
+
+        Assert.Equal(key, copy);
+        Assert.Equal(1, counters.ArrayOwnedHashCalls);
+        Assert.Equal(1, counters.ArrayBorrowedHashCalls);
+        Assert.Equal(10, counters.ArrayHashBytes);
+        Assert.Equal(2, counters.ArrayEqualityCalls);
+        Assert.Equal(1, counters.ArrayAlternateKeyCopies);
+        Assert.Equal(5, counters.ArrayAlternateKeyBytesCopied);
+    }
+
+    [Fact]
     public void AwkArrayKey_UsesAwkTextByteEquality()
     {
         var fromString = new AwkArrayKey("café");
