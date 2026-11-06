@@ -10,7 +10,6 @@ internal sealed partial class AwkRegionCompiler
     private readonly AwkRegionKind _kind;
     private readonly List<AwkRegionInstruction> _code = [];
     private readonly List<AwkRegionOperand> _operands = [];
-    private readonly List<AwkRegionVariable> _variables = [];
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkText> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
@@ -85,7 +84,7 @@ internal sealed partial class AwkRegionCompiler
                 if (_updates[index].PrepareAccess < 0)
                     after = after with { Targets = Math.Max(after.Targets, _updates[index].Slot + 1) };
             }
-            // Number registers and immutable program operands retain no payload.
+            // Number registers and immutable program operands retain no execution-owned payload.
             // Emit cleanup only for scratch that can actually own a live user.
             if (after.Values != before.Values || after.Texts != before.Texts ||
                 after.Targets != before.Targets || after.Paths != before.Paths ||
@@ -218,7 +217,7 @@ internal sealed partial class AwkRegionCompiler
     {
         PrepareFieldDemands();
         return new(_code.ToArray(), _operands.ToArray(),
-            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
+            _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
             StorageLayout(),
             _calls.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray());
@@ -414,7 +413,7 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             case AwkExpressionKind.Variable:
                 if (!Variable(syntax, out var variable)) return false;
-                result = Operand(_variables[variable].Kind, variable);
+                result = variable;
                 return true;
             default: return false;
         }
@@ -501,7 +500,7 @@ internal sealed partial class AwkRegionCompiler
         }
         else if (operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
             Emit(new(AwkRegionInstructionKind.AssignField, target, value));
-        else Assign(operand.Index, value);
+        else Assign(target, value);
     }
 
     private bool Field(AwkExpressionSyntax syntax, out int operand) =>
@@ -698,16 +697,16 @@ internal sealed partial class AwkRegionCompiler
         var name = new AwkVariableName(identifier.Identifier);
         if (!_variableIndices.TryGetValue(name, out index))
         {
-            index = _variables.Count;
+            index = _operands.Count;
             _variableIndices.Add(name, index);
             if (_scope.TryGetFunctionLocalSlot(name, out var slot))
-                _variables.Add(new(name, AwkRegionOperandKind.LocalVariable, slot.Index));
+                _operands.Add(new(AwkRegionOperandKind.LocalVariable, slot.Index, name));
             else if (AwkSpecialVariables.TryGetScalar(name, out var id) &&
                 AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode))
-                _variables.Add(new(name, AwkRegionOperandKind.SpecialVariable, (int)id));
+                _operands.Add(new(AwkRegionOperandKind.SpecialVariable, (int)id, name));
             else if (_scope.TryGetGlobalReadIndex(name, out var global))
-                _variables.Add(new(name, AwkRegionOperandKind.GlobalVariable, global));
-            else _variables.Add(new(name, AwkRegionOperandKind.DynamicVariable, -1));
+                _operands.Add(new(AwkRegionOperandKind.GlobalVariable, global, name));
+            else _operands.Add(new(AwkRegionOperandKind.DynamicVariable, -1, name));
         }
         return true;
     }
@@ -740,7 +739,7 @@ internal sealed partial class AwkRegionCompiler
             AwkRegionOperandKind.SpecialVariable or AwkRegionOperandKind.DynamicVariable => AwkRegionInstructionKind.VariableNumber,
             _ => throw new InvalidOperationException("A numeric operand requires a value location.")
         };
-        Emit(new(kind, target, source.Index));
+        Emit(new(kind, target, source.IsVariable ? operand : source.Index));
         return Operand(AwkRegionOperandKind.NumberTemporary, target);
     }
 

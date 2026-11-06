@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 // The syntax compiler emits operands once; execution does not revisit expression trees.
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
-    AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
+    AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
     AwkRegionArrayUpdate[] updates, AwkRegionScalarUpdate[] scalarUpdates,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
@@ -68,7 +68,6 @@ internal sealed class AwkRegion(
 
     internal AwkRegionInstruction[] Instructions => instructions;
     internal AwkRegionOperand[] Operands => operands;
-    internal AwkRegionVariable[] Variables => variables;
     internal AwkText[] Literals => literals;
     internal AwkRegionArrayAccess[] Arrays => arrays;
     internal AwkRegionArrayUpdate[] Updates => updates;
@@ -94,12 +93,11 @@ internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
     int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0, int Sorts = 0);
 internal enum AwkRegionOperandKind : byte { DynamicVariable, GlobalVariable, LocalVariable, SpecialVariable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder, ArrayPrevious }
-internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index)
+internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index, AwkVariableName Name = default)
 {
     internal bool IsVariable => Kind is AwkRegionOperandKind.DynamicVariable or AwkRegionOperandKind.GlobalVariable or
         AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.SpecialVariable;
 }
-internal readonly record struct AwkRegionVariable(AwkVariableName Name, AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,

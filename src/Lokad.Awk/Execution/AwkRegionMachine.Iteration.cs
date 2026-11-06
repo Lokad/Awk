@@ -40,7 +40,7 @@ internal partial struct AwkRegionMachine
         return false;
     }
 
-    private void AssignVariable(AwkRegionVariable variable, AwkValue value)
+    private void AssignVariable(AwkRegionOperand variable, AwkValue value)
     {
         _state.ThrowIfCancellationRequested();
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
@@ -51,7 +51,7 @@ internal partial struct AwkRegionMachine
             _state.AssignVariableValue(variable.Name, value);
     }
 
-    private void AssignVariableNumber(AwkRegionVariable variable, double number)
+    private void AssignVariableNumber(AwkRegionOperand variable, double number)
     {
         _state.ThrowIfCancellationRequested();
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)

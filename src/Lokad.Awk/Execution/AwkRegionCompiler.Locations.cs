@@ -46,7 +46,7 @@ internal sealed partial class AwkRegionCompiler
                 if (strict && syntax.Kind is not (AwkExpressionKind.Variable or AwkExpressionKind.Field or AwkExpressionKind.ArrayElement))
                     return false;
                 if (compiler.Variable(syntax, out var variable))
-                    return Complete(new(compiler.Operand(compiler._variables[variable].Kind, variable)));
+                    return Complete(new(variable));
                 var unwrapped = syntax;
                 while (unwrapped.Kind == AwkExpressionKind.Group && unwrapped.Children.Count == 1)
                 {
@@ -129,7 +129,7 @@ internal sealed partial class AwkRegionCompiler
                 }
                 else if (operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
                     compiler.Emit(new(AwkRegionInstructionKind.AssignField, location.Operand, _value));
-                else compiler.Assign(operand.Index, _value);
+                else compiler.Assign(location.Operand, _value);
                 return Complete(_value);
             }
             if (!AwkAssignmentOperators.TryGetCompoundOperation(syntax.OperatorTokens[0].Kind, out var operation)) return false;
@@ -203,7 +203,7 @@ internal sealed partial class AwkRegionCompiler
                 Detail: (int)operation));
             _activeUpdates--;
         }
-        else if (_operands[update.Target.Operand] is { IsVariable: true } variable)
+        else if (_operands[update.Target.Operand].IsVariable)
         {
             // Captures crossing RHS instructions stay where they were evaluated.
             // An adjacent load can belong to this same complete operation; its
@@ -212,7 +212,7 @@ internal sealed partial class AwkRegionCompiler
             if (source.Kind == AwkRegionOperandKind.ValueTemporary) source = _operands[CaptureNumber(right)];
             var previous = NumericRegister(update.Prior);
             var capturePrevious = _code.Count != 0 && _code[^1] is var capture &&
-                capture.Target == previous && capture.Left == variable.Index &&
+                capture.Target == previous && capture.Left == update.Target.Operand &&
                 capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
                     AwkRegionInstructionKind.VariableNumber;
             if (capturePrevious)
@@ -221,7 +221,7 @@ internal sealed partial class AwkRegionCompiler
                 _straightLine--;
             }
             var site = _scalarUpdates.Count;
-            _scalarUpdates.Add(new(variable.Index, previous, source, capturePrevious));
+            _scalarUpdates.Add(new(update.Target.Operand, previous, source, capturePrevious));
             Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site, Detail: (int)operation));
         }
         else

@@ -116,8 +116,9 @@ or environment dependencies.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
   NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;
   numeric values still use current formatting and untyped origins retain scalar promotion.
-  Prepared variable operands carry their global/local/special/dynamic category directly; use
-  that binding without reclassifying it. Runtime value-kind checks and real name fallback remain.
+  Prepared operands carry category, bound location and immutable fallback name directly. Reuse
+  compiler variable descriptors; do not restore a separate variable metadata table. Runtime
+  value-kind checks and real name fallback remain.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 
