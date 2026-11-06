@@ -473,10 +473,20 @@ internal partial struct AwkRegionMachine
                     }
                     else
                     {
-                        var assignedKey = Key(assigned);
+                        // The RHS already lives in captured scratch. Consume a
+                        // located cell directly; only misses need an owned key.
                         var assignedValue = Value(instruction.Left);
-                        state.ThrowIfCancellationRequested();
-                        state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                        var assignedOperand = operands[assigned.Key];
+                        if (IsField(assignedOperand))
+                            state.SetArrayFieldValue(assigned.Name, FieldOrdinal(assignedOperand), assignedValue, assigned.Binding);
+                        else if (assignedOperand.Kind == AwkRegionOperandKind.KeyBuilder)
+                            state.SetArrayBuilderValue(assigned.Name, storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
+                        else
+                        {
+                            var assignedKey = Key(assigned);
+                            state.ThrowIfCancellationRequested();
+                            state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                        }
                     }
                     break;
                 case AwkRegionInstructionKind.BeginCall:

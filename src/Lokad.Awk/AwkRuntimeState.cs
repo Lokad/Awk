@@ -1318,6 +1318,17 @@ internal sealed class AwkRuntimeState : IDisposable
         return ToArrayKey(field);
     }
 
+    internal void SetArrayFieldValue(AwkArrayName name, int index, AwkValue value, AwkArrayBinding binding)
+    {
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+            _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding)) return;
+        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        var key = ToArrayKey(field);
+        ThrowIfCancellationRequested();
+        _arrayRuntime.SetAwkValue(name, key, value, binding);
+    }
+
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetElementRuntimeKind(name, index, binding);
 
@@ -1337,6 +1348,9 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.ResolveKey(name, builder, binding);
+
+    internal void SetArrayBuilderValue(AwkArrayName name, AwkUtf8Builder builder, AwkValue value, AwkArrayBinding binding) =>
+        _arrayRuntime.SetBuilderValue(name, builder, value, binding);
 
     internal AwkValue GetArrayAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.GetAwkValue(name, builder, binding);

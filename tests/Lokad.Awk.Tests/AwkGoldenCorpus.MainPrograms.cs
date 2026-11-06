@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> MainProgramCases()
     {
+        yield return Passing("array-assignment-evaluates-rhs-before-field-destination",
+            ["function rhs(){$1=\"new\";return \"0007\"}{a[\"new\"]=\"seed\";a[$1]=rhs();print (\"old\" in a),a[\"new\"],typeof(a[\"new\"]),length(a)}"],
+            [], "0 0007 string 1\n", "old value\n");
+        yield return Passing("array-assignment-alias-preserves-field-and-composite-spelling",
+            ["function save(a,x){a[$1]=x;a[$1,$2]=x}{save(a,$3)}END{print a[\"café\"],typeof(a[\"café\"]),a[\"café\",\"part\"],length(a)}"],
+            [], "0009 strnum 0009 2\n", "café part 0007\ncafé part 0009\n");
         yield return Passing("record-terminator-slots-retain-string-spelling-after-user-assignment",
             ["BEGIN{RS=\"7\";getline x;print x,\"[\"RT\"]\",typeof(RT),(RT==7);RT=100;RS=\":\";getline x;print x,\"[\"RT\"]\",typeof(RT)}"],
             [], "left [7] string 1\nright [:] string\n", "left7right:tail");

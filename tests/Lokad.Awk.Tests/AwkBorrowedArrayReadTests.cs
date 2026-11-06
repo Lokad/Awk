@@ -3,6 +3,69 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void AssignmentConsumesLocatedCellWithoutRehashingOrCopyingKey(bool governed, bool composite)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = memory.Initialize(() => State(memory.Owner, counters)).State;
+        var name = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey(composite ? "café\x1cpart" : "café");
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("café part"));
+        _ = state.FieldCount;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append("café\x1cpart"u8);
+        var replacement = AwkValue.FromNumericString("0009");
+        var borrowedHashes = counters.ArrayBorrowedHashCalls;
+        var ownedHashes = counters.ArrayOwnedHashCalls;
+        var allocations = counters.AwkTextAllocations;
+
+        if (composite) state.SetArrayBuilderValue(name, builder, replacement, default);
+        else state.SetArrayFieldValue(name, 1, replacement, default);
+
+        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
+        Assert.Equal(ownedHashes, counters.ArrayOwnedHashCalls);
+        Assert.Equal(allocations, counters.AwkTextAllocations);
+        builder.Clear();
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("different record"));
+        var stored = state.GetArrayAwkValue(name, key);
+        Assert.Equal("0009", stored.AsString());
+        Assert.Equal(AwkRuntimeValueKind.NumericString, stored.RuntimeKind);
+        Assert.Equal(9, stored.AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void AssignmentRefusalLeavesLocatedCellUnchanged(bool composite)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = memory.Initialize(() => State(memory.Owner, AwkRuntimeCounters.CreateEnabled())).State;
+        var name = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey(composite ? "hit\x1cpart" : "hit");
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit part"));
+        _ = state.FieldCount;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append("hit\x1cpart"u8);
+        var replacement = AwkValue.FromText(new string('x', 4096));
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        var error = Assert.Throws<AwkRuntimeException>(() =>
+        {
+            if (composite) state.SetArrayBuilderValue(name, builder, replacement, default);
+            else state.SetArrayFieldValue(name, 1, replacement, default);
+        });
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void NumericBuilderReadConsumesLocatedValueWithoutCopyingAKey(bool governed)

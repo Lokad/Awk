@@ -235,6 +235,36 @@ internal sealed partial class AwkArrayRuntime
     public AwkArrayKey ResolveKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryGetBorrowedKey(name, builder.AsSpan(), out var key, binding) ? key : CopyKey(builder);
 
+    internal bool TrySetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index,
+        AwkValue value, AwkArrayBinding binding)
+    {
+        AwkArrayCell? cell;
+        if (_state.TryGetBoundArray(name, binding, out var array))
+        {
+            if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell)) return false;
+        }
+        else
+        {
+            var resolved = _variableRuntime.ResolveArrayReadName(name);
+            if (!_variables.TryGetOrdinaryArray(resolved, out array) ||
+                !_variables.TryGetArrayKeySlot(array, index, out _, out cell)) return false;
+            _state.BindGlobalArray(binding, resolved);
+        }
+        // Only the stable cell survives lookup; no borrowed bytes or dictionary
+        // entry reference crosses mutation admission or its callbacks.
+        _state.ThrowIfCancellationRequested();
+        _variables.SetArrayCellValue(array, cell, value);
+        return true;
+    }
+
+    internal void SetBuilderValue(AwkArrayName name, AwkUtf8Builder builder, AwkValue value, AwkArrayBinding binding)
+    {
+        if (TrySetBorrowedAwkValue(name, builder.AsSpan(), value, binding)) return;
+        var key = CopyKey(builder);
+        _state.ThrowIfCancellationRequested();
+        SetAwkValue(name, key, value, binding);
+    }
+
     public AwkValue GetAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryGetBorrowedAwkValue(name, builder.AsSpan(), out var value, binding) ? value : GetAwkValue(name, CopyKey(builder), binding);
 

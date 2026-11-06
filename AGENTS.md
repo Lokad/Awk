@@ -40,6 +40,8 @@ or environment dependencies.
   and rule cleanup. Fund ordinary key/cell holding with target capacity and larger live captures
   through the existing payload lease. Preserve admitted owners and stable cells across mutation/calls/suspension;
   never retain a dictionary entry reference across RHS evaluation.
+  Plain field/composite assignments consume located cells directly; preserve captured RHS values,
+  special-array behavior and owned-key admission on misses without repeating a successful lookup.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.

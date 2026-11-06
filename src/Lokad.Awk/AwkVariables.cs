@@ -246,6 +246,12 @@ internal sealed partial class AwkVariables
         SetArraySlot(array.Slots, index, AwkVariableSlot.FromValue(value));
     }
 
+    internal void SetArrayCellValue(AwkArrayIdentity array, AwkArrayCell cell, AwkValue value)
+    {
+        ThrowIfDetached(array);
+        SetArrayCell(cell, AwkVariableSlot.FromValue(value));
+    }
+
     internal bool TrySetCapturedArrayNumber(AwkArrayCell? cell, double number)
     {
         if (cell is null || !cell.IsAttached) return false;
