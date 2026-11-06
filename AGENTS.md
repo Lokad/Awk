@@ -35,7 +35,8 @@ or environment dependencies.
   a parallel per-rule scheduler or reset/rebind the main cursor on ordinary record progression.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring
   key scratch and evaluating the RHS. Only cross-instruction captures need retained target slots
-  and rule cleanup. Preserve admitted owners and stable cells across mutation/calls/suspension;
+  and rule cleanup. Fund ordinary key/cell holding with target capacity and larger live captures
+  through the existing payload lease. Preserve admitted owners and stable cells across mutation/calls/suspension;
   never retain a dictionary entry reference across RHS evaluation.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.

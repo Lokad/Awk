@@ -275,6 +275,8 @@ values own their spelling. Array updates preserve captured keys/prior values and
 after RHS work. Prepared update sites are separate from reused capture slots; those slots stay
 funded through their final RHS/commit users, including suspension. Borrowed byte spans remain
 local to synchronous consumption.
+Ordinary captured key/cell holding space is admitted with those reusable slots; larger live
+captures admit their excess. Holding capacity remains charged until its owner retires.
 Array membership consumes field bytes or a completed composite-key buffer synchronously;
 misses do not insert elements. Earlier key components remain owned across suspending calls.
 All accepted programs use this interpreter; there is no retained tree evaluator or alternative

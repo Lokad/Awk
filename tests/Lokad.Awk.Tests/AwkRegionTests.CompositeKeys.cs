@@ -98,11 +98,12 @@ public sealed partial class AwkRegionTests
         using var fixture = State(CancellationToken.None, true);
         var state = fixture.State;
         var region = Compile("a[$1,$2]+=(later+=1)", state);
-        state.SetCurrentRecord(AwkText.FromString("key part"));
+        var prefix = new string('k', 128);
+        state.SetCurrentRecord(AwkText.FromString(prefix + " part"));
         using var storage = new AwkRegionStorage(state);
         region.Execute(state, storage);
         var array = AwkArrayName.FromText("a");
-        var key = new AwkArrayKey("key\u001cpart");
+        var key = new AwkArrayKey(prefix + "\u001cpart");
         var before = fixture.Budget.Reserved;
         fixture.Budget.RefuseNextAdmissionMinimumGrowth = state.ResolveSubscriptSeparatorText().EstimatedRetainedMemoryBytes + 1;
         Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));

@@ -113,9 +113,10 @@ public sealed partial class AwkRegionTests
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
         var state = fixture.State;
-        var region = Compile("a[1]+=(later=9)", state);
+        var spelling = new string('k', 128);
+        var region = Compile("a[\"" + spelling + "\"]+=(later=9)", state);
         var array = AwkArrayName.FromText("a");
-        var key = AwkArrayKey.FromOrdinal(1);
+        var key = new AwkArrayKey(spelling);
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(region.Layout);
@@ -128,6 +129,31 @@ public sealed partial class AwkRegionTests
         Assert.Equal(5, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         Assert.Equal(before, fixture.Budget.Reserved);
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Fact]
+    public void OrdinaryTargetCapturesReuseTheirFundedHoldingCapacity()
+    {
+        using var fixture = State(CancellationToken.None, true);
+        var state = fixture.State;
+        using var storage = new AwkRegionStorage(state);
+        storage.Prepare(new(0, Targets: 1));
+        var key = new AwkArrayKey("café");
+        var cell = new AwkArrayCell(AwkVariableSlot.FromNumber(7));
+        var target = new AwkArrayUpdateTarget(key, 7, null, cell);
+        var held = fixture.Budget.Reserved;
+        fixture.Budget.SetAvailableBytes(0);
+        for (var index = 0; index < 128; index++)
+        {
+            storage.StoreTarget(0, target);
+            Assert.Same(cell, storage.Targets[0].Cell);
+            storage.ReleaseTarget(0);
+        }
+        Assert.Equal(held, fixture.Budget.Reserved);
+        Assert.Null(storage.Targets[0].Cell);
         storage.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);

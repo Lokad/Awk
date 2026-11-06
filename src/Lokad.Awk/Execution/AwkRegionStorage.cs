@@ -1,7 +1,8 @@
 namespace Lokad.Awk;
 
 // One execution owner. Number scratch needs no value transport; spelling-bearing
-// captures own their values and retain only the payload currently stored in each slot.
+// captures own their values. Target capacity includes ordinary key/cell holding
+// space; the payload lease funds excess targets and other currently stored values.
 internal sealed class AwkRegionStorage : IDisposable
 {
     private readonly AwkRuntimeState _state;
@@ -167,8 +168,8 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal void StoreTarget(int index, AwkArrayUpdateTarget target)
     {
-        var oldBytes = _state.MemoryAccounting.IsEnabled ? _targets[index].RetainedTargetBytes : 0;
-        var nextBytes = _state.MemoryAccounting.IsEnabled ? target.RetainedTargetBytes : 0;
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(_targets[index]) : 0;
+        var nextBytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(target) : 0;
         if (nextBytes > oldBytes)
         {
             _payload.ReserveAdditional(nextBytes - oldBytes);
@@ -180,10 +181,13 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal void ReleaseTarget(int index)
     {
-        var bytes = _state.MemoryAccounting.IsEnabled ? _targets[index].RetainedTargetBytes : 0;
+        var bytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(_targets[index]) : 0;
         _targets[index] = default;
         if (bytes > 0) _payload.Release(bytes);
     }
+
+    private static long ExcessTargetBytes(AwkArrayUpdateTarget target) =>
+        Math.Max(0, target.RetainedTargetBytes - AwkRuntimeMemory.ArrayUpdateTargetHoldingBytes);
 
     internal void StoreValue(int index, AwkValue value, bool preserveOrigin = false)
     {

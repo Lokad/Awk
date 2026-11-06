@@ -28,6 +28,11 @@ internal static class AwkRuntimeMemory
     internal const int CachedFieldValueBytes = 40;
     internal const int ListBufferOverheadBytes = ListObjectBytes + ByteArrayObjectBytes;
     private const int AwkArrayKeyBytes = 32;
+    // Each prepared capture slot funds an ordinary key and retired cell up front.
+    // This is a coarse holding estimate, not a key-length limit; larger live
+    // captures admit the excess separately and refund it after their final user.
+    internal static readonly long ArrayUpdateTargetHoldingBytes =
+        ArrayCellBytes + EstimateTextBytes(32);
     private const int ArraySortEntryBytes = 96;
     // Four references, seven ints and three flags, including an aligned object header.
     internal const int ArrayMergeProgressBytes = 96;
@@ -179,7 +184,8 @@ internal static class AwkRuntimeMemory
         EstimateArrayBufferBytes(count, AwkArrayKeyBytes);
 
     public static long EstimateArrayUpdateTargetArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, AwkArrayKeyBytes + sizeof(double) + 2 * ReferenceBytes);
+        CheckedAdd(EstimateArrayBufferBytes(count, AwkArrayKeyBytes + sizeof(double) + 2 * ReferenceBytes),
+            CheckedMultiply(ArrayUpdateTargetHoldingBytes, count));
 
     internal static long EstimateGetlineTargetArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, 80);
