@@ -8,38 +8,38 @@ internal interface IAwkFieldSink<out TFields>
     TFields Complete();
 }
 
-// The frame owns the destination and funding handle, including interrupted scans.
+// The frame owns destinations. Its scoped writer carries the current production
+// lease through publication or interrupted-scan cleanup.
 internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
 {
     private readonly List<AwkRecordField> _fields;
-    private readonly List<AwkFieldFrame.CachedFieldValue> _initialValues;
-    private readonly int _initialValueCount;
     private List<AwkFieldFrame.CachedFieldValue> _values;
     private readonly AwkMemoryAccounting _accounting;
     private readonly AwkRuntimeCounters _counters;
     private readonly Action _checkpoint;
-    private readonly ref AwkMemoryLease _staging;
+    private AwkMemoryLease _staging;
 
     public AwkRecordFieldWriter(List<AwkRecordField> fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting,
-        AwkRuntimeCounters counters, Action checkpoint, ref AwkMemoryLease staging)
+        AwkRuntimeCounters counters, Action checkpoint, AwkMemoryLease staging)
     {
         _fields = fields;
-        _values = _initialValues = values;
-        _initialValueCount = values.Count;
+        _values = values;
         _accounting = accounting;
         _counters = counters;
         _checkpoint = checkpoint;
-        _staging = ref staging;
+        _staging = staging;
     }
 
     public int PayloadBytes { get; private set; }
     public readonly int Count => _fields.Count;
+    internal readonly List<AwkRecordField> Fields => _fields;
     internal readonly List<AwkFieldFrame.CachedFieldValue> Values => _values;
+    internal readonly AwkMemoryLease Staging => _staging;
 
-    internal readonly void RetireUnpublishedValues(bool published)
+    public void Dispose()
     {
-        if ((!published || !ReferenceEquals(_values, _initialValues)) && _initialValues.Count > _initialValueCount)
-            _initialValues.RemoveRange(_initialValueCount, _initialValues.Count - _initialValueCount);
+        _staging.Dispose();
+        _staging = AwkMemoryLease.Disabled;
     }
 
     public void Add(AwkFieldRange field)

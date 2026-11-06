@@ -52,6 +52,8 @@ or environment dependencies.
   language boundary. Conditional field copies resolve their separator only after validating slices.
   All record producers write into the frame's funded record-cell destination. Keep staging in frame
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
+  The scoped producer carries its current staging lease; frame cleanup disposes it and rolls back
+  unpublished cache entries. Do not duplicate that lease through an external byref handle.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
   Prepared field demand requires already-available record/separator bytes and respects unknown
   effects, conditional fallthrough and actual flush completion; it must not move cold admission.
