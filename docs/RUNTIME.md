@@ -171,12 +171,10 @@ the active shared budget; it does not copy those snapshots again.
 Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.
 Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
 before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
-Record splitting reuses a dedicated cell buffer with its capacity estimate and admits growth
-before allocation. Appending a cell does not grow storage independently. Whitespace and single-byte
+Record splitting reuses funded descriptors and admits capacity growth. Whitespace and single-byte
 fields extend on demand at every record size. Completion reuses the admitted prefix where it fits;
-field mutation completes that owner before borrowing byte views. The producer keeps its initialized
-count local and publishes an accepted prefix after scanning. Cancellation leaves the prior prefix
-and numeric caches intact. Long scans check cancellation in
+field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
+appends while retaining the prior prefix and numeric caches. Long scans check cancellation in
 4 KiB byte regions; owners also check admission and publication. Escaped CSV text is
 admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps
 an immutable owned subject. Unpublished scan storage stays owned until publication or cleanup.

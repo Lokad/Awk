@@ -160,8 +160,8 @@ public sealed class AwkNumericFieldResourceTests
         Assert.Equal(AwkRuntimeMemory.FieldTextBytes, Unsafe.SizeOf<AwkFieldText>());
         Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkFieldText>(), AwkRuntimeMemory.EstimateFieldTextListBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateFieldTextListBytes(0));
-        Assert.Equal(40 + 24 + 4 * Unsafe.SizeOf<AwkRecordField>(), AwkRuntimeMemory.EstimateRecordCellBufferBytes(4));
-        Assert.Equal(0, AwkRuntimeMemory.EstimateRecordCellBufferBytes(0));
+        Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkRecordField>(), AwkRuntimeMemory.EstimateRecordFieldListBytes(4));
+        Assert.Equal(0, AwkRuntimeMemory.EstimateRecordFieldListBytes(0));
     }
 
     private static void AssertMemoryFailure(AwkRuntimeException error, AwkRuntimeState state, long committed)

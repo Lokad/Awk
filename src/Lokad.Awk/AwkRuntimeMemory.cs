@@ -236,9 +236,8 @@ internal static class AwkRuntimeMemory
         count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
             EstimateArrayBufferBytes(Math.Max(4, count), FieldTextBytes));
 
-    // Array, count and cached capacity estimate: 40-byte owner on 64-bit runtimes.
-    internal static long EstimateRecordCellBufferBytes(int count) =>
-        count <= 0 ? 0 : CheckedAdd(40,
+    internal static long EstimateRecordFieldListBytes(int count) =>
+        count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
             EstimateArrayBufferBytes(Math.Max(4, count), RecordFieldBytes));
 
     internal static long EstimateFieldTextArrayBytes(int count) =>
