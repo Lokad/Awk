@@ -18,7 +18,8 @@ internal sealed class AwkFunctionRuntime
         Action<AwkArrayName> removeFunctionLocalArray,
         Action? checkpoint = null,
         Func<AwkArrayName, AwkArrayIdentity?>? findArray = null,
-        Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null)
+        Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null,
+        AwkRuntimeCounters? counters = null)
     {
         _removeFunctionLocalArray = removeFunctionLocalArray;
         _calls = new AwkFunctionCallStack(
@@ -28,7 +29,8 @@ internal sealed class AwkFunctionRuntime
             containsArray,
             checkpoint,
             findArray,
-            promoteArrayOrigin);
+            promoteArrayOrigin,
+            counters);
     }
 
     public bool IsInsideFunction => _calls.IsInsideFunction;

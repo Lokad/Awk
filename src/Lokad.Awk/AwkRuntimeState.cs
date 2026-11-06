@@ -89,7 +89,8 @@ internal sealed class AwkRuntimeState : IDisposable
             _variables.RemoveFunctionLocalArray,
             CancellationCheckpoint,
             name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null,
-            _variables.PromoteArrayOrigin);
+            _variables.PromoteArrayOrigin,
+            Counters);
         _variables.RepairSubarrayAliases = _functions.RepairSubarrayAliases;
         _variables.RepairElementAliases = _functions.RepairElementAliases;
         _regexRuntime = new AwkRegexRuntime(

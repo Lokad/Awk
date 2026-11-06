@@ -22,6 +22,8 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
     public long? RefuseNextAdmissionMinimumGrowth { get; set; }
     public int Refusals { get; private set; }
     public int GrowthAttemptsAfterRefusal { get; private set; }
+    public long ResizeCalls { get; private set; }
+    public long UnchangedResizeCalls { get; private set; }
     public Action? OnRefusal { get; set; }
 
     public Action<long>? OnGrowth { get; set; }
@@ -107,6 +109,8 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 scope?.EnsureAlive();
                 var growth = next - _bytes;
+                root.ResizeCalls++;
+                if (growth == 0) root.UnchangedResizeCalls++;
                 if (root.Refuse(growth)) return false;
                 if (growth > root._limit - root._reserved) return false;
                 root._reserved += growth;

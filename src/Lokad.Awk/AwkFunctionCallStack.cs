@@ -11,8 +11,10 @@ internal sealed class AwkFunctionCallStack(
     Func<AwkArrayName, bool>? containsArray = null,
     Action? checkpoint = null,
     Func<AwkArrayName, AwkArrayIdentity?>? findArray = null,
-    Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null)
+    Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null,
+    AwkRuntimeCounters? counters = null)
 {
+    private readonly AwkRuntimeCounters _counters = counters ?? AwkRuntimeCounters.Disabled;
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
     private readonly Stack<AwkFunctionFrame> _frames = new();
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
@@ -119,6 +121,7 @@ internal sealed class AwkFunctionCallStack(
             frame.IncomingArgumentCount = argumentCount;
             frame.IsIncoming = true;
             _incomingFrames++;
+            _counters.RecordFunctionFramePrepared(bufferBytes > 0);
             return frame;
         }
         catch
@@ -194,6 +197,7 @@ internal sealed class AwkFunctionCallStack(
             _frames.Push(frame);
             _incomingFrames--;
             frame.IsIncoming = false;
+            _counters.RecordFunctionActivationSlots(2 * frame.Layout.SlotCount);
         }
         catch
         {
@@ -228,6 +232,7 @@ internal sealed class AwkFunctionCallStack(
         }
 
         var payloadBytes = frame.RetainedMemoryBytes;
+        _counters.RecordFunctionRetirementSlots(frame.Layout.SlotCount);
         RecycleFrame(frame);
         memoryAccounting.ReleaseCommitted(payloadBytes);
     }

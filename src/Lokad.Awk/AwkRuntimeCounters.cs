@@ -16,6 +16,31 @@ internal sealed class AwkRuntimeCounters
 
     public bool IsEnabled => _enabled;
 
+    public long FunctionFramesPrepared { get; private set; }
+    public long FunctionSlotBufferAllocations { get; private set; }
+    public long FunctionActivationSlotVisits { get; private set; }
+    public long FunctionRetirementSlotVisits { get; private set; }
+
+    internal void RecordFunctionFramePrepared(bool grewSlots)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            FunctionFramesPrepared++;
+            if (grewSlots) FunctionSlotBufferAllocations++;
+        }
+    }
+
+    internal void RecordFunctionActivationSlots(int count)
+    {
+        if (_enabled) lock (_sync) FunctionActivationSlotVisits += count;
+    }
+
+    internal void RecordFunctionRetirementSlots(int count)
+    {
+        if (_enabled) lock (_sync) FunctionRetirementSlotVisits += count;
+    }
+
     // Entries into prepared record programs; loop iterations are RecordsRead.
     public long BoundRegionRuns { get; private set; }
     public long BoundFunctionRuns { get; private set; }
