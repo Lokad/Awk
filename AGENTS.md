@@ -49,6 +49,8 @@ or environment dependencies.
   All record producers write into the frame's funded record-cell destination. Keep staging in frame
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
+  Prepared field demand requires already-available record/separator bytes and respects unknown
+  effects, conditional fallthrough and actual flush completion; it must not move cold admission.
   Scanners bound long work by bytes; owners keep admission and publication cancellation checks.
   Byte-backed CSV/character/width fields need no whole-record text copy. Regex retains its owned subject.
 - Arithmetic field numbers live in their funded record cells. Separate classification entries

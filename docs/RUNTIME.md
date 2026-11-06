@@ -178,6 +178,9 @@ appends while retaining the prior prefix and numeric caches. Long scans check ca
 4 KiB byte regions; owners also check admission and publication. Escaped CSV text is
 admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps
 an immutable owned subject. Unpublished scan storage stays owned until publication or cleanup.
+Prepared computational regions can extend known field prefixes together within admitted capacity.
+This keeps cold admission and lazy byte materialization at their ordinary demand points, respects
+unknown effects and branches, and waits for pending output completion before preparing later work.
 Lowering's name-to-ordinal table is temporary; prepared execution retains its count and
 bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
