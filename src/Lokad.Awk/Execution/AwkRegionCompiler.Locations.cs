@@ -87,7 +87,7 @@ internal sealed partial class AwkRegionCompiler
             // Nested keys must remain available to repair the logical owner if
             // RHS computation detaches or replaces the captured child.
             if (access.Path < 0) compiler.FinishKey(location.Access);
-            return Complete(new(new(location.Operand, captured), compiler.Operand(AwkRegionOperandKind.ArrayPrevious, slot)));
+            return Complete(new(new(location.Operand, captured), -1));
         }
     }
 
@@ -162,14 +162,19 @@ internal sealed partial class AwkRegionCompiler
             }
             var update = CompletedResult<PreparedUpdate>(completed);
             var decrement = syntax.OperatorTokens[0].Kind is AwkTokenKind.MinusMinus or AwkTokenKind.PostfixMinusMinus;
-            // Postfix owns the old number beyond release of the captured target.
-            var previous = syntax.Kind == AwkExpressionKind.Postfix ? compiler.CaptureNumber(update.Prior) : -1;
-            var result = compiler.Update(update, compiler.Constant(decrement ? -1 : 1), AwkCompoundAssignmentOperation.Add);
+            // Complete array updates already own the old number. Publish its
+            // observable postfix result directly, without another capture step.
+            var oldNumber = syntax.Kind == AwkExpressionKind.Postfix && update.Target.Capture >= 0
+                ? compiler._numbers++ : -1;
+            var previous = oldNumber >= 0 ? compiler.Operand(AwkRegionOperandKind.NumberTemporary, oldNumber)
+                : syntax.Kind == AwkExpressionKind.Postfix ? compiler.CaptureNumber(update.Prior) : -1;
+            var result = compiler.Update(update, compiler.Constant(decrement ? -1 : 1),
+                AwkCompoundAssignmentOperation.Add, oldNumber);
             return Complete(previous >= 0 ? previous : result);
         }
     }
 
-    private int Update(PreparedUpdate update, int right, AwkCompoundAssignmentOperation operation)
+    private int Update(PreparedUpdate update, int right, AwkCompoundAssignmentOperation operation, int oldNumber = -1)
     {
         var number = _numbers++;
         var result = Operand(AwkRegionOperandKind.NumberTemporary, number);
@@ -195,7 +200,7 @@ internal sealed partial class AwkRegionCompiler
             // Only captures crossing instructions need storage and rule retirement.
             if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);
             _updates[update.Target.Capture] = site;
-            Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture,
+            Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture, oldNumber,
                 Detail: (int)operation));
             if (site.Path >= 0) Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
             _activeUpdates--;

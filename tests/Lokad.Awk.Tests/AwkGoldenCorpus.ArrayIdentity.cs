@@ -70,6 +70,9 @@ internal static partial class AwkGoldenCorpus
             [], "3 2\n", "a b\n"),
         Passing("array-identity-dynamic-field-prefix-postfix", ["BEGIN{$0=\"k other\";i=1;a[\"k\"]=\"0007\";print a[$i]++,++a[$(i+0)],a[\"k\"]}"], [],
             "7 9 9\n"),
+        Passing("array-identity-flat-nested-postfix-results-outlive-update",
+            ["BEGIN{a[\"k\"]=\"0007\";b[\"r\"][\"c\"]=\"0007\";print a[\"k\"]++,b[\"r\"][\"c\"]++;print --a[\"k\"],--b[\"r\"][\"c\"];print (a[\"k\"]--)+(b[\"r\"][\"c\"]--),a[\"k\"],b[\"r\"][\"c\"];print a[\"new\"]++,b[\"new\"][\"c\"]++,length(a),length(b)}"],
+            [], "7 7\n7 7\n14 6 6\n0 0 2 2\n"),
         AwkGoldenCaseBuilder.Create("array-identity-clear-rhs",
             ["function f(){delete a;a[\"other\"]=17;return 3} BEGIN{a[\"k\"]=5;a[\"k\"]+=f();print a[\"k\"],a[\"other\"],length(a)}"], [])
             .WithStdOut("8 17 2\n")

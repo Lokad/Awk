@@ -97,9 +97,6 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.ArrayNumber:
                     numbers[instruction.Target] = ReadArrayNumber(arrays[instruction.Left]);
                     break;
-                case AwkRegionInstructionKind.ArrayPreviousNumber:
-                    numbers[instruction.Target] = storage.Targets[instruction.Left].Previous;
-                    break;
                 case AwkRegionInstructionKind.ArrayContains:
                 {
                     var membership = arrays[instruction.Left];
@@ -434,8 +431,12 @@ internal partial struct AwkRegionMachine
                         state.AssignFieldValue(instruction.Target, Value(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
-                    storage.StoreTarget(instruction.Target, PrepareArrayUpdate(instruction.Left, complete: false));
+                {
+                    var path = arrays[instruction.Left].Path;
+                    storage.StoreTarget(instruction.Target, path >= 0
+                        ? PrepareNestedArrayUpdate(path) : PrepareArrayUpdate(instruction.Left, complete: false));
                     break;
+                }
                 case AwkRegionInstructionKind.ArrayUpdate:
                 {
                     // Capture survives RHS admission/mutation. No dictionary reference
@@ -445,7 +446,9 @@ internal partial struct AwkRegionMachine
                     // array/key owners remain live throughout RHS conversion and commit.
                     // Captures spanning script instructions retain funded scratch storage.
                     var capturedUpdate = updateSite.PrepareAccess >= 0
-                        ? PrepareArrayUpdate(updateSite.PrepareAccess, complete: true) : storage.Targets[updateSite.Slot];
+                        ? updateSite.Path >= 0 ? PrepareNestedArrayUpdate(updateSite.Path)
+                            : PrepareArrayUpdate(updateSite.PrepareAccess, complete: true)
+                        : storage.Targets[updateSite.Slot];
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         ReadUpdateNumber(updateSite.Right),
                         (AwkCompoundAssignmentOperation)instruction.Detail);
@@ -453,6 +456,7 @@ internal partial struct AwkRegionMachine
                     if (updateSite.Path >= 0)
                         state.CommitArrayUpdate(storage.Path(updateSite.Path), capturedUpdate, updated);
                     else state.CommitArrayUpdate(updateSite.Name, capturedUpdate, updated);
+                    if (instruction.Right >= 0) numbers[instruction.Right] = capturedUpdate.Previous;
                     if (updateSite.PrepareAccess < 0) storage.ReleaseTarget(updateSite.Slot);
                     numbers[instruction.Target] = updated;
                     break;
@@ -716,7 +720,6 @@ internal partial struct AwkRegionMachine
             switch (operand.Kind)
             {
                 case AwkRegionOperandKind.NumberTemporary: return AwkValue.FromNumber(numbers[operand.Index]);
-                case AwkRegionOperandKind.ArrayPrevious: return AwkValue.FromNumber(storage.Targets[operand.Index].Previous);
                 case AwkRegionOperandKind.LocalVariable:
                     return state.ResolveFunctionLocalValue(new(operand.Index), operand.Name);
                 case AwkRegionOperandKind.GlobalVariable:
@@ -786,11 +789,6 @@ internal partial struct AwkRegionMachine
         AwkArrayUpdateTarget PrepareArrayUpdate(int accessIndex, bool complete)
         {
             var access = arrays[accessIndex];
-            if (access.Path >= 0)
-            {
-                var path = storage.Path(access.Path);
-                return state.PrepareArrayUpdate(path.ResolveOwner(state), path.Key);
-            }
             var key = operands[access.Key];
             var target = key.Kind switch
             {
@@ -815,8 +813,6 @@ internal partial struct AwkRegionMachine
                     return state.GetFieldNumber(FieldOrdinal(operand));
                 case AwkRegionOperandKind.Literal:
                     return state.CreateByteTextValue(literals[operand.Index]).AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.ArrayPrevious:
-                    return storage.Targets[operand.Index].Previous;
                 case AwkRegionOperandKind.ArrayElement:
                     return ReadArrayNumber(arrays[operand.Index]);
                 case AwkRegionOperandKind.GlobalVariable:

@@ -208,6 +208,7 @@ Only captures that cross instructions retain target storage and its cleanup. Ear
 remain funded across RHS mutation, calls or suspension.
 Nested numeric updates use the same captured-cell operation. Their owned path repairs the
 destination after RHS deletion or replacement; a valid captured cell avoids a second lookup.
+The update publishes any postfix old-number result directly before retiring its target.
 Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
 capacity checks and initialization. Switching bodies refreshes preparation without retaining
 unrelated scratch payloads.

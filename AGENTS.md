@@ -44,6 +44,7 @@ or environment dependencies.
   special-array behavior and owned-key admission on misses without repeating a successful lookup.
   Nested numeric updates use the same captured targets, retaining their owned path through commit.
   Re-resolve detached logical owners before using a cell; do not restore separate nested arithmetic/store transport.
+  Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.

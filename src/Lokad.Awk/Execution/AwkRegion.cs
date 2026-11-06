@@ -92,7 +92,7 @@ internal sealed class AwkRegion(
 internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
     int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0, int Sorts = 0);
-internal enum AwkRegionOperandKind : byte { DynamicVariable, GlobalVariable, LocalVariable, SpecialVariable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder, ArrayPrevious }
+internal enum AwkRegionOperandKind : byte { DynamicVariable, GlobalVariable, LocalVariable, SpecialVariable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index, AwkVariableName Name = default)
 {
     internal bool IsVariable => Kind is AwkRegionOperandKind.DynamicVariable or AwkRegionOperandKind.GlobalVariable or
@@ -108,7 +108,7 @@ internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding
 internal enum AwkRegionInstructionKind : byte
 {
     MainRead, RuleEnd,
-    Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber, ArrayPreviousNumber,
+    Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeySeparator, KeyAppend, KeyReady, KeyEnd, ReleaseValue, ReleaseValues,

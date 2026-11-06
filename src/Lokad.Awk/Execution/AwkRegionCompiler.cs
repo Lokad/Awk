@@ -728,7 +728,6 @@ internal sealed partial class AwkRegionCompiler
         }
         var kind = source.Kind switch
         {
-            AwkRegionOperandKind.ArrayPrevious => AwkRegionInstructionKind.ArrayPreviousNumber,
             AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
             AwkRegionOperandKind.DynamicField => AwkRegionInstructionKind.DynamicFieldNumber,
             AwkRegionOperandKind.Literal => AwkRegionInstructionKind.LiteralNumber,
