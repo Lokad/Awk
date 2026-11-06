@@ -20,7 +20,7 @@ internal sealed class AwkVariableRuntime(
             AwkVariableNameResolutionKind.SymbolTableArray or
             AwkVariableNameResolutionKind.GlobalArray;
 
-    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument)
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionLocalSlot argument)
     {
         if (functions.TryResolveArrayArgument(name, out argument))
             return true;
@@ -34,7 +34,7 @@ internal sealed class AwkVariableRuntime(
         var arrayName = new AwkArrayName(name.Identifier);
         if (variables.ContainsArray(arrayName))
         {
-            argument = AwkFunctionArgument.Array(arrayName);
+            argument = AwkFunctionLocalSlot.ArrayAlias(arrayName);
             return true;
         }
 
@@ -44,7 +44,7 @@ internal sealed class AwkVariableRuntime(
             return false;
         }
 
-        argument = AwkFunctionArgument.PotentialArray(arrayName, variables.GetOrCreateUntypedScalarValue(name));
+        argument = AwkFunctionLocalSlot.PotentialArrayAlias(arrayName, variables.GetOrCreateUntypedScalarValue(name));
         return true;
     }
 

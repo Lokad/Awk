@@ -39,7 +39,7 @@ public sealed class AwkFunctionCleanupAllocationTests
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]);
-        AwkFunctionArgument[] arguments = [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))];
+        AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))];
         for (var i = 0; i < 100; i++)
         {
             state.PushFunctionFrame(layout, arguments);

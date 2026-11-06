@@ -52,11 +52,11 @@ internal sealed class AwkFunctionRuntime
     public bool TryGetBoundArray(AwkFunctionLocalSlotId slot, [NotNullWhen(true)] out AwkArrayIdentity? array,
         bool promote = false) => _calls.TryGetBoundArray(slot, out array, promote);
 
-    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
+    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments) =>
         _calls.PushFrame(layout, arguments);
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout, int arguments) => _calls.PrepareFrame(layout, arguments);
-    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument) => _calls.StageArgument(frame, index, argument);
+    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, argument);
     internal void StageNumber(AwkFunctionFrame frame, int index, double number) => _calls.StageNumber(frame, index, number);
     internal void ActivateFrame(AwkFunctionFrame frame) => _calls.ActivateFrame(frame);
     internal void DiscardIncomingFrame(AwkFunctionFrame frame) => _calls.DiscardIncomingFrame(frame);
@@ -82,10 +82,10 @@ internal sealed class AwkFunctionRuntime
     public bool TryResolveLocalValue(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalValue(slotId, out local);
 
-    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionLocalSlot argument) =>
         _calls.TryResolveArrayArgument(name, out argument);
 
-    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionArgument argument) =>
+    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionLocalSlot argument) =>
         _calls.TryResolveArrayArgument(slotId, out argument);
 
     public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName) =>

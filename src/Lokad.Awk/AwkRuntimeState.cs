@@ -419,7 +419,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void PushFunctionFrame(
         AwkFunctionLocalLayout layout,
-        ReadOnlySpan<AwkFunctionArgument> arguments)
+        ReadOnlySpan<AwkFunctionLocalSlot> arguments)
     {
         if (_functions.PushFrame(layout, arguments))
             Counters.RecordInlineFunctionFrame();
@@ -431,7 +431,7 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout, int arguments) => _functions.PrepareFrame(layout, arguments);
-    internal void StageFunctionArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument) => _functions.StageArgument(frame, index, argument);
+    internal void StageFunctionArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _functions.StageArgument(frame, index, argument);
     internal void StageFunctionNumber(AwkFunctionFrame frame, int index, double number) => _functions.StageNumber(frame, index, number);
     internal void ActivateFunctionFrame(AwkFunctionFrame frame)
     {
@@ -662,11 +662,11 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool IsArray(AwkArrayName name) =>
         _variableRuntime.IsArray(name);
 
-    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionLocalSlot argument) =>
         _variableRuntime.TryResolveArrayArgument(name, out argument);
 
     internal bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, AwkVariableName name,
-        out AwkFunctionArgument argument)
+        out AwkFunctionLocalSlot argument)
     {
         if (!_functions.HasLocalSlot(slotId))
             return TryResolveArrayArgument(name, out argument);

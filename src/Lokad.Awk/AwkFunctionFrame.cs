@@ -168,6 +168,15 @@ internal readonly struct AwkFunctionLocalSlot
     public static AwkFunctionLocalSlot Scalar(AwkVariableSlot value) =>
         new(AwkFunctionLocalSlotKind.Scalar, value, default);
 
+    public static AwkFunctionLocalSlot Scalar(AwkValue value) => Scalar(AwkVariableSlot.FromValue(value));
+
+    // Produce the actual incoming cell, preserving mutable untyped origins until
+    // activation. Immutable scalar values need only one representation conversion.
+    public static AwkFunctionLocalSlot FromArgumentValue(AwkValue value) =>
+        value.TryGetArrayBinding(out var array) ? ArrayAlias(array) :
+        value.TryGetArrayName(out var name) ? ArrayAlias(name) :
+        value.IsUntypedValue ? UntypedScalar(value) : Scalar(value);
+
     public static AwkFunctionLocalSlot MissingScalar() =>
         new(
             AwkFunctionLocalSlotKind.MissingScalar,
@@ -177,6 +186,11 @@ internal readonly struct AwkFunctionLocalSlot
     public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName, AwkArrayIdentity? array = null) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias,
             array is null ? default : AwkVariableSlot.FromArrayBinding(array), arrayName);
+
+    public static AwkFunctionLocalSlot ArrayAlias(AwkArrayIdentity array) => ArrayAlias(default, array);
+
+    public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName) =>
+        PotentialArrayAlias(arrayName, AwkValue.FromUntypedScalar(new AwkUntypedScalar()));
 
     public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName, AwkValue value) =>
         new(AwkFunctionLocalSlotKind.PotentialArrayAlias, AwkVariableSlot.FromArgumentValue(value), arrayName);

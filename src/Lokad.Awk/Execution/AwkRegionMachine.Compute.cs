@@ -513,7 +513,7 @@ internal partial struct AwkRegionMachine
                             break;
                         }
                     }
-                    AwkFunctionArgument argument;
+                    AwkFunctionLocalSlot argument;
                     if (IsField(operand) && call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right))
                     {
                         var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
@@ -523,10 +523,10 @@ internal partial struct AwkRegionMachine
                             break;
                         }
                         // Owned/error values retain their spelling and deferred conversion.
-                        argument = AwkFunctionArgument.FromValue(fieldArgument);
+                        argument = AwkFunctionLocalSlot.FromArgumentValue(fieldArgument);
                     }
                     else if (instruction.Detail == 0 && operand.Kind == AwkRegionOperandKind.Variable && TryArrayArgument(variables[operand.Index], out argument)) { }
-                    else argument = AwkFunctionArgument.FromValue(Value(instruction.Left));
+                    else argument = AwkFunctionLocalSlot.FromArgumentValue(Value(instruction.Left));
                     state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
                     break;
                 case AwkRegionInstructionKind.Call:
@@ -806,7 +806,7 @@ internal partial struct AwkRegionMachine
             }
         }
 
-        bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionArgument argument) => variable.Kind == AwkRegionVariableKind.Local
+        bool TryArrayArgument(AwkRegionVariable variable, out AwkFunctionLocalSlot argument) => variable.Kind == AwkRegionVariableKind.Local
             ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.Index), variable.Name, out argument)
             : state.TryResolveArrayArgument(variable.Name, out argument);
 

@@ -10,7 +10,7 @@ public sealed partial class AwkFunctionStorageTests
         using var memory = new CooperativeTestMemory(1 << 20);
         var stack = Stack(memory);
         var layout = Layout(8);
-        AwkFunctionArgument[] arguments = [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))];
+        AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))];
         for (var i = 0; i < 100; i++) Cycle();
         stack.PushFrame(layout, arguments);
         Assert.True(stack.TryResolveLocalValue(new AwkFunctionLocalSlotId(0), out var value));
@@ -62,7 +62,7 @@ public sealed partial class AwkFunctionStorageTests
         using var memory = new CooperativeTestMemory(1 << 20);
         var stack = Stack(memory);
         var layouts = new[] { Layout(8), Layout(1), Layout(3) };
-        AwkFunctionArgument[] arguments = [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))];
+        AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))];
         for (var index = 0; index < 100; index++) Cycle();
         var retained = memory.Budget.Reserved;
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -88,7 +88,7 @@ public sealed partial class AwkFunctionStorageTests
         using var memory = new CooperativeTestMemory(4 << 20);
         var stack = Stack(memory);
         var callerName = AwkVariableName.FromText("caller");
-        stack.PushFrame(new([callerName]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
+        stack.PushFrame(new([callerName]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         stack.PushFrame(Layout(4096), []);
         stack.PopFrame(static _ => { });
         var funded = memory.Budget.Reserved;
@@ -152,7 +152,7 @@ public sealed partial class AwkFunctionStorageTests
             cancellation.Token.ThrowIfCancellationRequested();
         });
         memory.Budget.OnGrowth = _ => admitted = true;
-        AwkFunctionArgument[] arguments = [AwkFunctionArgument.Scalar(AwkValue.FromText(new string('x', 32_768)))];
+        AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(new string('x', 32_768)))];
         Assert.ThrowsAny<OperationCanceledException>(() => stack.PushFrame(Layout(128), arguments));
         Assert.False(stack.IsInsideFunction);
         Assert.InRange(memory.Budget.Reserved, 128 * 48, 128 * 80 + 4096);
@@ -166,7 +166,7 @@ public sealed partial class AwkFunctionStorageTests
     {
         var text = AwkText.FromString(new string('x', 32_768));
         var value = AwkValue.FromText(text);
-        stack.PushFrame(Layout(8), [AwkFunctionArgument.Scalar(value)]);
+        stack.PushFrame(Layout(8), [AwkFunctionLocalSlot.Scalar(value)]);
         stack.PopFrame(static _ => { });
         return new(text);
     }

@@ -20,7 +20,7 @@ public sealed class AwkInlinePairFrameTests
         {
             var layout = new AwkFunctionLocalLayout(names[..count]);
             var args = Enumerable.Range(0, count == 2 ? 1 : count)
-                .Select(index => AwkFunctionArgument.Scalar(AwkValue.FromNumber(20 + index))).ToArray();
+                .Select(index => AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(20 + index))).ToArray();
             Assert.Equal(count is 1 or 2, stack.PushFrame(layout, args));
             try
             {
@@ -79,14 +79,14 @@ public sealed class AwkInlinePairFrameTests
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         var stack = Stack(accounting);
         var name = AwkVariableName.FromText("parent");
-        stack.PushFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(19))]);
+        stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(19))]);
         var before = budget.Reserved;
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var shared = AwkArrayName.FromText("shared");
         var origin = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
         Assert.Throws<AwkRuntimeException>(() => stack.PushFrame(
             new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
-            [AwkFunctionArgument.PotentialArray(shared, origin), AwkFunctionArgument.PotentialArray(shared, origin)]));
+            [AwkFunctionLocalSlot.PotentialArrayAlias(shared, origin), AwkFunctionLocalSlot.PotentialArrayAlias(shared, origin)]));
         Assert.Equal(before, budget.Reserved);
         Assert.Equal(before, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -107,7 +107,7 @@ public sealed class AwkInlinePairFrameTests
         var text = AwkText.FromString(new string('x', 17_000));
         var weak = new WeakReference<AwkText>(text);
         stack.PushFrame(new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
-            [AwkFunctionArgument.Scalar(AwkValue.FromNumber(1)), AwkFunctionArgument.Scalar(AwkValue.FromText(text))]);
+            [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(1)), AwkFunctionLocalSlot.Scalar(AwkValue.FromText(text))]);
         Assert.True(stack.TryResolveLocalValue(new AwkFunctionLocalSlotId(1), out var local));
         Assert.Equal(17_000, local.Value.ByteText.ByteLength);
         stack.PopFrame(static _ => { });

@@ -11,9 +11,9 @@ public sealed class AwkArgumentBindingTests
         state.InitializeGlobalReadSlots(1);
         Assert.False(state.HasScalar(name));
         Assert.True(state.TryResolveArrayArgument(name, out var untouched));
-        Assert.Equal(AwkFunctionArgumentKind.PotentialArray, untouched.Kind);
+        Assert.Equal(AwkFunctionLocalSlotKind.PotentialArrayAlias, untouched.Kind);
         Assert.Equal(new AwkArrayName(name.Identifier), untouched.ArrayName);
-        Assert.True(untouched.Value.IsUntypedValue);
+        Assert.True(untouched.Value.IsUntyped);
         state.AssignVariableValue(name, AwkValue.FromText("0007"));
         state.ResolvePreparedGlobalValue(name, 0);
         Assert.False(state.TryResolveArrayArgument(name, out _));
@@ -32,14 +32,14 @@ public sealed class AwkArgumentBindingTests
         var name = AwkVariableName.FromText("p");
         var global = new AwkArrayName(name.Identifier);
         state.SetArrayString(global, new AwkArrayKey("key"), "global");
-        state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
+        state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         try
         {
             Assert.False(state.TryResolveArrayArgument(new(0), name, out _));
             using (state.EnterGlobalBindings())
             {
                 Assert.True(state.TryResolveArrayArgument(new(0), name, out var argument));
-                Assert.Equal(AwkFunctionArgumentKind.Array, argument.Kind);
+                Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
                 Assert.Equal(global, argument.ArrayName);
                 Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
             }
@@ -59,11 +59,11 @@ public sealed class AwkArgumentBindingTests
         var name = AwkVariableName.FromText("p");
         var array = AwkArrayName.FromText("values");
         state.SetArrayString(array, new AwkArrayKey("key"), "kept");
-        state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Array(array)]);
+        state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(array)]);
         try
         {
             Assert.True(state.TryResolveArrayArgument(new(99), name, out var argument));
-            Assert.Equal(AwkFunctionArgumentKind.Array, argument.Kind);
+            Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
             Assert.Equal(array, argument.ArrayName);
             Assert.Equal("kept", state.GetArrayAwkValue(array, new AwkArrayKey("key")).AsString());
             Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);

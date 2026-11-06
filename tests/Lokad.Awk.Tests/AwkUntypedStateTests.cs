@@ -116,7 +116,7 @@ public sealed class AwkUntypedStateTests
         var key = AwkArrayKey.FromOrdinal(1);
         var origin = state.GetArrayAwkValue(name, key);
         var parameter = AwkVariableName.FromText("parameter");
-        state.PushFunctionFrame(new AwkFunctionLocalLayout([parameter]), [AwkFunctionArgument.FromValue(origin)]);
+        state.PushFunctionFrame(new AwkFunctionLocalLayout([parameter]), [AwkFunctionLocalSlot.FromArgumentValue(origin)]);
         try
         {
             using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes);

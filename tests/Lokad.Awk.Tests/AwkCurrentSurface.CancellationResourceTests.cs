@@ -839,7 +839,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var state = memoryForState.State;
         state.PushFunctionFrame(
             new AwkFunctionLocalLayout([variableName]),
-            [AwkFunctionArgument.Scalar(AwkValue.FromText("keep"))]);
+            [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("keep"))]);
 
         try
         {

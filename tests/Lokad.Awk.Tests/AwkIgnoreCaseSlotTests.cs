@@ -19,7 +19,7 @@ public sealed class AwkIgnoreCaseSlotTests
         Assert.Equal(committed,state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(allocations,state.Counters.AwkTextAllocations);
         Assert.Equal(0,state.Counters.StringDecodes);
-        state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),[AwkFunctionArgument.Scalar(AwkValue.FromNumber(0))]);
+        state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),[AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(0))]);
         try
         {
             Assert.False(state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());

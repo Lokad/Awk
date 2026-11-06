@@ -20,7 +20,7 @@ public sealed class AwkRecordCounterSlotTests
         var global = state.GetOrCreateGlobalScalarSlot(name);
         state.AssignSpecialVariableValue(special, AwkValue.FromNumber(5.5));
         state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),
-            [AwkFunctionArgument.Scalar(AwkValue.FromNumber(41))]);
+            [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(41))]);
         try
         {
             state.AdvanceMainInputRecord(AwkRecordTerminator.Empty);
@@ -100,7 +100,7 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(enabled ? "\n" : "seed", state.GetGlobalScalarValue(global).AsString());
 
         state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),
-            [AwkFunctionArgument.Scalar(AwkValue.FromText("local"))]);
+            [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("local"))]);
         try
         {
             state.SetRecordTerminator(AwkRecordTerminator.FromAsciiByte((byte)','));

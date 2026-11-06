@@ -93,7 +93,7 @@ public sealed class AwkPreparedArrayKindTests
         state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), AwkArrayBinding.Global(0));
         var other = AwkArrayName.FromText("b");
         state.SetArrayAwkValue(other, Key, AwkValue.FromNumber(9));
-        var argument = alias ? AwkFunctionArgument.Array(other) : AwkFunctionArgument.Scalar(AwkValue.FromNumber(3));
+        var argument = alias ? AwkFunctionLocalSlot.ArrayAlias(other) : AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(3));
         state.PushFunctionFrame(new([Variable]), [argument]);
         try
         {
@@ -139,7 +139,7 @@ public sealed class AwkPreparedArrayKindTests
         state.AssignVariableValue(Variable, AwkValue.FromNumber(3));
         var other = AwkArrayName.FromText("b");
         state.SetArrayAwkValue(other, Key, AwkValue.FromNumber(9));
-        state.PushFunctionFrame(new([Variable]), [AwkFunctionArgument.Array(other)]);
+        state.PushFunctionFrame(new([Variable]), [AwkFunctionLocalSlot.ArrayAlias(other)]);
         try { Assert.Equal(9, state.GetArrayAwkValue(Array, Key).AsNumber()); }
         finally { state.PopFunctionFrame(); }
         Assert.False(state.TryGetBoundGlobalArray(0, out _));

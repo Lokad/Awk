@@ -50,8 +50,8 @@ public sealed class AwkNestedArrayStorageTests
         Assert.Throws<AwkRuntimeException>(() => argument.AsNumber());
         Assert.Throws<AwkRuntimeException>(() => argument.ForceScalar());
 
-        var received = AwkFunctionArgument.FromValue(argument);
-        Assert.Equal(AwkFunctionArgumentKind.Array, received.Kind);
+        var received = AwkFunctionLocalSlot.FromArgumentValue(argument);
+        Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, received.Kind);
         Assert.True(received.Value.TryGetArrayBinding(out var transported));
         Assert.Same(child, transported);
     }
@@ -141,7 +141,7 @@ public sealed class AwkNestedArrayStorageTests
         var parameter = AwkVariableName.FromText("p");
         var calls = new AwkFunctionCallStack(4, AwkMemoryAccounting.Disabled, _ => AwkValue.Unassigned(),
             checkpoint: cancellation.Token.ThrowIfCancellationRequested);
-        calls.PushFrame(new([parameter]), [AwkFunctionArgument.Array(child)]);
+        calls.PushFrame(new([parameter]), [AwkFunctionLocalSlot.ArrayAlias(child)]);
         cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => calls.RepairSubarrayAliases(parent, false, true));
         Assert.True(calls.TryGetBoundArray(parameter, out var original));

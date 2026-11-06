@@ -97,7 +97,7 @@ public sealed partial class AwkFunctionStorageTests
         var names = Enumerable.Range(0, 512).Select(i => AwkVariableName.FromText("p" + i)).ToArray();
         var layout = new AwkFunctionLocalLayout(names);
         var arguments = Enumerable.Range(0, names.Length)
-            .Select(i => AwkFunctionArgument.PotentialArray(AwkArrayName.FromText("a" + i))).ToArray();
+            .Select(i => AwkFunctionLocalSlot.PotentialArrayAlias(AwkArrayName.FromText("a" + i))).ToArray();
         stack.PushFrame(layout, arguments);
         Assert.True(stack.TryResolveOrPromoteArrayName(names[0], out var alias));
         Assert.Equal(AwkArrayName.FromText("a0"), alias);
@@ -125,7 +125,7 @@ public sealed partial class AwkFunctionStorageTests
             cancellation.Token.ThrowIfCancellationRequested();
         });
         var name = AwkVariableName.FromText("x");
-        stack.PushFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
+        stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         callerBytes = memory.Budget.Reserved;
         enabled = true;
         Assert.ThrowsAny<OperationCanceledException>(() => stack.PushFrame(new([name]), []));

@@ -60,7 +60,7 @@ internal sealed class AwkFunctionCallStack(
 
     // Existing callers provide evaluated arguments. Bound execution stages directly
     // into the same owner before activation, without making callee locals visible.
-    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
+    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
     {
         if (_frames.Count >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
@@ -132,24 +132,16 @@ internal sealed class AwkFunctionCallStack(
         finally { memoryAccounting.ReleaseCommitted(unpublishedBytes); }
     }
 
-    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionArgument argument)
+    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return; // Extra operands still evaluate in the caller.
-        var bytes = memoryAccounting.IsEnabled && argument.Kind != AwkFunctionArgumentKind.Array
-            ? argument.Value.RetainedTextMemoryBytes : 0;
+        var bytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(argument) : 0;
         memoryAccounting.ReserveAndCommit(bytes);
         try
         {
             if (bytes > 0) checkpoint?.Invoke();
-            frame.GetSlot(index) = argument.Kind switch
-            {
-                AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName,
-                    argument.Value.TryGetArrayBinding(out var array) ? array : null),
-                AwkFunctionArgumentKind.PotentialArray => AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
-                AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
-                _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
-            };
-            frame.RecordArgument(index, frame.GetSlot(index).Kind);
+            frame.GetSlot(index) = argument;
+            frame.RecordArgument(index, argument.Kind);
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
         }
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
@@ -306,7 +298,7 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument)
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionLocalSlot argument)
     {
         if (!TryPeekLocalFrame(out var frame))
         {
@@ -323,7 +315,7 @@ internal sealed class AwkFunctionCallStack(
         return TryResolveArrayArgument(frame, slotId, slot, out argument);
     }
 
-    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionArgument argument)
+    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionLocalSlot argument)
     {
         if (!TryPeekLocalFrame(out var frame) || !TryGetLocalSlot(frame, slotId, out var slot))
         {
@@ -334,18 +326,18 @@ internal sealed class AwkFunctionCallStack(
     }
 
     private bool TryResolveArrayArgument(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
-        AwkFunctionLocalSlot slot, out AwkFunctionArgument argument)
+        AwkFunctionLocalSlot slot, out AwkFunctionLocalSlot argument)
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
             argument = slot.ArrayName.Text.Length == 0 && slot.Value.TryGetArrayBinding(out var array)
-                ? AwkFunctionArgument.Array(array) : AwkFunctionArgument.Array(slot.ArrayName);
+                ? AwkFunctionLocalSlot.ArrayAlias(array) : AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName);
             return true;
         }
 
         if (slot.Value.TryGetArrayBinding(out var child))
         {
-            argument = AwkFunctionArgument.Array(child);
+            argument = AwkFunctionLocalSlot.ArrayAlias(child);
             return true;
         }
 
@@ -353,17 +345,17 @@ internal sealed class AwkFunctionCallStack(
         {
             if (_containsArray(slot.ArrayName))
             {
-                argument = AwkFunctionArgument.Array(slot.ArrayName);
+                argument = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName);
                 return true;
             }
-            argument = AwkFunctionArgument.PotentialArray(slot.ArrayName,
+            argument = AwkFunctionLocalSlot.PotentialArrayAlias(slot.ArrayName,
                 createValue(slot.Value));
             return true;
         }
 
         if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
         {
-            argument = AwkFunctionArgument.FromValue(
+            argument = AwkFunctionLocalSlot.FromArgumentValue(
                 createValue(slot.Value));
             return true;
         }
@@ -378,7 +370,7 @@ internal sealed class AwkFunctionCallStack(
                 slotId,
                 slot,
                 AwkFunctionLocalSlot.PotentialArrayAlias(localArrayName, value));
-            argument = AwkFunctionArgument.PotentialArray(localArrayName, value);
+            argument = AwkFunctionLocalSlot.PotentialArrayAlias(localArrayName, value);
             return true;
         }
 

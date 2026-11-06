@@ -201,7 +201,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id:beta:tail"));
         var total = AwkVariableName.FromText("total");
-        if (caller) state.PushFunctionFrame(new([total]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
+        if (caller) state.PushFunctionFrame(new([total]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
@@ -639,7 +639,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
         foreach (var number in new[] { 0d, -0d, double.NaN, double.PositiveInfinity, double.NegativeInfinity, 42.5 })
         {
-            state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(number))]);
+            state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(number))]);
             try
             {
                 var values = counters.ValuesCreated;
@@ -656,7 +656,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(0, counters.ScalarLocalValueReads);
         Assert.Equal(99, state.ResolveFunctionLocalValue(slot, name).AsNumber());
         Assert.Equal(6, counters.NumericLocalReads);
-        state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromText("007"))]);
+        state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("007"))]);
         try
         {
             Assert.Equal("007", state.ResolveFunctionLocalValue(slot, name).AsString());

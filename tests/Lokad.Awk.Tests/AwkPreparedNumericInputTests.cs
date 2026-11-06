@@ -127,7 +127,7 @@ public sealed class AwkPreparedNumericInputTests
         if (storage == 2)
         {
             state.PushFunctionFrame(new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]),
-                [AwkFunctionArgument.Scalar(value)]);
+                [AwkFunctionLocalSlot.Scalar(value)]);
             return new(state);
         }
         if (storage == 1) state.SetArrayAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1), value);
