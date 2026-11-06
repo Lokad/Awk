@@ -260,12 +260,14 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue CreateStringValue(string text)
     {
         Counters.RecordValueCreated();
+        Counters.RecordTextValueClassification();
         return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint), NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateByteTextValue(AwkText text)
     {
         Counters.RecordValueCreated();
+        Counters.RecordTextValueClassification();
         return AwkValue.FromText(text, NumberParsingMode, CancellationCheckpoint);
     }
 
@@ -278,6 +280,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue CreateNumericStringValue(string text)
     {
         Counters.RecordValueCreated();
+        Counters.RecordTextValueClassification();
         return AwkValue.FromNumericString(
             AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint),
             NumberParsingMode, CancellationCheckpoint);
@@ -286,6 +289,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue CreateNumericStringValue(AwkText text)
     {
         Counters.RecordValueCreated();
+        Counters.RecordTextValueClassification();
         return AwkValue.FromNumericString(text, NumberParsingMode, CancellationCheckpoint);
     }
 
@@ -582,54 +586,6 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         return index == 0 ? new(GetCurrentRecordValue()) :
             _recordFields.GetFieldComparison(new(index), NumberParsingMode);
-    }
-
-    internal bool CompareFieldLiteral(int index, AwkText literal, AwkComparison comparison)
-    {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-
-        ReadOnlySpan<byte> bytes = default;
-        var borrowed = index > 0 && NumberParsingMode == AwkNumberParsingMode.Decimal &&
-            !IsCaseInsensitive && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
-        var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        // Literal evaluation follows the field read, including its value limit and checkpoint.
-        Checkpoint();
-        var deferLiteral = borrowed && literal.ByteLength < AwkRuntimeLimits.CancellationCheckBytes;
-        // The byte-only branch never inspects this value; keep long literal scan checkpoints.
-        var right = deferLiteral ? CreateDeferredTextValue(literal) : CreateByteTextValue(literal);
-        if (deferLiteral) Counters.RecordDeferredComparisonLiteral();
-        if (!borrowed)
-            return AwkComparisonOperations.Evaluate(value, right, comparison, this);
-
-        Counters.RecordByteTextComparison();
-        // Consume the borrow synchronously before another expression can mutate the record.
-        return AwkComparisonOperations.EvaluateTextComparison(
-            AwkText.CompareBytes(bytes, literal.AsSpan(CancellationCheckpoint), CancellationCheckpoint), comparison);
-    }
-
-    internal bool CompareValueField(AwkValue left, int index, AwkComparison comparison)
-    {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-
-        ReadOnlySpan<byte> bytes = default;
-        var borrowed = index > 0 && NumberParsingMode == AwkNumberParsingMode.Decimal &&
-            !IsCaseInsensitive && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
-        if (!borrowed)
-            return AwkComparisonOperations.Evaluate(left,
-                index == 0 ? GetCurrentRecordValue() : GetFieldValue(index), comparison, this);
-
-        // The field read and its admission precede comparison-time errors in the left value.
-        // Numeric comparisons retain ordinary input classification and owned field values.
-        if (left.TryGetNumber(out _))
-            return AwkComparisonOperations.Evaluate(left, GetFieldValue(index), comparison, this);
-
-        Counters.RecordByteTextComparison();
-        // Consume the field borrow synchronously after the left operand and index finish.
-        return AwkComparisonOperations.EvaluateTextComparison(
-            AwkText.CompareBytes(FormatStringByteText(left).AsSpan(CancellationCheckpoint), bytes,
-                CancellationCheckpoint), comparison);
     }
 
     internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right) =>

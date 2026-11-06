@@ -613,7 +613,7 @@ internal partial struct AwkRegionMachine
                     var match = region.RegexMatches[instruction.Left];
                     var regex = match.Literal ?? state.CreateRegex(new AwkRegexPattern(
                         storage.Values[match.Pattern].ByteText, warningSite: match));
-                    var matched = state.IsRegexMatch(regex, TextOperand(match.Input, comparisonLiteral: false));
+                    var matched = state.IsRegexMatch(regex, TextOperand(match.Input));
                     numbers[instruction.Target] = matched != (instruction.Detail != 0) ? 1 : 0;
                     break;
                 }
@@ -727,7 +727,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.SpecialVariable:
                     return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index);
                 case AwkRegionOperandKind.DynamicVariable: return state.ResolveVariableValue(operand.Name);
-                case AwkRegionOperandKind.Literal: return state.CreateByteTextValue(literals[operand.Index]);
+                case AwkRegionOperandKind.Literal: return state.CreateDeferredTextValue(literals[operand.Index]);
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField: return ReadField(FieldOrdinal(operand));
                 case AwkRegionOperandKind.ValueTemporary: return storage.Values[operand.Index];
@@ -866,25 +866,15 @@ internal partial struct AwkRegionMachine
         {
             var operand = operands[index];
             if (IsField(operand)) return state.GetFieldComparison(FieldOrdinal(operand));
-            if (operand.Kind == AwkRegionOperandKind.Literal)
-            {
-                // Comparison needs the string origin and spelling, not an eager
-                // numeric parse. Actual text comparison retains bounded polling.
-                state.Counters.RecordDeferredComparisonLiteral();
-                return new(state.CreateDeferredTextValue(literals[operand.Index]));
-            }
             return new(Value(index));
         }
 
-        AwkByteTextOperand TextOperand(int index, bool comparisonLiteral = true)
+        AwkByteTextOperand TextOperand(int index)
         {
             var operand = operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
             if (operand.Kind == AwkRegionOperandKind.Literal)
-            {
-                if (comparisonLiteral) state.Counters.RecordDeferredComparisonLiteral();
                 return new(literals[operand.Index]);
-            }
             return new(state.FormatStringByteText(Value(index)));
         }
 

@@ -13,13 +13,16 @@ public sealed class AwkFieldLiteralComparisonTests
         var bytes = "first second"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         _ = state.FieldCount;
+        var region = Bind(state, "first");
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         var allocations = counters.AwkTextAllocations;
-        Assert.True(state.CompareFieldLiteral(1, AwkText.FromString("first"), AwkComparison.Equal));
+        Assert.True(Compare(region, storage, state));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Array.Fill(bytes, (byte)'X');
-        Assert.False(state.CompareFieldLiteral(1, AwkText.FromString("first"), AwkComparison.Equal));
+        Assert.False(Compare(region, storage, state));
         state.SetCurrentRecord(AwkText.FromString("first next"));
-        Assert.True(state.CompareFieldLiteral(1, AwkText.FromString("first"), AwkComparison.Equal));
+        Assert.True(Compare(region, storage, state));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -32,10 +35,12 @@ public sealed class AwkFieldLiteralComparisonTests
         var text = new string('a', 16_384) + " tail";
         state.SetCurrentRecord(AwkText.FromString(text));
         _ = state.FieldCount;
+        var region = Bind(state, new string('a', 16_384));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var literal = AwkText.FromString(new string('a', 16_384));
         cancellation.Cancel();
-        Assert.Throws<OperationCanceledException>(() => state.CompareFieldLiteral(1, literal, AwkComparison.Equal));
+        Assert.Throws<OperationCanceledException>(() => Compare(region, storage, state));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(text, state.CurrentRecordByteText.AsString());
@@ -46,21 +51,37 @@ public sealed class AwkFieldLiteralComparisonTests
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes - 1)]
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes)]
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes + 1)]
-    public void LiteralAdmissionAndThresholdPreserveValueWork(int length)
+    public void LiteralLengthsPreserveRecordAndAdmission(int length)
     {
         using var memory = State(true);
         var state = memory.State;
-        var counters = state.Counters;
         state.SetCurrentRecord(AwkText.FromString("x"));
         _ = state.FieldCount;
+        var region = Bind(state, new string('1', length));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var values = counters.ValuesCreated;
-        Assert.False(state.CompareFieldLiteral(1, AwkText.FromString(new string('1', length)), AwkComparison.Equal));
-        Assert.Equal(1, counters.ValuesCreated - values);
-        Assert.Equal(length < AwkRuntimeLimits.CancellationCheckBytes ? 1 : 0, counters.DeferredComparisonLiterals);
+        Assert.False(Compare(region, storage, state));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("x", state.CurrentRecordByteText.AsString());
+    }
+
+    private static AwkRegion Bind(AwkRuntimeState state, string literal)
+    {
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{result=($1==\"" + literal + "\")}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
+        return Assert.Single(program.BeginActions);
+    }
+
+    private static bool Compare(AwkRegion region, AwkRegionStorage storage, AwkRuntimeState state)
+    {
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        return state.ResolveVariableValue(AwkVariableName.FromText("result")).IsTruthy();
     }
 
     private static CooperativeTestMemory State(bool finite,

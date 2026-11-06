@@ -1333,6 +1333,23 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_QuotedTextDoesNotRepeatEagerClassificationAcrossKeysCallsAndAssignments()
+    {
+        const string source = "function echo(v){return v}" +
+            "{a[\"sum\"]+=length(echo(\"count\"));x=\"007\";n+=index(\"count\",\"ou\")}" +
+            "END{print a[\"sum\"],x,n}";
+        var single = await RunAsync([source], "record\n");
+        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("record\n", 256)));
+        Assert.Equal(0, single.ExitCode);
+        Assert.Equal(0, repeated.ExitCode);
+        Assert.Equal("5 007 2\n", single.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("1280 007 512\n", repeated.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(single.Counters.TextValueClassifications, repeated.Counters.TextValueClassifications);
+        Assert.Equal(0, repeated.Counters.StringInteropFallbacks);
+        Assert.Equal(0, repeated.Counters.StringDecodes);
+    }
+
+    [Fact]
     public async Task Awk_FieldLiteralComparisonsKeepByteComparisonsAndAvoidFieldMaterialization()
     {
         const string input = "alpha tail\nalpha tail\nalpha tail\n";
@@ -1344,8 +1361,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("3\n", materialized.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(3, borrowed.Counters.ByteTextComparisons);
         Assert.Equal(3, materialized.Counters.ByteTextComparisons);
-        Assert.Equal(3, borrowed.Counters.DeferredComparisonLiterals);
-        Assert.Equal(3, materialized.Counters.DeferredComparisonLiterals);
         Assert.Equal(3, borrowed.Counters.FieldSplits);
         Assert.Equal(3, materialized.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
         Assert.Equal(0, borrowed.Counters.StringInteropFallbacks);

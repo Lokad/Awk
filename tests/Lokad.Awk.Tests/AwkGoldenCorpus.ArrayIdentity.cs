@@ -6,6 +6,12 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("quoted-values-keep-string-origin-through-calls-and-keys",
+            ["function echo(x){return x}BEGIN{a[\"007\"]=\"0007\";x=echo(a[\"007\"]);print typeof(x),x,(x==7),x+0;print typeof(\"12tail\"),(\"12tail\"==12),\"12tail\"+0;print length(\"sum\"),index(\"count\",\"ou\"),(\"\"?1:0),(\"0\"?1:0)}"],
+            [], "string 0007 0 7\nstring 0 12\n3 2 0 1\n"),
+        Passing("quoted-values-nondecimal-errors-stay-deferred",
+            ["--non-decimal-data", "function ignore(x){return \"safe\"}BEGIN{print ignore(\"0x1.5\"),typeof(\"0x1.5\"),length(\"0x1.5\");print \"010\"+0,\"0x10\"+0}"],
+            [], "safe string 5\n8 16\n"),
         Passing("borrowed-assignment-miss-keeps-escaped-field-spelling",
             ["function put(p){p[$1]=$2;p[$1]=$2 \"!\"}{put(a);saved=$1;$0=\"changed\";print a[saved],saved,(\"changed\" in a)}END{print length(a),a[\"0007\"],a[7],a[\"café\"]}"],
             [], "02! 0007 0\n04! 7 0\n06! café 0\n08! 0007 0\n3 08! 04! 06!\n", "0007 02\n7 04\ncafé 06\n0007 08\n"),

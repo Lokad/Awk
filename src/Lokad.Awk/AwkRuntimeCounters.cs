@@ -457,11 +457,12 @@ internal sealed class AwkRuntimeCounters
 
     public long ByteTextComparisons { get; private set; }
 
-    public long DeferredComparisonLiterals { get; private set; }
+    // Eager text-value factory calls; deferred numeric consumption is separate.
+    public long TextValueClassifications { get; private set; }
 
-    public void RecordDeferredComparisonLiteral()
+    public void RecordTextValueClassification()
     {
-        if (_enabled) lock (_sync) DeferredComparisonLiterals++;
+        if (_enabled) lock (_sync) TextValueClassifications++;
     }
 
     public long ConcatenationBytesCopied { get; private set; }

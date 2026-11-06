@@ -14,16 +14,24 @@ public sealed class AwkFieldValueComparisonTests
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         _ = state.FieldCount;
         var left = AwkValue.FromText("old");
+        var region = Bind(state, "BEGIN{result=(left==$2)}");
+        var leftName = AwkVariableName.FromText("left");
+        state.AssignVariableValue(leftName, left);
+        state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         var allocations = counters.AwkTextAllocations;
-        Assert.True(state.CompareValueField(left, 2, AwkComparison.Equal));
+        Assert.True(Compare(region, storage, state));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         bytes[2] = (byte)'b';
-        Assert.False(state.CompareValueField(left, 2, AwkComparison.Equal));
+        Assert.False(Compare(region, storage, state));
         state.SetCurrentRecord(AwkText.FromString("k 007"));
-        Assert.True(state.CompareValueField(AwkValue.FromNumber(7), 2, AwkComparison.Equal));
+        state.AssignVariableValue(leftName, AwkValue.FromNumber(7));
+        Assert.True(Compare(region, storage, state));
         Assert.True(state.GetFieldValue(2).IsNumericStringValue);
         state.AssignFieldValue(2, AwkValue.FromText("old"));
-        Assert.True(state.CompareValueField(left, 2, AwkComparison.Equal));
+        state.AssignVariableValue(leftName, left);
+        Assert.True(Compare(region, storage, state));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -33,14 +41,19 @@ public sealed class AwkFieldValueComparisonTests
         using var memory = State(true);
         var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("k old"));
+        var region = Bind(state, "BEGIN{result=(left==$2)}");
+        state.AssignVariableValue(AwkVariableName.FromText("left"), AwkValue.FromText("old"));
+        state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         using var held = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.CurrentCommittedBytes - 16);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        Assert.Throws<AwkRuntimeException>(() => state.CompareValueField(AwkValue.FromText("old"), 2, AwkComparison.Equal));
+        Assert.Throws<AwkRuntimeException>(() => Compare(region, storage, state));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("k old", state.CurrentRecordByteText.AsString());
         held.Dispose();
-        Assert.True(state.CompareValueField(AwkValue.FromText("old"), 2, AwkComparison.Equal));
+        Assert.True(Compare(region, storage, state));
     }
 
     [Fact]
@@ -52,9 +65,14 @@ public sealed class AwkFieldValueComparisonTests
         var text = new string('a', 16_384);
         state.SetCurrentRecord(AwkText.FromString("k " + text));
         _ = state.FieldCount;
+        var region = Bind(state, "BEGIN{result=(left==$2)}");
+        state.AssignVariableValue(AwkVariableName.FromText("left"), AwkValue.FromText(text));
+        state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
-        Assert.Throws<OperationCanceledException>(() => state.CompareValueField(AwkValue.FromText(text), 2, AwkComparison.Equal));
+        Assert.Throws<OperationCanceledException>(() => Compare(region, storage, state));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -328,6 +346,12 @@ public sealed class AwkFieldValueComparisonTests
             cancellation.Cancel();
             try { await execution; } catch (OperationCanceledException) { }
         }
+    }
+
+    private static bool Compare(AwkRegion region, AwkRegionStorage storage, AwkRuntimeState state)
+    {
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        return state.ResolveVariableValue(AwkVariableName.FromText("result")).IsTruthy();
     }
 
     private static AwkRegion Bind(AwkRuntimeState state, string source)
