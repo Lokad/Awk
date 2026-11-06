@@ -325,7 +325,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.IteratorNext:
                     if (storage.TryNextKey(instruction.Left, out var nextKey))
-                        AssignVariable(operands[instruction.Right], state.CreateArrayKeyValue(nextKey));
+                        AssignVariable(instruction.Right, state.CreateArrayKeyValue(nextKey));
                     else position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.IteratorEnd:
@@ -402,21 +402,21 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Assign:
                     var value = Value(instruction.Left);
                     // A region poll cannot replace the check before an observable store.
-                    AssignVariable(operands[instruction.Target], value);
+                    AssignVariable(instruction.Target, value);
                     break;
                 case AwkRegionInstructionKind.AssignNumber:
-                    AssignVariableNumber(operands[instruction.Target], numbers[instruction.Left]);
+                    AssignVariableNumber(instruction.Target, numbers[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.ScalarUpdate:
                 {
                     var update = region.ScalarUpdates[instruction.Left];
                     var previous = update.CapturePrevious
-                        ? ReadUpdateNumber(operands[update.Variable])
+                        ? ReadUpdateNumber(update.Variable)
                         : numbers[update.Previous];
                     if (update.CapturePrevious) numbers[update.Previous] = previous;
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
                         ReadUpdateNumber(update.Right), (AwkCompoundAssignmentOperation)instruction.Detail);
-                    AssignVariableNumber(operands[update.Variable], updated);
+                    AssignVariableNumber(update.Variable, updated);
                     numbers[instruction.Target] = updated;
                     break;
                 }
@@ -802,8 +802,9 @@ internal partial struct AwkRegionMachine
             return target;
         }
 
-        double ReadUpdateNumber(AwkRegionOperand operand)
+        double ReadUpdateNumber(int index)
         {
+            ref readonly var operand = ref operands[index];
             switch (operand.Kind)
             {
                 case AwkRegionOperandKind.NumberTemporary:

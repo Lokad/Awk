@@ -182,9 +182,8 @@ internal sealed partial class AwkRegionCompiler
         {
             // Owned results keep immediate conversion (including funded call returns).
             // Other sources are already bound and belong to this complete operation.
-            var source = _operands[right];
-            if (source.Kind == AwkRegionOperandKind.ValueTemporary) source = _operands[CaptureNumber(right)];
-            var site = _updates[update.Target.Capture] with { Right = source };
+            if (_operands[right].Kind == AwkRegionOperandKind.ValueTemporary) right = CaptureNumber(right);
+            var site = _updates[update.Target.Capture] with { Right = right };
             var captureIndex = _code.Count - 1;
             // Key retirement is part of the same prepared operation, not RHS work.
             if (captureIndex >= 0 && _code[captureIndex].Kind == AwkRegionInstructionKind.KeyEnd)
@@ -210,8 +209,7 @@ internal sealed partial class AwkRegionCompiler
             // Captures crossing RHS instructions stay where they were evaluated.
             // An adjacent load can belong to this same complete operation; its
             // register still publishes the old number for postfix consumers.
-            var source = _operands[right];
-            if (source.Kind == AwkRegionOperandKind.ValueTemporary) source = _operands[CaptureNumber(right)];
+            if (_operands[right].Kind == AwkRegionOperandKind.ValueTemporary) right = CaptureNumber(right);
             var previous = NumericRegister(update.Prior);
             var capturePrevious = _code.Count != 0 && _code[^1] is var capture &&
                 capture.Target == previous && capture.Left == update.Target.Operand &&
@@ -223,7 +221,7 @@ internal sealed partial class AwkRegionCompiler
                 _straightLine--;
             }
             var site = _scalarUpdates.Count;
-            _scalarUpdates.Add(new(update.Target.Operand, previous, source, capturePrevious));
+            _scalarUpdates.Add(new(update.Target.Operand, previous, right, capturePrevious));
             Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site, Detail: (int)operation));
         }
         else

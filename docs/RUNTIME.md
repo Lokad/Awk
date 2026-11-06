@@ -216,6 +216,7 @@ Main input, rule conditions/bodies and record backedges form one prepared progra
 the computation and call driver. Ordinary records retain their location and operand tables.
 One prepared operand carries a variable's binding and fallback name. Value kinds and required
 name-based fallback still resolve at execution time.
+Numeric updates, readers and variable stores reference the same canonical operand locations.
 Execution and binding-frame ownership remain distinct during reentry and cleanup.
 Rule completion retires its reference scratch. Actual host suspension saves its continuation.
 Returns keep their captured value and callee storage until required output actually completes.

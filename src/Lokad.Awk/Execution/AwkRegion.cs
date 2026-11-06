@@ -101,8 +101,8 @@ internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int 
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,
-    AwkRegionOperand Right = default, int PrepareAccess = -1, int Path = -1);
-internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, AwkRegionOperand Right,
+    int Right = -1, int PrepareAccess = -1, int Path = -1);
+internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, int Right,
     bool CapturePrevious);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte

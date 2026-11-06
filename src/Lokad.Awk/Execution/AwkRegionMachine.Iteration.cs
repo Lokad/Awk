@@ -40,9 +40,10 @@ internal partial struct AwkRegionMachine
         return false;
     }
 
-    private void AssignVariable(AwkRegionOperand variable, AwkValue value)
+    private void AssignVariable(int index, AwkValue value)
     {
         _state.ThrowIfCancellationRequested();
+        ref readonly var variable = ref _region.Operands[index];
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
             _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
         else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
@@ -51,9 +52,10 @@ internal partial struct AwkRegionMachine
             _state.AssignVariableValue(variable.Name, value);
     }
 
-    private void AssignVariableNumber(AwkRegionOperand variable, double number)
+    private void AssignVariableNumber(int index, double number)
     {
         _state.ThrowIfCancellationRequested();
+        ref readonly var variable = ref _region.Operands[index];
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
         {
             if (_frame is { } frame && frame.TryWriteNumber(variable.Index, number))

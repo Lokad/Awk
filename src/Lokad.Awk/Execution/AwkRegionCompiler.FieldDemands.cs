@@ -111,14 +111,16 @@ internal sealed partial class AwkRegionCompiler
 
         bool CompleteUpdate(AwkRegionArrayUpdate update)
         {
-            if (update.PrepareAccess >= 0 && Access(update.PrepareAccess) && update.Right.Kind == AwkRegionOperandKind.Field)
-                Field(update.Right.Index);
+            var right = _operands[update.Right];
+            if (update.PrepareAccess >= 0 && Access(update.PrepareAccess) && right.Kind == AwkRegionOperandKind.Field)
+                Field(right.Index);
             return false;
         }
 
         bool TerminalAccess(int access) { Access(access); return false; }
-        bool TerminalNumberSource(AwkRegionOperand source)
+        bool TerminalNumberSource(int operand)
         {
+            var source = _operands[operand];
             if (source.Kind == AwkRegionOperandKind.Field) Field(source.Index);
             else if (source.Kind == AwkRegionOperandKind.ArrayElement) Access(source.Index);
             return false;

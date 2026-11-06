@@ -124,6 +124,8 @@ or environment dependencies.
   Prepared operands carry category, bound location and immutable fallback name directly. Reuse
   compiler variable descriptors; do not restore a separate variable metadata table. Runtime
   value-kind checks and real name fallback remain.
+  Numeric update sites reference canonical operand entries. Readers and variable stores take
+  their indices; readonly descriptor references remain synchronous in immutable program storage.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 
