@@ -18,6 +18,7 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
     private readonly AwkRuntimeCounters _counters;
     private readonly Action _checkpoint;
     private AwkMemoryLease _staging;
+    private int _count;
 
     public AwkRecordFieldWriter(AwkRecordCellBuffer fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting,
         AwkRuntimeCounters counters, Action checkpoint, AwkMemoryLease staging)
@@ -28,10 +29,11 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
         _counters = counters;
         _checkpoint = checkpoint;
         _staging = staging;
+        _count = fields.Count;
     }
 
     public int PayloadBytes { get; private set; }
-    public readonly int Count => _fields.Count;
+    public readonly int Count => _count;
     internal readonly AwkRecordCellBuffer Fields => _fields;
     internal readonly List<AwkFieldFrame.CachedFieldValue> Values => _values;
     internal readonly AwkMemoryLease Staging => _staging;
@@ -45,7 +47,8 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
     public void Add(AwkFieldRange field)
     {
         EnsureCapacity();
-        _fields.Add(AwkRecordField.FromRecordSlice(field.Start, field.Length));
+        _fields.WriteProducedCell(_count, AwkRecordField.FromRecordSlice(field.Start, field.Length));
+        _count++;
         // Producer ranges are disjoint and bounded by the admitted record.
         PayloadBytes += field.Length;
     }
@@ -77,12 +80,16 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
             }
             _values = values;
         }
-        _values.Add(new(_fields.Count, AwkFieldCacheKind.TextOnly, default, text));
-        _fields.Add(AwkRecordField.FromOwned(_values.Count, text.ByteLength));
+        _values.Add(new(_count, AwkFieldCacheKind.TextOnly, default, text));
+        _fields.WriteProducedCell(_count, AwkRecordField.FromOwned(_values.Count, text.ByteLength));
+        _count++;
         PayloadBytes += text.ByteLength;
     }
 
     public readonly int Complete() => PayloadBytes;
+
+    // Scan progress remains local until its caller accepts the completed prefix.
+    internal readonly void PublishPrefix() => _fields.PublishProducedCount(_count);
 
     private void Fund(long bytes)
     {
@@ -94,10 +101,10 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
 
     private void EnsureCapacity()
     {
-        if (_fields.Count != _fields.Capacity) return;
+        if (_count != _fields.Capacity) return;
         var capacity = _fields.Capacity == 0 ? 4 : AwkRuntimeMemory.CheckedToInt32(
             AwkRuntimeMemory.CheckedMultiply(_fields.Capacity, 2));
         Fund(AwkRuntimeMemory.EstimateRecordCellBufferBytes(capacity));
-        _fields.EnsureCapacity(capacity);
+        _fields.EnsureCapacity(capacity, _count);
     }
 }

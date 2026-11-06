@@ -57,6 +57,8 @@ or environment dependencies.
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
   The scoped producer carries its current staging lease; frame cleanup disposes it and rolls back
   unpublished cache entries. Do not duplicate that lease through an external byref handle.
+  Keep scan progress local to that producer and publish an accepted prefix once. Capacity growth
+  copies initialized cells, including any unpublished tail; cancellation leaves the prior prefix.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
   Prepared field demand requires already-available record/separator bytes and respects unknown
   effects, conditional fallthrough and actual flush completion; it must not move cold admission.

@@ -36,6 +36,15 @@ internal sealed class AwkRecordCellBuffer
 
     public void Clear() => Count = 0;
 
+    internal void WriteProducedCell(int index, AwkRecordField field) => _cells[index] = field;
+
+    internal void PublishProducedCount(int count)
+    {
+        if ((uint)count > (uint)Capacity)
+            throw new ArgumentOutOfRangeException(nameof(count));
+        Count = count;
+    }
+
     public void Truncate(int count)
     {
         if ((uint)count > (uint)Count)
@@ -43,11 +52,12 @@ internal sealed class AwkRecordCellBuffer
         Count = count;
     }
 
-    public void EnsureCapacity(int capacity)
+    internal void EnsureCapacity(int capacity, int initializedCount)
     {
         if (capacity <= Capacity) return;
         var cells = new AwkRecordField[capacity];
-        Span.CopyTo(cells);
+        // A producer may have initialized a tail beyond the published prefix.
+        _cells.AsSpan(0, initializedCount).CopyTo(cells);
         _cells = cells;
         RetainedBytes = AwkRuntimeMemory.EstimateRecordCellBufferBytes(capacity);
     }

@@ -975,7 +975,6 @@ internal sealed class AwkFieldFrame(
             new AwkRecordFieldWriter(_fieldTexts, _fieldValueCache, governor, counters,
                 checkpoint ?? (static () => { }), AwkMemoryLease.Disabled);
         var fields = writer.Fields;
-        var published = false;
         try
         {
             var position = fieldSplitter.ExtendRecordFields(RecordBytes(), _splitPlan, _splitPosition, targetCount, ref writer);
@@ -995,7 +994,7 @@ internal sealed class AwkFieldFrame(
                 checkpoint?.Invoke();
                 ReplaceRetainedMemory(retained);
             }
-            published = true;
+            writer.PublishPrefix();
             _splitPosition = position;
             _fieldPayloadByteLength = payloadBytes;
             counters.RecordFieldsMaterialized(fields.Count - previousCount);
@@ -1010,10 +1009,7 @@ internal sealed class AwkFieldFrame(
         }
         finally
         {
-            // No admission occurs while extending within established capacity.
-            // Failure retires the unpublished tail, preserving prior cache mappings.
-            if (!published && !grows && fields.Count > previousCount)
-                fields.Truncate(previousCount);
+            // Initialized tails never change the prior published count on failure.
             writer.Dispose();
         }
     }
@@ -1071,6 +1067,7 @@ internal sealed class AwkFieldFrame(
                 fieldSplitter.FillRecordFields(OwnedRecordText(), _splitPlan, ref writer);
             else
                 fieldSplitter.FillRecordFields(RecordBytes(), _splitPlan, ref writer);
+            writer.PublishPrefix();
             // Complete splitting without discarding numbers already read from a prefix.
             for (var index = 0; index < previousCount; index++)
             {
