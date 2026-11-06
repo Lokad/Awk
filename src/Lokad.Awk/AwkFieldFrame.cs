@@ -100,8 +100,7 @@ internal sealed class AwkFieldFrame(
 
     private AwkText _recordText = AwkText.Empty;
     private AwkValue _recordValue = AwkValue.FromText(string.Empty);
-    private AwkValue _fieldCountValue;
-    private bool _hasAssignedFieldCount;
+    private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
     private List<AwkRecordField> _fieldTexts = [];
     internal readonly struct CachedFieldValue
     {
@@ -223,7 +222,7 @@ internal sealed class AwkFieldFrame(
     public AwkValue GetFieldCountValue()
     {
         EnsureFields();
-        return _hasAssignedFieldCount ? _fieldCountValue : AwkValue.FromNumber(_fieldTexts.Count);
+        return _fieldCountValue;
     }
 
     public AwkValue GetFieldValue(
@@ -552,7 +551,7 @@ internal sealed class AwkFieldFrame(
         _fieldPayloadByteLength = newPayloadByteLength;
         _numericFieldCount += (value.IsNumberValue ? 1 : 0) - (oldIsNumeric ? 1 : 0);
         if (newFieldCount > oldFieldCount)
-            ClearAssignedFieldCount();
+            _fieldCountValue = AwkValue.FromNumber(newFieldCount);
         MarkRecordForRecomposition(outputFieldSeparator);
         counters.RecordFieldsMaterialized(addedFields);
 
@@ -606,7 +605,7 @@ internal sealed class AwkFieldFrame(
                 _fieldTexts.Add(AwkRecordField.Empty);
         }
 
-        ClearAssignedFieldCount();
+        _fieldCountValue = AwkValue.FromNumber(index.Value);
         counters.RecordFieldsMaterialized(addedFields);
     }
 
@@ -701,7 +700,6 @@ internal sealed class AwkFieldFrame(
         _fieldPayloadByteLength = newPayloadByteLength;
         _numericFieldCount = newNumericFieldCount;
         _fieldCountValue = value;
-        _hasAssignedFieldCount = true;
         MarkRecordForRecomposition(outputFieldSeparator);
     }
 
@@ -1005,6 +1003,7 @@ internal sealed class AwkFieldFrame(
             if (complete)
             {
                 _fieldsAreSplit = true;
+                _fieldCountValue = AwkValue.FromNumber(fields.Count);
                 _splitPlan = default;
             }
             return complete;
@@ -1090,6 +1089,7 @@ internal sealed class AwkFieldFrame(
                 AwkRuntimeMemory.EstimateTextBytes(_recordText), fieldTexts, writer.Values, default) : 0;
             PublishStagedFields(fieldTexts, writer.Values, retainedBytes, writer.Staging, writer.Staging.Bytes);
             published = true;
+            _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
             _fieldPayloadByteLength = writer.PayloadBytes;
             counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
@@ -1115,7 +1115,7 @@ internal sealed class AwkFieldFrame(
 
     private void ClearSplitFields(bool releaseCache = false)
     {
-        ClearAssignedFieldCount();
+        _fieldCountValue = AwkValue.FromNumber(0);
         // Producers only write unpublished frame-owned destinations.
         if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer())
             _fieldTexts.Clear();
@@ -1130,15 +1130,6 @@ internal sealed class AwkFieldFrame(
         _recompositionSeparator = AwkText.Empty;
         _fieldPayloadByteLength = 0;
         _numericFieldCount = 0;
-    }
-
-    private void ClearAssignedFieldCount()
-    {
-        // Computed NF is already present in the descriptor count. Only an explicit
-        // assignment needs a value retaining its original spelling and origin.
-        if (!_hasAssignedFieldCount) return;
-        _fieldCountValue = default;
-        _hasAssignedFieldCount = false;
     }
 
     private AwkMemoryPeakAdmission PreflightRecomposition(long newRetainedBytes, int recordByteLength)
