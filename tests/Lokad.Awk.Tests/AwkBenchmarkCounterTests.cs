@@ -895,7 +895,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.True(result.Counters.NumericFieldByteParses >= 4);
         Assert.InRange(result.Counters.AwkTextAllocations, 0, 8);
         Assert.Equal(12, result.Counters.InlineFunctionFrames);
-        Assert.Equal(3, result.Counters.FieldListBufferReuses);
+        Assert.Equal(3, result.Counters.FieldCellBufferReuses);
         Assert.Equal(12, result.Counters.BoundFunctionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
@@ -963,7 +963,7 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(run == 0 ? "1\n" : "0\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.True(counters.BoundGlobalArrayAccesses > 0);
-            Assert.Equal(3, counters.FieldListBufferReuses);
+            Assert.Equal(3, counters.FieldCellBufferReuses);
         }
     }
 

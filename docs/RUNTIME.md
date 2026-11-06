@@ -171,7 +171,8 @@ the active shared budget; it does not copy those snapshots again.
 Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.
 Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
 before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
-Record splitting reuses funded descriptors and admits capacity growth. Whitespace and single-byte
+Record splitting reuses a dedicated cell buffer with its capacity estimate and admits growth
+before allocation. Appending a cell does not grow storage independently. Whitespace and single-byte
 fields extend on demand at every record size. Completion reuses the admitted prefix where it fits;
 field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
 appends while retaining the prior prefix and numeric caches. Long scans check cancellation in

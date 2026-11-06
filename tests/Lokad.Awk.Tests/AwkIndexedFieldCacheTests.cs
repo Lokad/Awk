@@ -24,7 +24,7 @@ public sealed class AwkIndexedFieldCacheTests
         for (var row = 0; row < 100; row++) ReadRecord();
 
         Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
-        Assert.True(counters.FieldListBufferReuses >= 100);
+        Assert.True(counters.FieldCellBufferReuses >= 100);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, counters.StringDecodes);

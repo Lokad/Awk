@@ -86,7 +86,7 @@ public sealed class AwkFieldFrameTests
             frame.SetRecordText(record, plan);
             Assert.Equal(expected, frame.GetFieldCount());
             frame.ResetRecord();
-            var fieldBytes = AwkRuntimeMemory.EstimateFieldTextListBytes(expected);
+            var fieldBytes = AwkRuntimeMemory.EstimateRecordCellBufferBytes(expected);
             var serviceBytes = governor.CurrentCommittedBytes;
             frame.SetRecordText(record, plan);
             var committedBefore = governor.CurrentCommittedBytes;

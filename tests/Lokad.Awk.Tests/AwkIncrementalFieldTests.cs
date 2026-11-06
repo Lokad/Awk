@@ -219,7 +219,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal("u", Read(frame, splitter, 1));
         Assert.Equal("v", Read(frame, splitter, 2));
         Assert.Equal("δ", saved.AsString());
-        Assert.Equal(2, counters.FieldListBufferReuses);
+        Assert.Equal(2, counters.FieldCellBufferReuses);
         frame.ResetRecord();
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);
@@ -246,7 +246,7 @@ public sealed class AwkIncrementalFieldTests
             Assert.Equal("café", Read(frame, splitter, 1));
             Assert.Equal(repeat.ToString(System.Globalization.CultureInfo.InvariantCulture), Read(frame, splitter, 2));
             Assert.Equal(2, frame.GetFieldCount());
-            Assert.Equal(repeat, counters.FieldListBufferReuses);
+            Assert.Equal(repeat, counters.FieldCellBufferReuses);
             if (repeat == 0) saved = frame.GetFieldValue(new(2));
         }
         Assert.Equal("0", saved.AsString());
@@ -316,10 +316,10 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(1024, frame.GetFieldCount());
         frame.SetRecordText(AwkText.FromSourceLiteralString("small row"), splitter.CaptureRecordPlan());
         Assert.Equal("small", Read(frame, splitter, 1));
-        Assert.Equal(0, counters.FieldListBufferReuses);
+        Assert.Equal(0, counters.FieldCellBufferReuses);
         frame.SetRecordText(AwkText.FromSourceLiteralString("next row"), splitter.CaptureRecordPlan());
         Assert.Equal("next", Read(frame, splitter, 1));
-        Assert.Equal(1, counters.FieldListBufferReuses);
+        Assert.Equal(1, counters.FieldCellBufferReuses);
         frame.ResetRecord();
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);
@@ -562,7 +562,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(2, frame.GetFieldNumber(new(fields), AwkNumberParsingMode.Decimal));
         Assert.InRange(accounting.CurrentCommittedBytes, 0, committed);
         Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(1, counters.FieldListBufferReuses);
+        Assert.Equal(1, counters.FieldCellBufferReuses);
         Assert.Same(record, frame.RecordAwkText);
         frame.ResetRecord();
         Assert.Equal(0, budget.Reserved);

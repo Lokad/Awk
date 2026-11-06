@@ -30,7 +30,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         output.WriteLine("1,000 ordinary small-record field splits: {0} allocated bytes.", allocated);
         Assert.Equal(2_000, total);
-        Assert.Equal(1_099, counters.FieldListBufferReuses);
+        Assert.Equal(1_099, counters.FieldCellBufferReuses);
         Assert.InRange(allocated, 0, 96_000);
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(0, counters.StringDecodes);

@@ -18,13 +18,13 @@ internal sealed class AwkFieldFrame(
     private const int MutationCheckpointFields = 1024;
     // Bound reusable descriptor/cache storage; their headers are admitted separately.
     private const int MaxReusableBufferBytes = 4096;
-    // Bound descriptor payload; its list/array headers are admitted separately.
-    private const int MaxReusableFieldListCapacity =
+    // Bound descriptor payload; its owner/array headers are admitted separately.
+    private const int MaxReusableFieldCellCapacity =
         MaxReusableBufferBytes / AwkRuntimeMemory.RecordFieldBytes;
     private const int MaxReusableFieldCacheCapacity =
         (MaxReusableBufferBytes - AwkRuntimeMemory.ListBufferOverheadBytes) / AwkRuntimeMemory.CachedFieldValueBytes;
     // Private empty view while a reusable buffer is staged; never mutated.
-    private static readonly List<AwkRecordField> EmptyFieldTexts = [];
+    private static readonly AwkRecordCellBuffer EmptyFieldTexts = new();
 
     private AwkRecordStorage? _inputStorage;
     private AwkRecordStorage? _bufferedStorage;
@@ -101,7 +101,7 @@ internal sealed class AwkFieldFrame(
     private AwkText _recordText = AwkText.Empty;
     private AwkValue _recordValue = AwkValue.FromText(string.Empty);
     private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
-    private List<AwkRecordField> _fieldTexts = [];
+    private AwkRecordCellBuffer _fieldTexts = new();
     internal readonly struct CachedFieldValue
     {
         private readonly AwkText? _spelling;
@@ -195,7 +195,7 @@ internal sealed class AwkFieldFrame(
         // Only text has a stable spelling without reconstruction. Numeric fields must
         // still freeze their CONVFMT spelling when $0 is first observed.
         var available = !_recordTextIsCurrent && _numericFieldCount == 0;
-        fields = available ? new(CollectionsMarshal.AsSpan(_fieldTexts), CollectionsMarshal.AsSpan(_fieldValueCache)) : default;
+        fields = available ? new(_fieldTexts.Span, CollectionsMarshal.AsSpan(_fieldValueCache)) : default;
         record = RecordBytes();
         separator = _recompositionSeparator;
         return available;
@@ -532,7 +532,7 @@ internal sealed class AwkFieldFrame(
         var stageFields = addedFields >= MutationCheckpointFields || newCapacity != _fieldTexts.Capacity;
         if (stageFields || stageCache)
         {
-            var stagedBytes = stageFields ? AwkRuntimeMemory.EstimateRecordFieldListBytes(newCapacity) : 0;
+            var stagedBytes = stageFields ? AwkRuntimeMemory.EstimateRecordCellBufferBytes(newCapacity) : 0;
             if (stageCache)
                 stagedBytes = AwkRuntimeMemory.CheckedAdd(stagedBytes, EstimateFieldCacheBufferBytes(cacheCapacity));
             using var staging = governor.ReserveTransient(stagedBytes);
@@ -562,8 +562,8 @@ internal sealed class AwkFieldFrame(
         {
             var bytes = AdjustEstimate(
                 _retainedMemoryBytes,
-                AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity),
-                AwkRuntimeMemory.EstimateRecordFieldListBytes(newCapacity));
+                _fieldTexts.RetainedBytes,
+                AwkRuntimeMemory.EstimateRecordCellBufferBytes(newCapacity));
             bytes = AdjustEstimate(bytes,
                 oldField.CacheSlot > 0 ? _fieldValueCache[oldField.CacheSlot - 1].PayloadBytes : 0,
                 new CachedFieldValue(fieldIndex, AwkFieldCacheKind.Scalar, value, spelling).PayloadBytes);
@@ -587,12 +587,12 @@ internal sealed class AwkFieldFrame(
         var newCapacity = PlanFieldCapacity(index.Value);
         var newRetainedBytes = AdjustEstimate(
             _retainedMemoryBytes,
-            AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity),
-            AwkRuntimeMemory.EstimateRecordFieldListBytes(newCapacity));
+            _fieldTexts.RetainedBytes,
+            AwkRuntimeMemory.EstimateRecordCellBufferBytes(newCapacity));
         newRetainedBytes = AdjustEstimate(newRetainedBytes, _fieldCountValue.RetainedTextMemoryBytes, 0);
         if (addedFields >= MutationCheckpointFields || newCapacity != _fieldTexts.Capacity)
         {
-            var stagedBytes = AwkRuntimeMemory.EstimateRecordFieldListBytes(newCapacity);
+            var stagedBytes = AwkRuntimeMemory.EstimateRecordCellBufferBytes(newCapacity);
             using var staging = governor.ReserveTransient(stagedBytes);
             var fields = StageFieldTexts(index.Value, newCapacity);
             PublishStagedFields(fields, _fieldValueCache, newRetainedBytes, staging, stagedBytes);
@@ -631,8 +631,8 @@ internal sealed class AwkFieldFrame(
         var newNumericFieldCount = _numericFieldCount;
         var newRetainedBytes = AdjustEstimate(
             _retainedMemoryBytes,
-            AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity),
-            AwkRuntimeMemory.EstimateRecordFieldListBytes(newCapacity));
+            _fieldTexts.RetainedBytes,
+            AwkRuntimeMemory.EstimateRecordCellBufferBytes(newCapacity));
         newRetainedBytes = AdjustEstimate(newRetainedBytes,
             _fieldCountValue.RetainedTextMemoryBytes, value.RetainedTextMemoryBytes);
         if (newFieldCount < oldFieldCount)
@@ -667,7 +667,7 @@ internal sealed class AwkFieldFrame(
         using var recompositionPeak = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         if (stageFields)
         {
-            var stagedBytes = AwkRuntimeMemory.EstimateRecordFieldListBytes(newCapacity);
+            var stagedBytes = AwkRuntimeMemory.EstimateRecordCellBufferBytes(newCapacity);
             if (newFieldCount < oldFieldCount)
                 stagedBytes = AwkRuntimeMemory.CheckedAdd(stagedBytes,
                     EstimateFieldCacheBufferBytes(cacheCapacity));
@@ -686,7 +686,7 @@ internal sealed class AwkFieldFrame(
             {
                 for (var index = newFieldCount; index < oldFieldCount; index++)
                     RemoveCachedFieldValue(index);
-                _fieldTexts.RemoveRange(newFieldCount, oldFieldCount - newFieldCount);
+                _fieldTexts.Truncate(newFieldCount);
             }
             else if (newFieldCount > oldFieldCount)
             {
@@ -713,10 +713,10 @@ internal sealed class AwkFieldFrame(
         return (int)Math.Min(Array.MaxLength, Math.Max((long)count, Math.Max(4L, 2L * _fieldTexts.Capacity)));
     }
 
-    private List<AwkRecordField> StageFieldTexts(int count, int capacity)
+    private AwkRecordCellBuffer StageFieldTexts(int count, int capacity)
     {
         checkpoint?.Invoke();
-        var fields = new List<AwkRecordField>(capacity);
+        var fields = new AwkRecordCellBuffer(capacity);
         for (var index = 0; index < count; index++)
         {
             if ((index & (MutationCheckpointFields - 1)) == 0)
@@ -801,7 +801,7 @@ internal sealed class AwkFieldFrame(
         _fieldTexts[index] = field.WithCacheSlot(0);
     }
 
-    private List<CachedFieldValue> StageFieldValueCache(List<AwkRecordField> fields, int capacity)
+    private List<CachedFieldValue> StageFieldValueCache(AwkRecordCellBuffer fields, int capacity)
     {
         checkpoint?.Invoke();
         var cache = new List<CachedFieldValue>(capacity);
@@ -821,7 +821,7 @@ internal sealed class AwkFieldFrame(
     }
 
     private void PublishStagedFields(
-        List<AwkRecordField> fields,
+        AwkRecordCellBuffer fields,
         List<CachedFieldValue> cache,
         long retainedBytes,
         AwkMemoryLease staging,
@@ -844,7 +844,7 @@ internal sealed class AwkFieldFrame(
     private void EnsureRecordText()
     {
         if (_recordTextIsCurrent) return;
-        var bufferBytes = AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Count);
+        var bufferBytes = AwkRuntimeMemory.EstimateRecordCellBufferBytes(_fieldTexts.Count);
         if (_numericFieldCount > 0)
             bufferBytes = AwkRuntimeMemory.CheckedAdd(bufferBytes,
                 AwkRuntimeMemory.EstimateFieldTextListBytes(_fieldTexts.Count));
@@ -879,7 +879,7 @@ internal sealed class AwkFieldFrame(
             }
             var byteLength = EstimateComposedRecordByteLength(_recompositionSeparator.ByteLength,
                 _fieldTexts.Count, payloadByteLength);
-            var fields = new List<AwkRecordField>(_fieldTexts.Count);
+            var fields = new AwkRecordCellBuffer(_fieldTexts.Count);
             var offset = 0;
             for (var index = 0; index < _fieldTexts.Count; index++)
             {
@@ -985,8 +985,8 @@ internal sealed class AwkFieldFrame(
             // Incremental slices leave cached/owned payload unchanged. Only capacity
             // replacement or split-plan retirement changes the retained estimate.
             var retained = governor.IsEnabled && grows ? AdjustEstimate(_retainedMemoryBytes,
-                AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity),
-                AwkRuntimeMemory.EstimateRecordFieldListBytes(fields.Capacity)) : _retainedMemoryBytes;
+                _fieldTexts.RetainedBytes,
+                fields.RetainedBytes) : _retainedMemoryBytes;
             if (complete && governor.IsEnabled)
                 retained = AdjustEstimate(retained, _splitPlan.RetainedMemoryBytes, 0);
             if (grows) PublishStagedFields(fields, _fieldValueCache, retained, writer.Staging, writer.Staging.Bytes);
@@ -999,7 +999,7 @@ internal sealed class AwkFieldFrame(
             _splitPosition = position;
             _fieldPayloadByteLength = payloadBytes;
             counters.RecordFieldsMaterialized(fields.Count - previousCount);
-            if (!grows && previousCount == 0) counters.RecordFieldListBufferReuse();
+            if (!grows && previousCount == 0) counters.RecordFieldCellBufferReuse();
             if (complete)
             {
                 _fieldsAreSplit = true;
@@ -1013,7 +1013,7 @@ internal sealed class AwkFieldFrame(
             // No admission occurs while extending within established capacity.
             // Failure retires the unpublished tail, preserving prior cache mappings.
             if (!published && !grows && fields.Count > previousCount)
-                fields.RemoveRange(previousCount, fields.Count - previousCount);
+                fields.Truncate(previousCount);
             writer.Dispose();
         }
     }
@@ -1022,12 +1022,12 @@ internal sealed class AwkFieldFrame(
     {
         var capacity = (int)Math.Max(targetCount, Math.Min(Array.MaxLength, (long)_fieldTexts.Capacity * 2));
         var staging = governor.ReserveTransient(governor.IsEnabled
-            ? AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity) : 0);
+            ? AwkRuntimeMemory.EstimateRecordCellBufferBytes(capacity) : 0);
         var copied = 0;
         try
         {
             checkpoint?.Invoke();
-            var fields = new List<AwkRecordField>(capacity);
+            var fields = new AwkRecordCellBuffer(capacity);
             counters.RecordFieldPrefixStage();
             for (var index = 0; index < _fieldTexts.Count; index++)
             {
@@ -1059,9 +1059,9 @@ internal sealed class AwkFieldFrame(
         var previousCount = _fieldTexts.Count;
         var initialValues = _fieldValueCache;
         var previousCacheCount = initialValues.Count;
-        // Keep a private empty view until staging succeeds; later field mutation owns its list.
+        // Keep a private empty view until staging succeeds; later mutation owns its buffer.
         if (reusable is not null) _fieldTexts = EmptyFieldTexts;
-        var fieldTexts = reusable ?? [];
+        var fieldTexts = reusable ?? new();
         var writer = new AwkRecordFieldWriter(fieldTexts, _fieldValueCache, governor, counters,
             checkpoint ?? (static () => { }), AwkMemoryLease.Disabled);
         var published = false;
@@ -1094,14 +1094,14 @@ internal sealed class AwkFieldFrame(
             counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
             _splitPlan = default;
-            if (ReferenceEquals(fieldTexts, reusable)) counters.RecordFieldListBufferReuse();
+            if (ReferenceEquals(fieldTexts, reusable)) counters.RecordFieldCellBufferReuse();
         }
         catch
         {
             if (reusable is not null)
             {
                 reusable.Clear();
-                _fieldTexts = reusable.Capacity == reusableCapacity ? reusable : [];
+                _fieldTexts = reusable.Capacity == reusableCapacity ? reusable : new();
             }
             throw;
         }
@@ -1120,7 +1120,7 @@ internal sealed class AwkFieldFrame(
         if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer())
             _fieldTexts.Clear();
         else if (_fieldTexts.Capacity != 0)
-            _fieldTexts = [];
+            _fieldTexts = new();
         if (!releaseCache && ReuseCacheBuffer())
             _fieldValueCache.Clear();
         else
@@ -1180,24 +1180,24 @@ internal sealed class AwkFieldFrame(
                 AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes),
             AwkRuntimeMemory.CheckedAdd(
                 ReuseFieldBuffer()
-                    ? AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity) : 0,
+                    ? _fieldTexts.RetainedBytes : 0,
                 ReuseCacheBuffer() ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0));
 
     private long EstimateRetainedBytes(
         AwkText recordText,
-        List<AwkRecordField> fieldTexts,
+        AwkRecordCellBuffer fieldTexts,
         List<CachedFieldValue> fieldValueCache,
         AwkValue fieldCountValue = default)
         => governor.IsEnabled
             ? EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(recordText), fieldTexts, fieldValueCache, fieldCountValue)
             : 0;
 
-    private long EstimateRetainedBytes(long recordTextBytes, List<AwkRecordField> fieldTexts,
+    private long EstimateRetainedBytes(long recordTextBytes, AwkRecordCellBuffer fieldTexts,
         List<CachedFieldValue> fieldValueCache, AwkValue fieldCountValue)
     {
         if (!governor.IsEnabled) return 0;
         var bytes = AwkRuntimeMemory.CheckedAdd(recordTextBytes, fieldCountValue.RetainedTextMemoryBytes);
-        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateRecordFieldListBytes(fieldTexts.Capacity));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, fieldTexts.RetainedBytes);
         bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateFieldCacheBufferBytes(fieldValueCache.Capacity));
         for (var index = 0; index < fieldValueCache.Count; index++)
         {
@@ -1212,7 +1212,7 @@ internal sealed class AwkFieldFrame(
         governor.IsEnabled ? AwkRuntimeMemory.EstimateFieldValueListBytes(capacity) : 0;
 
     private bool ReuseFieldBuffer() =>
-        _fieldTexts.Capacity <= MaxReusableFieldListCapacity;
+        _fieldTexts.Capacity <= MaxReusableFieldCellCapacity;
 
     private bool ReuseCacheBuffer() =>
         _fieldValueCache.Capacity <= MaxReusableFieldCacheCapacity;
