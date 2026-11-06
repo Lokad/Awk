@@ -311,6 +311,8 @@ Numeric updates capture their key and prior value before the RHS. Live entry cel
 the result directly; retired or retyped entries use current storage without reevaluating
 the key. Captured cells and keys stay funded through pending users. Retirement clears a
 cell's payload before the containing array refunds it.
+Bound field/composite assignments carry an ordinary-array miss through owned-key construction
+into the shared insertion preflight. Cold names and special arrays retain their resolution policy.
 Scalar and array updates use bound numeric sources, keeping arithmetic field reads byte-native.
 Captured prior numbers survive RHS calls and suspension; numeric stores retain mutation preflights.
 Later text reads still preserve field input spelling.

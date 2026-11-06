@@ -1321,12 +1321,14 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void SetArrayFieldValue(AwkArrayName name, int index, AwkValue value, AwkArrayBinding binding)
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        AwkArrayIdentity? missingArray = null;
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding)) return;
+            _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding, out missingArray)) return;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         var key = ToArrayKey(field);
         ThrowIfCancellationRequested();
-        _arrayRuntime.SetAwkValue(name, key, value, binding);
+        if (missingArray is { } destination) _variables.InsertArrayValue(destination, key, value);
+        else _arrayRuntime.SetAwkValue(name, key, value, binding);
     }
 
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>

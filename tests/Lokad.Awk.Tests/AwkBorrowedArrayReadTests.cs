@@ -3,6 +3,94 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void BoundAssignmentMissInsertsWithoutRepeatingOwnedLookup(bool governed, bool composite)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = memory.Initialize(() => State(memory.Owner, counters)).State;
+        state.InitializeGlobalReadSlots(1);
+        var name = AwkArrayName.FromText("a");
+        var binding = AwkArrayBinding.Global(0);
+        state.SetArrayAwkValue(name, new AwkArrayKey("seed"), AwkValue.FromNumber(7), binding);
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("café part"));
+        _ = state.FieldCount;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append("café\x1cpart"u8);
+        var replacement = AwkValue.FromNumericString("0009");
+        var borrowedHashes = counters.ArrayBorrowedHashCalls;
+        var ownedHashes = counters.ArrayOwnedHashCalls;
+
+        if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
+        else state.SetArrayFieldValue(name, 1, replacement, binding);
+
+        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
+        Assert.Equal(ownedHashes + 1, counters.ArrayOwnedHashCalls); // Insertion still hashes its owned key.
+        builder.Clear();
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed record"));
+        var stored = state.GetArrayAwkValue(name, new AwkArrayKey(composite ? "café\x1cpart" : "café"));
+        Assert.Equal("0009", stored.AsString());
+        Assert.Equal(AwkRuntimeValueKind.NumericString, stored.RuntimeKind);
+        Assert.Equal(9, stored.AsNumber());
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void BoundAssignmentMissPreflightsInsertionBeforePublication(bool composite, bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = memory.Initialize(() => State(memory.Owner, AwkRuntimeCounters.CreateEnabled(), cancellation.Token)).State;
+        state.InitializeGlobalReadSlots(1);
+        var name = AwkArrayName.FromText("a");
+        var binding = AwkArrayBinding.Global(0);
+        var seed = new AwkArrayKey("seed");
+        state.SetArrayAwkValue(name, seed, AwkValue.FromNumber(7), binding);
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("new part"));
+        _ = state.FieldCount;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append("new\x1cpart"u8);
+        var replacement = AwkValue.FromText(new string('x', 8192));
+        if (cancel) memory.Budget.OnGrowth = bytes => { if (bytes >= 8192) cancellation.Cancel(); };
+        else memory.Budget.RefuseNextAdmissionMinimumGrowth = 8192;
+
+        void Assign()
+        {
+            if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
+            else state.SetArrayFieldValue(name, 1, replacement, binding);
+        }
+        try
+        {
+            if (cancel) Assert.ThrowsAny<OperationCanceledException>(Assign);
+            else
+            {
+                var error = Assert.Throws<AwkRuntimeException>(Assign);
+                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            }
+        }
+        finally { memory.Budget.OnGrowth = null; }
+        // Inspect the retained owner without a new cancellable language operation.
+        Assert.True(state.TryGetBoundGlobalArray(0, out var array));
+        Assert.NotNull(array);
+        Assert.Single(array.Slots);
+        Assert.True(array.Slots[seed].Slot.TryGetNumber(out var seedNumber));
+        Assert.Equal(7, seedNumber);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void ReadOnlySpecialAssignmentKeepsItsDiagnosticWithoutCopyingFieldKey(bool governed)
     {
@@ -337,13 +425,14 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters,
+        CancellationToken token = default)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             limits, regexEngine: AwkUtf8RegexEngine.Instance)
         { MemoryOwner = owner };
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
     }
 
 }

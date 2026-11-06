@@ -6,6 +6,12 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("borrowed-assignment-miss-keeps-escaped-field-spelling",
+            ["function put(p){p[$1]=$2;p[$1]=$2 \"!\"}{put(a);saved=$1;$0=\"changed\";print a[saved],saved,(\"changed\" in a)}END{print length(a),a[\"0007\"],a[7],a[\"café\"]}"],
+            [], "02! 0007 0\n04! 7 0\n06! café 0\n08! 0007 0\n3 08! 04! 06!\n", "0007 02\n7 04\ncafé 06\n0007 08\n"),
+        Passing("borrowed-assignment-miss-keeps-empty-composite-components",
+            ["function put(p){p[$1,$2]=$3}BEGIN{FS=\",\";SUBSEP=\"\"}{put(a);print a[$1,$2];$0=\"gone\"}END{print length(a),a[\"0007\"],a[7],a[\"caféx\"]}"],
+            [], "02\n04\n06\n3 02 04 06\n", ",0007,02\n,7,04\ncafé,x,06\n"),
         Passing("introspection-groups-preserve-scalar-use",
             ["BEGIN{print typeof(a),typeof((a)),typeof(a);print isarray((b)),typeof(b)}"], [],
             "untyped unassigned unassigned\n0 unassigned\n"),

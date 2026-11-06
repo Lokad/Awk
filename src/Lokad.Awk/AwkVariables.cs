@@ -246,6 +246,14 @@ internal sealed partial class AwkVariables
         SetArraySlot(array.Slots, index, AwkVariableSlot.FromValue(value));
     }
 
+    // The caller's synchronous borrowed lookup proved this key absent. Only owned
+    // key construction may intervene; no RHS or host work can invalidate the miss.
+    internal void InsertArrayValue(AwkArrayIdentity array, AwkArrayKey index, AwkValue value)
+    {
+        ThrowIfDetached(array);
+        InsertArraySlot(array.Slots, index, AwkVariableSlot.FromValue(value));
+    }
+
     internal void SetArrayCellValue(AwkArrayIdentity array, AwkArrayCell cell, AwkValue value)
     {
         ThrowIfDetached(array);
@@ -1045,6 +1053,12 @@ internal sealed partial class AwkVariables
             SetArrayCell(existing, slot);
             return existing;
         }
+        return InsertArraySlot(values, index, slot);
+    }
+
+    private AwkArrayCell InsertArraySlot(Dictionary<AwkArrayKey, AwkArrayCell> values,
+        AwkArrayKey index, AwkVariableSlot slot)
+    {
         if (!_memoryAccounting.IsEnabled) return Insert();
         var oldCapacity = values.EnsureCapacity(0);
         var payload = AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot);
