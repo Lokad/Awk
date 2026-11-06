@@ -3,6 +3,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ReadOnlySpecialAssignmentKeepsItsDiagnosticWithoutCopyingFieldKey(bool governed)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = memory.Initialize(() => State(memory.Owner, counters)).State;
+        state.InitializeFunctions(new Dictionary<AwkFunctionName, AwkUserFunction>());
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("length"));
+        _ = state.FieldCount;
+        var allocations = counters.AwkTextAllocations;
+        if (governed) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        var error = Assert.Throws<AwkRuntimeException>(() => state.SetArrayFieldValue(
+            AwkArrayName.FromText("FUNCTAB"), 1, AwkValue.FromNumber(9), default));
+
+        Assert.Equal("awk: cannot modify special array `FUNCTAB'\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
     public void AssignmentConsumesLocatedCellWithoutRehashingOrCopyingKey(bool governed, bool composite)

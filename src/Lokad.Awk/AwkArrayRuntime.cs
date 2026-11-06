@@ -246,8 +246,17 @@ internal sealed partial class AwkArrayRuntime
         else
         {
             var resolved = _variableRuntime.ResolveArrayReadName(name);
-            if (!_variables.TryGetOrdinaryArray(resolved, out array) ||
-                !_variables.TryGetArrayKeySlot(array, index, out _, out cell)) return false;
+            if (!_variables.TryGetOrdinaryArray(resolved, out array))
+            {
+                // Special arrays keep their mutation policy and existing key.
+                // Materializing a field first could move admission before a
+                // required read-only diagnostic.
+                if (!_variables.TryGetExistingArrayKey(resolved, index, out var key)) return false;
+                _state.ThrowIfCancellationRequested();
+                SetAwkValue(name, key, value, binding);
+                return true;
+            }
+            if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell)) return false;
             _state.BindGlobalArray(binding, resolved);
         }
         // Only the stable cell survives lookup; no borrowed bytes or dictionary
