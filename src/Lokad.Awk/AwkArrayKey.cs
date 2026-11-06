@@ -21,8 +21,9 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _kind = AwkArrayKeyKind.Text;
         _text = text;
         _ordinal = 0;
-        // Keep construction's cancellable materialization; dictionaries use their randomized comparer.
-        _ = text.GetHashCode(checkpoint);
+        // Materialize while the producer's ownership/admission is live. Runtime
+        // dictionaries hash these bytes themselves; do not compute an unused hash here.
+        _ = text.AsSpan(checkpoint);
     }
 
     public static AwkArrayKey FromOrdinal(int ordinal) =>

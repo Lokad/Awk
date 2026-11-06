@@ -3,6 +3,46 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NumericBuilderReadConsumesLocatedValueWithoutCopyingAKey(bool governed)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = memory.Initialize(() => State(memory.Owner, counters)).State;
+        var name = AwkArrayName.FromText("a");
+        state.SetArrayAwkValue(name, new AwkArrayKey("café\x1cpart"), AwkValue.FromNumericString("007"));
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append("café\x1cpart"u8);
+        var allocations = counters.AwkTextAllocations;
+        var borrowedHashes = counters.ArrayBorrowedHashCalls;
+        var ownedHashes = counters.ArrayOwnedHashCalls;
+        if (governed) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        Assert.Equal(7, state.GetArrayNumber(name, builder, default));
+
+        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
+        Assert.Equal(ownedHashes, counters.ArrayOwnedHashCalls);
+        Assert.Equal("007", state.GetArrayAwkValue(name, new AwkArrayKey("café\x1cpart")).AsString());
+        builder.Clear();
+        builder.Append("other"u8);
+        if (governed)
+        {
+            var failure = Assert.Throws<AwkRuntimeException>(() => state.GetArrayNumber(name, builder, default));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+            Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("other")));
+        }
+        else
+        {
+            Assert.Equal(0, state.GetArrayNumber(name, builder, default));
+            builder.Clear();
+            builder.Append("after"u8);
+            Assert.True(state.ContainsArrayValue(name, new AwkArrayKey("other")));
+        }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(2)]
     public async Task HitsAvoidCopiesAndMissesRetainOwnedKeysAfterRecordReuse(int mode)

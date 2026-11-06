@@ -238,6 +238,9 @@ internal sealed partial class AwkArrayRuntime
     public AwkValue GetAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryGetBorrowedAwkValue(name, builder.AsSpan(), out var value, binding) ? value : GetAwkValue(name, CopyKey(builder), binding);
 
+    public double GetNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
+        TryGetBorrowedNumber(name, builder.AsSpan(), out var number, binding) ? number : GetNumber(name, CopyKey(builder), binding);
+
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryPrepareBorrowedUpdate(name, builder.AsSpan(), out var target, binding)
             ? target : PrepareUpdate(name, CopyKey(builder), binding);

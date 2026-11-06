@@ -100,14 +100,8 @@ internal partial struct AwkRegionMachine
                     numbers[instruction.Target] = ReadVariable(variables[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.ArrayNumber:
-                {
-                    var numeric = arrays[instruction.Left];
-                    var field = operands[numeric.Key];
-                    numbers[instruction.Target] = IsField(field)
-                        ? state.GetArrayFieldNumber(numeric.Name, FieldOrdinal(field), numeric.Binding)
-                        : state.GetArrayNumber(numeric.Name, Key(numeric), numeric.Binding);
+                    numbers[instruction.Target] = ReadArrayNumber(arrays[instruction.Left]);
                     break;
-                }
                 case AwkRegionInstructionKind.ArrayPreviousNumber:
                     numbers[instruction.Target] = storage.Targets[instruction.Left].Previous;
                     break;
@@ -748,6 +742,21 @@ internal partial struct AwkRegionMachine
             };
         }
 
+        double ReadArrayNumber(AwkRegionArrayAccess access)
+        {
+            if (access.Path >= 0)
+            {
+                var path = storage.Path(access.Path);
+                return state.GetArrayNumber(path.ResolveOwner(state), path.Key);
+            }
+            return operands[access.Key] switch
+            {
+                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldNumber(access.Name, FieldOrdinal(field), access.Binding),
+                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index], access.Binding),
+                _ => state.GetArrayNumber(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
+            };
+        }
+
         AwkValue ReadVariable(AwkRegionVariable variable) => variable.Kind switch
         {
             AwkRegionVariableKind.Local => state.ResolveFunctionLocalValue(new(variable.Index), variable.Name),
@@ -787,11 +796,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.ArrayPrevious:
                     return storage.Targets[operand.Index].Previous;
                 case AwkRegionOperandKind.ArrayElement:
-                    var access = arrays[operand.Index];
-                    var key = operands[access.Key];
-                    return IsField(key)
-                        ? state.GetArrayFieldNumber(access.Name, FieldOrdinal(key), access.Binding)
-                        : state.GetArrayNumber(access.Name, Key(access), access.Binding);
+                    return ReadArrayNumber(arrays[operand.Index]);
                 case AwkRegionOperandKind.Variable:
                 {
                     var variable = variables[operand.Index];
