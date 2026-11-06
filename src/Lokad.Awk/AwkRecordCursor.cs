@@ -5,6 +5,9 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
+// The cursor, scheduler and interpreter share one record-progress result.
+internal enum AwkRecordReadStatus { Pending, Record, EndOfFile }
+
 internal enum AwkParagraphLeaderPolicy
 {
     Discard,
@@ -69,10 +72,10 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         return record;
     }
 
-    private BufferedReadStatus PublishRecord(AwkInputRecordResult record)
+    private AwkRecordReadStatus PublishRecord(AwkInputRecordResult record)
     {
         _recordResult = record;
-        return BufferedReadStatus.Record;
+        return AwkRecordReadStatus.Record;
     }
 
     public ValueTask<bool> MoveNextAsync() => MoveNextAsync(null);
@@ -80,15 +83,14 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     internal ValueTask<bool> MoveNextAsync(AwkRecordStorage? storage)
     {
         ValueTask<bool> pending = default;
-        return TryMoveNext(storage, ref pending, out var hasRecord)
-            ? ValueTask.FromResult(hasRecord) : pending;
+        var status = MoveNext(storage, ref pending);
+        return status == AwkRecordReadStatus.Pending ? pending : ValueTask.FromResult(status == AwkRecordReadStatus.Record);
     }
 
     // Available records return directly. Only actual refill/error completion
     // populates the caller's existing continuation; no cursor-owned task slot.
-    internal bool TryMoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending, out bool hasRecord)
+    internal AwkRecordReadStatus MoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending)
     {
-        hasRecord = false;
         try
         {
             _recordResult = default;
@@ -102,20 +104,19 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 if (!refill.IsCompletedSuccessfully)
                 {
                     pending = ReadMoreAsync(storage, separator, refill, awaitingNewlineBuffer: true);
-                    return false;
+                    return AwkRecordReadStatus.Pending;
                 }
-                if (!refill.Result) return true;
+                if (!refill.Result) return AwkRecordReadStatus.EndOfFile;
             }
             var result = ReadAvailable(separator, storage, newlineReader);
-            if (result == BufferedReadStatus.NeedMoreData)
+            if (result == AwkRecordReadStatus.Pending)
             {
                 pending = ReadMoreAsync(storage, separator, default, awaitingNewlineBuffer: false);
-                return false;
+                return AwkRecordReadStatus.Pending;
             }
-            hasRecord = result == BufferedReadStatus.Record;
-            return true;
+            return result;
         }
-        catch (Exception error) { _recordResult = default; pending = FailedReadAsync(error); return false; }
+        catch (Exception error) { _recordResult = default; pending = FailedReadAsync(error); return AwkRecordReadStatus.Pending; }
     }
 
     // Retain async completion semantics, including cancellation with an unrequested
@@ -131,23 +132,20 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         if (awaitingNewlineBuffer)
         {
             if (!await pending.ConfigureAwait(false)) return false;
-            var first = ReadAvailable(separator, storage);
-            if (first != BufferedReadStatus.NeedMoreData) return first == BufferedReadStatus.Record;
+            var first = ReadAvailable(separator, storage, PrepareNewlineReader(separator));
+            if (first != AwkRecordReadStatus.Pending) return first == AwkRecordReadStatus.Record;
         }
         while (true)
         {
             await AppendNextBatchAsync(separator).ConfigureAwait(false);
             _state.ThrowIfCancellationRequested();
             separator = GetCurrentSeparator();
-            var result = ReadAvailable(separator, storage);
-            if (result != BufferedReadStatus.NeedMoreData) return result == BufferedReadStatus.Record;
+            var result = ReadAvailable(separator, storage, PrepareNewlineReader(separator));
+            if (result != AwkRecordReadStatus.Pending) return result == AwkRecordReadStatus.Record;
         }
     }
 
-    private BufferedReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage) =>
-        ReadAvailable(separator, storage, PrepareNewlineReader(separator));
-
-    private BufferedReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage, bool newlineReader)
+    private AwkRecordReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage, bool newlineReader)
     {
         if (newlineReader)
         {
@@ -181,7 +179,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         }
         PreserveBorrowedInput();
         var result = TryReadBuffered(separator, storage);
-        if (result != BufferedReadStatus.NeedMoreData) CommitBufferedConsumption();
+        if (result != AwkRecordReadStatus.Pending) CommitBufferedConsumption();
         return result;
     }
 
@@ -351,11 +349,11 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         }
     }
 
-    private BufferedReadStatus ParagraphEndOfFile(RecordSeparator separator)
+    private AwkRecordReadStatus ParagraphEndOfFile(RecordSeparator separator)
     {
         if (_discardedParagraphLeader && separator is ParagraphSeparator)
             _recordResult = AwkInputRecordResult.EndOfFileClearingTerminator;
-        return BufferedReadStatus.EndOfFile;
+        return AwkRecordReadStatus.EndOfFile;
     }
 
 
@@ -433,7 +431,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         _regexInput = null;
     }
 
-    private BufferedReadStatus FinalRecordOrNeedMore(
+    private AwkRecordReadStatus FinalRecordOrNeedMore(
         ReadOnlySpan<byte> content,
         AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null) =>
         _descriptorReachedEof
@@ -442,7 +440,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 content.Length,
                 AwkRecordTerminator.Empty,
                 fieldSplittingMode, storage)
-            : BufferedReadStatus.NeedMoreData;
+            : AwkRecordReadStatus.Pending;
 
     private int GetRelativeScanStart(ReadOnlySpan<byte> content) =>
         Math.Clamp(_scanOffset - _bufferStart, 0, content.Length);
@@ -468,7 +466,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         _paragraphLeaderScanLength = 0;
     }
 
-    private BufferedReadStatus ConsumeRecord(
+    private AwkRecordReadStatus ConsumeRecord(
         ReadOnlySpan<byte> recordBytes,
         int consumedLength,
         AwkRecordTerminator terminator,
@@ -798,13 +796,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         bool HasConsumedDescriptorBytes,
         bool DiscardedParagraphLeader,
         int ParagraphLeaderScanLength);
-
-    private enum BufferedReadStatus
-    {
-        NeedMoreData,
-        Record,
-        EndOfFile
-    }
 
     private readonly record struct SeparatorCache
     {
