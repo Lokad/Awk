@@ -211,8 +211,9 @@ capacity checks and initialization. Switching bodies refreshes preparation witho
 unrelated scratch payloads.
 Main input, rule conditions/bodies and record backedges form one prepared program, sharing
 the computation and call driver. Ordinary records retain their cursor and operand tables;
-rule completion retires its reference scratch. Actual host suspension saves its continuation;
-available records use synchronous recognition, while pending refills retain their cursor and
+rule completion retires its reference scratch. Actual host suspension saves its continuation.
+Returns keep their captured value and callee storage until required output actually completes.
+Available records use synchronous recognition, while pending refills retain their cursor and
 storage until actual completion. Record/header publication retains its admission and
 cancellation preflight. Command-wide host services are reused; reentrant scopes retain actual
 overrides and restore them after

@@ -290,7 +290,6 @@ internal sealed partial class AwkRegionCompiler
                     if (!Expression(returning, out var operand)) return false;
                     returned = CaptureValue(operand);
                 }
-                Emit(new(AwkRegionInstructionKind.StatementBoundary));
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
                     Emit(new(AwkRegionInstructionKind.ReturnNumber, Left: numericReturn.Index));
                 else Emit(new(AwkRegionInstructionKind.Return, Left: returned));

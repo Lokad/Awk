@@ -35,7 +35,11 @@ internal sealed partial class AwkRegionCompiler
                 else
                 {
                     if (!compiler.PrepareStatement(statement)) return false;
-                    compiler.FinishStatement(_firstTemporary);
+                    // Return owns output completion and callee retirement. Its
+                    // fallthrough cleanup would be unreachable, but later source
+                    // still needs preparation/validation.
+                    if (statement.Kind != AwkStatementKind.Return)
+                        compiler.FinishStatement(_firstTemporary);
                     _position++;
                     continue;
                 }

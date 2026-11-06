@@ -547,17 +547,20 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         ClearIncomingFrames(active.Incoming);
         for (var index = active.Sorts - 1; index >= 0; index--) ReleaseSort(index);
-        Array.Clear(_values, 0, active.Values);
-        Array.Clear(_targets, 0, active.Targets);
+        if (active.Values > 0) Array.Clear(_values, 0, active.Values);
+        if (active.Targets > 0) Array.Clear(_targets, 0, active.Targets);
         for (var index = 0; index < active.Paths; index++) ReleasePath(index);
         for (var index = 0; index < active.Iterators; index++) ReleaseIterator(index);
         var reads = active.GetlineTargets;
         for (var index = 0; index < reads; index++) _getlineTargets[index].Dispose();
-        Array.Clear(_getlineTargets, 0, reads);
-        Array.Clear(_arrayTargets, 0, active.ArrayTargets);
-        Array.Fill(_texts, AwkText.Empty, 0, active.Texts);
-        Array.Clear(_printSegments, 0, active.PrintSegments);
-        Array.Clear(_borrowedPrintFields, 0, active.PrintSegments);
+        if (reads > 0) Array.Clear(_getlineTargets, 0, reads);
+        if (active.ArrayTargets > 0) Array.Clear(_arrayTargets, 0, active.ArrayTargets);
+        if (active.Texts > 0) Array.Fill(_texts, AwkText.Empty, 0, active.Texts);
+        if (active.PrintSegments > 0)
+        {
+            Array.Clear(_printSegments, 0, active.PrintSegments);
+            Array.Clear(_borrowedPrintFields, 0, active.PrintSegments);
+        }
         ClearBuildersAndPayload(active.Builders);
     }
 

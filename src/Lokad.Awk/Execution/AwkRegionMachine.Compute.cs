@@ -56,10 +56,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.StatementBoundary:
                     if (output is { HasPendingOutput: true })
                     {
-                        if (_io is not { } io) throw new InvalidOperationException("Flush requires a host context.");
-                        _cursor = _cursor with { Position = position + 1 };
-                        _hostCompletion = output.FlushAsync(io);
-                        _pending = Pending.Flush;
+                        BeginFlush(output, position + 1, instruction.Detail);
                         goto Resume;
                     }
                     if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
@@ -620,9 +617,19 @@ internal partial struct AwkRegionMachine
                     BeginRead(region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
+                    if (output is { HasPendingOutput: true })
+                    {
+                        BeginFlush(output, position);
+                        goto Resume;
+                    }
                     Return(instruction.Left < 0 ? AwkValue.Unassigned() : Value(instruction.Left));
                     goto Resume;
                 case AwkRegionInstructionKind.ReturnNumber:
+                    if (output is { HasPendingOutput: true })
+                    {
+                        BeginFlush(output, position);
+                        goto Resume;
+                    }
                     ReturnNumber(numbers[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Jump:

@@ -15,6 +15,7 @@ internal partial struct AwkRegionMachine
     private ValueTask<AwkStatementFlow> _hostFlow;
     private ValueTask<AwkValue> _hostValue;
     private int _destination;
+    private int _flushFieldDemand;
     private AwkFunctionFrame? _enteringFrame;
     private bool _finished;
     private readonly AwkInputScheduler? _mainInput;
@@ -110,6 +111,15 @@ internal partial struct AwkRegionMachine
         _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()));
     }
 
+    private void BeginFlush(AwkOutputSink output, int resumePosition, int fieldDemand = 0)
+    {
+        if (_io is not { } io) throw new InvalidOperationException("Flush requires a host context.");
+        _cursor = _cursor with { Position = resumePosition };
+        _flushFieldDemand = fieldDemand;
+        _hostCompletion = output.FlushAsync(io);
+        _pending = Pending.Flush;
+    }
+
     private void CompleteHostOperation()
     {
         var completed = _pending;
@@ -123,9 +133,9 @@ internal partial struct AwkRegionMachine
         _state.ThrowIfCancellationRequested();
         if (completed == Pending.Flush)
         {
-            var instruction = _cursor.Region.Instructions[_cursor.Position - 1];
-            if (instruction.Kind == AwkRegionInstructionKind.StatementBoundary && instruction.Detail > 0)
-                _state.PrepareAdmittedFields(instruction.Detail);
+            var fieldDemand = _flushFieldDemand;
+            _flushFieldDemand = 0;
+            if (fieldDemand > 0) _state.PrepareAdmittedFields(fieldDemand);
         }
     }
 

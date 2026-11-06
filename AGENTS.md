@@ -104,6 +104,8 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
+  Return operands are captured before flushing; the return operation keeps its callee and
+  storage until actual output completion. Pending flushes carry their prepared field demand.
 - Recycled frames retain sufficient funded capacity across arities. Initialize omitted locals
   before publishing the activation; reconcile actual mutable arguments before registering aliases.
   Active local/scratch bounds govern cleanup; backing capacity and pending users keep their funding.
