@@ -260,6 +260,11 @@ internal sealed partial class AwkVariables
     internal bool TrySetCapturedArrayNumber(AwkArrayCell? cell, double number)
     {
         if (cell is null || !cell.IsAttached) return false;
+        if (cell.Kind == AwkVariableSlotKind.Number)
+        {
+            cell.SetSlot(AwkVariableSlot.FromNumber(number));
+            return true;
+        }
         SetArrayCell(cell, AwkVariableSlot.FromNumber(number));
         return true;
     }
@@ -364,7 +369,7 @@ internal sealed partial class AwkVariables
         if (_scalarSlotsByName.TryGetValue(name, out var id))
             return CreateValue(GetScalarCell(id).State.Slot).ForceScalar();
 
-        SetScalarSlot(name, new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
+        SetScalarSlot(name, AwkVariableSlot.Unassigned());
         return AwkValue.Unassigned();
 
     }
@@ -412,10 +417,17 @@ internal sealed partial class AwkVariables
     public AwkGlobalSlotId GetOrCreateScalarSlot(AwkVariableName name) =>
         GetOrCreateScalarSlotCore(name);
 
-    // Prepared ordinary-global ordinals exclude every special variable. Keep the
-    // existing slot mutation owner, including retirement of old text and origins.
-    internal void SetOrdinaryScalarNumber(AwkScalarCell cell, double number) =>
+    // Callers own language-level effects. Reuse this scalar's funded storage;
+    // text/origin transitions still go through the ordinary mutation owner.
+    internal void SetScalarCellNumber(AwkScalarCell cell, double number)
+    {
+        if (cell.State.Slot.Kind == AwkVariableSlotKind.Number)
+        {
+            cell.State.Slot = AwkVariableSlot.FromNumber(number);
+            return;
+        }
         StoreScalarSlot(cell, AwkVariableSlot.FromNumber(number), prepareOutputSeparator: false);
+    }
 
     // Implicit RT publication has no assignment callback. Reuse its prepared
     // representation while keeping mutation admission with the actual owner.
@@ -433,7 +445,7 @@ internal sealed partial class AwkVariables
     {
         var prior = cell.State.Slot;
         var number = prior.TryGetNumber(out var numeric) ? numeric : CreateValue(prior).AsNumber(_checkpoint);
-        StoreScalarSlot(cell, AwkVariableSlot.FromNumber(Math.Truncate(number) + 1), prepareOutputSeparator: false);
+        SetScalarCellNumber(cell, Math.Truncate(number) + 1);
     }
 
     public void InitializeArrayValues(AwkArrayName name, IReadOnlyList<KeyValuePair<AwkArrayKey, AwkValue>> values)
@@ -964,7 +976,7 @@ internal sealed partial class AwkVariables
         if (_scalarSlotsByName.TryGetValue(name, out var existing))
             return existing;
 
-        return AddScalarSlot(name, new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
+        return AddScalarSlot(name, AwkVariableSlot.Unassigned());
     }
 
     private AwkGlobalSlotId AddScalarSlot(AwkVariableName name, AwkVariableSlot slot)
@@ -1011,12 +1023,12 @@ internal sealed partial class AwkVariables
     private void StoreScalarSlot(AwkScalarCell cell, AwkVariableSlot slot, bool prepareOutputSeparator)
     {
         // A number overwrite retains its owner in either memory mode.
-        if (slot.Kind == AwkVariableSlotKind.Number &&
+        if (slot.TryGetNumber(out var number) &&
             cell.State.Slot.Kind == AwkVariableSlotKind.Number)
         {
             if (prepareOutputSeparator)
                 _prepareOutputFieldSeparatorAssignment();
-            cell.State.Slot = slot;
+            cell.State.Slot = AwkVariableSlot.FromNumber(number);
             return;
         }
 
@@ -1085,9 +1097,9 @@ internal sealed partial class AwkVariables
         var prior = cell.Slot;
         if (prior.TryGetArrayBinding(out _))
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar("array element"));
-        if (prior.Kind == AwkVariableSlotKind.Number && slot.Kind == AwkVariableSlotKind.Number)
+        if (prior.Kind == AwkVariableSlotKind.Number && slot.TryGetNumber(out var number))
         {
-            cell.SetSlot(slot);
+            cell.SetSlot(AwkVariableSlot.FromNumber(number));
             return;
         }
         // The cell/key/backing are already owned: only the scalar payload changes.

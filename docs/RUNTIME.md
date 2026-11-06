@@ -319,6 +319,8 @@ Bound field/composite assignments carry an ordinary-array miss through owned-key
 into the shared insertion preflight. Cold names and special arrays retain their resolution policy.
 Scalar and array updates use bound numeric sources, keeping arithmetic field reads byte-native.
 Captured prior numbers survive RHS calls and suspension; numeric stores retain mutation preflights.
+Plain numbers retain no text reference. Numeric overwrites reuse their funded owners;
+transitions from text, input values or untyped origins retain admission and payload retirement.
 Later text reads still preserve field input spelling.
 Nested-array storage belongs to its parent. Captured path keys stay funded through later
 mutation and actual completion of pending host operations; deleting an entry does not

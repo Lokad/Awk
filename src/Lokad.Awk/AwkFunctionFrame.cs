@@ -187,7 +187,7 @@ internal readonly struct AwkFunctionLocalSlot
     // Cleared cells are missing locals. Their language value is unassigned,
     // independently of the ordinary scalar slot's text-valued default.
     public AwkVariableSlot Value => Kind == AwkFunctionLocalSlotKind.MissingScalar
-        ? new(AwkText.Empty, AwkVariableSlotKind.Unassigned) : _value;
+        ? AwkVariableSlot.Unassigned() : _value;
 
     public AwkArrayName ArrayName { get; }
 

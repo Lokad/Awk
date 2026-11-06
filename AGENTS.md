@@ -131,6 +131,8 @@ or environment dependencies.
   numeric values still use current formatting and untyped origins retain scalar promotion.
   Ordinary string slots use one representation and defer numeric conversion on read.
   Keep actual input classification and mode-sensitive numeric-string reads separate.
+  Plain numbers retain no text reference. Keep immutable value/slot snapshots and use
+  existing numeric owner commits; type transitions still own admission and payload retirement.
   Prepared operands carry category, bound location and immutable fallback name directly. Reuse
   compiler variable descriptors; do not restore a separate variable metadata table. Runtime
   value-kind checks and real name fallback remain.

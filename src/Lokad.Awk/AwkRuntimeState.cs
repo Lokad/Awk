@@ -800,7 +800,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool TryAssignPreparedGlobalNumber(int index, double number)
     {
         if (_globalReadSlots is not { } slots || slots[index].Scalar is not { } cell) return false;
-        _variables.SetOrdinaryScalarNumber(cell, number);
+        _variables.SetScalarCellNumber(cell, number);
         return true;
     }
 
@@ -943,7 +943,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var text = terminator.ByteText;
         Counters.RecordPreparedRecordTerminatorSlot();
-        return new(text, text.ByteLength == 0 ? AwkVariableSlotKind.Unassigned : AwkVariableSlotKind.Text);
+        return text.ByteLength == 0 ? AwkVariableSlot.Unassigned() : AwkVariableSlot.FromText(text);
     }
 
     private void SetRecordTerminatorSlot(AwkVariableSlot slot)

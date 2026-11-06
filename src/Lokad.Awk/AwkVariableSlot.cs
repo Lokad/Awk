@@ -7,23 +7,16 @@ internal readonly struct AwkVariableSlot
     private readonly object? _text;
     private readonly double _number;
 
-    public AwkVariableSlot(string text, AwkVariableSlotKind kind)
-        : this(AwkText.FromString(text), kind)
-    {
-    }
-
-    public AwkVariableSlot(AwkText text, AwkVariableSlotKind kind)
+    private AwkVariableSlot(AwkText text, AwkVariableSlotKind kind)
     {
         _text = text;
-        _number = kind == AwkVariableSlotKind.Number
-            ? AwkValue.FromText(text).AsNumber()
-            : 0;
+        _number = 0;
         Kind = kind;
     }
 
     private AwkVariableSlot(double number)
     {
-        _text = AwkText.Empty;
+        _text = null;
         _number = number;
         Kind = AwkVariableSlotKind.Number;
     }
@@ -83,18 +76,20 @@ internal readonly struct AwkVariableSlot
     }
 
     public static AwkVariableSlot FromText(string text) =>
-        new(text, AwkVariableSlotKind.Text);
+        FromText(AwkText.FromString(text));
 
     public static AwkVariableSlot FromText(AwkText text) =>
         new(text, AwkVariableSlotKind.Text);
 
     public static AwkVariableSlot FromExternalText(string text) =>
-        new(text, AwkVariableSlotKind.NumericString);
+        FromExternalText(AwkText.FromString(text));
 
     public static AwkVariableSlot FromExternalText(AwkText text) =>
         new(text, AwkVariableSlotKind.NumericString);
 
     internal static AwkVariableSlot FromNumber(double value) => new(value);
+
+    internal static AwkVariableSlot Unassigned() => new(AwkText.Empty, AwkVariableSlotKind.Unassigned);
 
     public static AwkVariableSlot FromValue(AwkValue value)
     {

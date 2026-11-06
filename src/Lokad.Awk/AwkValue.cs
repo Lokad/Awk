@@ -33,8 +33,8 @@ internal enum AwkValueKind
 
 internal readonly struct AwkValue
 {
-    // One reference holds either ordinary text or an untouched scalar cell. This
-    // preserves the value's 24-byte layout while retaining argument origins.
+    // One reference holds text or an untouched scalar cell; numbers need neither.
+    // This preserves the 24-byte layout and immutable argument snapshots.
     private readonly object? _text;
     private readonly double _number;
     private readonly AwkValueKind _kind;
@@ -47,6 +47,13 @@ internal readonly struct AwkValue
         _text = text;
         _number = number;
         _kind = kind;
+    }
+
+    private AwkValue(double number)
+    {
+        _text = null;
+        _number = number;
+        _kind = AwkValueKind.Number;
     }
 
     public static AwkValue FromText(string text) =>
@@ -112,7 +119,7 @@ internal readonly struct AwkValue
     }
 
     public static AwkValue FromNumber(double value) =>
-        new(AwkText.Empty, value, AwkValueKind.Number);
+        new(value);
 
     internal static AwkValue FromPreparedNumericInput(AwkText text, double number) =>
         new(text, number, AwkValueKind.NumericString);
