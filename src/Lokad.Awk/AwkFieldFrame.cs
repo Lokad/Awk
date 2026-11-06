@@ -75,10 +75,10 @@ internal sealed class AwkFieldFrame(
             AwkText.CopyTrustedBytes(field.BytesInRecord(RecordBytes()), counters, governor, checkpoint);
     }
 
-    internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordSplitPlan plan)
+    internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordPublication publication)
     {
-        ReplaceRetainedMemory(EstimateEmptyRecordBytes(AwkText.Empty, plan));
-        _splitPlan = plan;
+        ReplaceRetainedMemory(publication.RetainedBytes);
+        _splitPlan = publication.SplitPlan;
         _recordText = AwkText.Empty;
         _bufferedStorage = storage;
         _bufferedSlot = slot;
@@ -100,7 +100,8 @@ internal sealed class AwkFieldFrame(
 
     private AwkText _recordText = AwkText.Empty;
     private AwkValue _recordValue = AwkValue.FromText(string.Empty);
-    private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
+    private AwkValue _fieldCountValue;
+    private bool _hasAssignedFieldCount;
     private List<AwkRecordField> _fieldTexts = [];
     internal readonly struct CachedFieldValue
     {
@@ -222,7 +223,7 @@ internal sealed class AwkFieldFrame(
     public AwkValue GetFieldCountValue()
     {
         EnsureFields();
-        return _fieldCountValue;
+        return _hasAssignedFieldCount ? _fieldCountValue : AwkValue.FromNumber(_fieldTexts.Count);
     }
 
     public AwkValue GetFieldValue(
@@ -423,10 +424,13 @@ internal sealed class AwkFieldFrame(
 
     public void SetRecordText(AwkText text) => SetRecordText(text, fieldSplitter.CaptureRecordPlan());
 
-    public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan)
+    public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan) =>
+        PublishRecordText(text, PrepareRecordPublication(text, splitPlan));
+
+    internal void PublishRecordText(AwkText text, AwkRecordPublication publication)
     {
-        ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan));
-        _splitPlan = splitPlan;
+        ReplaceRetainedMemory(publication.RetainedBytes);
+        _splitPlan = publication.SplitPlan;
         ClearBufferedRecord();
         _recordText = text;
         _recordWasRecomposed = false;
@@ -436,8 +440,11 @@ internal sealed class AwkFieldFrame(
         ClearSplitFields();
     }
 
-    public long EstimateRecordMemoryGrowth(AwkText text, AwkRecordSplitPlan splitPlan) =>
-        Math.Max(0, EstimateEmptyRecordBytes(text, splitPlan) - _retainedMemoryBytes);
+    internal AwkRecordPublication PrepareRecordPublication(AwkText text, AwkRecordSplitPlan splitPlan)
+    {
+        var retained = EstimateEmptyRecordBytes(text, splitPlan);
+        return new(splitPlan, retained, Math.Max(0, retained - _retainedMemoryBytes));
+    }
 
     public void SetRecordValue(
         AwkValue value,
@@ -545,7 +552,7 @@ internal sealed class AwkFieldFrame(
         _fieldPayloadByteLength = newPayloadByteLength;
         _numericFieldCount += (value.IsNumberValue ? 1 : 0) - (oldIsNumeric ? 1 : 0);
         if (newFieldCount > oldFieldCount)
-            _fieldCountValue = AwkValue.FromNumber(newFieldCount);
+            ClearAssignedFieldCount();
         MarkRecordForRecomposition(outputFieldSeparator);
         counters.RecordFieldsMaterialized(addedFields);
 
@@ -599,7 +606,7 @@ internal sealed class AwkFieldFrame(
                 _fieldTexts.Add(AwkRecordField.Empty);
         }
 
-        _fieldCountValue = AwkValue.FromNumber(index.Value);
+        ClearAssignedFieldCount();
         counters.RecordFieldsMaterialized(addedFields);
     }
 
@@ -694,6 +701,7 @@ internal sealed class AwkFieldFrame(
         _fieldPayloadByteLength = newPayloadByteLength;
         _numericFieldCount = newNumericFieldCount;
         _fieldCountValue = value;
+        _hasAssignedFieldCount = true;
         MarkRecordForRecomposition(outputFieldSeparator);
     }
 
@@ -930,10 +938,11 @@ internal sealed class AwkFieldFrame(
     {
         // Do not move allocation/admission ahead of its language operation. Warm
         // record-local storage can publish a shared prefix without another owner.
-        if (_fieldsAreSplit || maximum <= _fieldTexts.Count || maximum > _fieldTexts.Capacity ||
-            !_splitPlan.SupportsIncrementalFields ||
+        if (_fieldsAreSplit || maximum <= _fieldTexts.Count || maximum > _fieldTexts.Capacity) return;
+        var kind = _splitPlan.IncrementalKind;
+        if (kind == AwkIncrementalFieldKind.None ||
             (!HasBufferedRecord && !_recordText.HasAvailableBytes) ||
-            (!_splitPlan.Separator.UsesWhitespaceSemantics && !_splitPlan.Separator.ByteText.HasAvailableBytes)) return;
+            (kind == AwkIncrementalFieldKind.SingleByte && !_splitPlan.Separator.ByteText.HasAvailableBytes)) return;
         TryExtendFields(maximum, requireComplete: false);
     }
 
@@ -996,7 +1005,6 @@ internal sealed class AwkFieldFrame(
             if (complete)
             {
                 _fieldsAreSplit = true;
-                _fieldCountValue = AwkValue.FromNumber(fields.Count);
                 _splitPlan = default;
             }
             return complete;
@@ -1082,7 +1090,6 @@ internal sealed class AwkFieldFrame(
                 AwkRuntimeMemory.EstimateTextBytes(_recordText), fieldTexts, writer.Values, default) : 0;
             PublishStagedFields(fieldTexts, writer.Values, retainedBytes, writer.Staging, writer.Staging.Bytes);
             published = true;
-            _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
             _fieldPayloadByteLength = writer.PayloadBytes;
             counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
@@ -1108,7 +1115,7 @@ internal sealed class AwkFieldFrame(
 
     private void ClearSplitFields(bool releaseCache = false)
     {
-        _fieldCountValue = AwkValue.FromNumber(0);
+        ClearAssignedFieldCount();
         // Producers only write unpublished frame-owned destinations.
         if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer())
             _fieldTexts.Clear();
@@ -1123,6 +1130,15 @@ internal sealed class AwkFieldFrame(
         _recompositionSeparator = AwkText.Empty;
         _fieldPayloadByteLength = 0;
         _numericFieldCount = 0;
+    }
+
+    private void ClearAssignedFieldCount()
+    {
+        // Computed NF is already present in the descriptor count. Only an explicit
+        // assignment needs a value retaining its original spelling and origin.
+        if (!_hasAssignedFieldCount) return;
+        _fieldCountValue = default;
+        _hasAssignedFieldCount = false;
     }
 
     private AwkMemoryPeakAdmission PreflightRecomposition(long newRetainedBytes, int recordByteLength)

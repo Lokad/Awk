@@ -200,17 +200,20 @@ internal sealed class AwkByteFieldSplitter(
         }
     }
 
-    public int ExtendRecordFields(ReadOnlySpan<byte> line, AwkFieldSeparatorSpec separator,
+    public int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan,
         int position, int targetCount, ref AwkRecordFieldWriter writer)
     {
         if (line.IsEmpty) return -1;
-        if (separator.UsesWhitespaceSemantics)
+        var kind = plan.IncrementalKind;
+        if (kind == AwkIncrementalFieldKind.Whitespace)
         {
             var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters, position);
             while (writer.Count < targetCount && scanner.MoveNext(out var field, out _)) writer.Add(field);
             return scanner.Position == line.Length ? -1 : scanner.Position;
         }
-        var literal = separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
+        if (kind != AwkIncrementalFieldKind.SingleByte)
+            throw new InvalidOperationException("The record plan does not support incremental fields.");
+        var literal = plan.Separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
         var literalScanner = new AwkSingleByteFieldScanner(line, literal, throwIfCancellationRequested, position);
         while (writer.Count < targetCount && literalScanner.MoveNext(out var field, out _)) writer.Add(field);
         return literalScanner.Completed ? -1 : literalScanner.Position;

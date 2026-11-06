@@ -34,10 +34,17 @@ internal readonly record struct AwkRecordSplitPlan
     public AwkRegexCaseSensitivity CaseSensitivity { get; }
     public AwkRecordFieldSplittingMode RecordMode { get; }
 
-    public bool SupportsIncrementalFields =>
-        Mode == AwkFieldSplittingMode.FieldSeparator &&
-        (Separator.UsesWhitespaceSemantics ||
-         (RecordMode == AwkRecordFieldSplittingMode.Ordinary && Separator.ByteText.ByteLength == 1));
+    internal AwkIncrementalFieldKind IncrementalKind
+    {
+        get
+        {
+            var kind = _configuration?.IncrementalKind ?? AwkIncrementalFieldKind.Whitespace;
+            return kind == AwkIncrementalFieldKind.SingleByte && RecordMode != AwkRecordFieldSplittingMode.Ordinary
+                ? AwkIncrementalFieldKind.None : kind;
+        }
+    }
+
+    public bool SupportsIncrementalFields => IncrementalKind != AwkIncrementalFieldKind.None;
 
     public bool RequiresRegexSubject => _configuration?.RequiresRegexSubject ?? false;
 
@@ -60,9 +67,13 @@ internal readonly record struct AwkRecordSplitPlan
             Separator = separator;
             FieldPattern = fieldPattern;
             FieldWidths = fieldWidths;
+            var separates = mode == AwkFieldSplittingMode.FieldSeparator;
+            var whitespace = separates && separator.UsesWhitespaceSemantics;
+            var separatorLength = separates && !whitespace ? separator.ByteText.ByteLength : 0;
+            IncrementalKind = whitespace ? AwkIncrementalFieldKind.Whitespace :
+                separates && separatorLength == 1 ? AwkIncrementalFieldKind.SingleByte : AwkIncrementalFieldKind.None;
             RequiresRegexSubject = mode == AwkFieldSplittingMode.FieldPattern ||
-                (mode == AwkFieldSplittingMode.FieldSeparator && !separator.UsesWhitespaceSemantics &&
-                 separator.ByteText.ByteLength > 1);
+                (separates && !whitespace && separatorLength > 1);
         }
 
         public AwkFieldSplittingMode Mode { get; }
@@ -70,8 +81,11 @@ internal readonly record struct AwkRecordSplitPlan
         public AwkText FieldPattern { get; }
         public IReadOnlyList<AwkFieldWidth> FieldWidths { get; }
         public bool RequiresRegexSubject { get; }
+        public AwkIncrementalFieldKind IncrementalKind { get; }
     }
 }
+
+internal enum AwkIncrementalFieldKind : byte { Whitespace, SingleByte, None }
 
 internal enum AwkRecordFieldSplittingMode
 {

@@ -47,6 +47,8 @@ or environment dependencies.
   references. Owned spelling and scalar values live in the frame cache; detached byte views carry
   no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
   Text-only decoded CSV entries must not invoke the input-value factory early.
+  Computed NF comes from descriptor metadata; only explicit NF assignments retain an owned
+  value/origin. Preserve that spelling until a record or field-count transition resets it.
 - The record frame owns its splitting and value-construction services. Keep input and recomposed
   value origins separate, captured plans immutable, and mutation separators evaluated at the
   language boundary. Conditional field copies resolve their separator only after validating slices.
@@ -73,7 +75,7 @@ or environment dependencies.
   caches need no dummy text value; genuine initialization and observed-value origins stay distinct.
 - Internal record pulls return completion status. Take and clear cursor-owned metadata before
   publication, reentry or another read; pending host users retain their existing buffer ownership.
-  Reuse the admitted split plan for publication. RT text keeps string origin with conversion on use;
+  Reuse the prepared split plan and record-memory estimate at publication. RT text keeps string origin with conversion on use;
   absent terminators are unassigned. Keep header preflights before observable changes.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
