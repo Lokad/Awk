@@ -78,7 +78,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariableDispatcher? specialVariables = null;
         AwkFieldFrame? recordFields = null;
         _variables = new AwkVariables(
-            MemoryAccounting, Counters, CreateByteTextValue, CreateNumericStringValue, CreateDeferredTextValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+            MemoryAccounting, Counters, CreateNumericStringValue, CreateDeferredTextValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint);
         _functions = new AwkFunctionRuntime(
@@ -943,7 +943,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var text = terminator.ByteText;
         Counters.RecordPreparedRecordTerminatorSlot();
-        return new(text, text.ByteLength == 0 ? AwkVariableSlotKind.Unassigned : AwkVariableSlotKind.DeferredText);
+        return new(text, text.ByteLength == 0 ? AwkVariableSlotKind.Unassigned : AwkVariableSlotKind.Text);
     }
 
     private void SetRecordTerminatorSlot(AwkVariableSlot slot)

@@ -184,5 +184,5 @@ public sealed class AwkScalarMemoryModeTests
 
     private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
         Action<string, AwkValue> assign, Func<int> fieldCount, Action prepareOfs, Action? checkpoint = null) =>
-        new(accounting, counters, static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs, checkpoint: checkpoint);
+        new(accounting, counters, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs, checkpoint: checkpoint);
 }

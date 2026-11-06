@@ -1333,6 +1333,23 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_StoredStringsClassifyInputOnceAcrossLocalScalarAndArrayReads()
+    {
+        const string source = "function relay(x){return x}" +
+            "{v=relay($1);a[\"held\"]=v;n+=length(a[\"held\"]);m+=index(v,\"ay\")}" +
+            "END{print n,m}";
+        var single = await RunAsync([source], "say\n");
+        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("say\n", 256)));
+        Assert.Equal(0, single.ExitCode);
+        Assert.Equal(0, repeated.ExitCode);
+        Assert.Equal("3 2\n", single.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("768 512\n", repeated.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(255, repeated.Counters.TextValueClassifications - single.Counters.TextValueClassifications);
+        Assert.Equal(0, repeated.Counters.StringInteropFallbacks);
+        Assert.Equal(0, repeated.Counters.StringDecodes);
+    }
+
+    [Fact]
     public async Task Awk_QuotedTextDoesNotRepeatEagerClassificationAcrossKeysCallsAndAssignments()
     {
         const string source = "function echo(v){return v}" +

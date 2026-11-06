@@ -6,6 +6,12 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("stored-values-forward-input-and-string-origins",
+            ["function carry(x,a){a[\"saved\"]=x;return a[\"saved\"]}function relay(x,a){return carry(x,a)}{v=relay($1,a);w=relay($2,a);print typeof(v),v,v+0,(v==7),typeof(w),w,w+0,(w==7)}"],
+            [], "strnum 007 7 1 string 007tail 7 0\nstring word 0 0 strnum 0008 8 0\n", "007 007tail\nword 0008\n"),
+        Passing("stored-values-forward-deferred-string-errors",
+            ["--non-decimal-data", "function carry(x,a){a[\"saved\"]=x;return a[\"saved\"]}function ignore(x){return \"ok\"}BEGIN{v=carry(\"0x1.5\",a);print ignore(v),typeof(v),length(v);a[\"oct\"]=\"010\";x=a[\"oct\"];print x,x+0,typeof(x)}"],
+            [], "ok string 5\n010 8 string\n"),
         Passing("quoted-values-keep-string-origin-through-calls-and-keys",
             ["function echo(x){return x}BEGIN{a[\"007\"]=\"0007\";x=echo(a[\"007\"]);print typeof(x),x,(x==7),x+0;print typeof(\"12tail\"),(\"12tail\"==12),\"12tail\"+0;print length(\"sum\"),index(\"count\",\"ou\"),(\"\"?1:0),(\"0\"?1:0)}"],
             [], "string 0007 0 7\nstring 0 12\n3 2 0 1\n"),

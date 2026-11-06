@@ -140,6 +140,6 @@ public sealed partial class AwkFunctionStorageTests
 
     private static AwkFunctionCallStack Stack(CooperativeTestMemory memory, Action? checkpoint = null) =>
         new(1_024, memory.Accounting, static slot => slot.ToValue(
-            static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text),
+            static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)), checkpoint: checkpoint);
 }

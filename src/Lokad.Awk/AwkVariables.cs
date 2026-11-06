@@ -14,7 +14,6 @@ internal sealed partial class AwkVariables
     private static readonly string FieldCountName = AwkSpecialVariables.Name(AwkSpecialVariableId.FieldCount);
     private static readonly string OutputFieldSeparatorName = AwkSpecialVariables.Name(AwkSpecialVariableId.OutputFieldSeparator);
 
-    private readonly Func<AwkText, AwkValue> _createByteTextValue;
     private readonly Func<AwkText, AwkValue> _createNumericStringValue;
     private readonly Func<AwkText, AwkValue> _createDeferredTextValue;
     private readonly Action<string, AwkValue> _applyScalarAssignment;
@@ -84,7 +83,6 @@ internal sealed partial class AwkVariables
     public AwkVariables(
         AwkMemoryAccounting memoryAccounting,
         AwkRuntimeCounters counters,
-        Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
         Func<AwkText, AwkValue> createDeferredTextValue,
         Action<string, AwkValue> applyScalarAssignment,
@@ -99,7 +97,6 @@ internal sealed partial class AwkVariables
 
         _memoryAccounting = memoryAccounting;
         _counters = counters;
-        _createByteTextValue = createByteTextValue;
         _createNumericStringValue = createNumericStringValue;
         _createDeferredTextValue = createDeferredTextValue;
         _applyScalarAssignment = applyScalarAssignment;
@@ -571,7 +568,7 @@ internal sealed partial class AwkVariables
         {
             _symbolTable.AssignValue(
                 index.AsString(_counters, _checkpoint),
-                _createByteTextValue(AwkText.FromString(value, _counters, _memoryAccounting)));
+                _createDeferredTextValue(AwkText.FromString(value, _counters, _memoryAccounting)));
             return;
         }
 
@@ -944,7 +941,7 @@ internal sealed partial class AwkVariables
     internal AwkValue CreateValue(AwkVariableSlot slot) =>
         slot.Kind == AwkVariableSlotKind.PreparedNumericString
             ? CreatePreparedNumericInput(slot)
-            : slot.ToValue(_createByteTextValue, _createNumericStringValue, _createDeferredTextValue);
+            : slot.ToValue(_createNumericStringValue, _createDeferredTextValue);
 
     private AwkValue CreatePreparedNumericInput(AwkVariableSlot slot)
     {

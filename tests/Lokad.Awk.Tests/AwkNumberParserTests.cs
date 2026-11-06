@@ -35,9 +35,7 @@ public sealed class AwkNumberParserTests
         var text = AwkText.FromSourceLiteralString("0x1.8");
         var input = AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData);
         var slot = AwkVariableSlot.FromValue(input);
-        var restored = slot.ToValue(
-            static text => AwkValue.FromText(text, AwkNumberParsingMode.NonDecimalData),
-            static text => AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData),
+        var restored = slot.ToValue(static text => AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.NonDecimalData));
         var literal = AwkValue.FromText(text, AwkNumberParsingMode.NonDecimalData);
 

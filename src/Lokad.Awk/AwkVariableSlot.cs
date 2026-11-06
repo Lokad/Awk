@@ -107,8 +107,6 @@ internal readonly struct AwkVariableSlot
         AwkVariableSlotKind kind;
         if (value.IsUnassignedValue)
             kind = AwkVariableSlotKind.Unassigned;
-        else if (value.IsDeferredTextValue)
-            kind = AwkVariableSlotKind.DeferredText;
         else if (value.RetainsInputClassification)
             kind = AwkVariableSlotKind.NumericString;
         else
@@ -128,7 +126,7 @@ internal readonly struct AwkVariableSlot
     internal bool TryGetStoredScalarText(out AwkText text)
     {
         if (Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.NumericString or
-            AwkVariableSlotKind.PreparedNumericString or AwkVariableSlotKind.DeferredText or
+            AwkVariableSlotKind.PreparedNumericString or
             AwkVariableSlotKind.Unassigned)
         {
             text = ByteText;
@@ -157,8 +155,9 @@ internal readonly struct AwkVariableSlot
     public AwkValue GetPreparedNumericInput() =>
         AwkValue.FromPreparedNumericInput(ByteText, _number);
 
+    // String slots already have their origin; only input slots need classification.
+    // Numeric consumption of ordinary text uses the reading execution's mode.
     public AwkValue ToValue(
-        Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
         Func<AwkText, AwkValue> createDeferredTextValue) =>
         Kind switch
@@ -168,8 +167,7 @@ internal readonly struct AwkVariableSlot
             AwkVariableSlotKind.Untyped when _text is AwkUntypedScalar scalar => AwkValue.FromUntypedScalar(scalar),
             AwkVariableSlotKind.Number => AwkValue.FromNumber(_number),
             AwkVariableSlotKind.NumericString or AwkVariableSlotKind.PreparedNumericString => createNumericStringValue(ByteText),
-            AwkVariableSlotKind.DeferredText => createDeferredTextValue(ByteText),
-            _ => createByteTextValue(ByteText)
+            _ => createDeferredTextValue(ByteText)
         };
 }
 
@@ -180,7 +178,6 @@ internal enum AwkVariableSlotKind
     Untyped,
     Number,
     NumericString,
-    DeferredText,
     PreparedNumericString,
     ArrayBinding
 }

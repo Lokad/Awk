@@ -306,11 +306,6 @@ internal readonly struct AwkValue
     public bool IsUntypedValue => _kind == AwkValueKind.Untyped &&
         _text is AwkUntypedScalar { IsScalar: false, Array: null };
 
-    public bool IsDeferredTextValue => _kind is
-        AwkValueKind.DeferredDecimalText or
-        AwkValueKind.DeferredHexadecimalText or
-        AwkValueKind.DeferredNonDecimalText;
-
     public bool TryGetArrayOrdinal(out int ordinal)
     {
         if (_kind == AwkValueKind.Number &&

@@ -202,9 +202,9 @@ spelling and origin; their cache is read before any later mutation or suspension
 Comparisons and introspection can reuse record-local classification and bytes. Values that
 escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
-Quoted literals retain string origin and spelling through keys, assignments and calls;
-their numeric conversion runs only when consumed numerically. Input numeric-string
-classification remains separate.
+String values retain origin and spelling through keys, assignments and calls. Stored
+strings convert numerically when consumed, using the reading execution's mode; repeated
+string reads do not classify them again. Input numeric-string classification stays separate.
 Interpreter preparation binds operands, scalar/array locations, special-scalar reads and
 function targets. Computed values such as `NF` still resolve at their actual use.
 Array updates bind their numeric RHS at preparation. Complete synchronous updates keep their

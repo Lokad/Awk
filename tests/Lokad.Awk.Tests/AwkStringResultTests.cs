@@ -46,7 +46,7 @@ public sealed class AwkStringResultTests
         Assert.Equal(new AwkArrayKey("008"), key);
         Assert.NotEqual(AwkArrayKey.FromOrdinal(8), key);
         var slot = AwkVariableSlot.FromValue(result);
-        var restored = slot.ToValue(state.CreateByteTextValue, state.CreateNumericStringValue, state.CreateDeferredTextValue);
+        var restored = slot.ToValue(state.CreateNumericStringValue, state.CreateDeferredTextValue);
         Assert.Equal(8, restored.AsNumber(state.CancellationCheckpoint));
         Assert.Equal(AwkRuntimeValueKind.String, restored.RuntimeKind);
         Assert.Same(result.ByteText, restored.ByteText);

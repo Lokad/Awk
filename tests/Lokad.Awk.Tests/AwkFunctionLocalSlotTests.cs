@@ -13,7 +13,7 @@ public sealed class AwkFunctionLocalSlotTests
         using var memoryForMemory = new CooperativeTestMemory(1 << 20, AwkRuntimeCounters.Disabled);
         var memory = memoryForMemory.Accounting;
         var stack = new AwkFunctionCallStack(2, memory, static slot => slot.ToValue(
-            static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text),
+            static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
         var name = AwkVariableName.FromText("x");
         var slot = new AwkFunctionLocalSlotId(0);
@@ -336,7 +336,7 @@ public sealed class AwkFunctionLocalSlotTests
         new(
             maxFunctionCallDepth: 8,
             AwkMemoryAccounting.Disabled,
-            static slot => slot.ToValue(static text => AwkValue.FromText(text),
+            static slot => slot.ToValue(
                 static text => AwkValue.FromNumericString(text),
                 static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
 }

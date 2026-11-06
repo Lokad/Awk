@@ -126,6 +126,8 @@ or environment dependencies.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
   NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;
   numeric values still use current formatting and untyped origins retain scalar promotion.
+  Ordinary string slots use one representation and defer numeric conversion on read.
+  Keep actual input classification and mode-sensitive numeric-string reads separate.
   Prepared operands carry category, bound location and immutable fallback name directly. Reuse
   compiler variable descriptors; do not restore a separate variable metadata table. Runtime
   value-kind checks and real name fallback remain.

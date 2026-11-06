@@ -9,7 +9,7 @@ public sealed class AwkArrayEstimateTests
     public void RefusedIdentityAdmissionDoesNotPublishAnArray()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
         var name = AwkArrayName.FromText("values");
         var retained = memory.Budget.Reserved;
@@ -25,7 +25,7 @@ public sealed class AwkArrayEstimateTests
     public void SplitPairIdentitiesStayFundedUntilTheirFunctionScopeRetires()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
         var first = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("fields"), 1);
         var retained = memory.Budget.Reserved;
@@ -98,7 +98,7 @@ public sealed class AwkArrayEstimateTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
-        var variables = new AwkVariables(accounting, counters, static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
+        var variables = new AwkVariables(accounting, counters, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);
@@ -135,7 +135,7 @@ public sealed class AwkArrayEstimateTests
     public void DeletingEntriesKeepsBackingCapacityFundedUntilTheArrayIsCleared()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
         var name = AwkArrayName.FromText("values");
         variables.ClearArray(name);
@@ -158,7 +158,7 @@ public sealed class AwkArrayEstimateTests
     public void RefusedBackingGrowthPreservesAdmittedEntriesAndRefundsOnClear()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromText,
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
         var name = AwkArrayName.FromText("values");
         variables.ClearArray(name);
