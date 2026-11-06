@@ -414,7 +414,7 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             case AwkExpressionKind.Variable:
                 if (!Variable(syntax, out var variable)) return false;
-                result = Operand(AwkRegionOperandKind.Variable, variable);
+                result = Operand(_variables[variable].Kind, variable);
                 return true;
             default: return false;
         }
@@ -701,13 +701,13 @@ internal sealed partial class AwkRegionCompiler
             index = _variables.Count;
             _variableIndices.Add(name, index);
             if (_scope.TryGetFunctionLocalSlot(name, out var slot))
-                _variables.Add(new(name, AwkRegionVariableKind.Local, slot.Index));
+                _variables.Add(new(name, AwkRegionOperandKind.LocalVariable, slot.Index));
             else if (AwkSpecialVariables.TryGetScalar(name, out var id) &&
                 AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode))
-                _variables.Add(new(name, AwkRegionVariableKind.Special, (int)id));
+                _variables.Add(new(name, AwkRegionOperandKind.SpecialVariable, (int)id));
             else if (_scope.TryGetGlobalReadIndex(name, out var global))
-                _variables.Add(new(name, AwkRegionVariableKind.Global, global));
-            else _variables.Add(new(name, AwkRegionVariableKind.Dynamic, -1));
+                _variables.Add(new(name, AwkRegionOperandKind.GlobalVariable, global));
+            else _variables.Add(new(name, AwkRegionOperandKind.DynamicVariable, -1));
         }
         return true;
     }
@@ -735,12 +735,9 @@ internal sealed partial class AwkRegionCompiler
             AwkRegionOperandKind.Literal => AwkRegionInstructionKind.LiteralNumber,
             AwkRegionOperandKind.ValueTemporary => AwkRegionInstructionKind.ValueNumber,
             AwkRegionOperandKind.ArrayElement => AwkRegionInstructionKind.ArrayNumber,
-            AwkRegionOperandKind.Variable => _variables[source.Index] switch
-            {
-                { Kind: AwkRegionVariableKind.Local } => AwkRegionInstructionKind.LocalNumber,
-                { Kind: AwkRegionVariableKind.Global } => AwkRegionInstructionKind.GlobalNumber,
-                _ => AwkRegionInstructionKind.VariableNumber
-            },
+            AwkRegionOperandKind.LocalVariable => AwkRegionInstructionKind.LocalNumber,
+            AwkRegionOperandKind.GlobalVariable => AwkRegionInstructionKind.GlobalNumber,
+            AwkRegionOperandKind.SpecialVariable or AwkRegionOperandKind.DynamicVariable => AwkRegionInstructionKind.VariableNumber,
             _ => throw new InvalidOperationException("A numeric operand requires a value location.")
         };
         Emit(new(kind, target, source.Index));
@@ -758,7 +755,8 @@ internal sealed partial class AwkRegionCompiler
 
     private void Discard(int operand)
     {
-        if (_operands[operand].Kind is AwkRegionOperandKind.Variable or AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement)
+        var source = _operands[operand];
+        if (source.IsVariable || source.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement)
             Emit(new(AwkRegionInstructionKind.Discard, Left: operand));
     }
 

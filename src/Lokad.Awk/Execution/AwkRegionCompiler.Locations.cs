@@ -46,7 +46,7 @@ internal sealed partial class AwkRegionCompiler
                 if (strict && syntax.Kind is not (AwkExpressionKind.Variable or AwkExpressionKind.Field or AwkExpressionKind.ArrayElement))
                     return false;
                 if (compiler.Variable(syntax, out var variable))
-                    return Complete(new(compiler.Operand(AwkRegionOperandKind.Variable, variable)));
+                    return Complete(new(compiler.Operand(compiler._variables[variable].Kind, variable)));
                 var unwrapped = syntax;
                 while (unwrapped.Kind == AwkExpressionKind.Group && unwrapped.Children.Count == 1)
                 {
@@ -203,7 +203,7 @@ internal sealed partial class AwkRegionCompiler
                 Detail: (int)operation));
             _activeUpdates--;
         }
-        else if (_operands[update.Target.Operand] is { Kind: AwkRegionOperandKind.Variable } variable)
+        else if (_operands[update.Target.Operand] is { IsVariable: true } variable)
         {
             // Captures crossing RHS instructions stay where they were evaluated.
             // An adjacent load can belong to this same complete operation; its

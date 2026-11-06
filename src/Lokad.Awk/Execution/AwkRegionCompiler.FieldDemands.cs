@@ -90,8 +90,8 @@ internal sealed partial class AwkRegionCompiler
             return value.Kind switch
             {
                 AwkRegionOperandKind.Field => Field(value.Index),
-                AwkRegionOperandKind.Variable => _variables[value.Index].Kind is
-                    AwkRegionVariableKind.Local or AwkRegionVariableKind.Global,
+                AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable => true,
+                AwkRegionOperandKind.SpecialVariable or AwkRegionOperandKind.DynamicVariable => false,
                 AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement => false,
                 _ => true
             };

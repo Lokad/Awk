@@ -93,10 +93,13 @@ internal sealed class AwkRegion(
 internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
     int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0, int Sorts = 0);
-internal enum AwkRegionOperandKind : byte { Variable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder, ArrayPrevious }
-internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index);
-internal enum AwkRegionVariableKind : byte { Dynamic, Global, Local, Special }
-internal readonly record struct AwkRegionVariable(AwkVariableName Name, AwkRegionVariableKind Kind, int Index);
+internal enum AwkRegionOperandKind : byte { DynamicVariable, GlobalVariable, LocalVariable, SpecialVariable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder, ArrayPrevious }
+internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index)
+{
+    internal bool IsVariable => Kind is AwkRegionOperandKind.DynamicVariable or AwkRegionOperandKind.GlobalVariable or
+        AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.SpecialVariable;
+}
+internal readonly record struct AwkRegionVariable(AwkVariableName Name, AwkRegionOperandKind Kind, int Index);
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,

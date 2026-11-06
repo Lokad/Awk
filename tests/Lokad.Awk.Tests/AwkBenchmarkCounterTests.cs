@@ -12,6 +12,8 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("global", false)] [InlineData("global", true)]
     [InlineData("local", false)] [InlineData("local", true)]
     [InlineData("switch-local", false)] [InlineData("switch-local", true)]
+    [InlineData("special", false)] [InlineData("special", true)]
+    [InlineData("shadowed-global", false)] [InlineData("shadowed-global", true)]
     [InlineData("field", false)] [InlineData("field", true)]
     [InlineData("array", false)] [InlineData("array", true)]
     [InlineData("nested", false)] [InlineData("nested", true)]
@@ -24,6 +26,8 @@ public sealed partial class AwkBenchmarkCounterTests
             {
                 "local" => "function update(x){x" + operation + "=$2;return x}{total+=update(8)}",
                 "switch-local" => "function update(x){switch(x){default:break}x" + operation + "=$2;return x}{total+=update(8)}",
+                "special" => "{RSTART=8;RSTART" + operation + "=$2;total+=RSTART}",
+                "shadowed-global" => "function update(x){x" + operation + "=$2;return x}BEGIN{x=100}{total+=update(8)}",
                 "field" => "{$1" + operation + "=$2;total+=$1}",
                 "array" => "{a[\"row\"]=8;a[\"row\"]" + operation + "=$2;total+=a[\"row\"]}",
                 "nested" => "{a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]" + operation + "=$2;total+=a[\"row\"][\"sum\"]}",
@@ -34,12 +38,12 @@ public sealed partial class AwkBenchmarkCounterTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var budget = new CooperativeTestBudget(8 << 20);
             await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-                AwkTestHarness.BuildInvocation("awk", source + " END{print total}"), CancellationToken.None,
+                AwkTestHarness.BuildInvocation("awk", source + (target == "shadowed-global" ? " END{print total,x}" : " END{print total}")), CancellationToken.None,
                 regexEngine: AwkUtf8RegexEngine.Instance);
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(0, exit.Value);
-            Assert.Equal((records * expected).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
+            Assert.Equal((records * expected).ToString(System.Globalization.CultureInfo.InvariantCulture) + (target == "shadowed-global" ? " 100\n" : "\n"),
                 host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.True(counters.NumericFieldByteParses >= records);
