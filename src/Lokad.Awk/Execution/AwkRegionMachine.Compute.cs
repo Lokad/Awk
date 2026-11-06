@@ -340,10 +340,6 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.PathEnd:
                     storage.ReleasePath(instruction.Target);
                     break;
-                case AwkRegionInstructionKind.PathNumber:
-                    var numericPath = storage.Path(instruction.Left);
-                    numbers[instruction.Target] = state.GetArrayNumber(numericPath.ResolveOwner(state), numericPath.Key);
-                    break;
                 case AwkRegionInstructionKind.ArrayRead:
                     storage.StoreValue(instruction.Target, ReadArray(arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
                     break;
@@ -454,7 +450,9 @@ internal partial struct AwkRegionMachine
                         ReadUpdateNumber(updateSite.Right),
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
-                    state.CommitArrayUpdate(updateSite.Name, capturedUpdate, updated);
+                    if (updateSite.Path >= 0)
+                        state.CommitArrayUpdate(storage.Path(updateSite.Path), capturedUpdate, updated);
+                    else state.CommitArrayUpdate(updateSite.Name, capturedUpdate, updated);
                     if (updateSite.PrepareAccess < 0) storage.ReleaseTarget(updateSite.Slot);
                     numbers[instruction.Target] = updated;
                     break;
@@ -788,6 +786,11 @@ internal partial struct AwkRegionMachine
         AwkArrayUpdateTarget PrepareArrayUpdate(int accessIndex, bool complete)
         {
             var access = arrays[accessIndex];
+            if (access.Path >= 0)
+            {
+                var path = storage.Path(access.Path);
+                return state.PrepareArrayUpdate(path.ResolveOwner(state), path.Key);
+            }
             var key = operands[access.Key];
             var target = key.Kind switch
             {

@@ -42,6 +42,8 @@ or environment dependencies.
   never retain a dictionary entry reference across RHS evaluation.
   Plain field/composite assignments consume located cells directly; preserve captured RHS values,
   special-array behavior and owned-key admission on misses without repeating a successful lookup.
+  Nested numeric updates use the same captured targets, retaining their owned path through commit.
+  Re-resolve detached logical owners before using a cell; do not restore separate nested arithmetic/store transport.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.

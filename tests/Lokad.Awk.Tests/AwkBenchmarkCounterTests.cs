@@ -93,6 +93,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.True(counters.BoundFunctionRuns > 0);
         Assert.Equal(0, counters.FunctionNameLookups);
         Assert.True(counters.IndexedLocalArrayAccesses > 0);
+        Assert.InRange(counters.ArrayCellCommits, records * 2 - keys * 2, records * 2);
         Assert.True(counters.NumericFieldByteParses >= records);
         Assert.InRange(counters.AwkTextAllocations, 0, records + 64); // Keys still own spelling; arithmetic values do not.
         Assert.Equal(0, counters.StringDecodes);

@@ -43,6 +43,8 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut("9 1\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-compound-child-replacement", ["function wipe(){delete a[\"r\"];a[\"r\"][\"other\"]=4;return 2} BEGIN{a[\"r\"][\"c\"]=7;a[\"r\"][\"c\"]+=wipe();print a[\"r\"][\"c\"],a[\"r\"][\"other\"]}"], [])
             .WithStdOut("9 4\n").Build(),
+        AwkGoldenCaseBuilder.Create("nested-array-compound-leaf-replacement", ["function replace(){delete a[\"r\"][\"c\"];a[\"r\"][\"c\"]=20;return 2} BEGIN{a[\"r\"][\"c\"]=7;a[\"r\"][\"c\"]+=replace();print a[\"r\"][\"c\"],length(a[\"r\"])}"], [])
+            .WithStdOut("9 1\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-final-index-parent-clear", ["function idx(){n++;delete a;return \"c\"} BEGIN{a[\"r\"][\"old\"]=3;a[\"r\"][idx()]=7;print a[\"r\"][\"c\"],length(a),n}"], [])
             .WithStdOut("7 1 1\n").Build(),
         AwkGoldenCaseBuilder.Create("nested-array-deep-index-parent-clear", ["function idx(){n++;delete a[\"r\"];return \"c\"} BEGIN{a[\"r\"][\"s\"][\"old\"]=3;print a[\"r\"][\"s\"][idx()]++;print a[\"r\"][\"s\"][\"c\"],n}"], [])

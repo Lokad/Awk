@@ -79,18 +79,14 @@ internal sealed partial class AwkRegionCompiler
             var location = CompletedResult<PreparedLocation>(completed);
             if (location.Access < 0)
                 return Complete(new(new(location.Operand, -1), compiler.CaptureNumber(location.Operand)));
-            if (compiler._arrays[location.Access].Path >= 0)
-            {
-                var number = compiler._numbers++;
-                var prior = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
-                compiler.Emit(new(AwkRegionInstructionKind.PathNumber, number, compiler._arrays[location.Access].Path));
-                return Complete(new(new(location.Operand, -1), prior));
-            }
+            var access = compiler._arrays[location.Access];
             var captured = compiler._updates.Count;
             var slot = compiler._activeUpdates++;
-            compiler._updates.Add(new(compiler._arrays[location.Access].Name, slot));
+            compiler._updates.Add(new(access.Name, slot, Path: access.Path));
             compiler.Emit(new(AwkRegionInstructionKind.ArrayPrepare, slot, location.Access));
-            compiler.FinishKey(location.Access);
+            // Nested keys must remain available to repair the logical owner if
+            // RHS computation detaches or replaces the captured child.
+            if (access.Path < 0) compiler.FinishKey(location.Access);
             return Complete(new(new(location.Operand, captured), compiler.Operand(AwkRegionOperandKind.ArrayPrevious, slot)));
         }
     }
@@ -201,6 +197,7 @@ internal sealed partial class AwkRegionCompiler
             _updates[update.Target.Capture] = site;
             Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture,
                 Detail: (int)operation));
+            if (site.Path >= 0) Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
             _activeUpdates--;
         }
         else if (_operands[update.Target.Operand].IsVariable)

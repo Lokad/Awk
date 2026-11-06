@@ -206,6 +206,8 @@ Array updates bind their numeric RHS at preparation. Complete synchronous update
 stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.
 Only captures that cross instructions retain target storage and its cleanup. Earlier captures
 remain funded across RHS mutation, calls or suspension.
+Nested numeric updates use the same captured-cell operation. Their owned path repairs the
+destination after RHS deletion or replacement; a valid captured cell avoids a second lookup.
 Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
 capacity checks and initialization. Switching bodies refreshes preparation without retaining
 unrelated scratch payloads.

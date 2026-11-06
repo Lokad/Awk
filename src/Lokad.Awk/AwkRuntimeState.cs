@@ -1364,6 +1364,18 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
         _arrayRuntime.PrepareUpdate(name, key, binding);
 
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key) =>
+        _variables.PrepareArrayUpdate(array, key);
+
+    internal void CommitArrayUpdate(AwkCapturedArrayPath path, AwkArrayUpdateTarget target, double number)
+    {
+        var array = path.ResolveOwner(this);
+        if (ReferenceEquals(array, target.Array) && _variables.TrySetCapturedArrayNumber(target.Cell, number))
+            Counters.RecordArrayCellCommit();
+        else _variables.SetArrayValue(array, path.Key, AwkValue.FromNumber(number));
+        Counters.RecordBoundArrayUpdate();
+    }
+
     internal void CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
     {
         if (target.Array is { IsDetached: false } array)

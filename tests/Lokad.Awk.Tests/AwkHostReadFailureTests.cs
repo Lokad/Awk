@@ -91,6 +91,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     [InlineData("complete", "local")] [InlineData("cancel", "local")] [InlineData("refuse", "local")]
     [InlineData("complete", "field")] [InlineData("cancel", "field")] [InlineData("refuse", "field")]
     [InlineData("complete", "nested")] [InlineData("cancel", "nested")] [InlineData("refuse", "nested")]
+    [InlineData("complete", "nested-replaced")] [InlineData("cancel", "nested-replaced")] [InlineData("refuse", "nested-replaced")]
     public async Task NumericCompoundKeepsItsCapturedLeftAcrossPendingRecordReplacement(string outcome, string target)
     {
         var host = new MockFileSystem();
@@ -110,10 +111,11 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         {
             "local" => "print calculate(8)",
             "field" => "$1+=more();print $1,$2",
-            "nested" => "a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]+=more();print a[\"row\"][\"sum\"]",
+            "nested" or "nested-replaced" => "a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]+=more();print a[\"row\"][\"sum\"]",
             _ => "x=8;x+=more();print x"
         };
-        var source = "function more(){getline;return $1} function calculate(x){x+=more();return x} " +
+        var replacement = target == "nested-replaced" ? "delete a[\"row\"];a[\"row\"][\"sum\"]=20;" : "";
+        var source = "function more(){getline;" + replacement + "return $1} function calculate(x){x+=more();return x} " +
             "BEGIN{$0=\"8 old\";print \"ready\";" + body + ";exit}END{print \"completed\"}";
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var budget = new CooperativeTestBudget(4 << 20);
