@@ -203,6 +203,27 @@ internal sealed partial class AwkRegionCompiler
                 Detail: (int)operation));
             _activeUpdates--;
         }
+        else if (_operands[update.Target.Operand] is { Kind: AwkRegionOperandKind.Variable } variable)
+        {
+            // Captures crossing RHS instructions stay where they were evaluated.
+            // An adjacent load can belong to this same complete operation; its
+            // register still publishes the old number for postfix consumers.
+            var source = _operands[right];
+            if (source.Kind == AwkRegionOperandKind.ValueTemporary) source = _operands[CaptureNumber(right)];
+            var previous = NumericRegister(update.Prior);
+            var capturePrevious = _code.Count != 0 && _code[^1] is var capture &&
+                capture.Target == previous && capture.Left == variable.Index &&
+                capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
+                    AwkRegionInstructionKind.VariableNumber;
+            if (capturePrevious)
+            {
+                _code.RemoveAt(_code.Count - 1);
+                _straightLine--;
+            }
+            var site = _scalarUpdates.Count;
+            _scalarUpdates.Add(new(variable.Index, previous, source, capturePrevious));
+            Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site, Detail: (int)operation));
+        }
         else
         {
             Emit(new(AwkRegionInstructionKind.Compound, number, NumericRegister(update.Prior),

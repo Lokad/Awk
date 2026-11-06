@@ -27,6 +27,16 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("numeric-updates-preserve-input-field-spelling-across-targets",
             ["function update(x){x+=$2;return x}{x=8;x+=$2;a[\"row\"][\"sum\"]=8;a[\"row\"][\"sum\"]+=$2;print x,update(8),a[\"row\"][\"sum\"],$2,$2==2;$1+=$2;print $1,$2}"],
             [], "10 10 10 0002 1\n10 0002\n", "8 0002\n");
+        yield return AwkGoldenCaseBuilder.Create("scalar-compound-keeps-prior-across-rhs-call",
+            ["function rhs(){x=100;return 3}BEGIN{x=7;r=(x+=rhs());print r,x}"], [])
+            .WithStdOut("10 10\n")
+            .WithNondeterminismNote("Lokad captures the scalar prior number before RHS effects; assignment operand order may differ between implementations.")
+            .Build();
+        yield return AwkGoldenCaseBuilder.Create("scalar-local-compound-keeps-postfix-and-prior-across-rhs-assignment",
+            ["function f(x,old,r){old=x++;r=(x+=(x=100));print old,r,x,typeof(x)}BEGIN{f(\"0007\");f(\"0012\")}"], [])
+            .WithStdOut("7 108 108 number\n12 113 113 number\n")
+            .WithNondeterminismNote("Lokad captures the local prior number before RHS effects and returns a numeric postfix value; assignment operand order may differ between implementations.")
+            .Build();
         yield return AwkGoldenCaseBuilder.Create(
             "array-compound-captures-key-and-left-before-right-effects",
             ["BEGIN{i=1;a[1]=7;print (a[i++] += (a[1]=100)),i,a[1];SUBSEP=\":\";a[1,2]=5;print (a[1,2] += ((SUBSEP=\"/\")?3:0)),a[\"1:2\"],a[1,2]+0}"],

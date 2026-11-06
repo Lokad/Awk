@@ -423,30 +423,22 @@ internal partial struct AwkRegionMachine
                     // A region poll cannot replace the check before an observable store.
                     AssignVariable(variables[instruction.Target], value);
                     break;
-                case AwkRegionInstructionKind.AssignLocalNumber:
+                case AwkRegionInstructionKind.AssignNumber:
+                    AssignVariableNumber(variables[instruction.Target], numbers[instruction.Left]);
+                    break;
+                case AwkRegionInstructionKind.ScalarUpdate:
                 {
-                    state.ThrowIfCancellationRequested();
-                    var local = variables[instruction.Target];
-                    var number = numbers[instruction.Left];
-                    if (frame is { } localFrame && localFrame.TryWriteNumber(local.Index, number))
-                        state.Counters.RecordBoundFrameNumberWrite();
-                    else
-                        state.AssignFunctionLocalValue(new(local.Index), local.Name, AwkValue.FromNumber(number));
+                    var update = region.ScalarUpdates[instruction.Left];
+                    var previous = update.CapturePrevious
+                        ? ReadUpdateNumber(new(AwkRegionOperandKind.Variable, update.Variable))
+                        : numbers[update.Previous];
+                    if (update.CapturePrevious) numbers[update.Previous] = previous;
+                    var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
+                        ReadUpdateNumber(update.Right), (AwkCompoundAssignmentOperation)instruction.Detail);
+                    AssignVariableNumber(variables[update.Variable], updated);
+                    numbers[instruction.Target] = updated;
                     break;
                 }
-                case AwkRegionInstructionKind.AssignGlobalNumber:
-                {
-                    state.ThrowIfCancellationRequested();
-                    var global = variables[instruction.Target];
-                    var number = numbers[instruction.Left];
-                    if (!state.TryAssignPreparedGlobalNumber(global.Index, number))
-                        state.AssignPreparedGlobalValue(global.Name, global.Index, AwkValue.FromNumber(number));
-                    break;
-                }
-                case AwkRegionInstructionKind.AssignVariableNumber:
-                    state.ThrowIfCancellationRequested();
-                    state.AssignVariableValue(variables[instruction.Target].Name, AwkValue.FromNumber(numbers[instruction.Left]));
-                    break;
                 case AwkRegionInstructionKind.AssignField:
                     var fieldValue = Value(instruction.Left);
                     state.ThrowIfCancellationRequested();
@@ -801,7 +793,14 @@ internal partial struct AwkRegionMachine
                         ? state.GetArrayFieldNumber(access.Name, FieldOrdinal(key), access.Binding)
                         : state.GetArrayNumber(access.Name, Key(access), access.Binding);
                 case AwkRegionOperandKind.Variable:
-                    return ReadVariable(variables[operand.Index]).AsNumber(state.CancellationCheckpoint);
+                {
+                    var variable = variables[operand.Index];
+                    if (variable.Kind == AwkRegionVariableKind.Global &&
+                        state.TryResolvePreparedGlobalNumber(variable.Index, out var globalNumber)) return globalNumber;
+                    if (variable.Kind == AwkRegionVariableKind.Local && frame is not null &&
+                        TryLocalNumber(variable.Index, out var localNumber)) return localNumber;
+                    return ReadVariable(variable).AsNumber(state.CancellationCheckpoint);
+                }
                 default:
                     throw new InvalidOperationException("An array update requires a numeric value location.");
             }

@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
     AwkRegionVariable[] variables, AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
-    AwkRegionArrayUpdate[] updates,
+    AwkRegionArrayUpdate[] updates, AwkRegionScalarUpdate[] scalarUpdates,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
@@ -71,6 +71,7 @@ internal sealed class AwkRegion(
     internal AwkText[] Literals => literals;
     internal AwkRegionArrayAccess[] Arrays => arrays;
     internal AwkRegionArrayUpdate[] Updates => updates;
+    internal AwkRegionScalarUpdate[] ScalarUpdates => scalarUpdates;
     internal AwkRegionCall[] Calls => calls;
     internal AwkRegionBuiltin[] Builtins => builtins;
     internal AwkRegionPrint[] Prints => prints;
@@ -99,13 +100,15 @@ internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,
     AwkRegionOperand Right = default, int PrepareAccess = -1);
+internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, AwkRegionOperand Right,
+    bool CapturePrevious);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte
 {
     MainRead, RuleEnd,
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber, ArrayPreviousNumber,
     Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
-    AssignLocalNumber, AssignGlobalNumber, AssignVariableNumber, AssignField, CopyField,
+    AssignNumber, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, PathNumber, KeyBegin, KeySeparator, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     SortBegin, SortAdvance, BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,

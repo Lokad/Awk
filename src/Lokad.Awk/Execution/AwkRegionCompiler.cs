@@ -15,6 +15,7 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkText> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
     private readonly List<AwkRegionArrayUpdate> _updates = [];
+    private readonly List<AwkRegionScalarUpdate> _scalarUpdates = [];
     private int _activeUpdates;
     private int _updateSlots;
     private readonly List<AwkRegionPath> _paths = [];
@@ -217,7 +218,7 @@ internal sealed partial class AwkRegionCompiler
     {
         PrepareFieldDemands();
         return new(_code.ToArray(), _operands.ToArray(),
-            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(),
+            _variables.ToArray(), _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
             StorageLayout(),
             _calls.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray());
@@ -635,13 +636,7 @@ internal sealed partial class AwkRegionCompiler
             Emit(new(AwkRegionInstructionKind.Assign, variable, value));
             return;
         }
-        var kind = _variables[variable] switch
-        {
-            { Kind: AwkRegionVariableKind.Local } => AwkRegionInstructionKind.AssignLocalNumber,
-            { Kind: AwkRegionVariableKind.Global } => AwkRegionInstructionKind.AssignGlobalNumber,
-            _ => AwkRegionInstructionKind.AssignVariableNumber
-        };
-        Emit(new(kind, variable, NumericRegister(value)));
+        Emit(new(AwkRegionInstructionKind.AssignNumber, variable, NumericRegister(value)));
     }
 
     private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations) =>
