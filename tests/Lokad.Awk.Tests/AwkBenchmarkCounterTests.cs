@@ -9,6 +9,36 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RecycledPathCapacityRebindsRootsAndDepthsWithoutPerUseAllocation(bool governed)
+    {
+        var allocations = new List<(long Owners, long Buffers)>();
+        foreach (var count in new[] { 1, 128 })
+        {
+            var source = "function shallow(p,unused){p[\"r\"][\"c\"]++;return p[\"r\"][\"c\"]}" +
+                "function deep(unused,q){q[\"r\"][\"s\"][\"c\"]++;q[\"r\"][\"s\"][\"extra\"]=1;return q[\"r\"][\"s\"][\"c\"]}" +
+                "BEGIN{for(i=0;i<" + count + ";i++)total+=shallow(a,7)+deep(7,b);print total,a[\"r\"][\"c\"],b[\"r\"][\"s\"][\"c\"],b[\"r\"][\"s\"][\"extra\"]}";
+            var host = new MockFileSystem();
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var exit = await AwkExecutor.ExecuteAsync(host,
+                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(0, exit.Value);
+            Assert.Equal($"{count * (count + 1)} {count} {count} 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.True(counters.CapturedPathAllocations > 0);
+            Assert.True(counters.CapturedPathKeyBufferAllocations >= counters.CapturedPathAllocations);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(0, host.OpenFileCount);
+            allocations.Add((counters.CapturedPathAllocations, counters.CapturedPathKeyBufferAllocations));
+        }
+        Assert.Equal(allocations[0], allocations[1]);
+    }
+
+    [Theory]
     [InlineData("global", false)] [InlineData("global", true)]
     [InlineData("local", false)] [InlineData("local", true)]
     [InlineData("switch-local", false)] [InlineData("switch-local", true)]

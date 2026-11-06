@@ -5,6 +5,9 @@ internal static partial class AwkGoldenCorpus
     // GNU awk 5.3.2, source 027ebff5. Exact native receipts are retained locally.
     private static IEnumerable<AwkGoldenCase> NestedArrayCases() =>
     [
+        Passing("nested-array-alternating-function-roots-bindings-and-depths",
+            ["function shallow(p,unused){p[\"r\"][\"c\"]++;return p[\"r\"][\"c\"]}function deep(unused,q){q[\"r\"][\"s\"][\"c\"]++;q[\"r\"][\"s\"][\"extra\"]=1;return q[\"r\"][\"s\"][\"c\"]}BEGIN{for(i=0;i<5;i++)total+=shallow(a,7)+deep(7,b);print total,a[\"r\"][\"c\"],b[\"r\"][\"s\"][\"c\"],b[\"r\"][\"s\"][\"extra\"]}"],
+            [], "30 5 5 1\n"),
         AwkGoldenCaseBuilder.Create("nested-array-scalar-conflict", ["BEGIN{a[1]=7;print \"before\";a[1][2]=3;print \"after\"}"], [])
             .WithStdOut("before\n").WithStdErr("awk: attempt to use scalar `array element' as an array\n").ExitsWith(2).Build(),
         AwkGoldenCaseBuilder.Create("nested-array-scalar-copy-rejects-array", ["BEGIN{a[1][2]=3;print \"before\";x=a[1];print \"after\"}"], [])

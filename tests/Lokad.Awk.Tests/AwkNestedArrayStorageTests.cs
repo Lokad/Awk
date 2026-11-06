@@ -1,7 +1,111 @@
+using System.Runtime.CompilerServices;
+
 namespace Lokad.Awk.Tests;
 
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkNestedArrayStorageTests
 {
+    [Fact]
+    public void RetiredPathKeepsFundedCapacityWithoutRetainingKeyPayload()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = State(memory);
+        using var storage = new AwkRegionStorage(state);
+        storage.Prepare(new(0, Paths: 1));
+        var name = AwkArrayName.FromText("a");
+        storage.BeginPath(0, new(name, default, 2));
+        var path = storage.Path(0);
+        var capacity = memory.Budget.Reserved;
+        var text = CaptureLargeKey(path, state);
+        Assert.True(memory.Budget.Reserved >= capacity + 4096);
+
+        storage.ReleasePath(0);
+        Assert.False(path.IsActive);
+        Assert.Equal(capacity, memory.Budget.Reserved);
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        Assert.False(text.TryGetTarget(out _));
+
+        storage.BeginPath(0, new(AwkArrayName.FromText("other"), default, 1));
+        Assert.Same(path, storage.Path(0));
+        Assert.Equal(capacity, memory.Budget.Reserved);
+        var key = new AwkArrayKey("last");
+        path.CaptureKey(state, 0, key);
+        Assert.Equal(key, path.Key); // Shorter use must not read the retained array's last slot.
+        storage.ReleasePath(0);
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var failure = Assert.Throws<AwkRuntimeException>(() => storage.BeginPath(0, new(name, default, 64)));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        Assert.Equal(capacity, memory.Budget.Reserved);
+        Assert.False(path.IsActive);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void TakenPathKeepsItsOwnFundingAfterStorageDisposal()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = State(memory);
+        var initial = memory.Budget.Reserved;
+        using var storage = new AwkRegionStorage(state);
+        storage.Prepare(new(0, Paths: 1));
+        storage.BeginPath(0, new(AwkArrayName.FromText("a"), default, 2));
+        var path = storage.Path(0);
+        path.CaptureKey(state, 0, new AwkArrayKey("row"));
+        var key = new AwkArrayKey(AwkText.FromString(new string('x', 4096)));
+        path.CaptureKey(state, 1, key);
+        using var taken = storage.TakePath(0);
+        storage.Dispose();
+        Assert.Equal(key, taken.Key);
+        Assert.True(memory.Budget.Reserved >= initial + 4096);
+        taken.Dispose();
+        Assert.Equal(initial, memory.Budget.Reserved);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void CancellationAfterPathAdmissionRefundsUnpublishedStorage(bool growth)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = State(memory, cancellation.Token);
+        using var storage = new AwkRegionStorage(state);
+        storage.Prepare(new(0, Paths: 1));
+        var descriptor = new AwkRegionPath(AwkArrayName.FromText("a"), default, 2);
+        storage.BeginPath(0, descriptor);
+        var path = storage.Path(0);
+        var capacity = memory.Budget.Reserved;
+        if (!growth) path.CaptureKey(state, 0, new AwkArrayKey("first"));
+        var next = new AwkArrayKey(AwkText.FromString(new string('x', 4096)));
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+        try
+        {
+            if (growth)
+                Assert.ThrowsAny<OperationCanceledException>(() => storage.BeginPath(0, descriptor with { Count = 64 }));
+            else
+                Assert.ThrowsAny<OperationCanceledException>(() => path.CaptureKey(state, 1, next));
+        }
+        finally { memory.Budget.OnGrowth = null; }
+        storage.ReleasePath(0);
+        Assert.False(path.IsActive);
+        Assert.Equal(capacity, memory.Budget.Reserved);
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference<AwkText> CaptureLargeKey(AwkCapturedArrayPath path, AwkRuntimeState state)
+    {
+        var text = AwkText.FromString(new string('x', 4096));
+        path.CaptureKey(state, 0, new AwkArrayKey(text));
+        return new(text);
+    }
+
     [Fact]
     public void CapturedPathRebindsDetachedOwnersAfterLaterKeyEffects()
     {
@@ -153,6 +257,10 @@ public sealed class AwkNestedArrayStorageTests
         Assert.False(calls.TryGetBoundArray(parameter, out _));
         calls.PopFrame(_ => { });
     }
+
+    private static AwkRuntimeState State(CooperativeTestMemory memory, CancellationToken token = default) =>
+        memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            token, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
 
     private static AwkVariables Variables(CooperativeTestMemory memory, AwkRuntimeCounters? counters = null) =>
         new(memory.Accounting, counters ?? AwkRuntimeCounters.Disabled, AwkValue.FromText,

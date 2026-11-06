@@ -114,6 +114,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var captured = growTargets ? new AwkArrayUpdateTarget[targets] : _targets;
         var readTargets = growGetlineTargets ? new AwkResolvedGetlineTarget[getlineTargets] : _getlineTargets;
         var capturedPaths = growPaths ? new AwkCapturedArrayPath?[paths] : _paths;
+        if (growPaths) _paths.CopyTo(capturedPaths, 0);
         var sortOperations = growSorts ? new AwkArrayRuntime.AwkArraySortOperation?[sorts] : _sorts;
         var iterations = growIterators ? new AwkRegionIterator[iterators] : _iterators;
         var argumentTargets = growArrayTargets ? new AwkArrayTarget?[arrayTargets] : _arrayTargets;
@@ -317,12 +318,12 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal void BeginPath(int slot, AwkRegionPath path)
     {
-        ReleasePath(slot);
-        _paths[slot] = AwkCapturedArrayPath.Begin(_state, path.Name, path.Binding, path.Count);
+        if (_paths[slot] is { } cached) cached.Restart(_state, path.Name, path.Binding, path.Count);
+        else _paths[slot] = AwkCapturedArrayPath.Begin(_state, path.Name, path.Binding, path.Count);
     }
 
-    internal AwkCapturedArrayPath Path(int slot) => _paths[slot] ??
-        throw new InvalidOperationException("No captured array path.");
+    internal AwkCapturedArrayPath Path(int slot) => _paths[slot] is { IsActive: true } path
+        ? path : throw new InvalidOperationException("No captured array path.");
 
     internal AwkCapturedArrayPath TakePath(int slot)
     {
@@ -333,9 +334,7 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal void ReleasePath(int slot)
     {
-        var path = _paths[slot];
-        _paths[slot] = null;
-        path?.Dispose();
+        _paths[slot]?.Retire();
     }
 
     internal void BeginSort(int slot, AwkArrayTarget source, AwkArraySortOrder order, bool keys)
@@ -576,6 +575,7 @@ internal sealed class AwkRegionStorage : IDisposable
         _targets = [];
         _getlineTargets = [];
         _arrayTargets = [];
+        foreach (var path in _paths) path?.Dispose();
         _paths = [];
         _iterators = [];
         _sorts = [];

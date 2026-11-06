@@ -189,6 +189,8 @@ repaired by mutation are not cached separately in prepared code.
 Nested locations capture keys in the same computation driver. Each intermediate child is
 admitted before the following key runs; captured locations follow their logical path if later
 work detaches an owner. Pending getline destinations keep their keys funded until completion.
+Prepared scratch retains funded path capacity between uses and clears active key payloads.
+Transferred destinations keep their independent owner and lease through actual completion.
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.

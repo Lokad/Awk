@@ -45,6 +45,9 @@ or environment dependencies.
   Nested numeric updates use the same captured targets, retaining their owned path through commit.
   Re-resolve detached logical owners before using a cell; do not restore separate nested arithmetic/store transport.
   Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.
+  Prepared path slots retain funded owner/key capacity while retirement clears active keys and payload.
+  Rebind root/binding/depth on reuse and preserve cached owners during slot-array growth. TakePath
+  transfers its independent owner/lease; transferred or actually pending references are never reused.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.

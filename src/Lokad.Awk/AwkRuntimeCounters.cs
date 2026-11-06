@@ -110,6 +110,18 @@ internal sealed class AwkRuntimeCounters
     public long BorrowedFieldTargetSnapshots { get; private set; }
     public long NumericArraySlotReads { get; private set; }
     public long ArrayCellCommits { get; private set; }
+    public long CapturedPathAllocations { get; private set; }
+    public long CapturedPathKeyBufferAllocations { get; private set; }
+
+    internal void RecordCapturedPathAllocation()
+    {
+        if (_enabled) lock (_sync) CapturedPathAllocations++;
+    }
+
+    internal void RecordCapturedPathKeyBufferAllocation()
+    {
+        if (_enabled) lock (_sync) CapturedPathKeyBufferAllocations++;
+    }
 
     // Comparer work, not Dictionary's internal collision-probe count.
     public long ArrayBorrowedHashCalls { get; private set; }
