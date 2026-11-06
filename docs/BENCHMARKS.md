@@ -2,7 +2,7 @@
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
 All 64 managed/GNU comparisons and six shared-admission controls were measured on
-**2026-11-06 UTC** at [61c39f2e](https://github.com/Lokad/Awk/commit/61c39f2e2bc60a7a63c6e83c67fad5f4344b38f1).
+**2026-11-06 UTC** at [da5c6a14](https://github.com/Lokad/Awk/commit/da5c6a14ae581ff9b1a2959a3e58bcf8b2cd6ef3).
 No rows retain earlier measurements. Times are BenchmarkDotNet medians; the elapsed
 Lokad.Awk/GNU awk ratio is lower when faster. Allocations include the managed benchmark
 host; no GNU allocation comparison is claimed. Regex uses the source adapter with
@@ -16,57 +16,57 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| gsub and output | 56.00 | 9.656 | 1.783 | 5.42× | 23.414 |
-| ERE field separator | 48.00 | 5.793 | 1.645 | 3.52× | 2.488 |
-| Nested-array calls, 16 keys (GNU) | 25.08 | 5.668 | 1.836 | 3.09× | 2.007 |
-| Nested-array calls, 1,024 keys (GNU) | 31.24 | 5.865 | 2.250 | 2.61× | 2.600 |
-| ERE boolean matching | 32.00 | 2.205 | 0.921 | 2.39× | 7.198 |
-| Text function with branches and local temporary | 62.00 | 3.503 | 1.640 | 2.14× | 1.639 |
-| Unicode length/substr / output | 60.00 | 3.451 | 1.674 | 2.06× | 2.171 |
-| Loop with two-argument calls and local temporary | 8.00 | 7.321 | 4.055 | 1.81× | 0.560 |
-| ERE capture arrays (GNU) | 28.00 | 12.469 | 7.321 | 1.70× | 34.795 |
-| Branching function, one argument | 8.00 | 6.222 | 3.712 | 1.68× | 0.576 |
-| Branching function, two arguments | 8.00 | 6.648 | 4.001 | 1.66× | 0.580 |
-| Loop with repeated field arguments | 25.08 | 6.221 | 3.812 | 1.63× | 0.152 |
-| Loop with unary arithmetic calls | 8.00 | 5.654 | 3.493 | 1.62× | 0.549 |
-| Loop with two-argument calls | 8.00 | 6.080 | 3.771 | 1.61× | 0.552 |
-| Numeric array sort (GNU) | 18.92 | 3.152 | 1.998 | 1.58× | 2.655 |
-| Loop with five-argument calls | 8.00 | 7.758 | 5.163 | 1.50× | 0.581 |
-| Project three columns / output | 60.00 | 1.717 | 1.210 | 1.42× | 0.410 |
-| Two-file membership / join | 77.83 | 3.406 | 2.479 | 1.37× | 1.676 |
-| ASCII substr/index/length/casing | 52.00 | 1.704 | 1.242 | 1.37× | 0.961 |
-| Five-part string concatenation | 20.00 | 1.815 | 1.356 | 1.34× | 1.342 |
-| Loop with repeated numeric field reads | 25.08 | 3.429 | 2.580 | 1.33× | 0.128 |
-| Field loop, 64 fields | 80.00 | 2.243 | 1.865 | 1.20× | 0.126 |
-| Post-test arithmetic loop | 8.00 | 2.759 | 2.328 | 1.19× | 0.533 |
-| Mixed narrow-record processing | 60.00 | 2.165 | 1.854 | 1.17× | 0.121 |
-| While loop and numeric arithmetic | 8.00 | 2.720 | 2.390 | 1.14× | 0.531 |
-| printf | 24.00 | 1.954 | 1.718 | 1.14× | 0.411 |
-| Nested user calls | 8.00 | 1.462 | 1.309 | 1.12× | 0.123 |
-| Sum every numeric field (128 columns) | 101.00 | 3.158 | 2.846 | 1.11× | 0.108 |
-| Function with locals, loop and early return | 11.58 | 2.757 | 2.545 | 1.08× | 0.199 |
-| Numeric prefix / finish field loop through NF (128 columns) | 101.00 | 3.058 | 2.857 | 1.07× | 0.118 |
-| For loop and numeric arithmetic | 8.00 | 2.561 | 2.395 | 1.07× | 0.529 |
-| Labeled printf | 24.00 | 2.395 | 2.362 | 1.01× | 0.418 |
-| Field-key reads, existing/new | 63.15 | 1.352 | 1.362 | 0.99× | 0.789 |
-| Fixed-count numeric field loop (128 columns) | 101.00 | 2.801 | 2.880 | 0.97× | 0.108 |
-| Copy field / rebuild record | 60.00 | 1.173 | 1.250 | 0.94× | 0.407 |
-| Keyed sum / sorted output (GNU) | 24.00 | 0.899 | 0.998 | 0.90× | 0.120 |
-| Composite-key sum / sorted output (GNU) | 24.00 | 1.025 | 1.149 | 0.89× | 0.153 |
-| Alternate reads from two lookup arrays | 21.50 | 0.933 | 1.088 | 0.86× | 0.159 |
-| Project a column / output | 60.00 | 0.818 | 0.955 | 0.86× | 0.402 |
-| Literal index search in a field | 70.00 | 0.952 | 1.219 | 0.78× | 0.519 |
-| Copy field / rebuild record (128 columns) | 101.00 | 0.885 | 1.164 | 0.76× | 0.093 |
-| Filter three fields | 24.00 | 0.848 | 1.204 | 0.70× | 0.093 |
-| Literal field separator | 48.00 | 0.678 | 1.000 | 0.68× | 0.094 |
-| CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 1.484 | 2.348 | 0.63× | 1.058 |
-| Changed ASCII case | 580.00 | 1.498 | 2.476 | 0.61× | 2.924 |
-| Field-key membership | 48.56 | 0.498 | 0.987 | 0.50× | 0.151 |
-| Sum one numeric column | 25.08 | 0.434 | 0.963 | 0.45× | 0.072 |
-| Byte-run ERE record separator (GNU) | 36.00 | 0.479 | 1.125 | 0.43× | 0.963 |
-| Multicharacter record separator (GNU) | 52.00 | 0.395 | 1.155 | 0.34× | 0.557 |
-| Filter `$1` / occasionally print `$3`, 64 fields | 1291.42 | 0.538 | 1.846 | 0.29× | 0.112 |
-| Filter `$2` after a 4 KiB field | 1025.50 | 0.153 | 1.540 | 0.10× | 1.119 |
+| gsub and output | 56.00 | 9.541 | 1.791 | 5.33× | 23.414 |
+| ERE field separator | 48.00 | 5.628 | 1.644 | 3.42× | 2.488 |
+| Nested-array calls, 16 keys (GNU) | 25.08 | 4.967 | 1.832 | 2.71× | 0.601 |
+| Nested-array calls, 1,024 keys (GNU) | 31.24 | 5.224 | 2.249 | 2.32× | 1.194 |
+| Text function with branches and local temporary | 62.00 | 3.446 | 1.636 | 2.11× | 1.639 |
+| Unicode length/substr / output | 60.00 | 3.474 | 1.671 | 2.08× | 2.171 |
+| ERE boolean matching | 32.00 | 1.843 | 0.922 | 2.00× | 7.198 |
+| Loop with two-argument calls and local temporary | 8.00 | 7.203 | 4.062 | 1.77× | 0.560 |
+| ERE capture arrays (GNU) | 28.00 | 12.631 | 7.336 | 1.72× | 34.795 |
+| Numeric array sort (GNU) | 18.92 | 3.335 | 2.003 | 1.67× | 2.655 |
+| Loop with two-argument calls | 8.00 | 6.234 | 3.748 | 1.66× | 0.552 |
+| Branching function, one argument | 8.00 | 6.097 | 3.700 | 1.65× | 0.575 |
+| Branching function, two arguments | 8.00 | 6.519 | 3.991 | 1.63× | 0.580 |
+| Loop with repeated field arguments | 25.08 | 6.185 | 3.814 | 1.62× | 0.152 |
+| Loop with unary arithmetic calls | 8.00 | 5.616 | 3.467 | 1.62× | 0.548 |
+| Loop with five-argument calls | 8.00 | 7.799 | 5.141 | 1.52× | 0.580 |
+| Project three columns / output | 60.00 | 1.818 | 1.205 | 1.51× | 0.410 |
+| Two-file membership / join | 77.83 | 3.322 | 2.478 | 1.34× | 1.676 |
+| Five-part string concatenation | 20.00 | 1.783 | 1.340 | 1.33× | 1.342 |
+| ASCII substr/index/length/casing | 52.00 | 1.638 | 1.244 | 1.32× | 0.961 |
+| Post-test arithmetic loop | 8.00 | 3.006 | 2.376 | 1.27× | 0.532 |
+| Loop with repeated numeric field reads | 25.08 | 3.192 | 2.580 | 1.24× | 0.128 |
+| While loop and numeric arithmetic | 8.00 | 2.857 | 2.402 | 1.19× | 0.531 |
+| Field loop, 64 fields | 80.00 | 2.209 | 1.864 | 1.19× | 0.126 |
+| For loop and numeric arithmetic | 8.00 | 2.767 | 2.392 | 1.16× | 0.529 |
+| Mixed narrow-record processing | 60.00 | 2.136 | 1.852 | 1.15× | 0.121 |
+| Nested user calls | 8.00 | 1.479 | 1.308 | 1.13× | 0.123 |
+| printf | 24.00 | 1.934 | 1.714 | 1.13× | 0.411 |
+| Sum every numeric field (128 columns) | 101.00 | 3.043 | 2.852 | 1.07× | 0.108 |
+| Function with locals, loop and early return | 11.58 | 2.700 | 2.544 | 1.06× | 0.199 |
+| Numeric prefix / finish field loop through NF (128 columns) | 101.00 | 3.028 | 2.865 | 1.06× | 0.118 |
+| Field-key reads, existing/new | 63.15 | 1.328 | 1.348 | 0.99× | 0.789 |
+| Labeled printf | 24.00 | 2.288 | 2.367 | 0.97× | 0.418 |
+| Fixed-count numeric field loop (128 columns) | 101.00 | 2.743 | 2.865 | 0.96× | 0.108 |
+| Keyed sum / sorted output (GNU) | 24.00 | 0.949 | 0.994 | 0.95× | 0.120 |
+| Copy field / rebuild record | 60.00 | 1.170 | 1.248 | 0.94× | 0.407 |
+| Project a column / output | 60.00 | 0.847 | 0.955 | 0.89× | 0.402 |
+| Alternate reads from two lookup arrays | 21.50 | 0.928 | 1.081 | 0.86× | 0.159 |
+| Composite-key sum / sorted output (GNU) | 24.00 | 0.962 | 1.150 | 0.84× | 0.153 |
+| Copy field / rebuild record (128 columns) | 101.00 | 0.886 | 1.158 | 0.77× | 0.093 |
+| Literal field separator | 48.00 | 0.713 | 1.003 | 0.71× | 0.094 |
+| Literal index search in a field | 70.00 | 0.861 | 1.219 | 0.71× | 0.518 |
+| Filter three fields | 24.00 | 0.841 | 1.207 | 0.70× | 0.093 |
+| CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 1.542 | 2.347 | 0.66× | 1.058 |
+| Changed ASCII case | 580.00 | 1.520 | 2.492 | 0.61× | 2.924 |
+| Field-key membership | 48.56 | 0.494 | 0.991 | 0.50× | 0.150 |
+| Sum one numeric column | 25.08 | 0.427 | 0.963 | 0.44× | 0.072 |
+| Byte-run ERE record separator (GNU) | 36.00 | 0.470 | 1.125 | 0.42× | 0.963 |
+| Multicharacter record separator (GNU) | 52.00 | 0.395 | 1.159 | 0.34× | 0.557 |
+| Filter `$1` / occasionally print `$3`, 64 fields | 1291.42 | 0.532 | 1.870 | 0.28× | 0.112 |
+| Filter `$2` after a 4 KiB field | 1025.50 | 0.226 | 1.565 | 0.14× | 1.119 |
 
 ## Large-input processing
 
@@ -75,19 +75,19 @@ These expose processing costs better than small inputs dominated by process star
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE boolean matching | 512.00 | 26.658 | 4.648 | 5.73× | 112.199 |
-| Two-file membership / join | 1386.30 | 64.194 | 30.824 | 2.08× | 21.122 |
-| Loop with repeated field arguments | 401.40 | 92.881 | 50.689 | 1.83× | 0.154 |
-| Loop with repeated numeric field reads | 401.40 | 51.886 | 31.465 | 1.65× | 0.129 |
-| Composite-key sum / sorted output (GNU) | 384.00 | 13.533 | 8.322 | 1.63× | 0.154 |
-| Copy field / rebuild record | 960.00 | 17.507 | 10.806 | 1.62× | 5.566 |
-| Keyed sum / sorted output (GNU) | 384.00 | 9.412 | 6.166 | 1.53× | 0.120 |
-| Copy field / rebuild record (128 columns) | 1616.00 | 13.992 | 9.581 | 1.46× | 0.418 |
-| Sum every numeric field (128 columns) | 1616.00 | 49.466 | 35.922 | 1.38× | 0.111 |
-| Numeric prefix / finish field loop through NF (128 columns) | 1616.00 | 48.935 | 36.094 | 1.36× | 0.121 |
-| Fixed-count numeric field loop (128 columns) | 1616.00 | 44.029 | 35.768 | 1.23× | 0.111 |
-| Sum one numeric column | 401.40 | 6.544 | 5.869 | 1.12× | 0.073 |
-| Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 8.411 | 23.649 | 0.36× | 0.793 |
+| ERE boolean matching | 512.00 | 27.585 | 4.671 | 5.91× | 112.200 |
+| Loop with repeated field arguments | 401.40 | 98.505 | 50.703 | 1.94× | 0.154 |
+| Two-file membership / join | 1386.30 | 60.097 | 30.948 | 1.94× | 21.122 |
+| Copy field / rebuild record | 960.00 | 18.696 | 10.809 | 1.73× | 5.566 |
+| Composite-key sum / sorted output (GNU) | 384.00 | 14.228 | 8.319 | 1.71× | 0.153 |
+| Loop with repeated numeric field reads | 401.40 | 49.277 | 31.526 | 1.56× | 0.129 |
+| Keyed sum / sorted output (GNU) | 384.00 | 9.574 | 6.153 | 1.56× | 0.120 |
+| Numeric prefix / finish field loop through NF (128 columns) | 1616.00 | 51.751 | 36.105 | 1.43× | 0.121 |
+| Copy field / rebuild record (128 columns) | 1616.00 | 13.824 | 9.811 | 1.41× | 0.418 |
+| Sum every numeric field (128 columns) | 1616.00 | 47.823 | 35.956 | 1.33× | 0.111 |
+| Fixed-count numeric field loop (128 columns) | 1616.00 | 43.377 | 35.720 | 1.21× | 0.111 |
+| Sum one numeric column | 401.40 | 6.454 | 5.865 | 1.10× | 0.073 |
+| Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 8.102 | 23.357 | 0.35× | 0.793 |
 
 ## Shared memory admission
 
@@ -97,9 +97,9 @@ per invocation. Compare within each cohort. The host and actual output verificat
 
 | Large-input script | Default ms | Shared ms | Default allocated MiB | Shared allocated MiB |
 | --- | ---: | ---: | ---: | ---: |
-| Sum one numeric column | 6.532 | 8.047 | 0.072 | 0.075 |
-| Keyed sum / sorted output (GNU) | 9.195 | 10.816 | 0.120 | 0.121 |
-| Composite-key sum / sorted output (GNU) | 14.025 | 16.372 | 0.153 | 0.156 |
+| Sum one numeric column | 6.368 | 7.760 | 0.072 | 0.074 |
+| Keyed sum / sorted output (GNU) | 9.959 | 11.695 | 0.120 | 0.121 |
+| Composite-key sum / sorted output (GNU) | 14.499 | 15.888 | 0.153 | 0.156 |
 
 ## Method and refresh
 
