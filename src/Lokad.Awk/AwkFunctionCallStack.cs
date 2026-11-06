@@ -16,7 +16,8 @@ internal sealed class AwkFunctionCallStack(
 {
     private readonly AwkRuntimeCounters _counters = counters ?? AwkRuntimeCounters.Disabled;
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
-    private readonly Stack<AwkFunctionFrame> _frames = new();
+    private AwkFunctionFrame? _current;
+    private int _depth;
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
     // Most potential aliases are independent function arguments. Counting live
     // references lets those promote directly; only forwarded aliases need a scan.
@@ -26,14 +27,14 @@ internal sealed class AwkFunctionCallStack(
     private int _localScopeFloor;
 
     // Scheduling and depth limits include callers suspended by global file actions.
-    public bool IsInsideFunction => _frames.Count > 0;
-    internal AwkFunctionFrame CurrentFrame => _frames.Peek();
+    public bool IsInsideFunction => _current is not null;
+    internal AwkFunctionFrame CurrentFrame => _current ?? throw new InvalidOperationException("No active function frame.");
 
     public GlobalBindingScope EnterGlobalBindings()
     {
         // Hide caller bindings without releasing frames, charges or array aliases.
         var previous = _localScopeFloor;
-        _localScopeFloor = _frames.Count;
+        _localScopeFloor = _depth;
         return new GlobalBindingScope(this, previous);
     }
 
@@ -44,8 +45,11 @@ internal sealed class AwkFunctionCallStack(
 
     private bool TryPeekLocalFrame([NotNullWhen(true)] out AwkFunctionFrame? frame)
     {
-        if (_frames.Count > _localScopeFloor)
-            return _frames.TryPeek(out frame);
+        if (_depth > _localScopeFloor && _current is { } current)
+        {
+            frame = current;
+            return true;
+        }
         frame = null;
         return false;
     }
@@ -62,7 +66,7 @@ internal sealed class AwkFunctionCallStack(
     // into the same owner before activation, without making callee locals visible.
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
     {
-        if (_frames.Count >= maxFunctionCallDepth)
+        if (_depth >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
         var frame = PrepareFrame(layout, arguments.Length);
         try
@@ -109,8 +113,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 // Covers active, incoming and recycled owners. Cleanup never grows
                 // the recycle stack, including when nested argument calls fail.
-                var frameCapacity = checked(_frames.Count + _incomingFrames + _recycledFrames.Count + 1);
-                _frames.EnsureCapacity(frameCapacity);
+                var frameCapacity = checked(_depth + _incomingFrames + _recycledFrames.Count + 1);
                 _recycledFrames.EnsureCapacity(frameCapacity);
                 frame = new AwkFunctionFrame();
                 unpublishedBytes -= frameBytes;
@@ -155,7 +158,7 @@ internal sealed class AwkFunctionCallStack(
 
     internal void ActivateFrame(AwkFunctionFrame frame)
     {
-        if (_frames.Count >= maxFunctionCallDepth)
+        if (_depth >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
         var registered = 0;
         try
@@ -185,7 +188,9 @@ internal sealed class AwkFunctionCallStack(
                     RegisterPotentialArrayAlias(slot.ArrayName);
             }
             checkpoint?.Invoke();
-            _frames.Push(frame);
+            frame.Parent = _current;
+            _current = frame;
+            _depth++;
             _incomingFrames--;
             frame.IsIncoming = false;
             _counters.RecordFunctionActivationSlots(frame.ReconcileEnd + frame.PotentialAliasEnd);
@@ -209,7 +214,9 @@ internal sealed class AwkFunctionCallStack(
 
     public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray)
     {
-        var frame = _frames.Pop();
+        var frame = CurrentFrame;
+        _current = frame.Parent;
+        _depth--;
         for (var index = 0; index < frame.AliasEnd; index++)
         {
             var slot = frame.GetSlot(index);
@@ -435,7 +442,7 @@ internal sealed class AwkFunctionCallStack(
             }
 
             var remainingAliases = aliasCount;
-            foreach (var frame in _frames)
+            for (var frame = _current; frame is not null; frame = frame.Parent)
             {
                 for (var index = 0; index < frame.Layout.SlotCount; index++)
                 {
@@ -528,7 +535,7 @@ internal sealed class AwkFunctionCallStack(
     public void RepairSubarrayAliases(AwkArrayIdentity removed, bool includeRoot, bool cancellable)
     {
         var poll = cancellable ? checkpoint : null;
-        foreach (var frame in _frames)
+        for (var frame = _current; frame is not null; frame = frame.Parent)
         {
             for (var index = 0; index < frame.Layout.SlotCount; index++)
             {
@@ -550,7 +557,7 @@ internal sealed class AwkFunctionCallStack(
     public void RepairElementAliases(AwkUntypedScalar removed)
     {
         if (removed.IsScalar) return;
-        foreach (var frame in _frames)
+        for (var frame = _current; frame is not null; frame = frame.Parent)
             for (var index = 0; index < frame.Layout.SlotCount; index++)
             {
                 if ((index & 63) == 0) checkpoint?.Invoke();

@@ -88,6 +88,9 @@ internal sealed class AwkFunctionFrame
     internal int ReconcileEnd { get; private set; }
     internal int PotentialAliasEnd { get; private set; }
     internal int AliasEnd { get; private set; }
+    // Binding/ownership ancestry also includes callers hidden by a global phase;
+    // it need not equal the execution continuation's caller frame.
+    internal AwkFunctionFrame? Parent { get; set; }
     internal AwkRegionContinuation? Continuation { get; set; }
     private AwkRegionStorage? _regionStorage;
     internal AwkRegionStorage GetRegionStorage(AwkRuntimeState state) => _regionStorage ??= new(state);
@@ -141,6 +144,7 @@ internal sealed class AwkFunctionFrame
         ReconcileEnd = 0;
         PotentialAliasEnd = 0;
         AliasEnd = 0;
+        Parent = null;
         Continuation = null;
         _regionStorage?.RetireActivation();
         Id = 0;

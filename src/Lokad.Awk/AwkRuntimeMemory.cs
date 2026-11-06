@@ -33,7 +33,7 @@ internal static class AwkRuntimeMemory
     internal const int ArrayMergeProgressBytes = 96;
     internal const int ArraySortOperationBytes = 176;
     // Frame/inline slots, its reusable region owner and leases, plus amortized
-    // active/recycled reference stacks. Scratch/slot backing is charged separately.
+    // recycled references and active frame links. Scratch/slot backing is charged separately.
     private const int FunctionFrameBytes = 480;
     // Standalone phase/action scratch owner, its two leases and the enclosing
     // scoped lease. Backing arrays and live payload are admitted separately.
