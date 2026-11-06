@@ -6,7 +6,7 @@ internal partial struct AwkRegionMachine
     {
         if (!Context.TryGetExecutionContext(out var execution))
             throw new InvalidOperationException("Getline requires a host context.");
-        var storage = _cursor.Storage;
+        var storage = _storage;
         _state.ThrowIfCancellationRequested();
         _pending = Pending.Read;
         _hostCompletion = read.Kind switch
@@ -20,12 +20,12 @@ internal partial struct AwkRegionMachine
 
     private void CompleteRead()
     {
-        // The cursor cannot move during a pending read. Its preceding instruction
+        // The execution location cannot move during a pending read. Its preceding instruction
         // identifies the funded source/destination without another pending object.
-        var instruction = _cursor.Region.Instructions[_cursor.Position - 1];
-        var read = _cursor.Region.Getlines[instruction.Left];
+        var instruction = _region.Instructions[_position - 1];
+        var read = _region.Getlines[instruction.Left];
         var result = ((Task<AwkGetlineResult>)_hostCompletion).Result;
-        var storage = _cursor.Storage;
+        var storage = _storage;
         _state.ThrowIfCancellationRequested();
         AwkGetlineRuntime.ApplyResult(_state, storage.GetlineTarget(read.Slot),
             read.Kind == AwkGetlineSourceKind.MainInput, result);

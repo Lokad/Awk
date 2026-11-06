@@ -33,6 +33,8 @@ or environment dependencies.
 - Main input, rule conditions/bodies and record backedges use one prepared program.
   Preserve rule-scratch retirement and actual pending-host continuations; do not restore
   a parallel per-rule scheduler or reset/rebind the main cursor on ordinary record progression.
+  Execution location uses direct code/storage/position fields. Saved caller frames describe
+  execution ownership, which can differ from the binding stack during retirement and root reentry.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring
   key scratch and evaluating the RHS. Only cross-instruction captures need retained target slots
   and rule cleanup. Fund ordinary key/cell holding with target capacity and larger live captures

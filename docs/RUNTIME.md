@@ -210,8 +210,9 @@ Execution scratch keeps its current prepared body and constants; revisiting it a
 capacity checks and initialization. Switching bodies refreshes preparation without retaining
 unrelated scratch payloads.
 Main input, rule conditions/bodies and record backedges form one prepared program, sharing
-the computation and call driver. Ordinary records retain their cursor and operand tables;
-rule completion retires its reference scratch. Actual host suspension saves its continuation.
+the computation and call driver. Ordinary records retain their location and operand tables.
+Execution and binding-frame ownership remain distinct during reentry and cleanup.
+Rule completion retires its reference scratch. Actual host suspension saves its continuation.
 Returns keep their captured value and callee storage until required output actually completes.
 Available records use synchronous recognition, while pending refills retain their cursor and
 storage until actual completion. Record/header publication retains its admission and

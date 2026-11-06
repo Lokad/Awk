@@ -4,7 +4,7 @@ internal partial struct AwkRegionMachine
 {
     private bool AdvanceSort(AwkRegionSort site, int result, int position)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         var operation = storage.Sort(site.Slot);
         if (ScheduleSortComparison(operation, site.CallSlot, site.Comparison, position)) return true;
         storage.Numbers[result] = operation.Publish(storage.ArrayTarget(site.Destination), site.Keys);
@@ -17,7 +17,7 @@ internal partial struct AwkRegionMachine
 
     private bool ScheduleSortComparison(AwkArrayRuntime.AwkArraySortOperation operation, int callSlot, int comparison, int position)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         if (operation.IsComparing) operation.AcceptComparison(storage.Numbers[comparison]);
         if (operation.TryNextComparison())
         {
@@ -26,7 +26,7 @@ internal partial struct AwkRegionMachine
             var frame = storage.IncomingFrame(call.Slot);
             for (var index = 0; index < 4; index++)
                 _state.StageFunctionArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(operation.GetArgument(index)));
-            _cursor = _cursor with { Position = position };
+            _position = position;
             EnterCall(call, new(AwkRegionOperandKind.NumberTemporary, comparison));
             return true;
         }
@@ -35,7 +35,7 @@ internal partial struct AwkRegionMachine
 
     private void ExecuteGensub(AwkRegionGensub operation, int result)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         var pattern = new AwkRegexPattern(storage.Values[operation.Pattern].ByteText, operation.Origin, operation);
         var input = operation.Count == 3 ? storage.Values[operation.Start + 2] : _state.GetCurrentRecordValue();
         storage.StoreValue(result, AwkSubstitutionRuntime.Gensub(Context, pattern,
@@ -46,7 +46,7 @@ internal partial struct AwkRegionMachine
 
     private void ExecuteSubstitution(AwkRegionSubstitution operation, int result, AwkResolvedReference reference)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         var pattern = new AwkRegexPattern(storage.Values[operation.Pattern].ByteText, operation.Origin, operation);
         using var target = ResolveSubstitutionTarget(reference, operation.Target < 0);
         storage.Numbers[result] = AwkSubstitutionRuntime.Execute(
@@ -68,7 +68,7 @@ internal partial struct AwkRegionMachine
 
     private void ExecuteMatch(AwkRegionMatch match, int result)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         storage.PrepareByteText(match.Input);
         var pattern = new AwkRegexPattern(storage.Values[match.Pattern].ByteText, match.Origin, match);
         AwkArrayTarget? capture = match.Array < 0 ? null : storage.ArrayTarget(match.Array);
@@ -80,7 +80,7 @@ internal partial struct AwkRegionMachine
 
     private void ExecuteSplit(AwkRegionSplit split, int result)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         storage.PrepareByteText(split.Input);
         var csv = split.UsesDefault && !split.Patsplit && _state.CsvInput;
         if (split.UsesDefault && !csv)

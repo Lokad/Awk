@@ -8,9 +8,9 @@ internal partial struct AwkRegionMachine
         AwkArrayTarget target;
         if (access.Path >= 0)
         {
-            var path = _cursor.Storage.Path(access.Path);
+            var path = _storage.Path(access.Path);
             target = new(AwkValue.FromArrayReference(_state.GetSubarray(path.ResolveOwner(_state), path.Key)));
-            _cursor.Storage.ReleasePath(access.Path);
+            _storage.ReleasePath(access.Path);
         }
         else if (access.Key >= 0)
             target = new(AwkValue.FromArrayReference(_state.GetSubarray(access.Name, key, access.Binding)));
@@ -18,13 +18,13 @@ internal partial struct AwkRegionMachine
             target = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
                 ? new(AwkValue.FromArrayReference(array)) : new(access.Name);
         var start = _state.BeginArrayKeySnapshot(target);
-        if (start.NeedsComparisons) _cursor.Storage.StoreSort(site.Sort, start.Sort);
+        if (start.NeedsComparisons) _storage.StoreSort(site.Sort, start.Sort);
         else
         {
             try
             {
                 _state.ThrowIfCancellationRequested();
-                _cursor.Storage.BeginIterator(site.Iterator, start.Keys);
+                _storage.BeginIterator(site.Iterator, start.Keys);
             }
             catch { start.Keys.Dispose(); throw; }
         }
@@ -32,7 +32,7 @@ internal partial struct AwkRegionMachine
 
     private bool AdvanceIterationSort(AwkRegionIteration site, int position)
     {
-        var storage = _cursor.Storage;
+        var storage = _storage;
         if (!storage.TryGetSort(site.Sort, out var operation)) return false;
         if (ScheduleSortComparison(operation, site.CallSlot, site.Comparison, position)) return true;
         storage.BeginIterator(site.Iterator, operation.TakeKeys());
@@ -56,7 +56,7 @@ internal partial struct AwkRegionMachine
         _state.ThrowIfCancellationRequested();
         if (variable.Kind == AwkRegionVariableKind.Local)
         {
-            if (_cursor.Frame is { } frame && frame.TryWriteNumber(variable.Index, number))
+            if (_frame is { } frame && frame.TryWriteNumber(variable.Index, number))
                 _state.Counters.RecordBoundFrameNumberWrite();
             else _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, AwkValue.FromNumber(number));
         }

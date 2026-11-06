@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -91,7 +92,31 @@ internal sealed class AwkFunctionFrame
     // Binding/ownership ancestry also includes callers hidden by a global phase;
     // it need not equal the execution continuation's caller frame.
     internal AwkFunctionFrame? Parent { get; set; }
-    internal AwkRegionContinuation? Continuation { get; set; }
+    private AwkRegion? _callerRegion;
+    private AwkRegionStorage? _callerStorage;
+    private AwkFunctionFrame? _callerFrame;
+    private AwkRegionResumePoint _resumePoint;
+
+    internal void SetCaller(AwkRegion region, AwkRegionStorage storage, int position,
+        AwkFunctionFrame? frame, AwkRegionOperand destination)
+    {
+        _callerRegion = region;
+        _callerStorage = storage;
+        _callerFrame = frame;
+        _resumePoint = new(position, destination);
+    }
+
+    internal bool TryGetCaller([NotNullWhen(true)] out AwkRegion? region,
+        [NotNullWhen(true)] out AwkRegionStorage? storage, out AwkFunctionFrame? frame,
+        out AwkRegionResumePoint resumePoint)
+    {
+        region = _callerRegion;
+        storage = _callerStorage;
+        frame = _callerFrame;
+        resumePoint = _resumePoint;
+        return region is not null && storage is not null;
+    }
+
     private AwkRegionStorage? _regionStorage;
     internal AwkRegionStorage GetRegionStorage(AwkRuntimeState state) => _regionStorage ??= new(state);
 
@@ -145,7 +170,10 @@ internal sealed class AwkFunctionFrame
         PotentialAliasEnd = 0;
         AliasEnd = 0;
         Parent = null;
-        Continuation = null;
+        _callerRegion = null;
+        _callerStorage = null;
+        _callerFrame = null;
+        _resumePoint = default;
         _regionStorage?.RetireActivation();
         Id = 0;
     }

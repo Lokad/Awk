@@ -22,9 +22,9 @@ internal partial struct AwkRegionMachine
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
-        region = _cursor.Region;
-        storage = _cursor.Storage;
-        frame = _cursor.Frame;
+        region = _region;
+        storage = _storage;
+        frame = _frame;
         instructions = region.Instructions;
         operands = region.Operands;
         variables = region.Variables;
@@ -33,7 +33,7 @@ internal partial struct AwkRegionMachine
         calls = region.Calls;
         builtins = region.Builtins;
         numbers = storage.Numbers;
-        for (var position = _cursor.Position; position < instructions.Length; position++)
+        for (var position = _position; position < instructions.Length; position++)
         {
             var instruction = instructions[position];
             switch (instruction.Kind)
@@ -41,7 +41,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.MainRead:
                     if (!ReadMainRecord())
                     {
-                        _cursor = _cursor with { Position = position + 1 };
+                        _position = position + 1;
                         goto Resume;
                     }
                     if (_finished) return true;
@@ -257,7 +257,7 @@ internal partial struct AwkRegionMachine
                         output ?? throw new InvalidOperationException("Print requires an output sink."), print);
                     if (print.Output.IsRedirected)
                     {
-                        _cursor = _cursor with { Position = position + 1 };
+                        _position = position + 1;
                         BeginWrite(print.Output);
                         goto Resume;
                     }
@@ -270,7 +270,7 @@ internal partial struct AwkRegionMachine
                         output ?? throw new InvalidOperationException("Printf requires an output sink."), print);
                     if (print.Output.IsRedirected)
                     {
-                        _cursor = _cursor with { Position = position + 1 };
+                        _position = position + 1;
                         BeginWrite(print.Output);
                         goto Resume;
                     }
@@ -521,7 +521,7 @@ internal partial struct AwkRegionMachine
                     state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
                     break;
                 case AwkRegionInstructionKind.Call:
-                    _cursor = _cursor with { Position = position + 1 };
+                    _position = position + 1;
                     EnterCall(calls[instruction.Left], new(instruction.Detail == 0
                         ? AwkRegionOperandKind.ValueTemporary : AwkRegionOperandKind.NumberTemporary, instruction.Target));
                     goto Resume;
@@ -537,7 +537,7 @@ internal partial struct AwkRegionMachine
                     if (builtin.Host is { } host)
                     {
                         state.ThrowIfCancellationRequested();
-                        _cursor = _cursor with { Position = position + 1 };
+                        _position = position + 1;
                         _pending = Pending.BuiltinValue;
                         _hostValue = host.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context);
                         goto Resume;
@@ -568,7 +568,7 @@ internal partial struct AwkRegionMachine
                     }
                     else if (instruction.Detail != 0)
                     {
-                        _cursor = _cursor with { Position = position + 1 };
+                        _position = position + 1;
                         _pending = Pending.Flush;
                         _hostCompletion = builtinExecution.Output.FlushDiagnosticsAsync(builtinExecution.Io);
                         goto Resume;
@@ -587,7 +587,7 @@ internal partial struct AwkRegionMachine
                         break;
                     }
                     if (read.Kind != AwkGetlineSourceKind.MainInput && !read.IsExpression) break;
-                    _cursor = _cursor with { Position = position + 1 };
+                    _position = position + 1;
                     _pending = Pending.Flush;
                     _hostCompletion = read.Kind == AwkGetlineSourceKind.MainInput
                         ? execution.Output.FlushAsync(execution.Io)
@@ -613,7 +613,7 @@ internal partial struct AwkRegionMachine
                     storage.PrepareGetlineTarget(instruction.Target, ResolveReference(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.Getline:
-                    _cursor = _cursor with { Position = position + 1 };
+                    _position = position + 1;
                     BeginRead(region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:

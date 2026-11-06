@@ -9,7 +9,11 @@ internal partial struct AwkRegionMachine
     private readonly AwkIo? _io;
     private readonly AwkRegionStorage _rootStorage;
     private readonly AwkRegion _rootRegion;
-    private AwkRegionCursor _cursor;
+    private AwkRegion _region;
+    private AwkRegionStorage _storage;
+    private int _position;
+    // Execution ownership differs from the binding stack during retirement/reentry.
+    private AwkFunctionFrame? _frame;
     private Pending _pending;
     private Task _hostCompletion;
     private ValueTask<AwkStatementFlow> _hostFlow;
@@ -33,7 +37,9 @@ internal partial struct AwkRegionMachine
         _rootStorage = storage;
         _rootRegion = region;
         _mainInput = input;
-        _cursor = new(region, storage, input is null && region.MainBodyStart >= 0 ? region.MainBodyStart : 0, null);
+        _region = region;
+        _storage = storage;
+        _position = input is null && region.MainBodyStart >= 0 ? region.MainBodyStart : 0;
         _hostCompletion = Task.CompletedTask;
     }
 
@@ -42,10 +48,10 @@ internal partial struct AwkRegionMachine
 
     internal void Initialize()
     {
-        _cursor.Storage.Initialize(_cursor.Region);
+        _storage.Initialize(_region);
         if (_state.Counters.IsEnabled)
         {
-            switch (_cursor.Region.Kind)
+            switch (_region.Kind)
             {
                 case AwkRegionKind.Function: _state.Counters.RecordBoundFunctionRun(); break;
                 case AwkRegionKind.Phase: _state.Counters.RecordBoundPhaseRun(); break;
@@ -56,15 +62,18 @@ internal partial struct AwkRegionMachine
 
     private void EnterCall(AwkRegionCall call, AwkRegionOperand destination)
     {
-        var frame = _cursor.Storage.IncomingFrame(call.Slot);
-        frame.Continuation = new(_cursor, destination);
+        var frame = _storage.IncomingFrame(call.Slot);
+        frame.SetCaller(_region, _storage, _position, _frame, destination);
         _state.ActivateFunctionFrame(frame);
-        _cursor.Storage.ActivatedCall(call.Slot);
+        _storage.ActivatedCall(call.Slot);
         // Retain responsibility if obtaining/preparing callee scratch fails.
         _enteringFrame = frame;
         var region = call.Function.Region ?? throw new InvalidOperationException("A called function has not been prepared.");
         var storage = frame.GetRegionStorage(_state);
-        _cursor = new(region, storage, 0, frame);
+        _region = region;
+        _storage = storage;
+        _position = 0;
+        _frame = frame;
         _enteringFrame = null;
         storage.Initialize(region);
         _state.Counters.RecordBoundFunctionRun();
@@ -103,7 +112,7 @@ internal partial struct AwkRegionMachine
     private void BeginWrite(AwkRegionOutput output)
     {
         if (_io is not { } io) throw new InvalidOperationException("Redirection requires a host context.");
-        var storage = _cursor.Storage;
+        var storage = _storage;
         var target = storage.PreparedOutputTarget(output);
         _state.ThrowIfCancellationRequested();
         _destination = output.Value;
@@ -114,7 +123,7 @@ internal partial struct AwkRegionMachine
     private void BeginFlush(AwkOutputSink output, int resumePosition, int fieldDemand = 0)
     {
         if (_io is not { } io) throw new InvalidOperationException("Flush requires a host context.");
-        _cursor = _cursor with { Position = resumePosition };
+        _position = resumePosition;
         _flushFieldDemand = fieldDemand;
         _hostCompletion = output.FlushAsync(io);
         _pending = Pending.Flush;
@@ -125,8 +134,8 @@ internal partial struct AwkRegionMachine
         var completed = _pending;
         if (_pending == Pending.Output)
         {
-            _cursor.Storage.Builders[0].Buffer.Clear();
-            _cursor.Storage.ReleaseValue(_destination);
+            _storage.Builders[0].Buffer.Clear();
+            _storage.ReleaseValue(_destination);
         }
         _hostCompletion = Task.CompletedTask;
         _pending = Pending.None;
@@ -144,24 +153,23 @@ internal partial struct AwkRegionMachine
         _hostValue = default;
         _pending = Pending.None;
         _state.ThrowIfCancellationRequested();
-        var instruction = _cursor.Region.Instructions[_cursor.Position - 1];
-        var builtin = _cursor.Region.Builtins[instruction.Left];
-        _cursor.Storage.StoreValue(instruction.Target, value);
-        _cursor.Storage.ReleaseValues(builtin.Start, builtin.Count);
+        var instruction = _region.Instructions[_position - 1];
+        var builtin = _region.Builtins[instruction.Left];
+        _storage.StoreValue(instruction.Target, value);
+        _storage.ReleaseValues(builtin.Start, builtin.Count);
     }
 
-    private void StoreReturnValue(AwkRegionContinuation continuation, AwkValue value)
+    private static void StoreReturnValue(AwkRegionStorage storage, AwkRegionOperand destination, AwkValue value)
     {
-        var destination = continuation.Destination;
         if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
-            continuation.Caller.Storage.StoreNumber(destination.Index, value);
+            storage.StoreNumber(destination.Index, value);
         else
-            continuation.Caller.Storage.StoreValue(destination.Index, value);
+            storage.StoreValue(destination.Index, value);
     }
 
     private void Finish(AwkStatementFlow flow)
     {
-        if (_cursor.Frame is null)
+        if (_frame is null)
         {
             if (IsProcessingMainRecord) CompleteMainFlow(flow);
             else { Flow = flow; _finished = true; }
@@ -177,30 +185,38 @@ internal partial struct AwkRegionMachine
 
     private void Return(AwkValue value)
     {
-        var frame = _cursor.Frame ?? throw new InvalidOperationException("A return requires an active function frame.");
-        if (frame.Continuation is not { } continuation)
+        var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
+        if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
         // Escaping data is funded, or an immediate numeric consumer completes,
         // before the callee's locals/captures retire.
-        StoreReturnValue(continuation, value);
+        StoreReturnValue(storage, resumePoint.Destination, value);
         _state.PopFunctionFrame();
-        _cursor = continuation.Caller;
+        RestoreCaller(region, storage, resumePoint.Position, callerFrame);
     }
 
     private void ReturnNumber(double number)
     {
-        var frame = _cursor.Frame ?? throw new InvalidOperationException("A return requires an active function frame.");
-        if (frame.Continuation is not { } continuation)
+        var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
+        if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
-        var destination = continuation.Destination;
+        var destination = resumePoint.Destination;
         // Keep ready numbers unboxed through the continuation; a value consumer
         // still receives the ordinary scalar before the callee retires.
         if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
-            continuation.Caller.Storage.Numbers[destination.Index] = number;
+            storage.Numbers[destination.Index] = number;
         else
-            continuation.Caller.Storage.StoreValue(destination.Index, AwkValue.FromNumber(number));
+            storage.StoreValue(destination.Index, AwkValue.FromNumber(number));
         _state.PopFunctionFrame();
-        _cursor = continuation.Caller;
+        RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+    }
+
+    private void RestoreCaller(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame)
+    {
+        _region = region;
+        _storage = storage;
+        _position = position;
+        _frame = frame;
     }
 
     private void UnwindFrames()
@@ -210,11 +226,12 @@ internal partial struct AwkRegionMachine
             _state.PopFunctionFrame();
             _enteringFrame = null;
         }
-        while (_cursor.Frame is { } frame)
+        while (_frame is { } frame)
         {
-            var continuation = frame.Continuation ?? throw new InvalidOperationException("A called function requires a caller.");
+            if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
+                throw new InvalidOperationException("A called function requires a caller.");
             _state.PopFunctionFrame();
-            _cursor = continuation.Caller;
+            RestoreCaller(region, storage, resumePoint.Position, callerFrame);
         }
     }
 

@@ -134,18 +134,7 @@ internal readonly record struct AwkRegionCall
     internal int Slot { get; }
     internal int Arguments { get; }
 }
-internal readonly record struct AwkRegionCursor
-{
-    private readonly AwkRegion? _region;
-    private readonly AwkRegionStorage? _storage;
-    internal AwkRegionCursor(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame) =>
-        (_region, _storage, Position, Frame) = (region, storage, position, frame);
-    internal AwkRegion Region => _region ?? throw new InvalidOperationException("An uninitialized cursor has no region.");
-    internal AwkRegionStorage Storage => _storage ?? throw new InvalidOperationException("An uninitialized cursor has no storage.");
-    internal int Position { get; init; }
-    internal AwkFunctionFrame? Frame { get; }
-}
-internal readonly record struct AwkRegionContinuation(AwkRegionCursor Caller, AwkRegionOperand Destination);
+internal readonly record struct AwkRegionResumePoint(int Position, AwkRegionOperand Destination);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,
     int Start, int Count, int[] PendingArguments,
     AwkBuiltinImplementation.AsyncBuiltinImplementation? Host = null);

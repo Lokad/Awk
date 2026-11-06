@@ -77,7 +77,10 @@ internal partial struct AwkRegionMachine
     {
         UnwindFrames();
         _rootStorage.ClearValues();
-        _cursor = new(_rootRegion, _rootStorage, 0, null);
+        _region = _rootRegion;
+        _storage = _rootStorage;
+        _position = 0;
+        _frame = null;
         _pending = Pending.None;
         _hostCompletion = Task.CompletedTask;
         _hostFlow = default;
