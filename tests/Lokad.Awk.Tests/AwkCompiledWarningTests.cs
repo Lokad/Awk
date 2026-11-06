@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkCompiledWarningTests
+public sealed partial class AwkCompiledWarningTests
 {
     private const string Warning = "awk: warning: escape sequence `\\q' treated as plain `q'\n";
 
