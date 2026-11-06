@@ -145,10 +145,14 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                     record = AwkInputRecordResult.Buffered(storage, line.Terminator);
                 }
                 else
+                {
                     record = AwkInputRecordResult.Record(AwkText.CopyHostBytes(line.RecordBytes.Span,
                         _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint),
                         line.Terminator, AwkRecordFieldSplittingMode.Ordinary);
-                _state.ThrowIfCancellationRequested();
+                    _state.ThrowIfCancellationRequested();
+                }
+                // StageBorrowed already polls after admission and before publication.
+                // No callback separates that owner check from prefix bookkeeping.
                 _reader.Advance(length);
                 _hasConsumedDescriptorBytes = true;
                 return PublishRecord(record);

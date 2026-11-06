@@ -75,6 +75,31 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Fact]
+    public async Task InputAdmissionCancellationStopsRecordEffectsAndConsumption()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var canceledAdmission = false;
+        var host = new InputHost(budget, new string('x', 3000) + " 7\n")
+        {
+            OnRead = () => budget.OnGrowth = _ =>
+            {
+                canceledAdmission = true;
+                cancellation.Cancel();
+            }
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Execute(
+            "BEGIN{print \"before\"}{print \"unreachable\"}END{print \"end\"}", host, budget, cancellation.Token));
+        budget.OnGrowth = null;
+        Assert.True(canceledAdmission);
+        Assert.Equal("before\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(0, host.CommittedInputBytes);
+        Assert.Equal(0, budget.Refusals);
+        AssertRefunded(budget);
+    }
+
+    [Fact]
     public async Task LaterActionsReuseRelinquishedPayloadUnderSharedPressure()
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -369,6 +394,7 @@ public sealed class AwkRecordInputMemoryTests
         private int _batchIndex;
         private int _batchOffset;
         public int Reads { get; private set; }
+        public int CommittedInputBytes { get; private set; }
         public List<long> ReadAdmission { get; } = [];
         public List<long> OutputAdmission { get; } = [];
         public Func<Task>? PendingOutput { get; init; }
@@ -400,6 +426,7 @@ public sealed class AwkRecordInputMemoryTests
                 _batchIndex + 1 == _batches.Length && _batchOffset + length == batch.Length
                     ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData, consumed =>
                 {
+                    CommittedInputBytes += consumed;
                     if (PoisonConsumedBytes) content.Span[..consumed].Fill(0xFF);
                     _batchOffset += consumed;
                     if (_batchOffset == batch.Length) { _batchIndex++; _batchOffset = 0; }
