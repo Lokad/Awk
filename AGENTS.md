@@ -33,6 +33,9 @@ or environment dependencies.
 - Main input, rule conditions/bodies and record backedges use one prepared program.
   Preserve rule-scratch retirement and actual pending-host continuations; do not restore
   a parallel per-rule scheduler or reset/rebind the main cursor on ordinary record progression.
+  Available-record progression reports completion directly. Cursor and scheduler share their
+  synchronous algorithm with thin awaitable adapters; only pending work populates the existing
+  machine continuation. Preserve awaited failure behavior and prepare immediate newline eligibility once.
   Execution location uses direct code/storage/position fields. Saved caller frames describe
   execution ownership, which can differ from the binding stack during retirement and root reentry.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring

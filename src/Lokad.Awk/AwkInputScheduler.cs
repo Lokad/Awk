@@ -45,28 +45,39 @@ internal sealed class AwkInputScheduler(
 
     private ValueTask<bool> MoveNextAsync(AwkRecordStorage? storage)
     {
+        ValueTask<bool> pending = default;
+        return TryMoveNext(storage, ref pending, out var hasRecord)
+            ? ValueTask.FromResult(hasRecord) : pending;
+    }
+
+    private bool TryMoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending, out bool hasRecord)
+    {
+        hasRecord = false;
         if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInBeginFile);
 
         if (_mainInputReadProhibition == MainInputReadProhibition.EndFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInEndFile);
 
-        if (state.ExitRequested) return ValueTask.FromResult(false);
+        if (state.ExitRequested) return true;
         if (_currentInput is not { } input)
-            return AdvanceInputAsync(storage, default, hasRead: false);
+        {
+            pending = AdvanceInputAsync(storage, default, hasRead: false);
+            return false;
+        }
 
         if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
-        var pending = input.Cursor.MoveNextAsync(storage);
-        if (pending.IsCompletedSuccessfully)
+        if (input.Cursor.TryMoveNext(storage, ref pending, out hasRecord))
         {
-            if (pending.Result)
+            if (hasRecord)
             {
                 state.Checkpoint();
-                return ValueTask.FromResult(true);
+                return true;
             }
             pending = ValueTask.FromResult(false);
         }
-        return AdvanceInputAsync(storage, pending, hasRead: true);
+        pending = AdvanceInputAsync(storage, pending, hasRead: true);
+        return false;
     }
 
     private async ValueTask<bool> AdvanceInputAsync(AwkRecordStorage? storage,
@@ -272,7 +283,8 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    internal ValueTask<bool> ReadForProcessingAsync() => MoveNextAsync(state.InputRecordStorage);
+    internal bool TryReadForProcessing(ref ValueTask<bool> pending, out bool hasRecord) =>
+        TryMoveNext(state.InputRecordStorage, ref pending, out hasRecord);
 
     internal ValueTask<AwkStatementFlow> CompleteActionAsync(AwkStatementFlow flow) =>
         CompleteCurrentInputAsync(flow == AwkStatementFlow.ExitProgram ? EndFileAction.Skip : EndFileAction.Execute);

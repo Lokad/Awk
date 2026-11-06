@@ -79,25 +79,43 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
 
     internal ValueTask<bool> MoveNextAsync(AwkRecordStorage? storage)
     {
+        ValueTask<bool> pending = default;
+        return TryMoveNext(storage, ref pending, out var hasRecord)
+            ? ValueTask.FromResult(hasRecord) : pending;
+    }
+
+    // Available records return directly. Only actual refill/error completion
+    // populates the caller's existing continuation; no cursor-owned task slot.
+    internal bool TryMoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending, out bool hasRecord)
+    {
+        hasRecord = false;
         try
         {
             _recordResult = default;
             _discardedParagraphLeader = false;
             _state.ThrowIfCancellationRequested();
             var separator = GetCurrentSeparator();
-            if (PrepareNewlineReader(separator))
+            var newlineReader = PrepareNewlineReader(separator);
+            if (newlineReader && _reader.Content.IsEmpty)
             {
-                var pending = _reader.TryBufferAsync();
-                if (!pending.IsCompletedSuccessfully)
-                    return ReadMoreAsync(storage, separator, pending, awaitingNewlineBuffer: true);
-                if (!pending.Result) return ValueTask.FromResult(false);
+                var refill = _reader.TryBufferAsync();
+                if (!refill.IsCompletedSuccessfully)
+                {
+                    pending = ReadMoreAsync(storage, separator, refill, awaitingNewlineBuffer: true);
+                    return false;
+                }
+                if (!refill.Result) return true;
             }
-            var result = ReadAvailable(separator, storage);
-            return result != BufferedReadStatus.NeedMoreData
-                ? ValueTask.FromResult(result == BufferedReadStatus.Record)
-                : ReadMoreAsync(storage, separator, default, awaitingNewlineBuffer: false);
+            var result = ReadAvailable(separator, storage, newlineReader);
+            if (result == BufferedReadStatus.NeedMoreData)
+            {
+                pending = ReadMoreAsync(storage, separator, default, awaitingNewlineBuffer: false);
+                return false;
+            }
+            hasRecord = result == BufferedReadStatus.Record;
+            return true;
         }
-        catch (Exception error) { _recordResult = default; return FailedReadAsync(error); }
+        catch (Exception error) { _recordResult = default; pending = FailedReadAsync(error); return false; }
     }
 
     // Retain async completion semantics, including cancellation with an unrequested
@@ -126,9 +144,12 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         }
     }
 
-    private BufferedReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage)
+    private BufferedReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage) =>
+        ReadAvailable(separator, storage, PrepareNewlineReader(separator));
+
+    private BufferedReadStatus ReadAvailable(RecordSeparator separator, AwkRecordStorage? storage, bool newlineReader)
     {
-        if (PrepareNewlineReader(separator))
+        if (newlineReader)
         {
             var bytes = _reader.Content;
             var newline = bytes.Span.IndexOf((byte)'\n');

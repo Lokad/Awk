@@ -225,7 +225,8 @@ Numeric updates, readers and variable stores reference the same canonical operan
 Execution and binding-frame ownership remain distinct during reentry and cleanup.
 Rule completion retires its reference scratch. Actual host suspension saves its continuation.
 Returns keep their captured value and callee storage until required output actually completes.
-Available records use synchronous recognition, while pending refills retain their cursor and
+Available records pass completion directly through the input scheduler and cursor; awaiting
+consumers share that same reader. Pending refills retain their existing continuation, cursor and
 storage until actual completion. Record/header publication retains its admission and
 cancellation preflight. Command-wide host services are reused; reentrant scopes retain actual
 overrides and restore them after

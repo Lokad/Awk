@@ -25,14 +25,12 @@ internal partial struct AwkRegionMachine
             _finished = true;
             return true;
         }
-        var read = input.ReadForProcessingAsync();
-        if (!read.IsCompletedSuccessfully)
+        if (!input.TryReadForProcessing(ref _mainRead, out var hasRecord))
         {
-            _mainRead = read;
             _pending = Pending.MainRead;
             return false;
         }
-        if (!read.Result) _finished = true;
+        if (!hasRecord) _finished = true;
         else BeginMainRecord(input.TakeRecord());
         return true;
     }
