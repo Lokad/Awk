@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using Lokad.Awk;
 using Lokad.Awk.Benchmarking;
@@ -260,6 +261,10 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("Machine: " + Environment.MachineName);
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
+        var library = typeof(Awk).Assembly;
+        Console.WriteLine("Library build: " + (library.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "Unavailable"));
+        Console.WriteLine("Library SHA256: " + await ReferenceReport.HashFileAsync(library.Location, cancellationToken).ConfigureAwait(false));
+        Console.WriteLine("Benchmark SHA256: " + await ReferenceReport.HashFileAsync(typeof(BenchmarkCounterReport).Assembly.Location, cancellationToken).ConfigureAwait(false));
         Console.WriteLine();
         Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | Buffered RS scan bytes | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Array names resolved | Numeric array reads | Bound array updates | Bound aliases | Indexed local arrays | Regex coordinate bytes | Field number parses | Borrowed input records | Input record bytes copied | Input record promotions | Memory peak |");
         Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", 32)));

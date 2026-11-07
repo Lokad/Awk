@@ -147,3 +147,5 @@ and simplification together. Preserve the full correctness suite. See
 Counter diagnostics distinguish parsed field descriptors from owned text and count actual
 UTF-16-to-UTF-8 encoding; copying existing field bytes into output is not an encoding.
 Buffered RS scan counters cover the owned scanner; direct newline searches are excluded.
+Retain the reported library build and library/benchmark DLL hashes with diagnostic results.
+Rebuild after source changes so counters describe the intended runtime.
