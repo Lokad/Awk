@@ -5,7 +5,7 @@ internal static class AwkRuntimeMemory
     // Conservative 64-bit layout estimates include object/array headers and the
     // reference/value fields retained by each runtime object. They intentionally
     // favor rejecting an allocation slightly early over understating live memory.
-    private const int AwkTextObjectBytes = 72;
+    private const int AwkTextObjectBytes = 64;
     private const int ByteArrayObjectBytes = 24;
     private const int StringObjectBytes = 24;
     private const int VariableSlotBytes = 24;

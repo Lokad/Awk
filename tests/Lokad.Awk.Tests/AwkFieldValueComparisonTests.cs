@@ -11,7 +11,7 @@ public sealed class AwkFieldValueComparisonTests
         var state = memory.State;
         var counters = state.Counters;
         var bytes = "k old"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         var left = AwkValue.FromText("old");
         var region = Bind(state, "BEGIN{result=(left==$2)}");
@@ -23,7 +23,9 @@ public sealed class AwkFieldValueComparisonTests
         var allocations = counters.AwkTextAllocations;
         Assert.True(Compare(region, storage, state));
         Assert.Equal(allocations, counters.AwkTextAllocations);
-        bytes[2] = (byte)'b';
+        AwkTestHarness.PublishBufferedRecord(state, "k bld"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "k bld"u8);
+        Assert.True(original.Span.EndsWith("bld"u8));
         Assert.False(Compare(region, storage, state));
         state.SetCurrentRecord(AwkText.FromString("k 007"));
         state.AssignVariableValue(leftName, AwkValue.FromNumber(7));

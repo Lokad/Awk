@@ -45,7 +45,7 @@ public sealed partial class AwkFieldProjectionTests
         var counters = state.Counters;
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var bytes = "first second"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         // Warm the ordinary ORS binding before comparing field-specific counters.
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
@@ -55,8 +55,9 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal(allocations, counters.AwkTextAllocations);
         // Reading ORS creates one value; the projected field creates none.
         Assert.Equal(values + 1, counters.ValuesCreated);
-        Array.Fill(bytes, (byte)'X');
-        state.SetCurrentRecord(AwkText.FromString("next"));
+        AwkTestHarness.PublishBufferedRecord(state, "next"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "next"u8);
+        Assert.True(original.Span.StartsWith("next"u8));
         state.AppendFieldPrint(output, 1);
         Assert.Equal("first\nnext\n", output.ToString());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

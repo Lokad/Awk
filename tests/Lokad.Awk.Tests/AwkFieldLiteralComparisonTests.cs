@@ -11,7 +11,7 @@ public sealed class AwkFieldLiteralComparisonTests
         var state = memory.State;
         var counters = state.Counters;
         var bytes = "first second"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         var region = Bind(state, "first");
         using var storage = new AwkRegionStorage(state);
@@ -19,7 +19,9 @@ public sealed class AwkFieldLiteralComparisonTests
         var allocations = counters.AwkTextAllocations;
         Assert.True(Compare(region, storage, state));
         Assert.Equal(allocations, counters.AwkTextAllocations);
-        Array.Fill(bytes, (byte)'X');
+        AwkTestHarness.PublishBufferedRecord(state, "XXXXX XXXXXX"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "XXXXX XXXXXX"u8);
+        Assert.True(original.Span.StartsWith("XXXXX"u8));
         Assert.False(Compare(region, storage, state));
         state.SetCurrentRecord(AwkText.FromString("first next"));
         Assert.True(Compare(region, storage, state));

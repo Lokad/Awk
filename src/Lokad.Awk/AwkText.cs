@@ -11,9 +11,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     private const int KnownNonAsciiWithoutRuneCount = -1;
     private const int RuneCheckpointStride = AwkRuntimeMemory.TextRuneCheckpointStride;
     private readonly byte[] _bytes;
-    private readonly int _byteOffset;
     private readonly int _byteLength;
-    private readonly bool _isBorrowed;
     private readonly AwkTextConcatenation? _concatenation;
     private string? _cachedString;
     // Zero means unclassified, -1 means non-ASCII with an unknown rune count,
@@ -22,17 +20,10 @@ internal sealed class AwkText : IEquatable<AwkText>
     private int[]? _runeByteCheckpoints;
 
     private AwkText(byte[] bytes)
-        : this(bytes, 0, bytes.Length, isBorrowed: false)
-    {
-    }
-
-    private AwkText(byte[] bytes, int byteOffset, int byteLength, bool isBorrowed)
     {
         _bytes = bytes;
-        _byteOffset = byteOffset;
-        _byteLength = byteLength;
-        _isBorrowed = isBorrowed;
-        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateTextBytes(byteLength);
+        _byteLength = bytes.Length;
+        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateTextBytes(bytes.Length);
     }
 
     private AwkText(
@@ -97,7 +88,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     {
         checkpoint?.Invoke();
         return _concatenation is null
-            ? _bytes.AsSpan(_byteOffset, _byteLength)
+            ? _bytes.AsSpan()
             : MaterializeConcatenation(_concatenation, checkpoint).AsSpan();
     }
 
@@ -105,7 +96,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     {
         checkpoint?.Invoke();
         return _concatenation is null
-            ? _bytes.AsMemory(_byteOffset, _byteLength)
+            ? _bytes.AsMemory()
             : MaterializeConcatenation(_concatenation, checkpoint).AsMemory();
     }
 
@@ -225,23 +216,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return CopyTrustedBytes(bytes, counters, governor, checkpoint);
     }
 
-    internal static AwkText FromTrustedBorrowedBytes(
-        byte[] bytes,
-        int byteOffset,
-        int byteLength)
-    {
-        // The caller owns the backing buffer and must discard this view before mutating it.
-        if (byteOffset < 0 || byteOffset > bytes.Length)
-            throw new ArgumentOutOfRangeException(nameof(byteOffset));
-
-        if (byteLength < 0 || byteOffset > bytes.Length - byteLength)
-            throw new ArgumentOutOfRangeException(nameof(byteLength));
-
-        return byteLength == 0
-            ? Empty
-            : new AwkText(bytes, byteOffset, byteLength, isBorrowed: true);
-    }
-
     public string AsString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
@@ -322,8 +296,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
         counters.RecordValueCreated();
         return new AwkText(
-            SnapshotBorrowedText(this, counters, governor, checkpoint),
-            SnapshotBorrowedText(other, counters, governor, checkpoint),
+            this,
+            other,
             length,
             counters,
             governor);
@@ -370,8 +344,8 @@ internal sealed class AwkText : IEquatable<AwkText>
 
             counters.RecordValueCreated();
             return new AwkText(
-                SnapshotBorrowedText(firstNonEmptyPart, counters, governor, checkpoint),
-                SnapshotBorrowedText(secondNonEmptyPart, counters, governor, checkpoint),
+                firstNonEmptyPart,
+                secondNonEmptyPart,
                 totalLength,
                 counters,
                 governor);
@@ -412,7 +386,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (length == 0)
             return Empty;
 
-        if (!_isBorrowed && start == 0 && length == ByteLength)
+        if (start == 0 && length == ByteLength)
             return this;
 
         var bytes = AllocateOwnedBytes(length, governor);
@@ -462,7 +436,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (byteStart == byteEnd)
             return Empty;
 
-        if (!_isBorrowed && byteStart == 0 && byteEnd == ByteLength)
+        if (byteStart == 0 && byteEnd == ByteLength)
             return this;
 
         var byteLength = byteEnd - byteStart;
@@ -768,7 +742,7 @@ internal sealed class AwkText : IEquatable<AwkText>
                     var currentConcatenation = current._concatenation;
                     if (currentConcatenation is null)
                     {
-                        var source = current._bytes.AsSpan(current._byteOffset, current._byteLength);
+                        var source = current._bytes.AsSpan();
                         CopyBytes(source, destination[destinationOffset..], checkpoint);
                         destinationOffset += source.Length;
                         continue;
@@ -831,15 +805,6 @@ internal sealed class AwkText : IEquatable<AwkText>
             }
         }
     }
-
-    private static AwkText SnapshotBorrowedText(
-        AwkText text,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null) =>
-        text._isBorrowed
-            ? CopyTrustedBytes(text.AsSpan(checkpoint), counters, governor, checkpoint)
-            : text;
 
     private sealed class AwkTextConcatenation
     {

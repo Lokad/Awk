@@ -10,7 +10,7 @@ public sealed class AwkReplacementCaptureCancellationTests
     [Theory]
     [InlineData("substitution")]
     [InlineData("gensub")]
-    [InlineData("advance")]
+    [InlineData("search")]
     public void CanceledCallersDoNotFlattenReplacementOrEmptyMatchInput(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -28,7 +28,12 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 case "substitution": AwkReplacement.AppendSubstitution("x"u8, text, builder, cancellation.Token.ThrowIfCancellationRequested); break;
                 case "gensub": using (AwkGensubReplacementPlan.Rent(text, cancellation.Token.ThrowIfCancellationRequested)) { } break;
-                case "advance": _ = AwkRegexMatchSpan.AfterMatch(text, AwkRegexMatchSpan.Match(0, 0), cancellation.Token.ThrowIfCancellationRequested); break;
+                case "search":
+                    using (var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
+                        AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, counters,
+                        regexEngine: AwkUtf8RegexEngine.Instance, cancellationToken: cancellation.Token))
+                    using (regex.OpenSearch(new AwkRegex(AwkText.Empty, AwkRegexCaseSensitivity.CaseSensitive), text)) { }
+                    break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));
             }
         });

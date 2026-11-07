@@ -6,12 +6,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkTextTests
 {
     [Fact]
-    public void AwkText_FullRuneSliceOwnsBorrowedBytes()
+    public void AwkText_FullRuneSliceRetainsOwnedIngressBytes()
     {
         var bytes = "é😀q"u8.ToArray();
-        var text = AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length);
+        var text = AwkText.FromHostBytes(bytes);
         var copy = text.CopyRuneSlice(0, int.MaxValue, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
         Array.Fill(bytes, (byte)'x');
+        Assert.Same(text, copy);
         Assert.Equal("é😀q", copy.AsString());
     }
 
@@ -110,11 +111,11 @@ public sealed class AwkTextTests
     }
 
     [Fact]
-    public void AwkText_ConcatenationSnapshotsBorrowedParts()
+    public void AwkText_ConcatenationRetainsOwnedIngressParts()
     {
         var buffer = "ab"u8.ToArray();
-        var borrowed = AwkText.FromTrustedBorrowedBytes(buffer, 0, buffer.Length);
-        var concatenated = borrowed.Concat(
+        var owned = AwkText.FromHostBytes(buffer);
+        var concatenated = owned.Concat(
             AwkText.FromString("cd"),
             AwkRuntimeCounters.Disabled,
             AwkMemoryAccounting.Disabled);

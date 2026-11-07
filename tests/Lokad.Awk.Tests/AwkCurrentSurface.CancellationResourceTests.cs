@@ -638,6 +638,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var state = memoryForState.State;
         var record = new string('x', 100);
         state.SetCurrentRecord(AwkText.FromString(record, state.Counters, state.MemoryAccounting));
+        // Pressure starts after the record's real storage is admitted; it must not
+        // depend on a previous text-wrapper size leaving an accidental shortfall.
+        memoryForState.Budget.SetAvailableBytes(0);
 
         var exception = Assert.Throws<AwkRuntimeException>(() => state.FieldCount);
 

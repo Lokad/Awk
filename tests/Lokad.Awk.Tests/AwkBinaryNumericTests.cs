@@ -11,7 +11,7 @@ public sealed class AwkBinaryNumericTests
         var counters = state.Counters;
         Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         var bytes = "007 3 tail"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         var allocations = counters.AwkTextAllocations;
         var parsed = AwkParser.Parse("BEGIN{result=$1*2+$2}");

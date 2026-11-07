@@ -11,7 +11,7 @@ public sealed partial class AwkFieldProjectionTests
         var state = memoryForState.State;
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         var bytes = "café old 0007"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText("|"));
         state.AssignFieldValue(2, AwkValue.FromText("É"));
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
@@ -23,8 +23,9 @@ public sealed partial class AwkFieldProjectionTests
 
         var saved = state.GetCurrentRecordValue();
         Assert.Equal(allocations + 1, state.Counters.AwkTextAllocations);
-        Array.Fill(bytes, (byte)'X');
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("next"));
+        AwkTestHarness.PublishBufferedRecord(state, "next"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "next"u8);
+        Assert.True(original.Span.StartsWith("next"u8));
         state.AppendFieldPrint(output, 0);
         Assert.Equal("café|É|0007\ncafé|É|0007\nnext\n", output.ToString());
         Assert.Equal("café|É|0007"u8.ToArray(), saved.ByteText.AsSpan().ToArray());
@@ -68,7 +69,7 @@ public sealed partial class AwkFieldProjectionTests
         var counters = state.Counters;
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var bytes = "before 007 café"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var host = new MockFileSystem();
         var binding = AwkBinder.Bind(AwkParser.Parse("{print $1,$3,$2}"));
         Assert.True(binding.Success);
@@ -80,8 +81,9 @@ public sealed partial class AwkFieldProjectionTests
             AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
         var allocations = counters.AwkTextAllocations;
         await region.ExecuteAsync(state, io, output);
-        Array.Fill(bytes, (byte)'X');
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("next 8 😀"));
+        AwkTestHarness.PublishBufferedRecord(state, "next 8 😀"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "next 8 😀"u8);
+        Assert.True(original.Span.StartsWith("next"u8));
         await region.ExecuteAsync(state, io, output);
         Assert.Equal("before café 007\nnext 😀 8\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(allocations, counters.AwkTextAllocations);

@@ -56,19 +56,19 @@ public sealed class AwkUtf8BuilderTests
     [Fact]
     public void AwkUtf8Builder_OwnedCopySurvivesBorrowedBufferReuse()
     {
-        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 2);
+        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 16);
         builder.Append("abc"u8);
 
-        var input = builder.BorrowAsAwkText(builder.Length);
-        var ownedCopy = input.CopyByteSlice(
-            0,
-            input.ByteLength,
+        var input = builder.AsMemory();
+        var ownedCopy = AwkText.CopyTrustedBytes(
+            input.Span,
             AwkRuntimeCounters.Disabled,
             AwkMemoryAccounting.Disabled);
 
-        Assert.Equal("abc"u8.ToArray(), input.AsSpan().ToArray());
+        Assert.Equal("abc"u8.ToArray(), input.ToArray());
         builder.RemovePrefix(3);
         builder.Append("replacement"u8);
+        Assert.True(input.Span.StartsWith("rep"u8));
         Assert.Equal("abc"u8.ToArray(), ownedCopy.AsSpan().ToArray());
     }
 

@@ -45,9 +45,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     private bool _hasConsumedDescriptorBytes;
     private bool _discardedParagraphLeader;
     private int _paragraphLeaderScanLength;
-    // General regex searches borrow the UTF-8 batch at the
-    // current record. The offset pair avoids repeated byte-to-UTF-16 conversion.
-    private AwkText? _regexInput;
+    // General regex searches borrow the batch's validated UTF-8 prefix.
     private int _validatedRegexBytes;
     private SeparatorCache _separatorCache;
 
@@ -190,7 +188,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         if (_bufferStart != buffer.Length || _borrowBytesCopied != _borrowBytesCommitted) return false;
         if (buffer.Length != 0 || _borrowBytesCopied != 0)
         {
-            ClearRegexInput();
             buffer.Clear();
             _bufferStart = 0;
             _validatedRegexBytes = 0;
@@ -250,7 +247,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 _pendingSeparatorStart -= removedLength;
                 _pendingSeparatorEnd -= removedLength;
             }
-            ClearRegexInput();
         }
     }
 
@@ -394,7 +390,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     private void AppendBorrowedPrefix(int length)
     {
         var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
-        ClearRegexInput();
         var bytes = _reader.Content.Span.Slice(_borrowBytesCopied - _borrowBytesCommitted, length);
         var start = buffer.Length;
         buffer.Append(bytes, _state.CancellationCheckpoint);
@@ -419,16 +414,10 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     public void Dispose()
     {
         _recordResult = default;
-        ClearRegexInput();
         _buffer?.Dispose();
         _buffer = null;
         _pendingRead = false;
         _reader.Dispose();
-    }
-
-    private void ClearRegexInput()
-    {
-        _regexInput = null;
     }
 
     private AwkRecordReadStatus FinalRecordOrNeedMore(

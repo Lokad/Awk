@@ -9,13 +9,13 @@ public sealed partial class AwkArrayCompoundUpdateTests
             "function selected(v){effects++;getline v<\"/index\";return v}BEGIN{values[$1,$(selected())]=7}",
             true, new InputGate("/index", "2\n", true));
         var state = execution.State;
-        PublishBufferedRecord(state, "old tail        "u8);
+        AwkTestHarness.PublishBufferedRecord(state, "old tail        "u8);
         var original = state.InputRecordStorage.Content;
         var pending = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(pending.IsCompleted);
-        PublishBufferedRecord(state, "new selected"u8);
-        PublishBufferedRecord(state, "new selected"u8); // Reuse the original slot while the call is pending.
+        AwkTestHarness.PublishBufferedRecord(state, "new selected"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "new selected"u8); // Reuse the original slot while the call is pending.
         Assert.True(original.Span.StartsWith("new"u8));
         execution.Inputs[0].Release.TrySetResult();
         Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
@@ -77,12 +77,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
-        PublishBufferedRecord(state, "hit old"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "hit old"u8);
         var original = state.InputRecordStorage.Content;
         var run = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        PublishBufferedRecord(state, "xxx old"u8);
-        PublishBufferedRecord(state, "xxx old"u8); // Both funded slots have now been reused.
+        AwkTestHarness.PublishBufferedRecord(state, "xxx old"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "xxx old"u8); // Both funded slots have now been reused.
         Assert.True(original.Span.StartsWith("xxx"u8));
         if (pending)
         {
@@ -214,10 +214,4 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static void PublishBufferedRecord(AwkRuntimeState state, ReadOnlySpan<byte> bytes)
-    {
-        var storage = state.InputRecordStorage;
-        storage.StageValidated(bytes);
-        state.PublishInputRecord(AwkInputRecordResult.Buffered(storage, AwkRecordTerminator.Empty), readsMainInput: false);
-    }
 }

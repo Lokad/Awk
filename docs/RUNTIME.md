@@ -373,7 +373,8 @@ stay pinned through matching, and record capacity remains funded until its owner
 Using stdin aliases alongside main input can retain admitted read-ahead; hosts may reuse a read
 buffer only after its borrow is disposed. Cancellation alone does not end that borrow.
 Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a
-decoded regex-input cache. Composite keys can copy field bytes straight into their
+decoded regex-input cache. This is a byte-memory borrow lasting through search disposal;
+scalar text remains immutable and owned. Composite keys can copy field bytes straight into their
 owned builder; no field view survives later operand evaluation or suspension. Escaping scalar
 values still own their text. Arithmetic field reads cache numbers in their already-funded
 descriptors. Owning values and input classification use separately admitted storage;

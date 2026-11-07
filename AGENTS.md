@@ -56,7 +56,9 @@ or environment dependencies.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.
-- Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
+- Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text;
+  borrowed record/regex bytes use their existing views and owners, not scalar-text wrappers.
+  Preserve regex resolution, pinning, admission and subject-materialization order. Hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Persistent record cells contain slices, numeric caches and frame-cache indices without managed
   references. Owned spelling and scalar values live in the frame cache; detached byte views carry

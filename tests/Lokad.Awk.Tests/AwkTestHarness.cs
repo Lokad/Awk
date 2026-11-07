@@ -37,6 +37,16 @@ internal static class AwkTestHarness
     public static AwkRuntimeOptions CreateRuntimeOptions() =>
         AwkRuntimeOptions.CreateSystemDefault() with { RegexEngine = AwkUtf8RegexEngine.Instance };
 
+    // Use the production record owner; fixtures can retain this view to verify
+    // actual backing reuse before checking that captured values remain owned.
+    public static ReadOnlyMemory<byte> PublishBufferedRecord(AwkRuntimeState state, ReadOnlySpan<byte> validUtf8)
+    {
+        var storage = state.InputRecordStorage;
+        storage.StageValidated(validUtf8);
+        state.PublishInputRecord(AwkInputRecordResult.Buffered(storage, AwkRecordTerminator.Empty), readsMainInput: false);
+        return storage.Content;
+    }
+
     public static AwkRuntimeState CreateRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken) =>

@@ -152,7 +152,15 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     public AwkRegexMatchSpanEnumerator EnumerateMatchSpans(AwkRegex regex, AwkText input) =>
         new(this, regex, input);
 
-    public Search OpenSearch(AwkRegex regex, AwkText input, int inputStart = 0)
+    public Search OpenSearch(AwkRegex regex, AwkText input, int inputStart = 0) =>
+        OpenSearch(regex, new SearchInput(input), inputStart);
+
+    // The record reader has validated this complete prefix and owns the borrow
+    // until search disposal. Ordinary scalar subjects remain owned text.
+    public Search OpenSearch(AwkRegex regex, ReadOnlyMemory<byte> input, int inputStart) =>
+        OpenSearch(regex, new SearchInput(input), inputStart);
+
+    private Search OpenSearch(AwkRegex regex, SearchInput input, int inputStart)
     {
         _throwIfCancellationRequested();
         var owner = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
@@ -164,10 +172,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         {
             // One scoped owner, including its lease and input reference; no subject copy.
             lease = _memoryAccounting.ReserveTransient(128);
-            provider = owner.Pattern.CreateSearch(input.AsMemory(_throwIfCancellationRequested)[inputStart..],
+            var bytes = input.Materialize(_throwIfCancellationRequested);
+            provider = owner.Pattern.CreateSearch(bytes[inputStart..],
                 _cancellationToken);
             _throwIfCancellationRequested();
-            var search = new Search(this, owner, provider, input, inputStart, lease);
+            var search = new Search(this, owner, provider, bytes, inputStart, lease);
             transferred = true;
             return search;
         }
@@ -179,6 +188,22 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                 try { provider?.Dispose(); }
                 finally { lease.Dispose(); owner.Unpin(); }
             }
+        }
+    }
+
+    // Defer owned-text materialization until after resolution, pinning and admission.
+    // This temporary carrier neither allocates nor owns another storage lease.
+    private readonly struct SearchInput
+    {
+        private readonly AwkText? _text;
+        private readonly ReadOnlyMemory<byte> _bytes;
+        public SearchInput(AwkText text) => _text = text;
+        public SearchInput(ReadOnlyMemory<byte> bytes) => _bytes = bytes;
+        public ReadOnlyMemory<byte> Materialize(Action checkpoint)
+        {
+            if (_text is { } text) return text.AsMemory(checkpoint);
+            checkpoint();
+            return _bytes;
         }
     }
 
@@ -305,15 +330,15 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     }
 
     internal sealed class Search(AwkRegexRuntime runtime, CompiledPattern owner, IAwkRegexSearch provider,
-        AwkText input, int inputStart, AwkMemoryLease lease) : IDisposable
+        ReadOnlyMemory<byte> input, int inputStart, AwkMemoryLease lease) : IDisposable
     {
-        private AwkText _input = input;
+        private ReadOnlyMemory<byte> _input = input;
         private AwkRegexScalarCoordinates _coordinates;
         private bool _disposed;
 
         public int AdvanceAfterMatch(AwkRegexMatchSpan match) =>
-            AwkRegexMatchSpan.AfterMatch(_input, match, runtime._throwIfCancellationRequested);
-        public int InputByteLength => _input.ByteLength;
+            AwkRegexMatchSpan.AfterMatch(_input.Span, match, runtime._throwIfCancellationRequested);
+        public int InputByteLength => _input.Length;
 
         public AwkRegexMatchSpan MatchSpan(int offset)
         {
@@ -325,7 +350,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                 var whole = provider.Match(offset - inputStart, [], runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
-                AwkRegexMatch.ValidateRanges(_input.AsSpan()[inputStart..], whole, [], offset - inputStart,
+                AwkRegexMatch.ValidateRanges(_input.Span[inputStart..], whole, [], offset - inputStart,
                     runtime._throwIfCancellationRequested);
                 return AwkRegexMatchSpan.Match(inputStart + whole.ByteIndex, whole.ByteLength);
             }
@@ -348,7 +373,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                 var whole = provider.Match(offset - inputStart, ranges, runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) { matchSpan = AwkRegexMatchSpan.NoMatch; return AwkLeasedRegexMatch.NoMatch; }
-                var result = AwkRegexMatch.FromRanges(whole, _input.AsSpan()[inputStart..], ranges, offset - inputStart,
+                var result = AwkRegexMatch.FromRanges(whole, _input.Span[inputStart..], ranges, offset - inputStart,
                     runtime._stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar,
                     runtime._counters, governor, runtime._throwIfCancellationRequested, ref _coordinates, capturePlan.IncludesPositions);
                 matchSpan = AwkRegexMatchSpan.Match(inputStart + whole.ByteIndex, whole.ByteLength);
@@ -361,7 +386,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
-            _input = AwkText.Empty;
+            _input = default;
             try { provider.Dispose(); }
             finally { lease.Dispose(); owner.Unpin(); }
         }

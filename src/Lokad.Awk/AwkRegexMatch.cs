@@ -207,12 +207,12 @@ internal readonly record struct AwkRegexMatchSpan(bool Success, int ByteIndex, i
     public static AwkRegexMatchSpan NoMatch => default;
     public static AwkRegexMatchSpan Match(int byteIndex, int byteLength) => new(true, byteIndex, byteLength);
 
-    public static int AfterMatch(AwkText input, AwkRegexMatchSpan match, Action? checkpoint = null)
+    public static int AfterMatch(ReadOnlySpan<byte> input, AwkRegexMatchSpan match, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
         var end = match.ByteIndex + match.ByteLength;
-        if (match.ByteLength != 0 || end == input.ByteLength) return end;
-        if (Rune.DecodeFromUtf8(input.AsSpan(checkpoint)[end..], out _, out var consumed) != OperationStatus.Done)
+        if (match.ByteLength != 0 || end == input.Length) return end;
+        if (Rune.DecodeFromUtf8(input[end..], out _, out var consumed) != OperationStatus.Done)
             throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
         return end + consumed;
     }

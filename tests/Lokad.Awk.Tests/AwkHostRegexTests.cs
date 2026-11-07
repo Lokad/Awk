@@ -332,6 +332,69 @@ public sealed class AwkHostRegexTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Fact]
+    public void RejectedSearchPatternDoesNotMaterializeItsOwnedSubject()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var engine = new RecordingEngine(Behavior.Unsupported);
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, static () => { }, counters,
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters),
+            memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget);
+        var subject = AwkText.FromString(new string('a', 16_384))
+            .Concat(AwkText.FromString("z"), counters, memory.Accounting);
+        var recipe = new AwkRegex(AwkText.FromSourceLiteralString("a"), AwkRegexCaseSensitivity.CaseSensitive);
+
+        var error = Assert.Throws<AwkRuntimeException>(() => runtime.OpenSearch(recipe, subject));
+
+        Assert.Equal("awk: regular expression is unsupported by the supplied provider\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(1, engine.Compiles);
+        Assert.Empty(engine.Patterns);
+        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        runtime.Dispose();
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SearchAdmissionCancellationPrecedesMaterializationAndProviderEntry(bool borrowed)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var engine = new RecordingEngine();
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, counters,
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters),
+            memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget,
+            cancellationToken: cancellation.Token);
+        var regex = runtime.Create(new AwkRegexPattern("a"));
+        var pattern = Assert.Single(engine.Patterns);
+        var subject = AwkText.FromString(new string('a', 16_384))
+            .Concat(AwkText.FromString("z"), counters, memory.Accounting);
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+
+        var error = Assert.Throws<OperationCanceledException>(() =>
+        {
+            using var search = borrowed
+                ? runtime.OpenSearch(regex, "a"u8.ToArray(), 0)
+                : runtime.OpenSearch(regex, subject);
+        });
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(0, pattern.SearchesCreated);
+        Assert.False(pattern.Disposed);
+        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        memory.Budget.OnGrowth = null;
+        runtime.Dispose();
+        Assert.True(pattern.Disposed);
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+    }
+
     private static Awk Tool(string source) => AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
 
     public enum Behavior
@@ -379,6 +442,7 @@ public sealed class AwkHostRegexTests
     {
         private Behavior BehaviorMode => behavior;
         public bool Disposed { get; private set; }
+        public int SearchesCreated { get; private set; }
         public int GroupCount => behavior switch
         {
             Behavior.NoGroups => 0,
@@ -402,6 +466,7 @@ public sealed class AwkHostRegexTests
 
         public IAwkRegexSearch CreateSearch(ReadOnlyMemory<byte> input, CancellationToken token)
         {
+            SearchesCreated++;
             if (behavior == Behavior.RefuseSearch) throw new AwkRegexAdmissionException();
             return new Search(this, inner.CreateSearch(input, token), input.Length);
         }

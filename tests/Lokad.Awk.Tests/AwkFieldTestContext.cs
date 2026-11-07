@@ -23,7 +23,7 @@ internal sealed class AwkFieldTestContext : IDisposable
             AwkStringUnitMode.Utf8Rune, check, accounting, counters);
         Frame = new AwkFieldFrame(counters, accounting, format ?? (static value => value.ByteText),
             Splitter, createInputValue ?? (text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal, check)),
-            text => AwkValue.FromText(text, AwkNumberParsingMode.Decimal, check),
+            text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
             resolveOutputFieldSeparator ?? (static () => AwkText.FromSourceLiteralString(" ")), check);
     }
 

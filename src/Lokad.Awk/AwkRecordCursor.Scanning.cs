@@ -14,7 +14,6 @@ internal sealed partial class AwkRecordCursor
             _validatedRegexBytes = 0;
             _bufferStart = 0;
             ResetSeparatorSearch();
-            ClearRegexInput();
             return _descriptorReachedEof
                 ? ParagraphEndOfFile(separator)
                 : AwkRecordReadStatus.Pending;
@@ -244,7 +243,7 @@ internal sealed partial class AwkRecordCursor
         {
             var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
             var input = GetRegexInput(buffer);
-            if (input.ByteLength == _bufferStart && !_descriptorReachedEof)
+            if (input.Length == _bufferStart && !_descriptorReachedEof)
                 return AwkRecordReadStatus.Pending;
             var recordStart = _bufferStart;
             var searchOffset = recordStart;
@@ -254,17 +253,17 @@ internal sealed partial class AwkRecordCursor
             while (true)
             {
                 _state.Resources.RecordRegexRecordSeparatorBytesScanned(
-                    input.ByteLength - searchOffset);
+                    input.Length - searchOffset);
                 match = search.MatchSpan(searchOffset);
                 if (!match.Success || match.ByteLength > 0)
                     break;
-                if (match.ByteIndex >= input.ByteLength)
+                if (match.ByteIndex >= input.Length)
                 {
                     match = AwkRegexMatchSpan.NoMatch;
                     break;
                 }
 
-                searchOffset = AwkRegexMatchSpan.AfterMatch(input, match, _state.CancellationCheckpoint);
+                searchOffset = AwkRegexMatchSpan.AfterMatch(input.Span, match, _state.CancellationCheckpoint);
             }
 
             if (!match.Success)
@@ -272,9 +271,8 @@ internal sealed partial class AwkRecordCursor
                 var remainingLength = buffer.Length - _bufferStart;
                 return _descriptorReachedEof
                     ? ConsumeExistingText(
-                        input.CopyByteSlice(
-                            recordStart,
-                            remainingLength,
+                        AwkText.CopyTrustedBytes(
+                            input.Span.Slice(recordStart, remainingLength),
                             _state.Counters,
                             _state.MemoryAccounting,
                             _state.CancellationCheckpoint),
@@ -283,23 +281,22 @@ internal sealed partial class AwkRecordCursor
                     : AwkRecordReadStatus.Pending;
             }
 
-            if (!_descriptorReachedEof && match.ByteIndex + match.ByteLength == input.ByteLength)
+            if (!_descriptorReachedEof && match.ByteIndex + match.ByteLength == input.Length)
                 return AwkRecordReadStatus.Pending;
 
             var recordLength = match.ByteIndex - recordStart;
-            var record = input.CopyByteSlice(
-                recordStart,
-                recordLength,
+            // The prefix and provider capture boundaries are already validated.
+            var record = AwkText.CopyTrustedBytes(
+                input.Span.Slice(recordStart, recordLength),
                 _state.Counters,
                 _state.MemoryAccounting,
                 _state.CancellationCheckpoint);
-            var terminator = AwkRecordTerminator.FromText(input.CopyByteSlice(
-                match.ByteIndex,
-                match.ByteLength,
+            var terminator = AwkRecordTerminator.FromText(AwkText.CopyTrustedBytes(
+                input.Span.Slice(match.ByteIndex, match.ByteLength),
                 _state.Counters,
                 _state.MemoryAccounting,
                 _state.CancellationCheckpoint));
-            var next = AwkRegexMatchSpan.AfterMatch(input, match, _state.CancellationCheckpoint);
+            var next = AwkRegexMatchSpan.AfterMatch(input.Span, match, _state.CancellationCheckpoint);
             var consumedLength = next - recordStart;
             _bufferStart += consumedLength;
             _hasConsumedDescriptorBytes |= consumedLength > 0;
@@ -322,11 +319,8 @@ internal sealed partial class AwkRecordCursor
                     AwkRecordFieldSplittingMode.Ordinary));
             }
 
-            AwkText GetRegexInput(AwkUtf8Builder buffer)
+            ReadOnlyMemory<byte> GetRegexInput(AwkUtf8Builder buffer)
             {
-                if (_regexInput is not null)
-                    return _regexInput;
-
                 var bytes = buffer.AsSpan();
                 var offset = _validatedRegexBytes;
                 var nextCheckpoint = offset;
@@ -349,8 +343,7 @@ internal sealed partial class AwkRecordCursor
                     offset += consumed;
                 }
                 _validatedRegexBytes = offset;
-                _regexInput = buffer.BorrowAsAwkText(offset);
-                return _regexInput;
+                return buffer.AsMemory()[..offset];
             }
 
 

@@ -12,13 +12,14 @@ public sealed class AwkFieldStringTests
         using var memory = State(governed);
         var state = memory.State;
         var bytes = "key résumé"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var region = Bind(whole ? "substr($2,1)" : "substr($2,1,2)");
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         var result = state.ResolveVariableValue(AwkVariableName.FromText("target"));
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("other record"));
-        Array.Fill(bytes, (byte)'x');
+        AwkTestHarness.PublishBufferedRecord(state, "other record"u8);
+        AwkTestHarness.PublishBufferedRecord(state, "other record"u8);
+        Assert.True(original.Span.StartsWith("other"u8));
         Assert.Equal(whole ? "résumé" : "ré", result.AsString());
         Assert.Equal(0, state.Counters.StringDecodes);
         Assert.Equal(0, state.Counters.Utf8Encodes);

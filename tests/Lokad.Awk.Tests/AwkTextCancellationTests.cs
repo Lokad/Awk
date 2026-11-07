@@ -315,18 +315,18 @@ public sealed class AwkTextCancellationTests
     }
 
     [Fact]
-    public void BorrowedConcatenationPartsRemainDetachedAfterCancellationAndRetry()
+    public void OwnedConcatenationRetainsIngressThroughCanceledMaterializationAndRetry()
     {
         var bytes = AwkUtf8Codec.Encode(new string('a', LongText)).ToArray();
-        var borrowed = AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length);
+        var owned = AwkText.FromHostBytes(bytes);
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor(counters);
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        Assert.Throws<OperationCanceledException>(() => borrowed.Concat(AwkText.FromString("z"), counters, governor, CancelOnCheck(cancellation, 3)));
+        var completed = owned.Concat(AwkText.FromString("z"), counters, governor);
+        Assert.Throws<OperationCanceledException>(() => completed.AsMemory(CancelOnCheck(cancellation, 3)));
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        var completed = borrowed.Concat(AwkText.FromString("z"), counters, governor);
         bytes.AsSpan().Fill((byte)'b');
         Assert.Equal(new string('a', LongText) + "z", completed.AsString());
     }

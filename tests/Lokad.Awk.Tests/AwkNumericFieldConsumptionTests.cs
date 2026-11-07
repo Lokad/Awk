@@ -33,7 +33,7 @@ public sealed class AwkNumericFieldConsumptionTests
         var counters = state.Counters;
         Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         var bytes = "k 007"u8.ToArray();
-        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         Assert.Equal(governed, memory.Budget.Reserved > 0);
         var allocations = counters.AwkTextAllocations;
