@@ -50,6 +50,12 @@ internal partial struct AwkRegionMachine
     internal void Initialize()
     {
         _storage.Initialize(_region);
+        // Standalone function execution has not crossed frame activation.
+        if (_region.Kind == AwkRegionKind.Function)
+        {
+            _state.ThrowIfCancellationRequested();
+            if (_region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(_region.EntryFieldDemand);
+        }
         if (_state.Counters.IsEnabled)
         {
             switch (_region.Kind)
@@ -77,6 +83,9 @@ internal partial struct AwkRegionMachine
         _frame = frame;
         _enteringFrame = null;
         storage.Initialize(region);
+        // Activation owns the entry poll. Cold storage and long constant setup
+        // retain their admission/bounded checkpoints before preparing fields.
+        if (region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(region.EntryFieldDemand);
         _state.Counters.RecordBoundFunctionRun();
     }
 

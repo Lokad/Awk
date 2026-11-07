@@ -173,7 +173,9 @@ internal sealed partial class AwkRegionCompiler
     private bool CompileBody(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
         bool defaultPrint, AwkExpressionSyntax? rangeEnd = null, int rangeIndex = -1)
     {
-        Label();
+        // Called functions cross the activation checkpoint before entering code.
+        // Their initial field demand belongs to entry, without another dispatch.
+        if (_kind != AwkRegionKind.Function) Label();
         List<int>? skipped = null;
         if (condition is not null)
         {
@@ -217,12 +219,12 @@ internal sealed partial class AwkRegionCompiler
 
     private AwkRegion CreateRegion()
     {
-        PrepareFieldDemands();
+        var entryFieldDemand = PrepareFieldDemands();
         return new(_code.ToArray(), _operands.ToArray(),
             _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
             StorageLayout(),
             _calls.ToArray(),
-            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray());
+            _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray(), entryFieldDemand);
     }
 
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements) =>

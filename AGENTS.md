@@ -134,6 +134,9 @@ or environment dependencies.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
+  Frame activation owns the call-entry cancellation poll. Functions carry initial admitted-field
+  demand as immutable metadata, consumed after scratch initialization; keep cold admission and
+  long initialization polls. Standalone internal function execution establishes its own entry poll.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
 - Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already

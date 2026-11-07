@@ -11,13 +11,14 @@ internal sealed class AwkRegion(
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
     AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches,
     AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind,
-    int mainBodyStart = -1, AwkRegionRuleScope[]? ruleScopes = null)
+    int mainBodyStart = -1, AwkRegionRuleScope[]? ruleScopes = null, int entryFieldDemand = 0)
 {
     private readonly AwkRegionStorageLayout _layout = layout;
     internal AwkRegionKind Kind => kind;
     internal ref readonly AwkRegionStorageLayout Layout => ref _layout;
     internal int InstructionCount => instructions.Length;
     internal int MainBodyStart => mainBodyStart;
+    internal int EntryFieldDemand => entryFieldDemand;
     internal AwkRegionRuleScope[] RuleScopes => ruleScopes ?? [];
 
     internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)

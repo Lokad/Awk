@@ -4,8 +4,10 @@ internal sealed partial class AwkRegionCompiler
 {
     // Reuse existing computational boundaries: no inserted instructions, relocated
     // branches, or execution mode. Unknown effects end this preparation window.
-    private void PrepareFieldDemands()
+    private int PrepareFieldDemands()
     {
+        var entry = _kind == AwkRegionKind.Function;
+        var entryDemand = 0;
         var boundary = -1;
         var first = 0;
         var maximum = 0;
@@ -18,7 +20,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue or
                 AwkRegionInstructionKind.JumpIfZero or AwkRegionInstructionKind.JumpIfNonzero)
             {
-                if (boundary >= 0 && (instruction.Kind is AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue))
+                if ((boundary >= 0 || entry) && (instruction.Kind is AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue))
                     OperandDemand(instruction.Left);
                 Finish();
                 // Conditional metadata belongs to fallthrough; the taken target
@@ -28,7 +30,7 @@ internal sealed partial class AwkRegionCompiler
                 if (instruction.Kind == AwkRegionInstructionKind.Poll) readyThrough = 0;
                 continue;
             }
-            if (boundary < 0)
+            if (boundary < 0 && !entry)
             {
                 // Intervening work can replace the record. Keep no dominating
                 // prefix fact when this window no longer classifies its effects.
@@ -63,13 +65,18 @@ internal sealed partial class AwkRegionCompiler
             if (!continues) Finish();
         }
         Finish();
+        return entryDemand;
 
         void Finish()
         {
             // An initial high field already admits all smaller demands. Only an
             // increasing prefix can remove repeated extension/publication work.
-            if (boundary >= 0 && maximum > first)
-                _code[boundary] = _code[boundary] with { Detail = maximum };
+            if (maximum > first)
+            {
+                if (entry) entryDemand = maximum;
+                else if (boundary >= 0) _code[boundary] = _code[boundary] with { Detail = maximum };
+            }
+            entry = false;
             boundary = -1;
         }
 
