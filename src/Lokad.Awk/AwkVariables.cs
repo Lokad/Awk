@@ -395,6 +395,20 @@ internal sealed partial class AwkVariables
         return CreateValue(cell.State.Slot).ForceScalar();
     }
 
+    internal static AwkText PrepareScalarStringCache(AwkScalarCell cell, AwkText expected)
+    {
+        var slot = cell.State.Slot;
+        if (!slot.TryGetStoredScalarText(out var stored) || !stored.HasSameStorage(expected))
+            return expected;
+
+        // The scalar's potential-cache estimate already funds this storage.
+        // Preserve its origin, cached number, baseline and charge; older copies
+        // continue to own their immutable bytes independently of this cache.
+        var prepared = stored.WithStringCache();
+        cell.State.Slot = slot.WithByteText(prepared);
+        return prepared;
+    }
+
     public bool TryGetScalarNumber(AwkGlobalSlotId id, out double number) =>
         TryGetScalarNumber(GetScalarCell(id), out number);
 

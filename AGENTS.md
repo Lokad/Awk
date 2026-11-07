@@ -153,6 +153,8 @@ or environment dependencies.
   numeric values still use current formatting and untyped origins retain scalar promotion.
   Ordinary string slots and computed string results use one runtime factory and defer numeric
   conversion until use, including callback/traversal keys and formatting results.
+  Retain format-decode caches at the actual scalar owner using its existing cache allowance;
+  preserve slot origins, cached numbers, earlier copies and charges without formatter history.
   Keep actual input classification and mode-sensitive numeric-string reads separate.
   Plain numbers retain no text reference. Keep immutable value/slot snapshots and use
   existing numeric owner commits; type transitions still own admission and payload retirement.

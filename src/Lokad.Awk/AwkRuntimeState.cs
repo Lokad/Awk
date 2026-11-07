@@ -148,8 +148,17 @@ internal sealed class AwkRuntimeState : IDisposable
             throw;
         }
 
-        AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
-            new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
+        AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable)
+        {
+            var id = AwkFormattingVariableFacts.SpecialVariableId(variable);
+            var text = ResolveSpecialVariableText(id);
+            // These format names are reserved as parameters. Resolve normally
+            // first, including file-phase scope, then cache only the matching
+            // retained scalar. Numeric/transient formatting remains unchanged.
+            if (text.RequiresStringCache && _variables.GetSpecialScalarCell(id) is { } cell)
+                text = AwkVariables.PrepareScalarStringCache(cell, text);
+            return new(text);
+        }
 
         void ApplySpecialVariableAssignment(string name, AwkValue value)
         {

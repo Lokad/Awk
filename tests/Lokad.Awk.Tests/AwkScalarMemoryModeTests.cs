@@ -3,6 +3,47 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkScalarMemoryModeTests
 {
     [Theory]
+    [InlineData("123.5", true)] [InlineData("0012", true)]
+    [InlineData("12tail", true)] [InlineData("0012", false)]
+    public void ScalarCachePromotionUsesFundedCapacityAndKeepsOriginsAndEarlierCopies(string spelling, bool input)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+            static (_, _) => { }, static () => 0, static () => { });
+        variables.CaptureScalarMemoryBaseline();
+        var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.ConversionFormat);
+        var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
+        var text = AwkText.FromHostBytes(bytes);
+        var value = input ? AwkValue.FromNumericString(text) :
+            AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
+        variables.SetScalarValue(name, value);
+        var cell = variables.GetSpecialScalarCell(AwkSpecialVariableId.ConversionFormat) ??
+            throw new InvalidOperationException("Expected retained format scalar.");
+        var previous = cell.State.Slot;
+        var before = variables.GetScalarValue(cell);
+        var funded = memory.Budget.Reserved;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        var prepared = AwkVariables.PrepareScalarStringCache(cell, text);
+
+        Assert.Equal(funded, memory.Budget.Reserved);
+        Assert.Equal(0, memory.Budget.Refusals);
+        Assert.Equal(previous.Kind, cell.State.Slot.Kind);
+        Assert.True(text.HasSameStorage(previous.ByteText));
+        Assert.True(prepared.AsMemory().Equals(text.AsMemory()));
+        Assert.False(prepared.HasSameStorage(text));
+        var after = variables.GetScalarValue(cell);
+        Assert.Equal(before.RuntimeKind, after.RuntimeKind);
+        Assert.Equal(before.AsNumber(), after.AsNumber());
+        Assert.Equal(spelling, after.AsString());
+        Assert.Equal(spelling, previous.ByteText.AsString());
+        Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(name, new string('x', 4096)));
+        Assert.Equal(spelling, variables.GetScalarValue(cell).AsString());
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public void NumericUpdatesKeepTheirOwnerFundedAndRealGrowthStillFails(bool beforeBaseline, bool indexed)

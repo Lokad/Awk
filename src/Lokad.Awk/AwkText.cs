@@ -32,6 +32,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     private ref int[]? _runeByteCheckpoints => ref Storage.RuneByteCheckpoints;
 
     internal object? Backing => _backing;
+    internal bool RequiresStringCache => _backing is byte[];
     internal static AwkText FromBacking(object? backing) =>
         backing is TextStorage or byte[] ? new(backing) : Empty;
     internal bool HasSameStorage(AwkText other) => ReferenceEquals(_backing, other._backing);

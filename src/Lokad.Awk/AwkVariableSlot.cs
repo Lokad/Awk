@@ -8,9 +8,14 @@ internal readonly struct AwkVariableSlot
     private readonly double _number;
 
     private AwkVariableSlot(AwkText text, AwkVariableSlotKind kind)
+        : this(text, 0, kind)
+    {
+    }
+
+    private AwkVariableSlot(AwkText text, double number, AwkVariableSlotKind kind)
     {
         _text = text.Backing;
-        _number = 0;
+        _number = number;
         Kind = kind;
     }
 
@@ -55,11 +60,11 @@ internal readonly struct AwkVariableSlot
     }
 
     private AwkVariableSlot(AwkText text, double number)
+        : this(text, number, AwkVariableSlotKind.PreparedNumericString)
     {
-        _text = text.Backing;
-        _number = number;
-        Kind = AwkVariableSlotKind.PreparedNumericString;
     }
+
+    internal AwkVariableSlot WithByteText(AwkText text) => new(text, _number, Kind);
 
     public static AwkVariableSlot FromUntypedScalar(AwkUntypedScalar scalar) => new(scalar);
 
