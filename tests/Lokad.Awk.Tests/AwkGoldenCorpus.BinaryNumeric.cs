@@ -19,6 +19,13 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("binary-numeric-unicode-and-empty-fields",
             ["BEGIN{FS=\":\";$0=\"café::3\";print $1+($2+$3)*2,typeof($1),NF}"],
             [], "6 string 3\n");
+        yield return AwkGoldenCaseBuilder.Create("binary-numeric-conversion-failure-stops-right-effects",
+                ["--non-decimal-data", "function rhs(){print \"later\";return 3}{print $1+rhs()}"], [])
+            .WithStandardInput("0x1.8\n")
+            .ExitsWith(2)
+            .WithStdErr("awk: hexadecimal floating point constants require an exponent\n")
+            .WithNondeterminismNote("Lokad converts the left arithmetic operand before later scripted RHS effects; relative error/effect order may differ between implementations.")
+            .Build();
         const string script = "{print ($1+1)*2,$1}";
         yield return Passing("binary-numeric-decimal", [script], [], "2 0x10\n16 007\n", "0x10\n007\n");
         yield return Passing("binary-numeric-posix", ["--posix", script], [], "34 0x10\n16 007\n", "0x10\n007\n");

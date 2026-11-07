@@ -55,39 +55,44 @@ internal partial struct AwkRegionMachine
                     numbers[instruction.Target] = numbers[instruction.Left];
                     break;
                 case AwkRegionInstructionKind.FieldNumber:
-                    numbers[instruction.Target] = state.GetFieldNumber(instruction.Left);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction, state.GetFieldNumber(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.FieldIndex:
                     numbers[instruction.Target] = AwkFieldIndex.FromNumber(numbers[instruction.Left]).Value;
                     break;
                 case AwkRegionInstructionKind.DynamicFieldNumber:
-                    numbers[instruction.Target] = state.GetFieldNumber((int)numbers[instruction.Left]);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction, state.GetFieldNumber((int)numbers[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.LiteralNumber:
-                    numbers[instruction.Target] = state.CreateStringValue(region.Literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction,
+                        state.CreateStringValue(region.Literals[instruction.Left]).AsNumber(state.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.ValueNumber:
-                    numbers[instruction.Target] = storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction,
+                        storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.LocalNumber:
                 {
                     var local = operands[instruction.Left];
-                    numbers[instruction.Target] = TryLocalNumber(local.Index, out var number)
+                    var localNumber = TryLocalNumber(local.Index, out var number)
                         ? number : state.ResolveFunctionLocalValue(new(local.Index), local.Name).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction, localNumber);
                     break;
                 }
                 case AwkRegionInstructionKind.GlobalNumber:
                 {
                     var global = operands[instruction.Left];
-                    numbers[instruction.Target] = state.TryResolvePreparedGlobalNumber(global.Index, out var number)
+                    var globalNumber = state.TryResolvePreparedGlobalNumber(global.Index, out var number)
                         ? number : state.ResolvePreparedGlobalValue(global.Name, global.Index).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction, globalNumber);
                     break;
                 }
                 case AwkRegionInstructionKind.VariableNumber:
-                    numbers[instruction.Target] = ReadVariable(operands[instruction.Left]).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction,
+                        ReadVariable(operands[instruction.Left]).AsNumber(state.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.ArrayNumber:
-                    numbers[instruction.Target] = ReadArrayNumber(region.Arrays[instruction.Left]);
+                    numbers[instruction.Target] = CompleteNumberRead(in instruction, ReadArrayNumber(region.Arrays[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.ArrayContains:
                 {
@@ -803,6 +808,16 @@ internal partial struct AwkRegionMachine
             // The complete operation captured an owned key before retiring scratch,
             // in the same order as the separate ArrayPrepare/KeyEnd instructions.
             if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        double CompleteNumberRead(in AwkRegionInstruction instruction, double value)
+        {
+            var continuation = new AwkRegionNumberContinuation(instruction.Detail);
+            if (!continuation.HasOperation) return value;
+            var other = numbers[instruction.Right];
+            if (!continuation.ReadIsLeft) (value, other) = (other, value);
+            return AwkNumericOperations.Apply(value, other, continuation.Operation);
         }
 
         double ReadBoundNumber(in AwkRegionOperand operand)

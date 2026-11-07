@@ -137,6 +137,7 @@ internal sealed partial class AwkRegionCompiler
     {
         private byte _stage;
         private int _left;
+        private int _leftCapture = -1;
         private int _number;
         private int _alternative;
         private int _done;
@@ -188,8 +189,13 @@ internal sealed partial class AwkRegionCompiler
                     };
                     if ((int)_arithmetic < 0 && (int)_comparison < 0) return false;
                     _stringComparison = compiler._operands[_left].Kind == AwkRegionOperandKind.Literal;
-                    _left = (int)_arithmetic >= 0 ? compiler.CaptureNumber(_left)
-                        : compiler.IsImmediateRead(syntax.Children[1]) ? _left : compiler.CaptureValue(_left);
+                    if ((int)_arithmetic >= 0)
+                    {
+                        var before = compiler._code.Count;
+                        _left = compiler.CaptureNumber(_left);
+                        if (compiler._code.Count > before) _leftCapture = compiler._code.Count - 1;
+                    }
+                    else if (!compiler.IsImmediateRead(syntax.Children[1])) _left = compiler.CaptureValue(_left);
                 }
                 _stage = 2;
                 next = compiler.CreateOperandWork(syntax.Children[1]);
@@ -212,7 +218,29 @@ internal sealed partial class AwkRegionCompiler
             {
                 _number = compiler._numbers++;
                 if ((int)_arithmetic >= 0)
-                    compiler.Emit(new(AwkRegionInstructionKind.Arithmetic, _number, compiler.NumericRegister(_left), compiler.NumericRegister(right), (int)_arithmetic));
+                {
+                    var leftNumber = compiler.NumericRegister(_left);
+                    var beforeRight = compiler._code.Count;
+                    var rightNumber = compiler.NumericRegister(right);
+                    var readIsLeft = compiler._code.Count == beforeRight &&
+                        _leftCapture >= 0 && compiler._code.Count == _leftCapture + 1;
+                    if ((compiler._code.Count > beforeRight || readIsLeft) &&
+                        compiler._code[^1] is { Detail: 0 } read &&
+                        read.Target == (readIsLeft ? leftNumber : rightNumber) &&
+                        read.Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
+                            AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
+                            AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
+                            AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber)
+                    {
+                        // A fresh read has one consumer. Intervening RHS work keeps
+                        // the earlier capture; calls retain their own conversion.
+                        compiler._code[^1] = read with { Target = _number,
+                            Right = readIsLeft ? rightNumber : leftNumber,
+                            Detail = AwkRegionNumberContinuation.Arithmetic(_arithmetic, readIsLeft).Detail };
+                    }
+                    else compiler.Emit(new(AwkRegionInstructionKind.Arithmetic, _number,
+                        leftNumber, rightNumber, (int)_arithmetic));
+                }
                 else
                     compiler.Emit(new(_stringComparison || compiler._operands[right].Kind == AwkRegionOperandKind.Literal
                         ? AwkRegionInstructionKind.CompareText : AwkRegionInstructionKind.Compare,

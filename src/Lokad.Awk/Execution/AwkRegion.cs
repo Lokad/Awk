@@ -134,6 +134,17 @@ internal enum AwkRegionInstructionKind : byte
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
 
+// Typed numeric reads can finish their immediate arithmetic consumer. Zero keeps
+// an ordinary read; the low bits hold operation+1 and bit three reverses operands.
+internal readonly record struct AwkRegionNumberContinuation(int Detail)
+{
+    internal static AwkRegionNumberContinuation Arithmetic(AwkNumericOperation operation, bool readIsLeft) =>
+        new((int)operation + 1 | (readIsLeft ? 0 : 8));
+    internal bool HasOperation => Detail != 0;
+    internal bool ReadIsLeft => (Detail & 8) == 0;
+    internal AwkNumericOperation Operation => (AwkNumericOperation)((Detail & 7) - 1);
+}
+
 internal enum AwkRegionArgumentKind : byte
 {
     Value, Grouped, ArithmeticField
