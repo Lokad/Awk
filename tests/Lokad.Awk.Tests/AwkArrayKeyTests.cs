@@ -72,6 +72,19 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(
             AwkRuntimeMemory.EstimateTextBytes(fromText.ByteLength),
             fromText.RetainedTextMemoryBytes);
+
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters, AwkMemoryAccounting.Disabled);
+        var borrowedValues = new Dictionary<AwkArrayKey, string>(comparer) { [fromOrdinal] = "value" };
+        var lookup = borrowedValues.GetAlternateLookup<ReadOnlySpan<byte>>();
+        Assert.True(lookup.TryGetValue(System.Text.Encoding.UTF8.GetBytes(text), out var borrowedValue));
+        Assert.Equal("value", borrowedValue);
+        Assert.False(lookup.ContainsKey(System.Text.Encoding.UTF8.GetBytes("0" + text)));
+        Assert.False(comparer.Equals(System.Text.Encoding.UTF8.GetBytes(text + "\0"), fromOrdinal));
+        Assert.Single(borrowedValues);
+        Assert.True(counters.ArrayBorrowedHashCalls > 0);
+        Assert.Equal(0, counters.ArrayAlternateKeyCopies);
+        Assert.Equal(0, counters.AwkTextAllocations);
     }
 
     [Fact]

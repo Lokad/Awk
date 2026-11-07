@@ -95,6 +95,11 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     {
         if (!IsOrdinal)
             return AwkText.CompareBytes(bytes, Text.AsSpan(checkpoint), checkpoint) == 0;
+        return OrdinalEqualsBytes(bytes, checkpoint);
+    }
+
+    private bool OrdinalEqualsBytes(ReadOnlySpan<byte> bytes, Action? checkpoint)
+    {
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
         checkpoint?.Invoke();
         return bytes.SequenceEqual(FormatOrdinalBytes(_ordinal, buffer));
