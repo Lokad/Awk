@@ -163,6 +163,9 @@ takes precedence and follows nested command descriptors. Awk owns only its child
 reservations; scopes share the root allowance. Without a supplied budget, there is no private
 aggregate memory cap.
 
+The caller keeps borrowed budgets and ancestor scopes live through execution and cleanup,
+serializing their disposal with actual users. Cancellation alone does not end those lifetimes.
+
 Invocation input snapshots belong to the caller. `TryParse` only recognizes and wraps the
 command. Execution borrows its immutable entry environment and admits Awk-owned argument
 preparation before copies. Mutable `ENVIRON` and command-export storage have their own owners.

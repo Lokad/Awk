@@ -3,6 +3,74 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCooperativeMemoryTests
 {
     [Fact]
+    public async Task ReturningBelowAnAdmittedFloorRefundsOnlyTheExcess()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        Assert.True(owner.TryResizeTracked(20));
+        using (owner.AdmitMutation(30))
+        {
+            Assert.True(owner.TryResizeTracked(70));
+            Assert.False(budget.TryReserve(31, out _));
+            Assert.True(owner.TryResizeTracked(25));
+            Assert.Equal(50, budget.Reserved);
+            Assert.True(budget.TryReserve(50, out var other));
+            using (other) Assert.Equal(100, budget.Reserved);
+        }
+        Assert.Equal(25, budget.Reserved);
+        Assert.True(owner.TryResizeTracked(0));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task NestedFloorRefundMakesAllowanceAvailableBeforeTheOuterMutationEnds()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        Assert.True(owner.TryResizeTracked(20));
+        using (owner.AdmitMutation(30))
+        {
+            using (owner.AdmitMutation(80))
+            {
+                Assert.True(owner.TryResizeTracked(35));
+                Assert.False(budget.TryReserve(1, out _));
+            }
+            Assert.Equal(50, budget.Reserved);
+            Assert.True(budget.TryReserve(50, out var other));
+            using (other)
+            {
+                Assert.True(owner.TryResizeTracked(45));
+                Assert.Equal(100, budget.Reserved);
+            }
+        }
+        Assert.Equal(45, budget.Reserved);
+        Assert.True(owner.TryResizeTracked(0));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task RefusedNestedGrowthPreservesThePriorAdmissionAndOtherUsers()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        Assert.True(owner.TryResizeTracked(20));
+        using (owner.AdmitMutation(50))
+        {
+            Assert.True(budget.TryReserve(30, out var other));
+            using (other)
+            {
+                Assert.Throws<AwkRuntimeException>(() => owner.AdmitMutation(80));
+                Assert.Equal(100, budget.Reserved);
+                Assert.True(owner.TryResizeTracked(35));
+                Assert.Equal(100, budget.Reserved);
+            }
+        }
+        Assert.Equal(35, budget.Reserved);
+        Assert.True(owner.TryResizeTracked(0));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
     public async Task ExistingPositiveChargeFundsUnchangedAndNestedMutationRequests()
     {
         var budget = new CooperativeTestBudget(100);

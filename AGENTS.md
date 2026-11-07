@@ -117,6 +117,8 @@ or environment dependencies.
   Derive scalar language coordinates only when requested; do not restore core UTF-16 bookkeeping.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
   output and capture arrays should not partially mutate on failure.
+  An owned mutation's admitted funding covers its components. Keep actual growth and nested/outer
+  refunds at the provider boundary, and disposed-ancestry checks outside the admitted region.
 - Builtins consume contiguous caller scratch; user arguments bind into admitted incoming
   frames while evaluation remains in caller scope. Preserve argument order, live pending
   storage, scalar captures and current array aliases. Bound locals retain name resolution

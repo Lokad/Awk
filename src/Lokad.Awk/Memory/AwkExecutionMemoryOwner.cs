@@ -75,13 +75,16 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         if (reservation is null) return true;
         var current = AwkRuntimeMemory.CheckedAdd(trackedBytes, temporaryBytes);
         var charge = Math.Max(_mutationFloor, current);
-        var reusable = trackedBytes == _trackedBytes && temporaryBytes == _temporaryBytes ||
-            _mutationFloor > 0 && current <= _mutationFloor;
-        // A positive charge still held by the provider proves live ownership.
-        // Zero cannot do that: disposed reservations/ancestors also report zero.
-        // Ordinary growth still makes one provider call. Inspect the held charge
-        // only when reusing unchanged state or an already-admitted mutation floor.
-        if ((!reusable || charge == 0 || charge != reservation.Bytes) && !reservation.TryResize(charge)) return false;
+        // A live mutation owns its admitted floor. Components consume that funding
+        // without calling the provider again. Crossing back from above the floor
+        // still refunds the excess; the previous validated sum cannot overflow.
+        var admitted = _mutationFloor > 0 && current <= _mutationFloor &&
+            _trackedBytes + _temporaryBytes <= _mutationFloor;
+        var unchanged = trackedBytes == _trackedBytes && temporaryBytes == _temporaryBytes;
+        // Outside the admitted region, unchanged/zero requests must still detect
+        // disposed reservations or ancestors rather than concealing lost funding.
+        if (!admitted && (!unchanged || charge == 0 || charge != reservation.Bytes) &&
+            !reservation.TryResize(charge)) return false;
         _trackedBytes = trackedBytes;
         _temporaryBytes = temporaryBytes;
         return true;
@@ -95,8 +98,9 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         var previous = _mutationFloor;
         var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), growth));
-        var charged = reservation.Bytes;
-        if (floor > charged && !reservation.TryResize(floor))
+        // If the floor grows, it exceeds both the prior floor and actual live
+        // charges. Otherwise the existing owned admission already funds it.
+        if (floor > previous && !reservation.TryResize(floor))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         _mutationFloor = floor;
         return new(this, previous);
@@ -104,8 +108,10 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
 
     internal void EndMutation(long previousFloor)
     {
+        var heldFloor = _mutationFloor;
         _mutationFloor = previousFloor;
-        if (!TryResizeTracked(_trackedBytes))
+        var charge = Math.Max(previousFloor, AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes));
+        if (charge < heldFloor && _reservation is { } reservation && !reservation.TryResize(charge))
             throw new InvalidOperationException("Releasing mutation admission cannot require more memory.");
     }
 
