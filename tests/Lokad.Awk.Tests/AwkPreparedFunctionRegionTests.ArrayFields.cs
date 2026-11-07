@@ -176,7 +176,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(3, state.GetArrayAwkValue(b, new("hit")).AsNumber());
         Assert.False(state.ContainsArrayValue(a, new("missing")));
         Assert.False(state.ContainsArrayValue(b, new("missing")));
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }

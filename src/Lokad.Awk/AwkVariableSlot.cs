@@ -9,7 +9,7 @@ internal readonly struct AwkVariableSlot
 
     private AwkVariableSlot(AwkText text, AwkVariableSlotKind kind)
     {
-        _text = text;
+        _text = text.Backing;
         _number = 0;
         Kind = kind;
     }
@@ -56,7 +56,7 @@ internal readonly struct AwkVariableSlot
 
     private AwkVariableSlot(AwkText text, double number)
     {
-        _text = text;
+        _text = text.Backing;
         _number = number;
         Kind = AwkVariableSlotKind.PreparedNumericString;
     }
@@ -113,7 +113,7 @@ internal readonly struct AwkVariableSlot
     public AwkText ByteText =>
         Kind == AwkVariableSlotKind.Number
             ? AwkNumberFormatter.ToAwkText(_number)
-            : _text as AwkText ?? AwkText.Empty;
+            : AwkText.FromBacking(_text);
 
     // Text-only consumers need neither numeric classification nor an AwkValue.
     // Numbers still require the current formatting policy; untyped origins must
@@ -136,7 +136,7 @@ internal readonly struct AwkVariableSlot
             ? 0
             : _text is AwkUntypedScalar
                 ? AwkRuntimeMemory.EstimateUntypedScalarBytes()
-                : (_text as AwkText ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
+                : AwkText.FromBacking(_text).EstimatedRetainedMemoryBytes;
 
     public AwkVariableSlotKind Kind { get; }
 

@@ -44,7 +44,7 @@ public sealed class AwkCaseMemoryTests
             Assert.Equal(source.ByteText.ByteLength, state.Counters.AsciiCasePreparationBytes);
             Assert.True(state.Counters.AsciiCaseConversionBytes >= 8192);
             Assert.Equal((upper ? "éAΩ" : "ÉaΩ") + new string(upper ? 'A' : 'a', 8192) + "😀", result.AsString());
-            Assert.Same(result.ByteText, AwkBuiltins.EvaluateCaseValue(state, result, upper).ByteText);
+            Assert.True(result.ByteText.HasSameStorage(AwkBuiltins.EvaluateCaseValue(state, result, upper).ByteText));
         }
         Assert.Equal(0, budget.Reserved);
     }

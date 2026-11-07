@@ -5,9 +5,9 @@ namespace Lokad.Awk;
 internal readonly struct AwkRegionBuilder(AwkUtf8Builder buffer, AwkText separator)
 {
     private readonly AwkUtf8Builder? _buffer = buffer;
-    private readonly AwkText? _separator = separator;
+    private readonly AwkText _separator = separator;
 
     internal AwkUtf8Builder Buffer => _buffer ??
         throw new InvalidOperationException("Uninitialized region builder.");
-    internal AwkText Separator => _separator ?? AwkText.Empty;
+    internal AwkText Separator => _separator;
 }

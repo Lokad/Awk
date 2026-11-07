@@ -228,15 +228,15 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> Mutate(AwkFieldFrame frame, int fields)
+    private static WeakReference<object> Mutate(AwkFieldFrame frame, int fields)
     {
         var separator = AwkText.FromString(new string('x', 1_000_000));
         frame.AssignFieldCount(new(fields), separator);
-        return new(separator);
+        return new(separator.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static bool IsAlive(WeakReference<AwkText> text) => text.TryGetTarget(out _);
+    private static bool IsAlive(WeakReference<object> text) => text.TryGetTarget(out _);
 
     private static Task<AwkExitCode> Execute(string script, IAwkHost host, IMemoryBudget budget,
         CancellationToken token = default, bool forceStackBoundary = false)

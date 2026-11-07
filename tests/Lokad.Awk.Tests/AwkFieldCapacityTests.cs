@@ -50,7 +50,7 @@ public sealed class AwkFieldCapacityTests
             AwkRuntimeMemory.EstimateFieldTextListBytes(target));
         Assert.Equal(target, counters.FieldsMaterialized);
         Assert.Equal(0, accounting.CurrentReservedBytes);
-        if (operation == "reference") Assert.Same(record, frame.RecordAwkText);
+        if (operation == "reference") Assert.True(record.HasSameStorage(frame.RecordAwkText));
         frame.ResetRecord();
         AssertRefunded(accounting, budget);
     }
@@ -72,7 +72,7 @@ public sealed class AwkFieldCapacityTests
         var error = Assert.Throws<AwkRuntimeException>(() => Grow(frame, operation, 4096));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(64, frame.GetFieldCount());
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(reserved, budget.Reserved);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -110,7 +110,7 @@ public sealed class AwkFieldCapacityTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         armed = false;
         Assert.Equal(64, frame.GetFieldCount());
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(reserved, budget.Reserved);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -133,7 +133,7 @@ public sealed class AwkFieldCapacityTests
         Assert.InRange(accounting.CurrentCommittedBytes, 1, 64 << 10);
         frame.AssignFieldCount(new(0), Space);
         Assert.True(accounting.CurrentCommittedBytes > 0);
-        Assert.Same(AwkText.Empty, frame.RecordAwkText);
+        Assert.True(AwkText.Empty.HasSameStorage(frame.RecordAwkText));
         AssertRefunded(accounting, budget);
         frame.ResetRecord();
     }

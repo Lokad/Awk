@@ -23,7 +23,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, growth);
         Assert.Equal(materialized + 3, counters.FieldsMaterialized);
         Assert.Equal(text, counters.AwkTextAllocations);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.True(frame.TryGetUnmaterializedFieldBytes(new(3), out var bytes));
         Assert.True(bytes.SequenceEqual("three"u8));
         memory.Budget.OnGrowth = null;
@@ -61,7 +61,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, memory.Budget.Refusals);
         Assert.Equal(texts, counters.AwkTextAllocations);
         Assert.Equal(materialized + (alreadyMaterialized ? 3 : 0), counters.FieldsMaterialized);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         var fields = counters.FieldsMaterialized;
         var failure = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
@@ -104,7 +104,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(kept, frame.GetFieldValue(new(1)));
         armed = false;
         token = CancellationToken.None;
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         frame.PrepareAdmittedFields(3);
         Assert.Equal("two", frame.GetFieldValue(new(2)).AsString());
         Assert.Equal(16_384, frame.GetFieldValue(new(3)).ByteText.ByteLength);
@@ -129,7 +129,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, memory.Budget.Refusals);
         var failure = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(0, counters.FieldsMaterialized);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
@@ -177,11 +177,11 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal("right", Read(frame, splitter, 2));
         var committed = accounting.CurrentCommittedBytes;
         budget.RefuseNextAdmissionMinimumGrowth = 1;
-        budget.OnRefusal = () => Assert.Same(old, frame.RecordAwkText);
+        budget.OnRefusal = () => Assert.True(old.HasSameStorage(frame.RecordAwkText));
         var error = Assert.Throws<AwkRuntimeException>(() => frame.SetRecordText(
             AwkText.FromSourceLiteralString(new string('x', 256 << 10)), splitter.CaptureRecordPlan()));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Same(old, frame.RecordAwkText);
+        Assert.True(old.HasSameStorage(frame.RecordAwkText));
         Assert.Equal("right", Read(frame, splitter, 2));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -290,7 +290,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount());
         armed = false;
         Assert.Equal(materialized, counters.FieldsMaterialized);
-        Assert.Same(source, frame.RecordAwkText);
+        Assert.True(source.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         Assert.Equal("first", Read(frame, splitter, 1));
@@ -426,7 +426,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         Assert.Equal(plan, frame.SplitPlan);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal("first", Read(frame, splitter, 1));
         Assert.Equal(third, Read(frame, splitter, 3));
         Assert.Equal(3, counters.FieldsMaterialized);
@@ -488,7 +488,7 @@ public sealed class AwkIncrementalFieldTests
         var error = Assert.Throws<AwkRuntimeException>(() => frame.TryCopyInputField(new(1), new(2)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal("middle", Read(frame, splitter, 2));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -528,7 +528,7 @@ public sealed class AwkIncrementalFieldTests
 
         armed = false;
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal("middle", Read(frame, splitter, 2));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -563,7 +563,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.InRange(accounting.CurrentCommittedBytes, 0, committed);
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(1, counters.FieldListBufferReuses);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         frame.ResetRecord();
         Assert.Equal(0, budget.Reserved);
     }
@@ -590,7 +590,7 @@ public sealed class AwkIncrementalFieldTests
         var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldCount());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(publishedFields, counters.FieldsMaterialized);
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -630,7 +630,7 @@ public sealed class AwkIncrementalFieldTests
 
         observeCancellation = false;
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(publishedFields, counters.FieldsMaterialized);
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -675,7 +675,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(published, counters.FieldsMaterialized);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal("0007", saved.AsString());
         Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
         Assert.Equal("short", Read(frame, context.Splitter, 2));
@@ -750,7 +750,7 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(published, counters.FieldsMaterialized);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal("000007", saved.AsString());
         Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
         frame.ResetRecord();

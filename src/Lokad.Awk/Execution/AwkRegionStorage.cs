@@ -121,12 +121,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var frames = growIncoming ? new AwkFunctionFrame?[incoming] : _incoming;
         var printFields = growSegments ? new AwkFieldText[segments] : _printSegments;
         var borrowedFields = growSegments ? new bool[segments] : _borrowedPrintFields;
-        var formatted = _texts;
-        if (growTexts)
-        {
-            formatted = new AwkText[texts];
-            Array.Fill(formatted, AwkText.Empty);
-        }
+        var formatted = growTexts ? new AwkText[texts] : _texts;
         var keyBuffers = _builders;
         if (growBuilders)
         {
@@ -458,7 +453,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (_state.MemoryAccounting.IsEnabled)
             for (var index = start; index < start + count; index++)
                 bytes = AwkRuntimeMemory.CheckedAdd(bytes, _texts[index].EstimatedRetainedMemoryBytes);
-        Array.Fill(_texts, AwkText.Empty, start, count);
+        Array.Clear(_texts, start, count);
         if (bytes > 0) _payload.Release(bytes);
     }
 
@@ -500,7 +495,7 @@ internal sealed class AwkRegionStorage : IDisposable
             Array.Clear(_getlineTargets, before.GetlineTargets, after.GetlineTargets - before.GetlineTargets);
         if (after.ArrayTargets != before.ArrayTargets)
             Array.Clear(_arrayTargets, before.ArrayTargets, after.ArrayTargets - before.ArrayTargets);
-        if (after.Texts != before.Texts) Array.Fill(_texts, AwkText.Empty, before.Texts, after.Texts - before.Texts);
+        if (after.Texts != before.Texts) Array.Clear(_texts, before.Texts, after.Texts - before.Texts);
         if (after.PrintSegments != before.PrintSegments)
         {
             Array.Clear(_printSegments, before.PrintSegments, after.PrintSegments - before.PrintSegments);
@@ -559,7 +554,7 @@ internal sealed class AwkRegionStorage : IDisposable
         for (var index = 0; index < reads; index++) _getlineTargets[index].Dispose();
         if (reads > 0) Array.Clear(_getlineTargets, 0, reads);
         if (active.ArrayTargets > 0) Array.Clear(_arrayTargets, 0, active.ArrayTargets);
-        if (active.Texts > 0) Array.Fill(_texts, AwkText.Empty, 0, active.Texts);
+        if (active.Texts > 0) Array.Clear(_texts, 0, active.Texts);
         if (active.PrintSegments > 0)
         {
             Array.Clear(_printSegments, 0, active.PrintSegments);

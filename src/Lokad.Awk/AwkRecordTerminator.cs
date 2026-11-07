@@ -4,7 +4,7 @@ internal readonly record struct AwkRecordTerminator
 {
     // Fixed shared UTF-8 values; separator plans do not retain per-execution byte arrays.
     private static readonly AwkRecordTerminator[] AsciiTerminators = CreateAsciiTerminators();
-    private readonly AwkText? _text;
+    private readonly AwkText _text;
 
     public AwkRecordTerminator(AwkText text)
     {
@@ -32,5 +32,5 @@ internal readonly record struct AwkRecordTerminator
     public static AwkRecordTerminator FromText(AwkText text) =>
         text.ByteLength == 0 ? Empty : new AwkRecordTerminator(text);
 
-    public AwkText ByteText => _text ?? AwkText.Empty;
+    public AwkText ByteText => _text;
 }

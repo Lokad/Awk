@@ -105,7 +105,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
             Assert.Equal(expected, actual.AsString());
             Assert.Equal(bytes, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
-            if (bytes == 0) Assert.Same(input, actual);
+            if (bytes == 0) Assert.True(input.HasSameStorage(actual));
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var peak = counters.MemoryPeakLiveBytes;

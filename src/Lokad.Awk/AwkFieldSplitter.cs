@@ -58,7 +58,7 @@ internal sealed class AwkFieldSplitter(
 
     public void AssignFieldPattern(AwkText value)
     {
-        if (_fieldSplittingMode == AwkFieldSplittingMode.FieldPattern && ReferenceEquals(_fieldPattern, value))
+        if (_fieldSplittingMode == AwkFieldSplittingMode.FieldPattern && _fieldPattern.HasSameStorage(value))
             return;
         ClearUnusedFieldWidths();
         _fieldPattern = value;

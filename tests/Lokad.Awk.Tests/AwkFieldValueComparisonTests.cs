@@ -223,7 +223,7 @@ public sealed class AwkFieldValueComparisonTests
             if (failedIndex)
             {
                 Assert.Equal(0, state.Counters.FieldSplits);
-                Assert.Same(record, state.CurrentRecordByteText);
+                Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
             }
             else
             {

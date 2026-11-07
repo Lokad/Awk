@@ -99,11 +99,11 @@ public sealed class AwkNestedArrayStorageTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> CaptureLargeKey(AwkCapturedArrayPath path, AwkRuntimeState state)
+    private static WeakReference<object> CaptureLargeKey(AwkCapturedArrayPath path, AwkRuntimeState state)
     {
         var text = AwkText.FromString(new string('x', 4096));
         path.CaptureKey(state, 0, new AwkArrayKey(text));
-        return new(text);
+        return new(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 
     [Fact]

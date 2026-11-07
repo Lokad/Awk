@@ -195,13 +195,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     // This temporary carrier neither allocates nor owns another storage lease.
     private readonly struct SearchInput
     {
-        private readonly AwkText? _text;
+        private readonly AwkText _text;
         private readonly ReadOnlyMemory<byte> _bytes;
         public SearchInput(AwkText text) => _text = text;
         public SearchInput(ReadOnlyMemory<byte> bytes) => _bytes = bytes;
         public ReadOnlyMemory<byte> Materialize(Action checkpoint)
         {
-            if (_text is { } text) return text.AsMemory(checkpoint);
+            if (_text.Backing is not null) return _text.AsMemory(checkpoint);
             checkpoint();
             return _bytes;
         }
@@ -396,8 +396,8 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         AwkRegexCaseSensitivity sensitivity, AwkRegexSourceKind kind, AwkCompatibilityMode mode,
         bool fixedSensitivity, bool suppressInputStart) : IEquatable<AwkRegexCacheKey>
     {
-        private readonly AwkText? _pattern = pattern;
-        private AwkText Pattern => _pattern ?? AwkText.Empty;
+        private readonly AwkText _pattern = pattern;
+        private AwkText Pattern => _pattern;
         private AwkRegexCaseSensitivity Sensitivity { get; } = sensitivity;
         private AwkRegexSourceKind Kind { get; } = kind;
         private AwkCompatibilityMode Mode { get; } = mode;

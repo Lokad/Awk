@@ -67,7 +67,7 @@ public sealed class AwkFieldStringTests
             Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
             Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         }
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -120,7 +120,7 @@ public sealed class AwkFieldStringTests
         var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.InRange(memory.Budget.Refusals, 0, 1);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -150,7 +150,7 @@ public sealed class AwkFieldStringTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         }
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

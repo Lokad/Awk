@@ -21,9 +21,8 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
         var previous = default(Entry);
         var found = _sites is not null && _sites.TryGetValue(site, out previous);
         var flag = sensitivity == AwkRegexCaseSensitivity.IgnoreCase ? 2 : 1;
-        var sameText = found && previous.Pattern is AwkText previousPattern &&
-            (ReferenceEquals(previousPattern, pattern.Text) ||
-             previousPattern.Equals(pattern.Text, checkpoint));
+        var sameText = found && (previous.Pattern.HasSameStorage(pattern.Text) ||
+             previous.Pattern.Equals(pattern.Text, checkpoint));
         if (sameText && (previous.CompiledCases & flag) != 0)
         {
             ReportWarnings(null);
@@ -95,5 +94,5 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
             governor.ReleaseCommitted(previous.Bytes);
     }
 
-    private readonly record struct Entry(AwkText? Pattern, int CompiledCases, long Bytes);
+    private readonly record struct Entry(AwkText Pattern, int CompiledCases, long Bytes);
 }

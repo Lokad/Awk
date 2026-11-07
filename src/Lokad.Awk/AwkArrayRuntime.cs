@@ -873,19 +873,19 @@ internal sealed partial class AwkArrayRuntime
 
     private readonly struct AwkArraySortEntry(
         AwkArrayKey key,
-        AwkText? keyText,
+        AwkText keyText,
         AwkValue value,
-        AwkText? valueText,
+        AwkText valueText,
         double numericKey,
         long transferredValueTextBytes)
     {
         public AwkArrayKey Key { get; } = key;
 
-        public AwkText KeyText => keyText ?? AwkText.Empty;
+        public AwkText KeyText => keyText;
 
         public AwkValue Value { get; } = value;
 
-        public AwkText ValueText => valueText ?? AwkText.Empty;
+        public AwkText ValueText => valueText;
 
         public double NumericKey { get; } = numericKey;
 

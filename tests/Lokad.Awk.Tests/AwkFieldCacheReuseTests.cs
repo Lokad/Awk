@@ -84,9 +84,9 @@ public sealed class AwkFieldCacheReuseTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> ReadPreviousField(AwkRuntimeState state)
+    private static WeakReference<object> ReadPreviousField(AwkRuntimeState state)
     {
         state.SetCurrentRecord(AwkText.FromString("old café\tsecond"));
-        return new(state.GetFieldValue(1).ByteText);
+        return new(state.GetFieldValue(1).ByteText.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 }

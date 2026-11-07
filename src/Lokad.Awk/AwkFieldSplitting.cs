@@ -21,11 +21,11 @@ internal readonly struct AwkFieldWidth(AwkFieldSkip skip, AwkFieldWidthLength wi
     public AwkFieldWidthLength Width { get; } = width;
 }
 
-internal readonly struct AwkCapturedSeparator(int fieldIndex, AwkText? text)
+internal readonly struct AwkCapturedSeparator(int fieldIndex, AwkText text)
 {
     public int FieldIndex { get; } = fieldIndex;
 
-    public AwkText Text => text ?? AwkText.Empty;
+    public AwkText Text => text;
 }
 
 internal readonly struct AwkTextSplitResult(

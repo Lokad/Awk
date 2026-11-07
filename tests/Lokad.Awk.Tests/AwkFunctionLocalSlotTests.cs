@@ -7,6 +7,35 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void OwnedTextTransportKeepsBackingAndCompactValueLayoutsWithoutBoxing()
+    {
+        Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkText>());
+        Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
+        Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkVariableSlot>());
+        Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
+        Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
+
+        var text = AwkText.FromSourceLiteralString("0012");
+        var value = AwkValue.FromNumericString(text);
+        for (var index = 0; index < 100; index++) value = RoundTrip(value);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 10_000; index++) value = RoundTrip(value);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocated, 0, 1024);
+        Assert.True(text.HasSameStorage(value.ByteText));
+        Assert.Equal(AwkRuntimeValueKind.NumericString, value.RuntimeKind);
+        Assert.Equal(12, value.AsNumber());
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        Assert.Equal("0012", text.AsString(counters));
+        Assert.Same(text.PreparedString, value.ByteText.AsString(counters));
+        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+
+        static AwkValue RoundTrip(AwkValue value) => AwkVariableSlot.FromValue(value)
+            .ToValue(AwkValue.FromNumericString, AwkValue.FromText);
+    }
+
+    [Fact]
     public void GlobalBindingScopeRetainsChargesPhysicalDepthAndNestedBindings()
     {
         var limits = AwkRuntimeLimits.CreateDefault();

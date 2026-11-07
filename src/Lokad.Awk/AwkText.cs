@@ -5,25 +5,34 @@ using System.Threading;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkText : IEquatable<AwkText>
+internal readonly struct AwkText : IEquatable<AwkText>
 {
     private const int UnknownTextFacts = 0;
     private const int KnownNonAsciiWithoutRuneCount = -1;
     private const int RuneCheckpointStride = AwkRuntimeMemory.TextRuneCheckpointStride;
-    private readonly byte[] _bytes;
-    private readonly int _byteLength;
-    private readonly AwkTextConcatenation? _concatenation;
-    private string? _cachedString;
-    // Zero means unclassified, -1 means non-ASCII with an unknown rune count,
-    // and positive values store the rune count plus one.
-    private int _textFacts;
-    private int[]? _runeByteCheckpoints;
+    // Scalar/slot payloads retain this backing directly, without boxing the view.
+    // Default is empty text; mutable caches belong to the shared storage owner.
+    private readonly TextStorage? _storage;
+    private static readonly TextStorage EmptyStorage = new([]);
+
+    private TextStorage Storage => _storage ?? EmptyStorage;
+    private byte[] _bytes => Storage.Bytes;
+    private int _byteLength => Storage.ByteLength;
+    private AwkTextConcatenation? _concatenation => Storage.Concatenation;
+    private ref string? _cachedString => ref Storage.CachedString;
+    private ref int _textFacts => ref Storage.TextFacts;
+    private ref int[]? _runeByteCheckpoints => ref Storage.RuneByteCheckpoints;
+
+    internal object? Backing => _storage;
+    internal static AwkText FromBacking(object? backing) =>
+        backing is TextStorage storage ? new(storage) : Empty;
+    internal bool HasSameStorage(AwkText other) => ReferenceEquals(_storage, other._storage);
+
+    private AwkText(TextStorage storage) => _storage = storage;
 
     private AwkText(byte[] bytes)
     {
-        _bytes = bytes;
-        _byteLength = bytes.Length;
-        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateTextBytes(bytes.Length);
+        _storage = new(bytes);
     }
 
     private AwkText(
@@ -33,13 +42,10 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor)
     {
-        _bytes = [];
-        _byteLength = byteLength;
-        _concatenation = new AwkTextConcatenation(left, right, counters, governor);
-        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(left, right, byteLength);
+        _storage = new(left, right, byteLength, counters, governor);
     }
 
-    public static AwkText Empty { get; } = new([]);
+    public static AwkText Empty => default;
 
     public int ByteLength => _byteLength;
 
@@ -47,7 +53,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         Volatile.Read(ref _concatenation.MaterializedBytes) is not null;
 
 
-    public long EstimatedRetainedMemoryBytes { get; }
+    public long EstimatedRetainedMemoryBytes => Storage.EstimatedRetainedMemoryBytes;
 
     public int RuneLength => GetRuneLength();
 
@@ -311,8 +317,8 @@ internal sealed class AwkText : IEquatable<AwkText>
     {
         var totalLength = 0;
         var nonEmptyPartCount = 0;
-        AwkText? firstNonEmptyPart = null;
-        AwkText? secondNonEmptyPart = null;
+        var firstNonEmptyPart = Empty;
+        var secondNonEmptyPart = Empty;
         for (var index = 0; index < parts.Length; index++)
         {
             if ((index & 1023) == 0)
@@ -334,14 +340,10 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         if (nonEmptyPartCount == 1)
         {
-            return firstNonEmptyPart ??
-                throw new InvalidOperationException("A non-empty concatenation must retain its only part.");
+            return firstNonEmptyPart;
         }
         if (nonEmptyPartCount == 2)
         {
-            if (firstNonEmptyPart is null || secondNonEmptyPart is null)
-                throw new InvalidOperationException("A two-part concatenation must retain both parts.");
-
             counters.RecordValueCreated();
             return new AwkText(
                 firstNonEmptyPart,
@@ -422,26 +424,27 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
+        var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        var knownAscii = Volatile.Read(ref _textFacts) - 1 == ByteLength;
+        var knownAscii = Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
         int byteStart, byteEnd;
         if (knownAscii)
         {
-            byteStart = Math.Min(start, ByteLength);
-            byteEnd = (int)Math.Min((long)start + length, ByteLength);
+            byteStart = Math.Min(start, text.ByteLength);
+            byteEnd = (int)Math.Min((long)start + length, text.ByteLength);
         }
         else ResolveRuneByteRange(out byteStart, out byteEnd);
 
         if (byteStart == byteEnd)
             return Empty;
 
-        if (byteStart == 0 && byteEnd == ByteLength)
-            return this;
+        if (byteStart == 0 && byteEnd == text.ByteLength)
+            return text;
 
         var byteLength = byteEnd - byteStart;
         var bytes = AllocateOwnedBytes(byteLength, governor);
-        CopyBytes(AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
+        CopyBytes(text.AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
         return knownAscii ? FromTrustedAsciiOwnedBytes(bytes, counters) : FromTrustedOwnedBytes(bytes, counters);
 
         void ResolveRuneByteRange(out int resolvedByteStart, out int resolvedByteEnd)
@@ -449,10 +452,10 @@ internal sealed class AwkText : IEquatable<AwkText>
             var endRuneIndex = (long)start + length;
             // A bounded prefix needs neither total rune count nor a whole-text index.
             // Keep the index for nonlocal/repeated access once it is available.
-            if (ByteLength > RuneCheckpointStride && endRuneIndex <= RuneCheckpointStride &&
-                Volatile.Read(ref _runeByteCheckpoints) is null)
+            if (text.ByteLength > RuneCheckpointStride && endRuneIndex <= RuneCheckpointStride &&
+                Volatile.Read(ref text._runeByteCheckpoints) is null)
             {
-                var span = AsSpan(checkpoint);
+                var span = text.AsSpan(checkpoint);
                 var prefix = span[..(int)Math.Min(endRuneIndex, span.Length)];
                 if (Ascii.IsValid(prefix))
                 {
@@ -479,17 +482,17 @@ internal sealed class AwkText : IEquatable<AwkText>
                 checkpoint?.Invoke();
                 return;
             }
-            if (IsAscii(out var inspectedByteCount, checkpoint))
+            if (text.IsAscii(out var inspectedByteCount, checkpoint))
             {
                 counters.RecordRuneSliceBytesScanned(inspectedByteCount);
-                resolvedByteStart = Math.Min(start, ByteLength);
-                resolvedByteEnd = (int)Math.Min(endRuneIndex, ByteLength);
+                resolvedByteStart = Math.Min(start, text.ByteLength);
+                resolvedByteEnd = (int)Math.Min(endRuneIndex, text.ByteLength);
                 return;
             }
 
             counters.RecordRuneSliceBytesScanned(inspectedByteCount);
             var checkpoints = GetRuneByteCheckpoints();
-            var runeLength = GetRuneLength(checkpoint);
+            var runeLength = text.GetRuneLength(checkpoint);
             start = Math.Min(start, runeLength);
             endRuneIndex = Math.Min(endRuneIndex, runeLength);
             resolvedByteStart = ResolveRuneByteOffset(start, checkpoints);
@@ -498,16 +501,16 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         int[] GetRuneByteCheckpoints()
         {
-            var cached = Volatile.Read(ref _runeByteCheckpoints);
+            var cached = Volatile.Read(ref text._runeByteCheckpoints);
             if (cached is not null)
                 return cached;
 
-            var checkpointCount = checked((ByteLength / RuneCheckpointStride) + 2);
+            var checkpointCount = checked((text.ByteLength / RuneCheckpointStride) + 2);
             var checkpointBytes = checked(checkpointCount * sizeof(int));
             using var checkpointLease = governor.ReserveTransient(checkpointBytes);
             var created = new int[checkpointCount];
 
-            var span = AsSpan(checkpoint);
+            var span = text.AsSpan(checkpoint);
             var byteOffset = 0;
             var runeIndex = 0;
             long nextCheckpoint = 0;
@@ -531,8 +534,8 @@ internal sealed class AwkText : IEquatable<AwkText>
             checkpoint?.Invoke();
             counters.RecordRuneSliceBytesScanned(span.Length);
             counters.RecordRuneSliceIndexAllocation(checkpointBytes);
-            Volatile.Write(ref _textFacts, runeIndex + 1);
-            return Interlocked.CompareExchange(ref _runeByteCheckpoints, created, null) ?? created;
+            Volatile.Write(ref text._textFacts, runeIndex + 1);
+            return Interlocked.CompareExchange(ref text._runeByteCheckpoints, created, null) ?? created;
         }
 
         int ResolveRuneByteOffset(int runeIndex, int[] checkpoints)
@@ -540,7 +543,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             var checkpointIndex = runeIndex / RuneCheckpointStride;
             var currentRuneIndex = checkpointIndex * RuneCheckpointStride;
             var byteOffset = checkpoints[checkpointIndex];
-            var span = AsSpan(checkpoint);
+            var span = text.AsSpan(checkpoint);
             var scannedByteCount = 0;
             while (currentRuneIndex < runeIndex)
             {
@@ -612,12 +615,12 @@ internal sealed class AwkText : IEquatable<AwkText>
         return true;
     }
 
-    public bool Equals(AwkText? other) => Equals(other, checkpoint: null);
+    public bool Equals(AwkText other) => Equals(other, checkpoint: null);
 
-    public bool Equals(AwkText? other, Action? checkpoint)
+    public bool Equals(AwkText other, Action? checkpoint)
     {
         checkpoint?.Invoke();
-        return other is not null && ByteLength == other.ByteLength && CompareBytes(other, checkpoint) == 0;
+        return ByteLength == other.ByteLength && CompareBytes(other, checkpoint) == 0;
     }
 
     public override bool Equals(object? obj) =>
@@ -668,6 +671,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     private byte[] MaterializeConcatenation(AwkTextConcatenation concatenation, Action? checkpoint)
     {
+        var text = this;
         var cached = Volatile.Read(ref concatenation.MaterializedBytes);
         if (cached is not null)
             return cached;
@@ -691,32 +695,32 @@ internal sealed class AwkText : IEquatable<AwkText>
             // Keep the allocation live while copying; cancellation releases the lease
             // and leaves the retained parts available for an independent retry.
             var governor = concatenation.Governor;
-            governor.Reserve(ByteLength);
+            governor.Reserve(text.ByteLength);
             byte[] bytes;
             try
             {
-                bytes = new byte[ByteLength];
-                governor.CommitReserved(ByteLength);
+                bytes = new byte[text.ByteLength];
+                governor.CommitReserved(text.ByteLength);
             }
             catch
             {
-                governor.ReleaseReserved(ByteLength);
+                governor.ReleaseReserved(text.ByteLength);
                 throw;
             }
             try
             {
                 CopyConcatenationTo(bytes);
                 checkpoint?.Invoke();
-                concatenation.Counters.RecordConcatenationBytesCopied(ByteLength);
-                concatenation.Counters.RecordAwkTextAllocation(ByteLength);
+                concatenation.Counters.RecordConcatenationBytesCopied(text.ByteLength);
+                concatenation.Counters.RecordAwkTextAllocation(text.ByteLength);
                 Volatile.Write(ref concatenation.MaterializedBytes, bytes);
-                concatenation.LeftPart = null;
-                concatenation.RightPart = null;
+                concatenation.LeftPart = Empty;
+                concatenation.RightPart = Empty;
                 return bytes;
             }
             finally
             {
-                governor.ReleaseCommitted(ByteLength);
+                governor.ReleaseCommitted(text.ByteLength);
             }
         }
         finally
@@ -730,7 +734,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             var pending = ArrayPool<AwkText>.Shared.Rent(16);
             var pendingCount = 1;
             var destinationOffset = 0;
-            pending[0] = this;
+            pending[0] = text;
             try
             {
                 var visited = 0;
@@ -758,7 +762,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
                     var left = currentConcatenation.LeftPart;
                     var right = currentConcatenation.RightPart;
-                    if (left is null || right is null)
+                    if (left.ByteLength == 0 || right.ByteLength == 0)
                     {
                         materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
                         if (materialized is null)
@@ -824,11 +828,39 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         public AwkMemoryAccounting Governor { get; }
 
-        public AwkText? LeftPart { get; set; }
+        public AwkText LeftPart { get; set; }
 
-        public AwkText? RightPart { get; set; }
+        public AwkText RightPart { get; set; }
 
         public byte[]? MaterializedBytes;
+    }
+
+    private sealed class TextStorage
+    {
+        internal TextStorage(byte[] bytes)
+        {
+            Bytes = bytes;
+            ByteLength = bytes.Length;
+            EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateTextBytes(bytes.Length);
+        }
+
+        internal TextStorage(AwkText left, AwkText right, int byteLength,
+            AwkRuntimeCounters counters, AwkMemoryAccounting governor)
+        {
+            Bytes = [];
+            ByteLength = byteLength;
+            Concatenation = new(left, right, counters, governor);
+            EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(left, right, byteLength);
+        }
+
+        internal readonly byte[] Bytes;
+        internal readonly int ByteLength;
+        internal readonly AwkTextConcatenation? Concatenation;
+        internal readonly long EstimatedRetainedMemoryBytes;
+        internal string? CachedString;
+        // Zero is unknown, -1 is non-ASCII with unknown rune count; positive is count + 1.
+        internal int TextFacts;
+        internal int[]? RuneByteCheckpoints;
     }
 
     private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)

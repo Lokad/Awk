@@ -22,7 +22,7 @@ public sealed class AwkPreparedNumericInputTests
         var before = state.Counters.ValuesCreated;
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var result = Read(state, storage);
-        Assert.Same(text, result.ByteText);
+        Assert.True(text.HasSameStorage(result.ByteText));
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
         Assert.Equal(number, result.AsNumber());
         Assert.Equal(0, AwkValue.Compare(result, AwkValue.FromNumber(number)));

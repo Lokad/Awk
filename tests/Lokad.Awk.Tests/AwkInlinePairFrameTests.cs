@@ -102,10 +102,10 @@ public sealed class AwkInlinePairFrameTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> RunPairWithOwnedPayload(AwkFunctionCallStack stack)
+    private static WeakReference<object> RunPairWithOwnedPayload(AwkFunctionCallStack stack)
     {
         var text = AwkText.FromString(new string('x', 17_000));
-        var weak = new WeakReference<AwkText>(text);
+        var weak = new WeakReference<object>(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
         stack.PushFrame(new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
             [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(1)), AwkFunctionLocalSlot.Scalar(AwkValue.FromText(text))]);
         Assert.True(stack.TryResolveLocalValue(new AwkFunctionLocalSlotId(1), out var local));

@@ -60,7 +60,9 @@ or environment dependencies.
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.
 - Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text;
-  borrowed record/regex bytes use their existing views and owners, not scalar-text wrappers.
+  it is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
+  shared mutable caches belong to that backing, and storage identity compares backing references.
+  Borrowed record/regex bytes use their existing views and owners, not scalar-text wrappers.
   Preserve regex resolution, pinning, admission and subject-materialization order. Hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Persistent record cells contain slices, numeric caches and frame-cache indices without managed

@@ -47,7 +47,7 @@ public sealed class AwkDirectStringBuiltinTests
         var state = State(AwkExecutionMemoryOwner.Disabled);
         var stable = AwkText.FromString(upper ? "ALREADY-09" : "already-09");
         var result = AwkBuiltins.EvaluateCaseValue(state, AwkValue.FromText(stable), upper);
-        Assert.Same(stable, result.ByteText);
+        Assert.True(stable.HasSameStorage(result.ByteText));
         Assert.Equal(0, state.Counters.AsciiCaseConversionChunks);
         var unicode = AwkValue.FromText(upper ? "café" : "CAFÉ");
         Assert.Equal(upper ? "CAFÉ" : "café", AwkBuiltins.EvaluateCaseValue(state, unicode, upper).AsString());

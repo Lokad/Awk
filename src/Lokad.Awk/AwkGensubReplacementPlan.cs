@@ -8,7 +8,7 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
 {
     private const byte EscapeByte = 0x5C;
 
-    private readonly AwkText? _replacement;
+    private readonly AwkText _replacement;
     private readonly AwkGensubReplacementPart[]? _parts;
     private readonly int _partCount;
     private readonly AwkMemoryLease? _memoryLease;
@@ -156,7 +156,8 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
 
     public void Append(AwkRegexMatch match, AwkUtf8Builder builder, Action? checkpoint = null)
     {
-        if (_parts is not { } parts || _replacement is not { } replacement)
+        var replacement = _replacement;
+        if (_parts is not { } parts)
             return;
 
         var replacementBytes = replacement.AsSpan(checkpoint);

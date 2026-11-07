@@ -61,7 +61,6 @@ internal readonly record struct AwkRecordSplitPlan
         public Configuration(AwkFieldSplittingMode mode, AwkFieldSeparatorSpec separator,
             AwkText fieldPattern, IReadOnlyList<AwkFieldWidth> fieldWidths)
         {
-            ArgumentNullException.ThrowIfNull(fieldPattern);
             ArgumentNullException.ThrowIfNull(fieldWidths);
             Mode = mode;
             Separator = separator;

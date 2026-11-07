@@ -271,7 +271,7 @@ internal sealed class AwkByteFieldSplitter(
         if (separatorText.GetRuneLength(throwIfCancellationRequested) == 1)
             caseSensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         if (_resolvedSeparator is { } resolvedSeparator &&
-            ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
+            resolvedSeparator.SeparatorText.HasSameStorage(separatorText) &&
             resolvedSeparator.CaseSensitivity == caseSensitivity &&
             resolvedSeparator.PatternOrigin == separator.PatternOrigin &&
             ReferenceEquals(resolvedSeparator.WarningSite, separator.WarningSite) &&
@@ -530,14 +530,14 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     private readonly struct ResolvedFieldSeparatorPlan(
-        AwkText? separatorText,
+        AwkText separatorText,
         AwkRegexCaseSensitivity caseSensitivity,
         FieldSeparatorPlan plan,
         AwkRegexPatternOrigin patternOrigin,
         object? warningSite,
         bool preparedBothCases)
     {
-        public AwkText SeparatorText => separatorText ?? AwkText.Empty;
+        public AwkText SeparatorText => separatorText;
 
         public AwkRegexCaseSensitivity CaseSensitivity { get; } = caseSensitivity;
 

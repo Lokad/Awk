@@ -214,7 +214,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         Assert.True(match.Success);
         Assert.Equal(2, match.Groups.Count);
-        Assert.Same(match.Groups[0].Value, match.Value);
+        Assert.True(match.Groups[0].Value.HasSameStorage(match.Value));
         Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
     }
 
@@ -337,7 +337,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             maxReplacements: 0,
             out var replacementCount);
 
-        Assert.Same(AwkText.Empty, result);
+        Assert.True(AwkText.Empty.HasSameStorage(result));
         Assert.Equal(4_096, replacementCount);
     }
 
@@ -371,7 +371,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             occurrence: 2,
             out var replacementCount);
 
-        Assert.Same(input, result);
+        Assert.True(input.HasSameStorage(result));
         Assert.Equal(0, replacementCount);
         Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
     }

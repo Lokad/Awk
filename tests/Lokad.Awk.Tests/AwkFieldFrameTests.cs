@@ -235,7 +235,7 @@ public sealed class AwkFieldFrameTests
         Assert.Equal(materialized, counters.FieldsMaterialized);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
 
         memory.Budget.OnGrowth = null;
         token = CancellationToken.None;

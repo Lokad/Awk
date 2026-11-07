@@ -126,7 +126,7 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(16, Unsafe.SizeOf<AwkCapturedSeparator>());
         Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkCapturedSeparator>(), AwkRuntimeMemory.EstimateSeparatorCaptureListBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateSeparatorCaptureListBytes(0));
-        Assert.Same(AwkText.Empty, default(AwkCapturedSeparator).Text);
+        Assert.True(AwkText.Empty.HasSameStorage(default(AwkCapturedSeparator).Text));
     }
 
     private static int Split(AwkRuntimeState state, string input, string separator) =>

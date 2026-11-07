@@ -9,7 +9,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     private const int MaxInt32Utf8ByteLength = 11;
     private const int InlineByteCapacity = 7;
 
-    private readonly AwkText? _text;
+    private readonly AwkText _text;
     private readonly AwkArrayKeyKind _kind;
     private readonly int _ordinal;
 
@@ -40,7 +40,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     private AwkArrayKey(int lowBytes, uint highBytes, int length)
     {
-        _text = null;
+        _text = default;
         _ordinal = lowBytes;
         // Reuse the ordinal/kind words: 56 payload bits; the low kind byte
         // holds two tag bits and three length bits. The key does not grow.
@@ -168,7 +168,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public override string ToString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
-    private AwkText Text => _text ?? AwkText.Empty;
+    private AwkText Text => _text;
 
     private int InlineByteLength => (int)((uint)_kind >> 2) & InlineByteCapacity;
 

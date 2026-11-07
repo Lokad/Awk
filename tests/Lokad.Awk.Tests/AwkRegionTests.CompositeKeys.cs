@@ -21,7 +21,7 @@ public sealed partial class AwkRegionTests
             region.Execute(state, storage);
             var current = Assert.Single(storage.Builders);
             Assert.Same(builder.Buffer, current.Buffer);
-            Assert.Same(AwkText.Empty, current.Separator);
+            Assert.True(AwkText.Empty.HasSameStorage(current.Separator));
             Assert.Equal(0, builder.Buffer.Length);
             Assert.All(storage.Values, value => Assert.Equal(0, value.RetainedTextMemoryBytes));
             Assert.All(storage.Targets, target => Assert.Null(target.Array));

@@ -12,7 +12,7 @@ public sealed class AwkTextTests
         var text = AwkText.FromHostBytes(bytes);
         var copy = text.CopyRuneSlice(0, int.MaxValue, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
         Array.Fill(bytes, (byte)'x');
-        Assert.Same(text, copy);
+        Assert.True(text.HasSameStorage(copy));
         Assert.Equal("é😀q", copy.AsString());
     }
 
@@ -85,7 +85,7 @@ public sealed class AwkTextTests
             Assert.True(owned.Equals(text, checkpoint));
             Assert.False(text.Equals(different, checkpoint));
             Assert.False(text.Equals(longer, checkpoint));
-            Assert.False(text.Equals(null, checkpoint));
+            Assert.False(text.Equals((object?)null));
         }
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);

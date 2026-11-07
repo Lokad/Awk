@@ -162,13 +162,13 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> FillAndPop(AwkFunctionCallStack stack)
+    private static WeakReference<object> FillAndPop(AwkFunctionCallStack stack)
     {
         var text = AwkText.FromString(new string('x', 32_768));
         var value = AwkValue.FromText(text);
         stack.PushFrame(Layout(8), [AwkFunctionLocalSlot.Scalar(value)]);
         stack.PopFrame(static _ => { });
-        return new(text);
+        return new(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 
     private static AwkFunctionLocalLayout Layout(int count) =>

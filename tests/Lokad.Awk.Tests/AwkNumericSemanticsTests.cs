@@ -24,7 +24,7 @@ public sealed class AwkNumericSemanticsTests
         var value = AwkValue.FromNumericString(text);
         var expectedBits = negativeZero ? long.MinValue : BitConverter.DoubleToInt64Bits(number);
         Assert.Equal(expectedBits, BitConverter.DoubleToInt64Bits(value.AsNumber()));
-        Assert.Same(text, value.ByteText);
+        Assert.True(text.HasSameStorage(value.ByteText));
     }
 
     [Theory]

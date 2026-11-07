@@ -43,7 +43,7 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(materialized, counters.FieldsMaterialized);
         Assert.Equal(2, frame.GetFieldCount());
         Assert.Equal("02.8", frame.GetFieldCountValue().AsString());
-        Assert.Same(previousRecord, frame.RecordAwkText);
+        Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(first, frame.GetFieldValue(new(1)));
 
         // The frame's callback is operation-local; retry uses a fresh, uncanceled token.
@@ -102,7 +102,7 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(ManyFields, frame.GetFieldCount());
-        Assert.Same(previousRecord, frame.RecordAwkText);
+        Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         if (cached)
             Assert.Equal("a", frame.GetFieldValue(new(ManyFields)).AsString());
@@ -140,7 +140,7 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Throws<OperationCanceledException>(() => Grow(frame, operation, 33));
 
         Assert.Equal(2, frame.GetFieldCount());
-        Assert.Same(previousRecord, frame.RecordAwkText);
+        Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
@@ -168,7 +168,7 @@ public sealed class AwkFieldMutationCancellationTests
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(original, frame.GetFieldCount());
-        Assert.Same(previousRecord, frame.RecordAwkText);
+        Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         frame.ResetRecord();

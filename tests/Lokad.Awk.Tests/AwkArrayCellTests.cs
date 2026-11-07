@@ -85,14 +85,14 @@ public sealed class AwkArrayCellTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> ReplaceAndRetire(AwkVariables variables, AwkArrayIdentity array,
+    private static WeakReference<object> ReplaceAndRetire(AwkVariables variables, AwkArrayIdentity array,
         AwkArrayKey key, bool clear)
     {
         var text = AwkText.FromString(new string('x', 1_000_000));
         variables.SetArrayValue(array, key, AwkValue.FromText(text));
         if (clear) variables.ClearArray(array);
         else variables.DeleteArrayValue(array, key);
-        return new(text);
+        return new(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 
     private static AwkVariables Variables(CooperativeTestMemory memory) =>

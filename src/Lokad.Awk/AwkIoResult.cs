@@ -47,7 +47,7 @@ internal readonly struct AwkIoOperationResult(AwkIoOperationStatus status, AwkIo
 
 internal readonly struct AwkGetlineResult(
     AwkGetlineStatus status,
-    AwkText? record,
+    AwkText record,
     AwkRecordTerminator terminator,
     AwkRecordFieldSplittingMode fieldSplittingMode,
     AwkIoError error,
@@ -81,7 +81,7 @@ internal readonly struct AwkGetlineResult(
 
     public AwkGetlineStatus Status { get; } = status;
 
-    public AwkText RecordText => record ?? AwkText.Empty;
+    public AwkText RecordText => record;
 
     public AwkRecordTerminator Terminator { get; } = terminator;
 

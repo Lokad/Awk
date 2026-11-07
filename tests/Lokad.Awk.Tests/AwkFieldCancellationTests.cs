@@ -35,7 +35,7 @@ public sealed class AwkFieldCancellationTests
         Assert.Equal(published, counters.FieldsMaterialized);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Same(source, context.Frame.RecordAwkText);
+        Assert.True(source.HasSameStorage(context.Frame.RecordAwkText));
         Assert.Equal(2, context.Frame.GetFieldCount());
         Assert.Equal("b", context.Frame.GetFieldValue(new(2)).AsString());
         context.Frame.ResetRecord();
@@ -275,7 +275,7 @@ public sealed class AwkFieldCancellationTests
         var committed = governor.CurrentCommittedBytes;
         armed = true;
         Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount());
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(plan, frame.SplitPlan);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);

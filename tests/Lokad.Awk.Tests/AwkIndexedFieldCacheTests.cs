@@ -118,7 +118,7 @@ public sealed class AwkIndexedFieldCacheTests
         var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(8192)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         armed = false;
-        Assert.Same(record, frame.RecordAwkText);
+        Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(8192, frame.GetFieldCount());
         Assert.Equal(first, frame.GetFieldValue(new(1)));
         Assert.True(frame.TryGetUnmaterializedFieldBytes(new(8192), out _));
@@ -172,7 +172,7 @@ public sealed class AwkIndexedFieldCacheTests
         var allocations = counters.AwkTextAllocations;
         Assert.Equal(3, state.FieldCount);
         var again = state.GetFieldValue(1);
-        Assert.Same(prefix.ByteText, again.ByteText);
+        Assert.True(prefix.ByteText.HasSameStorage(again.ByteText));
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal("007", again.ByteText.AsString());
         Assert.Equal(7, again.AsNumber());

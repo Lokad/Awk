@@ -65,7 +65,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
         if (pending)
         {
             Assert.False(read.IsCompleted);
-            Assert.Same(initialRecord, state.CurrentRecordByteText);
+            Assert.True(initialRecord.HasSameStorage(state.CurrentRecordByteText));
             Assert.Equal(0, counters.BytesRead);
             Complete();
         }
@@ -111,7 +111,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
         }
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
-        Assert.Same(initialRecord, state.CurrentRecordByteText);
+        Assert.True(initialRecord.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

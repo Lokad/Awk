@@ -16,7 +16,7 @@ public sealed class AwkStringResultTests
 
         var result = AwkBuiltins.EvaluateCaseValue(state, value, upper);
 
-        Assert.Same(text, result.ByteText);
+        Assert.True(text.HasSameStorage(result.ByteText));
         Assert.Equal(text.ByteLength, counters.AsciiCasePreparationBytes);
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(values + 1, counters.ValuesCreated);
@@ -49,7 +49,7 @@ public sealed class AwkStringResultTests
         var restored = slot.ToValue(state.CreateNumericStringValue, state.CreateStringValue);
         Assert.Equal(8, restored.AsNumber(state.CancellationCheckpoint));
         Assert.Equal(AwkRuntimeValueKind.String, restored.RuntimeKind);
-        Assert.Same(result.ByteText, restored.ByteText);
+        Assert.True(result.ByteText.HasSameStorage(restored.ByteText));
     }
 
     [Theory]

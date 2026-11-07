@@ -72,13 +72,13 @@ public sealed class AwkComputedFieldIndexTests
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(run.IsCompleted);
-            Assert.Same(record, state.CurrentRecordByteText);
+            Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
             release.TrySetResult();
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal("awk: non-finite field index\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
             Assert.Equal(1, reads);
-            Assert.Same(record, state.CurrentRecordByteText);
+            Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
             Assert.Equal(2, state.FieldCount);
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

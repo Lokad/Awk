@@ -239,10 +239,10 @@ public sealed class AwkInventoryOutputBoundaryTests
         for (var value = 0; value < 128; value++)
         {
             var first = AwkRecordTerminator.FromAsciiByte((byte)value).ByteText;
-            Assert.Same(first, AwkRecordTerminator.FromAsciiByte((byte)value).ByteText);
+            Assert.True(first.HasSameStorage(AwkRecordTerminator.FromAsciiByte((byte)value).ByteText));
             Assert.Equal(new byte[] { (byte)value }, first.AsSpan().ToArray());
         }
-        Assert.Same(AwkRecordTerminator.NewLine.ByteText, AwkRecordTerminator.FromAsciiByte(10).ByteText);
+        Assert.True(AwkRecordTerminator.NewLine.ByteText.HasSameStorage(AwkRecordTerminator.FromAsciiByte(10).ByteText));
         Assert.Throws<ArgumentOutOfRangeException>(() => AwkRecordTerminator.FromAsciiByte(128));
     }
 

@@ -39,16 +39,16 @@ public sealed class AwkFormattingOwnershipTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<AwkText> Prime(AwkFormattingRuntime formatter, Action<AwkText> set, bool output)
+    private static WeakReference<object> Prime(AwkFormattingRuntime formatter, Action<AwkText> set, bool output)
     {
         var text = AwkText.FromString(new string('0', 262_144) + "%g");
         set(text);
         Assert.Equal(262_148, Format(formatter, output).ByteLength);
-        return new(text);
+        return new(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static bool IsAlive(WeakReference<AwkText> value) => value.TryGetTarget(out _);
+    private static bool IsAlive(WeakReference<object> value) => value.TryGetTarget(out _);
 
     private static AwkText Format(AwkFormattingRuntime formatter, bool output) => output
         ? formatter.FormatPrintByteText(AwkValue.FromNumber(1.25))

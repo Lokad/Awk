@@ -279,7 +279,7 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -437,7 +437,7 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(0, state.ResolveVariableValue(count).AsNumber());
         Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }

@@ -19,13 +19,13 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal(64, eager.FieldCount);
         var first = state.GetFieldValue(1);
         var firstEager = eager.GetFieldValue(1);
-        Assert.Equal(firstEager, first);
+        AssertSameScalar(firstEager, first);
         Assert.Equal("0007"u8.ToArray(), first.ByteText.AsSpan().ToArray());
         Assert.Equal(1, counters.FieldsMaterialized);
         Assert.Equal(64, eagerCounters.FieldsMaterialized);
         var third = state.GetFieldValue(3);
         var thirdEager = eager.GetFieldValue(3);
-        Assert.Equal(thirdEager, third);
+        AssertSameScalar(thirdEager, third);
         Assert.Equal(3, counters.FieldsMaterialized);
         Assert.Equal(64, state.FieldCount);
         Assert.Equal(64, counters.FieldsMaterialized);
@@ -33,6 +33,13 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+
+        static void AssertSameScalar(AwkValue expected, AwkValue actual)
+        {
+            Assert.Equal(expected.RuntimeKind, actual.RuntimeKind);
+            Assert.Equal(expected.ByteText, actual.ByteText);
+            Assert.Equal(expected.AsNumber(), actual.AsNumber());
+        }
     }
 
     [Theory]

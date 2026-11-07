@@ -132,7 +132,7 @@ public sealed class AwkRegexScratchMemoryTests
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var result = AwkRegexSubstitution.ReplaceOccurrence(state, regex, input, AwkText.FromString("<\\1>"),
             AwkReplacementMode.Gensub, missingOccurrence ? 2 : 1, out var count);
-        Assert.Same(input, result);
+        Assert.True(input.HasSameStorage(result));
         Assert.Equal(0, count);
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

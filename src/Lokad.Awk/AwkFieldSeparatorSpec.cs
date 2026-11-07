@@ -6,7 +6,7 @@ internal readonly record struct AwkFieldSeparatorSpec
 {
     private static readonly AwkText Space = AwkText.FromSourceLiteralString(" ");
 
-    private readonly AwkText? _customText;
+    private readonly AwkText _customText;
     private readonly AwkFieldSeparatorKind _kind;
 
     private AwkFieldSeparatorSpec(AwkText text, AwkRegexPatternOrigin origin = AwkRegexPatternOrigin.Runtime,
@@ -35,7 +35,7 @@ internal readonly record struct AwkFieldSeparatorSpec
     public AwkRegexPatternOrigin PatternOrigin { get; }
     public object? WarningSite { get; }
 
-    public AwkText ByteText => _kind == AwkFieldSeparatorKind.Custom ? _customText ?? AwkText.Empty : Space;
+    public AwkText ByteText => _kind == AwkFieldSeparatorKind.Custom ? _customText : Space;
 
     public bool UsesWhitespaceSemantics => _kind == AwkFieldSeparatorKind.Default;
 
@@ -43,7 +43,7 @@ internal readonly record struct AwkFieldSeparatorSpec
     // Equal fresh text still replaces its storage owner; no text scan is needed.
     internal bool HasSameStorage(AwkFieldSeparatorSpec other) =>
         _kind == other._kind && PatternOrigin == other.PatternOrigin &&
-        ReferenceEquals(_customText, other._customText) && ReferenceEquals(WarningSite, other.WarningSite);
+        _customText.HasSameStorage(other._customText) && ReferenceEquals(WarningSite, other.WarningSite);
 
     private enum AwkFieldSeparatorKind
     {

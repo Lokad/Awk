@@ -104,7 +104,7 @@ internal sealed class AwkFieldFrame(
     private List<AwkRecordField> _fieldTexts = [];
     internal readonly struct CachedFieldValue
     {
-        private readonly AwkText? _spelling;
+        private readonly AwkText _spelling;
 
         internal CachedFieldValue(int fieldIndex, AwkFieldCacheKind kind, AwkValue value, AwkText spelling)
         {
@@ -117,7 +117,7 @@ internal sealed class AwkFieldFrame(
         internal int FieldIndex { get; }
         internal AwkFieldCacheKind Kind { get; }
         internal AwkValue Value { get; }
-        internal AwkText Spelling => _spelling ?? AwkText.Empty;
+        internal AwkText Spelling => _spelling;
         internal bool IsClassificationOnly => Kind == AwkFieldCacheKind.Classification;
         internal bool IsScalar => Kind == AwkFieldCacheKind.Scalar;
         internal long PayloadBytes
@@ -126,7 +126,7 @@ internal sealed class AwkFieldFrame(
             {
                 var spellingBytes = Spelling.EstimatedRetainedMemoryBytes;
                 var valueBytes = Value.RetainedTextMemoryBytes;
-                return valueBytes == 0 || ReferenceEquals(Spelling, Value.ByteText)
+                return valueBytes == 0 || Spelling.HasSameStorage(Value.ByteText)
                     ? spellingBytes : AwkRuntimeMemory.CheckedAdd(spellingBytes, valueBytes);
             }
         }

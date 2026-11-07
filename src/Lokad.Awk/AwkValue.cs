@@ -40,13 +40,18 @@ internal readonly struct AwkValue
     private readonly AwkValueKind _kind;
 
     private AwkValue(
-        object text,
+        object? text,
         double number,
         AwkValueKind kind)
     {
         _text = text;
         _number = number;
         _kind = kind;
+    }
+
+    private AwkValue(AwkText text, double number, AwkValueKind kind)
+        : this(text.Backing, number, kind)
+    {
     }
 
     private AwkValue(double number)
@@ -128,8 +133,10 @@ internal readonly struct AwkValue
     {
         number = _number;
         // Nonzero initial decimal digits have the same meaning in every input-number mode.
-        return _kind == AwkValueKind.NumericString && _text is AwkText text &&
-            text.ByteLength != 0 && text.AsSpan()[0] is >= (byte)'1' and <= (byte)'9';
+        if (_kind != AwkValueKind.NumericString)
+            return false;
+        var text = AwkText.FromBacking(_text);
+        return text.ByteLength != 0 && text.AsSpan()[0] is >= (byte)'1' and <= (byte)'9';
     }
 
     public static AwkValue FromDeferredText(AwkText text, AwkNumberParsingMode numberParsingMode) =>
@@ -237,7 +244,7 @@ internal readonly struct AwkValue
             ThrowIfArrayValue();
             return _kind == AwkValueKind.Number
                 ? AwkNumberFormatter.ToAwkText(_number)
-                : _text as AwkText ?? AwkText.Empty;
+                : AwkText.FromBacking(_text);
         }
     }
 
@@ -246,7 +253,7 @@ internal readonly struct AwkValue
             ? 0
             : _text is AwkUntypedScalar
                 ? AwkRuntimeMemory.EstimateUntypedScalarBytes()
-                : (_text as AwkText ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
+                : AwkText.FromBacking(_text).EstimatedRetainedMemoryBytes;
 
     public double AsNumber(Action? checkpoint = null)
     {

@@ -10,7 +10,7 @@ public sealed class AwkVariableSlotTests
         var bytes = AwkText.FromSourceLiteralString("0x1.2");
         var slot = AwkVariableSlot.FromValue(AwkValue.FromDeferredText(bytes, AwkNumberParsingMode.NonDecimalData));
         Assert.True(slot.TryGetStoredScalarText(out var text));
-        Assert.Same(bytes, text);
+        Assert.True(bytes.HasSameStorage(text));
         var value = slot.ToValue(AwkValue.FromNumericString,
             text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.NonDecimalData));
         Assert.Throws<AwkRuntimeException>(() => value.AsNumber());

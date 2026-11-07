@@ -166,7 +166,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         }
         Assert.Equal(missing ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
-        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkRegexMatch
 {
-    private readonly AwkText? _value;
+    private readonly AwkText _value;
     private readonly IReadOnlyList<AwkRegexGroup>? _groups;
 
     public AwkRegexMatch(
@@ -22,7 +22,7 @@ internal readonly record struct AwkRegexMatch
         Length = length;
         ByteIndex = byteIndex;
         ByteLength = byteLength;
-        _value = value.ByteLength == 0 ? null : value;
+        _value = value;
         _groups = groups.Count == 0 ? null : groups;
     }
 
@@ -36,7 +36,7 @@ internal readonly record struct AwkRegexMatch
 
     public int ByteLength { get; }
 
-    public AwkText Value => _value ?? AwkText.Empty;
+    public AwkText Value => _value;
 
     public IReadOnlyList<AwkRegexGroup> Groups => _groups ?? [];
 
@@ -166,14 +166,14 @@ internal readonly struct AwkLeasedRegexMatch(
 
 internal readonly record struct AwkRegexGroup
 {
-    private readonly AwkText? _value;
+    private readonly AwkText _value;
 
     public AwkRegexGroup(bool success, int index, int length, AwkText value)
     {
         Success = success;
         Index = index;
         Length = length;
-        _value = value.ByteLength == 0 ? null : value;
+        _value = value;
     }
 
     public bool Success { get; }
@@ -182,7 +182,7 @@ internal readonly record struct AwkRegexGroup
 
     public int Length { get; }
 
-    public AwkText Value => _value ?? AwkText.Empty;
+    public AwkText Value => _value;
 }
 
 internal readonly record struct AwkRegexMatchPosition(bool Success, int Index, int Length)
