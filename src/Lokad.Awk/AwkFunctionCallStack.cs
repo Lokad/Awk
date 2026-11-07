@@ -129,8 +129,9 @@ internal sealed class AwkFunctionCallStack(
         finally { memoryAccounting.ReleaseCommitted(unpublishedBytes); }
     }
 
-    // Pure numbers can publish into funded cells without an intermediate local slot.
-    internal void StageValue(AwkFunctionFrame frame, int index, AwkValue value)
+    // Borrow immutable argument transport only during this synchronous staging.
+    // Pure numbers publish into funded cells without an intermediate local slot.
+    internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value)
     {
         if (value.IsNumberValue) StageNumber(frame, index, value.AsNumber());
         else StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));

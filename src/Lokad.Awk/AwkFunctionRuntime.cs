@@ -55,7 +55,7 @@ internal sealed class AwkFunctionRuntime
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout) => _calls.PrepareFrame(layout);
     internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, argument);
-    internal void StageValue(AwkFunctionFrame frame, int index, AwkValue value) => _calls.StageValue(frame, index, value);
+    internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value) => _calls.StageValue(frame, index, in value);
     internal void StageNumber(AwkFunctionFrame frame, int index, double number) => _calls.StageNumber(frame, index, number);
     internal void ActivateFrame(AwkFunctionFrame frame) => _calls.ActivateFrame(frame);
     internal void DiscardIncomingFrame(AwkFunctionFrame frame) => _calls.DiscardIncomingFrame(frame);

@@ -506,12 +506,12 @@ internal partial struct AwkRegionMachine
                             break;
                         }
                     }
-                    if (IsField(operand) && call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right))
+                    if (instruction.Detail == (int)AwkRegionArgumentKind.ArithmeticField)
                     {
                         var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
                         state.StageFunctionValue(storage.IncomingFrame(call.Slot), instruction.Right, fieldArgument);
                     }
-                    else if (instruction.Detail == 0 && operand.IsVariable && TryArrayArgument(operand, out var argument))
+                    else if (instruction.Detail == (int)AwkRegionArgumentKind.Value && operand.IsVariable && TryArrayArgument(operand, out var argument))
                         state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
                     else
                     {

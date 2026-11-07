@@ -56,8 +56,14 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                compiler.Emit(new(AwkRegionInstructionKind.Argument, _call, CompletedResult<int>(completed), _argument - 1,
-                    syntax.Children[_argument].Kind == AwkExpressionKind.Group ? 1 : 0));
+                var argument = CompletedResult<int>(completed);
+                // Callee consumption is finalized before any region is prepared.
+                var kind = compiler._operands[argument].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField &&
+                    function.LocalLayout.ConsumesArithmeticInput(_argument - 1)
+                    ? AwkRegionArgumentKind.ArithmeticField
+                    : syntax.Children[_argument].Kind == AwkExpressionKind.Group
+                        ? AwkRegionArgumentKind.Grouped : AwkRegionArgumentKind.Value;
+                compiler.Emit(new(AwkRegionInstructionKind.Argument, _call, argument, _argument - 1, (int)kind));
                 _argument++;
             }
             if (_argument < syntax.Children.Count)

@@ -119,6 +119,11 @@ internal enum AwkRegionInstructionKind : byte
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
 
+internal enum AwkRegionArgumentKind : byte
+{
+    Value, Grouped, ArithmeticField
+}
+
 // Prepared ownership bounds for one rule's scratch, including reused update slots. Shared
 // builder/incoming-frame slots retain their ordinary whole-owner cleanup.
 internal sealed class AwkRegionRuleScope(AwkRegionStorageLayout before, AwkRegionStorageLayout after)
