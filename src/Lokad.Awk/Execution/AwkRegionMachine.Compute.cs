@@ -12,10 +12,6 @@ internal partial struct AwkRegionMachine
         AwkRegionStorage storage;
         AwkRegionInstruction[] instructions;
         AwkRegionOperand[] operands;
-        AwkText[] literals;
-        AwkRegionArrayAccess[] arrays;
-        AwkRegionCall[] calls;
-        AwkRegionBuiltin[] builtins;
         AwkFunctionFrame? frame;
         double[] numbers;
     Resume:
@@ -26,10 +22,6 @@ internal partial struct AwkRegionMachine
         frame = _frame;
         instructions = region.Instructions;
         operands = region.Operands;
-        literals = region.Literals;
-        arrays = region.Arrays;
-        calls = region.Calls;
-        builtins = region.Builtins;
         numbers = storage.Numbers;
         for (var position = _position; position < instructions.Length; position++)
         {
@@ -72,7 +64,7 @@ internal partial struct AwkRegionMachine
                     numbers[instruction.Target] = state.GetFieldNumber((int)numbers[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.LiteralNumber:
-                    numbers[instruction.Target] = state.CreateStringValue(literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = state.CreateStringValue(region.Literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.ValueNumber:
                     numbers[instruction.Target] = storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint);
@@ -95,11 +87,11 @@ internal partial struct AwkRegionMachine
                     numbers[instruction.Target] = ReadVariable(operands[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.ArrayNumber:
-                    numbers[instruction.Target] = ReadArrayNumber(arrays[instruction.Left]);
+                    numbers[instruction.Target] = ReadArrayNumber(region.Arrays[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.ArrayContains:
                 {
-                    var membership = arrays[instruction.Left];
+                    var membership = region.Arrays[instruction.Left];
                     var keyOperand = operands[membership.Key];
                     var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
                         ? state.ContainsArrayValue(membership.Name, storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
@@ -166,7 +158,7 @@ internal partial struct AwkRegionMachine
                 }
                 case AwkRegionInstructionKind.ArrayTarget:
                 {
-                    var captured = arrays[instruction.Left];
+                    var captured = region.Arrays[instruction.Left];
                     if (captured.Key < 0 && captured.Path < 0)
                         storage.StoreArrayTarget(instruction.Target, new(captured.Name));
                     else
@@ -204,7 +196,7 @@ internal partial struct AwkRegionMachine
                 }
                 case AwkRegionInstructionKind.InspectArray:
                 {
-                    var inspected = arrays[instruction.Left];
+                    var inspected = region.Arrays[instruction.Left];
                     var kind = inspected.Path >= 0
                         ? state.GetArrayAwkValue(storage.Path(inspected.Path).ResolveOwner(state), storage.Path(inspected.Path).Key).RuntimeKind
                         : state.GetArrayElementRuntimeKind(inspected.Name, Key(inspected), inspected.Binding);
@@ -305,18 +297,18 @@ internal partial struct AwkRegionMachine
                         .ContainsKey(storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.ArrayDelete:
-                    var deleted = arrays[instruction.Target];
+                    var deleted = region.Arrays[instruction.Target];
                     var deletedKey = CaptureKey(deleted.Key);
                     state.ThrowIfCancellationRequested();
                     state.DeleteArrayValue(deleted.Name, deletedKey);
                     break;
                 case AwkRegionInstructionKind.ArrayClear:
                     state.ThrowIfCancellationRequested();
-                    state.ClearArray(arrays[instruction.Target].Name);
+                    state.ClearArray(region.Arrays[instruction.Target].Name);
                     break;
                 case AwkRegionInstructionKind.IteratorBegin:
                     var iteration = region.Iterations[instruction.Left];
-                    var iterated = arrays[iteration.Access];
+                    var iterated = region.Arrays[iteration.Access];
                     var iterationKey = iterated.Key >= 0 ? Key(iterated) : default;
                     BeginIteration(iteration, iterated, iterationKey);
                     break;
@@ -338,7 +330,7 @@ internal partial struct AwkRegionMachine
                     storage.ReleasePath(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.ArrayRead:
-                    storage.StoreValue(instruction.Target, ReadArray(arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
+                    storage.StoreValue(instruction.Target, ReadArray(region.Arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Arithmetic:
                     numbers[instruction.Target] = AwkNumericOperations.Apply(
@@ -432,7 +424,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
                 {
-                    var path = arrays[instruction.Left].Path;
+                    var path = region.Arrays[instruction.Left].Path;
                     AwkArrayUpdateTarget preparedTarget;
                     if (path >= 0) preparedTarget = PrepareNestedArrayUpdate(path);
                     else PrepareArrayUpdate(instruction.Left, complete: false, out preparedTarget);
@@ -464,7 +456,7 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.ArrayAssign:
-                    var assigned = arrays[instruction.Target];
+                    var assigned = region.Arrays[instruction.Target];
                     if (assigned.Path >= 0)
                     {
                         var assignedPath = storage.Path(assigned.Path);
@@ -492,10 +484,10 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.BeginCall:
                     state.ThrowIfCancellationRequested();
-                    storage.BeginCall(calls[instruction.Left]);
+                    storage.BeginCall(region.Calls[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.Argument:
-                    var call = calls[instruction.Target];
+                    var call = region.Calls[instruction.Target];
                     var operand = operands[instruction.Left];
                     if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
                     {
@@ -529,7 +521,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Call:
                     _position = position + 1;
-                    EnterCall(calls[instruction.Left], new(instruction.Detail == 0
+                    EnterCall(region.Calls[instruction.Left], new(instruction.Detail == 0
                         ? AwkRegionOperandKind.ValueTemporary : AwkRegionOperandKind.NumberTemporary, instruction.Target));
                     goto Resume;
                 case AwkRegionInstructionKind.BuiltinArgument:
@@ -540,7 +532,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Builtin:
                 {
-                    var builtin = builtins[instruction.Left];
+                    var builtin = region.Builtins[instruction.Left];
                     if (builtin.Host is { } host)
                     {
                         state.ThrowIfCancellationRequested();
@@ -705,7 +697,7 @@ internal partial struct AwkRegionMachine
             if (IsField(target)) return AwkResolvedReference.Field(new(FieldOrdinal(target)));
             if (target.Kind == AwkRegionOperandKind.ArrayElement)
             {
-                var array = arrays[target.Index];
+                var array = region.Arrays[target.Index];
                 return array.Path >= 0
                     ? AwkResolvedReference.NestedArrayElement(storage.TakePath(array.Path))
                     : AwkResolvedReference.ArrayElement(array.Name, Key(array));
@@ -726,11 +718,11 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.SpecialVariable:
                     return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index);
                 case AwkRegionOperandKind.DynamicVariable: return state.ResolveVariableValue(operand.Name);
-                case AwkRegionOperandKind.Literal: return state.CreateStringValue(literals[operand.Index]);
+                case AwkRegionOperandKind.Literal: return state.CreateStringValue(region.Literals[operand.Index]);
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField: return ReadField(FieldOrdinal(operand));
                 case AwkRegionOperandKind.ValueTemporary: return storage.Values[operand.Index];
-                case AwkRegionOperandKind.ArrayElement: return ReadArray(arrays[operand.Index]);
+                case AwkRegionOperandKind.ArrayElement: return ReadArray(region.Arrays[operand.Index]);
                 default: throw new InvalidOperationException("Unknown bound region operand.");
             }
         }
@@ -787,7 +779,7 @@ internal partial struct AwkRegionMachine
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         void PrepareArrayUpdate(int accessIndex, bool complete, out AwkArrayUpdateTarget target)
         {
-            ref readonly var access = ref arrays[accessIndex];
+            ref readonly var access = ref region.Arrays[accessIndex];
             ref readonly var key = ref operands[access.Key];
             switch (key.Kind)
             {
@@ -818,9 +810,9 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.DynamicField:
                     return state.GetFieldNumber(FieldOrdinal(operand));
                 case AwkRegionOperandKind.Literal:
-                    return state.CreateStringValue(literals[operand.Index]).AsNumber(state.CancellationCheckpoint);
+                    return state.CreateStringValue(region.Literals[operand.Index]).AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ArrayElement:
-                    return ReadArrayNumber(arrays[operand.Index]);
+                    return ReadArrayNumber(region.Arrays[operand.Index]);
                 case AwkRegionOperandKind.GlobalVariable:
                 {
                     return state.TryResolvePreparedGlobalNumber(operand.Index, out var number) ? number :
@@ -879,7 +871,7 @@ internal partial struct AwkRegionMachine
             var operand = operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
             if (operand.Kind == AwkRegionOperandKind.Literal)
-                return new(literals[operand.Index]);
+                return new(region.Literals[operand.Index]);
             return new(state.FormatStringByteText(Value(index)));
         }
 
