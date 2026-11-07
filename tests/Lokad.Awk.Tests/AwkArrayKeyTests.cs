@@ -74,6 +74,13 @@ public sealed class AwkArrayKeyTests
         Assert.True(comparer.Equals(key, new AwkArrayKey(payload)));
         Assert.False(comparer.Equals(padded.AsSpan(1, bytes.Length), new AwkArrayKey(payload + "\0")));
         Assert.False(lookup.ContainsKey(AwkUtf8Codec.Encode(payload + "x").ToArray()));
+        if (payload.Length > 0)
+        {
+            var different = payload[..^1] + "y";
+            Assert.False(comparer.Equals(AwkUtf8Codec.Encode(different).Span, key));
+            Assert.False(comparer.Equals(key, new AwkArrayKey(different)));
+            Assert.False(lookup.ContainsKey(AwkUtf8Codec.Encode(different).Span));
+        }
         Assert.Single(values);
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(0, counters.Utf8Encodes);

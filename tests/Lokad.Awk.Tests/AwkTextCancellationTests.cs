@@ -156,6 +156,7 @@ public sealed class AwkTextCancellationTests
     [InlineData("hash")]
     [InlineData("key")]
     [InlineData("compare")]
+    [InlineData("text-equality")]
     [InlineData("search")]
     [InlineData("string")]
     [InlineData("memory")]
@@ -179,6 +180,7 @@ public sealed class AwkTextCancellationTests
                 case "hash": _ = text.GetHashCode(checkpoint); break;
                 case "key": _ = new AwkArrayKey(text, checkpoint); break;
                 case "compare": _ = text.CompareBytes(text, checkpoint); break;
+                case "text-equality": _ = text.Equals(text, checkpoint); break;
                 case "search": _ = text.IndexOf(AwkText.FromString("1"), checkpoint); break;
                 case "string": _ = text.AsString(counters, checkpoint); break;
                 case "memory": _ = text.AsMemory(checkpoint); break;
@@ -219,13 +221,19 @@ public sealed class AwkTextCancellationTests
     [Theory]
     [InlineData("hash")]
     [InlineData("equality")]
+    [InlineData("owned-key-equality")]
+    [InlineData("borrowed-key-equality")]
     [InlineData("comparison")]
     [InlineData("ascii-equality")]
     public void OwnedByteScansObserveMidFlightCancellation(string operation)
     {
-        var expected = new string('a', LongText);
+        // Leave ample scanning after entry/materialization checks; cancellation
+        // must not depend on a final checkpoint after a short comparison.
+        var expected = new string('a', LongText * 4);
         var text = AwkText.FromString(expected);
         var other = AwkText.FromString(expected);
+        var key = new AwkArrayKey(text);
+        var otherKey = new AwkArrayKey(other);
         using var cancellation = new CancellationTokenSource();
         var checkpoint = CancelOnCheck(cancellation, operation == "ascii-equality" ? 5 : 6);
         Assert.Throws<OperationCanceledException>(() =>
@@ -234,6 +242,8 @@ public sealed class AwkTextCancellationTests
             {
                 case "hash": _ = text.GetHashCode(checkpoint); break;
                 case "equality": _ = text.Equals(other, checkpoint); break;
+                case "owned-key-equality": _ = key.Equals(otherKey, checkpoint); break;
+                case "borrowed-key-equality": _ = key.Equals(other.AsSpan(), checkpoint); break;
                 case "comparison": _ = text.CompareBytes(other, checkpoint); break;
                 case "ascii-equality": _ = text.EqualsAscii(expected, checkpoint); break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));

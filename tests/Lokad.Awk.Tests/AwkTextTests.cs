@@ -66,6 +66,31 @@ public sealed class AwkTextTests
         Assert.False(first.Equals(later));
     }
 
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(7)] [InlineData(8)]
+    [InlineData(4095)] [InlineData(4096)] [InlineData(4097)] [InlineData(8193)]
+    public void EqualityKeepsUtf8NulAndLongPrefixBoundariesAcrossOwnedAndConcatenatedText(int prefix)
+    {
+        var start = new string('a', prefix);
+        const string suffix = "\0é😀z";
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var text = AwkText.FromString(start).Concat(AwkText.FromString(suffix),
+            counters, AwkMemoryAccounting.Disabled);
+        var owned = AwkText.FromHostBytes(AwkUtf8Codec.Encode(start + suffix).ToArray());
+        var different = AwkText.FromString(start + "\0é😀y");
+        var longer = AwkText.FromString(start + suffix + "\0");
+        foreach (var checkpoint in new Action?[] { null, static () => { } })
+        {
+            Assert.True(text.Equals(owned, checkpoint));
+            Assert.True(owned.Equals(text, checkpoint));
+            Assert.False(text.Equals(different, checkpoint));
+            Assert.False(text.Equals(longer, checkpoint));
+            Assert.False(text.Equals(null, checkpoint));
+        }
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+    }
+
     [Fact]
     public void AwkText_SupportsByteAndRuneOperations()
     {
