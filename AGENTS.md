@@ -84,6 +84,8 @@ or environment dependencies.
   Record/print producers determine complete output byte lengths during preparation. The builder
   admits that length and copies once; keep size checks after argument formatting, and publish
   Length only after complete cancellation-safe copying. Do not restore a second field-sizing pass.
+  Record output resolves cell bytes directly from the record/cache view, without constructing
+  detached field-text values. Those spans stay within the synchronous owned-output copy.
 - Arithmetic field numbers live in their funded record cells. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.

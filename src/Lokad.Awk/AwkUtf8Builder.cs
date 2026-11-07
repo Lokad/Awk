@@ -128,7 +128,7 @@ internal sealed class AwkUtf8Builder : IDisposable
                 AwkText.CopyBytes(between, _buffer.AsSpan(offset), checkpoint);
                 offset += between.Length;
             }
-            var bytes = fields[index].AsSpan(record, checkpoint);
+            var bytes = fields.BytesAt(index, record, checkpoint);
             AwkText.CopyBytes(bytes, _buffer.AsSpan(offset), checkpoint);
             offset += bytes.Length;
         }

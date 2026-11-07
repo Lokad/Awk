@@ -75,5 +75,13 @@ internal readonly ref struct AwkRecordFields
         _cache = default;
     }
     internal int Length => _fields.IsEmpty ? _texts.Length : _fields.Length;
-    internal AwkFieldText this[int index] => _fields.IsEmpty ? _texts[index] : _fields[index].Text(_cache);
+
+    internal ReadOnlySpan<byte> BytesAt(int index, ReadOnlySpan<byte> record, Action? checkpoint)
+    {
+        if (_fields.IsEmpty) return _texts[index].AsSpan(record, checkpoint);
+        ref readonly var field = ref _fields[index];
+        return field.Kind == AwkFieldTextKind.Owned
+            ? _cache[field.CacheSlot - 1].Spelling.AsSpan(checkpoint)
+            : field.BytesInRecord(record);
+    }
 }
