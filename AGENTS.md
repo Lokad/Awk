@@ -117,6 +117,8 @@ or environment dependencies.
   frames while evaluation remains in caller scope. Preserve argument order, live pending
   storage, scalar captures and current array aliases. Bound locals retain name resolution
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
+  Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
+  Strings and aliases retain their existing capture, admission and pending-user lifetimes.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
   Return operands are captured before flushing; the return operation keeps its callee and

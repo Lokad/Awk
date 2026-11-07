@@ -512,21 +512,18 @@ internal partial struct AwkRegionMachine
                             break;
                         }
                     }
-                    AwkFunctionLocalSlot argument;
                     if (IsField(operand) && call.Function.LocalLayout.ConsumesArithmeticInput(instruction.Right))
                     {
                         var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
-                        if (fieldArgument.IsNumberValue)
-                        {
-                            state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, fieldArgument.AsNumber());
-                            break;
-                        }
-                        // Owned/error values retain their spelling and deferred conversion.
-                        argument = AwkFunctionLocalSlot.FromArgumentValue(fieldArgument);
+                        state.StageFunctionValue(storage.IncomingFrame(call.Slot), instruction.Right, fieldArgument);
                     }
-                    else if (instruction.Detail == 0 && operand.IsVariable && TryArrayArgument(operand, out argument)) { }
-                    else argument = AwkFunctionLocalSlot.FromArgumentValue(Value(instruction.Left));
-                    state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
+                    else if (instruction.Detail == 0 && operand.IsVariable && TryArrayArgument(operand, out var argument))
+                        state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
+                    else
+                    {
+                        var argumentValue = Value(instruction.Left);
+                        state.StageFunctionValue(storage.IncomingFrame(call.Slot), instruction.Right, argumentValue);
+                    }
                     break;
                 case AwkRegionInstructionKind.Call:
                     _position = position + 1;

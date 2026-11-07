@@ -129,6 +129,13 @@ internal sealed class AwkFunctionCallStack(
         finally { memoryAccounting.ReleaseCommitted(unpublishedBytes); }
     }
 
+    // Pure numbers can publish into funded cells without an intermediate local slot.
+    internal void StageValue(AwkFunctionFrame frame, int index, AwkValue value)
+    {
+        if (value.IsNumberValue) StageNumber(frame, index, value.AsNumber());
+        else StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
+    }
+
     internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return; // Extra operands still evaluate in the caller.

@@ -33,7 +33,7 @@ internal partial struct AwkRegionMachine
             storage.BeginCall(call);
             var frame = storage.IncomingFrame(call.Slot);
             for (var index = 0; index < 4; index++)
-                _state.StageFunctionArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(operation.GetArgument(index)));
+                _state.StageFunctionValue(frame, index, operation.GetArgument(index));
             _position = position;
             EnterCall(call, new(AwkRegionOperandKind.NumberTemporary, comparison));
             return true;
