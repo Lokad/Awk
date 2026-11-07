@@ -78,7 +78,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariableDispatcher? specialVariables = null;
         AwkFieldFrame? recordFields = null;
         _variables = new AwkVariables(
-            MemoryAccounting, Counters, CreateNumericStringValue, CreateDeferredTextValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+            MemoryAccounting, Counters, CreateNumericStringValue, CreateStringValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint);
         _functions = new AwkFunctionRuntime(
@@ -122,7 +122,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 CompatibilityMode,
                 _regexRuntime.ResetWarningSite, csvInput);
             _recordFields = new AwkFieldFrame(Counters, MemoryAccounting, FormatStringByteText,
-                _fieldSplitter, CreateNumericStringValue, CreateByteTextValue, ResolveOutputFieldSeparator,
+                _fieldSplitter, CreateNumericStringValue, CreateStringValue, ResolveOutputFieldSeparator,
                 CancellationCheckpoint);
             recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(
@@ -257,21 +257,11 @@ internal sealed class AwkRuntimeState : IDisposable
             _ => NonDecimalData ? AwkNumberParsingMode.NonDecimalData : AwkNumberParsingMode.Decimal
         };
 
-    public AwkValue CreateStringValue(string text)
-    {
-        Counters.RecordValueCreated();
-        Counters.RecordTextValueClassification();
-        return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint), NumberParsingMode, CancellationCheckpoint);
-    }
+    public AwkValue CreateStringValue(string text) =>
+        CreateStringValue(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint));
 
-    public AwkValue CreateByteTextValue(AwkText text)
-    {
-        Counters.RecordValueCreated();
-        Counters.RecordTextValueClassification();
-        return AwkValue.FromText(text, NumberParsingMode, CancellationCheckpoint);
-    }
-
-    public AwkValue CreateDeferredTextValue(AwkText text)
+    // String origin is already known; numeric use resolves in this execution's mode.
+    public AwkValue CreateStringValue(AwkText text)
     {
         Counters.RecordValueCreated();
         return AwkValue.FromDeferredText(text, NumberParsingMode);
@@ -305,7 +295,7 @@ internal sealed class AwkRuntimeState : IDisposable
             : new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint);
 
     public AwkValue CreateArrayKeyValue(AwkArrayKey key) =>
-        CreateByteTextValue(key.ToByteText(Counters, MemoryAccounting));
+        CreateStringValue(key.ToByteText(Counters, MemoryAccounting));
 
     internal Action CancellationCheckpoint { get; }
 
@@ -809,7 +799,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
         {
             AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
-                CreateByteTextValue(AwkText.FromString(assignment.Value, Counters, MemoryAccounting, CancellationCheckpoint)));
+                CreateStringValue(AwkText.FromString(assignment.Value, Counters, MemoryAccounting, CancellationCheckpoint)));
             return;
         }
         if (assignment.Source == AwkVariableAssignmentSource.InputArgument)
@@ -1033,7 +1023,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void BeginInputFile(AwkText fileName, AwkArgvIndex argvIndex, bool resetRecord = true)
     {
-        AssignSpecialVariableValue(AwkSpecialVariableId.FileName, CreateByteTextValue(fileName));
+        AssignSpecialVariableValue(AwkSpecialVariableId.FileName, CreateStringValue(fileName));
         if (resetRecord)
             _recordFields.ResetRecord();
         if (argvIndex.Value > 0)

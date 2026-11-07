@@ -14,8 +14,8 @@ public sealed class AwkIgnoreCaseResourceTests
         var left = AwkText.FromString("Ä𐐀K");
         var right = AwkText.FromString("ä𐐨k");
         var source = AwkText.FromString("xÄ𐐀K");
-        var a = state.CreateByteTextValue(left);
-        var b = state.CreateByteTextValue(right);
+        var a = state.CreateStringValue(left);
+        var b = state.CreateStringValue(right);
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
         var allocatedBefore = counters.AwkTextAllocations;
         for (var index = 0; index < 16; index++)

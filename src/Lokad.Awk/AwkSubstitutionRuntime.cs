@@ -33,7 +33,7 @@ internal static class AwkSubstitutionRuntime
             result = AwkRegexSubstitution.ReplaceOccurrence(state, regex, inputText, replacementText,
                 AwkReplacementMode.Gensub, occurrence, out _);
         }
-        return state.CreateByteTextValue(result);
+        return state.CreateStringValue(result);
     }
 
     internal static int Execute(AwkRuntimeState state, AwkRegexPattern pattern, AwkValue replacement,

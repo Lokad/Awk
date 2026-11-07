@@ -301,7 +301,7 @@ internal sealed class AwkRegionStorage : IDisposable
         _state.ThrowIfCancellationRequested();
         // Transfer the captured/temporary claim once. Regex inputs stay native;
         // host paths additionally decode through PrepareString below.
-        _values[index] = _state.CreateDeferredTextValue(text);
+        _values[index] = _state.CreateStringValue(text);
         if (funded > nextBytes) _payload.Release(funded - nextBytes);
     }
 

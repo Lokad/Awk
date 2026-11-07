@@ -552,7 +552,7 @@ internal sealed partial class AwkArrayRuntime
                     continue;
 
                 var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                slots[ordinalKey] = new(AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value)));
+                slots[ordinalKey] = new(AwkVariableSlot.FromValue(_state.CreateStringValue(group.Value)));
                 slots[MetadataKey(ordinalKey, MatchStartCaptureKeyPart)] =
                     new(AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1)));
                 slots[MetadataKey(ordinalKey, MatchLengthCaptureKeyPart)] =
@@ -785,7 +785,7 @@ internal sealed partial class AwkArrayRuntime
             if (sortMode is not (AwkArraySortMode.IndexNumberAscending or AwkArraySortMode.IndexNumberDescending))
                 return 0;
 
-            return state.CreateByteTextValue(key).AsNumber(state.CancellationCheckpoint);
+            return state.CreateStringValue(key).AsNumber(state.CancellationCheckpoint);
         }
 
         static AwkArraySortEntry Project(
@@ -805,7 +805,7 @@ internal sealed partial class AwkArrayRuntime
             // GNU's explicit string-value projection materializes nonfinite numbers as
             // strings in asort's destination. The source and other modes retain their type.
             var materializeNonfinite = stringValueOrder && value.IsNumberValue && !double.IsFinite(value.AsNumber());
-            var projectedValue = materializeNonfinite ? runtime._state.CreateByteTextValue(valueText) : value;
+            var projectedValue = materializeNonfinite ? runtime._state.CreateStringValue(valueText) : value;
             return new AwkArraySortEntry(
                 key,
                 keyText,

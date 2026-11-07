@@ -351,6 +351,8 @@ incoming frames; later argument evaluation remains in caller scope. Pending and 
 retain separate active storage. Bound local arrays use their current parameter slots, with
 name resolution when local bindings are hidden or unavailable. Scalar captures and array aliases
 retain their distinct semantics; cancellation after admission precedes publication.
+Computed string results and array keys retain string origin without eager numeric classification.
+Numeric use applies the execution's reading mode; actual input keeps its separate classification.
 Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
 loop body or comparator clears its original owner. These scoped estimates can temporarily count
 shared text twice; Awk does not track object aliases.

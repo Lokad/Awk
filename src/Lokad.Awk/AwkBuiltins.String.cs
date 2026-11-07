@@ -29,7 +29,7 @@ internal static partial class AwkBuiltins
         if (!hasStart) return AwkValue.FromText(string.Empty);
         var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
-        return state.CreateDeferredTextValue(state.SubstringByStringUnits(source, zeroBasedStart, length));
+        return state.CreateStringValue(state.SubstringByStringUnits(source, zeroBasedStart, length));
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper) =>
@@ -128,7 +128,7 @@ internal static partial class AwkBuiltins
             state.CancellationCheckpoint,
             out var asciiResult))
         {
-            return state.CreateDeferredTextValue(asciiResult);
+            return state.CreateStringValue(asciiResult);
         }
 
         state.Counters.RecordStringInteropFallback();

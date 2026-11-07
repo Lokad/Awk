@@ -72,7 +72,7 @@ internal partial struct AwkRegionMachine
                     numbers[instruction.Target] = state.GetFieldNumber((int)numbers[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.LiteralNumber:
-                    numbers[instruction.Target] = state.CreateByteTextValue(literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
+                    numbers[instruction.Target] = state.CreateStringValue(literals[instruction.Left]).AsNumber(state.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.ValueNumber:
                     numbers[instruction.Target] = storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint);
@@ -231,7 +231,7 @@ internal partial struct AwkRegionMachine
                     storage.StoreText(instruction.Target, state.FormatStringByteText(Value(instruction.Left)));
                     break;
                 case AwkRegionInstructionKind.ConcatValue:
-                    storage.StoreValue(instruction.Target, state.CreateDeferredTextValue(AwkText.Concat(
+                    storage.StoreValue(instruction.Target, state.CreateStringValue(AwkText.Concat(
                         storage.Texts.AsSpan(instruction.Left, instruction.Right),
                         state.Counters, state.MemoryAccounting, state.CancellationCheckpoint)));
                     storage.ReleaseTexts(instruction.Left, instruction.Right);
@@ -724,7 +724,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.SpecialVariable:
                     return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index);
                 case AwkRegionOperandKind.DynamicVariable: return state.ResolveVariableValue(operand.Name);
-                case AwkRegionOperandKind.Literal: return state.CreateDeferredTextValue(literals[operand.Index]);
+                case AwkRegionOperandKind.Literal: return state.CreateStringValue(literals[operand.Index]);
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField: return ReadField(FieldOrdinal(operand));
                 case AwkRegionOperandKind.ValueTemporary: return storage.Values[operand.Index];
@@ -810,7 +810,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.DynamicField:
                     return state.GetFieldNumber(FieldOrdinal(operand));
                 case AwkRegionOperandKind.Literal:
-                    return state.CreateByteTextValue(literals[operand.Index]).AsNumber(state.CancellationCheckpoint);
+                    return state.CreateStringValue(literals[operand.Index]).AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ArrayElement:
                     return ReadArrayNumber(arrays[operand.Index]);
                 case AwkRegionOperandKind.GlobalVariable:

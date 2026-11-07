@@ -154,7 +154,7 @@ internal readonly struct AwkVariableSlot
     // Numeric consumption of ordinary text uses the reading execution's mode.
     public AwkValue ToValue(
         Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createDeferredTextValue) =>
+        Func<AwkText, AwkValue> createStringValue) =>
         Kind switch
         {
             AwkVariableSlotKind.ArrayBinding when _text is AwkArrayIdentity array => AwkValue.FromArrayReference(array),
@@ -162,7 +162,7 @@ internal readonly struct AwkVariableSlot
             AwkVariableSlotKind.Untyped when _text is AwkUntypedScalar scalar => AwkValue.FromUntypedScalar(scalar),
             AwkVariableSlotKind.Number => AwkValue.FromNumber(_number),
             AwkVariableSlotKind.NumericString or AwkVariableSlotKind.PreparedNumericString => createNumericStringValue(ByteText),
-            _ => createDeferredTextValue(ByteText)
+            _ => createStringValue(ByteText)
         };
 }
 

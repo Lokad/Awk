@@ -142,7 +142,7 @@ public sealed class AwkScanCancellationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void RuntimeClassificationChecksCancellationBeforeAssignment(bool input)
+    public void RuntimeTextAssignmentChecksCancellationBeforePublication(bool input)
     {
         using var cancellation = new CancellationTokenSource();
         using var memoryForState = CreateState(cancellation.Token);
@@ -153,7 +153,7 @@ public sealed class AwkScanCancellationTests
         cancellation.Cancel();
 
         Assert.Throws<OperationCanceledException>(() => state.AssignVariableValue(name,
-            input ? state.CreateNumericStringValue(source) : state.CreateByteTextValue(source)));
+            input ? state.CreateNumericStringValue(source) : state.CreateStringValue(source)));
 
         Assert.Equal(7, state.ResolveVariableValue(name).AsNumber());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

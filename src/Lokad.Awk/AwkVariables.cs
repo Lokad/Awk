@@ -15,7 +15,7 @@ internal sealed partial class AwkVariables
     private static readonly string OutputFieldSeparatorName = AwkSpecialVariables.Name(AwkSpecialVariableId.OutputFieldSeparator);
 
     private readonly Func<AwkText, AwkValue> _createNumericStringValue;
-    private readonly Func<AwkText, AwkValue> _createDeferredTextValue;
+    private readonly Func<AwkText, AwkValue> _createStringValue;
     private readonly Action<string, AwkValue> _applyScalarAssignment;
     private readonly AwkCompatibilityMode _mode;
     private readonly Action? _checkpoint;
@@ -84,7 +84,7 @@ internal sealed partial class AwkVariables
         AwkMemoryAccounting memoryAccounting,
         AwkRuntimeCounters counters,
         Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createDeferredTextValue,
+        Func<AwkText, AwkValue> createStringValue,
         Action<string, AwkValue> applyScalarAssignment,
         Func<AwkValue>? resolveFieldCountValue = null,
         Action? prepareOutputFieldSeparatorAssignment = null,
@@ -98,7 +98,7 @@ internal sealed partial class AwkVariables
         _memoryAccounting = memoryAccounting;
         _counters = counters;
         _createNumericStringValue = createNumericStringValue;
-        _createDeferredTextValue = createDeferredTextValue;
+        _createStringValue = createStringValue;
         _applyScalarAssignment = applyScalarAssignment;
         _resolveFieldCountValue = resolveFieldCountValue;
         _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
@@ -580,7 +580,7 @@ internal sealed partial class AwkVariables
         {
             _symbolTable.AssignValue(
                 index.AsString(_counters, _checkpoint),
-                _createDeferredTextValue(AwkText.FromString(value, _counters, _memoryAccounting)));
+                _createStringValue(AwkText.FromString(value, _counters, _memoryAccounting)));
             return;
         }
 
@@ -953,7 +953,7 @@ internal sealed partial class AwkVariables
     internal AwkValue CreateValue(AwkVariableSlot slot) =>
         slot.Kind == AwkVariableSlotKind.PreparedNumericString
             ? CreatePreparedNumericInput(slot)
-            : slot.ToValue(_createNumericStringValue, _createDeferredTextValue);
+            : slot.ToValue(_createNumericStringValue, _createStringValue);
 
     private AwkValue CreatePreparedNumericInput(AwkVariableSlot slot)
     {

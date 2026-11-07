@@ -131,7 +131,8 @@ or environment dependencies.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
   NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;
   numeric values still use current formatting and untyped origins retain scalar promotion.
-  Ordinary string slots use one representation and defer numeric conversion on read.
+  Ordinary string slots and computed string results use one runtime factory and defer numeric
+  conversion until use, including callback/traversal keys and formatting results.
   Keep actual input classification and mode-sensitive numeric-string reads separate.
   Plain numbers retain no text reference. Keep immutable value/slot snapshots and use
   existing numeric owner commits; type transitions still own admission and payload retirement.

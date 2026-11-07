@@ -207,9 +207,9 @@ internal sealed partial class AwkArrayRuntime
 
         internal AwkValue GetArgument(int index) => index switch
         {
-            0 => _state.CreateByteTextValue(_source[_left].KeyText),
+            0 => _state.CreateStringValue(_source[_left].KeyText),
             1 => _source[_left].Value,
-            2 => _state.CreateByteTextValue(_source[_right].KeyText),
+            2 => _state.CreateStringValue(_source[_right].KeyText),
             3 => _source[_right].Value,
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };

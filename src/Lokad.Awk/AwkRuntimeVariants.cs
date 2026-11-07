@@ -31,7 +31,7 @@ internal readonly struct AwkResolvedSubstitutionTarget : IDisposable
 
     public void AssignText(AwkRuntimeState state, AwkText text)
     {
-        var value = state.CreateByteTextValue(text);
+        var value = state.CreateStringValue(text);
         if (_isCurrentRecord)
             state.SetCurrentRecordValue(value);
         else
