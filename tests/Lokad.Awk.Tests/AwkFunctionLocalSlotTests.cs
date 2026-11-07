@@ -7,6 +7,25 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void ShortOwnedAsciiCopiesDoNotAllocateMandatoryMetadata()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var sample = "field001"u8.ToArray();
+        for (var index = 0; index < 100; index++) Copy();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var last = AwkText.Empty;
+        for (var index = 0; index < 10_000; index++) last = Copy();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.IsType<byte[]>(last.Backing);
+        Assert.InRange(allocated, 0, 64L * 10_000);
+        Assert.Equal(10_100, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+
+        AwkText Copy() => AwkText.CopyTrustedBytes(sample, counters, AwkMemoryAccounting.Disabled);
+    }
+
+    [Fact]
     public void OwnedTextTransportKeepsBackingAndCompactValueLayoutsWithoutBoxing()
     {
         Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkText>());

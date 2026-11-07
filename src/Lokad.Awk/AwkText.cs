@@ -10,29 +10,37 @@ internal readonly struct AwkText : IEquatable<AwkText>
     private const int UnknownTextFacts = 0;
     private const int KnownNonAsciiWithoutRuneCount = -1;
     private const int RuneCheckpointStride = AwkRuntimeMemory.TextRuneCheckpointStride;
+    // Owned short ASCII needs neither scalar indexing nor a mandatory cache object.
+    // Literal/string ingress retains caches; managed boundaries prepare them explicitly.
+    private const int CompactAsciiByteLength = 32;
     // Scalar/slot payloads retain this backing directly, without boxing the view.
     // Default is empty text; mutable caches belong to the shared storage owner.
-    private readonly TextStorage? _storage;
+    private readonly object? _backing;
     private static readonly TextStorage EmptyStorage = new([]);
 
-    private TextStorage Storage => _storage ?? EmptyStorage;
-    private byte[] _bytes => Storage.Bytes;
-    private int _byteLength => Storage.ByteLength;
-    private AwkTextConcatenation? _concatenation => Storage.Concatenation;
+    private TextStorage Storage => _backing switch
+    {
+        TextStorage storage => storage,
+        null => EmptyStorage,
+        _ => throw new InvalidOperationException("Compact text has no cache storage.")
+    };
+    private byte[] _bytes => _backing is byte[] bytes ? bytes : Storage.Bytes;
+    private int _byteLength => _backing is byte[] bytes ? bytes.Length : Storage.ByteLength;
+    private AwkTextConcatenation? _concatenation => (_backing as TextStorage)?.Concatenation;
     private ref string? _cachedString => ref Storage.CachedString;
     private ref int _textFacts => ref Storage.TextFacts;
     private ref int[]? _runeByteCheckpoints => ref Storage.RuneByteCheckpoints;
 
-    internal object? Backing => _storage;
+    internal object? Backing => _backing;
     internal static AwkText FromBacking(object? backing) =>
-        backing is TextStorage storage ? new(storage) : Empty;
-    internal bool HasSameStorage(AwkText other) => ReferenceEquals(_storage, other._storage);
+        backing is TextStorage or byte[] ? new(backing) : Empty;
+    internal bool HasSameStorage(AwkText other) => ReferenceEquals(_backing, other._backing);
 
-    private AwkText(TextStorage storage) => _storage = storage;
+    private AwkText(object backing) => _backing = backing;
 
     private AwkText(byte[] bytes)
     {
-        _storage = new(bytes);
+        _backing = new TextStorage(bytes);
     }
 
     private AwkText(
@@ -42,7 +50,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor)
     {
-        _storage = new(left, right, byteLength, counters, governor);
+        _backing = new TextStorage(left, right, byteLength, counters, governor);
     }
 
     public static AwkText Empty => default;
@@ -53,12 +61,17 @@ internal readonly struct AwkText : IEquatable<AwkText>
         Volatile.Read(ref _concatenation.MaterializedBytes) is not null;
 
 
-    public long EstimatedRetainedMemoryBytes => Storage.EstimatedRetainedMemoryBytes;
+    // Keep the conservative cache allowance with the actual owner. Promotion at
+    // a managed boundary consumes that admitted capacity, without a new lease.
+    public long EstimatedRetainedMemoryBytes => _backing is byte[] bytes
+        ? AwkRuntimeMemory.EstimateTextBytes(bytes.Length) : Storage.EstimatedRetainedMemoryBytes;
 
     public int RuneLength => GetRuneLength();
 
     internal int GetRuneLength(Action? checkpoint = null)
     {
+        if (_backing is byte[] bytes)
+            return bytes.Length;
         var cached = Volatile.Read(ref _textFacts);
         if (cached > UnknownTextFacts)
             return cached - 1;
@@ -93,17 +106,19 @@ internal readonly struct AwkText : IEquatable<AwkText>
     public ReadOnlySpan<byte> AsSpan(Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        return _concatenation is null
-            ? _bytes.AsSpan()
-            : MaterializeConcatenation(_concatenation, checkpoint).AsSpan();
+        if (_backing is byte[] bytes) return bytes;
+        if (_backing is not TextStorage storage) return [];
+        return storage.Concatenation is { } concatenation
+            ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
     }
 
     public ReadOnlyMemory<byte> AsMemory(Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        return _concatenation is null
-            ? _bytes.AsMemory()
-            : MaterializeConcatenation(_concatenation, checkpoint).AsMemory();
+        if (_backing is byte[] bytes) return bytes;
+        if (_backing is not TextStorage storage) return ReadOnlyMemory<byte>.Empty;
+        return storage.Concatenation is { } concatenation
+            ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
     }
 
     public static AwkText FromSourceLiteralString(string text) =>
@@ -192,8 +207,11 @@ internal readonly struct AwkText : IEquatable<AwkText>
     // The caller has proved that every owned byte is ASCII.
     internal static AwkText FromTrustedAsciiOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
     {
-        var text = FromTrustedOwnedBytes(bytes, counters);
-        Volatile.Write(ref text._textFacts, bytes.Length + 1);
+        if (bytes.Length == 0)
+            return Empty;
+        var text = CreateTrustedOwnedBytes(bytes, counters, knownAscii: true);
+        if (text._backing is TextStorage storage)
+            Volatile.Write(ref storage.TextFacts, bytes.Length + 1);
         return text;
     }
 
@@ -228,7 +246,12 @@ internal readonly struct AwkText : IEquatable<AwkText>
     // A host-boundary preparation has already decoded and funded this cache.
     // Reading it during the pending operation must not repeat conversion work.
     internal string PreparedString => _byteLength == 0 ? string.Empty :
-        Volatile.Read(ref _cachedString) ?? throw new InvalidOperationException("Text must be decoded before its prepared string is used.");
+        _backing is TextStorage storage && Volatile.Read(ref storage.CachedString) is { } prepared
+            ? prepared : throw new InvalidOperationException("Text must be decoded before its prepared string is used.");
+
+    // The caller retains the returned cache owner. Its ordinary text estimate
+    // already funds metadata and decoding, even when the current backing is compact.
+    internal AwkText WithStringCache() => _backing is byte[] bytes ? new AwkText(bytes) : this;
 
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
@@ -236,6 +259,14 @@ internal readonly struct AwkText : IEquatable<AwkText>
         counters.RecordAwkTextAsStringCall();
         if (_byteLength == 0)
             return string.Empty;
+
+        if (_backing is byte[] bytes)
+        {
+            counters.RecordAwkTextAsStringDecodeMiss();
+            var converted = AwkUtf8Codec.DecodeRuntimeText(bytes, counters);
+            checkpoint?.Invoke();
+            return converted;
+        }
 
         var cached = Volatile.Read(ref _cachedString);
         if (cached is not null)
@@ -400,6 +431,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     {
         if (index >= ByteLength) return false;
         if (index == 0) return true;
+        if (_backing is byte[]) return true;
         var facts = Volatile.Read(ref _textFacts);
         if (facts > UnknownTextFacts) return index < facts - 1;
         if (index >= RuneCheckpointStride) return index < GetRuneLength(checkpoint);
@@ -427,7 +459,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        var knownAscii = Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
+        var knownAscii = text._backing is byte[] || Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
         int byteStart, byteEnd;
         if (knownAscii)
         {
@@ -635,6 +667,11 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     internal bool IsAscii(out int inspectedByteCount, Action? checkpoint = null)
     {
+        if (_backing is byte[])
+        {
+            inspectedByteCount = 0;
+            return true;
+        }
         var cached = Volatile.Read(ref _textFacts);
         if (cached > UnknownTextFacts)
         {
@@ -863,11 +900,12 @@ internal readonly struct AwkText : IEquatable<AwkText>
         internal int[]? RuneByteCheckpoints;
     }
 
-    private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
+    private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, bool knownAscii = false)
     {
         counters.RecordValueCreated();
         counters.RecordAwkTextAllocation(bytes.Length);
-        return new AwkText(bytes);
+        return bytes.Length <= CompactAsciiByteLength && (knownAscii || Ascii.IsValid(bytes))
+            ? new AwkText((object)bytes) : new AwkText(bytes);
     }
 
     internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting governor)

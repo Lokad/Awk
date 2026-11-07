@@ -248,6 +248,9 @@ internal readonly struct AwkValue
         }
     }
 
+    // Text preparation changes storage, not the captured scalar's origin or number.
+    internal AwkValue WithByteText(AwkText text) => new(text, _number, _kind);
+
     public long RetainedTextMemoryBytes =>
         _kind == AwkValueKind.Number
             ? 0

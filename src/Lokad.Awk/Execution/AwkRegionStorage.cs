@@ -303,7 +303,12 @@ internal sealed class AwkRegionStorage : IDisposable
     internal void PrepareString(int index)
     {
         PrepareByteText(index);
-        _ = _values[index].ByteText.AsString(_state.Counters, _state.CancellationCheckpoint);
+        var value = _values[index];
+        // PrepareByteText funded the full cache allowance before this promotion.
+        // Retain it in scratch until the actual host operation and cleanup finish.
+        var text = value.ByteText.WithStringCache();
+        _values[index] = value.WithByteText(text);
+        _ = text.AsString(_state.Counters, _state.CancellationCheckpoint);
     }
 
     internal AwkResolvedOutputRedirection PreparedOutputTarget(AwkRegionOutput output) =>

@@ -428,6 +428,7 @@ internal sealed class AwkRuntimeCounters
 
     public long AwkTextAsStringDecodeMisses { get; private set; }
 
+    // Owned UTF-8 payload creations, including compact text; not metadata objects.
     public long AwkTextAllocations { get; private set; }
 
     public long AwkTextSmallPayloadAllocations { get; private set; }

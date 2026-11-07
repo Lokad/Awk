@@ -5,6 +5,45 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkTextTests
 {
+    [Theory]
+    [InlineData(1, true)] [InlineData(32, true)] [InlineData(33, false)]
+    public void OwnedAsciiByteViewsKeepIndependentBytesAndOptionalCacheOwnership(int length, bool compact)
+    {
+        var bytes = Enumerable.Repeat((byte)'a', length).ToArray();
+        bytes[^1] = 0;
+        var text = AwkText.FromHostBytes(bytes);
+        Assert.Equal(compact, text.Backing is byte[]);
+        Assert.Equal(length, text.RuneLength);
+        Assert.Equal(length, text.ByteLength);
+        Array.Fill(bytes, (byte)'x');
+        Assert.Equal(0, text.AsSpan()[^1]);
+
+        var cached = text.WithStringCache();
+        Assert.True(text.AsMemory().Equals(cached.AsMemory()));
+        Assert.Equal(text.EstimatedRetainedMemoryBytes, cached.EstimatedRetainedMemoryBytes);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var managed = cached.AsString(counters);
+        Assert.Same(managed, cached.PreparedString);
+        Assert.Same(managed, cached.AsString(counters));
+        Assert.Equal(1, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+    }
+
+    [Fact]
+    public void CompactTextKeepsNumericStringSpellingWhileManagedPreparationKeepsItsOwnCache()
+    {
+        var text = AwkText.FromHostBytes("0007"u8.ToArray());
+        Assert.IsType<byte[]>(text.Backing);
+        var value = AwkValue.FromNumericString(text);
+        var copied = AwkVariableSlot.FromValue(value).ToValue(AwkValue.FromNumericString, AwkValue.FromText);
+        Assert.True(text.HasSameStorage(copied.ByteText));
+        Assert.Equal(AwkRuntimeValueKind.NumericString, copied.RuntimeKind);
+        Assert.Equal(7, copied.AsNumber());
+        Assert.Equal("0007", copied.AsString());
+        Assert.IsNotType<byte[]>(AwkText.FromSourceLiteralString("0007").Backing);
+        Assert.IsNotType<byte[]>(AwkText.FromHostBytes("café"u8.ToArray()).Backing);
+    }
+
     [Fact]
     public void AwkText_FullRuneSliceRetainsOwnedIngressBytes()
     {
