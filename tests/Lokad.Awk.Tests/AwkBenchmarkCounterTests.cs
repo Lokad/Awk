@@ -556,8 +556,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var source = helper
             ? "function add(a,r,s,v){a[r][s]+=v;return a[r][s]} {n+=add(a,$1,$2,$3)} END{print n,a[\"k\"][\"r\"]}"
             : "{a[$1][$2]+=$3;n+=a[$1][$2]} END{print n,a[\"k\"][\"r\"]}";
-        var single = await RunAsync([source], "k r 2\n", false);
-        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("k r 2\n", 128)), false);
+        var single = await RunAsync([source], "k r 2\n");
+        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("k r 2\n", 128)));
         Assert.Equal(0, single.ExitCode);
         Assert.Equal(0, repeated.ExitCode);
         Assert.Equal("2 2\n", single.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -595,9 +595,9 @@ public sealed partial class AwkBenchmarkCounterTests
         var source = aliases
             ? "function add(a,b,k,v){a[k]+=v;b[k]++;return a[k]+b[k]} BEGIN{a[\"k\"]=0;b[\"k\"]=0} {n+=add(a,b,$1,$2)} END{print n,a[\"k\"],b[\"k\"]}"
             : "BEGIN{a[\"k\"]=0;b[\"k\"]=0} {a[$1]+=$2;b[$1]++;n+=a[$1]+b[$1]} END{print n,a[\"k\"],b[\"k\"]}";
-        var single = await RunAsync([source], "k 2\n", false);
+        var single = await RunAsync([source], "k 2\n");
         const int count = 128;
-        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("k 2\n", count)), false);
+        var repeated = await RunAsync([source], string.Concat(Enumerable.Repeat("k 2\n", count)));
         Assert.Equal(0, single.ExitCode);
         Assert.Equal(0, repeated.ExitCode);
         Assert.Equal("3 2 1\n", single.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -610,11 +610,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, repeated.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task BeginOnlyAvoidsAutomaticReadWork(bool useUtf8Regex)
+    [Fact]
+    public async Task BeginOnlyAvoidsAutomaticReadWork()
     {
-        var result = await RunAsync(["BEGIN{print \"B\"}"], "unused\n", useUtf8Regex);
+        var result = await RunAsync(["BEGIN{print \"B\"}"], "unused\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("B\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -627,7 +626,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         foreach (var alias in new[] { "-", "/dev/stdin", "/dev/fd/0" })
         {
-            var result = await RunAsync(["{print}", alias], "one\ntwo\n", false);
+            var result = await RunAsync(["{print}", alias], "one\ntwo\n");
             Assert.Equal(0, result.ExitCode);
             Assert.Equal("one\ntwo\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -642,7 +641,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         foreach (var source in new[] { "{$2=$1;print $0;print typeof($2)}", "{value=($2=$1);print $0;print typeof($2)}" })
         {
-            var result = await RunAsync(["--non-decimal-data", source], "0x1.8 old tail\n", false);
+            var result = await RunAsync(["--non-decimal-data", source], "0x1.8 old tail\n");
             Assert.Equal(2, result.ExitCode);
             Assert.Equal("0x1.8 0x1.8 tail\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("awk: hexadecimal floating point constants require an exponent\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -655,8 +654,8 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var tail = wide ? " " + string.Join(' ', Enumerable.Repeat("tail", 61)) : "";
         var input = "0007 old tail" + tail + "\ncafé old last" + tail + "\n";
-        var copied = await RunAsync(["{$2=$1;print}"], input, false);
-        var cached = await RunAsync(["{owned=$1;$2=$1;print}"], input, false);
+        var copied = await RunAsync(["{$2=$1;print}"], input);
+        var cached = await RunAsync(["{owned=$1;$2=$1;print}"], input);
         foreach (var result in new[] { copied, cached })
         {
             Assert.Equal(0, result.ExitCode);
@@ -675,8 +674,8 @@ public sealed partial class AwkBenchmarkCounterTests
         const int records = 128;
         var tail = wide ? " " + string.Join(' ', Enumerable.Repeat("tail", 61)) : "";
         var input = string.Concat(Enumerable.Repeat("0007 old café" + tail + "\n", records));
-        var printed = await RunAsync(["{$2=$1;print}"], input, false);
-        var escaped = await RunAsync(["{$2=$1;saved=$0;print saved}"], input, false);
+        var printed = await RunAsync(["{$2=$1;print}"], input);
+        var escaped = await RunAsync(["{$2=$1;saved=$0;print saved}"], input);
         foreach (var result in new[] { printed, escaped })
         {
             Assert.Equal(0, result.ExitCode);
@@ -698,7 +697,7 @@ public sealed partial class AwkBenchmarkCounterTests
         const int records = 128;
         var input = string.Concat(Enumerable.Range(0, records).Select(i =>
             (ordinal ? "" : "k") + (i % 16).ToString(System.Globalization.CultureInfo.InvariantCulture) + " 2\n"));
-        var result = await RunAsync(["{sum[$1]+=$2} END{for(k in sum)total+=sum[k];print total}"], input, false);
+        var result = await RunAsync(["{sum[$1]+=$2} END{for(k in sum)total+=sum[k];print total}"], input);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("256\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -713,7 +712,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedFieldIndexKeepsTextByteNative()
     {
         var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],
-            "id déjà-timeout\nid déjà-normal\n", false);
+            "id déjà-timeout\nid déjà-normal\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -726,7 +725,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedUnicodeSubstringKeepsFieldTextByteNative()
     {
         var result = await RunAsync(["{print length($1),substr($2,1,2)}"],
-            "café résumé\ny é😀z\n", false);
+            "café résumé\ny é😀z\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("4 ré\n1 é😀\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -740,7 +739,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var result = await RunAsync(
             ["function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t} {v=clip($1,$2);total+=length(v)} END{print total}"],
-            "ID:beta:tail 4\nID:beta:tail 32\n", false);
+            "ID:beta:tail 4\nID:beta:tail 32\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("16\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -754,7 +753,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var result = await RunAsync(
             ["function step(x,a,t){t=(x*3+a)%101;return t} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"],
-            "7\n7\n", false);
+            "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -767,7 +766,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedFieldArrayReadsStayByteNative()
     {
         var result = await RunAsync(["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b)}"],
-            "café\nmissing\ncafé\n", false);
+            "café\nmissing\ncafé\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("20 2 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -781,7 +780,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedFieldCompoundTargetsReuseTheExistingKeyAndValue()
     {
         var result = await RunAsync(["BEGIN{a[\"k\"]=7} {a[$1]+=$2} END{print a[\"k\"],a[\"café\"],length(a)}"],
-            "k 3\ncafé 2\nk 4\ncafé 5\n", false);
+            "k 3\ncafé 2\nk 4\ncafé 5\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("14 7 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -799,7 +798,7 @@ public sealed partial class AwkBenchmarkCounterTests
             ? "function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"
             : "function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
         var result = await RunAsync([source],
-            "7\n7\n", false);
+            "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(unary ? "146\n" : "182\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -810,7 +809,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedDoWhileArithmeticUsesBoundOperations()
     {
         var result = await RunAsync(["{x=$1;i=0;do{x=(x*3+1)%101;i++}while(i<8);total+=x} END{print total}"],
-            "7\n7\n", false);
+            "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -822,7 +821,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedFileActionsKeepPhysicalCallerDepthAndNestedLocals()
     {
         const string source = "function helper(x){print \"helper\",x;return x+1} function readNext(x){getline line;print \"caller\",x} BEGIN{readNext(\"local\")} BEGINFILE{print \"file\",x;print \"nested\",helper(2)}";
-        var result = await RunAsync([source], "record\n", false);
+        var result = await RunAsync([source], "record\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("file \nhelper 2\nnested 3\ncaller local\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -833,8 +832,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [Fact]
     internal async Task ParsedArrayReadsUseStableBindings()
     {
-        var result = await RunAsync(["BEGIN{a[1]=7;a[2]=8}{s+=a[$1]}END{print s}"], "1\n2\n1\n2\n",
-            false);
+        var result = await RunAsync(["BEGIN{a[1]=7;a[2]=8}{s+=a[$1]}END{print s}"], "1\n2\n1\n2\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("30\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -844,8 +842,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [Fact]
     internal async Task ParsedPrintfFormatsIntoItsEmptySink()
     {
-        var result = await RunAsync(["{printf \"%s:%04d\\n\",$1,$2}"], "a 7\nb 8\n",
-            false);
+        var result = await RunAsync(["{printf \"%s:%04d\\n\",$1,$2}"], "a 7\nb 8\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("a:0007\nb:0008\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -856,7 +853,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedPairCallsReuseInlineFrames()
     {
         const string source = "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
-        var result = await RunAsync([source], "7\n7\n", false);
+        var result = await RunAsync([source], "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -869,7 +866,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task ParsedMixedActionsSkipOnlyEmptyStatementFlushes()
     {
         const string source = "{a[$1]=$2;n++;print n} END{print n}";
-        var result = await RunAsync([source], "a 1\nb 2\n", false);
+        var result = await RunAsync([source], "a 1\nb 2\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n2\n2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -885,7 +882,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var source = emptyFor
             ? "{x=$1;i=0;for(;i<8;){x=(x*3+1)%101;i++}total+=x} END{print total}"
             : "{x=$1;i=0;while(i<8){x=(x*3+1)%101;i++}total+=x} END{print total}";
-        var result = await RunAsync([source], "7\n7\n", false);
+        var result = await RunAsync([source], "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -897,7 +894,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedForArithmeticUsesBoundOperations()
     {
         const string source = "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}";
-        var result = await RunAsync([source], "7\n7\n", false);
+        var result = await RunAsync([source], "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -912,7 +909,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n")]
     internal async Task ParsedWhileFlowAndOutputKeepBehavior(string source, string expected)
     {
-        var result = await RunAsync([source], "", false);
+        var result = await RunAsync([source], "");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -922,8 +919,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedNestedCallsKeepArithmeticInputsByteNative()
     {
         const string source = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
-        var result = await RunAsync([source], "7\n7\n7\n7\n",
-            false);
+        var result = await RunAsync([source], "7\n7\n7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -940,7 +936,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ArithmeticSourcesKeepFieldAndLocalNumbersByteNative()
     {
         const string source = "function calc(x,y){return -(x*3-y)/2}{sum+=calc($1,$2)}END{print sum}";
-        var result = await RunAsync([source], "0007 0003\n0007 0003\n", false);
+        var result = await RunAsync([source], "0007 0003\n0007 0003\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("-18\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -957,7 +953,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         const string source = "function one(x){return ++x} function zero(){return 3} function two(x,y){return x+y} " +
             "BEGIN{print one(7),zero(),two(5,6),one()}";
-        var result = await RunAsync([source], "", false);
+        var result = await RunAsync([source], "");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("8 3 11 1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -968,8 +964,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task ParsedConditionalActionsReuseExistingKernels()
     {
         const string source = "{if($1==\"A\"&&$2==\"B\"){x+=1;if($3==\"C\")y+=2;else y+=3}else x+=4} END{print x,y}";
-        var result = await RunAsync([source], "A B C\nA B D\nA Z C\n",
-            false);
+        var result = await RunAsync([source], "A B C\nA B D\nA Z C\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("6 5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1005,7 +1000,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [Fact]
     public async Task NumericArrayUpdatesReadStoredNumbersWithoutTextConversion()
     {
-        var result = await RunAsync(["BEGIN{a[\"x\"]=1;for(i=0;i<100;i++)a[\"x\"]+=2;a[\"nested\"][\"y\"]=3;a[\"nested\"][\"y\"]++;print a[\"x\"],a[\"nested\"][\"y\"]}"], "", false);
+        var result = await RunAsync(["BEGIN{a[\"x\"]=1;for(i=0;i<100;i++)a[\"x\"]+=2;a[\"nested\"][\"y\"]=3;a[\"nested\"][\"y\"]++;print a[\"x\"],a[\"nested\"][\"y\"]}"], "");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("201 4\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1018,8 +1013,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task ParsedScalarLengthUsesExistingPreparedBindings()
     {
         const string source = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";
-        var result = await RunAsync([source], "id:beta:tail\nid:beta:tail\n",
-            false);
+        var result = await RunAsync([source], "id:beta:tail\nid:beta:tail\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1032,8 +1026,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task MultiColumnPrintingHasByteNativeCounterEvidence()
     {
         const string source = "{print $1,$3,$2}";
-        var result = await RunAsync([source], "sku\tvalue\ttail\nsku\tvalue\ttail\nsku\tvalue\ttail\n",
-            false);
+        var result = await RunAsync([source], "sku\tvalue\ttail\nsku\tvalue\ttail\nsku\tvalue\ttail\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("sku tail value\nsku tail value\nsku tail value\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1051,7 +1044,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task SingleStdoutValuesAvoidStagingArrays()
     {
         const string source = "BEGIN{a[1]=7;print a[1];print \"café\";print 2.5}";
-        var result = await RunAsync([source], "", false);
+        var result = await RunAsync([source], "");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("7\ncafé\n2.5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1068,35 +1061,24 @@ public sealed partial class AwkBenchmarkCounterTests
         var script = multiple
             ? "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"
             : "function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}";
-        var result = await RunAsync([script], "7\n7\n", false);
+        var result = await RunAsync([script], "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(multiple ? "186\n" : "40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(multiple ? 30 : 14, result.Counters.NumericLocalReads);
         Assert.Equal(16, result.Counters.BoundFunctionRuns);
-        { }
     }
 
     [Fact]
     public async Task BoundCallsKeepUnboundAliasesAndReadSpelling()
     {
         const string source = "function second(a,x){return x} function id(x){return x} BEGIN{r=second(a,1)} BEGIN{print r;a[\"k\"]=7} BEGIN{r=second(a,2)} BEGIN{print r,a[\"k\"];s=\"007\"} BEGIN{r=id(s);t=id(s)} BEGIN{print r,t,s==7;s=9} BEGIN{r=id(s)} END{print r}";
-        var result = await RunAsync([source], "", false);
+        var result = await RunAsync([source], "");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n2 7\n007 007 0\n9\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(5, result.Counters.BoundFunctionRuns);
         Assert.Equal(8, result.Counters.BoundPhaseRuns);
-    }
-
-    [Fact]
-    internal async Task PureScalarActionsUsePreparedCallsOnlyInTheInterpreter()
-    {
-        const string script = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
-        var result = await RunAsync([script], "7\n7\n", false);
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("18\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Theory]
@@ -1106,8 +1088,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var script = sprintf ? "{s=sprintf(\"%+06d:%06i\",$1,$2);print s}"
             : "{printf \"%+06d:%06i\\n\",$1,$2}";
-        var result = await RunAsync([script], "7 -7\n12 0\n",
-            false);
+        var result = await RunAsync([script], "7 -7\n12 0\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("+00007:-00007\n+00012:000000\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1120,7 +1101,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task MultiFieldFilterUsesBoundExecutionWithShortCircuitAndNativeComparisons()
     {
         var result = await RunAsync(["$1==\"A\"&&$2==\"B\"&&$3==\"C\"{n++} END{print n+0}"],
-            "A B C\nA B D\nD B C\n", false);
+            "A B C\nA B D\nD B C\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1133,7 +1114,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task CompleteStringActionsKeepByteNativeResults()
     {
         var result = await RunAsync(["{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}"],
-            "id:beta:tail\nid:beta:tail\n", false);
+            "id:beta:tail\nid:beta:tail\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1144,7 +1125,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task CompleteFieldLoopsReadBoundNumbersAndFields()
     {
         var result = await RunAsync(["{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}} END{print nonempty,chars}"],
-            "aa b\né xyz\n", false);
+            "aa b\né xyz\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("4 7\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1156,8 +1137,8 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task PurePrintfFieldsBorrowBytesAndNumbersBeforeOwnedOutput()
     {
         const string input = "sku 7\nother 8\n";
-        var borrowed = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$1,$2}"], input, false);
-        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$i,$j}"], input, false);
+        var borrowed = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$1,$2}"], input);
+        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$i,$j}"], input);
         Assert.Equal(0, borrowed.ExitCode);
         Assert.Equal(owned.ExitCode, borrowed.ExitCode);
         Assert.Equal("sku:0007\nother:0008\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1174,10 +1155,8 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task PrintfBorrowsStagingInsteadOfAllocatingAnOwnedResult()
     {
         const string input = "sku\t7\nsku\t8\n";
-        var direct = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{printf \"%s:%04d\\n\",$i,$j}"], input,
-            false);
-        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{print sprintf(\"%s:%04d\\n\",$i,$j)}"], input,
-            false);
+        var direct = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{printf \"%s:%04d\\n\",$i,$j}"], input);
+        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{print sprintf(\"%s:%04d\\n\",$i,$j)}"], input);
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal("sku:0007\nsku:0008\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1196,7 +1175,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("function inc(x){return x+1} {x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=inc(inc(x))} END{print total}", "44\n")]
     public async Task PureForAndNumericReturnBodiesRemainByteNative(string script, string expected)
     {
-        var result = await RunAsync([script], "7\n7\n", false);
+        var result = await RunAsync([script], "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1213,9 +1192,9 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var input = "hit payload\nhit other\n" + (miss ? "missing value\n" : "");
         var script = "BEGIN{a[\"hit\"]=7}{" + mutation + "}END{print a[\"hit\"],length(a)}";
-        var direct = await RunAsync([script], input, false);
+        var direct = await RunAsync([script], input);
         var ownedScript = "BEGIN{a[\"hit\"]=7}{v=$1;" + mutation.Replace("$1", "v", StringComparison.Ordinal) + "}END{print a[\"hit\"],length(a)}";
-        var owned = await RunAsync([ownedScript], input, false);
+        var owned = await RunAsync([ownedScript], input);
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal(miss ? "9 2\n" : "9 1\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1232,10 +1211,8 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task ExistingArrayReadsBorrowFieldKeysButMissesStillCreateElements(bool miss)
     {
         var input = "hit payload\nhit other\n" + (miss ? "missing value\n" : "");
-        var borrowed = await RunAsync(["BEGIN{a[\"hit\"]=7}{sum+=a[$1]}END{print sum,length(a)}"], input,
-            false);
-        var owned = await RunAsync(["BEGIN{a[\"hit\"]=7}{v=$1;sum+=a[v]}END{print sum,length(a)}"], input,
-            false);
+        var borrowed = await RunAsync(["BEGIN{a[\"hit\"]=7}{sum+=a[$1]}END{print sum,length(a)}"], input);
+        var owned = await RunAsync(["BEGIN{a[\"hit\"]=7}{v=$1;sum+=a[v]}END{print sum,length(a)}"], input);
         Assert.Equal(0, borrowed.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal(miss ? "14 2\n" : "14 1\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1250,10 +1227,8 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task FieldMembershipAvoidsCopiedKeysAndScalarCachePublication()
     {
         const string input = "hit payload\nmiss payload\nhit other\n";
-        var borrowed = await RunAsync(["BEGIN{lookup[\"hit\"]=1} ($1 in lookup){n++} END{print n+0}"], input,
-            false);
-        var owned = await RunAsync(["BEGIN{lookup[\"hit\"]=1} {v=$1;if(v in lookup)n++} END{print n+0}"], input,
-            false);
+        var borrowed = await RunAsync(["BEGIN{lookup[\"hit\"]=1} ($1 in lookup){n++} END{print n+0}"], input);
+        var owned = await RunAsync(["BEGIN{lookup[\"hit\"]=1} {v=$1;if(v in lookup)n++} END{print n+0}"], input);
         Assert.Equal(0, borrowed.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal("2\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1271,8 +1246,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var tail = string.Join(" ", Enumerable.Repeat("tail", 61));
         var input = string.Concat(Enumerable.Repeat("INFO worker ignored " + tail + "\n", 7)) +
             "ERROR worker payload " + tail + "\n";
-        var result = await RunAsync(["$1==\"ERROR\"{print $3}"], input,
-            false);
+        var result = await RunAsync(["$1==\"ERROR\"{print $3}"], input);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("payload\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1287,7 +1261,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var result = await RunAsync(
             ["BEGIN{a[0]=7;a[-1]=8;a[2147483647]=9;a[-2147483648]=10;a[\"01\"]=11;print a[\"0\"],a[\"-1\"],a[\"2147483647\"],a[\"-2147483648\"],a[1]+0,a[\"01\"],length(a)}"],
-            "", false);
+            "");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("7 8 9 10 0 11 6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1303,8 +1277,8 @@ public sealed partial class AwkBenchmarkCounterTests
         string Script(bool width) => sprintf
             ? "{printf \"%s\",sprintf(\"<%" + (width ? "1" : "") + "s>|%" + (width ? "1" : "") + "s\\n\",$1,$2)}"
             : "{printf \"<%" + (width ? "1" : "") + "s>|%" + (width ? "1" : "") + "s\\n\",$1,$2}";
-        var direct = await RunAsync([Script(false)], "café 😀\n", false);
-        var general = await RunAsync([Script(true)], "café 😀\n", false);
+        var direct = await RunAsync([Script(false)], "café 😀\n");
+        var general = await RunAsync([Script(true)], "café 😀\n");
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, general.ExitCode);
         Assert.Equal("<café>|😀\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1384,10 +1358,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, borrowed.Counters.StringDecodes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    internal async Task Awk_UnicodeCallersPreserveRuntimeTextBoundaries(bool backend)
+    [Fact]
+    internal async Task Awk_UnicodeCallersPreserveRuntimeTextBoundaries()
     {
         foreach (var context in new[] { 0, 1, 2 })
         {
@@ -1397,8 +1369,8 @@ public sealed partial class AwkBenchmarkCounterTests
                 1 => ["END{print v}", "v=" + value],
                 _ => ["-F", value, "BEGIN{print FS;exit}"]
             };
-            var control = await RunAsync(Arguments("A"), string.Empty, backend);
-            var escaped = await RunAsync(Arguments(@"\u0041"), string.Empty, backend);
+            var control = await RunAsync(Arguments("A"), string.Empty);
+            var escaped = await RunAsync(Arguments(@"\u0041"), string.Empty);
             Assert.Equal(0, control.ExitCode);
             Assert.Equal(0, escaped.ExitCode);
             Assert.Equal("A\n", escaped.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1410,18 +1382,16 @@ public sealed partial class AwkBenchmarkCounterTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    internal async Task Awk_UnicodeRegexEscapesPreserveRuntimeBoundaries(bool regex)
+    [Fact]
+    internal async Task Awk_UnicodeRegexEscapesPreserveRuntimeBoundaries()
     {
         foreach (var literal in new[] { false, true })
         {
             string Script(string pattern) => literal
                 ? "BEGIN{for(i=0;i<3;i++)v=(\"A\"~/" + pattern + "/);print v;exit}"
                 : "BEGIN{p=\"" + pattern + "\";for(i=0;i<3;i++)v=(\"A\"~p);print v;exit}";
-            var control = await RunAsync([Script("A")], "", regex);
-            var escaped = await RunAsync([Script(literal ? "\\u0041" : "\\\\u0041")], "", regex);
+            var control = await RunAsync([Script("A")], "");
+            var escaped = await RunAsync([Script(literal ? "\\u0041" : "\\\\u0041")], "");
             Assert.Equal(0, escaped.ExitCode);
             Assert.Equal("1\n", escaped.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, escaped.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1435,18 +1405,16 @@ public sealed partial class AwkBenchmarkCounterTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters(bool regex)
+    [Fact]
+    internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters()
     {
-        var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "", regex);
+        var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "");
         // Plain %s keeps the value in UTF-8; only the source escape boundary decodes.
         Assert.Equal(1, control.Counters.StringDecodes);
         foreach (var literal in new[] { "\\u1f600", "\U0001f600" })
         {
             var (exit, host, counters) = await RunAsync(
-                ["BEGIN{v=\"" + literal + "\";printf \"%s\",v;exit}"], "", regex);
+                ["BEGIN{v=\"" + literal + "\";printf \"%s\",v;exit}"], "");
             Assert.Equal(0, exit);
             Assert.Equal("\U0001f600", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
@@ -1465,7 +1433,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var (exitCode, host, counters) = await RunAsync(
             ["BEGIN{$0=\"a b c\";NF=\"01.8\";$1=\"z\";print NF,$0}"],
-            "", false);
+            "");
 
         Assert.Equal(0, exitCode);
         Assert.Equal("01.8 z\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -1482,7 +1450,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{OFMT=\"%.2f\";print 1000000,9007199254740992,9223372036854775808,1e30,-0}"],
-            string.Empty, false);
+            string.Empty);
         Assert.Equal(0, exitCode);
         Assert.Equal("1000000 9007199254740992 9223372036854775808 1000000000000000019884624838656 0\n",
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1541,7 +1509,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var input = string.Concat(Enumerable.Repeat(row, recordCount));
             var (exitCode, fileSystem, counters) = await RunAsync(
                 ["BEGIN{RS=\"</row>\"} {n++} END{print n}"],
-                input, false);
+                input);
 
             Assert.Equal(0, exitCode);
             Assert.Equal(recordCount + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1574,8 +1542,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var input = new string('x', 1_000) + "é\n";
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["-b", "{gsub(/x/, \"\"); print length($0)}"],
-            input,
-            false);
+            input);
 
         Assert.Equal(0, exitCode);
         Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1660,8 +1627,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var program = "BEGIN{s=" + expression + "; print s}";
         var interpreter = await RunAsync(
             [program],
-            string.Empty,
-            true);
+            string.Empty);
 
         Assert.Equal(0, interpreter.ExitCode);
         var expectedOutput = new string('x', 64) + "\n";
@@ -1673,7 +1639,7 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task ParsedShortConcatenationAvoidsArgumentPool()
     {
         var result = await RunAsync(["{s=\"[\" $0 \":\" NR \"]\";total+=length(s)} END{print total}"],
-            "id\nid\n", false);
+            "id\nid\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("12\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1693,8 +1659,7 @@ public sealed partial class AwkBenchmarkCounterTests
 
         var interpreter = await RunAsync(
             ["{s=s $0} END{print s}"],
-            input.ToString(),
-            true);
+            input.ToString());
 
         var finalLength = recordCount * recordLength;
         var expectedOutput = input.ToString().Replace("\n", string.Empty, StringComparison.Ordinal) + "\n";
@@ -1749,8 +1714,7 @@ public sealed partial class AwkBenchmarkCounterTests
             string[] arguments = charactersAsBytes ? ["--characters-as-bytes", program] : [program];
             var result = await RunAsync(
                 arguments,
-                string.Concat(Enumerable.Repeat(record, rows)),
-                true);
+                string.Concat(Enumerable.Repeat(record, rows)));
 
             Assert.Equal(0, result.ExitCode);
             Assert.Equal(string.Concat(Enumerable.Repeat("2\n", rows)),
@@ -1925,8 +1889,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             [program],
-            input,
-            false);
+            input);
 
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1951,8 +1914,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{RS=\"([|;])+\"} {print $0}"],
-            "a|b;c|d;",
-            false);
+            "a|b;c|d;");
 
         Assert.Equal(0, exitCode);
         Assert.Equal("a\nb\nc\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1965,8 +1927,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{RS=\"([|]|;)+\"} {print $0}"],
-            "a|b;c|d;",
-            false);
+            "a|b;c|d;");
 
         Assert.Equal(0, exitCode);
         Assert.Equal("a\nb\nc\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1979,8 +1940,7 @@ public sealed partial class AwkBenchmarkCounterTests
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
-            input: string.Empty,
-            true);
+            input: string.Empty);
 
         Assert.Equal(0, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -2079,8 +2039,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var input = BuildRepeatedSeparatedRows(rowCount, fieldCount: 3, ',');
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{FS=\"[,;]\"} {total += NF} END{print total}"],
-            input,
-            true);
+            input);
 
         Assert.Equal(0, exitCode);
         Assert.Equal("96\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -2128,7 +2087,7 @@ bool nestedArguments)
         var body = nestedArguments ? "return leaf(leaf(n-1))" : "return leaf(n)";
         var (exitCode, host, counters) = await RunAsync(
             ["function leaf(n){return n+1} function outer(n){" + body +
-             "} BEGIN{for(i=0;i<512;i++)sum+=outer(1);print sum}"], string.Empty, false);
+             "} BEGIN{for(i=0;i<512;i++)sum+=outer(1);print sum}"], string.Empty);
         Assert.Equal(0, exitCode);
         Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
@@ -2138,12 +2097,11 @@ bool nestedArguments)
     }
 
     [Fact]
-    public async Task Awk_RuntimeCounterEvidenceCoversExecutableMixedFallbackPrograms()
+    public async Task UserFunctionFieldPrintsKeepOutputByteNative()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["function inc(x){return x+1} {print inc($2)}"],
-            "sku1 1\nsku2 2\n",
-            true);
+            "sku1 1\nsku2 2\n");
 
         Assert.Equal(0, exitCode);
         Assert.Equal("2\n3\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -2181,7 +2139,7 @@ bool nestedArguments)
             }
             expected += value;
         }
-        var result = await RunAsync([source], "0\n0007\n", false);
+        var result = await RunAsync([source], "0\n0007\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -2195,25 +2153,15 @@ bool nestedArguments)
         string[] arguments) =>
         RunAsync(
             arguments,
-            string.Empty,
-            true);
-
-    private static Task<BenchmarkRunResult> RunAsync(
-        string[] arguments,
-        string input) =>
-        RunAsync(
-            arguments,
-            input,
-            true);
+            string.Empty);
 
     private static async Task<BenchmarkRunResult> RunAsync(
             string[] arguments,
-            string input,
-            bool useUtf8Regex)
+            string input)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = CreateOptions(counters);
-        var compiled = await AwkExecutor.CompileAsync(
+        await using var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", arguments),
             CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
