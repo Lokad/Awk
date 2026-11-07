@@ -884,6 +884,7 @@ internal partial struct AwkRegionMachine
         }
 
         static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         int FieldOrdinal(in AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];
         AwkValue ReadField(int index) => index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(index);
     }
