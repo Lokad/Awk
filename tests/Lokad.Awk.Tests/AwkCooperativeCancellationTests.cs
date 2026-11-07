@@ -29,6 +29,10 @@ public sealed class AwkCooperativeCancellationTests
     [InlineData(true, false, "new-field")]
     [InlineData(false, false, "text")]
     [InlineData(true, false, "text")]
+    [InlineData(false, false, "calls")]
+    [InlineData(true, false, "calls")]
+    [InlineData(false, false, "recursive-calls")]
+    [InlineData(true, false, "recursive-calls")]
     public async Task MidflightCancellationStopsLoopsAndDelayedReadsWithFiniteMemory(
         bool observed, bool delayed, string values)
     {
@@ -37,6 +41,8 @@ public sealed class AwkCooperativeCancellationTests
             "cached-field" => "BEGIN{$0=\"7\";seed=$1+0;getline x<\"/input\";while(1){x+=($1+0)}}",
             "new-field" => "BEGIN{getline x<\"/input\";while(1){$0=\"0007\";total+=$1+0}}",
             "text" => "BEGIN{getline x<\"/input\";while(1){x=\"0007\";total+=x+0}}",
+            "calls" => "function f(x){return x+1}BEGIN{getline x<\"/input\";while(1){x=f(f(x))}}",
+            "recursive-calls" => "function f(n){return n?f(n-1):1}BEGIN{getline x<\"/input\";while(1){x+=f(64)}}",
             _ => "BEGIN{getline x<\"/input\";while(1){x++}}"
         };
         await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);

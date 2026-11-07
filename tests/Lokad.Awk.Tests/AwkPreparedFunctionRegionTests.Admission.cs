@@ -2,6 +2,62 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkPreparedFunctionRegionTests
 {
+    [Fact]
+    public async Task CancellationDuringColdCalleeScratchStopsBeforeFieldPreparationAndEffects()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(8L << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, cancellation.Token);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, owner);
+        var program = Bind("function f(x){return +$1+$2}" +
+            "function caller(x){print \"before\",x;total=f(7);print \"after\"}" +
+            "BEGIN{$0=\"3 4\";caller(42)}");
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        var total = AwkVariableName.FromText("total");
+        var x = AwkVariableName.FromText("x");
+        state.AssignVariableValue(total, AwkValue.FromNumber(5));
+        var canceledInCallee = false;
+        var host = new MockFileSystem();
+        host.AfterAppend = () =>
+        {
+            if (host.GetOutput(AwkFileDescriptor.StdOut) != "before 42\n") return;
+            budget.OnGrowth = _ =>
+            {
+                if (!state.IsInsideFunction || state.ResolveVariableValue(x).AsNumber() != 7) return;
+                canceledInCallee = true;
+                cancellation.Cancel();
+            };
+        };
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        try
+        {
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.True(canceledInCallee);
+            Assert.Equal("before 42\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(5, state.ResolveVariableValue(total).AsNumber());
+            Assert.Equal(0, counters.NumericFieldByteParses);
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally
+        {
+            budget.OnGrowth = null;
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            state.Dispose();
+            await owner.DisposeAsync();
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
     [Theory]
     [InlineData("function inc(x){return x+1}function step(x){print \"before\",x;return inc(inc(x))}", "step(7)", 7)]
     [InlineData("function inc(x,y){return x+y}function step(x,y){print \"before\",x;return inc(inc(x,y),y)}", "step(7,1)", 7)]
