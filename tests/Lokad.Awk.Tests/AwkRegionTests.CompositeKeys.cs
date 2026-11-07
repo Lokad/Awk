@@ -96,6 +96,33 @@ public sealed partial class AwkRegionTests
         Assert.Equal(0, fixture.Budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SeparatorGrowthFailureStopsBeforeNextComponent(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token, true);
+        var state = fixture.State;
+        var region = Compile("a[$1,(later=9)]+=(rhs=1)", state);
+        state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(new string(':', 32)));
+        state.SetCurrentRecord(AwkText.FromString(new string('x', 250)));
+        state.GetFieldNumber(1);
+        using var storage = new AwkRegionStorage(state);
+        storage.Prepare(region.Layout);
+        if (cancel) fixture.Budget.OnGrowth = bytes => { if (bytes >= 512) cancellation.Cancel(); };
+        else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 512;
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
+        Assert.False(state.HasScalar(AwkVariableName.FromText("rhs")));
+        Assert.Equal(0, fixture.Budget.GrowthAttemptsAfterRefusal);
+        Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
     [Fact]
     public void CompletedKeyDoesNotHoldSeparatorWhileTargetAdmissionFails()
     {

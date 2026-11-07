@@ -9,18 +9,20 @@ public sealed partial class AwkArrayCompoundUpdateTests
             "function selected(v){effects++;getline v<\"/index\";return v}BEGIN{values[$1,$(selected())]=7}",
             true, new InputGate("/index", "2\n", true));
         var state = execution.State;
+        state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(":"));
         AwkTestHarness.PublishBufferedRecord(state, "old tail        "u8);
         var original = state.InputRecordStorage.Content;
         var pending = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(pending.IsCompleted);
+        state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText("!"));
         AwkTestHarness.PublishBufferedRecord(state, "new selected"u8);
         AwkTestHarness.PublishBufferedRecord(state, "new selected"u8); // Reuse the original slot while the call is pending.
         Assert.True(original.Span.StartsWith("new"u8));
         execution.Inputs[0].Release.TrySetResult();
         Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
         var name = AwkArrayName.FromText("values");
-        Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("old" + (char)28 + "selected")).AsNumber());
+        Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("old:selected")).AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         Assert.Equal(1, execution.Reads);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

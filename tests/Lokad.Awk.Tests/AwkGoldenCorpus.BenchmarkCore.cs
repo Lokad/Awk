@@ -17,6 +17,17 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("composite-update-snapshots-separator-before-component-effects",
             ["BEGIN{SUBSEP=\":\";replacement=\"/\"}{a[$1,(SUBSEP=replacement)]++;after=SUBSEP}END{print a[\"left:/\"],after,length(a)}"],
             [], "1 / 1\n", "left\n");
+        yield return Passing("composite-components-format-before-later-effects",
+            ["function first(){SUBSEP=\"!\";return \"a\"}function last(){CONVFMT=\"%.1f\";return 1.26}BEGIN{SUBSEP=\":\";CONVFMT=\"%.2f\";a[first(),1.26,last()]=9;print a[\"a:1.26:1.3\"],SUBSEP}"],
+            [], "9 !\n");
+        yield return Passing("composite-component-next-retires-unpublished-key",
+            ["function skip(){next}{a[$1,skip(),$2]++;later++}END{print length(a),later+0}"],
+            [], "0 0\n", "first row\nsecond row\n");
+        var components = Enumerable.Range(1, 257).Select(index => index.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        yield return Passing("composite-many-components-preserve-order-and-membership",
+            ["BEGIN{SUBSEP=\":\";a[" + string.Join(",", components) + "]=9;print a[\"" +
+                string.Join(":", components) + "\"],((" + string.Join(",", components) + ") in a),length(a)}"],
+            [], "9 1 1\n");
         yield return Passing("composite-update-copies-field-before-record-changing-component",
             ["BEGIN{SUBSEP=\":\"}{a[$1,(NF=0)]+=3}END{print a[\"0007:0\"],NF,length(a)}"],
             [], "3 0 1\n", "0007 tail\n");
