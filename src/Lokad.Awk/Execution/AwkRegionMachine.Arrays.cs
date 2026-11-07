@@ -35,7 +35,7 @@ internal partial struct AwkRegionMachine
             for (var index = 0; index < 4; index++)
                 _state.StageFunctionValue(frame, index, operation.GetArgument(index));
             _position = position;
-            EnterCall(call, new(AwkRegionOperandKind.NumberTemporary, comparison));
+            EnterCall(call, comparison, isNumber: true);
             return true;
         }
         return false;

@@ -172,7 +172,8 @@ internal readonly record struct AwkRegionCall
     internal AwkUserFunction Function => _function ?? throw new InvalidOperationException("An uninitialized call has no function.");
     internal int Slot { get; }
 }
-internal readonly record struct AwkRegionResumePoint(int Position, AwkRegionOperand Destination);
+// Calls return into caller scratch, never a named binding or borrowed operand.
+internal readonly record struct AwkRegionResumePoint(int Position, int Destination, bool IsNumber);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,
     int Start, int Count, int[] PendingArguments,
     AwkBuiltinImplementation.AsyncBuiltinImplementation? Host = null);

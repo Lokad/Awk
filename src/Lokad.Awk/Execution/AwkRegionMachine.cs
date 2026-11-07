@@ -67,10 +67,10 @@ internal partial struct AwkRegionMachine
         }
     }
 
-    private void EnterCall(AwkRegionCall call, AwkRegionOperand destination)
+    private void EnterCall(AwkRegionCall call, int destination, bool isNumber)
     {
         var frame = _storage.IncomingFrame(call.Slot);
-        frame.SetCaller(_region, _storage, _position, _frame, destination);
+        frame.SetCaller(_region, _storage, _position, _frame, destination, isNumber);
         _state.ActivateFunctionFrame(frame);
         _storage.ActivatedCall(call.Slot);
         // Retain responsibility if obtaining/preparing callee scratch fails.
@@ -181,12 +181,12 @@ internal partial struct AwkRegionMachine
         ReturnNumber(number);
     }
 
-    private static void StoreReturnValue(AwkRegionStorage storage, AwkRegionOperand destination, AwkValue value)
+    private static void StoreReturnValue(AwkRegionStorage storage, AwkRegionResumePoint resumePoint, AwkValue value)
     {
-        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
-            storage.StoreNumber(destination.Index, value);
+        if (resumePoint.IsNumber)
+            storage.StoreNumber(resumePoint.Destination, value);
         else
-            storage.StoreValue(destination.Index, value);
+            storage.StoreValue(resumePoint.Destination, value);
     }
 
     private void Finish(AwkStatementFlow flow)
@@ -212,7 +212,7 @@ internal partial struct AwkRegionMachine
             throw new InvalidOperationException("A called function requires a caller.");
         // Escaping data is funded, or an immediate numeric consumer completes,
         // before the callee's locals/captures retire.
-        StoreReturnValue(storage, resumePoint.Destination, value);
+        StoreReturnValue(storage, resumePoint, value);
         _state.PopFunctionFrame();
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
     }
@@ -225,10 +225,10 @@ internal partial struct AwkRegionMachine
         var destination = resumePoint.Destination;
         // Keep ready numbers unboxed through the continuation; a value consumer
         // still receives the ordinary scalar before the callee retires.
-        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
-            storage.Numbers[destination.Index] = number;
+        if (resumePoint.IsNumber)
+            storage.Numbers[destination] = number;
         else
-            storage.StoreValue(destination.Index, AwkValue.FromNumber(number));
+            storage.StoreValue(destination, AwkValue.FromNumber(number));
         _state.PopFunctionFrame();
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
     }
