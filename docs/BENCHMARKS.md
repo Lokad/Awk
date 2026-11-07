@@ -12,6 +12,10 @@ host; no GNU allocation comparison is claimed. These single-launch medians do no
 quantify variation between processes; small differences need focused repeats. Regex uses
 the source adapter with published Lokad.Utf8Regex 0.4.0.
 
+The benchmark host creates a completed result task for each append. On this runtime,
+65,536 appends contribute 5.5 MiB of reported allocations; that cost depends on the
+host implementation, rather than the interpreter's record storage.
+
 ## Representative processing
 
 All 51 catalog families. Most process 4,096 records; all-field, numeric-wide, fixed-count,
