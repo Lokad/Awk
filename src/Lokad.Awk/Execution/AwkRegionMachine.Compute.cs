@@ -403,11 +403,14 @@ internal partial struct AwkRegionMachine
                 {
                     var update = region.ScalarUpdates[instruction.Left];
                     var previous = update.CapturePrevious
-                        ? ReadUpdateNumber(update.Variable)
+                        ? ReadBoundNumber(in operands[update.Variable])
                         : numbers[update.Previous];
                     if (update.CapturePrevious) numbers[update.Previous] = previous;
+                    ref readonly var right = ref operands[update.Right];
+                    var rightNumber = right.Kind == AwkRegionOperandKind.NumberTemporary
+                        ? numbers[right.Index] : ReadBoundNumber(in right);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
-                        ReadUpdateNumber(update.Right), (AwkCompoundAssignmentOperation)instruction.Detail);
+                        rightNumber, (AwkCompoundAssignmentOperation)instruction.Detail);
                     AssignVariableNumber(update.Variable, updated);
                     numbers[instruction.Target] = updated;
                     break;
@@ -443,8 +446,11 @@ internal partial struct AwkRegionMachine
                     if (updateSite.PrepareAccess < 0) capturedUpdate = storage.Targets[updateSite.Slot];
                     else if (updateSite.Path >= 0) capturedUpdate = PrepareNestedArrayUpdate(updateSite.Path);
                     else PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
+                    ref readonly var right = ref operands[updateSite.Right];
+                    var rightNumber = right.Kind == AwkRegionOperandKind.NumberTemporary
+                        ? numbers[right.Index] : ReadBoundNumber(in right);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
-                        ReadUpdateNumber(updateSite.Right),
+                        rightNumber,
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
                     if (updateSite.Path >= 0)
@@ -799,13 +805,10 @@ internal partial struct AwkRegionMachine
             if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
         }
 
-        double ReadUpdateNumber(int index)
+        double ReadBoundNumber(in AwkRegionOperand operand)
         {
-            ref readonly var operand = ref operands[index];
             switch (operand.Kind)
             {
-                case AwkRegionOperandKind.NumberTemporary:
-                    return numbers[operand.Index];
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
                     return state.GetFieldNumber(FieldOrdinal(operand));
