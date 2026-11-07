@@ -2,6 +2,27 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkPreparedFunctionRegionTests
 {
+    [Fact]
+    public async Task NumericReturnDoesNotAdmitUnreachableWideFields()
+    {
+        var budget = new CooperativeTestBudget(2L << 20);
+        var host = new MockFileSystem();
+        host.AddFile("/input", "007" + string.Concat(Enumerable.Repeat(" a", 50_000)) + "\n");
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["function f(){return +$1;print $50000}{print f();exit}", "/input"], []);
+        var awk = AwkTestHarness.ParseAwk(command);
+
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+            CancellationToken.None);
+
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
     [Theory]
     [InlineData(false, false, false)] [InlineData(false, false, true)]
     [InlineData(false, true, false)] [InlineData(false, true, true)]

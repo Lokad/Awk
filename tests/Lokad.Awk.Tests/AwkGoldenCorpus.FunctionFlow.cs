@@ -10,6 +10,9 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("numeric-returns-preserve-bound-sources-and-value-origins",
+            ["function r(x,k){if(k==0)return+x;if(k==1)return+$1;if(k==2)return+g;if(k==3)return+a[\"k\"];return+$i}function v(x){return x}function ratio(x){return 20/x}BEGIN{$0=\"0008 0011\";g=\"0009\";a[\"k\"]=\"0010\";i=2;for(k=0;k<5;k++)print r(\"007\",k);print typeof(v(\"007\")),v(\"007\"),ratio(4)}"],
+            [], "7\n8\n9\n10\n11\nstring 007 5\n");
         yield return Passing("call-captures-survive-conditional-and-later-record-mutation",
             ["function change(){x=\"after\";$0=\"new 09\";return 3}function show(a,b,c){print a,b,c;return a+0+b+c}BEGIN{x=\"0007\";$0=\"old 02\";print show(x,change(),$2),x,$0;for(i=0;i<2;i++)print show(i?10:20,1,2)}"],
             [], "0007 3 09\n19 after new 09\n20 1 2\n23\n10 1 2\n13\n");
