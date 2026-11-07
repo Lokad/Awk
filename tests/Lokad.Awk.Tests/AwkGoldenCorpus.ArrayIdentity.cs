@@ -6,6 +6,17 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        AwkGoldenCaseBuilder.Create("entry-owned-long-key-survives-delete-and-record-change",
+            ["function erase(p,k){delete p[k];$0=\"discarded\";return 3}{a[$1]=5;a[$1]+=erase(a,$1);print a[\"abcdefghijklé\"],length(a),$0}"], [])
+            .WithStandardInput("abcdefghijklé tail\n")
+            .WithStdOut("8 1 discarded\n")
+            .WithNondeterminismNote("The qualified compound-update order captures the owned key and old number before RHS deletion and record mutation.")
+            .Build(),
+        AwkGoldenCaseBuilder.Create("special-entry-capture-survives-record-and-scalar-mutation",
+            ["function change(){v=20;$0=\"gone\";return 3}BEGIN{v=5;$0=\"v tail\";SYMTAB[$1]+=change();print v,$0;v=5;SYMTAB[\"v\"]++;print v}"], [])
+            .WithStdOut("8 gone\n6\n")
+            .WithNondeterminismNote("The qualified compound-update order captures the special-array key and old number before RHS mutation.")
+            .Build(),
         Passing("retained-short-long-utf8-and-nul-keys-survive-record-reuse-and-sorted-traversal",
             ["BEGIN{FS=\"|\";a[\"seed\"]=0;PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"}{a[$1]=$2;$0=\"discarded\"}END{delete a[\"seed\"];for(k in a)print length(k),a[k],typeof(a[k])}"], [],
             "3 09 strnum\n4 007 strnum\n5 08 strnum\n", "abc😀|007\nabc😀x|08\na\0b|09\n"),

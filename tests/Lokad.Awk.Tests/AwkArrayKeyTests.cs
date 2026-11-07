@@ -66,7 +66,7 @@ public sealed class AwkArrayKeyTests
         bytes.CopyTo(padded.AsSpan(1));
         var key = new AwkArrayKey(payload);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(static () => { }, counters, AwkMemoryAccounting.Disabled);
+        var comparer = AwkArrayKeyComparer.ForRuntime(static () => { }, counters);
         var values = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 7 };
         var lookup = values.GetAlternateLookup<ReadOnlySpan<byte>>();
         Assert.True(lookup.TryGetValue(padded.AsSpan(1, bytes.Length), out var value));
@@ -75,7 +75,6 @@ public sealed class AwkArrayKeyTests
         Assert.False(comparer.Equals(padded.AsSpan(1, bytes.Length), new AwkArrayKey(payload + "\0")));
         Assert.False(lookup.ContainsKey(AwkUtf8Codec.Encode(payload + "x").ToArray()));
         Assert.Single(values);
-        Assert.Equal(0, counters.ArrayAlternateKeyCopies);
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, counters.StringDecodes);
@@ -85,21 +84,17 @@ public sealed class AwkArrayKeyTests
     public void RuntimeComparerMeasuresOwnedAndBorrowedWorkInBytes()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters, AwkMemoryAccounting.Disabled);
+        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
         var key = new AwkArrayKey("café");
 
         Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode("café"u8));
         Assert.True(comparer.Equals(key, new AwkArrayKey("café")));
         Assert.True(comparer.Equals("café"u8, key));
-        var copy = ((IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>)comparer).Create("café"u8);
 
-        Assert.Equal(key, copy);
         Assert.Equal(1, counters.ArrayOwnedHashCalls);
         Assert.Equal(1, counters.ArrayBorrowedHashCalls);
         Assert.Equal(10, counters.ArrayHashBytes);
         Assert.Equal(2, counters.ArrayEqualityCalls);
-        Assert.Equal(1, counters.ArrayAlternateKeyCopies);
-        Assert.Equal(5, counters.ArrayAlternateKeyBytesCopied);
     }
 
     [Fact]
@@ -156,7 +151,7 @@ public sealed class AwkArrayKeyTests
             fromText.RetainedTextMemoryBytes);
 
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters, AwkMemoryAccounting.Disabled);
+        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
         Assert.Equal(comparer.GetHashCode(fromOrdinal), comparer.GetHashCode(fromBytes));
         var borrowedValues = new Dictionary<AwkArrayKey, string>(comparer) { [fromOrdinal] = "value" };
         var lookup = borrowedValues.GetAlternateLookup<ReadOnlySpan<byte>>();
@@ -166,7 +161,6 @@ public sealed class AwkArrayKeyTests
         Assert.False(comparer.Equals(System.Text.Encoding.UTF8.GetBytes(text + "\0"), fromOrdinal));
         Assert.Single(borrowedValues);
         Assert.True(counters.ArrayBorrowedHashCalls > 0);
-        Assert.Equal(0, counters.ArrayAlternateKeyCopies);
         Assert.Equal(0, counters.AwkTextAllocations);
     }
 

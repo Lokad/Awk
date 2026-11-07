@@ -7,34 +7,28 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 {
     private readonly Action? _checkpoint;
     private readonly AwkRuntimeCounters _counters;
-    private readonly AwkMemoryAccounting _accounting;
 
-    private AwkArrayKeyComparer(Action? checkpoint, AwkRuntimeCounters counters, AwkMemoryAccounting accounting)
+    private AwkArrayKeyComparer(Action? checkpoint, AwkRuntimeCounters counters)
     {
         _checkpoint = checkpoint;
         _counters = counters;
-        _accounting = accounting;
     }
 
-    // The shared comparer is callback-free. Only runtime-owned dictionaries
+    // The shared comparer is callback-free. Only runtime-owned tables
     // retain their own execution callback.
     internal static AwkArrayKeyComparer ForRuntime(Action? checkpoint) =>
-        checkpoint is null ? Instance : new(checkpoint, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+        checkpoint is null ? Instance : new(checkpoint, AwkRuntimeCounters.Disabled);
 
-    internal static AwkArrayKeyComparer ForRuntime(Action? checkpoint, AwkRuntimeCounters counters,
-        AwkMemoryAccounting accounting) => new(checkpoint, counters, accounting);
+    internal static AwkArrayKeyComparer ForRuntime(Action? checkpoint, AwkRuntimeCounters counters) => new(checkpoint, counters);
 
     public static AwkArrayKeyComparer Instance { get; } =
-        new(null, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+        new(null, AwkRuntimeCounters.Disabled);
 
     AwkArrayKey IAlternateEqualityComparer<AwkArrayKey, AwkArrayKey>.Create(AwkArrayKey key) => key;
 
-    AwkArrayKey IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>.Create(ReadOnlySpan<byte> bytes)
-    {
-        var key = AwkArrayKey.CopyTrustedBytes(bytes, _counters, _accounting, _checkpoint);
-        if (_counters.IsEnabled) _counters.RecordArrayAlternateKeyCopy(bytes.Length);
-        return key;
-    }
+    // Insertion admits the key and value together at the array owner.
+    AwkArrayKey IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>.Create(ReadOnlySpan<byte> bytes) =>
+        throw new InvalidOperationException("Array keys require explicit admitted insertion.");
 
     public bool Equals(ReadOnlySpan<byte> bytes, AwkArrayKey key)
     {

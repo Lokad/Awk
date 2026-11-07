@@ -13,7 +13,7 @@ public sealed class AwkBorrowedMembershipTests
     public void BorrowedDictionaryLookupsMatchOwnedKeysWithoutRetainingOrCopyingTheInput(string text, bool ordinal)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters, AwkMemoryAccounting.Disabled);
+        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
         var key = ordinal ? AwkArrayKey.FromOrdinal(int.Parse(text, System.Globalization.CultureInfo.InvariantCulture))
             : new AwkArrayKey(AwkText.FromSourceLiteralString(text));
         var dictionary = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 17 };
@@ -29,24 +29,6 @@ public sealed class AwkBorrowedMembershipTests
         Assert.Equal(17, dictionary[key]);
         Assert.Equal(0, counters.AwkTextAllocations);
         if (ordinal && text == "7") Assert.False(lookup.ContainsKey("007"u8));
-    }
-
-    [Fact]
-    public void AlternateCreationOwnsItsBytesAndChecksAdmissionBeforeCopying()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForAccounting = new CooperativeTestMemory(128, counters);
-        var accounting = memoryForAccounting.Accounting;
-        IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey> comparer = AwkArrayKeyComparer.ForRuntime(null, counters, accounting);
-        var bytes = "keep"u8.ToArray();
-        var key = comparer.Create(bytes);
-        Array.Fill(bytes, (byte)'x');
-        Assert.Equal("keep", key.AsString(AwkRuntimeCounters.Disabled));
-        var allocations = counters.AwkTextAllocations;
-        var error = Assert.Throws<AwkRuntimeException>(() => comparer.Create(new byte[512]));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
     }
 
     [Theory]

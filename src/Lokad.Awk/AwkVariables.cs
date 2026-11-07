@@ -110,7 +110,7 @@ internal sealed partial class AwkVariables
             _specialScalarCells = new AwkScalarCell?[(int)AwkSpecialVariableId.ArgumentVector];
             bindingMemory.Commit();
         }
-        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint, counters, memoryAccounting);
+        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint, counters);
         _arrays = new AwkArrayStorage(_arrayKeyComparer, counters);
         _symbolTable = new AwkSymbolTableArray(
             () => _globalNames,
