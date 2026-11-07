@@ -38,8 +38,6 @@ internal sealed class AwkFunctionRuntime
 
     public AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _calls.EnterGlobalBindings();
 
-    public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) => _calls.HasScalarLocal(slotId);
-
     public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) => _calls.HasLocalSlot(slotId);
 
     // Borrow the program snapshot; callers keep the table immutable throughout execution.
@@ -63,9 +61,6 @@ internal sealed class AwkFunctionRuntime
 
     public void PopFrame() =>
         _calls.PopFrame(_removeFunctionLocalArray);
-
-    public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number) =>
-        _calls.TryResolveLocalNumber(slotId, out number);
 
     public bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value) =>
         _calls.TryResolveScalarLocalValue(slotId, out value);

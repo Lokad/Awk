@@ -54,11 +54,6 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) =>
-        TryPeekLocalFrame(out var frame) &&
-        (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
-        frame.GetSlot(slotId.Index).Kind == AwkFunctionLocalSlotKind.Scalar;
-
     public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) =>
         TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount;
 
@@ -234,15 +229,6 @@ internal sealed class AwkFunctionCallStack(
         memoryAccounting.ReleaseCommitted(payloadBytes);
     }
 
-    public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number)
-    {
-        if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
-            return frame.TryReadNumber(slotId.Index, out number);
-
-        number = 0;
-        return false;
-    }
-
     public bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value)
     {
         if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
@@ -250,7 +236,8 @@ internal sealed class AwkFunctionCallStack(
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
-                value = createValue(slot.Value);
+                var scalar = slot.Value;
+                value = scalar.TryGetNumber(out var number) ? AwkValue.FromNumber(number) : createValue(scalar);
                 return true;
             }
         }

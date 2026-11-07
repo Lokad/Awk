@@ -631,13 +631,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return resolved;
     }
 
-    internal bool HasPreparedLocalScalarArgument(AwkFunctionLocalSlotId slotId)
-    {
-        if (!_functions.HasScalarLocal(slotId)) return false;
-        Counters.RecordBoundLocalScalarArgument();
-        return true;
-    }
-
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count) =>
         _variableRuntime.TryGetExistingArrayCount(name, out count);
 
@@ -751,26 +744,14 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name)
     {
-        if (_functions.TryResolveLocalNumber(slotId, out var number))
-        {
-            Counters.RecordNumericLocalRead();
-            return AwkValue.FromNumber(number);
-        }
-
         if (_functions.TryResolveScalarLocalValue(slotId, out var value))
         {
-            Counters.RecordScalarLocalValueRead();
+            if (value.IsNumberValue) Counters.RecordNumericLocalRead();
+            else Counters.RecordScalarLocalValueRead();
             return value;
         }
 
         return _variableRuntime.ResolveFunctionLocalValue(slotId, name);
-    }
-
-    internal bool TryResolveFunctionLocalNumber(AwkFunctionLocalSlotId slot, out double number)
-    {
-        if (!_functions.TryResolveLocalNumber(slot, out number)) return false;
-        Counters.RecordNumericLocalRead();
-        return true;
     }
 
     public void AssignPreparedGlobalValue(AwkVariableName name, int index, AwkValue value)
