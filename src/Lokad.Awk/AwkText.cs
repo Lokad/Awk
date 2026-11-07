@@ -24,15 +24,15 @@ internal readonly struct AwkText : IEquatable<AwkText>
         null => EmptyStorage,
         _ => throw new InvalidOperationException("Compact text has no cache storage.")
     };
-    private byte[] _bytes => _backing is byte[] bytes ? bytes : Storage.Bytes;
-    private int _byteLength => _backing is byte[] bytes ? bytes.Length : Storage.ByteLength;
+    private byte[] OwnedBytes => _backing is TextStorage storage ? storage.Bytes : (byte[]?)_backing ?? [];
     private AwkTextConcatenation? _concatenation => (_backing as TextStorage)?.Concatenation;
-    private ref string? _cachedString => ref Storage.CachedString;
     private ref int _textFacts => ref Storage.TextFacts;
     private ref int[]? _runeByteCheckpoints => ref Storage.RuneByteCheckpoints;
 
     internal object? Backing => _backing;
-    internal bool RequiresStringCache => _backing is byte[];
+    internal bool RequiresStringCache => _backing is not (null or TextStorage);
+    // Recover text backing previously produced by this type; scalar payloads
+    // may also contain non-text objects, which project as empty text here.
     internal static AwkText FromBacking(object? backing) =>
         backing is TextStorage or byte[] ? new(backing) : Empty;
     internal bool HasSameStorage(AwkText other) => ReferenceEquals(_backing, other._backing);
@@ -56,7 +56,10 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     public static AwkText Empty => default;
 
-    public int ByteLength => _byteLength;
+    // Private construction admits only cached storage, owned bytes or default empty.
+    // Select metadata first so its access does not invoke the CLR's array-type test.
+    public int ByteLength => _backing is TextStorage storage ? storage.ByteLength :
+        ((byte[]?)_backing)?.Length ?? 0;
 
     internal bool HasAvailableBytes => _concatenation is null ||
         Volatile.Read(ref _concatenation.MaterializedBytes) is not null;
@@ -64,22 +67,25 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     // Keep the conservative cache allowance with the actual owner. Promotion at
     // a managed boundary consumes that admitted capacity, without a new lease.
-    public long EstimatedRetainedMemoryBytes => _backing is byte[] bytes
-        ? AwkRuntimeMemory.EstimateTextBytes(bytes.Length) : Storage.EstimatedRetainedMemoryBytes;
+    public long EstimatedRetainedMemoryBytes => _backing is TextStorage storage
+        ? storage.EstimatedRetainedMemoryBytes :
+        AwkRuntimeMemory.EstimateTextBytes(((byte[]?)_backing)?.Length ?? 0);
 
     public int RuneLength => GetRuneLength();
 
     internal int GetRuneLength(Action? checkpoint = null)
     {
-        if (_backing is byte[] bytes)
+        var storage = _backing as TextStorage;
+        if (storage is null && _backing is byte[] bytes)
             return bytes.Length;
-        var cached = Volatile.Read(ref _textFacts);
+        storage ??= EmptyStorage;
+        var cached = Volatile.Read(ref storage.TextFacts);
         if (cached > UnknownTextFacts)
             return cached - 1;
 
         var runeLength = CountRunes(AsSpan(checkpoint), checkpoint);
         checkpoint?.Invoke();
-        Volatile.Write(ref _textFacts, runeLength + 1);
+        Volatile.Write(ref storage.TextFacts, runeLength + 1);
         return runeLength;
     }
 
@@ -107,19 +113,19 @@ internal readonly struct AwkText : IEquatable<AwkText>
     public ReadOnlySpan<byte> AsSpan(Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        if (_backing is byte[] bytes) return bytes;
-        if (_backing is not TextStorage storage) return [];
-        return storage.Concatenation is { } concatenation
-            ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
+        if (_backing is TextStorage storage)
+            return storage.Concatenation is { } concatenation
+                ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
+        return ((byte[]?)_backing).AsSpan();
     }
 
     public ReadOnlyMemory<byte> AsMemory(Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        if (_backing is byte[] bytes) return bytes;
-        if (_backing is not TextStorage storage) return ReadOnlyMemory<byte>.Empty;
-        return storage.Concatenation is { } concatenation
-            ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
+        if (_backing is TextStorage storage)
+            return storage.Concatenation is { } concatenation
+                ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
+        return ((byte[]?)_backing).AsMemory();
     }
 
     public static AwkText FromSourceLiteralString(string text) =>
@@ -246,37 +252,41 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     // A host-boundary preparation has already decoded and funded this cache.
     // Reading it during the pending operation must not repeat conversion work.
-    internal string PreparedString => _byteLength == 0 ? string.Empty :
+    internal string PreparedString => ByteLength == 0 ? string.Empty :
         _backing is TextStorage storage && Volatile.Read(ref storage.CachedString) is { } prepared
             ? prepared : throw new InvalidOperationException("Text must be decoded before its prepared string is used.");
 
     // The caller retains the returned cache owner. Its ordinary text estimate
     // already funds metadata and decoding, even when the current backing is compact.
-    internal AwkText WithStringCache() => _backing is byte[] bytes ? new AwkText(bytes) : this;
+    internal AwkText WithStringCache()
+    {
+        var backing = _backing;
+        return backing is null or TextStorage ? this : new AwkText((byte[])backing);
+    }
 
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
         counters.RecordAwkTextAsStringCall();
-        if (_byteLength == 0)
+        if (ByteLength == 0)
             return string.Empty;
 
-        if (_backing is byte[] bytes)
+        if (_backing is not TextStorage storage)
         {
             counters.RecordAwkTextAsStringDecodeMiss();
-            var converted = AwkUtf8Codec.DecodeRuntimeText(bytes, counters);
+            var converted = AwkUtf8Codec.DecodeRuntimeText(((byte[]?)_backing).AsSpan(), counters);
             checkpoint?.Invoke();
             return converted;
         }
 
-        var cached = Volatile.Read(ref _cachedString);
+        var cached = Volatile.Read(ref storage.CachedString);
         if (cached is not null)
             return cached;
 
         counters.RecordAwkTextAsStringDecodeMiss();
         var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint), counters);
         checkpoint?.Invoke();
-        return Interlocked.CompareExchange(ref _cachedString, decoded, null) ?? decoded;
+        return Interlocked.CompareExchange(ref storage.CachedString, decoded, null) ?? decoded;
     }
 
     public int CompareBytes(AwkText other, Action? checkpoint = null) =>
@@ -432,7 +442,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     {
         if (index >= ByteLength) return false;
         if (index == 0) return true;
-        if (_backing is byte[]) return true;
+        if (RequiresStringCache) return true;
         var facts = Volatile.Read(ref _textFacts);
         if (facts > UnknownTextFacts) return index < facts - 1;
         if (index >= RuneCheckpointStride) return index < GetRuneLength(checkpoint);
@@ -460,7 +470,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        var knownAscii = text._backing is byte[] || Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
+        var knownAscii = text.RequiresStringCache || Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
         int byteStart, byteEnd;
         if (knownAscii)
         {
@@ -668,7 +678,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     internal bool IsAscii(out int inspectedByteCount, Action? checkpoint = null)
     {
-        if (_backing is byte[])
+        if (RequiresStringCache)
         {
             inspectedByteCount = 0;
             return true;
@@ -784,7 +794,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
                     var currentConcatenation = current._concatenation;
                     if (currentConcatenation is null)
                     {
-                        var source = current._bytes.AsSpan();
+                        var source = current.OwnedBytes.AsSpan();
                         CopyBytes(source, destination[destinationOffset..], checkpoint);
                         destinationOffset += source.Length;
                         continue;

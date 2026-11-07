@@ -62,6 +62,8 @@ or environment dependencies.
 - Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text;
   it is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
   shared mutable caches belong to that backing, and storage identity compares backing references.
+  Select cached metadata before byte-array casts in common access; preserve default empty text,
+  checked casts and the private invariant that compact backing owns short ASCII bytes.
   Borrowed record/regex bytes use their existing views and owners, not scalar-text wrappers.
   Preserve regex resolution, pinning, admission and subject-materialization order. Hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
