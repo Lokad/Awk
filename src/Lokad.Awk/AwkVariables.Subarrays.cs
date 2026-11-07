@@ -97,10 +97,10 @@ internal sealed partial class AwkVariables
         return bytes;
     }
 
-    internal AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayTarget target, bool materializeOrdinalKeys,
+    internal AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayTarget target, bool materializeKeys,
         bool retainValues = false) => target.TryGetArray(out var array)
-            ? MeasureArraySnapshot(array, materializeOrdinalKeys, retainValues)
-            : MeasureArraySnapshot(target.Name, materializeOrdinalKeys, retainValues);
+            ? MeasureArraySnapshot(array, materializeKeys, retainValues)
+            : MeasureArraySnapshot(target.Name, materializeKeys, retainValues);
 
     internal TResult[] SnapshotArrayValues<TState, TResult>(AwkArrayTarget target, int count, TState state,
         Func<TState, AwkArrayKey, AwkValue, TResult> project)

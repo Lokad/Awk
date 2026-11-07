@@ -11,7 +11,7 @@ public sealed class AwkSnapshotKeyResourceTests
     public static IEnumerable<object[]> Snapshots()
     {
         foreach (var observed in new[] { false, true })
-            foreach (var source in new[] { "symbols", "ordinals", "texts" })
+            foreach (var source in new[] { "symbols", "ordinals", "texts", "compact" })
                 foreach (var selector in new[] { "", "@unsorted", "@ind_str_asc" })
                     yield return [observed, source, selector];
     }
@@ -24,6 +24,7 @@ public sealed class AwkSnapshotKeyResourceTests
             foreach (var selector in new[] { "", "@unsorted", "@ind_str_asc" })
                 yield return [observed, source, selector];
             yield return [observed, "ordinals", "@ind_str_asc"];
+            yield return [observed, "compact", "@ind_str_asc"];
         }
     }
 
@@ -89,6 +90,8 @@ public sealed class AwkSnapshotKeyResourceTests
     [InlineData(true, "ordinals")]
     [InlineData(false, "texts")]
     [InlineData(true, "texts")]
+    [InlineData(false, "compact")]
+    [InlineData(true, "compact")]
     public async Task KeySortTransfersTemporaryPayloadAndRefundsDestination(bool observed, string source)
     {
         var (memory, name) = CreateState(observed, source, "@ind_str_asc");
@@ -115,7 +118,7 @@ public sealed class AwkSnapshotKeyResourceTests
     public static IEnumerable<object[]> SortFailures()
     {
         foreach (var observed in new[] { false, true })
-            foreach (var source in new[] { "symbols", "ordinals" })
+            foreach (var source in new[] { "symbols", "ordinals", "compact" })
                 foreach (var keys in new[] { false, true })
                     yield return [observed, source, keys];
     }
@@ -181,7 +184,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var encodes = counters.Utf8Encodes;
         armed = true;
 
-        var error = Assert.Throws<OperationCanceledException>(() => variables.MeasureArraySnapshot(name, materializeOrdinalKeys: true));
+        var error = Assert.Throws<OperationCanceledException>(() => variables.MeasureArraySnapshot(name, materializeKeys: true));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(4, checks);
@@ -190,7 +193,7 @@ public sealed class AwkSnapshotKeyResourceTests
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(encodes, counters.Utf8Encodes);
         armed = false;
-        var measured = variables.MeasureArraySnapshot(name, materializeOrdinalKeys: true);
+        var measured = variables.MeasureArraySnapshot(name, materializeKeys: true);
         Assert.Equal(512, measured.Count);
         var expectedPayload = Enumerable.Range(1, 512).Sum(index =>
             AwkRuntimeMemory.EstimateTextBytes(index.ToString(System.Globalization.CultureInfo.InvariantCulture).Length +
@@ -207,7 +210,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var sorted = selector == "@ind_str_asc";
         var containers = AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(keys.Length) +
             (sorted ? AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(keys.Length) : 0);
-        var payload = source == "symbols" || source == "ordinals" && sorted
+        var payload = source == "symbols" || (source is "ordinals" or "compact") && sorted
             ? keys.Sum(static key => AwkRuntimeMemory.EstimateTextBytes(key.ByteLength))
             : keys.Sum(static key => key.RetainedTextMemoryBytes);
         if (sorted)
@@ -231,8 +234,16 @@ public sealed class AwkSnapshotKeyResourceTests
             return (memory, Symbols);
         }
         for (var index = 1; index <= 32; index++)
-            state.SetArrayAwkValue(Source, source == "ordinals" ? AwkArrayKey.FromOrdinal(index) : new AwkArrayKey("v" + index),
-                AwkValue.FromNumber(33 - index));
+        {
+            var key = source switch
+            {
+                "ordinals" => AwkArrayKey.FromOrdinal(index),
+                "compact" => AwkArrayKey.CopyTrustedBytes(AwkUtf8Codec.Encode("v" + index).Span,
+                    counters, state.MemoryAccounting, state.CancellationCheckpoint),
+                _ => new AwkArrayKey("v" + index)
+            };
+            state.SetArrayAwkValue(Source, key, AwkValue.FromNumber(33 - index));
+        }
         return (memory, Source);
     }
 }

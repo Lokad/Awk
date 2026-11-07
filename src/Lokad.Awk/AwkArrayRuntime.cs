@@ -578,7 +578,7 @@ internal sealed partial class AwkArrayRuntime
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayTarget arrayName)
     {
-        var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: false);
+        var size = _variables.MeasureArraySnapshot(arrayName, materializeKeys: false);
         var count = size.Count;
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count), size.KeyTextBytes));
@@ -601,7 +601,7 @@ internal sealed partial class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkArraySortOutput output)
     {
-        var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeOrdinalKeys: true, retainValues: true);
+        var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeKeys: true, retainValues: true);
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             EstimateSortOperationBytes(size.Count, order, output), size.TextBytes));
         return new AwkArrayReservation(size.Count, lease, size.KeyTextBytes);
@@ -611,7 +611,7 @@ internal sealed partial class AwkArrayRuntime
         AwkArrayTarget arrayName,
         AwkArraySortOrder order)
     {
-        var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: true, retainValues: true);
+        var size = _variables.MeasureArraySnapshot(arrayName, materializeKeys: true, retainValues: true);
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             EstimateSortOperationBytes(size.Count, order, AwkArraySortOutput.KeySnapshot), size.TextBytes));
         return new AwkArrayReservation(size.Count, lease, size.KeyTextBytes);

@@ -6,6 +6,9 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("retained-short-long-utf8-and-nul-keys-survive-record-reuse-and-sorted-traversal",
+            ["BEGIN{FS=\"|\";a[\"seed\"]=0;PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"}{a[$1]=$2;$0=\"discarded\"}END{delete a[\"seed\"];for(k in a)print length(k),a[k],typeof(a[k])}"], [],
+            "3 09 strnum\n4 007 strnum\n5 08 strnum\n", "abc😀|007\nabc😀x|08\na\0b|09\n"),
         Passing("plain-string-results-keep-spelling-through-calls-traversal-and-records",
             ["function carry(x){return x}BEGIN{v=carry(sprintf(\"%03d\",7));print typeof(v),v,(v==7),v+0;a[\"007\"]=1;for(k in a)print typeof(k),k,(k==7),k+0;$0=\"seed\";$1=sprintf(\"%03d\",7);print typeof($0),$0,($0==7),$0+0}"], [],
             "string 007 0 7\nstring 007 0 7\nstring 007 0 7\n"),

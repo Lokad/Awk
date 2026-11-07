@@ -31,7 +31,7 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     AwkArrayKey IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>.Create(ReadOnlySpan<byte> bytes)
     {
-        var key = new AwkArrayKey(AwkText.CopyTrustedBytes(bytes, _counters, _accounting, _checkpoint), _checkpoint);
+        var key = AwkArrayKey.CopyTrustedBytes(bytes, _counters, _accounting, _checkpoint);
         if (_counters.IsEnabled) _counters.RecordArrayAlternateKeyCopy(bytes.Length);
         return key;
     }

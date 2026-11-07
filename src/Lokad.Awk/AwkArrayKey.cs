@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Buffers.Text;
 using System.Globalization;
 
@@ -6,6 +7,7 @@ namespace Lokad.Awk;
 internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 {
     private const int MaxInt32Utf8ByteLength = 11;
+    private const int InlineByteCapacity = 7;
 
     private readonly AwkText? _text;
     private readonly AwkArrayKeyKind _kind;
@@ -36,13 +38,45 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _ordinal = ordinal;
     }
 
+    private AwkArrayKey(int lowBytes, uint highBytes, int length)
+    {
+        _text = null;
+        _ordinal = lowBytes;
+        // Reuse the ordinal/kind words: 56 payload bits; the low kind byte
+        // holds two tag bits and three length bits. The key does not grow.
+        _kind = unchecked((AwkArrayKeyKind)((highBytes << 8) | ((uint)length << 2) |
+            (uint)AwkArrayKeyKind.Inline));
+    }
+
+    internal static AwkArrayKey CopyTrustedBytes(ReadOnlySpan<byte> bytes,
+        AwkRuntimeCounters counters, AwkMemoryAccounting accounting, Action? checkpoint)
+    {
+        if (bytes.Length is > 0 and <= InlineByteCapacity)
+        {
+            checkpoint?.Invoke();
+            Span<byte> padded = stackalloc byte[sizeof(ulong)];
+            padded.Clear();
+            bytes.CopyTo(padded);
+            return new(BinaryPrimitives.ReadInt32LittleEndian(padded),
+                BinaryPrimitives.ReadUInt32LittleEndian(padded[sizeof(int)..]), bytes.Length);
+        }
+        return new(AwkText.CopyTrustedBytes(bytes, counters, accounting, checkpoint), checkpoint);
+    }
+
+    internal static long EstimateRetainedTextBytes(int byteLength) =>
+        byteLength <= InlineByteCapacity ? 0 : AwkRuntimeMemory.EstimateTextBytes(byteLength);
+
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
         FromOrdinal(index.Value);
 
-    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null) =>
-        IsOrdinal
-            ? _ordinal.ToString(CultureInfo.InvariantCulture)
-            : Text.AsString(counters, checkpoint);
+    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
+    {
+        if (IsOrdinal) return _ordinal.ToString(CultureInfo.InvariantCulture);
+        if (_kind == AwkArrayKeyKind.Text) return Text.AsString(counters, checkpoint);
+        checkpoint?.Invoke();
+        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+        return AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer), counters);
+    }
 
     public int ByteLength
     {
@@ -54,24 +88,25 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
                 return FormatOrdinalBytes(ordinal, buffer).Length;
             }
 
-            return IsOrdinal
-                ? CountOrdinalBytes(_ordinal)
-                : Text.ByteLength;
+            return _kind == AwkArrayKeyKind.Text ? Text.ByteLength :
+                IsOrdinal ? CountOrdinalBytes(_ordinal) : InlineByteLength;
         }
     }
 
     public long RetainedTextMemoryBytes =>
-        IsOrdinal ? 0 : Text.EstimatedRetainedMemoryBytes;
+        _kind == AwkArrayKeyKind.Text ? Text.EstimatedRetainedMemoryBytes : 0;
 
     public bool IsOrdinal => _kind == AwkArrayKeyKind.Ordinal;
 
+    internal bool RequiresTextMaterialization => _kind != AwkArrayKeyKind.Text;
+
     public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryAccounting governor)
     {
-        if (!IsOrdinal)
+        if (!RequiresTextMaterialization)
             return Text;
 
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        var formatted = FormatOrdinalBytes(_ordinal, buffer);
+        var formatted = AsSpan(buffer);
         var bytes = AwkText.AllocateOwnedBytes(formatted.Length, governor);
         formatted.CopyTo(bytes);
         return AwkText.FromTrustedOwnedBytes(bytes, counters);
@@ -79,73 +114,52 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public void AppendTo(AwkUtf8Builder builder, Action? checkpoint = null)
     {
-        if (!IsOrdinal)
+        if (!RequiresTextMaterialization)
         {
             builder.Append(Text, checkpoint);
             return;
         }
 
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        builder.Append(FormatOrdinalBytes(_ordinal, buffer));
+        builder.Append(AsSpan(buffer));
     }
 
     public bool Equals(AwkArrayKey other) => Equals(other, checkpoint: null);
 
     internal bool Equals(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
-        if (!IsOrdinal)
-            return AwkText.CompareBytes(bytes, Text.AsSpan(checkpoint), checkpoint) == 0;
-        return OrdinalEqualsBytes(bytes, checkpoint);
-    }
-
-    private bool OrdinalEqualsBytes(ReadOnlySpan<byte> bytes, Action? checkpoint)
-    {
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        checkpoint?.Invoke();
-        return bytes.SequenceEqual(FormatOrdinalBytes(_ordinal, buffer));
+        return AwkText.CompareBytes(bytes, AsSpan(buffer, checkpoint), checkpoint) == 0;
     }
 
     internal bool Equals(AwkArrayKey other, Action? checkpoint)
     {
         checkpoint?.Invoke();
-        return IsOrdinal
-            ? other.IsOrdinal
-                ? _ordinal == other._ordinal
-                : OrdinalEqualsText(_ordinal, other.Text, checkpoint)
-            : other.IsOrdinal
-                ? OrdinalEqualsText(other._ordinal, Text, checkpoint)
-                : Text.Equals(other.Text, checkpoint);
-        static bool OrdinalEqualsText(int ordinal, AwkText text, Action? checkpoint)
-        {
-            Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-            return text.AsSpan(checkpoint).SequenceEqual(FormatOrdinalBytes(ordinal, buffer));
-        }
+        if (IsOrdinal && other.IsOrdinal) return _ordinal == other._ordinal;
+        if (_kind == AwkArrayKeyKind.Text && other._kind == AwkArrayKeyKind.Text)
+            return Text.Equals(other.Text, checkpoint);
+        Span<byte> left = stackalloc byte[MaxInt32Utf8ByteLength];
+        Span<byte> right = stackalloc byte[MaxInt32Utf8ByteLength];
+        return AwkText.CompareBytes(AsSpan(left, checkpoint), other.AsSpan(right, checkpoint), checkpoint) == 0;
     }
     public override bool Equals(object? obj) =>
         obj is AwkArrayKey other && Equals(other);
 
     public override int GetHashCode()
     {
-        if (!IsOrdinal)
+        if (!RequiresTextMaterialization)
             return Text.GetHashCode();
 
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        return AwkByteFacts.GetOrdinalHashCode(FormatOrdinalBytes(_ordinal, buffer));
+        return AwkByteFacts.GetOrdinalHashCode(AsSpan(buffer));
     }
 
     internal int GetRandomizedHashCode(Action? checkpoint = null)
     {
         checkpoint?.Invoke();
         var hash = new System.HashCode();
-        if (IsOrdinal)
-        {
-            Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-            hash.AddBytes(FormatOrdinalBytes(_ordinal, buffer));
-        }
-        else
-        {
-            hash.AddBytes(Text.AsSpan(checkpoint));
-        }
+        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+        hash.AddBytes(AsSpan(buffer, checkpoint));
 
         checkpoint?.Invoke();
         return hash.ToHashCode();
@@ -155,6 +169,17 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         AsString(AwkRuntimeCounters.Disabled);
 
     private AwkText Text => _text ?? AwkText.Empty;
+
+    private int InlineByteLength => (int)((uint)_kind >> 2) & InlineByteCapacity;
+
+    private ReadOnlySpan<byte> AsSpan(Span<byte> buffer, Action? checkpoint = null)
+    {
+        if (_kind == AwkArrayKeyKind.Text) return Text.AsSpan(checkpoint);
+        if (IsOrdinal) return FormatOrdinalBytes(_ordinal, buffer);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, _ordinal);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[sizeof(int)..], (uint)_kind >> 8);
+        return buffer[..InlineByteLength];
+    }
 
     private static ReadOnlySpan<byte> FormatOrdinalBytes(int ordinal, Span<byte> buffer)
     {
@@ -167,6 +192,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     private enum AwkArrayKeyKind
     {
         Text,
-        Ordinal
+        Ordinal,
+        Inline
     }
 }

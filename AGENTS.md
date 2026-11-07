@@ -48,6 +48,8 @@ or environment dependencies.
   Ordinary byte-key misses admit retained key construction and insertion together, without
   constructing a field scalar/cache just to transport key bytes. No RHS or host work may
   intervene. Cold name binding still publishes only after success.
+  Short byte keys own their bytes in the existing 16-byte key words; keep numeric ordinals
+  distinct. Language/sort projections admit owned text when materialization is required.
   Nested numeric updates use the same captured targets, retaining their owned path through commit.
   Re-resolve detached logical owners before using a cell; do not restore separate nested arithmetic/store transport.
   Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.

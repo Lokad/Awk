@@ -253,9 +253,9 @@ internal sealed partial class AwkVariables
         var oldCapacity = _memoryAccounting.IsEnabled ? slots.EnsureCapacity(0) : 0;
         using var admission = _memoryAccounting.AdmitMutation(_memoryAccounting.IsEnabled
             ? EstimateArrayInsertionGrowth(slots, AwkRuntimeMemory.CheckedAdd(
-                AwkRuntimeMemory.EstimateTextBytes(index.Length),
+                AwkArrayKey.EstimateRetainedTextBytes(index.Length),
                 AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayCellBytes, slot.RetainedTextMemoryBytes))) : 0);
-        var key = new AwkArrayKey(AwkText.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint), _checkpoint);
+        var key = AwkArrayKey.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint);
         _checkpoint?.Invoke();
         if (_memoryAccounting.IsEnabled) InsertAdmittedArraySlot(slots, key, slot, oldCapacity);
         else AddArraySlot(slots, key, slot);
@@ -851,7 +851,7 @@ internal sealed partial class AwkVariables
         return GetOrCreateArraySlots(name).Count;
     }
 
-    public AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayName name, bool materializeOrdinalKeys, bool retainValues = false)
+    public AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayName name, bool materializeKeys, bool retainValues = false)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
             return _memoryAccounting.IsEnabled
@@ -859,14 +859,14 @@ internal sealed partial class AwkVariables
                 : new AwkArraySnapshotSize(_symbolTable.Count, 0);
 
         var count = GetArraySnapshotCount(name);
-        return MeasureArraySnapshot(GetOrCreateArraySlots(name), count, materializeOrdinalKeys, retainValues);
+        return MeasureArraySnapshot(GetOrCreateArraySlots(name), count, materializeKeys, retainValues);
     }
 
-    internal AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayIdentity array, bool materializeOrdinalKeys,
-        bool retainValues = false) => MeasureArraySnapshot(array.Slots, array.Slots.Count, materializeOrdinalKeys, retainValues);
+    internal AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayIdentity array, bool materializeKeys,
+        bool retainValues = false) => MeasureArraySnapshot(array.Slots, array.Slots.Count, materializeKeys, retainValues);
 
     private AwkArraySnapshotSize MeasureArraySnapshot(Dictionary<AwkArrayKey, AwkArrayCell> slots, int count,
-        bool materializeOrdinalKeys, bool retainValues)
+        bool materializeKeys, bool retainValues)
     {
         if (!_memoryAccounting.IsEnabled)
             return new AwkArraySnapshotSize(count, 0);
@@ -880,7 +880,7 @@ internal sealed partial class AwkVariables
                 _checkpoint?.Invoke();
             var key = pair.Key;
             keyTextBytes = AwkRuntimeMemory.CheckedAdd(keyTextBytes,
-                key.IsOrdinal && materializeOrdinalKeys
+                key.RequiresTextMaterialization && materializeKeys
                     ? AwkRuntimeMemory.EstimateTextBytes(key.ByteLength) : key.RetainedTextMemoryBytes);
             if (retainValues)
                 valueTextBytes = AwkRuntimeMemory.CheckedAdd(valueTextBytes, pair.Value.RetainedTextMemoryBytes);
