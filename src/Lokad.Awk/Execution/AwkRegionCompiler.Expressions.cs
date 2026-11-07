@@ -227,10 +227,7 @@ internal sealed partial class AwkRegionCompiler
                     if ((compiler._code.Count > beforeRight || readIsLeft) &&
                         compiler._code[^1] is { Detail: 0 } read &&
                         read.Target == (readIsLeft ? leftNumber : rightNumber) &&
-                        read.Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
-                            AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
-                            AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
-                            AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber)
+                        read.IsNumberRead)
                     {
                         // A fresh read has one consumer. Intervening RHS work keeps
                         // the earlier capture; calls retain their own conversion.

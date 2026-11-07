@@ -158,6 +158,10 @@ or environment dependencies.
   Typed numeric reads can finish fresh adjacent arithmetic through their existing Right/Detail
   metadata. Preserve single-consumer proof, operand order, earlier captures across RHS work and
   Call's funded conversion. Plain register arithmetic and field-demand classification stay direct.
+  Numeric returns consume a bound source or number register. Fold only a fresh adjacent producer;
+  preparation retains its canonical source and verifies its instruction position. Returns terminate
+  field-demand preparation. Capture before flushing and keep the callee/storage alive through actual
+  completion; never reread after a host callback. Value returns retain their owned snapshots.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 

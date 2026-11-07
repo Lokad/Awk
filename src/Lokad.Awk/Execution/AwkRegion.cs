@@ -106,7 +106,7 @@ internal readonly record struct AwkRegionNumberSource
 {
     private readonly int _location;
 
-    private AwkRegionNumberSource(int location) => _location = location;
+    internal AwkRegionNumberSource(int location) => _location = location;
 
     internal static AwkRegionNumberSource Bind(int index, AwkRegionOperand operand) =>
         new(operand.Kind == AwkRegionOperandKind.NumberTemporary ? ~operand.Index : index);
@@ -132,7 +132,13 @@ internal enum AwkRegionInstructionKind : byte
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
 internal readonly record struct AwkRegionInstruction(
-    AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0);
+    AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)
+{
+    internal bool IsNumberRead => Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
+        AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
+        AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
+        AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber;
+}
 
 // Typed numeric reads can finish their immediate arithmetic consumer. Zero keeps
 // an ordinary read; the low bits hold operation+1 and bit three reverses operands.

@@ -52,6 +52,7 @@ internal sealed partial class AwkRegionCompiler
                     OperandDemand(instruction.Left) && OperandDemand(instruction.Right),
                 AwkRegionInstructionKind.ArrayUpdate => CompleteUpdate(_updates[instruction.Left]),
                 AwkRegionInstructionKind.ScalarUpdate => TerminalNumberSource(_scalarUpdates[instruction.Left].Right),
+                AwkRegionInstructionKind.ReturnNumber => NumericReturn(instruction.Left),
                 AwkRegionInstructionKind.ArrayPrepare or AwkRegionInstructionKind.ArrayRead or
                 AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.ArrayContains => TerminalAccess(instruction.Left),
                 AwkRegionInstructionKind.PrintField or AwkRegionInstructionKind.PrintValue => TerminalOperand(instruction.Left),
@@ -127,6 +128,11 @@ internal sealed partial class AwkRegionCompiler
             if (source.Kind == AwkRegionOperandKind.Field) Field(source.Index);
             else if (source.Kind == AwkRegionOperandKind.ArrayElement) Access(source.Index);
             return false;
+        }
+        bool NumericReturn(int source)
+        {
+            TerminalNumberSource(new(source));
+            return InvalidatingBoundary();
         }
         bool TerminalOperand(int operand) { OperandDemand(operand); return false; }
         bool TerminalFields(int[] fields)

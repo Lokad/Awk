@@ -20,6 +20,7 @@ internal partial struct AwkRegionMachine
     private ValueTask<AwkValue> _hostValue;
     private int _destination;
     private int _flushFieldDemand;
+    private double _returningNumber;
     private AwkFunctionFrame? _enteringFrame;
     private bool _finished;
     private readonly AwkInputScheduler? _mainInput;
@@ -87,6 +88,10 @@ internal partial struct AwkRegionMachine
             case Pending.Output:
                 if (!_hostCompletion.IsCompletedSuccessfully) return false;
                 CompleteHostOperation();
+                break;
+            case Pending.NumberReturn:
+                if (!_hostCompletion.IsCompletedSuccessfully) return false;
+                CompleteNumberReturn();
                 break;
             case Pending.Read:
                 if (!_hostCompletion.IsCompletedSuccessfully) return false;
@@ -157,6 +162,14 @@ internal partial struct AwkRegionMachine
         var builtin = _region.Builtins[instruction.Left];
         _storage.StoreValue(instruction.Target, value);
         _storage.ReleaseValues(builtin.Start, builtin.Count);
+    }
+
+    private void CompleteNumberReturn()
+    {
+        CompleteHostOperation();
+        var number = _returningNumber;
+        _returningNumber = 0;
+        ReturnNumber(number);
     }
 
     private static void StoreReturnValue(AwkRegionStorage storage, AwkRegionOperand destination, AwkValue value)
@@ -261,6 +274,10 @@ internal partial struct AwkRegionMachine
                             await machine._hostCompletion.ConfigureAwait(false);
                             machine.CompleteHostOperation();
                             break;
+                        case Pending.NumberReturn:
+                            await machine._hostCompletion.ConfigureAwait(false);
+                            machine.CompleteNumberReturn();
+                            break;
                         case Pending.Read:
                             await machine._hostCompletion.ConfigureAwait(false);
                             machine.CompleteRead();
@@ -290,5 +307,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, Output, Read, MainRead, MainClose, BuiltinValue }
+    private enum Pending : byte { None, Flush, NumberReturn, Output, Read, MainRead, MainClose, BuiltinValue }
 }

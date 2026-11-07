@@ -42,6 +42,8 @@ internal sealed partial class AwkRegionCompiler
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
     private readonly Stack<ControlScope> _controls = [];
     private int _numbers;
+    private int _lastNumberRead = -1;
+    private int _lastNumberOperand;
     private int _values;
     private int _texts;
     private int _printSegments;
@@ -290,7 +292,13 @@ internal sealed partial class AwkRegionCompiler
                     returned = CaptureValue(operand);
                 }
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
-                    Emit(new(AwkRegionInstructionKind.ReturnNumber, Left: numericReturn.Index));
+                {
+                    if (_lastNumberRead == _code.Count - 1 && _code.Count > 0 &&
+                        _code[^1] is var read && read.IsNumberRead && read.Target == numericReturn.Index)
+                        _code[^1] = read with { Kind = AwkRegionInstructionKind.ReturnNumber,
+                            Target = 0, Left = _lastNumberOperand };
+                    else Emit(new(AwkRegionInstructionKind.ReturnNumber, Left: ~numericReturn.Index));
+                }
                 else Emit(new(AwkRegionInstructionKind.Return, Left: returned));
                 break;
             case AwkStatementKind.Print:
@@ -738,7 +746,8 @@ internal sealed partial class AwkRegionCompiler
             AwkRegionOperandKind.SpecialVariable or AwkRegionOperandKind.DynamicVariable => AwkRegionInstructionKind.VariableNumber,
             _ => throw new InvalidOperationException("A numeric operand requires a value location.")
         };
-        Emit(new(kind, target, source.IsVariable ? operand : source.Index));
+        _lastNumberRead = Emit(new(kind, target, source.IsVariable ? operand : source.Index));
+        _lastNumberOperand = operand;
         return Operand(AwkRegionOperandKind.NumberTemporary, target);
     }
 

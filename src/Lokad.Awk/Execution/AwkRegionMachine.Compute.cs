@@ -635,12 +635,17 @@ internal partial struct AwkRegionMachine
                     Return(instruction.Left < 0 ? AwkValue.Unassigned() : Value(instruction.Left));
                     goto Resume;
                 case AwkRegionInstructionKind.ReturnNumber:
+                    var returnSource = new AwkRegionNumberSource(instruction.Left);
+                    var returnedNumber = CompleteNumberRead(in instruction, returnSource.IsRegister
+                        ? numbers[returnSource.RegisterIndex] : ReadBoundNumber(in operands[returnSource.OperandIndex]));
                     if (output is { HasPendingOutput: true })
                     {
-                        BeginFlush(output, position);
+                        _returningNumber = returnedNumber;
+                        BeginFlush(output, position + 1);
+                        _pending = Pending.NumberReturn;
                         goto Resume;
                     }
-                    ReturnNumber(numbers[instruction.Left]);
+                    ReturnNumber(returnedNumber);
                     goto Resume;
                 case AwkRegionInstructionKind.Jump:
                     position = instruction.Target - 1;
@@ -829,6 +834,8 @@ internal partial struct AwkRegionMachine
                     return state.GetFieldNumber(FieldOrdinal(operand));
                 case AwkRegionOperandKind.Literal:
                     return state.CreateStringValue(region.Literals[operand.Index]).AsNumber(state.CancellationCheckpoint);
+                case AwkRegionOperandKind.ValueTemporary:
+                    return storage.Values[operand.Index].AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ArrayElement:
                     return ReadArrayNumber(region.Arrays[operand.Index]);
                 case AwkRegionOperandKind.GlobalVariable:
@@ -846,7 +853,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.DynamicVariable:
                     return state.ResolveVariableValue(operand.Name).AsNumber(state.CancellationCheckpoint);
                 default:
-                    throw new InvalidOperationException("An array update requires a numeric value location.");
+                    throw new InvalidOperationException("A numeric source requires a value location.");
             }
         }
 
