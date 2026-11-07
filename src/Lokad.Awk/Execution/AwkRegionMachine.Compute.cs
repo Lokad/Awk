@@ -33,7 +33,7 @@ internal partial struct AwkRegionMachine
         numbers = storage.Numbers;
         for (var position = _position; position < instructions.Length; position++)
         {
-            var instruction = instructions[position];
+            ref readonly var instruction = ref instructions[position];
             switch (instruction.Kind)
             {
                 case AwkRegionInstructionKind.MainRead:
