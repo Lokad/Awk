@@ -183,7 +183,10 @@ internal sealed partial class AwkRegionCompiler
             // Owned results keep immediate conversion (including funded call returns).
             // Other sources are already bound and belong to this complete operation.
             if (_operands[right].Kind == AwkRegionOperandKind.ValueTemporary) right = CaptureNumber(right);
-            var site = _updates[update.Target.Capture] with { Right = right };
+            var site = _updates[update.Target.Capture] with
+            {
+                Right = AwkRegionNumberSource.Bind(right, _operands[right])
+            };
             var captureIndex = _code.Count - 1;
             // Key retirement is part of the same prepared operation, not RHS work.
             if (captureIndex >= 0 && _code[captureIndex].Kind == AwkRegionInstructionKind.KeyEnd)
@@ -221,7 +224,8 @@ internal sealed partial class AwkRegionCompiler
                 _straightLine--;
             }
             var site = _scalarUpdates.Count;
-            _scalarUpdates.Add(new(update.Target.Operand, previous, right, capturePrevious));
+            _scalarUpdates.Add(new(update.Target.Operand, previous,
+                AwkRegionNumberSource.Bind(right, _operands[right]), capturePrevious));
             Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site, Detail: (int)operation));
         }
         else

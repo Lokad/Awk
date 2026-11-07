@@ -100,9 +100,24 @@ internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int 
 }
 internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
+// One prepared location, without another operand lookup for computed numbers.
+// Bound operands use nonnegative indices; complemented register indices are negative.
+internal readonly record struct AwkRegionNumberSource
+{
+    private readonly int _location;
+
+    private AwkRegionNumberSource(int location) => _location = location;
+
+    internal static AwkRegionNumberSource Bind(int index, AwkRegionOperand operand) =>
+        new(operand.Kind == AwkRegionOperandKind.NumberTemporary ? ~operand.Index : index);
+
+    internal bool IsRegister => _location < 0;
+    internal int RegisterIndex => ~_location;
+    internal int OperandIndex => _location;
+}
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,
-    int Right = -1, int PrepareAccess = -1, int Path = -1);
-internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, int Right,
+    AwkRegionNumberSource Right = default, int PrepareAccess = -1, int Path = -1);
+internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, AwkRegionNumberSource Right,
     bool CapturePrevious);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count);
 internal enum AwkRegionInstructionKind : byte

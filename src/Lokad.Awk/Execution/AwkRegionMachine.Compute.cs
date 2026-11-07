@@ -406,9 +406,9 @@ internal partial struct AwkRegionMachine
                         ? ReadBoundNumber(in operands[update.Variable])
                         : numbers[update.Previous];
                     if (update.CapturePrevious) numbers[update.Previous] = previous;
-                    ref readonly var right = ref operands[update.Right];
-                    var rightNumber = right.Kind == AwkRegionOperandKind.NumberTemporary
-                        ? numbers[right.Index] : ReadBoundNumber(in right);
+                    var rightNumber = update.Right.IsRegister
+                        ? numbers[update.Right.RegisterIndex]
+                        : ReadBoundNumber(in operands[update.Right.OperandIndex]);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
                         rightNumber, (AwkCompoundAssignmentOperation)instruction.Detail);
                     AssignVariableNumber(update.Variable, updated);
@@ -446,9 +446,9 @@ internal partial struct AwkRegionMachine
                     if (updateSite.PrepareAccess < 0) capturedUpdate = storage.Targets[updateSite.Slot];
                     else if (updateSite.Path >= 0) capturedUpdate = PrepareNestedArrayUpdate(updateSite.Path);
                     else PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
-                    ref readonly var right = ref operands[updateSite.Right];
-                    var rightNumber = right.Kind == AwkRegionOperandKind.NumberTemporary
-                        ? numbers[right.Index] : ReadBoundNumber(in right);
+                    var rightNumber = updateSite.Right.IsRegister
+                        ? numbers[updateSite.Right.RegisterIndex]
+                        : ReadBoundNumber(in operands[updateSite.Right.OperandIndex]);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         rightNumber,
                         (AwkCompoundAssignmentOperation)instruction.Detail);
