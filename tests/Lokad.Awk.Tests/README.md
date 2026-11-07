@@ -43,6 +43,8 @@ Focused field/value/array tests preserve numeric-string origins and original spe
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
 key and prior value across RHS mutation, deletion, replacement and rehash. Never keep dictionary
 entry references across mutation or suspension. Membership must not insert missing elements.
+Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
+preflights cover both key and value before copying or publishing either.
 Direct record/cache tests use `AwkFieldTestContext` with real splitting services and provider
 ownership. Preserve input versus recomposed-value factories and owner-specific refunds.
 Call and sort/traversal tests exercise aliases, snapshots and captured payloads through actual

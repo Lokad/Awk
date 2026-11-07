@@ -236,16 +236,15 @@ internal sealed partial class AwkArrayRuntime
         TryGetBorrowedKey(name, builder.AsSpan(), out var key, binding) ? key : CopyKey(builder);
 
     internal bool TrySetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index,
-        AwkValue value, AwkArrayBinding binding, out AwkArrayIdentity? missingArray)
+        AwkValue value, AwkArrayBinding binding)
     {
-        missingArray = null;
         AwkArrayCell? cell;
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
             if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell))
             {
-                missingArray = array;
-                return false;
+                _variables.InsertArrayValue(array, index, value);
+                return true;
             }
         }
         else
@@ -261,7 +260,12 @@ internal sealed partial class AwkArrayRuntime
                 SetAwkValue(name, key, value, binding);
                 return true;
             }
-            if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell)) return false;
+            if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell))
+            {
+                _variables.InsertArrayValue(array, index, value);
+                _state.BindGlobalArray(binding, resolved);
+                return true;
+            }
             _state.BindGlobalArray(binding, resolved);
         }
         // Only the stable cell survives lookup; no borrowed bytes or dictionary
@@ -273,11 +277,10 @@ internal sealed partial class AwkArrayRuntime
 
     internal void SetBuilderValue(AwkArrayName name, AwkUtf8Builder builder, AwkValue value, AwkArrayBinding binding)
     {
-        if (TrySetBorrowedAwkValue(name, builder.AsSpan(), value, binding, out var missingArray)) return;
+        if (TrySetBorrowedAwkValue(name, builder.AsSpan(), value, binding)) return;
         var key = CopyKey(builder);
         _state.ThrowIfCancellationRequested();
-        if (missingArray is { } destination) _variables.InsertArrayValue(destination, key, value);
-        else SetAwkValue(name, key, value, binding);
+        SetAwkValue(name, key, value, binding);
     }
 
     public AwkValue GetAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>

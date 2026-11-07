@@ -243,12 +243,22 @@ internal sealed partial class AwkVariables
         SetArraySlot(array.Slots, index, AwkVariableSlot.FromValue(value));
     }
 
-    // The caller's synchronous borrowed lookup proved this key absent. Only owned
-    // key construction may intervene; no RHS or host work can invalidate the miss.
-    internal void InsertArrayValue(AwkArrayIdentity array, AwkArrayKey index, AwkValue value)
+    // The caller's synchronous borrowed lookup proved this key absent. Admit the
+    // retained key and insertion together; no field scalar or cache entry is needed.
+    internal void InsertArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, AwkValue value)
     {
         ThrowIfDetached(array);
-        InsertArraySlot(array.Slots, index, AwkVariableSlot.FromValue(value));
+        var slot = AwkVariableSlot.FromValue(value);
+        var slots = array.Slots;
+        var oldCapacity = _memoryAccounting.IsEnabled ? slots.EnsureCapacity(0) : 0;
+        using var admission = _memoryAccounting.AdmitMutation(_memoryAccounting.IsEnabled
+            ? EstimateArrayInsertionGrowth(slots, AwkRuntimeMemory.CheckedAdd(
+                AwkRuntimeMemory.EstimateTextBytes(index.Length),
+                AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayCellBytes, slot.RetainedTextMemoryBytes))) : 0);
+        var key = new AwkArrayKey(AwkText.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint), _checkpoint);
+        _checkpoint?.Invoke();
+        if (_memoryAccounting.IsEnabled) InsertAdmittedArraySlot(slots, key, slot, oldCapacity);
+        else AddArraySlot(slots, key, slot);
     }
 
     internal void SetArrayCellValue(AwkArrayIdentity array, AwkArrayCell cell, AwkValue value)
@@ -1068,28 +1078,38 @@ internal sealed partial class AwkVariables
     private AwkArrayCell InsertArraySlot(Dictionary<AwkArrayKey, AwkArrayCell> values,
         AwkArrayKey index, AwkVariableSlot slot)
     {
-        if (!_memoryAccounting.IsEnabled) return Insert();
+        if (!_memoryAccounting.IsEnabled) return AddArraySlot(values, index, slot);
         var oldCapacity = values.EnsureCapacity(0);
         var payload = AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot);
         var growth = values.Count == oldCapacity;
         var target = growth ? PlanArrayCapacity(oldCapacity) : oldCapacity;
         using var admission = growth ? _memoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateArrayBackingBytes(BoundArrayCapacity(target)), payload)) : default;
-        if (growth) values.EnsureCapacity(target);
+        return InsertAdmittedArraySlot(values, index, slot, oldCapacity);
+    }
+
+    // The caller admits any capacity growth before key construction or allocation.
+    // Complete the retained owner charge once, before publishing the new cell.
+    private AwkArrayCell InsertAdmittedArraySlot(Dictionary<AwkArrayKey, AwkArrayCell> values,
+        AwkArrayKey index, AwkVariableSlot slot, int oldCapacity)
+    {
+        if (values.Count == oldCapacity) values.EnsureCapacity(PlanArrayCapacity(oldCapacity));
         using var mutation = ReserveMemoryMutation(
-            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateArrayBackingBytes(values.EnsureCapacity(0)), payload),
+            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateArrayBackingBytes(values.EnsureCapacity(0)),
+                AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot)),
             AwkRuntimeMemory.EstimateArrayBackingBytes(oldCapacity));
         _checkpoint?.Invoke();
-        var cell = Insert();
+        var cell = AddArraySlot(values, index, slot);
         mutation.Commit();
         return cell;
+    }
 
-        AwkArrayCell Insert()
-        {
-            var created = new AwkArrayCell(slot);
-            values.Add(index, created);
-            return created;
-        }
+    private static AwkArrayCell AddArraySlot(Dictionary<AwkArrayKey, AwkArrayCell> values,
+        AwkArrayKey index, AwkVariableSlot slot)
+    {
+        var created = new AwkArrayCell(slot);
+        values.Add(index, created);
+        return created;
     }
 
     private void SetArrayCell(AwkArrayCell cell, AwkVariableSlot slot)

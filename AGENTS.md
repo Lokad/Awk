@@ -45,8 +45,9 @@ or environment dependencies.
   never retain a dictionary entry reference across RHS evaluation.
   Plain field/composite assignments consume located cells directly; preserve captured RHS values,
   special-array behavior and owned-key admission on misses without repeating a successful lookup.
-  Bound ordinary misses may survive synchronous key construction into shared admitted insertion;
-  no RHS or host work may intervene. Cold name binding still publishes only after success.
+  Ordinary byte-key misses admit retained key construction and insertion together, without
+  constructing a field scalar/cache just to transport key bytes. No RHS or host work may
+  intervene. Cold name binding still publishes only after success.
   Nested numeric updates use the same captured targets, retaining their owned path through commit.
   Re-resolve detached logical owners before using a cell; do not restore separate nested arithmetic/store transport.
   Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.
