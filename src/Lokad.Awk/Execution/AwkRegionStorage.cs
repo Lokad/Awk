@@ -491,16 +491,21 @@ internal sealed class AwkRegionStorage : IDisposable
         ref readonly var after = ref scope.After;
         ClearIncomingFrames(_incoming.Length);
         for (var index = after.Sorts - 1; index >= before.Sorts; index--) ReleaseSort(index);
-        Array.Clear(_values, before.Values, after.Values - before.Values);
-        Array.Clear(_targets, before.Targets, after.Targets - before.Targets);
+        if (after.Values != before.Values) Array.Clear(_values, before.Values, after.Values - before.Values);
+        if (after.Targets != before.Targets) Array.Clear(_targets, before.Targets, after.Targets - before.Targets);
         for (var index = before.Paths; index < after.Paths; index++) ReleasePath(index);
         for (var index = before.Iterators; index < after.Iterators; index++) ReleaseIterator(index);
         for (var index = before.GetlineTargets; index < after.GetlineTargets; index++) _getlineTargets[index].Dispose();
-        Array.Clear(_getlineTargets, before.GetlineTargets, after.GetlineTargets - before.GetlineTargets);
-        Array.Clear(_arrayTargets, before.ArrayTargets, after.ArrayTargets - before.ArrayTargets);
-        Array.Fill(_texts, AwkText.Empty, before.Texts, after.Texts - before.Texts);
-        Array.Clear(_printSegments, before.PrintSegments, after.PrintSegments - before.PrintSegments);
-        Array.Clear(_borrowedPrintFields, before.PrintSegments, after.PrintSegments - before.PrintSegments);
+        if (after.GetlineTargets != before.GetlineTargets)
+            Array.Clear(_getlineTargets, before.GetlineTargets, after.GetlineTargets - before.GetlineTargets);
+        if (after.ArrayTargets != before.ArrayTargets)
+            Array.Clear(_arrayTargets, before.ArrayTargets, after.ArrayTargets - before.ArrayTargets);
+        if (after.Texts != before.Texts) Array.Fill(_texts, AwkText.Empty, before.Texts, after.Texts - before.Texts);
+        if (after.PrintSegments != before.PrintSegments)
+        {
+            Array.Clear(_printSegments, before.PrintSegments, after.PrintSegments - before.PrintSegments);
+            Array.Clear(_borrowedPrintFields, before.PrintSegments, after.PrintSegments - before.PrintSegments);
+        }
         ClearBuildersAndPayload();
     }
 
