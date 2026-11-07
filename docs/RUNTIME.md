@@ -367,6 +367,8 @@ Dirty records fund their captured `OFS` until reconstruction or replacement, ind
 the variable's current value. Zero- and one-field records do not retain an unused separator.
 Printing dirty text fields to stdout copies into owned output; escaping `$0` still owns its
 reconstructed text. Numeric fields retain reconstruction's formatting checkpoint.
+Record and print-argument preparation supply complete byte lengths before output storage grows.
+Copying publishes the buffered length only after all bytes are owned, including the terminator.
 Main-input records can use bounded frame-owned UTF-8 buffers; larger records retain ordinary
 owned storage. Completing a newline across host batches keeps the remaining suffix with its
 reader; stdin-alias transfers preserve all unread bytes before releasing the borrow.

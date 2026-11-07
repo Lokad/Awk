@@ -107,18 +107,15 @@ internal sealed class AwkUtf8Builder : IDisposable
     }
 
     public void AppendRecord(AwkRecordFields fields, ReadOnlySpan<byte> record,
-        AwkText separator, AwkText terminator, Action? checkpoint = null)
+        AwkText separator, AwkText terminator, int byteLength, Action? checkpoint = null)
     {
         ThrowIfDisposed();
         var between = separator.AsSpan(checkpoint);
         var ending = terminator.AsSpan(checkpoint);
-        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, ending.Length);
-        for (var index = 0; index < fields.Length; index++)
-        {
-            if ((index & 1023) == 0) checkpoint?.Invoke();
-            if (index > 0) nextLength = AwkRuntimeMemory.CheckedAdd(nextLength, between.Length);
-            nextLength = AwkRuntimeMemory.CheckedAdd(nextLength, fields[index].ByteLength());
-        }
+        // The record owner or argument preparation already knows the complete
+        // content length. Consume it without traversing the field descriptors again.
+        var nextLength = AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.CheckedAdd(Length, byteLength), ending.Length);
         // Admit the complete record and terminator before copying. Failed/canceled
         // copies cannot publish a prefix: Length changes only after all bytes are owned.
         EnsureCapacity(nextLength);

@@ -78,8 +78,8 @@ internal sealed class AwkOutputSink : IDisposable
         _standardOutput.Append(segments, record, _checkpoint);
 
     public void AppendRecord(AwkRecordFields fields, ReadOnlySpan<byte> record,
-        AwkText separator, AwkText terminator) =>
-        _standardOutput.AppendRecord(fields, record, separator, terminator, _checkpoint);
+        AwkText separator, AwkText terminator, int byteLength) =>
+        _standardOutput.AppendRecord(fields, record, separator, terminator, byteLength, _checkpoint);
 
     public void ReportDiagnostic(AwkDiagnostic diagnostic)
     {

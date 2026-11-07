@@ -81,6 +81,9 @@ or environment dependencies.
   effects, conditional fallthrough and actual flush completion; it must not move cold admission.
   Scanners bound long work by bytes; owners keep admission and publication cancellation checks.
   Byte-backed CSV/character/width fields need no whole-record text copy. Regex retains its owned subject.
+  Record/print producers determine complete output byte lengths during preparation. The builder
+  admits that length and copies once; keep size checks after argument formatting, and publish
+  Length only after complete cancellation-safe copying. Do not restore a second field-sizing pass.
 - Arithmetic field numbers live in their funded record cells. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.

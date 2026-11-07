@@ -45,7 +45,7 @@ public sealed partial class AwkFieldProjectionTests
         Assert.ThrowsAny<OperationCanceledException>(() => builder.AppendRecord(
             new AwkRecordFields([AwkFieldText.FromRecordSlice(0, record.ByteLength), AwkFieldText.FromOwned(AwkText.FromSourceLiteralString("É"))]),
             record.AsSpan(), AwkText.FromSourceLiteralString("|"), AwkText.FromSourceLiteralString("!"),
-            cancellation.Token.ThrowIfCancellationRequested));
+            record.ByteLength + 3, cancellation.Token.ThrowIfCancellationRequested));
         Assert.True(cancellation.IsCancellationRequested);
         Assert.Equal("keep", AwkUtf8Codec.Decode(builder.AsSpan()));
         Assert.Equal(4, builder.Length);

@@ -79,23 +79,33 @@ internal static class AwkRegionPrinting
         var terminator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         storage.StoreText(print.Texts + print.Count, state.FormatStringByteText(separator));
         storage.StoreText(print.Texts + print.Count + 1, state.FormatStringByteText(terminator));
+        long payloadByteLength = 0;
         for (var index = 0; index < print.Count; index++)
         {
             if ((index & 63) == 0) state.ThrowIfCancellationRequested();
-            if (print.Fields.Length != 0 && borrowed[index]) continue;
-            var text = state.FormatPrintByteText(storage.Values[print.Values + index]);
-            storage.MoveValueToText(print.Values + index, print.Texts + index, text);
-            fields[index] = AwkFieldText.FromOwned(text);
+            if (print.Fields.Length == 0 || !borrowed[index])
+            {
+                var text = state.FormatPrintByteText(storage.Values[print.Values + index]);
+                storage.MoveValueToText(print.Values + index, print.Texts + index, text);
+                fields[index] = AwkFieldText.FromOwned(text);
+            }
+            // The sum of int-sized argument lengths fits in long. Delay the
+            // bounded-size check until every argument has been formatted.
+            payloadByteLength += fields[index].ByteLength();
         }
         state.ThrowIfCancellationRequested();
+        var recordByteLength = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
+            payloadByteLength, AwkRuntimeMemory.CheckedMultiply(
+                storage.Texts[print.Texts + print.Count].ByteLength, Math.Max(0, print.Count - 1))));
         if (print.Output.IsRedirected)
         {
             var redirected = storage.Builders[0].Buffer;
             redirected.Clear();
             redirected.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
-                storage.Texts[print.Texts + print.Count + 1], state.CancellationCheckpoint);
+                storage.Texts[print.Texts + print.Count + 1], recordByteLength, state.CancellationCheckpoint);
         }
-        else output.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count], storage.Texts[print.Texts + print.Count + 1]);
+        else output.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
+            storage.Texts[print.Texts + print.Count + 1], recordByteLength);
         storage.ReleasePrint(print);
     }
 }

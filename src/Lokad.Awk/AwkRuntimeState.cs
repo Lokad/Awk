@@ -500,12 +500,13 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
 
-        if (index == 0 && _recordFields.TryGetRecomposedRecordFields(out var fields, out var record, out var separator))
+        if (index == 0 && _recordFields.TryGetRecomposedRecordFields(
+            out var fields, out var record, out var separator, out var byteLength))
         {
             using var recordFormatting = MemoryAccounting.CreateTransientLease();
             var ending = FormatStringByteText(ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator), recordFormatting);
             // The output owns every copied byte before its host append can suspend.
-            output.AppendRecord(fields, record, separator, ending);
+            output.AppendRecord(fields, record, separator, ending, byteLength);
             return;
         }
         ReadOnlySpan<byte> bytes = default;

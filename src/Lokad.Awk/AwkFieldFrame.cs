@@ -190,7 +190,8 @@ internal sealed class AwkFieldFrame(
     }
 
     public bool TryGetRecomposedRecordFields(
-        out AwkRecordFields fields, out ReadOnlySpan<byte> record, out AwkText separator)
+        out AwkRecordFields fields, out ReadOnlySpan<byte> record, out AwkText separator,
+        out int byteLength)
     {
         // Only text has a stable spelling without reconstruction. Numeric fields must
         // still freeze their CONVFMT spelling when $0 is first observed.
@@ -198,6 +199,8 @@ internal sealed class AwkFieldFrame(
         fields = available ? new(CollectionsMarshal.AsSpan(_fieldTexts), CollectionsMarshal.AsSpan(_fieldValueCache)) : default;
         record = RecordBytes();
         separator = _recompositionSeparator;
+        byteLength = available ? EstimateComposedRecordByteLength(
+            separator.ByteLength, _fieldTexts.Count, _fieldPayloadByteLength) : 0;
         return available;
     }
 
