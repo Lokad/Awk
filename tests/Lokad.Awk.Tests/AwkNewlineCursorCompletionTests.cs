@@ -77,7 +77,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
         if (outcome <= 1)
         {
             Assert.Equal(outcome == 0, await read);
-            var result = cursor.TakeRecord();
+            cursor.TakeRecord(out var result);
             Assert.Equal(outcome == 0, result.HasRecord);
             if (outcome == 0)
             {
@@ -85,14 +85,15 @@ public sealed partial class AwkNewlineCursorCompletionTests
                 Assert.Equal(AwkRecordTerminator.NewLine, result.Terminator);
                 Assert.Equal(AwkRecordFieldSplittingMode.Ordinary, result.FieldSplittingMode);
                 Assert.True(await cursor.MoveNextAsync());
-                var final = cursor.TakeRecord();
+                cursor.TakeRecord(out var final);
                 Assert.Equal("last", final.RecordText.AsString());
                 Assert.Equal(AwkRecordTerminator.Empty, final.Terminator);
                 Assert.Equal(2, reads);
                 Assert.Equal(11, counters.BytesRead);
             }
             Assert.False(await cursor.MoveNextAsync());
-            Assert.False(cursor.TakeRecord().HasRecord);
+            cursor.TakeRecord(out var end);
+            Assert.False(end.HasRecord);
             Assert.Equal(outcome == 0 ? 2 : 1, reads);
         }
         else

@@ -32,7 +32,11 @@ internal partial struct AwkRegionMachine
             return false;
         }
         if (status == AwkRecordReadStatus.EndOfFile) _finished = true;
-        else BeginMainRecord(input.TakeRecord());
+        else
+        {
+            input.TakeRecord(out var record);
+            BeginMainRecord(in record);
+        }
         return true;
     }
 
@@ -42,13 +46,14 @@ internal partial struct AwkRegionMachine
         _pending = Pending.None;
         if (!hasRecord) { _finished = true; return; }
         var input = _mainInput ?? throw new InvalidOperationException("A completed main read requires input.");
-        BeginMainRecord(input.TakeRecord());
+        input.TakeRecord(out var record);
+        BeginMainRecord(in record);
     }
 
-    internal void BeginMainRecord(AwkInputRecordResult input)
+    internal void BeginMainRecord(in AwkInputRecordResult input)
     {
         _recordPhase = _state.EnterActionPhase(AwkActionPhase.Main);
-        _state.PublishInputRecord(input, readsMainInput: true);
+        _state.PublishInputRecord(in input, readsMainInput: true);
         _state.Counters.RecordRecordRead();
     }
 

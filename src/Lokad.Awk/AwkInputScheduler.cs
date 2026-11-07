@@ -38,8 +38,11 @@ internal sealed class AwkInputScheduler(
             input.Cursor.PreserveBorrowedInput(releaseDescriptor: true);
     }
 
-    public AwkInputRecordResult TakeRecord() =>
-        _currentInput is { } input ? input.Cursor.TakeRecord() : AwkInputRecordResult.EndOfFile;
+    public void TakeRecord(out AwkInputRecordResult record)
+    {
+        if (_currentInput is { } input) input.Cursor.TakeRecord(out record);
+        else record = AwkInputRecordResult.EndOfFile;
+    }
 
     public ValueTask<bool> MoveNextAsync() => MoveNextAsync(null);
 
@@ -99,7 +102,7 @@ internal sealed class AwkInputScheduler(
 
             var completedInput = _currentInput ??
                 throw new InvalidOperationException("A completed read requires an input cursor.");
-            var record = completedInput.Cursor.TakeRecord();
+            completedInput.Cursor.TakeRecord(out var record);
             if (record.ClearsRecordTerminator)
                 state.SetRecordTerminator(AwkRecordTerminator.Empty);
 

@@ -7,5 +7,5 @@ internal interface IAwkInputRecordReader
     ValueTask<bool> MoveNextAsync();
 
     // Consume metadata once after completion, before further reads or reentrant work.
-    AwkInputRecordResult TakeRecord();
+    void TakeRecord(out AwkInputRecordResult record);
 }

@@ -30,7 +30,7 @@ Use real immediate and genuinely pending host operations to cover continuation o
 consumption, nested calls, file-phase reentry, nonlocal flow, failure and ignored cancellation.
 Check the visible prefix, stopped suffix, frame restoration, descriptor cleanup and final refunds.
 Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests use the production
-`MoveNextAsync`/`TakeRecord` boundary directly.
+`MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Structured read failures are recoverable `getline`; faulted host operations are redacted failures.
 Mock file truncation occurs at open and appended data becomes visible after close.
 

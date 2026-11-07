@@ -28,7 +28,8 @@ internal static class AwkTestHarness
     public static async ValueTask<AwkInputRecordResult> ReadRecordAsync(this IAwkInputRecordReader reader)
     {
         await reader.MoveNextAsync().ConfigureAwait(false);
-        return reader.TakeRecord();
+        reader.TakeRecord(out var record);
+        return record;
     }
 
     public static AwkExecutionPolicy CreatePolicy() =>

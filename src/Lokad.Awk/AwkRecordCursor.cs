@@ -63,11 +63,10 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
 
     // Consume before another read, publication callback or reentrant execution.
     // Clearing the slot avoids retaining an owned getline value after its user retires it.
-    public AwkInputRecordResult TakeRecord()
+    public void TakeRecord(out AwkInputRecordResult record)
     {
-        var record = _recordResult;
+        record = _recordResult;
         _recordResult = default;
-        return record;
     }
 
     private AwkRecordReadStatus PublishRecord(AwkInputRecordResult record)

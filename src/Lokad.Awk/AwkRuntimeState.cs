@@ -945,7 +945,7 @@ internal sealed class AwkRuntimeState : IDisposable
     // Main input and record-target getline share one preparation/admission.
     // Keep the allowance until every header/record owner has published; release
     // it before actions so relinquished payload can fund later users.
-    internal void PublishInputRecord(AwkInputRecordResult record, bool readsMainInput)
+    internal void PublishInputRecord(in AwkInputRecordResult record, bool readsMainInput)
     {
         var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
         var terminator = hasTerminator ? PrepareRecordTerminatorSlot(record.Terminator) : default;
