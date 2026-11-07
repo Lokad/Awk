@@ -168,7 +168,7 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal void ActivatedCall(int slot) => _incoming[slot] = null;
 
-    internal void StoreTarget(int index, AwkArrayUpdateTarget target)
+    internal void StoreTarget(int index, in AwkArrayUpdateTarget target)
     {
         var oldBytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(_targets[index]) : 0;
         var nextBytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(target) : 0;
@@ -188,7 +188,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (bytes > 0) _payload.Release(bytes);
     }
 
-    private static long ExcessTargetBytes(AwkArrayUpdateTarget target) =>
+    private static long ExcessTargetBytes(in AwkArrayUpdateTarget target) =>
         Math.Max(0, target.RetainedTargetBytes - AwkRuntimeMemory.ArrayUpdateTargetHoldingBytes);
 
     internal void BeginKey(int index, AwkText separator)

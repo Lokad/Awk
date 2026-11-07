@@ -433,29 +433,31 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.ArrayPrepare:
                 {
                     var path = arrays[instruction.Left].Path;
-                    storage.StoreTarget(instruction.Target, path >= 0
-                        ? PrepareNestedArrayUpdate(path) : PrepareArrayUpdate(instruction.Left, complete: false));
+                    AwkArrayUpdateTarget preparedTarget;
+                    if (path >= 0) preparedTarget = PrepareNestedArrayUpdate(path);
+                    else PrepareArrayUpdate(instruction.Left, complete: false, out preparedTarget);
+                    storage.StoreTarget(instruction.Target, in preparedTarget);
                     break;
                 }
                 case AwkRegionInstructionKind.ArrayUpdate:
                 {
                     // Capture survives RHS admission/mutation. No dictionary reference
                     // or borrowed key outlives its synchronous lookup.
-                    var updateSite = region.Updates[instruction.Left];
+                    ref readonly var updateSite = ref region.Updates[instruction.Left];
                     // A complete synchronous operation keeps its target locally. Its
                     // array/key owners remain live throughout RHS conversion and commit.
                     // Captures spanning script instructions retain funded scratch storage.
-                    var capturedUpdate = updateSite.PrepareAccess >= 0
-                        ? updateSite.Path >= 0 ? PrepareNestedArrayUpdate(updateSite.Path)
-                            : PrepareArrayUpdate(updateSite.PrepareAccess, complete: true)
-                        : storage.Targets[updateSite.Slot];
+                    AwkArrayUpdateTarget capturedUpdate;
+                    if (updateSite.PrepareAccess < 0) capturedUpdate = storage.Targets[updateSite.Slot];
+                    else if (updateSite.Path >= 0) capturedUpdate = PrepareNestedArrayUpdate(updateSite.Path);
+                    else PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         ReadUpdateNumber(updateSite.Right),
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
                     if (updateSite.Path >= 0)
-                        state.CommitArrayUpdate(storage.Path(updateSite.Path), capturedUpdate, updated);
-                    else state.CommitArrayUpdate(updateSite.Name, capturedUpdate, updated);
+                        state.CommitArrayUpdate(storage.Path(updateSite.Path), in capturedUpdate, updated);
+                    else state.CommitArrayUpdate(updateSite.Name, in capturedUpdate, updated);
                     if (instruction.Right >= 0) numbers[instruction.Right] = capturedUpdate.Previous;
                     if (updateSite.PrepareAccess < 0) storage.ReleaseTarget(updateSite.Slot);
                     numbers[instruction.Target] = updated;
@@ -783,20 +785,26 @@ internal partial struct AwkRegionMachine
         };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        AwkArrayUpdateTarget PrepareArrayUpdate(int accessIndex, bool complete)
+        void PrepareArrayUpdate(int accessIndex, bool complete, out AwkArrayUpdateTarget target)
         {
-            var access = arrays[accessIndex];
-            var key = operands[access.Key];
-            var target = key.Kind switch
+            ref readonly var access = ref arrays[accessIndex];
+            ref readonly var key = ref operands[access.Key];
+            switch (key.Kind)
             {
-                AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField => state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(key), access.Binding),
-                AwkRegionOperandKind.KeyBuilder => state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding),
-                _ => state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
-            };
+                case AwkRegionOperandKind.Field:
+                case AwkRegionOperandKind.DynamicField:
+                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding);
+                    break;
+                case AwkRegionOperandKind.KeyBuilder:
+                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
+                    break;
+                default:
+                    target = state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding);
+                    break;
+            }
             // The complete operation captured an owned key before retiring scratch,
             // in the same order as the separate ArrayPrepare/KeyEnd instructions.
             if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
-            return target;
         }
 
         double ReadUpdateNumber(int index)
@@ -876,7 +884,7 @@ internal partial struct AwkRegionMachine
         }
 
         static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;
-        int FieldOrdinal(AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];
+        int FieldOrdinal(in AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];
         AwkValue ReadField(int index) => index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(index);
     }
 }

@@ -1297,7 +1297,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key) =>
         _variables.PrepareArrayUpdate(array, key);
 
-    internal void CommitArrayUpdate(AwkCapturedArrayPath path, AwkArrayUpdateTarget target, double number)
+    internal void CommitArrayUpdate(AwkCapturedArrayPath path, in AwkArrayUpdateTarget target, double number)
     {
         var array = path.ResolveOwner(this);
         if (ReferenceEquals(array, target.Array) && _variables.TrySetCapturedArrayNumber(target.Cell, number))
@@ -1306,7 +1306,7 @@ internal sealed class AwkRuntimeState : IDisposable
         Counters.RecordBoundArrayUpdate();
     }
 
-    internal void CommitArrayUpdate(AwkArrayName name, AwkArrayUpdateTarget target, double number)
+    internal void CommitArrayUpdate(AwkArrayName name, in AwkArrayUpdateTarget target, double number)
     {
         if (target.Array is { IsDetached: false } array)
         {
