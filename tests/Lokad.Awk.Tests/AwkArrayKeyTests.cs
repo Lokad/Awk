@@ -4,6 +4,39 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArrayKeyTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(31)]
+    [InlineData(4095)]
+    [InlineData(4096)]
+    [InlineData(4097)]
+    [InlineData(8193)]
+    public void BorrowedKeyEqualityKeepsExactUtf8AndNulBoundariesWithoutCopies(int prefix)
+    {
+        var payload = prefix == 0 ? "" : new string('a', prefix) + "\0é😀z";
+        var bytes = AwkUtf8Codec.Encode(payload).ToArray();
+        var padded = new byte[bytes.Length + 2];
+        padded[0] = padded[^1] = 0xff;
+        bytes.CopyTo(padded.AsSpan(1));
+        var key = new AwkArrayKey(payload);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var comparer = AwkArrayKeyComparer.ForRuntime(static () => { }, counters, AwkMemoryAccounting.Disabled);
+        var values = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 7 };
+        var lookup = values.GetAlternateLookup<ReadOnlySpan<byte>>();
+        Assert.True(lookup.TryGetValue(padded.AsSpan(1, bytes.Length), out var value));
+        Assert.Equal(7, value);
+        Assert.True(comparer.Equals(key, new AwkArrayKey(payload)));
+        Assert.False(comparer.Equals(padded.AsSpan(1, bytes.Length), new AwkArrayKey(payload + "\0")));
+        Assert.False(lookup.ContainsKey(AwkUtf8Codec.Encode(payload + "x").ToArray()));
+        Assert.Single(values);
+        Assert.Equal(0, counters.ArrayAlternateKeyCopies);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.StringDecodes);
+    }
+
     [Fact]
     public void RuntimeComparerMeasuresOwnedAndBorrowedWorkInBytes()
     {
