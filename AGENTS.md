@@ -53,8 +53,10 @@ or environment dependencies.
   intervene. Cold name binding still publishes only after success.
   Short byte keys own their bytes in the existing 16-byte key words; keep numeric ordinals
   distinct. Language/sort projections admit owned text when materialization is required.
-  Nested numeric updates use the same captured targets, retaining their owned path through commit.
-  Re-resolve detached logical owners before using a cell; do not restore separate nested arithmetic/store transport.
+  Complete nested reads/assignments/updates consume bound path components synchronously, preserving
+  intermediate promotion before later keys. Only intervening key/RHS work retains a logical path;
+  its dense scratch slot stays funded through actual users. Complete path metadata owns no scratch.
+  Re-resolve detached logical owners before using a captured cell; keep old-value/key capture before RHS.
   Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.
   Prepared path slots retain funded owner/key capacity while retirement clears active keys and payload.
   Rebind root/binding/depth on reuse and preserve cached owners during slot-array growth. TakePath

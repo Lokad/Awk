@@ -43,7 +43,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var calls = new List<long>();
             foreach (var iterations in new[] { 1, 128 })
             {
-                var source = "function add(a,k){a[k][\"sum\"]++}BEGIN{for(i=0;i<" + iterations +
+                var source = "function one(){return 1}function add(a,k){a[k][\"sum\"]+=one()}BEGIN{for(i=0;i<" + iterations +
                     ";i++)add(a,\"" + key + "\");print a[\"" + key + "\"][\"sum\"]}";
                 var host = new MockFileSystem();
                 var counters = AwkRuntimeCounters.CreateEnabled();
@@ -64,6 +64,31 @@ public sealed partial class AwkBenchmarkCounterTests
             repeatedFunding.Add(calls[1] - calls[0]);
         }
         Assert.True(repeatedFunding[0] < repeatedFunding[1]);
+    }
+
+    [Theory]
+    [InlineData("key", false)] [InlineData("key", true)]
+    [InlineData("long-key-name", false)] [InlineData("long-key-name", true)]
+    public async Task CompleteNestedOperationsAvoidRetainedPathStorage(string key, bool governed)
+    {
+        var source = "function add(p,k){p[k][\"child\"][\"sum\"]+=2;p[k][\"child\"][\"n\"]++;return p[k][\"child\"][\"sum\"]}" +
+            "BEGIN{key=\"" + key + "\";for(i=0;i<128;i++)total=add(a,key);print total,a[key][\"child\"][\"n\"],length(a)}";
+        var host = new MockFileSystem();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var invocation = AwkTestHarness.BuildInvocation("awk", source);
+        var result = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, result.Value);
+        Assert.Equal("256 128 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.BoundArrayUpdates > 0);
+        Assert.Equal(0, counters.CapturedPathAllocations);
+        Assert.Equal(0, counters.CapturedPathKeyBufferAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
     }
 
     [Theory]

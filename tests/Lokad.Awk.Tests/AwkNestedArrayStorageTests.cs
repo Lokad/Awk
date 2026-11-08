@@ -13,7 +13,7 @@ public sealed class AwkNestedArrayStorageTests
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Paths: 1));
         var name = AwkArrayName.FromText("a");
-        storage.BeginPath(0, new(name, default, 2));
+        storage.BeginPath(new(name, default, 2));
         var path = storage.Path(0);
         var capacity = memory.Budget.Reserved;
         var text = CaptureLargeKey(path, state);
@@ -25,7 +25,7 @@ public sealed class AwkNestedArrayStorageTests
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         Assert.False(text.TryGetTarget(out _));
 
-        storage.BeginPath(0, new(AwkArrayName.FromText("other"), default, 1));
+        storage.BeginPath(new(AwkArrayName.FromText("other"), default, 1));
         Assert.Same(path, storage.Path(0));
         Assert.Equal(capacity, memory.Budget.Reserved);
         var key = new AwkArrayKey("last");
@@ -33,7 +33,7 @@ public sealed class AwkNestedArrayStorageTests
         Assert.Equal(key, path.Key); // Shorter use must not read the retained array's last slot.
         storage.ReleasePath(0);
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var failure = Assert.Throws<AwkRuntimeException>(() => storage.BeginPath(0, new(name, default, 64)));
+        var failure = Assert.Throws<AwkRuntimeException>(() => storage.BeginPath(new(name, default, 64)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(capacity, memory.Budget.Reserved);
         Assert.False(path.IsActive);
@@ -51,7 +51,7 @@ public sealed class AwkNestedArrayStorageTests
         var initial = memory.Budget.Reserved;
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Paths: 1));
-        storage.BeginPath(0, new(AwkArrayName.FromText("a"), default, 2));
+        storage.BeginPath(new(AwkArrayName.FromText("a"), default, 2));
         var path = storage.Path(0);
         path.CaptureKey(state, 0, new AwkArrayKey("row"));
         var key = new AwkArrayKey(AwkText.FromString(new string('x', 4096)));
@@ -76,7 +76,7 @@ public sealed class AwkNestedArrayStorageTests
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Paths: 1));
         var descriptor = new AwkRegionPath(AwkArrayName.FromText("a"), default, 2);
-        storage.BeginPath(0, descriptor);
+        storage.BeginPath(descriptor);
         var path = storage.Path(0);
         var capacity = memory.Budget.Reserved;
         if (!growth) path.CaptureKey(state, 0, new AwkArrayKey("first"));
@@ -85,7 +85,7 @@ public sealed class AwkNestedArrayStorageTests
         try
         {
             if (growth)
-                Assert.ThrowsAny<OperationCanceledException>(() => storage.BeginPath(0, descriptor with { Count = 64 }));
+                Assert.ThrowsAny<OperationCanceledException>(() => storage.BeginPath(descriptor with { Count = 64 }));
             else
                 Assert.ThrowsAny<OperationCanceledException>(() => path.CaptureKey(state, 1, next));
         }

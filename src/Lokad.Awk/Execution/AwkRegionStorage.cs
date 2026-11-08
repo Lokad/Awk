@@ -316,8 +316,9 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal string PreparedString(int index) => _values[index].ByteText.PreparedString;
 
-    internal void BeginPath(int slot, AwkRegionPath path)
+    internal void BeginPath(AwkRegionPath path)
     {
+        var slot = path.Slot;
         if (_paths[slot] is { } cached) cached.Restart(_state, path.Name, path.Binding, path.Count);
         else _paths[slot] = AwkCapturedArrayPath.Begin(_state, path.Name, path.Binding, path.Count);
     }

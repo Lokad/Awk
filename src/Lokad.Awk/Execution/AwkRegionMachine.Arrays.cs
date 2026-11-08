@@ -2,14 +2,6 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    // Keep logical-path preparation out of the common inlined field/key update.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private AwkArrayUpdateTarget PrepareNestedArrayUpdate(int index)
-    {
-        var path = _storage.Path(index);
-        return _state.PrepareArrayUpdate(path.ResolveOwner(_state), path.Key);
-    }
-
     private bool AdvanceSort(AwkRegionSort site, int result, int position)
     {
         var storage = _storage;

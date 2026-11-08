@@ -203,7 +203,7 @@ internal partial struct AwkRegionMachine
                 {
                     var inspected = region.Arrays[instruction.Left];
                     var kind = inspected.Path >= 0
-                        ? state.GetArrayAwkValue(storage.Path(inspected.Path).ResolveOwner(state), storage.Path(inspected.Path).Key).RuntimeKind
+                        ? state.GetArrayAwkValue(CapturedPath(inspected.Path).ResolveOwner(state), CapturedPath(inspected.Path).Key).RuntimeKind
                         : state.GetArrayElementRuntimeKind(inspected.Name, Key(inspected), inspected.Binding);
                     if (instruction.Detail == 0) numbers[instruction.Target] = kind == AwkRuntimeValueKind.Array ? 1 : 0;
                     else storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
@@ -287,16 +287,16 @@ internal partial struct AwkRegionMachine
                     storage.Builders[instruction.Target].Buffer.Clear();
                     break;
                 case AwkRegionInstructionKind.PathBegin:
-                    storage.BeginPath(instruction.Target, region.Paths[instruction.Target]);
+                    storage.BeginPath(region.Paths[instruction.Target]);
                     break;
                 case AwkRegionInstructionKind.PathKey:
                     var capturedKey = CaptureKey(instruction.Left);
-                    var capturedPath = storage.Path(instruction.Target);
+                    var capturedPath = CapturedPath(instruction.Target);
                     if (instruction.Detail == 0) capturedPath.Append(state, instruction.Right, capturedKey);
                     else capturedPath.CaptureKey(state, instruction.Right, capturedKey);
                     break;
                 case AwkRegionInstructionKind.NestedContains:
-                    var membershipPath = storage.Path(instruction.Left);
+                    var membershipPath = CapturedPath(instruction.Left);
                     var membershipOwner = state.GetSubarray(membershipPath.ResolveOwner(state), membershipPath.Key);
                     numbers[instruction.Target] = membershipOwner.ByteLookup
                         .ContainsKey(storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
@@ -329,10 +329,10 @@ internal partial struct AwkRegionMachine
                     storage.ReleaseIterator(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.PathDelete:
-                    storage.Path(instruction.Target).Delete(state);
+                    CapturedPath(instruction.Target).Delete(state);
                     break;
                 case AwkRegionInstructionKind.PathEnd:
-                    storage.ReleasePath(instruction.Target);
+                    storage.ReleasePath(region.Paths[instruction.Target].Slot);
                     break;
                 case AwkRegionInstructionKind.ArrayRead:
                     storage.StoreValue(instruction.Target, ReadArray(region.Arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
@@ -438,7 +438,7 @@ internal partial struct AwkRegionMachine
                 {
                     var path = region.Arrays[instruction.Left].Path;
                     AwkArrayUpdateTarget preparedTarget;
-                    if (path >= 0) preparedTarget = PrepareNestedArrayUpdate(path);
+                    if (path >= 0) preparedTarget = PreparePathUpdate(path);
                     else PrepareArrayUpdate(instruction.Left, complete: false, out preparedTarget);
                     storage.StoreTarget(instruction.Target, in preparedTarget);
                     break;
@@ -453,7 +453,7 @@ internal partial struct AwkRegionMachine
                     // Captures spanning script instructions retain funded scratch storage.
                     AwkArrayUpdateTarget capturedUpdate;
                     if (updateSite.PrepareAccess < 0) capturedUpdate = storage.Targets[updateSite.Slot];
-                    else if (updateSite.Path >= 0) capturedUpdate = PrepareNestedArrayUpdate(updateSite.Path);
+                    else if (updateSite.Path >= 0) capturedUpdate = PreparePathUpdate(updateSite.Path);
                     else PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
                     var rightNumber = updateSite.Right.IsRegister
                         ? numbers[updateSite.Right.RegisterIndex]
@@ -462,8 +462,8 @@ internal partial struct AwkRegionMachine
                         rightNumber,
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     state.ThrowIfCancellationRequested();
-                    if (updateSite.Path >= 0)
-                        state.CommitArrayUpdate(storage.Path(updateSite.Path), in capturedUpdate, updated);
+                    if (updateSite.Path >= 0 && region.Paths[updateSite.Path].ImmediateKeys is null)
+                        state.CommitArrayUpdate(CapturedPath(updateSite.Path), in capturedUpdate, updated);
                     else state.CommitArrayUpdate(updateSite.Name, in capturedUpdate, updated);
                     if (instruction.Right >= 0) numbers[instruction.Right] = capturedUpdate.Previous;
                     if (updateSite.PrepareAccess < 0) storage.ReleaseTarget(updateSite.Slot);
@@ -474,10 +474,20 @@ internal partial struct AwkRegionMachine
                     var assigned = region.Arrays[instruction.Target];
                     if (assigned.Path >= 0)
                     {
-                        var assignedPath = storage.Path(assigned.Path);
-                        var assignedValue = Value(instruction.Left);
-                        state.ThrowIfCancellationRequested();
-                        state.SetArrayAwkValue(assignedPath.ResolveOwner(state), assignedPath.Key, assignedValue);
+                        if (region.Paths[assigned.Path].ImmediateKeys is not null)
+                        {
+                            ResolvePath(assigned.Path, out var assignedOwner, out var assignedKey);
+                            var assignedValue = Value(instruction.Left);
+                            state.ThrowIfCancellationRequested();
+                            state.SetArrayAwkValue(assignedOwner, assignedKey, assignedValue);
+                        }
+                        else
+                        {
+                            var assignedPath = CapturedPath(assigned.Path);
+                            var assignedValue = Value(instruction.Left);
+                            state.ThrowIfCancellationRequested();
+                            state.SetArrayAwkValue(assignedPath.ResolveOwner(state), assignedPath.Key, assignedValue);
+                        }
                     }
                     else
                     {
@@ -714,7 +724,7 @@ internal partial struct AwkRegionMachine
             {
                 var array = region.Arrays[target.Index];
                 return array.Path >= 0
-                    ? AwkResolvedReference.NestedArrayElement(storage.TakePath(array.Path))
+                    ? AwkResolvedReference.NestedArrayElement(storage.TakePath(region.Paths[array.Path].Slot))
                     : AwkResolvedReference.ArrayElement(array.Name, Key(array));
             }
             throw new InvalidOperationException("Unknown mutable location.");
@@ -795,12 +805,41 @@ internal partial struct AwkRegionMachine
             _ => ReadKey(access.Key)
         };
 
+        AwkCapturedArrayPath CapturedPath(int index) => storage.Path(region.Paths[index].Slot);
+
+        AwkArrayUpdateTarget PreparePathUpdate(int index)
+        {
+            ResolvePath(index, out var owner, out var key);
+            return state.PrepareArrayUpdate(owner, key);
+        }
+
+        void ResolvePath(int index, out AwkArrayIdentity owner, out AwkArrayKey key)
+        {
+            var path = region.Paths[index];
+            if (path.ImmediateKeys is not { } keys)
+            {
+                var captured = CapturedPath(index);
+                owner = captured.ResolveOwner(state);
+                key = captured.Key;
+                return;
+            }
+            key = CaptureKey(keys[0]);
+            owner = state.GetSubarray(path.Name, key, path.Binding);
+            for (var depth = 1; depth < keys.Length - 1; depth++)
+            {
+                if ((depth & 63) == 63) state.ThrowIfCancellationRequested();
+                key = CaptureKey(keys[depth]);
+                owner = state.GetSubarray(owner, key);
+            }
+            key = CaptureKey(keys[^1]);
+        }
+
         AwkValue ReadArray(AwkRegionArrayAccess access)
         {
             if (access.Path >= 0)
             {
-                var path = storage.Path(access.Path);
-                return state.GetArrayAwkValue(path.ResolveOwner(state), path.Key);
+                ResolvePath(access.Path, out var owner, out var key);
+                return state.GetArrayAwkValue(owner, key);
             }
             return operands[access.Key] switch
             {
@@ -814,8 +853,8 @@ internal partial struct AwkRegionMachine
         {
             if (access.Path >= 0)
             {
-                var path = storage.Path(access.Path);
-                return state.GetArrayNumber(path.ResolveOwner(state), path.Key);
+                ResolvePath(access.Path, out var owner, out var key);
+                return state.GetArrayNumber(owner, key);
             }
             return operands[access.Key] switch
             {

@@ -15,8 +15,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var allocations = new List<(long Owners, long Buffers)>();
         foreach (var count in new[] { 1, 128 })
         {
-            var source = "function shallow(p,unused){p[\"r\"][\"c\"]++;return p[\"r\"][\"c\"]}" +
-                "function deep(unused,q){q[\"r\"][\"s\"][\"c\"]++;q[\"r\"][\"s\"][\"extra\"]=1;return q[\"r\"][\"s\"][\"c\"]}" +
+            var source = "function key(){return \"c\"}function shallow(p,unused){p[\"r\"][key()]++;return p[\"r\"][key()]}" +
+                "function deep(unused,q){q[\"r\"][\"s\"][key()]++;q[\"r\"][\"s\"][\"extra\"]=1;return q[\"r\"][\"s\"][key()]}" +
                 "BEGIN{for(i=0;i<" + count + ";i++)total+=shallow(a,7)+deep(7,b);print total,a[\"r\"][\"c\"],b[\"r\"][\"s\"][\"c\"],b[\"r\"][\"s\"][\"extra\"]}";
             var host = new MockFileSystem();
             var counters = AwkRuntimeCounters.CreateEnabled();

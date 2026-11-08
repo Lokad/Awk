@@ -120,6 +120,7 @@ internal sealed partial class AwkRegionCompiler
                 var operand = compiler._operands[location.Operand];
                 if (location.Access >= 0)
                 {
+                    compiler.PrepareImmediatePath(location.Access);
                     compiler.Emit(new(AwkRegionInstructionKind.ArrayAssign, location.Access, _value));
                     compiler.FinishKey(location.Access);
                 }
@@ -202,9 +203,15 @@ internal sealed partial class AwkRegionCompiler
             // Only captures crossing instructions need storage and rule retirement.
             if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);
             _updates[update.Target.Capture] = site;
+            if (site.PrepareAccess >= 0 && (site.Right.IsRegister ||
+                _operands[site.Right.OperandIndex].Kind is AwkRegionOperandKind.LocalVariable or
+                    AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
+                    AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField))
+                PrepareImmediatePath(site.PrepareAccess);
             Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture, oldNumber,
                 Detail: (int)operation));
-            if (site.Path >= 0) Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
+            if (site.Path >= 0 && _paths[site.Path].ImmediateKeys is null)
+                Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
             _activeUpdates--;
         }
         else if (_operands[update.Target.Operand].IsVariable)

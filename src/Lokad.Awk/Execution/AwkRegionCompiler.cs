@@ -18,6 +18,7 @@ internal sealed partial class AwkRegionCompiler
     private int _activeUpdates;
     private int _updateSlots;
     private readonly List<AwkRegionPath> _paths = [];
+    private int _capturedPaths;
     private int _builderCount;
     private readonly List<AwkRegionCall> _calls = [];
     private readonly List<AwkRegionBuiltin> _builtins = [];
@@ -215,7 +216,7 @@ internal sealed partial class AwkRegionCompiler
     }
 
     private AwkRegionStorageLayout StorageLayout() =>
-        new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderCount, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _paths.Count, _iterators, _arrayTargets, _sortSlots);
+        new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderCount, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _capturedPaths, _iterators, _arrayTargets, _sortSlots);
 
     private AwkRegion CreateRegion()
     {
@@ -492,7 +493,8 @@ internal sealed partial class AwkRegionCompiler
     {
         if (_arrays[access].Path >= 0)
         {
-            Emit(new(AwkRegionInstructionKind.PathEnd, _arrays[access].Path));
+            if (_paths[_arrays[access].Path].ImmediateKeys is null)
+                Emit(new(AwkRegionInstructionKind.PathEnd, _arrays[access].Path));
             return;
         }
         if (_operands[_arrays[access].Key] is not { Kind: AwkRegionOperandKind.KeyBuilder } key) return;
@@ -505,6 +507,7 @@ internal sealed partial class AwkRegionCompiler
         var operand = _operands[target];
         if (operand.Kind == AwkRegionOperandKind.ArrayElement)
         {
+            PrepareImmediatePath(operand.Index);
             Emit(new(AwkRegionInstructionKind.ArrayAssign, operand.Index, value));
             FinishKey(operand.Index);
         }

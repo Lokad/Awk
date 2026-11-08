@@ -286,6 +286,64 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     }
 
     [Theory]
+    [InlineData("complete", false)] [InlineData("complete", true)]
+    [InlineData("cancel", false)] [InlineData("cancel", true)]
+    [InlineData("refuse", false)] [InlineData("refuse", true)]
+    public async Task MixedNestedOperationsKeepCapturesThroughActualPendingReads(string outcome, bool rhs)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInput(rhs ? "3\n" : "v\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
+        {
+            entered.TrySetResult();
+            await resume.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
+        var script = "function selected(x){delete a[\"staged\"];a[\"staged\"][\"keep\"]=9;getline x;return " +
+            (rhs ? "x+0" : "x") + "}BEGIN{a[\"direct\"][\"v\"]=2;a[\"direct\"][\"v\"]+=3;" +
+            "a[\"staged\"][\"v\"]=5;print \"ready\";" +
+            (rhs ? "a[\"staged\"][\"v\"]+=selected();" : "a[\"staged\"][selected()]+=3;") +
+            "print a[\"direct\"][\"v\"],a[\"staged\"][\"v\"],a[\"staged\"][\"keep\"]}END{print \"completed\"}";
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var execution = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", script))
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(execution.IsCompleted);
+            Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            var held = budget.Reserved;
+            Assert.True(held > 0);
+            if (outcome == "cancel") cancellation.Cancel();
+            if (outcome == "refuse") budget.RefuseNextAdmissionMinimumGrowth = 1;
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved >= held);
+            resume.TrySetResult();
+            if (outcome == "cancel")
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution.WaitAsync(TimeSpan.FromSeconds(10)));
+            else
+                Assert.Equal(outcome == "complete" ? AwkExitCode.Success : AwkExitCode.FatalError,
+                    await execution.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(outcome == "complete" ? (rhs ? "ready\n5 8 9\ncompleted\n" : "ready\n5 3 9\ncompleted\n") : "ready\n",
+                host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(outcome == "refuse" ? "awk: memory limit exceeded\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            resume.TrySetResult();
+            try { await execution.WaitAsync(TimeSpan.FromSeconds(10)); } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task InputCommandHandoffReleasesTheParentStdinBorrow(bool governed)
     {

@@ -8,9 +8,9 @@ internal partial struct AwkRegionMachine
         AwkArrayTarget target;
         if (access.Path >= 0)
         {
-            var path = _storage.Path(access.Path);
+            var path = _storage.Path(_region.Paths[access.Path].Slot);
             target = new(AwkValue.FromArrayReference(_state.GetSubarray(path.ResolveOwner(_state), path.Key)));
-            _storage.ReleasePath(access.Path);
+            _storage.ReleasePath(_region.Paths[access.Path].Slot);
         }
         else if (access.Key >= 0)
             target = new(AwkValue.FromArrayReference(_state.GetSubarray(access.Name, key, access.Binding)));
