@@ -203,9 +203,16 @@ internal sealed partial class AwkVariables
     {
         ThrowIfDetached(parent);
         var slots = parent.Slots;
-        var found = slots.TryGetValue(key, out var entry);
+        slots.TryGetValue(key, out var entry);
+        if (entry is not null && entry.TryGetArrayBinding(out var existing)) return existing;
+        return CreateSubarray(parent, key, slots, entry);
+    }
+
+    private AwkArrayIdentity CreateSubarray(AwkArrayIdentity parent, AwkArrayKey key,
+        Dictionary<AwkArrayKey, AwkArrayCell> slots, AwkArrayCell? entry)
+    {
+        var found = entry is not null;
         var slot = entry?.Slot ?? default;
-        if (slot.TryGetArrayBinding(out var existing)) return existing;
         if (found && !slot.IsUntyped)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
 
