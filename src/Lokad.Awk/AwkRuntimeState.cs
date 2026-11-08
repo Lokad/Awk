@@ -1248,14 +1248,19 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
             _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, binding))
         {
             Counters.RecordBorrowedFieldTargetSnapshot();
             return target;
         }
+        return PrepareArrayFieldValueUpdate(name, index, binding);
+    }
+
+    private AwkArrayUpdateTarget PrepareArrayFieldValueUpdate(AwkArrayName name, int index, AwkArrayBinding binding)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return PrepareArrayUpdate(name, ToArrayKey(field), binding);
     }

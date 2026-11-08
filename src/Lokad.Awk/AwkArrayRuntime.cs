@@ -212,8 +212,14 @@ internal sealed partial class AwkArrayRuntime
             target = default;
             return false;
         }
+        return TryPrepareUnboundBorrowedUpdate(name, index, out target, binding);
+    }
+
+    private bool TryPrepareUnboundBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
+        out AwkArrayUpdateTarget target, AwkArrayBinding binding)
+    {
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        if (_variables.TryGetOrdinaryArray(resolved, out array))
+        if (_variables.TryGetOrdinaryArray(resolved, out var array))
         {
             if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
             {
