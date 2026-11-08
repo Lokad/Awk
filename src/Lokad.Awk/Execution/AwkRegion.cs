@@ -173,7 +173,8 @@ internal readonly record struct AwkRegionNumberContinuation(int Detail)
 internal enum AwkRegionArgumentKind : byte
 {
     Value, Number, Local, LocalValue, Global, GlobalValue, Variable,
-    Field, DynamicField, ArithmeticField, DynamicArithmeticField
+    Field, DynamicField, ArithmeticField, DynamicArithmeticField,
+    KeyLocal, KeyLocalValue, KeyGlobal, KeyGlobalValue, KeyField, DynamicKeyField
 }
 
 // Prepared ownership bounds for one rule's scratch, including reused update slots. Shared
@@ -200,14 +201,20 @@ internal readonly record struct AwkRegionCall
 // index; names preserve ordinary resolution when a bound location is unavailable.
 internal readonly record struct AwkRegionArgument(AwkRegionArgumentKind Kind, int Index, AwkVariableName Name = default)
 {
-    internal static AwkRegionArgument Bind(int index, AwkRegionOperand source, bool grouped, bool arithmetic) =>
+    internal static AwkRegionArgument Bind(int index, AwkRegionOperand source, bool grouped, AwkParameterInput consumption) =>
         source.Kind switch
         {
             AwkRegionOperandKind.NumberTemporary => new(AwkRegionArgumentKind.Number, source.Index),
-            AwkRegionOperandKind.LocalVariable => new(grouped ? AwkRegionArgumentKind.LocalValue : AwkRegionArgumentKind.Local, source.Index, source.Name),
-            AwkRegionOperandKind.GlobalVariable => new(grouped ? AwkRegionArgumentKind.GlobalValue : AwkRegionArgumentKind.Global, source.Index, source.Name),
-            AwkRegionOperandKind.Field => new(arithmetic ? AwkRegionArgumentKind.ArithmeticField : AwkRegionArgumentKind.Field, source.Index),
-            AwkRegionOperandKind.DynamicField => new(arithmetic ? AwkRegionArgumentKind.DynamicArithmeticField : AwkRegionArgumentKind.DynamicField, source.Index),
+            AwkRegionOperandKind.LocalVariable => new(consumption == AwkParameterInput.Key
+                ? grouped ? AwkRegionArgumentKind.KeyLocalValue : AwkRegionArgumentKind.KeyLocal
+                : grouped ? AwkRegionArgumentKind.LocalValue : AwkRegionArgumentKind.Local, source.Index, source.Name),
+            AwkRegionOperandKind.GlobalVariable => new(consumption == AwkParameterInput.Key
+                ? grouped ? AwkRegionArgumentKind.KeyGlobalValue : AwkRegionArgumentKind.KeyGlobal
+                : grouped ? AwkRegionArgumentKind.GlobalValue : AwkRegionArgumentKind.Global, source.Index, source.Name),
+            AwkRegionOperandKind.Field => new(consumption == AwkParameterInput.Arithmetic ? AwkRegionArgumentKind.ArithmeticField :
+                consumption == AwkParameterInput.Key ? AwkRegionArgumentKind.KeyField : AwkRegionArgumentKind.Field, source.Index),
+            AwkRegionOperandKind.DynamicField => new(consumption == AwkParameterInput.Arithmetic ? AwkRegionArgumentKind.DynamicArithmeticField :
+                consumption == AwkParameterInput.Key ? AwkRegionArgumentKind.DynamicKeyField : AwkRegionArgumentKind.DynamicField, source.Index),
             AwkRegionOperandKind.DynamicVariable or AwkRegionOperandKind.SpecialVariable when !grouped =>
                 new(AwkRegionArgumentKind.Variable, index, source.Name),
             _ => new(AwkRegionArgumentKind.Value, index)

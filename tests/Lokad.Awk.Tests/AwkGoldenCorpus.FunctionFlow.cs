@@ -10,6 +10,30 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("key-parameters-retain-scalar-scratch-for-conditional-forwarding",
+            ["function put(a,k){a[k]++;return a[k]}function relay(a,k,yes){a[k]++;return put(a,yes?k:\"other\")}{print relay(a,$1,1),$1}END{print length(a),a[\"0007\"]}"], [],
+            "2 0007\n1 2\n", "0007\n");
+        yield return Passing("key-parameters-preserve-missing-and-extra-argument-effects",
+            ["function put(a,k){a[k]++;return a[k]}function side(){effects++;return 7}BEGIN{print put(a),put(a,\"\",side()),effects,length(a)}"], [],
+            "1 2 1 1\n", "");
+        yield return Passing("key-parameters-preserve-spelling-through-forwarding",
+            ["function outer(a,k){return inner(a,(k))}function inner(a,k){a[k]++;return a[k]}{print outer(a,$1),outer(b,$2),$1,$2,typeof($1),typeof($2)}END{print length(a),length(b),(\"0007\" in a),(7 in a)}"], [],
+            "1 1 0007 +0 strnum strnum\n1 1 é😀abc abcdefgh string string\n1 1 a\u0000b éé string string\n3 3 1 0\n", "0007 +0\né😀abc abcdefgh\na\u0000b éé\n");
+        yield return Passing("key-parameters-convert-numbers-at-use",
+            ["function setkey(a,k){CONVFMT=\"%.2f\";a[k]++;return a[k]}function written(a,k){k=k+0;a[k]++;return k}function observed(a,k){a[k]++;return typeof(k)\":\"k}BEGIN{CONVFMT=\"%.1f\";print setkey(a,1.25),(\"1.25\" in a),(\"1.2\" in a);$0=\"001.250\";CONVFMT=\"%.1f\";print setkey(a,$1),(\"001.250\" in a);print written(a,$1),(1.25 in a);print observed(a,$1);$1=2.375;CONVFMT=\"%.1f\";print setkey(a,$1),(\"2.38\" in a),(\"2.4\" in a);x=\"0007\";print setkey(a,x),(\"0007\" in a)}"], [],
+            "1 1 0\n1 1\n1.25 1\nstrnum:001.250\n1 1 0\n1 1\n", "");
+        yield return Passing("key-arguments-capture-before-record-replacement",
+            ["function change(){$0=\"new 9\";return 0}function save(a,k,ignored){a[k]++;return a[k]}{i=1;print save(a,$i,change()),$1}END{print (\"old\" in a),(\"abcdefgh\" in a),(\"new\" in a),length(a)}"], [],
+            "1 new\n1 new\n1 1 0 2\n", "old 1\nabcdefgh 2\n");
+        yield return Passing("key-parameters-follow-recursive-and-unread-forwarding",
+            ["function unused(a,k){a[\"side\"]++;return 0}function f(a,k,n){if(n==2){print \"checkpoint\";delete a[k]}if(n)return g(a,k,n-1);a[k]++;unused(a,k);return a[k]}function g(a,k,n){return f(a,k,n)}{print f(a,$1,4),$1}END{print a[\"side\"],length(a)}"], [],
+            "checkpoint\n1 0007\ncheckpoint\n1 abcdefgh\n2 3\n", "0007\nabcdefgh\n");
+        yield return Passing("key-parameters-retain-composite-and-conditional-values",
+            ["function usekey(a,k,b){a[b?k:\"other\"]++;a[k,\"suffix\"]++;return a[b?k:\"other\"]}{print usekey(a,$1,NR%2),$1,typeof($1)}END{print length(a)}"], [],
+            "1 0007 strnum\n1 0007 strnum\n3\n", "0007\n0007\n");
+        yield return Passing("key-parameters-keep-csv-decoding-and-origins",
+            ["--csv", "function outer(a,k){return inner(a,k)}function inner(a,k){a[k]++;return a[k]}{print outer(a,$1),$1,typeof($1),NF}END{print length(a)}"], [],
+            "1 0007 strnum 2\n1 k\"z string 2\n1 é😀 string 2\n3\n", "\"0007\",x\n\"k\"\"z\",y\n\"é😀\",z\n");
         yield return Passing("call-cells-recycle-scalar-array-and-buffered-layouts",
             ["function id(x){return x}function touch(a,k,unused){a[k]++;return a[k]}function relay(x){return touch(x,\"k\")}BEGIN{for(i=0;i<3;i++)print id(\"0007\"),relay(a),id(i+0);print length(a),a[\"k\"]}"], [],
             "0007 1 0\n0007 2 1\n0007 3 2\n1 3\n");

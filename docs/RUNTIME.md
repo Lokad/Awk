@@ -201,6 +201,9 @@ Transferred destinations keep their independent owner and lease through actual c
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.
+Key-only parameters can instead carry owned key bytes through known forwarding calls. Observers,
+writes and general scalar scratch retain full values. Numeric keys still format at their actual
+use, so a callee's `CONVFMT` change takes effect. Pending calls keep captured keys funded.
 Prepared call segments bind argument source locations and stage directly into admitted incoming
 frames in source order. Dynamic types and unavailable bindings retain runtime resolution.
 Snapshots precede admission callbacks; intervening effects retain earlier captures, and the

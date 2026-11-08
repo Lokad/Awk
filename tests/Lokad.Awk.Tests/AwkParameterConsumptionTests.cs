@@ -3,6 +3,28 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkParameterConsumptionTests
 {
     [Theory]
+    [InlineData("function f(a,k){a[k]++;return a[k]}", "f", "VK")]
+    [InlineData("function f(a,k){a[k]++;print k}", "f", "VV")]
+    [InlineData("function f(a,k){a[k]++;k=7}", "f", "VV")]
+    [InlineData("function f(a,k){a[k]++;return k+0}", "f", "VV")]
+    [InlineData("function f(a,k){a[k,1]++}", "f", "VV")]
+    [InlineData("function f(a,k,b){a[b?k:1]++}", "f", "VVV")]
+    [InlineData("function f(a,k){a[k]++;return g(k)}function g(k){return 1}", "f", "VK")]
+    [InlineData("function f(a,k){a[k]++;return g(k)}function g(k){k=7}", "f", "VV")]
+    [InlineData("function f(a,k){a[k]++;return g(k)}function g(k){return typeof(k)}", "f", "VV")]
+    [InlineData("function f(a,k,n){if(n)return g(a,k,n-1);return a[k]}function g(a,k,n){return f(a,k,n)}", "f", "VKV")]
+    [InlineData("function f(a,k,n){if(n)return g(a,k,n-1);return a[k]}function g(a,k,n){return f(a,k,n)}", "g", "VKV")]
+    [InlineData("function f(a,k,b){a[k]++;return g(a,b?k:0)}function g(a,k){return a[k]}", "f", "VVV")]
+    [InlineData("function f(a,k,b){return g(a,b?k:0)}function g(a,k){return a[k]}", "f", "VVV")]
+    [InlineData("function f(a,k,b){return g(a,b?k+1:0)}function g(a,k){return a[k]}", "f", "VAV")]
+    public void CompleteKeyConsumersAndForwardingPreserveObservableValues(string source, string function, string expected)
+    {
+        var layout = Bind(source).Functions[AwkFunctionName.FromText(function)].LocalLayout;
+        Assert.Equal(expected, string.Concat(Enumerable.Range(0, layout.SlotCount).Select(i =>
+            layout.InputConsumption(i) switch { AwkParameterInput.Key => "K", AwkParameterInput.Arithmetic => "A", _ => "V" })));
+    }
+
+    [Theory]
     [InlineData("function f(x){return x+1}", "f", "1")]
     [InlineData("function f(x){return int(x)}", "f", "1")]
     [InlineData("function f(x){return g(x)}function g(x){return sqrt(x)}", "f", "1")]
@@ -29,7 +51,7 @@ public sealed partial class AwkParameterConsumptionTests
     {
         var layout = Bind(source).Functions[AwkFunctionName.FromText(function)].LocalLayout;
         Assert.Equal(expected, string.Concat(Enumerable.Range(0, layout.SlotCount)
-            .Select(i => layout.ConsumesArithmeticInput(i) ? "1" : "0")));
+            .Select(i => (layout.InputConsumption(i) == AwkParameterInput.Arithmetic) ? "1" : "0")));
     }
 
     [Fact]
@@ -39,8 +61,8 @@ public sealed partial class AwkParameterConsumptionTests
         var source = "function f(" + parameters + "){" + string.Concat(Enumerable.Repeat("sum+=x;", 64)) +
             "print \"done\";return sum}";
         var layout = Bind(source).Functions[AwkFunctionName.FromText("f")].LocalLayout;
-        Assert.True(layout.ConsumesArithmeticInput(0));
-        for (var i = 1; i < layout.SlotCount; i++) Assert.False(layout.ConsumesArithmeticInput(i));
+        Assert.True((layout.InputConsumption(0) == AwkParameterInput.Arithmetic));
+        for (var i = 1; i < layout.SlotCount; i++) Assert.False((layout.InputConsumption(i) == AwkParameterInput.Arithmetic));
     }
 
     private static AwkProgram Bind(string source)

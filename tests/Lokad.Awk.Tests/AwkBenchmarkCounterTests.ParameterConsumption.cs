@@ -2,6 +2,50 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    public static IEnumerable<object[]> KeyParameterConsumptions()
+    {
+        foreach (var governed in new[] { false, true })
+        foreach (var forward in new[] { false, true })
+        foreach (var arity in new[] { 2, 9 })
+        foreach (var key in new[] { "0007", "é😀", "a\0b", "abcdefgh" })
+        foreach (var observable in new[] { false, true })
+            yield return [governed, forward, arity, key, observable];
+    }
+
+    [Theory]
+    [MemberData(nameof(KeyParameterConsumptions))]
+    public async Task KeyOnlyArgumentsOwnBytesWithoutFullFieldScalars(bool governed, bool forward, int arity, string key, bool observable)
+    {
+        const int records = 128;
+        var extras = string.Concat(Enumerable.Range(2, arity - 2).Select(i => ",p" + i));
+        var args = string.Concat(Enumerable.Repeat(",0", arity - 2));
+        var source = "function update(a,k" + extras + "){" + (observable ? "observed=length(k);" : "") +
+            "a[k]++;return a[k]}" + (forward ? "function relay(a,k" + extras + "){return update(a,(k)" + args + ")}" : "") +
+            "{total+=" + (forward ? "relay" : "update") + "(a,$1" + args + ")}END{print total,length(a)}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat(key + "\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var result = await compiled.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, result);
+        Assert.Equal("8256 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.FieldsMaterialized);
+        if (observable) Assert.True(counters.FieldValueCacheBufferAllocations > 0);
+        else Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
+        if (observable || AwkUtf8Codec.Encode(key).Length > 7)
+            Assert.InRange(counters.AwkTextAllocations, records, records + 32);
+        else Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(records * (forward ? 2 : 1), counters.BoundFunctionRuns);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> ParameterConsumptions()
     {
         foreach (var governed in new[] { false, true })

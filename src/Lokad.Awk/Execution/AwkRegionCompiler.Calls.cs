@@ -62,7 +62,7 @@ internal sealed partial class AwkRegionCompiler
                 // Callee consumption is finalized before any region is prepared.
                 _arguments.Add(AwkRegionArgument.Bind(argument, compiler._operands[argument],
                     syntax.Children[_argument].Kind == AwkExpressionKind.Group,
-                    function.LocalLayout.ConsumesArithmeticInput(_argument - 1)));
+                    function.LocalLayout.InputConsumption(_argument - 1)));
                 // Only adjacent staging can share a segment. Intervening work
                 // keeps the earlier capture at its original language point.
                 if (compiler._code.Count > 0 && compiler._code[^1] is
@@ -107,7 +107,7 @@ internal sealed partial class AwkRegionCompiler
             {
                 if ((index & 127) == 127) compiler._scope.CheckCancellation();
                 var argument = _arguments[index];
-                if (argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.ArithmeticField)
+                if (argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.ArithmeticField or AwkRegionArgumentKind.KeyField)
                 {
                     // Whole-record reads can reconstruct/own text. Leave that
                     // demand at its operation instead of crossing it.

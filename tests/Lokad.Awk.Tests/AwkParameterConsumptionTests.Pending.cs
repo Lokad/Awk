@@ -3,6 +3,115 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkParameterConsumptionTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task OwnedKeysStayFundedUntilActualPendingCallCompletion(bool cancel, bool forward)
+    {
+        const int payload = 32_768;
+        var shortHeld = await Run("k");
+        var longHeld = await Run(new string('k', payload));
+        Assert.True(longHeld - shortHeld >= payload);
+
+        async Task<long> Run(string key)
+        {
+            var firstRecord = key + ":seed\n";
+            var host = new MockFileSystem();
+            host.SetStandardInput(firstRecord + "0\n");
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reads = 0;
+            host.ReadAsyncOverride = Read;
+            async ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+            {
+                if (++reads > 1)
+                {
+                    using var registration = token.Register(() => canceled.TrySetResult());
+                    entered.TrySetResult();
+                    await resume.Task.ConfigureAwait(false);
+                }
+                host.ReadAsyncOverride = null;
+                var result = await host.ReadAsync(descriptor,
+                    reads == 1 ? Math.Min(maximum, firstRecord.Length) : maximum, token).ConfigureAwait(false);
+                if (reads == 1) host.ReadAsyncOverride = Read;
+                return result;
+            }
+            var source = "function save(a,k,line){$0=\"new:9\";getline line;a[k]++;return a[k]}" +
+                (forward ? "function relay(a,k){return save(a,k)}" : "") +
+                "BEGIN{FS=\":\";getline;print \"ready\";print " + (forward ? "relay" : "save") +
+                "(a,$1);exit}END{print \"end\"}";
+            var budget = new CooperativeTestBudget(8 << 20);
+            using var cancellation = new CancellationTokenSource();
+            var execution = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+                .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+            try
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.False(execution.IsCompleted);
+                var held = budget.Reserved;
+                if (cancel)
+                {
+                    cancellation.Cancel();
+                    await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                    Assert.False(execution.IsCompleted);
+                    Assert.Equal(held, budget.Reserved);
+                }
+                resume.TrySetResult();
+                if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+                else Assert.Equal(AwkExitCode.Success, await execution);
+                Assert.Equal(cancel ? "ready\n" : "ready\n1\nend\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+                Assert.Equal(0, host.OpenFileCount);
+                Assert.Equal(0, budget.Reserved);
+                return held;
+            }
+            finally
+            {
+                cancellation.Cancel();
+                resume.TrySetResult();
+                try { await execution; } catch (OperationCanceledException) { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RefusedKeyConstructionStopsEffectsAndLeavesTheSharedBudgetReusable()
+    {
+        const int payload = 32_768;
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        host.SetStandardInput(new string('k', payload) + "\n");
+        budget.OnGrowth = _ =>
+        {
+            if (host.GetOutput(AwkFileDescriptor.StdOut) == "ready\n")
+                budget.RefuseNextAdmissionMinimumGrowth = payload;
+        };
+        const string source = "function save(a,k){a[k]++;print \"late\" > \"result\";return a[k]}" +
+            "BEGIN{getline;print \"ready\";print save(a,$1)}END{print \"end\"}";
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.False(host.FileExists("/result"));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+
+        budget.OnGrowth = null;
+        budget.RefuseNextAdmissionMinimumGrowth = null;
+        var nextHost = new MockFileSystem();
+        var next = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"next\"}"))
+            .ExecuteAsync(nextHost, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, next);
+        Assert.Equal("next\n", nextHost.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(nextHost.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, 0)] [InlineData(true, 0)]
     [InlineData(false, 1)] [InlineData(true, 1)]
     [InlineData(false, 2)] [InlineData(true, 2)]

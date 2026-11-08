@@ -162,11 +162,17 @@ internal sealed class AwkFunctionCallStack(
     }
 
     internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index,
-        bool allowArray)
+        bool allowArray, bool prepareKey)
     {
         if (!TryPeekLocalFrame(out var frame) || (uint)source.Index >= (uint)frame.Layout.SlotCount)
             return false;
         ref readonly var sourceSlot = ref frame.GetSlot(source.Index);
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Key)
+        {
+            if (!prepareKey) throw new InvalidOperationException("A prepared key requires a key consumer.");
+            StageArgument(incoming, index, in sourceSlot);
+            return true;
+        }
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
             sourceSlot.Value.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
         {
@@ -179,7 +185,9 @@ internal sealed class AwkFunctionCallStack(
             else
             {
                 _counters.RecordScalarLocalValueRead();
-                StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
+                if (prepareKey && value.TryGetStoredScalarText(out var text))
+                    StageArgument(incoming, index, AwkFunctionLocalSlot.PreparedKey(new AwkArrayKey(text, checkpoint).CompactForCapture()));
+                else StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
             }
             return true;
         }
@@ -284,6 +292,13 @@ internal sealed class AwkFunctionCallStack(
             }
         }
         scalar = default;
+        return false;
+    }
+
+    internal bool TryGetLocalFrame(AwkFunctionLocalSlotId slotId, [NotNullWhen(true)] out AwkFunctionFrame? frame)
+    {
+        if (TryPeekLocalFrame(out frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount) return true;
+        frame = null;
         return false;
     }
 
@@ -700,6 +715,9 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalSlot slot,
         AwkFunctionLocalProjection projection)
     {
+        if (slot.Kind == AwkFunctionLocalSlotKind.Key)
+            return projection == AwkFunctionLocalProjection.Kind ? AwkResolvedFunctionLocal.Scalar() :
+                throw new InvalidOperationException("A prepared key requires a key consumer.");
         if (slot.Value.TryGetArrayBinding(out _))
             return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)

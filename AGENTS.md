@@ -154,6 +154,9 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
   Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
+  One parameter-consumption graph prepares arithmetic and key-only inputs. Key cells own bytes;
+  writes, observers and general scalar scratch retain full values. Capture before later arguments;
+  numeric keys still use formatting at their actual use, including after CONVFMT changes.
   Prepared calls bind source locations in canonical argument definitions. Preserve actual dynamic
   kind/name resolution; capture caller cells before admission callbacks. Adjacent staging uses one ordered segment
   and one incoming-frame lookup; earlier segments remain before intervening effects, and the

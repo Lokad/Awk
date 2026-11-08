@@ -79,7 +79,7 @@ public sealed class AwkArgumentBindingTests
         var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("argument")]));
         try
         {
-            state.StageFunctionLocalArgument(source, name, incoming, 0, allowArray: true);
+            state.StageFunctionLocalArgument(source, name, incoming, 0, allowArray: true, prepareKey: false);
             return incoming.GetSlot(0);
         }
         finally { state.DiscardIncomingFunctionFrame(incoming); }
@@ -114,7 +114,7 @@ public sealed class AwkArgumentBindingTests
                 caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
             };
             ref var source = ref state.CurrentFunctionFrame.GetSlot(0);
-            if (preparedLocal) state.StageFunctionLocalArgument(new(0), name, incoming, 0, allowArray: true);
+            if (preparedLocal) state.StageFunctionLocalArgument(new(0), name, incoming, 0, allowArray: true, prepareKey: false);
             else state.StageFunctionArgument(incoming, 0, in source);
             Assert.Equal(1, callbacks);
             Assert.Equal(spelling, incoming.GetSlot(0).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsString());

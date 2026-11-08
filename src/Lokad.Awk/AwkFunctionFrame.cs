@@ -7,12 +7,12 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionLocalLayout
 {
     private readonly Dictionary<AwkVariableName, AwkFunctionLocalSlotId> _slotsByName;
-    private bool[] _arithmeticInputs = [];
+    private AwkParameterInput[] _inputs = [];
 
-    internal void PrepareArithmeticInputs(bool[] inputs) => _arithmeticInputs = inputs;
+    internal void PrepareInputs(AwkParameterInput[] inputs) => _inputs = inputs;
 
-    internal bool ConsumesArithmeticInput(int index) =>
-        (uint)index < (uint)_arithmeticInputs.Length && _arithmeticInputs[index];
+    internal AwkParameterInput InputConsumption(int index) =>
+        (uint)index < (uint)_inputs.Length ? _inputs[index] : AwkParameterInput.Value;
 
     public static AwkFunctionLocalLayout Empty { get; } = new([]);
 
@@ -41,6 +41,7 @@ internal sealed class AwkFunctionLocalLayout
 }
 
 internal readonly record struct AwkFunctionLocalSlotId(int Index);
+internal enum AwkParameterInput : byte { Value, Arithmetic, Key }
 
 internal sealed class AwkFunctionFrame
 {
@@ -176,11 +177,13 @@ internal readonly struct AwkFunctionLocalSlot
     private AwkFunctionLocalSlot(
         AwkFunctionLocalSlotKind kind,
         AwkVariableSlot value,
-        AwkArrayName arrayName)
+        AwkArrayName arrayName,
+        AwkArrayKey key = default)
     {
         Kind = kind;
         _value = value;
         ArrayName = arrayName;
+        Key = key;
     }
 
     public AwkFunctionLocalSlotKind Kind { get; }
@@ -191,6 +194,12 @@ internal readonly struct AwkFunctionLocalSlot
         ? AwkVariableSlot.Unassigned() : _value;
 
     public AwkArrayName ArrayName { get; }
+
+    // Only prepared key consumers read this owning value. It never borrows a record.
+    public AwkArrayKey Key { get; }
+
+    public static AwkFunctionLocalSlot PreparedKey(AwkArrayKey key) =>
+        new(AwkFunctionLocalSlotKind.Key, AwkVariableSlot.Unassigned(), default, key);
 
     public static AwkFunctionLocalSlot Scalar(AwkVariableSlot value) =>
         new(AwkFunctionLocalSlotKind.Scalar, value, default);
@@ -228,7 +237,8 @@ internal enum AwkFunctionLocalSlotKind
     Scalar,
     ArrayAlias,
     PotentialArrayAlias,
-    UntypedScalar
+    UntypedScalar,
+    Key
 }
 
 internal readonly struct AwkResolvedFunctionLocal

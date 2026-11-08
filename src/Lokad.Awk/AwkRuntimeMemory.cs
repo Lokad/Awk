@@ -40,7 +40,7 @@ internal static class AwkRuntimeMemory
     internal const int ArraySortOperationBytes = 176;
     // Frame/inline slots, its reusable region owner and leases, plus amortized
     // recycled references and active frame links. Scratch/slot backing is charged separately.
-    private const int FunctionFrameBytes = 480;
+    private const int FunctionFrameBytes = 512;
     // Standalone phase/action scratch owner, its two leases and the enclosing
     // scoped lease. Backing arrays and live payload are admitted separately.
     internal const int ScopedRegionStorageBytes = 256;
@@ -142,8 +142,8 @@ internal static class AwkRuntimeMemory
         FunctionFrameBytes;
 
     public static long EstimateFunctionLocalPayloadBytes(in AwkFunctionLocalSlot slot) =>
-        slot.Kind != AwkFunctionLocalSlotKind.ArrayAlias
-            ? slot.Value.RetainedTextMemoryBytes : 0;
+        slot.Kind == AwkFunctionLocalSlotKind.Key ? slot.Key.RetainedTextMemoryBytes :
+        slot.Kind != AwkFunctionLocalSlotKind.ArrayAlias ? slot.Value.RetainedTextMemoryBytes : 0;
 
     public static long EstimateFunctionSlotBufferBytes(int capacity) =>
         EstimateArrayBufferBytes(capacity, 64);

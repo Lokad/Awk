@@ -758,7 +758,7 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     internal void StagePreparedGlobalArgument(int source, AwkVariableName name, AwkFunctionFrame incoming, int index,
-        bool allowArray)
+        bool allowArray, bool prepareKey)
     {
         if (_globalReadSlots is { } slots && slots[source].Scalar is { } cell)
         {
@@ -770,6 +770,9 @@ internal sealed class AwkRuntimeState : IDisposable
                     Counters.RecordNumericGlobalRead();
                     _functions.StageNumber(incoming, index, number);
                 }
+                else if (prepareKey && slot.TryGetStoredScalarText(out var text))
+                    _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.PreparedKey(
+                        new AwkArrayKey(text, CancellationCheckpoint).CompactForCapture()));
                 else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
                 return;
             }
@@ -791,9 +794,9 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     internal void StageFunctionLocalArgument(AwkFunctionLocalSlotId source, AwkVariableName name,
-        AwkFunctionFrame incoming, int index, bool allowArray)
+        AwkFunctionFrame incoming, int index, bool allowArray, bool prepareKey)
     {
-        if (_functions.TryStageLocalArgument(source, incoming, index, allowArray)) return;
+        if (_functions.TryStageLocalArgument(source, incoming, index, allowArray, prepareKey)) return;
         StageLocalArgumentFallback(source, name, incoming, index, allowArray);
     }
 
@@ -812,8 +815,20 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal bool TryResolveFunctionLocalKey(AwkFunctionLocalSlotId slotId, out AwkArrayKey key)
     {
-        if (_functions.TryResolveScalarLocalSlot(slotId, out var slot))
+        if (_functions.TryGetLocalFrame(slotId, out var frame))
         {
+            ref readonly var local = ref frame.GetSlot(slotId.Index);
+            if (local.Kind == AwkFunctionLocalSlotKind.Key)
+            {
+                key = local.Key;
+                return true;
+            }
+            if (local.Kind != AwkFunctionLocalSlotKind.Scalar)
+            {
+                key = default;
+                return false;
+            }
+            var slot = local.Value;
             if (slot.TryGetNumber(out var number))
             {
                 Counters.RecordNumericLocalRead();
@@ -829,6 +844,18 @@ internal sealed class AwkRuntimeState : IDisposable
         }
         key = default;
         return false;
+    }
+
+    internal bool TryStageFunctionFieldKey(int field, AwkFunctionFrame incoming, int index)
+    {
+        if (field <= 0 || !_recordFields.TryGetUnmaterializedFieldBytes(new(field), out var bytes)) return false;
+        // One existing admission funds construction through publication into its
+        // incoming owner. Only immutable bytes are borrowed during this copy.
+        using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(bytes.Length));
+        var key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
+        ThrowIfCancellationRequested();
+        _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.PreparedKey(key));
+        return true;
     }
 
     public AwkValue ResolveFunctionLocalValue(
