@@ -161,6 +161,32 @@ internal sealed class AwkFunctionCallStack(
             frame.GetSlot(index) = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
     }
 
+    internal void StageKey(AwkFunctionFrame frame, int index, AwkArrayKey key)
+    {
+        if ((uint)index >= (uint)frame.Layout.SlotCount) return;
+        var bytes = memoryAccounting.IsEnabled ? key.RetainedTextMemoryBytes : 0;
+        if (bytes > 0)
+        {
+            StageRetainedKey(frame, index, key, bytes);
+            return;
+        }
+        frame.GetSlot(index) = AwkFunctionLocalSlot.PreparedKey(key);
+    }
+
+    private void StageRetainedKey(AwkFunctionFrame frame, int index, AwkArrayKey key, long bytes)
+    {
+        // The owning key is captured by value before admission can change its source.
+        memoryAccounting.ReserveAndCommit(bytes);
+        try
+        {
+            checkpoint?.Invoke();
+            var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
+            frame.GetSlot(index) = AwkFunctionLocalSlot.PreparedKey(key);
+            frame.RetainedMemoryBytes = retained;
+        }
+        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
+    }
+
     internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index,
         bool allowArray, bool prepareKey)
     {
@@ -170,7 +196,7 @@ internal sealed class AwkFunctionCallStack(
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Key)
         {
             if (!prepareKey) throw new InvalidOperationException("A prepared key requires a key consumer.");
-            StageArgument(incoming, index, in sourceSlot);
+            StageKey(incoming, index, sourceSlot.Key);
             return true;
         }
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
@@ -186,7 +212,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 _counters.RecordScalarLocalValueRead();
                 if (prepareKey && value.TryGetStoredScalarText(out var text))
-                    StageArgument(incoming, index, AwkFunctionLocalSlot.PreparedKey(new AwkArrayKey(text, checkpoint).CompactForCapture()));
+                    StageKey(incoming, index, new AwkArrayKey(text, checkpoint).CompactForCapture());
                 else StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
             }
             return true;

@@ -115,6 +115,42 @@ public sealed class AwkIncomingFrameTests
         return fixture.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, fixture.Configure(options)));
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void RefusedOrCanceledOwnedKeyLeavesTheCallerAndIncomingCellUntouched(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token, true);
+        var state = fixture.State;
+        var name = AwkVariableName.FromText("p");
+        var spelling = new string('x', 4096);
+        state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling))]);
+        var caller = state.CurrentFunctionFrame;
+        var incoming = state.PrepareFunctionFrame(new([name]));
+        var before = fixture.Budget.Reserved;
+        try
+        {
+            if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
+            else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            void Stage() => state.StageFunctionLocalArgument(new(0), name, incoming, 0, allowArray: false, prepareKey: true);
+            if (cancel) Assert.ThrowsAny<OperationCanceledException>(Stage);
+            else Assert.Throws<AwkRuntimeException>(Stage);
+            Assert.Same(caller, state.CurrentFunctionFrame);
+            Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, incoming.GetSlot(0).Kind);
+            Assert.Equal(AwkVariableSlotKind.Unassigned, incoming.GetSlot(0).Value.Kind);
+            Assert.Equal(spelling, caller.GetSlot(0).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsString());
+            Assert.Equal(before, fixture.Budget.Reserved);
+        }
+        finally
+        {
+            fixture.Budget.OnGrowth = null;
+            state.DiscardIncomingFunctionFrame(incoming);
+            state.PopFunctionFrame();
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
     [Fact]
     public void ActiveLocalWriteCanceledByAdmissionPreservesPriorValue()
     {

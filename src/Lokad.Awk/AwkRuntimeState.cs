@@ -771,8 +771,7 @@ internal sealed class AwkRuntimeState : IDisposable
                     _functions.StageNumber(incoming, index, number);
                 }
                 else if (prepareKey && slot.TryGetStoredScalarText(out var text))
-                    _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.PreparedKey(
-                        new AwkArrayKey(text, CancellationCheckpoint).CompactForCapture()));
+                    _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint).CompactForCapture());
                 else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
                 return;
             }
@@ -854,7 +853,7 @@ internal sealed class AwkRuntimeState : IDisposable
         using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(bytes.Length));
         var key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
         ThrowIfCancellationRequested();
-        _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.PreparedKey(key));
+        _functions.StageKey(incoming, index, key);
         return true;
     }
 

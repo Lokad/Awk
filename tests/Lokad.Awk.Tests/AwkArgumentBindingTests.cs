@@ -93,6 +93,45 @@ public sealed class AwkArgumentBindingTests
     public void PreparedLocalArgumentCapturesBeforeAdmissionCanChangeItsSource() =>
         VerifyArgumentCaptureBeforeAdmission(preparedLocal: true);
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void PreparedKeysCaptureBeforeAdmissionCanChangeTheirSource(bool existingKey)
+    {
+        using var fixture = State();
+        var state = fixture.State;
+        var name = AwkVariableName.FromText("p");
+        var spelling = new string('x', 4096);
+        var argument = existingKey
+            ? AwkFunctionLocalSlot.PreparedKey(new AwkArrayKey(spelling))
+            : AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling));
+        state.PushFunctionFrame(new([name]), [argument]);
+        var caller = state.CurrentFunctionFrame;
+        var incoming = state.PrepareFunctionFrame(new([name]));
+        try
+        {
+            var callbacks = 0;
+            fixture.Budget.OnGrowth = _ =>
+            {
+                fixture.Budget.OnGrowth = null;
+                callbacks++;
+                caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
+            };
+            state.StageFunctionLocalArgument(new(0), name, incoming, 0, allowArray: false, prepareKey: true);
+            Assert.Equal(1, callbacks);
+            Assert.Equal(AwkFunctionLocalSlotKind.Key, incoming.GetSlot(0).Kind);
+            Assert.Equal(spelling, incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
+            Assert.Equal(17, state.ResolveVariableValue(name).AsNumber());
+        }
+        finally
+        {
+            fixture.Budget.OnGrowth = null;
+            state.DiscardIncomingFunctionFrame(incoming);
+            state.PopFunctionFrame();
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
     private static void VerifyArgumentCaptureBeforeAdmission(bool preparedLocal)
     {
         using var fixture = State();
