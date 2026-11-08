@@ -239,8 +239,8 @@ public sealed class AwkNestedArrayStorageTests
     public void AliasRepairPollsCancellationAndStillCompletesDuringUnwind()
     {
         using var cancellation = new CancellationTokenSource();
-        var parent = new AwkArrayIdentity(new());
-        var child = new AwkArrayIdentity(new(), parent);
+        var parent = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
+        var child = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance), parent);
         parent.Slots.Add(AwkArrayKey.FromOrdinal(1), new(AwkVariableSlot.FromArrayBinding(child)));
         var parameter = AwkVariableName.FromText("p");
         var calls = new AwkFunctionCallStack(4, AwkMemoryAccounting.Disabled, _ => AwkValue.Unassigned(),

@@ -106,10 +106,8 @@ public sealed class AwkArrayEstimateTests
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
         var committed = accounting.CurrentCommittedBytes;
         var reserved = budget.Reserved;
-        Dictionary<AwkArrayKey, AwkArrayCell> replacement = new()
-        {
-            [key] = new(AwkVariableSlot.FromText(new string('x', refuse ? 4096 : 16)))
-        };
+        var replacement = variables.CreateMutableArraySlots(0);
+        replacement[key] = new(AwkVariableSlot.FromText(new string('x', refuse ? 4096 : 16)));
 
         void Replace() => variables.ReplaceMutableArraySlots(name, replacement, AwkMemoryLease.Disabled, 0);
         if (refuse)

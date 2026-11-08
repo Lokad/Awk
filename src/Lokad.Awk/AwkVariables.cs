@@ -224,7 +224,7 @@ internal sealed partial class AwkVariables
 
     internal bool TryGetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, out AwkValue value)
     {
-        if (array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out var slot))
+        if (array.ByteLookup.TryGetValue(index, out var slot))
         {
             value = CreateValue(slot);
             return true;
@@ -235,7 +235,7 @@ internal sealed partial class AwkVariables
 
     internal bool TryGetArrayKeySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index,
         out AwkArrayKey key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayCell? slot) =>
-        array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out slot);
+        array.ByteLookup.TryGetValue(index, out key, out slot);
 
     internal void SetArrayValue(AwkArrayIdentity array, AwkArrayKey index, AwkValue value)
     {
@@ -596,7 +596,7 @@ internal sealed partial class AwkVariables
     public bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
             ? _symbolTable.ContainsValue(AwkUtf8Codec.DecodeRuntimeText(index, _counters))
-            : GetOrCreateArraySlots(name).GetAlternateLookup<ReadOnlySpan<byte>>().ContainsKey(index);
+            : GetOrCreateArray(name).ByteLookup.ContainsKey(index);
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {
@@ -684,8 +684,8 @@ internal sealed partial class AwkVariables
     {
         // A miss must leave array creation/promotion and admission to the owned-key path.
         if ((name.IsFunctionLocal || !IsSymbolTable(name.Text)) &&
-            _arrays.TryGetSlots(name, out var slots) &&
-            slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out var slot))
+            _arrays.TryGetArray(name, out var array) &&
+            array.ByteLookup.TryGetValue(index, out var slot))
         {
             value = CreateValue(slot);
             return true;
@@ -713,8 +713,8 @@ internal sealed partial class AwkVariables
         out AwkArrayKey key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayCell? slot)
     {
         if ((name.IsFunctionLocal || !IsSymbolTable(name.Text)) &&
-            _arrays.TryGetSlots(name, out var slots) &&
-            slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out slot))
+            _arrays.TryGetArray(name, out var array) &&
+            array.ByteLookup.TryGetValue(index, out key, out slot))
             return true;
         key = default;
         slot = default;
@@ -903,13 +903,16 @@ internal sealed partial class AwkVariables
         return new AwkArraySnapshotSize(count, keyTextBytes, valueTextBytes);
     }
 
-    private Dictionary<AwkArrayKey, AwkArrayCell> GetOrCreateArraySlots(AwkArrayName name)
+    private Dictionary<AwkArrayKey, AwkArrayCell> GetOrCreateArraySlots(AwkArrayName name) =>
+        GetOrCreateArray(name).Slots;
+
+    private AwkArrayIdentity GetOrCreateArray(AwkArrayName name)
     {
-        if (_arrays.TryGetSlots(name, out var values))
+        if (_arrays.TryGetArray(name, out var values))
             return values;
 
         using var creation = ReserveMemoryMutation(AwkRuntimeMemory.ArrayIdentityBytes, 0);
-        values = _arrays.ResolveSlots(name);
+        values = _arrays.ResolveArray(name);
         creation.Commit();
         return values;
     }

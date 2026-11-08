@@ -33,7 +33,7 @@ public sealed class AwkArrayStorageTests
         var storage = new AwkArrayStorage();
         var name = AwkArrayName.FromText("values");
 
-        var resolved = storage.ResolveSlots(name);
+        var resolved = storage.ResolveArray(name).Slots;
 
         Assert.True(storage.TryGetSlots(name, out var found));
         Assert.Same(resolved, found);

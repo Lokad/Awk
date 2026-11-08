@@ -194,8 +194,7 @@ internal sealed partial class AwkVariables
             throw new AwkRuntimeException(AwkMessages.ErrorInvalidSymtabReference);
         if (!name.IsFunctionLocal)
             AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
-        _ = GetOrCreateArraySlots(name);
-        return _arrays.ResolveArray(name);
+        return GetOrCreateArray(name);
     }
 
     // The caller has already resolved the containing array. Inserting a child is one

@@ -192,7 +192,7 @@ internal sealed partial class AwkArrayRuntime
     public bool TryGetBorrowedKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key, AwkArrayBinding binding = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
-            return array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out _);
+            return array.ByteLookup.TryGetValue(index, out key, out _);
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         var found = _variables.TryGetExistingArrayKey(resolved, index, out key);
         if (found) _state.BindGlobalArray(binding, resolved);
@@ -349,7 +349,7 @@ internal sealed partial class AwkArrayRuntime
     public bool ContainsValue(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
-            return array.Slots.GetAlternateLookup<ReadOnlySpan<byte>>().ContainsKey(index);
+            return array.ByteLookup.ContainsKey(index);
         var resolved = _variableRuntime.ResolveOrPromoteArrayName(name);
         var found = _variables.ContainsArrayValue(resolved, index);
         _state.BindGlobalArray(binding, resolved);

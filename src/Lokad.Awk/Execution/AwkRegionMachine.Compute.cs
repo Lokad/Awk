@@ -298,7 +298,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.NestedContains:
                     var membershipPath = storage.Path(instruction.Left);
                     var membershipOwner = state.GetSubarray(membershipPath.ResolveOwner(state), membershipPath.Key);
-                    numbers[instruction.Target] = membershipOwner.Slots.GetAlternateLookup<ReadOnlySpan<byte>>()
+                    numbers[instruction.Target] = membershipOwner.ByteLookup
                         .ContainsKey(storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.ArrayDelete:

@@ -62,8 +62,6 @@ internal sealed class AwkArrayStorage
         return true;
     }
 
-    public Dictionary<AwkArrayKey, AwkArrayCell> ResolveSlots(AwkArrayName name) => ResolveArray(name).Slots;
-
     public AwkArrayIdentity ResolveArray(AwkArrayName name)
     {
         if (_arrays.TryGetValue(name, out var array)) return array;

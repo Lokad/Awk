@@ -55,6 +55,8 @@ public sealed class AwkArrayCellTests
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         Assert.False(table.TryGetTarget(out _));
         Assert.Equal(detach, array.IsDetached);
+        Assert.Same(array.Slots, array.ByteLookup.Dictionary);
+        Assert.False(array.ByteLookup.ContainsKey("1"u8));
         GC.KeepAlive(array);
     }
 
@@ -70,6 +72,41 @@ public sealed class AwkArrayCellTests
             variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(9)));
         Assert.Single(array.Slots);
         Assert.Equal(5, variables.GetArrayNumber(array, AwkArrayKey.FromOrdinal(1)));
+        Assert.True(array.ByteLookup.TryGetValue("1"u8, out var stored));
+        Assert.Equal(5, variables.ReadArraySlotNumber(stored));
+        Assert.False(array.ByteLookup.ContainsKey("2"u8));
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public void BorrowedLookupTracksGrowthAndReplacementWithoutInsertingMissingKeys()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = Variables(memory);
+        var name = AwkArrayName.FromText("a");
+        var array = variables.ResolveOrdinaryArray(name);
+        variables.SetArrayValue(array, new AwkArrayKey("0007"), AwkValue.FromNumber(5));
+        Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var original));
+        var dictionary = array.Slots;
+        for (var index = 0; index < 1024; index++)
+            variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
+
+        Assert.Same(dictionary, array.ByteLookup.Dictionary);
+        Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var retainedKey, out var grown));
+        Assert.Same(original, grown);
+        Assert.Equal("0007", retainedKey.AsString(AwkRuntimeCounters.Disabled));
+        Assert.Equal(5, variables.ReadArraySlotNumber(grown));
+        var count = array.Slots.Count;
+        Assert.False(array.ByteLookup.ContainsKey("missing"u8));
+        Assert.Equal(count, array.Slots.Count);
+
+        variables.InitializeArrayValues(name, [new(new AwkArrayKey("replacement"), AwkValue.FromNumber(9))]);
+
+        Assert.Same(array, variables.ResolveOrdinaryArray(name));
+        Assert.NotSame(dictionary, array.ByteLookup.Dictionary);
+        Assert.False(array.ByteLookup.ContainsKey("0007"u8));
+        Assert.True(array.ByteLookup.TryGetValue("replacement"u8, out var replaced));
+        Assert.Equal(9, variables.ReadArraySlotNumber(replaced));
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 

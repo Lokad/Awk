@@ -43,6 +43,9 @@ or environment dependencies.
   and rule cleanup. Fund ordinary key/cell holding with target capacity and larger live captures
   through the existing payload lease. Preserve admitted owners and stable cells across mutation/calls/suspension;
   never retain a dictionary entry reference across RHS evaluation.
+  Array identities retain one prepared byte-lookup handle and derive the dictionary view from it.
+  Prepare it at construction/replacement/detach; use only the current owner's handle synchronously.
+  Never capture it across RHS mutation or suspension, or keep a duplicate dictionary reference.
   Plain field/composite assignments consume located cells directly; preserve captured RHS values,
   special-array behavior and owned-key admission on misses without repeating a successful lookup.
   Ordinary byte-key misses admit retained key construction and insertion together, without
