@@ -189,8 +189,9 @@ bound accesses, with runtime slots owned by each execution.
 Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
 remain execution-owned. Array parameter operations read the current frame slot; aliases
 repaired by mutation are not cached separately in prepared code.
-Repeated nested owners can share an execution-owned reference within proven computation windows.
-The reference retires at its last consumer, before any later mutation, call or possible suspension.
+Repeated nested owners share existing funded scratch within proven computation windows.
+Empty statement boundaries retain the reference; an actual flush retires it before invoking the host.
+Later consumers resolve the current prefix at use. Calls, mutations and control flow end reuse.
 Nested locations capture keys in the same computation driver. Each intermediate child is
 admitted before the following key runs; captured locations follow their logical path if later
 work detaches an owner. Pending getline destinations keep their keys funded until completion.

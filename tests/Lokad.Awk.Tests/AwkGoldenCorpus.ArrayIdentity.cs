@@ -6,6 +6,13 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("nested-owner-windows-keep-untyped-origins-field-rebuilds-and-call-order",
+            ["function add(p,k,v){p[k][\"s\"]+=v;p[k][\"n\"]++;return p[k][\"s\"]}BEGIN{print add(a,x,x),a[\"\"][\"n\"],\"[\"x\"]\";print add(a,\"007\",7),add(a,\"007\",3),a[\"007\"][\"n\"];$0=\"left 007\";b[$1][\"s\"]+=+$2;b[$1][\"n\"]++;$1=\"right\";b[$1][\"s\"]+=2;b[$1][\"n\"]++;print b[\"left\"][\"s\"],b[\"right\"][\"s\"],length(b);print \"before\",add(a,\"007\",1),\"after\";print a[\"007\"][\"s\"],a[\"007\"][\"n\"]}"], [], "0 1 []\n7 10 2\n7 2 2\nbefore 11 after\n11 3\n"),
+        AwkGoldenCaseBuilder.Create("nested-owner-windows-preserve-pending-csv-diagnostics",
+            ["--csv", "function work(p,k,v){p[k][\"s\"]+=v;p[k][\"n\"]++;return p[k][\"s\"]}BEGIN{print work(a,\"007\",FS=\":\"),a[\"007\"][\"n\"];print work(a,\"007\",2),a[\"007\"][\"n\"]}"], [])
+            .WithStdOut("0 1\n2 2\n")
+            .WithStdErr("awk: warning: assignment to FS/FIELDWIDTHS/FPAT has no effect when using --csv\n")
+            .Build(),
         AwkGoldenCaseBuilder.Create("entry-owned-long-key-survives-delete-and-record-change",
             ["function erase(p,k){delete p[k];$0=\"discarded\";return 3}{a[$1]=5;a[$1]+=erase(a,$1);print a[\"abcdefghijklé\"],length(a),$0}"], [])
             .WithStandardInput("abcdefghijklé tail\n")

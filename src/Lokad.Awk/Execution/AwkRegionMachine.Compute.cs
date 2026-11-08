@@ -46,6 +46,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.StatementBoundary:
                     if (output is { HasPendingOutput: true })
                     {
+                        if (instruction.Right > 0) storage.ReleaseValue(instruction.Right - 1);
                         BeginFlush(output, position + 1, instruction.Detail);
                         goto Resume;
                     }
@@ -842,12 +843,15 @@ internal partial struct AwkRegionMachine
             }
             if (path.Owner.Role is AwkRegionPathOwnerRole.Read or AwkRegionPathOwnerRole.Take)
             {
-                if (!storage.Values[path.Owner.Value].TryGetArrayBinding(out var boundOwner))
-                    throw new InvalidOperationException("No prepared array owner.");
-                owner = boundOwner;
-                if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.ReleaseValue(path.Owner.Value);
-                key = CaptureKey(keys[^1]);
-                return;
+                if (storage.Values[path.Owner.Value].TryGetArrayBinding(out var boundOwner))
+                {
+                    owner = boundOwner;
+                    if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.ReleaseValue(path.Owner.Value);
+                    key = CaptureKey(keys[^1]);
+                    return;
+                }
+                // A real flush cleared this binding before the host ran. Resolve
+                // the current prefix at use, without retaining the previous owner.
             }
             key = CaptureKey(keys[0]);
             owner = state.GetSubarray(path.Name, key, path.Binding);
@@ -857,7 +861,7 @@ internal partial struct AwkRegionMachine
                 key = CaptureKey(keys[depth]);
                 owner = state.GetSubarray(owner, key);
             }
-            if (path.Owner.Role == AwkRegionPathOwnerRole.Initialize)
+            if (path.Owner.Role is AwkRegionPathOwnerRole.Initialize or AwkRegionPathOwnerRole.Read)
                 storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(owner), preserveOrigin: true);
             key = CaptureKey(keys[^1]);
         }

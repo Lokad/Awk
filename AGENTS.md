@@ -58,8 +58,10 @@ or environment dependencies.
   its dense scratch slot stays funded through actual users. Complete path metadata owns no scratch.
   Re-resolve detached logical owners before using a captured cell; keep old-value/key capture before RHS.
   Repeated nested owners share funded value scratch only within proven computation windows.
-  Resolve at first use and clear at last use; calls, writes, control flow and possible output
-  completion end the window. Unbound keys retain their ordinary captured path.
+  Resolve at first use and clear at last use; calls, writes and control flow end the window.
+  Empty statement boundaries retain the reference. Before an actual flush, retire it before
+  any host callback; later consumers resolve the current prefix at use. Keep field-demand and
+  actual completion ordering. Unbound keys retain their ordinary captured path.
   Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.
   Prepared path slots retain funded owner/key capacity while retirement clears active keys and payload.
   Rebind root/binding/depth on reuse and preserve cached owners during slot-array growth. TakePath

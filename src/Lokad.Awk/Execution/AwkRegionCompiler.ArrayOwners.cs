@@ -7,9 +7,8 @@ internal sealed partial class AwkRegionCompiler
         if (_paths.Count < 2) return;
         var paths = new List<int>();
         var value = -1;
-        // Do not assume an empty sink at internal execution entry. After a real
-        // boundary, these operations cannot produce output or replace a parent.
-        var unknownOutput = true;
+        var firstUse = 0;
+        var lastUse = 0;
         for (var index = first; index < _code.Count; index++)
         {
             if ((index & 127) == 127) _scope.CheckCancellation();
@@ -24,15 +23,13 @@ internal sealed partial class AwkRegionCompiler
             if (path >= 0 && _paths[path].ImmediateKeys is not null)
             {
                 if (paths.Count != 0 && !SameOwner(_paths[paths[0]], _paths[path])) Finish();
+                if (paths.Count == 0) firstUse = index;
+                lastUse = index;
                 paths.Add(path);
                 continue;
             }
             if (instruction.Kind == AwkRegionInstructionKind.StatementBoundary)
-            {
-                if (unknownOutput) Finish();
-                unknownOutput = false;
                 continue;
-            }
             if (instruction.Kind is AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Arithmetic or
                 AwkRegionInstructionKind.Compound or AwkRegionInstructionKind.Negate or
                 AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
@@ -40,7 +37,6 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
                 AwkRegionInstructionKind.FieldIndex) continue;
             Finish();
-            unknownOutput = true;
         }
         Finish();
 
@@ -56,6 +52,11 @@ internal sealed partial class AwkRegionCompiler
                     var path = paths[index];
                     _paths[path] = _paths[path] with { Owner = new(value, role) };
                 }
+                // Empty boundaries retain the reference. An actual flush retires
+                // it before any host callback, including synchronous completion.
+                for (var index = firstUse; index < lastUse; index++)
+                    if (_code[index].Kind == AwkRegionInstructionKind.StatementBoundary)
+                        _code[index] = _code[index] with { Right = value + 1 };
             }
             paths.Clear();
         }
