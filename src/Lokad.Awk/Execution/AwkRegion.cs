@@ -213,8 +213,13 @@ internal readonly record struct AwkRegionArgument(AwkRegionArgumentKind Kind, in
             _ => new(AwkRegionArgumentKind.Value, index)
         };
 }
-// Calls return into caller scratch, never a named binding or borrowed operand.
-internal readonly record struct AwkRegionResumePoint(int Position, int Destination, bool IsNumber);
+internal enum AwkRegionReturnConsumer : byte { Value, Number, AssignmentValue, AssignmentDiscarded }
+// Assignment consumers use the adjacent prepared Assign descriptor in caller scope.
+// Escaping text and used expression results retain their ordinary funded scratch.
+internal readonly record struct AwkRegionResumePoint(int Position, int Destination, AwkRegionReturnConsumer Consumer)
+{
+    internal bool IsAssignment => Consumer is AwkRegionReturnConsumer.AssignmentValue or AwkRegionReturnConsumer.AssignmentDiscarded;
+}
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,
     int Start, int Count, int[] PendingArguments,
     AwkBuiltinImplementation.AsyncBuiltinImplementation? Host = null);

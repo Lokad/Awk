@@ -647,7 +647,11 @@ internal sealed partial class AwkRegionCompiler
     {
         if (_operands[value].Kind != AwkRegionOperandKind.NumberTemporary)
         {
-            Emit(new(AwkRegionInstructionKind.Assign, variable, value));
+            var assignment = Emit(new(AwkRegionInstructionKind.Assign, variable, value));
+            if (_operands[variable].Kind is AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable &&
+                _operands[value] is { Kind: AwkRegionOperandKind.ValueTemporary } source && assignment > 0 &&
+                _code[assignment - 1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
+                _code[assignment - 1] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentValue };
             return;
         }
         Emit(new(AwkRegionInstructionKind.AssignNumber, variable, NumericRegister(value)));
@@ -748,7 +752,7 @@ internal sealed partial class AwkRegionCompiler
         {
             // Conversion is the immediate consumer: no script work moves across
             // it. Keep the value with its funded callee until conversion finishes.
-            _code[^1] = call with { Target = target, Detail = 1 };
+            _code[^1] = call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number };
             if (source.Index == _values - 1) _values--;
             _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
             return operand;
@@ -782,6 +786,11 @@ internal sealed partial class AwkRegionCompiler
     private void Discard(int operand)
     {
         var source = _operands[operand];
+        if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
+            _code[^1] is { Kind: AwkRegionInstructionKind.Assign } assignment && assignment.Left == operand &&
+            _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&
+            call.Target == source.Index)
+            _code[^2] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentDiscarded };
         if (source.IsVariable || source.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement)
             Emit(new(AwkRegionInstructionKind.Discard, Left: operand));
     }

@@ -26,7 +26,7 @@ internal partial struct AwkRegionMachine
             for (var index = 0; index < 4; index++)
                 _state.StageFunctionValue(frame, index, operation.GetArgument(index));
             _position = position;
-            EnterCall(in call, frame, comparison, isNumber: true);
+            EnterCall(in call, frame, comparison, AwkRegionReturnConsumer.Number);
             return true;
         }
         return false;

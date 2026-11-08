@@ -28,7 +28,16 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]
     [InlineData(true, true, false)] [InlineData(true, true, true)]
-    public async Task CapturedReturnSurvivesActualFlushCompletion(bool governed, bool numeric, bool cancel)
+    public Task CapturedReturnSurvivesActualFlushCompletion(bool governed, bool numeric, bool cancel) =>
+        VerifyCapturedReturnCompletion(governed, numeric, cancel, assignment: false);
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public Task NumericCallAssignmentWaitsForActualFlushCompletion(bool governed, bool cancel) =>
+        VerifyCapturedReturnCompletion(governed, numeric: true, cancel, assignment: true);
+
+    private async Task VerifyCapturedReturnCompletion(bool governed, bool numeric, bool cancel, bool assignment)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         using var cancellation = new CancellationTokenSource();
@@ -36,7 +45,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, cancellation.Token);
             var counters = AwkRuntimeCounters.CreateEnabled();
             using var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, owner);
-            var source = numeric ? "function f(x){return x+0}BEGIN{total+=f(7)}"
+            var source = numeric ? "function f(x){return x+0}BEGIN{total" + (assignment ? "=" : "+=") + "f(7)}"
                 : "function f(x){return x}BEGIN{saved=f(\"0007\")}";
             var program = Bind(source);
             state.InitializeGlobalNames(program.GlobalNames);
@@ -80,6 +89,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                     Assert.Equal(AwkStatementFlow.Continue, await pending);
                     if (numeric) Assert.Equal(7, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
                     else Assert.True(state.ResolveVariableValue(AwkVariableName.FromText("saved")).ByteText.AsSpan().SequenceEqual("0007"u8));
+                    if (assignment) Assert.True(counters.CallNumericScratchBypasses > 0);
                 }
                 Assert.True(Assert.Single(writes).AsSpan().SequenceEqual("before\n"u8));
                 Assert.False(state.IsInsideFunction);

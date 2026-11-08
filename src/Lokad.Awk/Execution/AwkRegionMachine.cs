@@ -67,9 +67,9 @@ internal partial struct AwkRegionMachine
         }
     }
 
-    private void EnterCall(in AwkRegionCall call, AwkFunctionFrame frame, int destination, bool isNumber)
+    private void EnterCall(in AwkRegionCall call, AwkFunctionFrame frame, int destination, AwkRegionReturnConsumer consumer)
     {
-        frame.SetCaller(_region, _storage, _position, _frame, destination, isNumber);
+        frame.SetCaller(_region, _storage, _position, _frame, destination, consumer);
         _state.ActivateFunctionFrame(frame);
         _storage.ActivatedCall(call.Slot);
         // Retain responsibility if obtaining/preparing callee scratch fails.
@@ -182,7 +182,7 @@ internal partial struct AwkRegionMachine
 
     private static void StoreReturnValue(AwkRegionStorage storage, AwkRegionResumePoint resumePoint, AwkValue value)
     {
-        if (resumePoint.IsNumber)
+        if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
             storage.StoreNumber(resumePoint.Destination, value);
         else
             storage.StoreValue(resumePoint.Destination, value);
@@ -206,6 +206,11 @@ internal partial struct AwkRegionMachine
 
     private void Return(AwkValue value)
     {
+        if (value.IsNumberValue && _frame is { HasAssignmentReturnConsumer: true })
+        {
+            ReturnNumber(value.AsNumber());
+            return;
+        }
         var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
         if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
@@ -214,6 +219,12 @@ internal partial struct AwkRegionMachine
         StoreReturnValue(storage, resumePoint, value);
         _state.PopFunctionFrame();
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+        if (resumePoint.IsAssignment)
+        {
+            AssignVariable(region.Instructions[_position].Target, storage.Values[resumePoint.Destination]);
+            _position++;
+            _state.Counters.RecordCallAssignment(bypassedNumericScratch: false);
+        }
     }
 
     private void ReturnNumber(double number)
@@ -224,12 +235,20 @@ internal partial struct AwkRegionMachine
         var destination = resumePoint.Destination;
         // Keep ready numbers unboxed through the continuation; a value consumer
         // still receives the ordinary scalar before the callee retires.
-        if (resumePoint.IsNumber)
+        if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
             storage.Numbers[destination] = number;
+        else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
+            storage.ReleaseValue(destination);
         else
             storage.StoreValue(destination, AwkValue.FromNumber(number));
         _state.PopFunctionFrame();
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+        if (resumePoint.IsAssignment)
+        {
+            AssignVariableNumber(region.Instructions[_position].Target, number);
+            _position++;
+            _state.Counters.RecordCallAssignment(resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded);
+        }
     }
 
     private void RestoreCaller(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame)

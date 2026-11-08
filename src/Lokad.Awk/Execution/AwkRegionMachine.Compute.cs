@@ -521,7 +521,7 @@ internal partial struct AwkRegionMachine
                     var incomingFrame = StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right,
                         call.FinalFieldDemand);
                     _position = position + 1;
-                    EnterCall(in call, incomingFrame, instruction.Target, instruction.Detail != 0);
+                    EnterCall(in call, incomingFrame, instruction.Target, (AwkRegionReturnConsumer)instruction.Detail);
                     goto Resume;
                 }
                 case AwkRegionInstructionKind.BuiltinArgument:

@@ -2,6 +2,60 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkPreparedFunctionRegionTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task CallAssignmentReturnRefusalKeepsCalleeAndCallerTarget(bool used)
+    {
+        var budget = new CooperativeTestBudget(8L << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner: owner);
+        var program = Bind("function f(){print \"before\";return \"" + new string('a', 4096) +
+            "\"}BEGIN{" + (used ? "print(saved=f())" : "saved=f();print \"after\"") + "}");
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        var saved = AwkVariableName.FromText("saved");
+        state.AssignVariableValue(saved, AwkValue.FromText("keep"));
+        var refusedInCallee = false;
+        var host = new MockFileSystem();
+        host.AfterAppend = () =>
+        {
+            budget.RefuseNextAdmissionMinimumGrowth = 1;
+            budget.OnRefusal = () =>
+            {
+                refusedInCallee = true;
+                Assert.True(state.IsInsideFunction);
+                Assert.Equal("keep", state.ResolveVariableValue(saved).AsString());
+            };
+        };
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        try
+        {
+            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+            Assert.True(refusedInCallee);
+            Assert.Equal("keep", state.ResolveVariableValue(saved).AsString());
+            Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.False(state.IsInsideFunction);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.Equal(1, budget.Refusals);
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        }
+        finally
+        {
+            await io.CloseForCleanupAsync();
+            output.Dispose();
+            state.Dispose();
+            await owner.DisposeAsync();
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
     [Fact]
     public async Task CancellationDuringColdCalleeScratchStopsBeforeFieldPreparationAndEffects()
     {

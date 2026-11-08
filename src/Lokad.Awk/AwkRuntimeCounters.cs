@@ -20,6 +20,16 @@ internal sealed class AwkRuntimeCounters
     public long FunctionSlotBufferAllocations { get; private set; }
     private long _functionArgumentSegments;
     public long FunctionArgumentSegments => Volatile.Read(ref _functionArgumentSegments);
+    private long _callAssignments;
+    public long CallAssignments => Volatile.Read(ref _callAssignments);
+    private long _callNumericScratchBypasses;
+    public long CallNumericScratchBypasses => Volatile.Read(ref _callNumericScratchBypasses);
+    internal void RecordCallAssignment(bool bypassedNumericScratch)
+    {
+        if (!_enabled) return;
+        Interlocked.Increment(ref _callAssignments);
+        if (bypassedNumericScratch) Interlocked.Increment(ref _callNumericScratchBypasses);
+    }
     internal void RecordFunctionArgumentSegment()
     {
         if (_enabled) Interlocked.Increment(ref _functionArgumentSegments);

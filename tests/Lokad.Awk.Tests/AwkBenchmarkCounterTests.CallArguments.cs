@@ -3,6 +3,37 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task CallAssignmentsKeepUsedValuesAndBypassDiscardedNumericTransport(bool governed, bool local, bool used)
+    {
+        var loop = "x=0;for(i=0;i<64;i++)" + (used ? "total+=(x=step(x));" : "x=step(x);");
+        var result = used ? "total" : "x";
+        var source = "function step(x){return x+1}" + (local
+            ? "function run(x,i,total){" + loop + "return " + result + "}BEGIN{print run()}"
+            : "BEGIN{" + loop + "print " + result + "}");
+        var host = new MockFileSystem();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(used ? "2080\n" : "64\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.CallAssignments > 0);
+        if (used) Assert.Equal(0, counters.CallNumericScratchBypasses);
+        else Assert.True(counters.CallNumericScratchBypasses > 0);
+        if (local) Assert.True(counters.BoundFrameNumberWrites > 0);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, " ")] [InlineData(true, false, " ")]
     [InlineData(false, true, " ")] [InlineData(true, true, " ")]
     [InlineData(false, false, "|")] [InlineData(true, false, "|")]

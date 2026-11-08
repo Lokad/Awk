@@ -10,6 +10,12 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("call-assignment-consumers-keep-mixed-return-origins-and-used-snapshots",
+            ["function f(k){if(k==0)return \"0007\";if(k==1)return 3+4;if(k==2)return;return $1}function local(x,k){x=f(k);return x}BEGIN{$0=\"0009\";for(k=0;k<4;k++){x=f(k);print \"[\"x\"]\",typeof(x);print \"[\"local(99,k)\"]\"};print (a=b=f(0)),a,b;print (a=f(1))+(a=100),a}"], [],
+            "[0007] string\n[0007]\n[7] number\n[7]\n[] unassigned\n[]\n[0009] strnum\n[0009]\n0007 0007 0007\n107 100\n");
+        yield return Passing("call-assignment-consumers-resolve-caller-target-after-rhs-effects",
+            ["function rhs(){x=99;return 7}function local(x){x=rhs();return x}function count(){return 2}BEGIN{x=1;print local(42),x;x=rhs();print x;NF=count();print NF;for(i=0;i<3;i=f(i))print i}function f(i){return i+1}"], [],
+            "7 99\n7\n2\n0\n1\n2\n");
         yield return Passing("prepared-call-segments-preserve-captures-effects-grouping-and-omitted-arguments",
             ["function readnext(line){getline line;v=\"changed\";$0=\"record 9\";return line}function show(a,b,c,d,e,missing){print typeof(a),\"[\"a\"]\",b,c,d,typeof(e),\"[\"e\"]\",typeof(missing)}function one(x,unused){return x}function extra(){trace=trace\"X\";return 7}BEGIN{v=\"007\";$0=\"old 2\";show(v,readnext(),$1,3,(\"text\"));print v,$0;print one(\"0007\",extra()),trace;print \"[\"one()\"]\",typeof(one())}"], [],
             "string [007] input record 3 string [text] untyped\nchanged record 9\n0007 X\n[] unassigned\n", "input\n");

@@ -166,8 +166,10 @@ or environment dependencies.
   long initialization polls. Standalone internal function execution establishes its own entry poll.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
-  Saved return destinations carry only caller scratch indices and numeric/value meaning;
-  do not transport general operands or names through call continuations.
+  Saved returns carry caller scratch indices and their prepared consumer meaning, without
+  general operands or names. Adjacent bound-scalar assignment descriptors can be consumed
+  after restoring caller scope. Used results and escaping text retain funded snapshots;
+  discarded numeric results retire any old scratch payload without value transport.
 - Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already
   represent missing arguments with an unassigned value; retire prior references before reuse,
   without another omitted-local initialization traversal. Reconcile actual mutable arguments

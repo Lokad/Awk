@@ -236,6 +236,10 @@ Numeric updates, readers and variable stores reference the same canonical operan
 Execution and binding-frame ownership remain distinct during reentry and cleanup.
 Rule completion retires its reference scratch. Actual host suspension saves its continuation.
 Returns keep their captured value and callee storage until required output actually completes.
+An adjacent bound-scalar assignment can be prepared as the return's consumer and completed
+after restoring caller scope. Used expression results and escaping text retain funded snapshots;
+discarded numeric results need no intermediate value transport. Runtime value kinds and
+ordinary assignment admission and cancellation checks remain.
 Available records pass completion directly through the input scheduler and cursor; awaiting
 consumers share that same reader. Pending refills retain their existing continuation, cursor and
 storage until actual completion. Record/header publication retains its admission and
