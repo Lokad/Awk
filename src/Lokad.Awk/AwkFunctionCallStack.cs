@@ -137,16 +137,19 @@ internal sealed class AwkFunctionCallStack(
         else StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
     }
 
-    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument)
+    internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return; // Extra operands still evaluate in the caller.
-        var bytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(argument) : 0;
+        // Admission can invoke a callback. Capture before it, even if the caller
+        // supplied a view of a live local slot.
+        var captured = argument;
+        var bytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(captured) : 0;
         memoryAccounting.ReserveAndCommit(bytes);
         try
         {
             if (bytes > 0) checkpoint?.Invoke();
-            frame.GetSlot(index) = argument;
-            frame.RecordArgument(index, argument.Kind);
+            frame.GetSlot(index) = captured;
+            frame.RecordArgument(index, captured.Kind);
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
         }
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
@@ -156,6 +159,38 @@ internal sealed class AwkFunctionCallStack(
     {
         if ((uint)index < (uint)frame.Layout.SlotCount)
             frame.GetSlot(index) = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
+    }
+
+    internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index,
+        bool allowArray)
+    {
+        if (!TryPeekLocalFrame(out var frame) || (uint)source.Index >= (uint)frame.Layout.SlotCount)
+            return false;
+        ref readonly var sourceSlot = ref frame.GetSlot(source.Index);
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
+            sourceSlot.Value.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
+        {
+            var value = sourceSlot.Value;
+            if (value.TryGetNumber(out var number))
+            {
+                _counters.RecordNumericLocalRead();
+                StageNumber(incoming, index, number);
+            }
+            else
+            {
+                _counters.RecordScalarLocalValueRead();
+                StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
+            }
+            return true;
+        }
+        if (!allowArray) return false;
+        // Alias resolution can admit a potential origin. Capture before that
+        // callback; ordinary scalars above need only their smaller value snapshot.
+        var slot = sourceSlot;
+        if (!TryResolveArrayArgument(frame, source, in slot, out var argument)) return false;
+        _counters.RecordIndexedLocalArrayArgument();
+        StageArgument(incoming, index, in argument);
+        return true;
     }
 
     internal void ActivateFrame(AwkFunctionFrame frame)
@@ -312,21 +347,11 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        return TryResolveArrayArgument(frame, slotId, slot, out argument);
-    }
-
-    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionLocalSlot argument)
-    {
-        if (!TryPeekLocalFrame(out var frame) || !TryGetLocalSlot(frame, slotId, out var slot))
-        {
-            argument = default;
-            return false;
-        }
-        return TryResolveArrayArgument(frame, slotId, slot, out argument);
+        return TryResolveArrayArgument(frame, slotId, in slot, out argument);
     }
 
     private bool TryResolveArrayArgument(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
-        AwkFunctionLocalSlot slot, out AwkFunctionLocalSlot argument)
+        in AwkFunctionLocalSlot slot, out AwkFunctionLocalSlot argument)
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
@@ -787,8 +812,8 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    private static long EstimateLocalSlotBytes(AwkFunctionLocalSlot slot) =>
-        AwkRuntimeMemory.EstimateFunctionLocalPayloadBytes(slot);
+    private static long EstimateLocalSlotBytes(in AwkFunctionLocalSlot slot) =>
+        AwkRuntimeMemory.EstimateFunctionLocalPayloadBytes(in slot);
 
     private enum AwkFunctionLocalProjection
     {

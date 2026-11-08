@@ -125,6 +125,8 @@ Nested-array targets retain evaluated paths and prior values, then reacquire
 current storage after mutation. Getline likewise writes its captured logical path after
 input-phase changes; GNU can instead discard a write into a removed child. Keep such
 order-sensitive mutation in separate statements for portability.
+If a later argument removes an evaluated child-array argument, Lokad repairs that
+detached parameter as a local array; GNU can instead use the recreated child.
 Numeric OFS/ORS use current CONVFMT; use string separators to preserve assigned spelling.
 Printing a numerically assigned `$0` uses OFMT, as in mawk. GNU's cached CONVFMT spelling
 for single-record printing is not reproduced.

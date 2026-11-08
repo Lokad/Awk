@@ -59,12 +59,9 @@ internal sealed partial class AwkRegionCompiler
             {
                 var argument = CompletedResult<int>(completed);
                 // Callee consumption is finalized before any region is prepared.
-                var kind = compiler._operands[argument].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField &&
-                    function.LocalLayout.ConsumesArithmeticInput(_argument - 1)
-                    ? AwkRegionArgumentKind.ArithmeticField
-                    : syntax.Children[_argument].Kind == AwkExpressionKind.Group
-                        ? AwkRegionArgumentKind.Grouped : AwkRegionArgumentKind.Value;
-                _arguments.Add(new(argument, kind));
+                _arguments.Add(AwkRegionArgument.Bind(argument, compiler._operands[argument],
+                    syntax.Children[_argument].Kind == AwkExpressionKind.Group,
+                    function.LocalLayout.ConsumesArithmeticInput(_argument - 1)));
                 // Only adjacent staging can share a segment. Intervening work
                 // keeps the earlier capture at its original language point.
                 if (compiler._code.Count > 0 && compiler._code[^1] is

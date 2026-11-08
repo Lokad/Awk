@@ -6,6 +6,14 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("prepared-argument-sources-preserve-input-spelling-grouping-and-numeric-uses",
+            ["function show(a,b,c,d,e,f,g,h,i){print a,b,c,d,e,f,g,h,i;print typeof(a),typeof(e),typeof(h)}function add(a,b){return a+b}function wrap(x,y){show(x,(x),g,(g),$1,$(idx),NF,y+2,\"lit\");print add($1,$(idx)),$1,$2}BEGIN{g=3;idx=2}{wrap(\"0007\",1)}"], [],
+            "0007 0007 3 3 0009 0011 2 3 lit\nstring strnum number\n20 0009 0011\n", "0009 0011\n"),
+        AwkGoldenCaseBuilder.Create("prepared-argument-sources-reconcile-named-and-detached-array-aliases",
+            ["function first(p,t){print p[\"v\"],t;p[\"seen\"]++}function change(p){delete p;p[\"v\"]=9;return 1}function forward(p){first(p,change(p))}function drop(p){delete p[\"x\"];p[\"x\"][\"v\"]=8;return 2}function call(p){first(p[\"x\"],drop(p))}BEGIN{a[\"v\"]=4;forward(a);print a[\"seen\"];r[\"x\"][\"v\"]=5;call(r);print r[\"x\"][\"v\"],(\"seen\" in r[\"x\"])}"], [])
+            .WithStdOut("9 1\n1\n 2\n8 0\n")
+            .WithNondeterminismNote("Lokad preserves its qualified earlier-argument capture and detached-parameter repair. When a later argument deletes/recreates the child, GNU awk 5.3.2 instead prints 8 2 and 8 1 on the last two lines.")
+            .Build(),
         Passing("nested-owner-windows-keep-untyped-origins-field-rebuilds-and-call-order",
             ["function add(p,k,v){p[k][\"s\"]+=v;p[k][\"n\"]++;return p[k][\"s\"]}BEGIN{print add(a,x,x),a[\"\"][\"n\"],\"[\"x\"]\";print add(a,\"007\",7),add(a,\"007\",3),a[\"007\"][\"n\"];$0=\"left 007\";b[$1][\"s\"]+=+$2;b[$1][\"n\"]++;$1=\"right\";b[$1][\"s\"]+=2;b[$1][\"n\"]++;print b[\"left\"][\"s\"],b[\"right\"][\"s\"],length(b);print \"before\",add(a,\"007\",1),\"after\";print a[\"007\"][\"s\"],a[\"007\"][\"n\"]}"], [], "0 1 []\n7 10 2\n7 2 2\nbefore 11 after\n11 3\n"),
         AwkGoldenCaseBuilder.Create("nested-owner-windows-preserve-pending-csv-diagnostics",

@@ -802,30 +802,46 @@ internal partial struct AwkRegionMachine
             {
                 if ((index & 63) == 63) state.ThrowIfCancellationRequested();
                 ref readonly var argument = ref arguments[index];
-                ref readonly var operand = ref operands[argument.Operand];
-                if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
+                switch (argument.Kind)
                 {
-                    state.StageFunctionNumber(incoming, index, numbers[operand.Index]);
-                    continue;
-                }
-                if (operand.Kind is AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable)
-                {
-                    var staged = operand.Kind == AwkRegionOperandKind.LocalVariable
-                        ? state.TryStageFunctionLocalScalarArgument(new(operand.Index), incoming, index)
-                        : state.TryStagePreparedGlobalScalarArgument(operand.Index, incoming, index);
-                    if (staged) continue;
-                }
-                if (argument.Kind == AwkRegionArgumentKind.ArithmeticField)
-                {
-                    var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
-                    state.StageFunctionValue(incoming, index, fieldArgument);
-                }
-                else if (argument.Kind == AwkRegionArgumentKind.Value && operand.IsVariable && TryArrayArgument(operand, out var array))
-                    state.StageFunctionArgument(incoming, index, array);
-                else
-                {
-                    var value = Value(argument.Operand);
-                    state.StageFunctionValue(incoming, index, value);
+                    case AwkRegionArgumentKind.Number:
+                        state.StageFunctionNumber(incoming, index, numbers[argument.Index]);
+                        break;
+                    case AwkRegionArgumentKind.Local:
+                    case AwkRegionArgumentKind.LocalValue:
+                        state.StageFunctionLocalArgument(new(argument.Index), argument.Name, incoming, index,
+                            argument.Kind == AwkRegionArgumentKind.Local);
+                        break;
+                    case AwkRegionArgumentKind.Global:
+                    case AwkRegionArgumentKind.GlobalValue:
+                        state.StagePreparedGlobalArgument(argument.Index, argument.Name, incoming, index,
+                            argument.Kind == AwkRegionArgumentKind.Global);
+                        break;
+                    case AwkRegionArgumentKind.ArithmeticField:
+                    case AwkRegionArgumentKind.DynamicArithmeticField:
+                    {
+                        var ordinal = argument.Kind == AwkRegionArgumentKind.ArithmeticField ? argument.Index : (int)numbers[argument.Index];
+                        var value = state.GetFieldArithmeticArgument(ordinal);
+                        state.StageFunctionValue(incoming, index, in value);
+                        break;
+                    }
+                    case AwkRegionArgumentKind.Field:
+                    case AwkRegionArgumentKind.DynamicField:
+                    {
+                        var ordinal = argument.Kind == AwkRegionArgumentKind.Field ? argument.Index : (int)numbers[argument.Index];
+                        var value = ReadField(ordinal);
+                        state.StageFunctionValue(incoming, index, in value);
+                        break;
+                    }
+                    default:
+                        if (argument.Kind == AwkRegionArgumentKind.Variable && state.TryResolveArrayArgument(argument.Name, out var array))
+                            state.StageFunctionArgument(incoming, index, in array);
+                        else
+                        {
+                            var value = Value(argument.Index);
+                            state.StageFunctionValue(incoming, index, in value);
+                        }
+                        break;
                 }
             }
             return incoming;
@@ -968,10 +984,6 @@ internal partial struct AwkRegionMachine
                     throw new InvalidOperationException("A numeric source requires a value location.");
             }
         }
-
-        bool TryArrayArgument(AwkRegionOperand variable, out AwkFunctionLocalSlot argument) => variable.Kind == AwkRegionOperandKind.LocalVariable
-            ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.Index), variable.Name, out argument)
-            : state.TryResolveArrayArgument(variable.Name, out argument);
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         bool TryNumberOperand(int location, out double number)

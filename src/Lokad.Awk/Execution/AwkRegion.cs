@@ -172,7 +172,8 @@ internal readonly record struct AwkRegionNumberContinuation(int Detail)
 
 internal enum AwkRegionArgumentKind : byte
 {
-    Value, Grouped, ArithmeticField
+    Value, Number, Local, LocalValue, Global, GlobalValue, Variable,
+    Field, DynamicField, ArithmeticField, DynamicArithmeticField
 }
 
 // Prepared ownership bounds for one rule's scratch, including reused update slots. Shared
@@ -193,7 +194,23 @@ internal readonly record struct AwkRegionCall
     internal int Slot { get; }
     internal ReadOnlySpan<AwkRegionArgument> Arguments => _arguments;
 }
-internal readonly record struct AwkRegionArgument(int Operand, AwkRegionArgumentKind Kind);
+// Known sources bind their actual location. Only generic values retain an operand
+// index; names preserve ordinary resolution when a bound location is unavailable.
+internal readonly record struct AwkRegionArgument(AwkRegionArgumentKind Kind, int Index, AwkVariableName Name = default)
+{
+    internal static AwkRegionArgument Bind(int index, AwkRegionOperand source, bool grouped, bool arithmetic) =>
+        source.Kind switch
+        {
+            AwkRegionOperandKind.NumberTemporary => new(AwkRegionArgumentKind.Number, source.Index),
+            AwkRegionOperandKind.LocalVariable => new(grouped ? AwkRegionArgumentKind.LocalValue : AwkRegionArgumentKind.Local, source.Index, source.Name),
+            AwkRegionOperandKind.GlobalVariable => new(grouped ? AwkRegionArgumentKind.GlobalValue : AwkRegionArgumentKind.Global, source.Index, source.Name),
+            AwkRegionOperandKind.Field => new(arithmetic ? AwkRegionArgumentKind.ArithmeticField : AwkRegionArgumentKind.Field, source.Index),
+            AwkRegionOperandKind.DynamicField => new(arithmetic ? AwkRegionArgumentKind.DynamicArithmeticField : AwkRegionArgumentKind.DynamicField, source.Index),
+            AwkRegionOperandKind.DynamicVariable or AwkRegionOperandKind.SpecialVariable when !grouped =>
+                new(AwkRegionArgumentKind.Variable, index, source.Name),
+            _ => new(AwkRegionArgumentKind.Value, index)
+        };
+}
 // Calls return into caller scratch, never a named binding or borrowed operand.
 internal readonly record struct AwkRegionResumePoint(int Position, int Destination, bool IsNumber);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,

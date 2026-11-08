@@ -35,15 +35,15 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         try
         {
-            Assert.False(state.TryResolveArrayArgument(new(0), name, out _));
+            Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsNumber());
             using (state.EnterGlobalBindings())
             {
-                Assert.True(state.TryResolveArrayArgument(new(0), name, out var argument));
+                var argument = BindLocalArgument(state, new(0), name);
                 Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
                 Assert.Equal(global, argument.ArrayName);
                 Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
             }
-            Assert.False(state.TryResolveArrayArgument(new(0), name, out _));
+            Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(name).AsNumber());
         }
         finally { state.PopFunctionFrame(); }
@@ -62,13 +62,70 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(array)]);
         try
         {
-            Assert.True(state.TryResolveArrayArgument(new(99), name, out var argument));
+            var argument = BindLocalArgument(state, new(99), name);
             Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
             Assert.Equal(array, argument.ArrayName);
             Assert.Equal("kept", state.GetArrayAwkValue(array, new AwkArrayKey("key")).AsString());
             Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
         }
         finally { state.PopFunctionFrame(); }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    private static AwkFunctionLocalSlot BindLocalArgument(AwkRuntimeState state, AwkFunctionLocalSlotId source,
+        AwkVariableName name)
+    {
+        var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("argument")]));
+        try
+        {
+            state.StageFunctionLocalArgument(source, name, incoming, 0, allowArray: true);
+            return incoming.GetSlot(0);
+        }
+        finally { state.DiscardIncomingFunctionFrame(incoming); }
+    }
+
+    [Fact]
+    public void ReferencedArgumentCapturesBeforeAdmissionCanChangeItsSource() =>
+        VerifyArgumentCaptureBeforeAdmission(preparedLocal: false);
+
+    [Fact]
+    public void PreparedLocalArgumentCapturesBeforeAdmissionCanChangeItsSource() =>
+        VerifyArgumentCaptureBeforeAdmission(preparedLocal: true);
+
+    private static void VerifyArgumentCaptureBeforeAdmission(bool preparedLocal)
+    {
+        using var fixture = State();
+        var state = fixture.State;
+        var name = AwkVariableName.FromText("p");
+        var spelling = new string('x', 4096);
+        state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling))]);
+        var caller = state.CurrentFunctionFrame;
+        var incoming = state.PrepareFunctionFrame(new([name]));
+        try
+        {
+            var callbacks = 0;
+            fixture.Budget.OnGrowth = _ =>
+            {
+                fixture.Budget.OnGrowth = null;
+                callbacks++;
+                // Keep the caller's funding until retirement. Change only its
+                // already-funded cell, without reentering admission bookkeeping.
+                caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
+            };
+            ref var source = ref state.CurrentFunctionFrame.GetSlot(0);
+            if (preparedLocal) state.StageFunctionLocalArgument(new(0), name, incoming, 0, allowArray: true);
+            else state.StageFunctionArgument(incoming, 0, in source);
+            Assert.Equal(1, callbacks);
+            Assert.Equal(spelling, incoming.GetSlot(0).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsString());
+            Assert.Equal(17, state.ResolveVariableValue(name).AsNumber());
+        }
+        finally
+        {
+            fixture.Budget.OnGrowth = null;
+            state.DiscardIncomingFunctionFrame(incoming);
+            state.PopFunctionFrame();
+        }
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }

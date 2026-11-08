@@ -200,8 +200,10 @@ Transferred destinations keep their independent owner and lease through actual c
 Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
 forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
 representations; numeric errors still occur at actual use.
-Prepared call segments stage directly into the admitted incoming frame in source order.
-Intervening effects retain earlier captures; the staged frame activates directly after the final segment.
+Prepared call segments bind argument source locations and stage directly into admitted incoming
+frames in source order. Dynamic types and unavailable bindings retain runtime resolution.
+Snapshots precede admission callbacks; intervening effects retain earlier captures, and the
+actual staged frame activates after the final segment.
 Persistent record cells hold slices, numeric interpretations and cache indices without text
 references. The frame cache owns decoded/assigned spelling and scalar values; decoded CSV text
 stays distinct from input-value classification. Byte-only consumers read record slices directly.

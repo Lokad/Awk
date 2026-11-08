@@ -152,7 +152,8 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
   Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
-  Prepared calls own canonical argument definitions. Adjacent staging uses one ordered segment
+  Prepared calls bind source locations in canonical argument definitions. Preserve actual dynamic
+  kind/name resolution; capture caller cells before admission callbacks. Adjacent staging uses one ordered segment
   and one incoming-frame lookup; earlier segments remain before intervening effects, and the
   final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
   Activate the actual staged frame directly; sort callbacks also forward their prepared frame.

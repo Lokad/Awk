@@ -434,7 +434,7 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout) => _functions.PrepareFrame(layout);
-    internal void StageFunctionArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _functions.StageArgument(frame, index, argument);
+    internal void StageFunctionArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument) => _functions.StageArgument(frame, index, in argument);
     internal void StageFunctionValue(AwkFunctionFrame frame, int index, in AwkValue value) => _functions.StageValue(frame, index, in value);
     internal void StageFunctionNumber(AwkFunctionFrame frame, int index, double number) => _functions.StageNumber(frame, index, number);
     internal void ActivateFunctionFrame(AwkFunctionFrame frame)
@@ -628,16 +628,6 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionLocalSlot argument) =>
         _variableRuntime.TryResolveArrayArgument(name, out argument);
 
-    internal bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, AwkVariableName name,
-        out AwkFunctionLocalSlot argument)
-    {
-        if (!_functions.HasLocalSlot(slotId))
-            return TryResolveArrayArgument(name, out argument);
-        var resolved = _functions.TryResolveArrayArgument(slotId, out argument);
-        if (resolved) Counters.RecordIndexedLocalArrayArgument();
-        return resolved;
-    }
-
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count) =>
         _variableRuntime.TryGetExistingArrayCount(name, out count);
 
@@ -767,39 +757,57 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal bool TryStagePreparedGlobalScalarArgument(int source, AwkFunctionFrame incoming, int index)
+    internal void StagePreparedGlobalArgument(int source, AwkVariableName name, AwkFunctionFrame incoming, int index,
+        bool allowArray)
     {
-        if (_globalReadSlots is not { } slots || slots[source].Scalar is not { } cell)
-            return false;
-        var slot = cell.State.Slot;
-        if (slot.Kind is AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding)
-            return false;
-        if (slot.TryGetNumber(out var number))
+        if (_globalReadSlots is { } slots && slots[source].Scalar is { } cell)
         {
-            Counters.RecordNumericGlobalRead();
-            _functions.StageNumber(incoming, index, number);
+            var slot = cell.State.Slot;
+            if (slot.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
+            {
+                if (slot.TryGetNumber(out var number))
+                {
+                    Counters.RecordNumericGlobalRead();
+                    _functions.StageNumber(incoming, index, number);
+                }
+                else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+                return;
+            }
         }
-        else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
-        return true;
+        StageGlobalArgumentFallback(source, name, incoming, index, allowArray);
     }
 
-    internal bool TryStageFunctionLocalScalarArgument(AwkFunctionLocalSlotId source,
-        AwkFunctionFrame incoming, int index)
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void StageGlobalArgumentFallback(int source, AwkVariableName name, AwkFunctionFrame incoming, int index,
+        bool allowArray)
     {
-        if (!_functions.TryResolveScalarLocalSlot(source, out var slot) ||
-            slot.Kind is AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding)
-            return false;
-        if (slot.TryGetNumber(out var number))
-        {
-            Counters.RecordNumericLocalRead();
-            _functions.StageNumber(incoming, index, number);
-        }
+        if (allowArray && TryResolveArrayArgument(name, out var array))
+            _functions.StageArgument(incoming, index, in array);
         else
         {
-            Counters.RecordScalarLocalValueRead();
-            _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+            var value = ResolvePreparedGlobalValue(name, source);
+            _functions.StageValue(incoming, index, in value);
         }
-        return true;
+    }
+
+    internal void StageFunctionLocalArgument(AwkFunctionLocalSlotId source, AwkVariableName name,
+        AwkFunctionFrame incoming, int index, bool allowArray)
+    {
+        if (_functions.TryStageLocalArgument(source, incoming, index, allowArray)) return;
+        StageLocalArgumentFallback(source, name, incoming, index, allowArray);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void StageLocalArgumentFallback(AwkFunctionLocalSlotId source, AwkVariableName name,
+        AwkFunctionFrame incoming, int index, bool allowArray)
+    {
+        if (allowArray && !_functions.HasLocalSlot(source) && TryResolveArrayArgument(name, out var array))
+            _functions.StageArgument(incoming, index, in array);
+        else
+        {
+            var value = ResolveFunctionLocalValue(source, name);
+            _functions.StageValue(incoming, index, in value);
+        }
     }
 
     internal bool TryResolveFunctionLocalKey(AwkFunctionLocalSlotId slotId, out AwkArrayKey key)

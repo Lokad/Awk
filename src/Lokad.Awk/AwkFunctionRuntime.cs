@@ -54,9 +54,11 @@ internal sealed class AwkFunctionRuntime
         _calls.PushFrame(layout, arguments);
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout) => _calls.PrepareFrame(layout);
-    internal void StageArgument(AwkFunctionFrame frame, int index, AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, argument);
+    internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, in argument);
     internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value) => _calls.StageValue(frame, index, in value);
     internal void StageNumber(AwkFunctionFrame frame, int index, double number) => _calls.StageNumber(frame, index, number);
+    internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index, bool allowArray) =>
+        _calls.TryStageLocalArgument(source, incoming, index, allowArray);
     internal void ActivateFrame(AwkFunctionFrame frame) => _calls.ActivateFrame(frame);
     internal void DiscardIncomingFrame(AwkFunctionFrame frame) => _calls.DiscardIncomingFrame(frame);
 
@@ -80,9 +82,6 @@ internal sealed class AwkFunctionRuntime
 
     public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionLocalSlot argument) =>
         _calls.TryResolveArrayArgument(name, out argument);
-
-    public bool TryResolveArrayArgument(AwkFunctionLocalSlotId slotId, out AwkFunctionLocalSlot argument) =>
-        _calls.TryResolveArrayArgument(slotId, out argument);
 
     public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName) =>
         _calls.TryResolveOrPromoteArrayName(name, out arrayName);
