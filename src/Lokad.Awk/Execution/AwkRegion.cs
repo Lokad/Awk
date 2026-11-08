@@ -146,7 +146,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeySeparator, KeyAppend, KeyReady, KeyEnd, ReleaseValue, ReleaseValues,
-    SortBegin, SortAdvance, BeginCall, Argument, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
+    SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
@@ -186,10 +186,14 @@ internal sealed class AwkRegionRuleScope(AwkRegionStorageLayout before, AwkRegio
 internal readonly record struct AwkRegionCall
 {
     private readonly AwkUserFunction? _function;
-    internal AwkRegionCall(AwkUserFunction function, int slot) => (_function, Slot) = (function, slot);
+    private readonly AwkRegionArgument[]? _arguments;
+    internal AwkRegionCall(AwkUserFunction function, int slot, AwkRegionArgument[]? arguments = null) =>
+        (_function, Slot, _arguments) = (function, slot, arguments);
     internal AwkUserFunction Function => _function ?? throw new InvalidOperationException("An uninitialized call has no function.");
     internal int Slot { get; }
+    internal ReadOnlySpan<AwkRegionArgument> Arguments => _arguments;
 }
+internal readonly record struct AwkRegionArgument(int Operand, AwkRegionArgumentKind Kind);
 // Calls return into caller scratch, never a named binding or borrowed operand.
 internal readonly record struct AwkRegionResumePoint(int Position, int Destination, bool IsNumber);
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,

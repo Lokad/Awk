@@ -3,6 +3,35 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(2, false)] [InlineData(2, true)]
+    [InlineData(5, false)] [InlineData(5, true)]
+    [InlineData(16, false)] [InlineData(16, true)]
+    [InlineData(65, false)] [InlineData(65, true)]
+    public async Task ContiguousCallArgumentsShareStagingAcrossArities(int arity, bool governed)
+    {
+        var names = Enumerable.Range(0, arity).Select(x => "p" + x).ToArray();
+        var arguments = string.Join(',', Enumerable.Range(0, arity));
+        var source = "function sum(" + string.Join(',', names) + "){return " + string.Join('+', names) +
+            "}BEGIN{for(i=0;i<32;i++)total=sum(" + arguments + ");print total}";
+        var host = new MockFileSystem();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var result = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, result.Value);
+        Assert.Equal((arity * (arity - 1) / 2).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
+            host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(32, counters.BoundFunctionRuns);
+        Assert.Equal(counters.BoundFunctionRuns, counters.FunctionArgumentSegments);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
     [InlineData("single", false)] [InlineData("single", true)]
     [InlineData("rules", false)] [InlineData("rules", true)]
     [InlineData("loop", false)] [InlineData("loop", true)]

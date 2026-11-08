@@ -511,39 +511,17 @@ internal partial struct AwkRegionMachine
                     state.ThrowIfCancellationRequested();
                     storage.BeginCall(region.Calls[instruction.Left]);
                     break;
-                case AwkRegionInstructionKind.Argument:
-                    var call = region.Calls[instruction.Target];
-                    var operand = operands[instruction.Left];
-                    if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
-                    {
-                        state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, numbers[operand.Index]);
-                        break;
-                    }
-                    if (operand.Kind is AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable)
-                    {
-                        var incoming = storage.IncomingFrame(call.Slot);
-                        var staged = operand.Kind == AwkRegionOperandKind.LocalVariable
-                            ? state.TryStageFunctionLocalScalarArgument(new(operand.Index), incoming, instruction.Right)
-                            : state.TryStagePreparedGlobalScalarArgument(operand.Index, incoming, instruction.Right);
-                        if (staged) break;
-                    }
-                    if (instruction.Detail == (int)AwkRegionArgumentKind.ArithmeticField)
-                    {
-                        var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
-                        state.StageFunctionValue(storage.IncomingFrame(call.Slot), instruction.Right, fieldArgument);
-                    }
-                    else if (instruction.Detail == (int)AwkRegionArgumentKind.Value && operand.IsVariable && TryArrayArgument(operand, out var argument))
-                        state.StageFunctionArgument(storage.IncomingFrame(call.Slot), instruction.Right, argument);
-                    else
-                    {
-                        var argumentValue = Value(instruction.Left);
-                        state.StageFunctionValue(storage.IncomingFrame(call.Slot), instruction.Right, argumentValue);
-                    }
+                case AwkRegionInstructionKind.Arguments:
+                    StageArguments(in region.Calls[instruction.Target], instruction.Left, instruction.Right);
                     break;
                 case AwkRegionInstructionKind.Call:
+                {
+                    ref readonly var call = ref region.Calls[instruction.Left];
+                    var incomingFrame = StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right);
                     _position = position + 1;
-                    EnterCall(region.Calls[instruction.Left], instruction.Target, instruction.Detail != 0);
+                    EnterCall(in call, incomingFrame, instruction.Target, instruction.Detail != 0);
                     goto Resume;
+                }
                 case AwkRegionInstructionKind.BuiltinArgument:
                     var input = operands[instruction.Left];
                     storage.StoreValue(instruction.Target,
@@ -811,6 +789,45 @@ internal partial struct AwkRegionMachine
         {
             ResolvePath(index, out var owner, out var key);
             return state.PrepareArrayUpdate(owner, key);
+        }
+
+        AwkFunctionFrame StageArguments(in AwkRegionCall call, int first, int count)
+        {
+            var incoming = storage.IncomingFrame(call.Slot);
+            if (count == 0) return incoming;
+            var arguments = call.Arguments;
+            state.Counters.RecordFunctionArgumentSegment();
+            for (var index = first; index < first + count; index++)
+            {
+                if ((index & 63) == 63) state.ThrowIfCancellationRequested();
+                ref readonly var argument = ref arguments[index];
+                ref readonly var operand = ref operands[argument.Operand];
+                if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
+                {
+                    state.StageFunctionNumber(incoming, index, numbers[operand.Index]);
+                    continue;
+                }
+                if (operand.Kind is AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable)
+                {
+                    var staged = operand.Kind == AwkRegionOperandKind.LocalVariable
+                        ? state.TryStageFunctionLocalScalarArgument(new(operand.Index), incoming, index)
+                        : state.TryStagePreparedGlobalScalarArgument(operand.Index, incoming, index);
+                    if (staged) continue;
+                }
+                if (argument.Kind == AwkRegionArgumentKind.ArithmeticField)
+                {
+                    var fieldArgument = state.GetFieldArithmeticArgument(FieldOrdinal(operand));
+                    state.StageFunctionValue(incoming, index, fieldArgument);
+                }
+                else if (argument.Kind == AwkRegionArgumentKind.Value && operand.IsVariable && TryArrayArgument(operand, out var array))
+                    state.StageFunctionArgument(incoming, index, array);
+                else
+                {
+                    var value = Value(argument.Operand);
+                    state.StageFunctionValue(incoming, index, value);
+                }
+            }
+            return incoming;
         }
 
         void ResolvePath(int index, out AwkArrayIdentity owner, out AwkArrayKey key)

@@ -150,6 +150,10 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
   Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
+  Prepared calls own canonical argument definitions. Adjacent staging uses one ordered segment
+  and one incoming-frame lookup; earlier segments remain before intervening effects, and the
+  final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
+  Activate the actual staged frame directly; sort callbacks also forward their prepared frame.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
   Frame activation owns the call-entry cancellation poll. Functions carry initial admitted-field

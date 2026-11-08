@@ -67,9 +67,8 @@ internal partial struct AwkRegionMachine
         }
     }
 
-    private void EnterCall(AwkRegionCall call, int destination, bool isNumber)
+    private void EnterCall(in AwkRegionCall call, AwkFunctionFrame frame, int destination, bool isNumber)
     {
-        var frame = _storage.IncomingFrame(call.Slot);
         frame.SetCaller(_region, _storage, _position, _frame, destination, isNumber);
         _state.ActivateFunctionFrame(frame);
         _storage.ActivatedCall(call.Slot);

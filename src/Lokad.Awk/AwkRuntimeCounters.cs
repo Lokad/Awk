@@ -18,6 +18,12 @@ internal sealed class AwkRuntimeCounters
 
     public long FunctionFramesPrepared { get; private set; }
     public long FunctionSlotBufferAllocations { get; private set; }
+    private long _functionArgumentSegments;
+    public long FunctionArgumentSegments => Volatile.Read(ref _functionArgumentSegments);
+    internal void RecordFunctionArgumentSegment()
+    {
+        if (_enabled) Interlocked.Increment(ref _functionArgumentSegments);
+    }
     private long _functionActivationSlotVisits;
     public long FunctionActivationSlotVisits => Volatile.Read(ref _functionActivationSlotVisits);
     private long _functionRetirementSlotVisits;

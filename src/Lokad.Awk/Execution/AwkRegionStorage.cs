@@ -155,8 +155,12 @@ internal sealed class AwkRegionStorage : IDisposable
     private static long PrintSegmentBytes(int count) => AwkRuntimeMemory.CheckedAdd(
         AwkRuntimeMemory.EstimateFieldTextArrayBytes(count), AwkRuntimeMemory.EstimateBooleanArrayBytes(count));
 
-    internal void BeginCall(AwkRegionCall call) =>
-        _incoming[call.Slot] = _state.PrepareFunctionFrame(call.Function.LocalLayout);
+    internal AwkFunctionFrame BeginCall(AwkRegionCall call)
+    {
+        var frame = _state.PrepareFunctionFrame(call.Function.LocalLayout);
+        _incoming[call.Slot] = frame;
+        return frame;
+    }
 
     internal AwkFunctionFrame IncomingFrame(int slot) => _incoming[slot] ??
         throw new InvalidOperationException("No incoming function frame.");

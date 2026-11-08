@@ -41,6 +41,7 @@ internal sealed partial class AwkRegionCompiler
         private bool _started;
         private int _call;
         private int _argument = 1;
+        private readonly List<AwkRegionArgument> _arguments = [];
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {
@@ -63,7 +64,13 @@ internal sealed partial class AwkRegionCompiler
                     ? AwkRegionArgumentKind.ArithmeticField
                     : syntax.Children[_argument].Kind == AwkExpressionKind.Group
                         ? AwkRegionArgumentKind.Grouped : AwkRegionArgumentKind.Value;
-                compiler.Emit(new(AwkRegionInstructionKind.Argument, _call, argument, _argument - 1, (int)kind));
+                _arguments.Add(new(argument, kind));
+                // Only adjacent staging can share a segment. Intervening work
+                // keeps the earlier capture at its original language point.
+                if (compiler._code.Count > 0 && compiler._code[^1] is
+                    { Kind: AwkRegionInstructionKind.Arguments } segment && segment.Target == _call)
+                    compiler._code[^1] = segment with { Right = segment.Right + 1 };
+                else compiler.Emit(new(AwkRegionInstructionKind.Arguments, _call, _argument - 1, 1));
                 _argument++;
             }
             if (_argument < syntax.Children.Count)
@@ -71,8 +78,17 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[_argument], preserveOrigin: true);
                 return true;
             }
+            var firstPending = _arguments.Count;
+            if (compiler._code.Count > 0 && compiler._code[^1] is
+                { Kind: AwkRegionInstructionKind.Arguments } pending && pending.Target == _call)
+            {
+                firstPending = pending.Left;
+                compiler._code.RemoveAt(compiler._code.Count - 1);
+                compiler._straightLine--;
+            }
+            compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray());
             var returned = compiler._values++;
-            compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call));
+            compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending));
             compiler._activeCalls--;
             return Complete(compiler.Operand(AwkRegionOperandKind.ValueTemporary, returned));
         }

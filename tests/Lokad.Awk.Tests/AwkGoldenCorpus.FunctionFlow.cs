@@ -10,6 +10,9 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("prepared-call-segments-preserve-captures-effects-grouping-and-omitted-arguments",
+            ["function readnext(line){getline line;v=\"changed\";$0=\"record 9\";return line}function show(a,b,c,d,e,missing){print typeof(a),\"[\"a\"]\",b,c,d,typeof(e),\"[\"e\"]\",typeof(missing)}function one(x,unused){return x}function extra(){trace=trace\"X\";return 7}BEGIN{v=\"007\";$0=\"old 2\";show(v,readnext(),$1,3,(\"text\"));print v,$0;print one(\"0007\",extra()),trace;print \"[\"one()\"]\",typeof(one())}"], [],
+            "string [007] input record 3 string [text] untyped\nchanged record 9\n0007 X\n[] unassigned\n", "input\n");
         yield return Passing("numeric-returns-preserve-bound-sources-and-value-origins",
             ["function r(x,k){if(k==0)return+x;if(k==1)return+$1;if(k==2)return+g;if(k==3)return+a[\"k\"];return+$i}function v(x){return x}function ratio(x){return 20/x}BEGIN{$0=\"0008 0011\";g=\"0009\";a[\"k\"]=\"0010\";i=2;for(k=0;k<5;k++)print r(\"007\",k);print typeof(v(\"007\")),v(\"007\"),ratio(4)}"],
             [], "7\n8\n9\n10\n11\nstring 007 5\n");
