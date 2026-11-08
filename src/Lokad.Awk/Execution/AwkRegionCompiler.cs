@@ -11,7 +11,7 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkRegionInstruction> _code = [];
     private readonly List<AwkRegionOperand> _operands = [];
     private readonly List<AwkRegionConstant> _constants = [];
-    private readonly List<AwkText> _literals = [];
+    private readonly List<AwkRegionLiteral> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
     private readonly List<AwkRegionArrayUpdate> _updates = [];
     private readonly List<AwkRegionScalarUpdate> _scalarUpdates = [];
@@ -415,7 +415,7 @@ internal sealed partial class AwkRegionCompiler
             case AwkExpressionKind.String:
                 if (!AwkSourceLiterals.TryReadStringLiteral(syntax, _scope, out var literal)) return false;
                 result = Operand(AwkRegionOperandKind.Literal, _literals.Count);
-                _literals.Add(AwkText.FromSourceLiteralString(literal));
+                _literals.Add(new(AwkText.FromSourceLiteralString(literal), _scope.Checkpoint));
                 return true;
             case AwkExpressionKind.Regex:
                 if (!AwkSourceLiterals.TryLowerRegexLiteralPattern(syntax, out var regex, _scope.CompatibilityMode, _scope.Checkpoint)) return false;
@@ -802,6 +802,10 @@ internal sealed partial class AwkRegionCompiler
 
     private int Emit(AwkRegionInstruction instruction)
     {
+        if (instruction.Kind == AwkRegionInstructionKind.PathKey)
+            PrepareCapturedLiteral(instruction.Left);
+        else if (instruction.Kind == AwkRegionInstructionKind.ArrayDelete)
+            PrepareCapturedLiteral(_arrays[instruction.Target].Key);
         if (_straightLine == 128)
         {
             _code.Add(new(AwkRegionInstructionKind.Poll));

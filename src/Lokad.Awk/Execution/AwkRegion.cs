@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 // The syntax compiler emits operands once; execution does not revisit expression trees.
 internal sealed class AwkRegion(
     AwkRegionInstruction[] instructions, AwkRegionOperand[] operands,
-    AwkRegionConstant[] constants, AwkText[] literals, AwkRegionArrayAccess[] arrays,
+    AwkRegionConstant[] constants, AwkRegionLiteral[] literals, AwkRegionArrayAccess[] arrays,
     AwkRegionArrayUpdate[] updates, AwkRegionScalarUpdate[] scalarUpdates,
     AwkRegionStorageLayout layout, AwkRegionCall[] calls,
     AwkRegionBuiltin[] builtins, AwkRegionPrint[] prints, AwkRegionPrintf[] printfs, AwkRegionGetline[] getlines,
@@ -69,7 +69,7 @@ internal sealed class AwkRegion(
 
     internal AwkRegionInstruction[] Instructions => instructions;
     internal AwkRegionOperand[] Operands => operands;
-    internal AwkText[] Literals => literals;
+    internal AwkRegionLiteral[] Literals => literals;
     internal AwkRegionArrayAccess[] Arrays => arrays;
     internal AwkRegionArrayUpdate[] Updates => updates;
     internal AwkRegionScalarUpdate[] ScalarUpdates => scalarUpdates;
@@ -100,6 +100,20 @@ internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int 
         AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.SpecialVariable;
 }
 internal readonly record struct AwkRegionConstant(int Register, double Number);
+internal readonly struct AwkRegionLiteral
+{
+    internal AwkRegionLiteral(AwkText text, Action? checkpoint)
+        : this(text, new AwkArrayKey(text, checkpoint)) { }
+
+    private AwkRegionLiteral(AwkText text, AwkArrayKey key) => (Text, Key) = (text, key);
+
+    internal AwkText Text { get; }
+    internal AwkArrayKey Key { get; }
+
+    // Each source occurrence has its own definition. Captured paths already retain
+    // inline keys; ordinary accesses keep text-backed keys for later traversal.
+    internal AwkRegionLiteral ForCapture() => new(Text, Key.CompactForCapture());
+}
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 // One prepared location, without another operand lookup for computed numbers.
 // Bound operands use nonnegative indices; complemented register indices are negative.

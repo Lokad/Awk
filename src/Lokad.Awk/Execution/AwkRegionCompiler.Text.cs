@@ -23,7 +23,7 @@ internal sealed partial class AwkRegionCompiler
                     literal = true;
                     origin = AwkRegexPatternOrigin.SourceLiteral;
                     value = compiler.Operand(AwkRegionOperandKind.Literal, compiler._literals.Count);
-                    compiler._literals.Add(AwkText.FromSourceLiteralString(pattern));
+                    compiler._literals.Add(new(AwkText.FromSourceLiteralString(pattern), compiler._scope.Checkpoint));
                 }
                 else
                 {

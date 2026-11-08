@@ -4,6 +4,12 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
+    private void PrepareCapturedLiteral(int key)
+    {
+        if (_operands[key] is { Kind: AwkRegionOperandKind.Literal } literal)
+            _literals[literal.Index] = _literals[literal.Index].ForCapture();
+    }
+
     private sealed class ArrayKeyWork(IReadOnlyList<AwkExpressionSyntax> parts, int first) : PreparationWork<int>
     {
         private int _position = -1;
