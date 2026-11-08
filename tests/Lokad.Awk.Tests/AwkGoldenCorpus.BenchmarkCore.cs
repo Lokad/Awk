@@ -5,6 +5,20 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("call-arguments-capture-before-nested-effects-and-read-trailing-caller-values",
+            ["function change(){g=\"after\";$0=\"new 09\";return 3}function show(a,b,c,d,e){print a,b,c,d,e;return b+c}BEGIN{g=\"0007\";$0=\"old 02\";print show(g,change(),$2,g,(\"tail\")),g,$0}"],
+            [], "0007 3 09 after tail\n12 after new 09\n");
+        yield return Passing("call-arguments-keep-grouped-spelling-and-array-aliases-through-caller-locals",
+            ["function pass(x,a,b){a[\"k\"]+=x;print x,a[\"k\"],b;return a[\"k\"]}function outer(x,a){return pass((x),a,x)}BEGIN{a[\"k\"]=1}{print outer($1,a),$1}"],
+            [], "0007 8 0007\n8 0007\n", "0007\n");
+        yield return Passing("call-arguments-preserve-conditional-captures-and-extra-argument-effects",
+            ["function show(a,b,c,d){print a,b,c,d}function one(x){return x}function change(){n++;return 8}BEGIN{v=\"old\";for(i=0;i<2;i++)show(i?\"first\":\"second\",(v=i?\"new\":\"changed\"),v,9);print one(7,change(),n,99),n}"],
+            [], "second changed changed 9\nfirst new new 9\n7 1\n");
+        var callParameters = Enumerable.Range(1, 257).Select(index => "p" + index).ToArray();
+        var callArguments = Enumerable.Range(1, 257).Select(index => index.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        yield return Passing("call-arguments-keep-large-arity-across-computational-boundaries",
+            ["function sum(" + string.Join(',', callParameters) + "){return p1+p129+p257}BEGIN{print sum(" + string.Join(',', callArguments) + ")}"],
+            [], "387\n");
         yield return Passing("record-snapshot-global-ignorecase-write-inside-function",
             ["function change(dummy){SYMTAB[\"IGNORECASE\"]=1;return dummy}BEGIN{FS=\"[x]\";change(0)}{print $1,$2}"],
             [], "a b\n", "aXb\n");
