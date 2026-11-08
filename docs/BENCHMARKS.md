@@ -2,11 +2,11 @@
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
 Rows marked **†** were measured on **2026-11-08 UTC** at
-[8db928d9](https://github.com/Lokad/Awk/commit/8db928d9d8ed2cc554902f5fe94d968194866eb6): eight managed comparisons
+[8db928d9](https://github.com/Lokad/Awk/commit/8db928d9d8ed2cc554902f5fe94d968194866eb6): eleven managed comparisons
 and all six shared-admission measurements. Six managed rows marked **‡** are retained from
 **2026-11-08 UTC** at
 [48276c2b](https://github.com/Lokad/Awk/commit/48276c2b471ae67baa6afccab130876cad4a1482).
-The other 50 managed measurements are retained from **2026-11-08 UTC** at
+The other 47 managed measurements are retained from **2026-11-08 UTC** at
 [ae76600d](https://github.com/Lokad/Awk/commit/ae76600dcfcb535d2e14582616723797329a2ae2).
 Retained rows are not fresh measurements of the newest revision.
 
@@ -33,11 +33,11 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | --- | ---: | ---: | ---: | ---: | ---: |
 | gsub and output | 56.00 | 9.433 | 1.791 | 5.27× | 22.882 |
 | ERE field separator | 48.00 | 5.448 | 1.644 | 3.31× | 2.238 |
-| Nested-array calls, 16 keys (GNU) | 25.08 | 4.343 | 1.832 | 2.37× | 0.319 |
-| Nested-array calls, 1,024 keys (GNU) | 31.24 | 4.623 | 2.249 | 2.06× | 0.912 |
+| Nested-array calls, 16 keys (GNU) † | 25.08 | 4.342 | 1.832 | 2.37× | 0.319 |
+| Nested-array calls, 1,024 keys (GNU) † | 31.24 | 4.479 | 2.249 | 1.99× | 0.912 |
 | Unicode length/substr / output | 60.00 | 3.264 | 1.671 | 1.95× | 1.796 |
-| Text function with branches and local temporary | 62.00 | 3.180 | 1.636 | 1.94× | 0.654 |
 | ERE boolean matching | 32.00 | 1.757 | 0.922 | 1.91× | 7.197 |
+| Text function with branches and local temporary † | 62.00 | 2.884 | 1.636 | 1.76× | 0.654 |
 | ERE capture arrays (GNU) | 28.00 | 12.815 | 7.336 | 1.75× | 32.013 |
 | Numeric array sort (GNU) | 18.92 | 3.071 | 2.003 | 1.53× | 2.092 |
 | Loop with two-argument calls and local temporary | 8.00 | 6.133 | 4.062 | 1.51× | 0.278 |
