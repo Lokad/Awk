@@ -3,6 +3,44 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false, " ")] [InlineData(true, false, " ")]
+    [InlineData(false, true, " ")] [InlineData(true, true, " ")]
+    [InlineData(false, false, "|")] [InlineData(true, false, "|")]
+    [InlineData(false, true, "|")] [InlineData(true, true, "|")]
+    public async Task ArgumentSegmentsShareOnlyAdmittedFieldPrefixes(bool governed, bool earlierSegment, string separator)
+    {
+        var prepared = await Run("$1", "$2");
+        var dynamic = await Run("$first", "$second");
+        Assert.Equal("448\n", prepared.Output);
+        Assert.Equal(dynamic.Output, prepared.Output);
+        Assert.True(prepared.Counters.FieldPrefixExtensions < dynamic.Counters.FieldPrefixExtensions);
+        Assert.Equal(dynamic.Counters.FieldsMaterialized, prepared.Counters.FieldsMaterialized);
+        Assert.Equal(dynamic.Counters.NumericFieldByteParses, prepared.Counters.NumericFieldByteParses);
+        Assert.Equal(dynamic.Counters.AwkTextAllocations, prepared.Counters.AwkTextAllocations);
+        Assert.Equal(0, prepared.Counters.StringDecodes);
+        Assert.Equal(0, prepared.Counters.Utf8Encodes);
+
+        async Task<(string Output, AwkRuntimeCounters Counters)> Run(string key, string value)
+        {
+            var source = "function id(x){return x}function add(p,k,v,unused){p[k]+=v}" +
+                "BEGIN{FS=\"" + separator + "\";first=1;second=2}{add(a," + key + "," + value +
+                (earlierSegment ? ",id(0)" : "") + ")}END{print a[\"key\"]}";
+            var host = new MockFileSystem();
+            host.SetStandardInput(string.Concat(Enumerable.Repeat("key" + separator + "0007\n", 64)));
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var exit = await AwkExecutor.ExecuteAsync(host,
+                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(0, exit.Value);
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(0, host.OpenFileCount);
+            return (host.GetOutput(AwkFileDescriptor.StdOut), counters);
+        }
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task PreparedArgumentsForwardArrayAndScalarCellsWithoutTextConversion(bool governed)
     {

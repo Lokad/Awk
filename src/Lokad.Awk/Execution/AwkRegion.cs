@@ -188,11 +188,13 @@ internal readonly record struct AwkRegionCall
 {
     private readonly AwkUserFunction? _function;
     private readonly AwkRegionArgument[]? _arguments;
-    internal AwkRegionCall(AwkUserFunction function, int slot, AwkRegionArgument[]? arguments = null) =>
-        (_function, Slot, _arguments) = (function, slot, arguments);
+    internal AwkRegionCall(AwkUserFunction function, int slot, AwkRegionArgument[]? arguments = null,
+        int finalFieldDemand = 0) =>
+        (_function, Slot, _arguments, FinalFieldDemand) = (function, slot, arguments, finalFieldDemand);
     internal AwkUserFunction Function => _function ?? throw new InvalidOperationException("An uninitialized call has no function.");
     internal int Slot { get; }
     internal ReadOnlySpan<AwkRegionArgument> Arguments => _arguments;
+    internal int FinalFieldDemand { get; }
 }
 // Known sources bind their actual location. Only generic values retain an operand
 // index; names preserve ordinary resolution when a bound location is unavailable.

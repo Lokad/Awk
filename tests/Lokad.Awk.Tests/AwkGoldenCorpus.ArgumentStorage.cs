@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("argument-field-demands-keep-captures-before-record-and-separator-changes",
+            ["function show(a,b,c,d){print a,b,c,d;print $0}function change(){FS=\":\";$0=\"new:0011\";return \"done\"}BEGIN{for(i=0;i<3;i++){FS=\" \";$0=\"key 0007\";show($1,$2,change(),$2)}}"], [],
+            "key 0007 done 0011\nnew:0011\nkey 0007 done 0011\nnew:0011\nkey 0007 done 0011\nnew:0011\n");
+        yield return Passing("argument-field-demands-keep-high-missing-and-whole-record-values",
+            ["function show(a,b,c,d){print \"[\"a\"]\",\"[\"b\"]\",\"[\"c\"]\",\"[\"d\"]\"}BEGIN{for(i=0;i<2;i++){$0=\"0001 0002\";show($2,$1,$9,$0);show($1,7,$2,$9)}}"], [],
+            "[0002] [0001] [] [0001 0002]\n[0001] [7] [0002] []\n[0002] [0001] [] [0001 0002]\n[0001] [7] [0002] []\n");
         yield return Passing("argument-binding-ordinary-global-and-local-scalars",
             ["function leaf(x){switch(0){default:break}return x+0}function wrap(x){return leaf(x)}BEGIN{x=\"0007\";print wrap(x),x;for(i=0;i<3;i++)print leaf(++x);print x}"],
             [], "7 0007\n8\n9\n10\n10\n");

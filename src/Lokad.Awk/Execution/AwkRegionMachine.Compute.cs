@@ -513,12 +513,13 @@ internal partial struct AwkRegionMachine
                     storage.BeginCall(region.Calls[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.Arguments:
-                    StageArguments(in region.Calls[instruction.Target], instruction.Left, instruction.Right);
+                    StageArguments(in region.Calls[instruction.Target], instruction.Left, instruction.Right, instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Call:
                 {
                     ref readonly var call = ref region.Calls[instruction.Left];
-                    var incomingFrame = StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right);
+                    var incomingFrame = StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right,
+                        call.FinalFieldDemand);
                     _position = position + 1;
                     EnterCall(in call, incomingFrame, instruction.Target, instruction.Detail != 0);
                     goto Resume;
@@ -792,7 +793,7 @@ internal partial struct AwkRegionMachine
             return state.PrepareArrayUpdate(owner, key);
         }
 
-        AwkFunctionFrame StageArguments(in AwkRegionCall call, int first, int count)
+        AwkFunctionFrame StageArguments(in AwkRegionCall call, int first, int count, int fieldDemand)
         {
             var incoming = storage.IncomingFrame(call.Slot);
             if (count == 0) return incoming;
@@ -820,6 +821,11 @@ internal partial struct AwkRegionMachine
                     case AwkRegionArgumentKind.ArithmeticField:
                     case AwkRegionArgumentKind.DynamicArithmeticField:
                     {
+                        if (argument.Kind == AwkRegionArgumentKind.ArithmeticField && fieldDemand > 0)
+                        {
+                            state.PrepareAdmittedFields(fieldDemand);
+                            fieldDemand = 0;
+                        }
                         var ordinal = argument.Kind == AwkRegionArgumentKind.ArithmeticField ? argument.Index : (int)numbers[argument.Index];
                         var value = state.GetFieldArithmeticArgument(ordinal);
                         state.StageFunctionValue(incoming, index, in value);
@@ -828,6 +834,11 @@ internal partial struct AwkRegionMachine
                     case AwkRegionArgumentKind.Field:
                     case AwkRegionArgumentKind.DynamicField:
                     {
+                        if (argument.Kind == AwkRegionArgumentKind.Field && fieldDemand > 0)
+                        {
+                            state.PrepareAdmittedFields(fieldDemand);
+                            fieldDemand = 0;
+                        }
                         var ordinal = argument.Kind == AwkRegionArgumentKind.Field ? argument.Index : (int)numbers[argument.Index];
                         var value = ReadField(ordinal);
                         state.StageFunctionValue(incoming, index, in value);

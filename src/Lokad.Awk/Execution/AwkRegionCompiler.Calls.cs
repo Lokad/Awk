@@ -41,6 +41,7 @@ internal sealed partial class AwkRegionCompiler
         private bool _started;
         private int _call;
         private int _argument = 1;
+        private int _segment = -1;
         private readonly List<AwkRegionArgument> _arguments = [];
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
@@ -67,7 +68,13 @@ internal sealed partial class AwkRegionCompiler
                 if (compiler._code.Count > 0 && compiler._code[^1] is
                     { Kind: AwkRegionInstructionKind.Arguments } segment && segment.Target == _call)
                     compiler._code[^1] = segment with { Right = segment.Right + 1 };
-                else compiler.Emit(new(AwkRegionInstructionKind.Arguments, _call, _argument - 1, 1));
+                else
+                {
+                    if (_segment >= 0)
+                        compiler._code[_segment] = compiler._code[_segment] with
+                        { Detail = FieldDemand(compiler, compiler._code[_segment]) };
+                    _segment = compiler.Emit(new(AwkRegionInstructionKind.Arguments, _call, _argument - 1, 1));
+                }
                 _argument++;
             }
             if (_argument < syntax.Children.Count)
@@ -76,18 +83,41 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var firstPending = _arguments.Count;
+            var fieldDemand = 0;
             if (compiler._code.Count > 0 && compiler._code[^1] is
                 { Kind: AwkRegionInstructionKind.Arguments } pending && pending.Target == _call)
             {
                 firstPending = pending.Left;
+                fieldDemand = FieldDemand(compiler, pending);
                 compiler._code.RemoveAt(compiler._code.Count - 1);
                 compiler._straightLine--;
             }
-            compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray());
+            compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray(), fieldDemand);
             var returned = compiler._values++;
             compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending));
             compiler._activeCalls--;
             return Complete(compiler.Operand(AwkRegionOperandKind.ValueTemporary, returned));
+        }
+
+        private int FieldDemand(AwkRegionCompiler compiler, AwkRegionInstruction segment)
+        {
+            var first = 0;
+            var maximum = 0;
+            for (var index = segment.Left; index < segment.Left + segment.Right; index++)
+            {
+                if ((index & 127) == 127) compiler._scope.CheckCancellation();
+                var argument = _arguments[index];
+                if (argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.ArithmeticField)
+                {
+                    // Whole-record reads can reconstruct/own text. Leave that
+                    // demand at its operation instead of crossing it.
+                    if (argument.Index == 0) break;
+                    if (first == 0) first = argument.Index;
+                    maximum = Math.Max(maximum, argument.Index);
+                }
+                else if (first > 0 && argument.Kind != AwkRegionArgumentKind.Number) break;
+            }
+            return maximum > first ? maximum : 0;
         }
     }
 

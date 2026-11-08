@@ -156,6 +156,8 @@ or environment dependencies.
   kind/name resolution; capture caller cells before admission callbacks. Adjacent staging uses one ordered segment
   and one incoming-frame lookup; earlier segments remain before intervening effects, and the
   final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
+  Prepare field demand once per segment and consume it at the first static field after earlier
+  arguments stage. Keep cold admission, unknown-effect boundaries and current-record revalidation.
   Activate the actual staged frame directly; sort callbacks also forward their prepared frame.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
