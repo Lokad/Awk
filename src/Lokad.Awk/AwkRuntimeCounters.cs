@@ -18,8 +18,10 @@ internal sealed class AwkRuntimeCounters
 
     public long FunctionFramesPrepared { get; private set; }
     public long FunctionSlotBufferAllocations { get; private set; }
-    public long FunctionActivationSlotVisits { get; private set; }
-    public long FunctionRetirementSlotVisits { get; private set; }
+    private long _functionActivationSlotVisits;
+    public long FunctionActivationSlotVisits => Volatile.Read(ref _functionActivationSlotVisits);
+    private long _functionRetirementSlotVisits;
+    public long FunctionRetirementSlotVisits => Volatile.Read(ref _functionRetirementSlotVisits);
 
     internal void RecordFunctionFramePrepared(bool grewSlots)
     {
@@ -33,35 +35,39 @@ internal sealed class AwkRuntimeCounters
 
     internal void RecordFunctionActivationSlots(int count)
     {
-        if (_enabled) lock (_sync) FunctionActivationSlotVisits += count;
+        if (_enabled) Interlocked.Add(ref _functionActivationSlotVisits, count);
     }
 
     internal void RecordFunctionRetirementSlots(int count)
     {
-        if (_enabled) lock (_sync) FunctionRetirementSlotVisits += count;
+        if (_enabled) Interlocked.Add(ref _functionRetirementSlotVisits, count);
     }
 
     // Entries into prepared record programs; loop iterations are RecordsRead.
-    public long BoundRegionRuns { get; private set; }
-    public long BoundFunctionRuns { get; private set; }
-    public long BoundPhaseRuns { get; private set; }
+    private long _boundRegionRuns;
+    public long BoundRegionRuns => Volatile.Read(ref _boundRegionRuns);
+    private long _boundFunctionRuns;
+    public long BoundFunctionRuns => Volatile.Read(ref _boundFunctionRuns);
+    private long _boundPhaseRuns;
+    public long BoundPhaseRuns => Volatile.Read(ref _boundPhaseRuns);
     internal void RecordBoundPhaseRun()
     {
-        if (_enabled) lock (_sync) BoundPhaseRuns++;
+        if (_enabled) Interlocked.Increment(ref _boundPhaseRuns);
     }
     internal void RecordBoundFunctionRun()
     {
-        if (_enabled) lock (_sync) BoundFunctionRuns++;
+        if (_enabled) Interlocked.Increment(ref _boundFunctionRuns);
     }
     public void RecordBoundRegionRun()
     {
-        if (_enabled) lock (_sync) BoundRegionRuns++;
+        if (_enabled) Interlocked.Increment(ref _boundRegionRuns);
     }
 
-    public long RegexCoordinateBytes { get; private set; }
+    private long _regexCoordinateBytes;
+    public long RegexCoordinateBytes => Volatile.Read(ref _regexCoordinateBytes);
     public void RecordRegexCoordinateBytes(int bytes)
     {
-        if (_enabled) lock (_sync) RegexCoordinateBytes += bytes;
+        if (_enabled) Interlocked.Add(ref _regexCoordinateBytes, bytes);
     }
 
     public long BufferedInputRecords { get; private set; }
@@ -90,44 +96,54 @@ internal sealed class AwkRuntimeCounters
         }
     }
 
-    public long RecordsRead { get; private set; }
+    private long _recordsRead;
+    public long RecordsRead => Volatile.Read(ref _recordsRead);
 
-    public long PreparedSpecialScalarReads { get; private set; }
-    public long BoundSpecialScalarReads { get; private set; }
+    private long _preparedSpecialScalarReads;
+    public long PreparedSpecialScalarReads => Volatile.Read(ref _preparedSpecialScalarReads);
+    private long _boundSpecialScalarReads;
+    public long BoundSpecialScalarReads => Volatile.Read(ref _boundSpecialScalarReads);
 
     internal void RecordBoundSpecialScalarRead()
     {
-        if (_enabled) lock (_sync) BoundSpecialScalarReads++;
+        if (_enabled) Interlocked.Increment(ref _boundSpecialScalarReads);
     }
 
     internal void RecordPreparedSpecialScalarRead()
     {
-        if (_enabled) lock (_sync) PreparedSpecialScalarReads++;
+        if (_enabled) Interlocked.Increment(ref _preparedSpecialScalarReads);
     }
 
-    public long ArrayContainerCacheHits { get; private set; }
+    private long _arrayContainerCacheHits;
+    public long ArrayContainerCacheHits => Volatile.Read(ref _arrayContainerCacheHits);
 
-    public long BorrowedFieldTargetSnapshots { get; private set; }
-    public long NumericArraySlotReads { get; private set; }
-    public long ArrayCellCommits { get; private set; }
-    public long CapturedPathAllocations { get; private set; }
-    public long CapturedPathKeyBufferAllocations { get; private set; }
+    private long _borrowedFieldTargetSnapshots;
+    public long BorrowedFieldTargetSnapshots => Volatile.Read(ref _borrowedFieldTargetSnapshots);
+    private long _numericArraySlotReads;
+    public long NumericArraySlotReads => Volatile.Read(ref _numericArraySlotReads);
+    private long _arrayCellCommits;
+    public long ArrayCellCommits => Volatile.Read(ref _arrayCellCommits);
+    private long _capturedPathAllocations;
+    public long CapturedPathAllocations => Volatile.Read(ref _capturedPathAllocations);
+    private long _capturedPathKeyBufferAllocations;
+    public long CapturedPathKeyBufferAllocations => Volatile.Read(ref _capturedPathKeyBufferAllocations);
 
     internal void RecordCapturedPathAllocation()
     {
-        if (_enabled) lock (_sync) CapturedPathAllocations++;
+        if (_enabled) Interlocked.Increment(ref _capturedPathAllocations);
     }
 
     internal void RecordCapturedPathKeyBufferAllocation()
     {
-        if (_enabled) lock (_sync) CapturedPathKeyBufferAllocations++;
+        if (_enabled) Interlocked.Increment(ref _capturedPathKeyBufferAllocations);
     }
 
     // Comparer work, not the table's internal collision-probe count.
     public long ArrayBorrowedHashCalls { get; private set; }
     public long ArrayOwnedHashCalls { get; private set; }
     public long ArrayHashBytes { get; private set; }
-    public long ArrayEqualityCalls { get; private set; }
+    private long _arrayEqualityCalls;
+    public long ArrayEqualityCalls => Volatile.Read(ref _arrayEqualityCalls);
 
     internal void RecordArrayHash(int bytes, bool borrowed)
     {
@@ -142,67 +158,77 @@ internal sealed class AwkRuntimeCounters
 
     internal void RecordArrayEquality()
     {
-        if (_enabled) lock (_sync) ArrayEqualityCalls++;
+        if (_enabled) Interlocked.Increment(ref _arrayEqualityCalls);
     }
 
     public void RecordArrayCellCommit()
     {
-        if (_enabled) lock (_sync) ArrayCellCommits++;
+        if (_enabled) Interlocked.Increment(ref _arrayCellCommits);
     }
 
     public void RecordNumericArraySlotRead()
     {
-        if (_enabled) lock (_sync) NumericArraySlotReads++;
+        if (_enabled) Interlocked.Increment(ref _numericArraySlotReads);
     }
 
     public void RecordBorrowedFieldTargetSnapshot()
     {
-        if (_enabled) lock (_sync) BorrowedFieldTargetSnapshots++;
+        if (_enabled) Interlocked.Increment(ref _borrowedFieldTargetSnapshots);
     }
 
     public void RecordArrayContainerCacheHit()
     {
-        if (_enabled) lock (_sync) ArrayContainerCacheHits++;
+        if (_enabled) Interlocked.Increment(ref _arrayContainerCacheHits);
     }
 
-    public long PrintfSinkFormats { get; private set; }
+    private long _printfSinkFormats;
+    public long PrintfSinkFormats => Volatile.Read(ref _printfSinkFormats);
 
     public void RecordPrintfSinkFormat()
     {
-        if (_enabled) lock (_sync) PrintfSinkFormats++;
+        if (_enabled) Interlocked.Increment(ref _printfSinkFormats);
     }
 
-    public long BytesRead { get; private set; }
+    private long _bytesRead;
+    public long BytesRead => Volatile.Read(ref _bytesRead);
 
-    public long FieldsMaterialized { get; private set; }
+    private long _fieldsMaterialized;
+    public long FieldsMaterialized => Volatile.Read(ref _fieldsMaterialized);
 
 
-    public long FieldListBufferReuses { get; private set; }
-    public long FieldPrefixStages { get; private set; }
-    public long FieldPrefixExtensions { get; private set; }
+    private long _fieldListBufferReuses;
+    public long FieldListBufferReuses => Volatile.Read(ref _fieldListBufferReuses);
+    private long _fieldPrefixStages;
+    public long FieldPrefixStages => Volatile.Read(ref _fieldPrefixStages);
+    private long _fieldPrefixExtensions;
+    public long FieldPrefixExtensions => Volatile.Read(ref _fieldPrefixExtensions);
     public void RecordFieldPrefixExtension()
     {
-        if (_enabled) lock (_sync) FieldPrefixExtensions++;
+        if (_enabled) Interlocked.Increment(ref _fieldPrefixExtensions);
     }
 
-    public long FieldDescriptorCopies { get; private set; }
+    private long _fieldDescriptorCopies;
+    public long FieldDescriptorCopies => Volatile.Read(ref _fieldDescriptorCopies);
 
-    public long FieldValueCacheBufferAllocations { get; private set; }
+    private long _fieldValueCacheBufferAllocations;
+    public long FieldValueCacheBufferAllocations => Volatile.Read(ref _fieldValueCacheBufferAllocations);
 
     public void RecordFieldValueCacheBufferAllocation()
     {
-        if (_enabled) lock (_sync) FieldValueCacheBufferAllocations++;
+        if (_enabled) Interlocked.Increment(ref _fieldValueCacheBufferAllocations);
     }
 
     // Byte-native numeric reads only; ordinary owned-value classification is separate.
-    public long NumericFieldByteParses { get; private set; }
+    private long _numericFieldByteParses;
+    public long NumericFieldByteParses => Volatile.Read(ref _numericFieldByteParses);
 
     public void RecordNumericFieldByteParse()
     {
-        if (_enabled) lock (_sync) NumericFieldByteParses++;
+        if (_enabled) Interlocked.Increment(ref _numericFieldByteParses);
     }
 
-    public long FieldSplits { get; private set; }
+    private long _fieldSplits;
+    public long FieldSplits => Volatile.Read(ref _fieldSplits);
 
     public long WhitespaceFieldSearches { get; private set; }
 
@@ -246,187 +272,226 @@ internal sealed class AwkRuntimeCounters
         }
     }
 
-    public long ValuesCreated { get; private set; }
+    private long _valuesCreated;
+    public long ValuesCreated => Volatile.Read(ref _valuesCreated);
 
-    public long PreparedRecordTerminatorSlots { get; private set; }
+    private long _preparedRecordTerminatorSlots;
+    public long PreparedRecordTerminatorSlots => Volatile.Read(ref _preparedRecordTerminatorSlots);
 
     public void RecordPreparedRecordTerminatorSlot()
     {
-        if (_enabled) lock (_sync) PreparedRecordTerminatorSlots++;
+        if (_enabled) Interlocked.Increment(ref _preparedRecordTerminatorSlots);
     }
 
-    public long StringDecodes { get; private set; }
+    private long _stringDecodes;
+    public long StringDecodes => Volatile.Read(ref _stringDecodes);
 
-    public long Utf8Encodes { get; private set; }
+    private long _utf8Encodes;
+    public long Utf8Encodes => Volatile.Read(ref _utf8Encodes);
 
-    public long OutputBytes { get; private set; }
+    private long _outputBytes;
+    public long OutputBytes => Volatile.Read(ref _outputBytes);
 
-    public long OutputSinkCreations { get; private set; }
+    private long _outputSinkCreations;
+    public long OutputSinkCreations => Volatile.Read(ref _outputSinkCreations);
 
-    public long RegexCompiles { get; private set; }
+    private long _regexCompiles;
+    public long RegexCompiles => Volatile.Read(ref _regexCompiles);
 
-    public long RegexMatches { get; private set; }
+    private long _regexMatches;
+    public long RegexMatches => Volatile.Read(ref _regexMatches);
 
-    public long RegexGroupsMaterialized { get; private set; }
+    private long _regexGroupsMaterialized;
+    public long RegexGroupsMaterialized => Volatile.Read(ref _regexGroupsMaterialized);
 
-    public long RecordSeparatorResolutions { get; private set; }
+    private long _recordSeparatorResolutions;
+    public long RecordSeparatorResolutions => Volatile.Read(ref _recordSeparatorResolutions);
 
-    public long RecordSeparatorTailBytesMoved { get; private set; }
+    private long _recordSeparatorTailBytesMoved;
+    public long RecordSeparatorTailBytesMoved => Volatile.Read(ref _recordSeparatorTailBytesMoved);
 
-    public long RecordSeparatorBytesScanned { get; private set; }
+    private long _recordSeparatorBytesScanned;
+    public long RecordSeparatorBytesScanned => Volatile.Read(ref _recordSeparatorBytesScanned);
 
-    public long SeparatorCaptureFallbacks { get; private set; }
+    private long _separatorCaptureFallbacks;
+    public long SeparatorCaptureFallbacks => Volatile.Read(ref _separatorCaptureFallbacks);
 
-    public long FormattingFallbacks { get; private set; }
+    private long _formattingFallbacks;
+    public long FormattingFallbacks => Volatile.Read(ref _formattingFallbacks);
 
-    public long PrintfSignedIntegerFastPaths { get; private set; }
+    private long _printfSignedIntegerFastPaths;
+    public long PrintfSignedIntegerFastPaths => Volatile.Read(ref _printfSignedIntegerFastPaths);
 
-    public long SingleValuePrintRuns { get; private set; }
+    private long _singleValuePrintRuns;
+    public long SingleValuePrintRuns => Volatile.Read(ref _singleValuePrintRuns);
 
-    public long SmallValuePrintRuns { get; private set; }
+    private long _smallValuePrintRuns;
+    public long SmallValuePrintRuns => Volatile.Read(ref _smallValuePrintRuns);
 
-    public long FieldListPrintRuns { get; private set; }
+    private long _fieldListPrintRuns;
+    public long FieldListPrintRuns => Volatile.Read(ref _fieldListPrintRuns);
 
     public void RecordFieldListPrint()
     {
-        if (_enabled) lock (_sync) FieldListPrintRuns++;
+        if (_enabled) Interlocked.Increment(ref _fieldListPrintRuns);
     }
 
     public void RecordSmallValuePrint()
     {
-        if (_enabled) lock (_sync) SmallValuePrintRuns++;
+        if (_enabled) Interlocked.Increment(ref _smallValuePrintRuns);
     }
 
     public void RecordSingleValuePrint()
     {
-        if (_enabled) lock (_sync) SingleValuePrintRuns++;
+        if (_enabled) Interlocked.Increment(ref _singleValuePrintRuns);
     }
 
     public void RecordPrintfSignedIntegerFastPath()
     {
-        if (_enabled) lock (_sync) PrintfSignedIntegerFastPaths++;
+        if (_enabled) Interlocked.Increment(ref _printfSignedIntegerFastPaths);
     }
 
-    public long FormattingStringInteropInputs { get; private set; }
+    private long _formattingStringInteropInputs;
+    public long FormattingStringInteropInputs => Volatile.Read(ref _formattingStringInteropInputs);
 
-    public long StringInteropFallbacks { get; private set; }
+    private long _stringInteropFallbacks;
+    public long StringInteropFallbacks => Volatile.Read(ref _stringInteropFallbacks);
 
 
-    public long FunctionNameLookups { get; private set; }
+    private long _functionNameLookups;
+    public long FunctionNameLookups => Volatile.Read(ref _functionNameLookups);
     public void RecordFunctionNameLookup()
     {
-        if (_enabled) lock (_sync) FunctionNameLookups++;
+        if (_enabled) Interlocked.Increment(ref _functionNameLookups);
     }
 
 
-    public long BoundScalarLengths { get; private set; }
+    private long _boundScalarLengths;
+    public long BoundScalarLengths => Volatile.Read(ref _boundScalarLengths);
 
     public void RecordBoundScalarLength()
     {
         if (!_enabled) return;
-        lock (_sync) BoundScalarLengths++;
+        Interlocked.Increment(ref _boundScalarLengths);
     }
 
-    public long NumericLocalReads { get; private set; }
+    private long _numericLocalReads;
+    public long NumericLocalReads => Volatile.Read(ref _numericLocalReads);
 
-    public long BoundFrameNumberWrites { get; private set; }
+    private long _boundFrameNumberWrites;
+    public long BoundFrameNumberWrites => Volatile.Read(ref _boundFrameNumberWrites);
 
     public void RecordBoundFrameNumberWrite()
     {
-        if (_enabled) lock (_sync) BoundFrameNumberWrites++;
+        if (_enabled) Interlocked.Increment(ref _boundFrameNumberWrites);
     }
 
-    public long ScalarLocalValueReads { get; private set; }
+    private long _scalarLocalValueReads;
+    public long ScalarLocalValueReads => Volatile.Read(ref _scalarLocalValueReads);
 
     public void RecordScalarLocalValueRead()
     {
-        if (_enabled) lock (_sync) ScalarLocalValueReads++;
+        if (_enabled) Interlocked.Increment(ref _scalarLocalValueReads);
     }
 
-    public long BoundGlobalArrayAccesses { get; private set; }
+    private long _boundGlobalArrayAccesses;
+    public long BoundGlobalArrayAccesses => Volatile.Read(ref _boundGlobalArrayAccesses);
 
-    public long BoundLocalArrayAccesses { get; private set; }
+    private long _boundLocalArrayAccesses;
+    public long BoundLocalArrayAccesses => Volatile.Read(ref _boundLocalArrayAccesses);
 
-    public long IndexedLocalArrayAccesses { get; private set; }
+    private long _indexedLocalArrayAccesses;
+    public long IndexedLocalArrayAccesses => Volatile.Read(ref _indexedLocalArrayAccesses);
 
     public void RecordIndexedLocalArrayAccess()
     {
-        if (_enabled) lock (_sync) IndexedLocalArrayAccesses++;
+        if (_enabled) Interlocked.Increment(ref _indexedLocalArrayAccesses);
     }
 
-    public long BoundArrayUpdates { get; private set; }
+    private long _boundArrayUpdates;
+    public long BoundArrayUpdates => Volatile.Read(ref _boundArrayUpdates);
 
-    public long ArrayNameResolutions { get; private set; }
+    private long _arrayNameResolutions;
+    public long ArrayNameResolutions => Volatile.Read(ref _arrayNameResolutions);
 
-    public long SubarrayPromotions { get; private set; }
+    private long _subarrayPromotions;
+    public long SubarrayPromotions => Volatile.Read(ref _subarrayPromotions);
 
     public void RecordSubarrayPromotion()
     {
-        if (_enabled) lock (_sync) SubarrayPromotions++;
+        if (_enabled) Interlocked.Increment(ref _subarrayPromotions);
     }
 
     public void RecordArrayNameResolution()
     {
-        if (_enabled) lock (_sync) ArrayNameResolutions++;
+        if (_enabled) Interlocked.Increment(ref _arrayNameResolutions);
     }
 
     public void RecordBoundArrayUpdate()
     {
-        if (_enabled) lock (_sync) BoundArrayUpdates++;
+        if (_enabled) Interlocked.Increment(ref _boundArrayUpdates);
     }
 
     public void RecordBoundLocalArrayAccess()
     {
-        if (_enabled) lock (_sync) BoundLocalArrayAccesses++;
+        if (_enabled) Interlocked.Increment(ref _boundLocalArrayAccesses);
     }
 
     public void RecordBoundGlobalArrayAccess()
     {
-        if (_enabled) lock (_sync) BoundGlobalArrayAccesses++;
+        if (_enabled) Interlocked.Increment(ref _boundGlobalArrayAccesses);
     }
 
-    public long NumericGlobalReads { get; private set; }
+    private long _numericGlobalReads;
+    public long NumericGlobalReads => Volatile.Read(ref _numericGlobalReads);
 
-    public long PreparedNumericSlotReads { get; private set; }
+    private long _preparedNumericSlotReads;
+    public long PreparedNumericSlotReads => Volatile.Read(ref _preparedNumericSlotReads);
 
-    public long IndexedLocalArrayArguments { get; private set; }
+    private long _indexedLocalArrayArguments;
+    public long IndexedLocalArrayArguments => Volatile.Read(ref _indexedLocalArrayArguments);
 
     public void RecordIndexedLocalArrayArgument()
     {
-        if (_enabled) lock (_sync) IndexedLocalArrayArguments++;
+        if (_enabled) Interlocked.Increment(ref _indexedLocalArrayArguments);
     }
 
     public void RecordPreparedNumericSlotRead()
     {
-        if (_enabled) lock (_sync) PreparedNumericSlotReads++;
+        if (_enabled) Interlocked.Increment(ref _preparedNumericSlotReads);
     }
 
     public void RecordNumericGlobalRead()
     {
-        if (_enabled) lock (_sync) NumericGlobalReads++;
+        if (_enabled) Interlocked.Increment(ref _numericGlobalReads);
     }
 
     public void RecordNumericLocalRead()
     {
         if (!_enabled) return;
-        lock (_sync) NumericLocalReads++;
+        Interlocked.Increment(ref _numericLocalReads);
     }
 
 
-    public long InlineFunctionFrames { get; private set; }
+    private long _inlineFunctionFrames;
+    public long InlineFunctionFrames => Volatile.Read(ref _inlineFunctionFrames);
 
     public void RecordInlineFunctionFrame()
     {
-        if (_enabled) lock (_sync) InlineFunctionFrames++;
+        if (_enabled) Interlocked.Increment(ref _inlineFunctionFrames);
     }
 
-    public long HostCalls { get; private set; }
+    private long _hostCalls;
+    public long HostCalls => Volatile.Read(ref _hostCalls);
 
-    public long CancellationChecks { get; private set; }
+    private long _cancellationChecks;
+    public long CancellationChecks => Volatile.Read(ref _cancellationChecks);
 
-    public long AwkTextAsStringCalls { get; private set; }
+    private long _awkTextAsStringCalls;
+    public long AwkTextAsStringCalls => Volatile.Read(ref _awkTextAsStringCalls);
 
-    public long AwkTextAsStringDecodeMisses { get; private set; }
+    private long _awkTextAsStringDecodeMisses;
+    public long AwkTextAsStringDecodeMisses => Volatile.Read(ref _awkTextAsStringDecodeMisses);
 
     // Owned UTF-8 payload creations, including compact text; not metadata objects.
     public long AwkTextAllocations { get; private set; }
@@ -437,19 +502,23 @@ internal sealed class AwkRuntimeCounters
 
     public long AwkTextPayloadBytes { get; private set; }
 
-    public long ByteTextComparisons { get; private set; }
+    private long _byteTextComparisons;
+    public long ByteTextComparisons => Volatile.Read(ref _byteTextComparisons);
 
     // Eager text-value factory calls; deferred numeric consumption is separate.
-    public long TextValueClassifications { get; private set; }
+    private long _textValueClassifications;
+    public long TextValueClassifications => Volatile.Read(ref _textValueClassifications);
 
     public void RecordTextValueClassification()
     {
-        if (_enabled) lock (_sync) TextValueClassifications++;
+        if (_enabled) Interlocked.Increment(ref _textValueClassifications);
     }
 
-    public long ConcatenationBytesCopied { get; private set; }
+    private long _concatenationBytesCopied;
+    public long ConcatenationBytesCopied => Volatile.Read(ref _concatenationBytesCopied);
 
-    public long RuneSliceBytesScanned { get; private set; }
+    private long _runeSliceBytesScanned;
+    public long RuneSliceBytesScanned => Volatile.Read(ref _runeSliceBytesScanned);
 
     public long RuneSliceIndexAllocations { get; private set; }
 
@@ -462,8 +531,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            RecordsRead++;
+        Interlocked.Increment(ref _recordsRead);
     }
 
     public void RecordBytesRead(long byteCount)
@@ -471,8 +539,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        lock (_sync)
-            BytesRead += byteCount;
+        Interlocked.Add(ref _bytesRead, byteCount);
     }
 
     public void RecordFieldsMaterialized(int count)
@@ -480,24 +547,23 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || count <= 0)
             return;
 
-        lock (_sync)
-            FieldsMaterialized += count;
+        Interlocked.Add(ref _fieldsMaterialized, count);
     }
 
     public void RecordFieldPrefixStage()
     {
-        if (_enabled) lock (_sync) FieldPrefixStages++;
+        if (_enabled) Interlocked.Increment(ref _fieldPrefixStages);
     }
 
     public void RecordFieldDescriptorCopies(int count)
     {
-        if (_enabled && count > 0) lock (_sync) FieldDescriptorCopies += count;
+        if (_enabled && count > 0) Interlocked.Add(ref _fieldDescriptorCopies, count);
     }
 
     public void RecordFieldListBufferReuse()
     {
         if (!_enabled) return;
-        lock (_sync) FieldListBufferReuses++;
+        Interlocked.Increment(ref _fieldListBufferReuses);
     }
 
     public void RecordFieldSplit()
@@ -505,8 +571,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            FieldSplits++;
+        Interlocked.Increment(ref _fieldSplits);
     }
 
     public void RecordValueCreated()
@@ -514,8 +579,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            ValuesCreated++;
+        Interlocked.Increment(ref _valuesCreated);
     }
 
     public void RecordStringDecode()
@@ -523,8 +587,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            StringDecodes++;
+        Interlocked.Increment(ref _stringDecodes);
     }
 
     public void RecordUtf8Encode()
@@ -532,8 +595,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            Utf8Encodes++;
+        Interlocked.Increment(ref _utf8Encodes);
     }
 
     public void RecordOutputBytes(long byteCount)
@@ -541,8 +603,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        lock (_sync)
-            OutputBytes += byteCount;
+        Interlocked.Add(ref _outputBytes, byteCount);
     }
 
     public void RecordRegexCompile()
@@ -550,8 +611,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            RegexCompiles++;
+        Interlocked.Increment(ref _regexCompiles);
     }
 
     public void RecordRegexMatch()
@@ -559,8 +619,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            RegexMatches++;
+        Interlocked.Increment(ref _regexMatches);
     }
 
     public void RecordRegexGroupsMaterialized(int count)
@@ -568,8 +627,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || count <= 0)
             return;
 
-        lock (_sync)
-            RegexGroupsMaterialized += count;
+        Interlocked.Add(ref _regexGroupsMaterialized, count);
     }
 
     public void RecordRecordSeparatorResolution()
@@ -577,8 +635,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            RecordSeparatorResolutions++;
+        Interlocked.Increment(ref _recordSeparatorResolutions);
     }
 
     public void RecordRecordSeparatorTailBytesMoved(int byteCount)
@@ -586,8 +643,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        lock (_sync)
-            RecordSeparatorTailBytesMoved += byteCount;
+        Interlocked.Add(ref _recordSeparatorTailBytesMoved, byteCount);
     }
 
     public void RecordRecordSeparatorBytesScanned(int byteCount)
@@ -595,8 +651,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        lock (_sync)
-            RecordSeparatorBytesScanned += byteCount;
+        Interlocked.Add(ref _recordSeparatorBytesScanned, byteCount);
     }
 
     public void RecordSeparatorCaptureFallback()
@@ -604,8 +659,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            SeparatorCaptureFallbacks++;
+        Interlocked.Increment(ref _separatorCaptureFallbacks);
     }
 
     public void RecordFormattingFallback()
@@ -613,8 +667,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            FormattingFallbacks++;
+        Interlocked.Increment(ref _formattingFallbacks);
     }
 
     public void RecordFormattingStringInteropInput() => RecordFormattingStringInteropInput(1);
@@ -624,8 +677,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || count <= 0)
             return;
 
-        lock (_sync)
-            FormattingStringInteropInputs += count;
+        Interlocked.Add(ref _formattingStringInteropInputs, count);
     }
 
     public void RecordStringInteropFallback()
@@ -633,8 +685,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            StringInteropFallbacks++;
+        Interlocked.Increment(ref _stringInteropFallbacks);
     }
 
 
@@ -643,8 +694,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            HostCalls++;
+        Interlocked.Increment(ref _hostCalls);
     }
 
     public void RecordCancellationCheck()
@@ -652,8 +702,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            CancellationChecks++;
+        Interlocked.Increment(ref _cancellationChecks);
     }
 
     public void RecordAwkTextAsStringCall()
@@ -661,8 +710,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            AwkTextAsStringCalls++;
+        Interlocked.Increment(ref _awkTextAsStringCalls);
     }
 
     public void RecordOutputSinkCreation()
@@ -670,8 +718,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            OutputSinkCreations++;
+        Interlocked.Increment(ref _outputSinkCreations);
     }
 
     public void RecordAwkTextAsStringDecodeMiss()
@@ -679,8 +726,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            AwkTextAsStringDecodeMisses++;
+        Interlocked.Increment(ref _awkTextAsStringDecodeMisses);
     }
 
     public void RecordAwkTextAllocation(int byteCount)
@@ -705,8 +751,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        lock (_sync)
-            ByteTextComparisons++;
+        Interlocked.Increment(ref _byteTextComparisons);
     }
 
     public void RecordConcatenationBytesCopied(int byteCount)
@@ -714,8 +759,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        lock (_sync)
-            ConcatenationBytesCopied += byteCount;
+        Interlocked.Add(ref _concatenationBytesCopied, byteCount);
     }
 
     public void RecordRuneSliceBytesScanned(int byteCount)
@@ -723,8 +767,7 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        lock (_sync)
-            RuneSliceBytesScanned += byteCount;
+        Interlocked.Add(ref _runeSliceBytesScanned, byteCount);
     }
 
     public void RecordRuneSliceIndexAllocation(int byteCount)
