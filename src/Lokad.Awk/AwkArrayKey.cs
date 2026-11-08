@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 {
-    private const int MaxInt32Utf8ByteLength = 11;
+    internal const int MaxInt32Utf8ByteLength = 11;
     private const int InlineByteCapacity = 7;
 
     private readonly AwkText _text;
@@ -112,6 +112,10 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public bool IsOrdinal => _kind == AwkArrayKeyKind.Ordinal;
 
+    // Ordinals and inline keys are bounded without formatting or inspecting bytes.
+    internal bool NeedsCancellationCheckpoint => _kind == AwkArrayKeyKind.Text &&
+        _text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes;
+
     internal bool RequiresTextMaterialization => _kind != AwkArrayKeyKind.Text;
 
     public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryAccounting governor)
@@ -155,6 +159,11 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             return _kind == other._kind && _ordinal == other._ordinal;
         if (_kind == AwkArrayKeyKind.Text && other._kind == AwkArrayKeyKind.Text)
             return Text.Equals(other.Text, checkpoint);
+        return EqualsMixed(other, checkpoint);
+    }
+
+    private bool EqualsMixed(AwkArrayKey other, Action? checkpoint)
+    {
         Span<byte> left = stackalloc byte[MaxInt32Utf8ByteLength];
         Span<byte> right = stackalloc byte[MaxInt32Utf8ByteLength];
         return AwkText.EqualBytes(AsSpan(left, checkpoint), other.AsSpan(right, checkpoint), checkpoint);
@@ -171,17 +180,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         return AwkByteFacts.GetOrdinalHashCode(AsSpan(buffer));
     }
 
-    internal int GetRandomizedHashCode(Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        var hash = new System.HashCode();
-        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        hash.AddBytes(AsSpan(buffer, checkpoint));
-
-        checkpoint?.Invoke();
-        return hash.ToHashCode();
-    }
-
     public override string ToString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
@@ -189,7 +187,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     private int InlineByteLength => (int)((uint)_kind >> 2) & InlineByteCapacity;
 
-    private ReadOnlySpan<byte> AsSpan(Span<byte> buffer, Action? checkpoint = null)
+    internal ReadOnlySpan<byte> AsSpan(Span<byte> buffer, Action? checkpoint = null)
     {
         if (_kind == AwkArrayKeyKind.Text) return Text.AsSpan(checkpoint);
         if (IsOrdinal) return FormatOrdinalBytes(_ordinal, buffer);

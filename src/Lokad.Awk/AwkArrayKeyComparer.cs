@@ -34,34 +34,34 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
     {
         if (_counters.IsEnabled) _counters.RecordArrayEquality();
         return key.Equals(bytes, bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ||
-            key.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
+            key.NeedsCancellationCheckpoint ? _checkpoint : null);
     }
 
-    public int GetHashCode(ReadOnlySpan<byte> bytes)
+    public int GetHashCode(ReadOnlySpan<byte> bytes) => HashBytes(bytes, borrowed: true);
+
+    private int HashBytes(ReadOnlySpan<byte> bytes, bool borrowed)
     {
         var checkpoint = bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null;
         checkpoint?.Invoke();
         var hash = new System.HashCode();
         hash.AddBytes(bytes);
         checkpoint?.Invoke();
-        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes.Length, borrowed: true);
+        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes.Length, borrowed);
         return hash.ToHashCode();
     }
 
     public bool Equals(AwkArrayKey left, AwkArrayKey right)
     {
         if (_counters.IsEnabled) _counters.RecordArrayEquality();
-        return left.Equals(right, left.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ||
-            right.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
+        return left.Equals(right, left.NeedsCancellationCheckpoint ||
+            right.NeedsCancellationCheckpoint ? _checkpoint : null);
     }
 
     public int GetHashCode(AwkArrayKey key)
     {
-        // Small keys retain bounded initialization/inspection behavior. Long hashes
-        // check before and after the framework call, before dictionary mutation.
-        var bytes = key.ByteLength;
-        var hash = key.GetRandomizedHashCode(bytes >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
-        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes, borrowed: false);
-        return hash;
+        // Project once: ordinal formatting is also the actual hashing input.
+        // The immutable text constructor already materialized any owned bytes.
+        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        return HashBytes(key.AsSpan(buffer), borrowed: false);
     }
 }

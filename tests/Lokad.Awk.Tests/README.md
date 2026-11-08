@@ -45,6 +45,8 @@ key and prior value across RHS mutation, deletion, replacement and rehash. Never
 entry references across mutation or suspension. Membership must not insert missing elements.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.
+Key equality and hashes agree across inline, ordinal, owned and borrowed forms; long comparisons
+and hashes retain cancellation coverage.
 Direct record/cache tests use `AwkFieldTestContext` with real splitting services and provider
 ownership. Preserve input versus recomposed-value factories and owner-specific refunds.
 Call and sort/traversal tests exercise aliases, snapshots and captured payloads through actual
