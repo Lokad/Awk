@@ -236,11 +236,16 @@ public sealed class AwkInventoryOutputBoundaryTests
     [Fact]
     public void AsciiTerminatorsReuseSharedTextAcrossAllByteValues()
     {
+        var counters = AwkRuntimeCounters.CreateEnabled();
         for (var value = 0; value < 128; value++)
         {
             var first = AwkRecordTerminator.FromAsciiByte((byte)value).ByteText;
             Assert.True(first.HasSameStorage(AwkRecordTerminator.FromAsciiByte((byte)value).ByteText));
             Assert.Equal(new byte[] { (byte)value }, first.AsSpan().ToArray());
+            _ = first.AsString(counters);
+            var decodes = counters.StringDecodes;
+            _ = first.AsString(counters);
+            Assert.Equal(decodes, counters.StringDecodes);
         }
         Assert.True(AwkRecordTerminator.NewLine.ByteText.HasSameStorage(AwkRecordTerminator.FromAsciiByte(10).ByteText));
         Assert.Throws<ArgumentOutOfRangeException>(() => AwkRecordTerminator.FromAsciiByte(128));

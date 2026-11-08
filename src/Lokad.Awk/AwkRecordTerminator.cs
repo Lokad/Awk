@@ -25,7 +25,8 @@ internal readonly record struct AwkRecordTerminator
     {
         var result = new AwkRecordTerminator[128];
         for (var value = 0; value < result.Length; value++)
-            result[value] = new(AwkText.FromTrustedOwnedBytes([(byte)value]));
+            // These shared constants cache their metadata once, like literals.
+            result[value] = new(AwkText.FromTrustedOwnedBytes([(byte)value]).WithStringCache());
         return result;
     }
 
