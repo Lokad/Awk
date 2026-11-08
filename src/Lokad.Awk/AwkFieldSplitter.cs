@@ -153,8 +153,8 @@ internal sealed class AwkFieldSplitter(
     }
 
     internal int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, int position,
-        int targetCount, ref AwkRecordFieldWriter writer) =>
-        _byteSplitter.ExtendRecordFields(line, plan, position, targetCount, ref writer);
+        int targetCount, List<AwkRecordField> fields, out int payloadBytes) =>
+        _byteSplitter.ExtendRecordFields(line, plan, position, targetCount, fields, out payloadBytes);
 
     public void FillRecordFields(AwkText line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
     {

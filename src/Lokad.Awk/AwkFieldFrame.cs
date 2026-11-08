@@ -974,17 +974,15 @@ internal sealed class AwkFieldFrame(
             checkpoint?.Invoke();
         }
         var grows = _fieldTexts.Capacity < targetCount;
-        var writer = grows ? CreateGrowingPrefixWriter(targetCount) :
-            new AwkRecordFieldWriter(_fieldTexts, _fieldValueCache, governor, counters,
-                checkpoint ?? (static () => { }), AwkMemoryLease.Disabled);
-        var fields = writer.Fields;
+        var (fields, staging) = grows ? StageFieldPrefix(targetCount) : (_fieldTexts, AwkMemoryLease.Disabled);
         var published = false;
         try
         {
-            var position = fieldSplitter.ExtendRecordFields(RecordBytes(), _splitPlan, _splitPosition, targetCount, ref writer);
+            var position = fieldSplitter.ExtendRecordFields(RecordBytes(), _splitPlan, _splitPosition,
+                targetCount, fields, out var addedPayloadBytes);
             var complete = position < 0;
             if (requireComplete && !complete) return false;
-            var payloadBytes = AwkRuntimeMemory.CheckedAdd(_fieldPayloadByteLength, writer.PayloadBytes);
+            var payloadBytes = AwkRuntimeMemory.CheckedAdd(_fieldPayloadByteLength, addedPayloadBytes);
             // Incremental slices leave cached/owned payload unchanged. Only capacity
             // replacement or split-plan retirement changes the retained estimate.
             var retained = governor.IsEnabled && grows ? AdjustEstimate(_retainedMemoryBytes,
@@ -992,7 +990,7 @@ internal sealed class AwkFieldFrame(
                 AwkRuntimeMemory.EstimateRecordFieldListBytes(fields.Capacity)) : _retainedMemoryBytes;
             if (complete && governor.IsEnabled)
                 retained = AdjustEstimate(retained, _splitPlan.RetainedMemoryBytes, 0);
-            if (grows) PublishStagedFields(fields, _fieldValueCache, retained, writer.Staging, writer.Staging.Bytes);
+            if (grows) PublishStagedFields(fields, _fieldValueCache, retained, staging, staging.Bytes);
             else
             {
                 checkpoint?.Invoke();
@@ -1017,11 +1015,11 @@ internal sealed class AwkFieldFrame(
             // Failure retires the unpublished tail, preserving prior cache mappings.
             if (!published && !grows && fields.Count > previousCount)
                 fields.RemoveRange(previousCount, fields.Count - previousCount);
-            writer.Dispose();
+            staging.Dispose();
         }
     }
 
-    private AwkRecordFieldWriter CreateGrowingPrefixWriter(int targetCount)
+    private (List<AwkRecordField> Fields, AwkMemoryLease Staging) StageFieldPrefix(int targetCount)
     {
         var capacity = (int)Math.Max(targetCount, Math.Min(Array.MaxLength, (long)_fieldTexts.Capacity * 2));
         var staging = governor.ReserveTransient(governor.IsEnabled
@@ -1038,8 +1036,8 @@ internal sealed class AwkFieldFrame(
                 fields.Add(_fieldTexts[index]);
                 copied++;
             }
-            // The returned writer owns this lease, including later failed scans.
-            return new(fields, _fieldValueCache, governor, counters, checkpoint ?? (static () => { }), staging);
+            // Frame cleanup keeps this lease through publication or interrupted scans.
+            return (fields, staging);
         }
         catch { staging.Dispose(); throw; }
         finally { counters.RecordFieldDescriptorCopies(copied); }

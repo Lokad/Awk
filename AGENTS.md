@@ -83,6 +83,8 @@ or environment dependencies.
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
   The scoped producer carries its current staging lease; frame cleanup disposes it and rolls back
   unpublished cache entries. Do not duplicate that lease through an external byref handle.
+  Incremental raw-slice scans consume the frame's admitted destination directly; frame cleanup
+  retains their staging lease. General writers serve producers that actually grow or retain text.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
   Prepared field demand requires already-available record/separator bytes and respects unknown
   effects, conditional fallthrough and actual flush completion; it must not move cold admission.

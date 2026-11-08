@@ -684,16 +684,17 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
-    [Fact]
-    public void AdmittedCapacityFundsPrefixExtensionWithoutAnotherReservation()
+    [Theory]
+    [InlineData(" ")] [InlineData("|")]
+    public void AdmittedCapacityFundsPrefixExtensionWithoutAnotherReservation(string separator)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(8 << 20, counters);
-        using var context = Frame(memory.Accounting, counters, " ");
+        using var context = Frame(memory.Accounting, counters, separator);
         var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("warm", 64))));
+        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(separator, Enumerable.Repeat("warm", 64))));
         Assert.Equal(64, frame.GetFieldCount());
-        frame.SetRecordText(AwkText.FromSourceLiteralString("0007 0008 0009 " + new string('t', 256)));
+        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(separator, "0007", "0008", "0009", new string('t', 256))));
         var committed = memory.Accounting.CurrentCommittedBytes;
         var copies = counters.FieldDescriptorCopies;
         memory.Budget.SetAvailableBytes(0);
