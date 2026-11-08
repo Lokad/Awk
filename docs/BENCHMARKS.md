@@ -1,16 +1,19 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-Rows marked **†** were measured on **2026-11-08 UTC** at
-[8db928d9](https://github.com/Lokad/Awk/commit/8db928d9d8ed2cc554902f5fe94d968194866eb6): eleven managed comparisons
-and all six shared-admission measurements. Six managed rows marked **‡** are retained from
-**2026-11-08 UTC** at
+Rows marked **§** were measured on **2026-11-08 UTC** at
+[0094c5d5](https://github.com/Lokad/Awk/commit/0094c5d520fac4f2816b688f608a9b00e6d625cd): six managed comparisons
+and three large-input GNU comparisons. Rows marked **†** retain nine managed comparisons
+and all six shared-admission measurements from **2026-11-08 UTC** at
+[8db928d9](https://github.com/Lokad/Awk/commit/8db928d9d8ed2cc554902f5fe94d968194866eb6).
+Six managed rows marked **‡** retain **2026-11-08 UTC** measurements at
 [48276c2b](https://github.com/Lokad/Awk/commit/48276c2b471ae67baa6afccab130876cad4a1482).
-The other 47 managed measurements are retained from **2026-11-08 UTC** at
+The other 46 managed measurements retain **2026-11-08 UTC** results at
 [ae76600d](https://github.com/Lokad/Awk/commit/ae76600dcfcb535d2e14582616723797329a2ae2).
 Retained rows are not fresh measurements of the newest revision.
 
-GNU timings are retained from **2026-11-06 UTC**, measured with harness
+Other GNU timings, including the medium **§** rows, are retained from **2026-11-06 UTC**,
+measured with harness
 [da5c6a14](https://github.com/Lokad/Awk/commit/da5c6a14ae581ff9b1a2959a3e58bcf8b2cd6ef3).
 The GNU binary and refreshed fixtures are reverified; other rows retain their earlier
 qualification. Times are BenchmarkDotNet medians; the elapsed Lokad.Awk/GNU awk ratio is
@@ -33,10 +36,10 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | --- | ---: | ---: | ---: | ---: | ---: |
 | gsub and output | 56.00 | 9.433 | 1.791 | 5.27× | 22.882 |
 | ERE field separator | 48.00 | 5.448 | 1.644 | 3.31× | 2.238 |
-| Nested-array calls, 16 keys (GNU) † | 25.08 | 4.342 | 1.832 | 2.37× | 0.319 |
-| Nested-array calls, 1,024 keys (GNU) † | 31.24 | 4.479 | 2.249 | 1.99× | 0.912 |
+| Nested-array calls, 16 keys (GNU) § | 25.08 | 3.971 | 1.832 | 2.17× | 0.319 |
 | Unicode length/substr / output | 60.00 | 3.264 | 1.671 | 1.95× | 1.796 |
 | ERE boolean matching | 32.00 | 1.757 | 0.922 | 1.91× | 7.197 |
+| Nested-array calls, 1,024 keys (GNU) § | 31.24 | 4.178 | 2.249 | 1.86× | 0.912 |
 | Text function with branches and local temporary † | 62.00 | 2.884 | 1.636 | 1.76× | 0.654 |
 | ERE capture arrays (GNU) | 28.00 | 12.815 | 7.336 | 1.75× | 32.013 |
 | Numeric array sort (GNU) | 18.92 | 3.071 | 2.003 | 1.53× | 2.092 |
@@ -46,9 +49,9 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | Loop with unary arithmetic calls | 8.00 | 4.549 | 3.467 | 1.31× | 0.267 |
 | Loop with two-argument calls | 8.00 | 4.815 | 3.748 | 1.28× | 0.270 |
 | Loop with repeated field arguments † | 25.08 | 4.662 | 3.814 | 1.22× | 0.150 |
-| Loop with five-argument calls | 8.00 | 5.967 | 5.141 | 1.16× | 0.298 |
 | Project three columns / output | 60.00 | 1.386 | 1.205 | 1.15× | 0.409 |
 | Nested user calls | 8.00 | 1.499 | 1.308 | 1.15× | 0.123 |
+| Loop with five-argument calls § | 8.00 | 5.816 | 5.141 | 1.13× | 0.298 |
 | ASCII substr/index/length/casing | 52.00 | 1.382 | 1.244 | 1.11× | 0.398 |
 | Two-file membership / join | 77.83 | 2.686 | 2.478 | 1.08× | 0.988 |
 | printf | 24.00 | 1.829 | 1.714 | 1.07× | 0.411 |
@@ -83,20 +86,22 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | Filter `$1` / occasionally print `$3`, 64 fields | 1291.42 | 0.443 | 1.870 | 0.24× | 0.112 |
 | Filter `$2` after a 4 KiB field | 1025.50 | 0.150 | 1.565 | 0.10× | 1.122 |
 
-
-
 ## Large-input processing
 
-65,536 records, or 4,096 for the 128-column cases; join uses 65,536 records per file.
+65,536 records, or 4,096 for the 128-column cases; nested-array calls use 16,384.
+Join uses 65,536 records per file.
 These expose processing costs better than small inputs dominated by process startup.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 25.382 | 4.671 | 5.43× | 112.198 |
+| Nested-array calls, 16 keys (GNU) § | 100.35 | 15.169 | 5.347 | 2.84× | 0.694 |
+| Nested-array calls, 1,024 keys (GNU) § | 125.01 | 15.518 | 5.977 | 2.60× | 1.288 |
 | Loop with repeated field arguments † | 401.40 | 72.732 | 50.703 | 1.43× | 0.151 |
 | Two-file membership / join | 1386.30 | 42.107 | 30.948 | 1.36× | 10.121 |
 | Copy field / rebuild record ‡ | 960.00 | 14.306 | 10.809 | 1.32× | 5.565 |
 | Composite-key sum / sorted output (GNU) † | 384.00 | 10.875 | 8.319 | 1.31× | 0.149 |
+| Loop with five-argument calls § | 128.00 | 92.024 | 72.373 | 1.27× | 2.174 |
 | Loop with repeated numeric field reads | 401.40 | 38.458 | 31.526 | 1.22× | 0.128 |
 | Keyed sum / sorted output (GNU) † | 384.00 | 7.335 | 6.153 | 1.19× | 0.118 |
 | Sum every numeric field (128 columns) | 1616.00 | 40.846 | 35.956 | 1.14× | 0.110 |
@@ -105,8 +110,6 @@ These expose processing costs better than small inputs dominated by process star
 | Sum one numeric column † | 401.40 | 5.571 | 5.865 | 0.95× | 0.072 |
 | Copy field / rebuild record (128 columns) ‡ | 1616.00 | 8.501 | 9.811 | 0.87× | 0.417 |
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 6.757 | 23.357 | 0.29× | 0.793 |
-
-
 
 ## Shared memory admission
 
