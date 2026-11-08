@@ -92,6 +92,36 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
+    [InlineData("key", false)] [InlineData("key", true)]
+    [InlineData("long-key-name", false)] [InlineData("long-key-name", true)]
+    public async Task StableNestedOwnersAvoidRepeatedLookupAcrossComputation(string key, bool governed)
+    {
+        var lookups = new List<long>();
+        foreach (var barrier in new[] { false, true })
+        {
+            var source = "function add(p,k){p[k][\"sum\"]++;p[k][\"n\"]++;" +
+                (barrier ? "k=k;" : "") + "return p[k][\"sum\"]}" +
+                "BEGIN{for(i=0;i<128;i++)total=add(a,\"" + key + "\");print total,a[\"" + key + "\"][\"n\"]}";
+            var host = new MockFileSystem();
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var result = await AwkExecutor.ExecuteAsync(host,
+                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(0, result.Value);
+            Assert.Equal("128 128\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, counters.CapturedPathAllocations);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(0, host.OpenFileCount);
+            lookups.Add(counters.ArrayOwnedHashCalls);
+        }
+        Assert.True(lookups[0] < lookups[1]);
+    }
+
+    [Theory]
     [InlineData("literal", false)] [InlineData("literal", true)]
     [InlineData("global", false)] [InlineData("global", true)]
     [InlineData("local", false)] [InlineData("local", true)]

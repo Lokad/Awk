@@ -77,9 +77,11 @@ internal sealed partial class AwkRegionCompiler
     {
         var before = StorageLayout() with { Targets = 0 };
         var firstUpdate = _updates.Count;
+        var firstInstruction = _code.Count;
         var success = AppendMainRuleBody(rule, rangeIndex);
         if (success)
         {
+            PrepareArrayOwners(firstInstruction);
             var after = StorageLayout() with { Targets = 0 };
             for (var index = firstUpdate; index < _updates.Count; index++)
             {
@@ -220,6 +222,7 @@ internal sealed partial class AwkRegionCompiler
 
     private AwkRegion CreateRegion()
     {
+        if (_mainBodyStart < 0) PrepareArrayOwners(0);
         var entryFieldDemand = PrepareFieldDemands();
         return new(_code.ToArray(), _operands.ToArray(),
             _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),

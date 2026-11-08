@@ -815,12 +815,21 @@ internal partial struct AwkRegionMachine
 
         void ResolvePath(int index, out AwkArrayIdentity owner, out AwkArrayKey key)
         {
-            var path = region.Paths[index];
+            ref readonly var path = ref region.Paths[index];
             if (path.ImmediateKeys is not { } keys)
             {
                 var captured = CapturedPath(index);
                 owner = captured.ResolveOwner(state);
                 key = captured.Key;
+                return;
+            }
+            if (path.Owner.Role is AwkRegionPathOwnerRole.Read or AwkRegionPathOwnerRole.Take)
+            {
+                if (!storage.Values[path.Owner.Value].TryGetArrayBinding(out var boundOwner))
+                    throw new InvalidOperationException("No prepared array owner.");
+                owner = boundOwner;
+                if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.ReleaseValue(path.Owner.Value);
+                key = CaptureKey(keys[^1]);
                 return;
             }
             key = CaptureKey(keys[0]);
@@ -831,6 +840,8 @@ internal partial struct AwkRegionMachine
                 key = CaptureKey(keys[depth]);
                 owner = state.GetSubarray(owner, key);
             }
+            if (path.Owner.Role == AwkRegionPathOwnerRole.Initialize)
+                storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(owner), preserveOrigin: true);
             key = CaptureKey(keys[^1]);
         }
 

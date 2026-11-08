@@ -3,6 +3,25 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkRegionTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void PreparedOwnersDistinguishNamesWithoutIndexedBindings(bool governed)
+    {
+        using var fixture = State(CancellationToken.None, governed);
+        var state = fixture.State;
+        var parsed = AwkParser.Parse("{k=\"first\";j=\"second\";a[k][\"v\"]++;a[j][\"v\"]++;left=a[k][\"v\"];right=a[j][\"v\"]}");
+        Assert.True(parsed.Success);
+        Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules),
+            AwkLoweringScope.Global, -1, out var region));
+        using var storage = new AwkRegionStorage(state);
+        region.Execute(state, storage);
+        Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("left")).AsNumber());
+        Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("right")).AsNumber());
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("split", false)] [InlineData("split", true)]
     [InlineData("patsplit", false)] [InlineData("patsplit", true)]
     [InlineData("match", false)] [InlineData("match", true)]

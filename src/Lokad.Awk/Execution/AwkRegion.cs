@@ -136,7 +136,9 @@ internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot
 internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, AwkRegionNumberSource Right,
     bool CapturePrevious);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count,
-    int Slot = 0, int[]? ImmediateKeys = null);
+    int Slot = 0, int[]? ImmediateKeys = null, AwkRegionPathOwner Owner = default);
+internal enum AwkRegionPathOwnerRole : byte { None, Initialize, Read, Take }
+internal readonly record struct AwkRegionPathOwner(int Value, AwkRegionPathOwnerRole Role);
 internal enum AwkRegionInstructionKind : byte
 {
     MainRead, RuleEnd,
