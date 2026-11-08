@@ -42,7 +42,8 @@ public sealed partial class AwkFunctionStorageTests
         var stack = Stack(memory);
         stack.PushFrame(Layout(10_000), []);
         stack.PopFrame(static _ => { });
-        Assert.InRange(memory.Budget.Reserved, 480_000, 810_000);
+        var backingBytes = 10_000L * Unsafe.SizeOf<AwkFunctionLocalSlot>();
+        Assert.InRange(memory.Budget.Reserved, backingBytes, 2 * backingBytes + 4096);
         var retained = memory.Budget.Reserved;
         stack.PushFrame(Layout(3), []);
         stack.PopFrame(static _ => { });
@@ -96,7 +97,7 @@ public sealed partial class AwkFunctionStorageTests
         Assert.Throws<AwkRuntimeException>(() => stack.PushFrame(Layout(8192), []));
         Assert.True(stack.TryResolveLocalValue(callerName, out var caller));
         Assert.Equal(42, caller.Value.AsNumber());
-        Assert.InRange(memory.Budget.Reserved, 1, funded - 4096 * 48);
+        Assert.InRange(memory.Budget.Reserved, 1, funded - 4096L * Unsafe.SizeOf<AwkFunctionLocalSlot>());
         Assert.Equal(1, memory.Budget.Refusals);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         stack.PopFrame(static _ => { });
@@ -144,18 +145,14 @@ public sealed partial class AwkFunctionStorageTests
     {
         using var memory = new CooperativeTestMemory(4 << 20);
         using var cancellation = new CancellationTokenSource();
-        var admitted = false;
-        var polls = 0;
-        var stack = Stack(memory, () =>
-        {
-            if (admitted && ++polls == 2) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        });
-        memory.Budget.OnGrowth = _ => admitted = true;
+        var stack = Stack(memory, cancellation.Token.ThrowIfCancellationRequested);
+        // Cancel the captured text's admission after the smaller backing is funded.
+        memory.Budget.OnGrowth = bytes => { if (bytes >= 32_768) cancellation.Cancel(); };
         AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(new string('x', 32_768)))];
         Assert.ThrowsAny<OperationCanceledException>(() => stack.PushFrame(Layout(128), arguments));
         Assert.False(stack.IsInsideFunction);
-        Assert.InRange(memory.Budget.Reserved, 128 * 48, 128 * 80 + 4096);
+        var backingBytes = 128L * Unsafe.SizeOf<AwkFunctionLocalSlot>();
+        Assert.InRange(memory.Budget.Reserved, backingBytes, 2 * backingBytes + 4096);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);

@@ -3,6 +3,30 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RecycledCallCellsKeepBindingsWithoutNewSlotBuffersPerCall(bool governed)
+    {
+        const string source = "function id(x){return x}function touch(a,k,unused){a[k]++;return a[k]}" +
+            "function relay(x){return touch(x,\"k\")}BEGIN{for(i=0;i<64;i++){s=id(\"0007\");v=relay(a);n=id(i+0)}print s,v,n,a[\"k\"]}";
+        var host = new MockFileSystem();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("0007 64 63 64\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(counters.BoundFunctionRuns, counters.FunctionFramesPrepared);
+        Assert.True(counters.FunctionSlotBufferAllocations < counters.FunctionFramesPrepared);
+        Assert.True(counters.IndexedLocalArrayArguments > 0);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(false, false, true)]
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]

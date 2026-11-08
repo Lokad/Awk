@@ -7,6 +7,70 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void ScalarCellsPreserveBitsBackingAndOriginsWithoutBoxing()
+    {
+        foreach (var bits in new long[] { 0, long.MinValue, 0x3ff4000000000000, 0x7ff0000000000000,
+            unchecked((long)0xfff0000000000000UL), 0x7ff8000000000123, 0x7ff0000000000001 })
+        {
+            var cell = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(BitConverter.Int64BitsToDouble(bits)));
+            Assert.True(cell.Value.TryGetNumber(out var number));
+            Assert.Equal(bits, BitConverter.DoubleToInt64Bits(number));
+            Assert.Equal(default, cell.ArrayName);
+        }
+        var text = AwkText.FromSourceLiteralString("0007");
+        var origin = new AwkUntypedScalar();
+        AwkVariableSlot[] values = [AwkVariableSlot.FromNumber(7), AwkVariableSlot.FromText(text),
+            AwkVariableSlot.FromValue(AwkValue.FromNumericString(text)), AwkVariableSlot.Unassigned(),
+            AwkVariableSlot.FromUntypedScalar(origin)];
+        foreach (var value in values)
+        {
+            var actual = RoundTrip(value);
+            Assert.Equal(value.Kind, actual.Kind);
+            Assert.Equal(value.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);
+            if (value.Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.PreparedNumericString)
+                Assert.True(text.HasSameStorage(actual.ByteText));
+        }
+        var untouched = RoundTrip(values[^1]);
+        Assert.True(untouched.TryGetUntypedScalar(out var captured));
+        Assert.Same(origin, captured);
+        for (var index = 0; index < 100; index++) RoundTrip(values[index % values.Length]);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var last = default(AwkVariableSlot);
+        for (var index = 0; index < 10_000; index++) last = RoundTrip(values[index % values.Length]);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 1024);
+        Assert.Equal(AwkVariableSlotKind.Untyped, last.Kind);
+
+        static AwkVariableSlot RoundTrip(AwkVariableSlot value) => AwkFunctionLocalSlot.Scalar(value).Value;
+    }
+
+    [Theory]
+    [InlineData(1L)] [InlineData(9007199254740993L)] [InlineData(long.MaxValue)]
+    public void AliasCellsKeepFullIdentityAndMutableOrigin(long frameId)
+    {
+        var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), frameId);
+        var array = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
+        var alias = AwkFunctionLocalSlot.ArrayAlias(name, array);
+        Assert.Equal(name, alias.ArrayName);
+        Assert.True(alias.ArrayName.IsOwnedByFunctionFrame(frameId));
+        Assert.True(alias.Value.TryGetArrayBinding(out var capturedArray));
+        Assert.Same(array, capturedArray);
+        var origin = new AwkUntypedScalar();
+        var potential = AwkFunctionLocalSlot.PotentialArrayAlias(name, AwkValue.FromUntypedScalar(origin));
+        Assert.Equal(name, potential.ArrayName);
+        Assert.True(potential.Value.IsUntyped);
+        origin.Promote();
+        Assert.False(potential.Value.IsUntyped);
+        Assert.True(potential.Value.TryGetUntypedScalar(out var capturedOrigin));
+        Assert.Same(origin, capturedOrigin);
+        Assert.Equal(name, potential.ArrayName);
+        var unnamed = AwkFunctionLocalSlot.ArrayAlias(array);
+        Assert.Equal(default, unnamed.ArrayName);
+        Assert.True(unnamed.Value.TryGetArrayBinding(out var unnamedArray));
+        Assert.Same(array, unnamedArray);
+    }
+
+    [Fact]
     public void ShortOwnedAsciiCopiesDoNotAllocateMandatoryMetadata()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

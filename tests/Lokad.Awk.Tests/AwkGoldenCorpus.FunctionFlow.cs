@@ -10,6 +10,12 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("call-cells-recycle-scalar-array-and-buffered-layouts",
+            ["function id(x){return x}function touch(a,k,unused){a[k]++;return a[k]}function relay(x){return touch(x,\"k\")}BEGIN{for(i=0;i<3;i++)print id(\"0007\"),relay(a),id(i+0);print length(a),a[\"k\"]}"], [],
+            "0007 1 0\n0007 2 1\n0007 3 2\n1 3\n");
+        yield return Passing("call-cells-keep-promoted-omitted-local-owners-separate",
+            ["function put(a){a[\"k\"]++}function relay(x,local){put(local);put(x);return local[\"k\"]\":\"x[\"k\"]}BEGIN{for(i=0;i<3;i++)print relay(a);print a[\"k\"]}"], [],
+            "1:1\n1:2\n1:3\n3\n");
         yield return Passing("call-assignment-consumers-keep-mixed-return-origins-and-used-snapshots",
             ["function f(k){if(k==0)return \"0007\";if(k==1)return 3+4;if(k==2)return;return $1}function local(x,k){x=f(k);return x}BEGIN{$0=\"0009\";for(k=0;k<4;k++){x=f(k);print \"[\"x\"]\",typeof(x);print \"[\"local(99,k)\"]\"};print (a=b=f(0)),a,b;print (a=f(1))+(a=100),a}"], [],
             "[0007] string\n[0007]\n[7] number\n[7]\n[] unassigned\n[]\n[0009] strnum\n[0009]\n0007 0007 0007\n107 100\n");
