@@ -238,10 +238,12 @@ internal sealed partial class AwkRegionCompiler
                     else compiler.Emit(new(AwkRegionInstructionKind.Arithmetic, _number,
                         leftNumber, rightNumber, (int)_arithmetic));
                 }
+                else if (_stringComparison || compiler._operands[right].Kind == AwkRegionOperandKind.Literal)
+                    compiler.Emit(new(AwkRegionInstructionKind.CompareText, _number, _left, right, (int)_comparison));
                 else
-                    compiler.Emit(new(_stringComparison || compiler._operands[right].Kind == AwkRegionOperandKind.Literal
-                        ? AwkRegionInstructionKind.CompareText : AwkRegionInstructionKind.Compare,
-                        _number, _left, right, (int)_comparison));
+                    compiler.Emit(new(AwkRegionInstructionKind.Compare, _number,
+                        AwkRegionNumberSource.Bind(_left, compiler._operands[_left]).Location,
+                        AwkRegionNumberSource.Bind(right, compiler._operands[right]).Location, (int)_comparison));
             }
             return Complete(compiler.Operand(AwkRegionOperandKind.NumberTemporary, _number));
         }

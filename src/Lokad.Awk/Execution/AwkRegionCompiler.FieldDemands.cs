@@ -50,7 +50,9 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
                 AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend => OperandDemand(instruction.Left),
-                AwkRegionInstructionKind.Compare or AwkRegionInstructionKind.CompareText =>
+                AwkRegionInstructionKind.Compare =>
+                    NumberSourceDemand(instruction.Left) && NumberSourceDemand(instruction.Right),
+                AwkRegionInstructionKind.CompareText =>
                     OperandDemand(instruction.Left) && OperandDemand(instruction.Right),
                 AwkRegionInstructionKind.ArrayUpdate => CompleteUpdate(_updates[instruction.Left]),
                 AwkRegionInstructionKind.ScalarUpdate => TerminalNumberSource(_scalarUpdates[instruction.Left].Right),
@@ -103,6 +105,12 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement => false,
                 _ => true
             };
+        }
+
+        bool NumberSourceDemand(int location)
+        {
+            var source = new AwkRegionNumberSource(location);
+            return source.IsRegister || OperandDemand(source.OperandIndex);
         }
 
         bool InvalidatingBoundary()

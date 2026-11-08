@@ -653,9 +653,20 @@ internal sealed partial class AwkRegionCompiler
     private int EmitBranch(int operand, bool whenTrue)
     {
         var source = _operands[operand];
-        return source.Kind == AwkRegionOperandKind.NumberTemporary
+        var branch = source.Kind == AwkRegionOperandKind.NumberTemporary
             ? Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfNonzero : AwkRegionInstructionKind.JumpIfZero, Left: source.Index))
             : Emit(new(whenTrue ? AwkRegionInstructionKind.JumpIfTrue : AwkRegionInstructionKind.JumpIfFalse, Left: operand));
+        if (source.Kind == AwkRegionOperandKind.NumberTemporary &&
+            operand == _operands.Count - 1 && branch > 0 &&
+            _code[branch - 1] is { Kind: AwkRegionInstructionKind.Compare or AwkRegionInstructionKind.CompareText } comparison &&
+            comparison.Target == source.Index)
+        {
+            // Only this fresh result has one immediate consumer. Keep its branch
+            // descriptor, including conditional field demand. An inserted poll
+            // breaks adjacency and retains the ordinary numeric continuation.
+            _code[branch - 1] = comparison with { Target = -1 };
+        }
+        return branch;
     }
 
     private int CaptureByteText(int input)

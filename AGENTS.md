@@ -184,6 +184,10 @@ or environment dependencies.
   preparation retains its canonical source and verifies its instruction position. Returns terminate
   field-demand preparation. Capture before flushing and keep the callee/storage alive through actual
   completion; never reread after a host callback. Value returns retain their owned snapshots.
+  Known numeric comparison inputs bind to existing number locations; stored values keep their
+  runtime kind checks and literal text comparisons retain their formatting/parsing semantics.
+  Fresh adjacent comparison branches consume the original boolean through their existing branch
+  descriptor. Preserve intervening polls, fallthrough field demand and unordered-number behavior.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 

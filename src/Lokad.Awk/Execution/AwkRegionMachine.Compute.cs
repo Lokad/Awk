@@ -365,25 +365,29 @@ internal partial struct AwkRegionMachine
                     }
                     else result = AwkComparisonOperations.Evaluate(
                         ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), comparison, state);
-                    numbers[instruction.Target] = result ? 1 : 0;
+                    CompleteComparison(in instruction, result, ref position);
                     break;
                 }
                 case AwkRegionInstructionKind.CompareText:
+                {
+                    bool result;
                     if (state.NumberParsingMode != AwkNumberParsingMode.Decimal)
                     {
                         // Preserve deferred invalid-input diagnostics and their
                         // operand ordering under the nondecimal compatibility modes.
-                        numbers[instruction.Target] = AwkComparisonOperations.Evaluate(
-                            ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, state) ? 1 : 0;
+                        result = AwkComparisonOperations.Evaluate(
+                            ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, state);
                     }
                     else
                     {
                         state.Counters.RecordByteTextComparison();
-                        numbers[instruction.Target] = AwkComparisonOperations.EvaluateTextComparison(
+                        result = AwkComparisonOperations.EvaluateTextComparison(
                             state.CompareByteText(TextOperand(instruction.Left), TextOperand(instruction.Right)),
-                            (AwkComparison)instruction.Detail) ? 1 : 0;
+                            (AwkComparison)instruction.Detail);
                     }
+                    CompleteComparison(in instruction, result, ref position);
                     break;
+                }
                 case AwkRegionInstructionKind.Not:
                     numbers[instruction.Target] = Value(instruction.Left).IsTruthy() ? 0 : 1;
                     break;
@@ -746,6 +750,20 @@ internal partial struct AwkRegionMachine
             ? new AwkArrayKey(storage.Builders[builder.Index].Buffer.CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
             : state.ToArrayKey(Value(index));
 
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        void CompleteComparison(in AwkRegionInstruction comparison, bool result, ref int position)
+        {
+            if (comparison.Target >= 0)
+            {
+                numbers[comparison.Target] = result ? 1 : 0;
+                return;
+            }
+            ref readonly var branch = ref instructions[++position];
+            if (result == (branch.Kind == AwkRegionInstructionKind.JumpIfNonzero))
+                position = branch.Target - 1;
+            else if (branch.Detail > 0) state.PrepareAdmittedFields(branch.Detail);
+        }
+
         AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
         {
             { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldKey(access.Name, FieldOrdinal(field), access.Binding),
@@ -860,16 +878,23 @@ internal partial struct AwkRegionMachine
             ? state.TryResolveArrayArgument(new AwkFunctionLocalSlotId(variable.Index), variable.Name, out argument)
             : state.TryResolveArrayArgument(variable.Name, out argument);
 
-        // Only inspect already numeric storage here. Failed probes have no admission,
-        // insertion, conversion or diagnostic effects; the ordinary operand path owns those.
-        bool TryNumberOperand(int index, out double number)
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        bool TryNumberOperand(int location, out double number)
         {
-            var operand = operands[index];
-            if (operand.Kind == AwkRegionOperandKind.NumberTemporary)
+            var source = new AwkRegionNumberSource(location);
+            if (source.IsRegister)
             {
-                number = numbers[operand.Index];
+                number = numbers[source.RegisterIndex];
                 return true;
             }
+            return TryStoredNumber(source.OperandIndex, out number);
+        }
+
+        // Failed storage probes have no admission, insertion, conversion or
+        // diagnostic effects; the ordinary operand path owns those.
+        bool TryStoredNumber(int index, out double number)
+        {
+            var operand = operands[index];
             if (operand.Kind == AwkRegionOperandKind.ValueTemporary && storage.Values[operand.Index].IsNumberValue)
             {
                 number = storage.Values[operand.Index].AsNumber();
@@ -885,6 +910,8 @@ internal partial struct AwkRegionMachine
 
         AwkComparisonOperand ComparisonOperand(int index)
         {
+            var source = new AwkRegionNumberSource(index);
+            if (source.IsRegister) return new(AwkValue.FromNumber(numbers[source.RegisterIndex]));
             var operand = operands[index];
             if (IsField(operand)) return state.GetFieldComparison(FieldOrdinal(operand));
             return new(Value(index));

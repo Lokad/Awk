@@ -112,6 +112,7 @@ internal readonly record struct AwkRegionNumberSource
     internal static AwkRegionNumberSource Bind(int index, AwkRegionOperand operand) =>
         new(operand.Kind == AwkRegionOperandKind.NumberTemporary ? ~operand.Index : index);
 
+    internal int Location => _location;
     internal bool IsRegister => _location < 0;
     internal int RegisterIndex => ~_location;
     internal int OperandIndex => _location;
