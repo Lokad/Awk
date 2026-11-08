@@ -104,6 +104,28 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(2, counters.ArrayEqualityCalls);
     }
 
+    [Theory]
+    [InlineData(4097)]
+    [InlineData(16384)]
+    public void LongByteEqualityObservesCancellationDuringComparison(int prefix)
+    {
+        var text = new string('a', prefix) + "é😀";
+        var bytes = AwkUtf8Codec.Encode(text).ToArray();
+        var other = bytes.ToArray();
+        using var cancellation = new CancellationTokenSource();
+        var entered = false;
+        void Checkpoint()
+        {
+            // Inject cancellation after entry, without requiring an exact poll count.
+            if (entered) cancellation.Cancel();
+            entered = true;
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+
+        var error = Assert.Throws<OperationCanceledException>(() => AwkText.EqualBytes(bytes, other, Checkpoint));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+    }
+
     [Fact]
     public void AwkArrayKey_UsesAwkTextByteEquality()
     {

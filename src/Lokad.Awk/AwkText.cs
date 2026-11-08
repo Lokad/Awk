@@ -311,6 +311,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return left.Length - right.Length;
     }
 
+    internal static bool EqualBytes(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, Action? checkpoint)
+    {
+        // Long, cancellable work shares the bounded comparison loop. Ordinary
+        // equality needs neither ordering nor another copy of that machinery.
+        return checkpoint is null ? left.SequenceEqual(right) : CompareBytes(left, right, checkpoint) == 0;
+    }
+
     public bool EqualsAscii(string value, Action? checkpoint = null)
     {
         var span = AsSpan(checkpoint);
@@ -663,7 +670,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     public bool Equals(AwkText other, Action? checkpoint)
     {
         checkpoint?.Invoke();
-        return ByteLength == other.ByteLength && CompareBytes(other, checkpoint) == 0;
+        return ByteLength == other.ByteLength && EqualBytes(AsSpan(checkpoint), other.AsSpan(checkpoint), checkpoint);
     }
 
     public override bool Equals(object? obj) =>

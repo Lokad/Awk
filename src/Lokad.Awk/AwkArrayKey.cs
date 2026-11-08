@@ -129,7 +129,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     internal bool Equals(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        return AwkText.CompareBytes(bytes, AsSpan(buffer, checkpoint), checkpoint) == 0;
+        return AwkText.EqualBytes(bytes, AsSpan(buffer, checkpoint), checkpoint);
     }
 
     internal bool Equals(AwkArrayKey other, Action? checkpoint)
@@ -140,7 +140,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             return Text.Equals(other.Text, checkpoint);
         Span<byte> left = stackalloc byte[MaxInt32Utf8ByteLength];
         Span<byte> right = stackalloc byte[MaxInt32Utf8ByteLength];
-        return AwkText.CompareBytes(AsSpan(left, checkpoint), other.AsSpan(right, checkpoint), checkpoint) == 0;
+        return AwkText.EqualBytes(AsSpan(left, checkpoint), other.AsSpan(right, checkpoint), checkpoint);
     }
     public override bool Equals(object? obj) =>
         obj is AwkArrayKey other && Equals(other);
