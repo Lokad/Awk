@@ -19,16 +19,21 @@ public sealed class AwkIgnoreCaseSlotTests
         Assert.Equal(committed,state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(allocations,state.Counters.AwkTextAllocations);
         Assert.Equal(0,state.Counters.StringDecodes);
-        state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),[AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(0))]);
+        var enabled = modeValue == (int)AwkCompatibilityMode.GnuDefault;
+        var localName = enabled ? AwkVariableName.FromText("ordinary") : name;
+        state.PushFunctionFrame(new AwkFunctionLocalLayout([localName]),[AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(0))]);
         try
         {
-            Assert.False(state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());
+            Assert.Equal(enabled,state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());
             state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase,AwkValue.FromNumber(2));
             Assert.True(state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());
-            Assert.Equal(1,state.GetGlobalScalarValue(global).AsNumber());
+            Assert.Equal(enabled ? 2 : 1,state.GetGlobalScalarValue(global).AsNumber());
+            Assert.Equal(enabled ? 0 : 2,state.ResolveVariableValue(localName).AsNumber());
+            Assert.Equal(enabled ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive,
+                state.ResolveRegexCaseSensitivity());
         }
         finally{state.PopFunctionFrame();}
-        Assert.Equal(1,state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).AsNumber());
+        Assert.Equal(enabled ? 2 : 1,state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).AsNumber());
         state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase,AwkValue.FromNumber(0));
         Assert.False(state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());
         Assert.Equal(0,state.MemoryAccounting.CurrentReservedBytes);

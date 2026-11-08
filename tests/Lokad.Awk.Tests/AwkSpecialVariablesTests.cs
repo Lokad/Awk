@@ -4,8 +4,9 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSpecialVariablesTests
 {
-    [Fact]
-    public void TextOnlySpecialReadsAvoidReclassificationAndNumbersKeepCurrentFormatting()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void TextOnlySpecialReadsAvoidReclassificationAndNumbersKeepCurrentFormatting(bool insideFunction)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -14,11 +15,21 @@ public sealed class AwkSpecialVariablesTests
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()))));
         var state = memory.State;
         state.AssignSpecialVariableValue(AwkSpecialVariableId.SubscriptSeparator, AwkValue.FromNumericString("0007"));
+        if (insideFunction)
+            state.PushFunctionFrame(new AwkFunctionLocalLayout([AwkVariableName.FromText("ordinary")]),
+                [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(1))]);
         var created = counters.ValuesCreated;
-        for (var i = 0; i < 128; i++)
+        try
         {
-            Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator).EqualsAscii("0007"));
-            Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.ConversionFormat).EqualsAscii("%.6g"));
+            for (var i = 0; i < 128; i++)
+            {
+                Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator).EqualsAscii("0007"));
+                Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.ConversionFormat).EqualsAscii("%.6g"));
+            }
+        }
+        finally
+        {
+            if (insideFunction) state.PopFunctionFrame();
         }
         Assert.Equal(created, counters.ValuesCreated);
         Assert.True(counters.BoundSpecialScalarReads >= 256);

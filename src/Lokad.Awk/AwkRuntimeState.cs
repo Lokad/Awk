@@ -854,9 +854,9 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (id == AwkSpecialVariableId.FieldCount)
             return _recordFields.GetFieldCountValue();
-        // Implicit language operands share the actual scalar owners. Local
-        // special names and not-yet-created scalars keep dynamic resolution.
-        if (!_functions.IsInsideFunction && _variables.GetSpecialScalarCell(id) is { } cell)
+        // Enabled scalar names cannot be function parameters. Share their actual
+        // owners in every scope; absent and disabled names keep dynamic resolution.
+        if (_variables.GetSpecialScalarCell(id) is { } cell)
         {
             Counters.RecordBoundSpecialScalarRead();
             return _variables.GetScalarValue(cell);
@@ -866,8 +866,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     private bool TryGetRecordCounterCell(AwkSpecialVariableId id, [NotNullWhen(true)] out AwkVariables.AwkScalarCell? cell)
     {
-        if (!_functions.IsInsideFunction &&
-            id is AwkSpecialVariableId.RecordNumber or AwkSpecialVariableId.FileRecordNumber)
+        if (id is AwkSpecialVariableId.RecordNumber or AwkSpecialVariableId.FileRecordNumber)
         {
             cell = _variables.GetSpecialScalarCell(id);
             return cell is not null;
@@ -878,7 +877,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id)
     {
-        if (id != AwkSpecialVariableId.FieldCount && !_functions.IsInsideFunction &&
+        if (id != AwkSpecialVariableId.FieldCount &&
             _variables.GetSpecialScalarCell(id) is { } cell)
         {
             Counters.RecordBoundSpecialScalarRead();
@@ -918,7 +917,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
             return;
 
-        SetRecordTerminatorSlot(PrepareRecordTerminatorSlot(terminator));
+        _variables.SetRecordTerminatorSlot(PrepareRecordTerminatorSlot(terminator));
     }
 
     private AwkVariableSlot PrepareRecordTerminatorSlot(AwkRecordTerminator terminator)
@@ -928,20 +927,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return text.ByteLength == 0 ? AwkVariableSlot.Unassigned() : AwkVariableSlot.FromText(text);
     }
 
-    private void SetRecordTerminatorSlot(AwkVariableSlot slot)
-    {
-        // RT is a known scalar with no assignment callback effects. Function-local
-        // names retain their ordinary resolution; storage still owns admission.
-        if (_functions.IsInsideFunction)
-        {
-            Counters.RecordValueCreated();
-            AssignVariableValue(RecordTerminatorVariableName, slot.Kind == AwkVariableSlotKind.Unassigned
-                ? AwkValue.Unassigned() : AwkValue.FromDeferredText(slot.ByteText, NumberParsingMode));
-        }
-        else
-            _variables.SetRecordTerminatorSlot(slot);
-    }
-
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
         var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
@@ -949,7 +934,7 @@ internal sealed class AwkRuntimeState : IDisposable
         using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(slot));
         ThrowIfCancellationRequested();
         AdvanceInputCounters();
-        if (hasTerminator) SetRecordTerminatorSlot(slot);
+        if (hasTerminator) _variables.SetRecordTerminatorSlot(slot);
     }
 
     // Main input and record-target getline share one preparation/admission.
@@ -968,7 +953,7 @@ internal sealed class AwkRuntimeState : IDisposable
             : default;
         ThrowIfCancellationRequested();
         if (readsMainInput) AdvanceInputCounters();
-        if (hasTerminator) SetRecordTerminatorSlot(terminator);
+        if (hasTerminator) _variables.SetRecordTerminatorSlot(terminator);
         SetRecordFieldSplittingMode(record.FieldSplittingMode);
         if (storage is not null) _recordFields.SetBufferedRecord(storage, record.StorageSlot, publication);
         else _recordFields.PublishRecordText(text, publication);
@@ -976,17 +961,8 @@ internal sealed class AwkRuntimeState : IDisposable
 
     private void AdvanceInputCounters()
     {
-        if (!_functions.IsInsideFunction)
-        {
-            _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.RecordNumber));
-            _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.FileRecordNumber));
-        }
-        else
-        {
-            // Getline inside a function retains local special-name resolution.
-            RecordNumber = Math.Truncate(RecordNumber) + 1;
-            FileRecordNumber = Math.Truncate(FileRecordNumber) + 1;
-        }
+        _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.RecordNumber));
+        _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.FileRecordNumber));
     }
 
     private long EstimateRecordTerminatorMemoryGrowth(AwkVariableSlot slot)
@@ -1174,15 +1150,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);
 
-    private bool IsCaseInsensitive =>
-        CompatibilityMode is AwkCompatibilityMode.GnuDefault &&
-        ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy();
+    private bool IsCaseInsensitive => _globalRegexCaseSensitivity == AwkRegexCaseSensitivity.IgnoreCase;
 
-    internal AwkRegexCaseSensitivity ResolveRegexCaseSensitivity() =>
-        !_functions.IsInsideFunction ? _globalRegexCaseSensitivity :
-        IsCaseInsensitive
-            ? AwkRegexCaseSensitivity.IgnoreCase
-            : AwkRegexCaseSensitivity.CaseSensitive;
+    internal AwkRegexCaseSensitivity ResolveRegexCaseSensitivity() => _globalRegexCaseSensitivity;
 
     private AwkRegexCaseSensitivity ReadGlobalRegexCaseSensitivity() =>
         _variables.GetSpecialScalarCell(AwkSpecialVariableId.IgnoreCase) is { } cell && _variables.GetScalarValue(cell).IsTruthy()

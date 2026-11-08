@@ -151,7 +151,9 @@ or environment dependencies.
   before registering aliases.
   Active local/scratch bounds govern cleanup; backing capacity and pending users keep their funding.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
-  NF, lazy/disabled names and function scope. Stored text can be consumed without reclassification;
+  NF, lazy/disabled names and function scope. Enabled scalar names cannot be function parameters;
+  their cells and cached case sensitivity apply inside functions too. Disabled names and special-array
+  aliases retain ordinary scope resolution. Stored text can be consumed without reclassification;
   numeric values still use current formatting and untyped origins retain scalar promotion.
   Ordinary string slots and computed string results use one runtime factory and defer numeric
   conversion until use, including callback/traversal keys and formatting results.

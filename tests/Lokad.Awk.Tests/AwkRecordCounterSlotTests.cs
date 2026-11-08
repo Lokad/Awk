@@ -11,13 +11,13 @@ public sealed class AwkRecordCounterSlotTests
 
     [Theory]
     [MemberData(nameof(CounterProfiles))]
-    public void InputAdvancementRetainsLocalSpecialNamesAndRestoresGlobalAccess(int modeValue, bool fileCounter)
+    public void InputAdvancementUsesCanonicalCountersInsideAnOrdinaryFunction(int modeValue, bool fileCounter)
     {
         using var memoryForState = CreateState((AwkCompatibilityMode)modeValue, 1 << 20);
         var state = memoryForState.State;
         var special = fileCounter ? AwkSpecialVariableId.FileRecordNumber : AwkSpecialVariableId.RecordNumber;
-        var name = AwkSpecialVariables.VariableName(special);
-        var global = state.GetOrCreateGlobalScalarSlot(name);
+        var name = AwkVariableName.FromText("ordinary");
+        var global = state.GetOrCreateGlobalScalarSlot(AwkSpecialVariables.VariableName(special));
         state.AssignSpecialVariableValue(special, AwkValue.FromNumber(5.5));
         state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),
             [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(41))]);
@@ -25,14 +25,15 @@ public sealed class AwkRecordCounterSlotTests
         {
             state.AdvanceMainInputRecord(AwkRecordTerminator.Empty);
 
-            Assert.Equal(42, state.ResolveSpecialVariableValue(special).AsNumber());
-            Assert.Equal(5.5, state.GetGlobalScalarValue(global).AsNumber());
+            Assert.Equal(6, state.ResolveSpecialVariableValue(special).AsNumber());
+            Assert.Equal(6, state.GetGlobalScalarValue(global).AsNumber());
+            Assert.Equal(41, state.ResolveVariableValue(name).AsNumber());
         }
         finally
         {
             state.PopFunctionFrame();
         }
-        Assert.Equal(5.5, state.ResolveSpecialVariableValue(special).AsNumber());
+        Assert.Equal(6, state.ResolveSpecialVariableValue(special).AsNumber());
         state.AssignSpecialVariableValue(special, AwkValue.FromNumber(9));
         Assert.Equal(9, state.GetGlobalScalarValue(global).AsNumber());
     }
@@ -85,7 +86,7 @@ public sealed class AwkRecordCounterSlotTests
     [InlineData(AwkCompatibilityMode.GnuDefault)]
     [InlineData(AwkCompatibilityMode.Posix)]
     [InlineData(AwkCompatibilityMode.Traditional)]
-    internal void TerminatorUpdatesPreserveProfileAndLocalNameBehavior(AwkCompatibilityMode mode)
+    internal void TerminatorUpdatesPreserveProfileAndOrdinaryLocalNames(AwkCompatibilityMode mode)
     {
         using var memoryForState = CreateState(mode, 1 << 20);
         var state = memoryForState.State;
@@ -99,13 +100,14 @@ public sealed class AwkRecordCounterSlotTests
         var global = state.GetOrCreateGlobalScalarSlot(name);
         Assert.Equal(enabled ? "\n" : "seed", state.GetGlobalScalarValue(global).AsString());
 
-        state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),
+        var localName = enabled ? AwkVariableName.FromText("ordinary") : name;
+        state.PushFunctionFrame(new AwkFunctionLocalLayout([localName]),
             [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("local"))]);
         try
         {
             state.SetRecordTerminator(AwkRecordTerminator.FromAsciiByte((byte)','));
-            Assert.Equal(enabled ? "," : "local", state.ResolveVariableValue(name).AsString());
-            Assert.Equal(enabled ? "\n" : "seed", state.GetGlobalScalarValue(global).AsString());
+            Assert.Equal("local", state.ResolveVariableValue(localName).AsString());
+            Assert.Equal(enabled ? "," : "seed", state.GetGlobalScalarValue(global).AsString());
         }
         finally
         {

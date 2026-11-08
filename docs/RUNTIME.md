@@ -68,8 +68,8 @@ Reader metadata is consumed before publication or reentrant execution; it does n
 previous owned getline value after that value's user retires it.
 Scalar publication also checks cancellation requested during admission before changing names
 or values. Numeric overwrites that require no admission retain their computational checkpoints.
-Implicit special-variable reads share those scalar owners; text-only consumers keep original
-bytes, while numeric separators use current formatting. Computed fields and lazy names retain
+Implicit special-variable reads, including in user functions, share those scalar owners.
+Text-only consumers keep original bytes, while numeric separators use current formatting. Computed fields and lazy names retain
 their ordinary semantics.
 Record-header preflight ends after record/counter/terminator publication. Later actions
 can return relinquished storage to the shared budget for host and nested users; actual
