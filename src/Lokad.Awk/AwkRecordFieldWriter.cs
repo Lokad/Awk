@@ -31,7 +31,6 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
     }
 
     public int PayloadBytes { get; private set; }
-    internal readonly List<AwkRecordField> Fields => _fields;
     internal readonly List<AwkFieldFrame.CachedFieldValue> Values => _values;
     internal readonly AwkMemoryLease Staging => _staging;
 

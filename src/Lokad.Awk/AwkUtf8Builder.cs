@@ -119,21 +119,41 @@ internal sealed class AwkUtf8Builder : IDisposable
         // Admit the complete record and terminator before copying. Failed/canceled
         // copies cannot publish a prefix: Length changes only after all bytes are owned.
         EnsureCapacity(nextLength);
+        checkpoint?.Invoke();
         var offset = Length;
+        var bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
         for (var index = 0; index < fields.Length; index++)
         {
-            if ((index & 1023) == 0) checkpoint?.Invoke();
-            if (index > 0)
+            if (index > 0 && (index & 1023) == 0)
             {
-                AwkText.CopyBytes(between, _buffer.AsSpan(offset), checkpoint);
-                offset += between.Length;
+                checkpoint?.Invoke();
+                bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
             }
+            if (index > 0)
+                CopyFragment(between);
             var bytes = fields.BytesAt(index, record, checkpoint);
-            AwkText.CopyBytes(bytes, _buffer.AsSpan(offset), checkpoint);
+            CopyFragment(bytes);
+        }
+        CopyFragment(ending);
+        checkpoint?.Invoke();
+        Length = nextLength;
+
+        void CopyFragment(ReadOnlySpan<byte> bytes)
+        {
+            if (checkpoint is null || bytes.Length <= bytesUntilCheck)
+            {
+                bytes.CopyTo(_buffer.AsSpan(offset));
+                if (checkpoint is not null) bytesUntilCheck -= bytes.Length;
+            }
+            else
+            {
+                // The one-shot primitive retains long-copy and overlap behavior;
+                // short fragments share the enclosing record's checked interval.
+                AwkText.CopyBytes(bytes, _buffer.AsSpan(offset), checkpoint);
+                bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
+            }
             offset += bytes.Length;
         }
-        AwkText.CopyBytes(ending, _buffer.AsSpan(offset), checkpoint);
-        Length = nextLength;
     }
 
     public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, AwkText terminator, Action? checkpoint = null)

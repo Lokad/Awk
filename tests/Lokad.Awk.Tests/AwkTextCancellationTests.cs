@@ -481,6 +481,63 @@ public sealed class AwkTextCancellationTests
         Assert.Equal(7, dictionary[compact]);
     }
 
+    [Theory]
+    [InlineData("fields")] [InlineData("long-field")] [InlineData("separator")]
+    [InlineData("terminator")] [InlineData("empty")]
+    public void CanceledRecordCopyKeepsThePublishedPrefixAndFundedCapacity(string mode)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = Governor(counters);
+        using var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16);
+        builder.Append("kept:"u8);
+        var record = AwkUtf8Codec.Encode(mode == "fields" ? new string('a', LongText * 16) :
+            mode == "long-field" ? new string('x', LongText) : mode == "empty" ? "" : "ab").ToArray();
+        var fields = mode == "long-field"
+            ? new[] { AwkFieldText.FromRecordSlice(0, record.Length) }
+            : mode == "fields"
+                ? Enumerable.Range(0, LongText).Select(index => AwkFieldText.FromRecordSlice(index * 16, 16)).ToArray()
+                : mode == "empty" ? Enumerable.Repeat(AwkFieldText.Empty, LongText).ToArray()
+                : new[] { AwkFieldText.FromRecordSlice(0, 1), AwkFieldText.FromRecordSlice(1, 1) };
+        var separator = AwkText.FromSourceLiteralString(mode == "separator" ? new string('|', LongText) : mode == "empty" ? "" : "|");
+        var terminator = AwkText.FromSourceLiteralString(mode == "terminator" ? new string('!', LongText) : mode == "empty" ? "" : "!");
+        var byteLength = fields.Sum(field => field.ByteLength()) + Math.Max(0, fields.Length - 1) * separator.ByteLength;
+        using var cancellation = new CancellationTokenSource();
+        var failure = Assert.Throws<OperationCanceledException>(() => builder.AppendRecord(
+            new AwkRecordFields(fields), record, separator, terminator, byteLength, CancelOnCheck(cancellation, 6)));
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.Equal("kept:", AwkUtf8Codec.Decode(builder.AsSpan()));
+        Assert.True(memory.Accounting.CurrentCommittedBytes > 0);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+
+        // A separate attempt can reuse the still-funded destination, including when
+        // responsiveness was required for metadata that emitted no bytes at all.
+        builder.AppendRecord(new AwkRecordFields(fields), record, separator, terminator, byteLength);
+        var expected = "kept:" + string.Join(separator.AsString(), fields.Select(field =>
+            AwkUtf8Codec.Decode(field.AsSpan(record)))) + terminator.AsString();
+        Assert.Equal(expected, AwkUtf8Codec.Decode(builder.AsSpan()));
+        builder.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(100, 1)] [InlineData(256, 128)]
+    public void RecordSliceCopyPollsByCumulativeBytesRatherThanEveryFragment(int count, int width)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 512);
+        var value = new string('a', width);
+        var record = AwkUtf8Codec.Encode(value).ToArray();
+        var fields = Enumerable.Repeat(AwkFieldText.FromRecordSlice(0, width), count).ToArray();
+        var byteLength = count * width + count - 1;
+        builder.AppendRecord(new AwkRecordFields(fields), record, AwkText.FromSourceLiteralString("|"),
+            AwkText.FromSourceLiteralString("!"), byteLength, counters.RecordCancellationCheck);
+        Assert.Equal(string.Join('|', Enumerable.Repeat(value, count)) + "!", AwkUtf8Codec.Decode(builder.AsSpan()));
+        // A loose performance guard permits different owner boundaries without
+        // freezing exact steps; this short operation needs no per-fragment polls.
+        var intervals = byteLength / AwkRuntimeLimits.CancellationCheckBytes;
+        Assert.InRange(counters.CancellationChecks, Math.Max(1, intervals), 16 + 4 * (intervals + 1));
+    }
+
     private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
         new CooperativeTestMemory(1 << 20, counters);
 
