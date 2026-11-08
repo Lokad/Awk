@@ -512,8 +512,10 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index == 0 && _recordFields.TryGetRecomposedRecordFields(
             out var fields, out var record, out var separator, out var byteLength))
         {
-            using var recordFormatting = MemoryAccounting.CreateTransientLease();
-            var ending = FormatStringByteText(ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator), recordFormatting);
+            var recordTerminator = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+            using var recordFormatting = recordTerminator.IsNumberValue
+                ? MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
+            var ending = FormatStringByteText(recordTerminator, recordFormatting);
             // The output owns every copied byte before its host append can suspend.
             output.AppendRecord(fields, record, separator, ending, byteLength);
             return;
@@ -521,8 +523,12 @@ internal sealed class AwkRuntimeState : IDisposable
         ReadOnlySpan<byte> bytes = default;
         var borrowed = index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
         var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        using var formatting = MemoryAccounting.CreateTransientLease();
-        var terminator = FormatStringByteText(ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator), formatting);
+        var terminatorValue = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+        // Stored spelling is already owned; only numeric formatting creates text
+        // whose funding must survive until the synchronous output copy completes.
+        using var formatting = terminatorValue.IsNumberValue || !borrowed && value.IsNumberValue
+            ? MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
+        var terminator = FormatStringByteText(terminatorValue, formatting);
         // Copy into owned output synchronously, before the record can advance or refund.
         output.Append(borrowed ? bytes : FormatPrintByteText(value, formatting).AsSpan(CancellationCheckpoint), terminator);
     }

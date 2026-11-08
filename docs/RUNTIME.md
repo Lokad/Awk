@@ -415,6 +415,9 @@ requests that runtime and host work stop; it cannot forcibly terminate a non-coo
 Short numeric conversions and borrowed byte views use the surrounding computational
 checkpoints. Long scans retain their own checks; admission callbacks and observable mutations
 retain their boundary checks.
+Reconstructed-record output checks cancellation across bounded byte and field-metadata intervals,
+after destination admission and before publishing the completed copy. Cancellation preserves
+earlier buffered output; retained output capacity stays funded.
 
 Awk awaits actual completion. Acquired descriptors and delivered buffers remain owned while
 cancellation unwinds. Essential cleanup uses an uncancelled token, attempts every acquired
@@ -480,7 +483,7 @@ APIs without independent construction or matching deadlines. A compiled handle d
 retain its compilation token. POSIX longest-match and subcapture selection remain conformance
 gaps; the example is not a qualified general AWK provider. CI explicitly skips those
 documented selection cases while retaining all expectations; see the
-[qualification procedure](../tests/Lokad.Awk.Tests/README.md#published-regex-provider-qualification).
+[qualification procedure](../tests/Lokad.Awk.Tests/README.md#regex-provider-qualification).
 Existing AWK semantic expectations remain the acceptance target. Adopting a
 new producer package requires separate semantic/cancellation qualification, not a core release.
 

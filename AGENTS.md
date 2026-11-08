@@ -95,6 +95,10 @@ or environment dependencies.
   Length only after complete cancellation-safe copying. Do not restore a second field-sizing pass.
   Record output resolves cell bytes directly from the record/cache view, without constructing
   detached field-text values. Those spans stay within the synchronous owned-output copy.
+  Reconstructed copies share cancellation intervals across short fragments; retain long-copy,
+  overlap and empty-field metadata bounds, post-admission checks and final Length publication.
+  Stored-text printing needs no formatting lease; numeric fields/terminators keep their existing
+  leases through the synchronous copy. Preserve original spelling and numeric formatting admission.
 - Arithmetic field numbers live in their funded record cells. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
