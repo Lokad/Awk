@@ -511,15 +511,11 @@ internal partial struct AwkRegionMachine
                     }
                     if (operand.Kind is AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable)
                     {
-                        var number = 0d;
-                        var numeric = operand.Kind == AwkRegionOperandKind.LocalVariable
-                            ? TryLocalNumber(operand.Index, out number)
-                            : state.TryResolvePreparedGlobalNumber(operand.Index, out number);
-                        if (numeric)
-                        {
-                            state.StageFunctionNumber(storage.IncomingFrame(call.Slot), instruction.Right, number);
-                            break;
-                        }
+                        var incoming = storage.IncomingFrame(call.Slot);
+                        var staged = operand.Kind == AwkRegionOperandKind.LocalVariable
+                            ? state.TryStageFunctionLocalScalarArgument(new(operand.Index), incoming, instruction.Right)
+                            : state.TryStagePreparedGlobalScalarArgument(operand.Index, incoming, instruction.Right);
+                        if (staged) break;
                     }
                     if (instruction.Detail == (int)AwkRegionArgumentKind.ArithmeticField)
                     {

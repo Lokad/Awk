@@ -767,6 +767,41 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
+    internal bool TryStagePreparedGlobalScalarArgument(int source, AwkFunctionFrame incoming, int index)
+    {
+        if (_globalReadSlots is not { } slots || slots[source].Scalar is not { } cell)
+            return false;
+        var slot = cell.State.Slot;
+        if (slot.Kind is AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding)
+            return false;
+        if (slot.TryGetNumber(out var number))
+        {
+            Counters.RecordNumericGlobalRead();
+            _functions.StageNumber(incoming, index, number);
+        }
+        else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+        return true;
+    }
+
+    internal bool TryStageFunctionLocalScalarArgument(AwkFunctionLocalSlotId source,
+        AwkFunctionFrame incoming, int index)
+    {
+        if (!_functions.TryResolveScalarLocalSlot(source, out var slot) ||
+            slot.Kind is AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding)
+            return false;
+        if (slot.TryGetNumber(out var number))
+        {
+            Counters.RecordNumericLocalRead();
+            _functions.StageNumber(incoming, index, number);
+        }
+        else
+        {
+            Counters.RecordScalarLocalValueRead();
+            _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+        }
+        return true;
+    }
+
     internal bool TryResolveFunctionLocalKey(AwkFunctionLocalSlotId slotId, out AwkArrayKey key)
     {
         if (_functions.TryResolveScalarLocalSlot(slotId, out var slot))
