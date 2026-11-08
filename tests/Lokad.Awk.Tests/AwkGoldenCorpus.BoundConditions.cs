@@ -16,5 +16,21 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("bound-condition-text-comparison-keeps-spelling-and-native-unicode",
             ["BEGIN{FS=\":\"}{a=$1==\"007\";b=$2==\"nan\";c=$3==\"inf\";d=$4==\" \\t+1e2\";e=$5==\"😀\";print a,b,c,d,e;print typeof($1),$1}"],
             [], "1 1 1 1 1\nstrnum 007\n", "007:nan:inf: \t+1e2:😀\n");
+
+        yield return Passing("comparison-branches-keep-six-relations-and-value-results",
+            ["BEGIN{a=7;b=9;if(a==b)printf \"1\";else printf \"0\";if(a!=b)printf \"1\";else printf \"0\";if(a<b)printf \"1\";else printf \"0\";if(a<=b)printf \"1\";else printf \"0\";if(a>b)printf \"1\";else printf \"0\";if(a>=b)printf \"1\";else printf \"0\";print \"\";if(b==a)printf \"1\";else printf \"0\";if(b!=a)printf \"1\";else printf \"0\";if(b<a)printf \"1\";else printf \"0\";if(b<=a)printf \"1\";else printf \"0\";if(b>a)printf \"1\";else printf \"0\";if(b>=a)printf \"1\";else printf \"0\";print \"\";print(a==b),(a!=b),(a<b),(a<=b),(a>b),(a>=b)}"],
+            [], "011100\n010011\n0 1 1 1 0 0\n");
+
+        yield return Passing("comparison-branches-keep-unordered-relations-and-negation",
+            ["BEGIN{x=\"+nan\"+0;if(x==0)printf \"1\";else printf \"0\";if(x!=0)printf \"1\";else printf \"0\";if(x<0)printf \"1\";else printf \"0\";if(x<=0)printf \"1\";else printf \"0\";if(x>0)printf \"1\";else printf \"0\";if(x>=0)printf \"1\";else printf \"0\";print \"\";if(!(x==0))printf \"1\";else printf \"0\";if(!(x!=0))printf \"1\";else printf \"0\";if(!(x<0))printf \"1\";else printf \"0\";if(!(x<=0))printf \"1\";else printf \"0\";if(!(x>0))printf \"1\";else printf \"0\";if(!(x>=0))printf \"1\";else printf \"0\";print \"\";print(x==x),(x!=x),(x<0),(x<=0),(x>0),(x>=0)}"],
+            [], "010000\n101111\n0 1 0 0 0 0\n");
+
+        yield return Passing("comparison-branches-keep-logical-values-and-caller-effects",
+            ["function hit(v){calls++;return v}BEGIN{v=(hit(2)<hit(3))&&hit(7);print v,calls;calls=0;v=(hit(2)>hit(3))&&hit(7);print v,calls;calls=0;v=(hit(2)<hit(3))||hit(7);print v,calls;calls=0;if(!((hit(2)<hit(3))&&hit(7)))print \"bad\";print calls}"],
+            [], "1 3\n0 2\n1 2\n3\n");
+
+        yield return Passing("comparison-branches-keep-field-spelling-and-rhs-record-effects",
+            ["function rhs(){$0=\"changed 9\";return 7}{old=$1;if($1==\"007\")printf \"text \";if($1==7)printf \"number \";if($1==rhs())print old,$0;else print \"different\",old,$0}"],
+            [], "text number 007 changed 9\ndifferent 008 changed 9\n", "007 old\n008 old\n");
     }
 }
