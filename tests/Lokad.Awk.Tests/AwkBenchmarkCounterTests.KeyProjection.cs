@@ -2,6 +2,38 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    [Fact]
+    public async Task CapturedShortKeysAvoidRepeatedPayloadFunding()
+    {
+        var repeatedFunding = new List<long>();
+        foreach (var key in new[] { "key", "long-key-name" })
+        {
+            var calls = new List<long>();
+            foreach (var iterations in new[] { 1, 128 })
+            {
+                var source = "function add(a,k){a[k][\"sum\"]++}BEGIN{for(i=0;i<" + iterations +
+                    ";i++)add(a,\"" + key + "\");print a[\"" + key + "\"][\"sum\"]}";
+                var host = new MockFileSystem();
+                var counters = AwkRuntimeCounters.CreateEnabled();
+                var budget = new CooperativeTestBudget(8 << 20);
+                await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+                    AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+                var result = await compiled.ExecuteAsync(host, CancellationToken.None,
+                    CreateOptions(counters) with { MemoryBudget = budget });
+                Assert.Equal(0, result.Value);
+                Assert.Equal(iterations + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+                Assert.Equal(0, counters.StringDecodes);
+                Assert.Equal(0, counters.Utf8Encodes);
+                Assert.Equal(0, budget.Reserved);
+                Assert.Equal(0, host.OpenFileCount);
+                calls.Add(budget.ResizeCalls);
+            }
+            repeatedFunding.Add(calls[1] - calls[0]);
+        }
+        Assert.True(repeatedFunding[0] < repeatedFunding[1]);
+    }
+
     [Theory]
     [InlineData("literal", false)] [InlineData("literal", true)]
     [InlineData("global", false)] [InlineData("global", true)]

@@ -1274,6 +1274,15 @@ internal sealed class AwkRuntimeState : IDisposable
         return ToArrayKey(field);
     }
 
+    internal AwkArrayKey CaptureFieldKey(int index)
+    {
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+            return AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
+        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        return ToArrayKey(field).CompactForCapture();
+    }
+
     internal void SetArrayFieldValue(AwkArrayName name, int index, AwkValue value, AwkArrayBinding binding)
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);

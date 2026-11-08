@@ -31,6 +31,15 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public static AwkArrayKey FromOrdinal(int ordinal) =>
         new(ordinal);
 
+    internal AwkArrayKey CompactForCapture()
+    {
+        // Construction already materialized these immutable bytes. This bounded
+        // copy needs no callback; capture still checks after admitting its owner.
+        if (_kind == AwkArrayKeyKind.Text && _text.ByteLength is > 0 and <= InlineByteCapacity)
+            return FromInlineBytes(_text.AsSpan());
+        return this;
+    }
+
     private AwkArrayKey(int ordinal)
     {
         _kind = AwkArrayKeyKind.Ordinal;
@@ -54,13 +63,18 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         if (bytes.Length is > 0 and <= InlineByteCapacity)
         {
             checkpoint?.Invoke();
-            Span<byte> padded = stackalloc byte[sizeof(ulong)];
-            padded.Clear();
-            bytes.CopyTo(padded);
-            return new(BinaryPrimitives.ReadInt32LittleEndian(padded),
-                BinaryPrimitives.ReadUInt32LittleEndian(padded[sizeof(int)..]), bytes.Length);
+            return FromInlineBytes(bytes);
         }
         return new(AwkText.CopyTrustedBytes(bytes, counters, accounting, checkpoint), checkpoint);
+    }
+
+    private static AwkArrayKey FromInlineBytes(ReadOnlySpan<byte> bytes)
+    {
+        Span<byte> padded = stackalloc byte[sizeof(ulong)];
+        padded.Clear();
+        bytes.CopyTo(padded);
+        return new(BinaryPrimitives.ReadInt32LittleEndian(padded),
+            BinaryPrimitives.ReadUInt32LittleEndian(padded[sizeof(int)..]), bytes.Length);
     }
 
     internal static long EstimateRetainedTextBytes(int byteLength) =>
@@ -136,6 +150,9 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     {
         checkpoint?.Invoke();
         if (IsOrdinal && other.IsOrdinal) return _ordinal == other._ordinal;
+        if (((uint)_kind & 3) == (uint)AwkArrayKeyKind.Inline &&
+            ((uint)other._kind & 3) == (uint)AwkArrayKeyKind.Inline)
+            return _kind == other._kind && _ordinal == other._ordinal;
         if (_kind == AwkArrayKeyKind.Text && other._kind == AwkArrayKeyKind.Text)
             return Text.Equals(other.Text, checkpoint);
         Span<byte> left = stackalloc byte[MaxInt32Utf8ByteLength];

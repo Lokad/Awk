@@ -11,6 +11,9 @@ internal static partial class AwkGoldenCorpus
              "n=1.25;CONVFMT=\"%.3f\";b[n]=9;CONVFMT=\"%.2f\";b[n]=11;print b[\"1.250\"],b[\"1.25\"];key=\"café\";b[key]=12;print b[key],key}" +
              "{b[$1]=10;read($1)}"], [],
             "string unassigned 1 1\n7 1 3\n9 11\n12 café\nstrnum 007 10\n", "007\n");
+        yield return Passing("captured-scalar-keys-keep-short-long-utf8-and-nul-spelling",
+            ["""function add(a,k,v){a[k]["sum"]+=v;a[k]["n"]++}BEGIN{SUBSEP="|";PROCINFO["sorted_in"]="@ind_str_asc";add(a,"abc😀",1);add(a,"abc😀x",2);add(a,"a\0b",3);add(a,"007",4);add(a,7,5);for(k in a)print length(k),k,a[k]["sum"],a[k]["n"];k="a\0b";old=a[k]["sum"]++;delete a[k]["n"];print old,a[k]["sum"],("n" in a[k]);print ("missing" in a),length(a)}"""], [],
+            "3 007 4 1\n1 7 5 1\n3 a\0b 3 1\n4 abc😀 1 1\n5 abc😀x 2 1\n3 4 0\n0 5\n");
         foreach (var option in new[] { "", "--posix", "--traditional", "-b", "--characters-as-bytes" })
         {
             const string program = "BEGIN{print toupper(\"éaΩ\"),tolower(\"ÉAΩ\");print toupper(\"é09Ω\"),tolower(\"é09ω\");print (toupper(\"0\")?1:0),(tolower(\"0\")?1:0)}";

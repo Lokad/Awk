@@ -30,10 +30,17 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
         var owned = new AwkArrayKey(text);
+        var scalar = new AwkArrayKey(AwkText.FromHostBytes(bytes)).CompactForCapture();
         var comparer = AwkArrayKeyComparer.Instance;
         var values = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 9 };
         Assert.Equal(owned, key);
         Assert.Equal(key, owned);
+        Assert.Equal(key, scalar);
+        Assert.Equal(scalar, key);
+        Assert.Equal(key.RetainedTextMemoryBytes, scalar.RetainedTextMemoryBytes);
+        Assert.Equal(key.GetHashCode(), scalar.GetHashCode());
+        Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode(scalar));
+        Assert.Equal(9, values[scalar]);
         Assert.Equal(owned.GetHashCode(), key.GetHashCode());
         Assert.Equal(comparer.GetHashCode(bytes), comparer.GetHashCode(key));
         Assert.Equal(9, values[owned]);

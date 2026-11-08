@@ -746,9 +746,15 @@ internal partial struct AwkRegionMachine
             }
         }
 
-        AwkArrayKey CaptureKey(int index) => operands[index] is { Kind: AwkRegionOperandKind.KeyBuilder } builder
-            ? new AwkArrayKey(storage.Builders[builder.Index].Buffer.CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
-            : ReadKey(index);
+        AwkArrayKey CaptureKey(int index)
+        {
+            ref readonly var operand = ref operands[index];
+            if (IsField(operand)) return state.CaptureFieldKey(FieldOrdinal(in operand));
+            if (operand.Kind == AwkRegionOperandKind.KeyBuilder)
+                return AwkArrayKey.CopyTrustedBytes(storage.Builders[operand.Index].Buffer.AsSpan(),
+                    state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+            return ReadKey(index).CompactForCapture();
+        }
 
         AwkArrayKey ReadKey(int index)
         {
