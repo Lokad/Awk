@@ -4,6 +4,13 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("prepared-array-keys-keep-spelling-origins-and-current-format",
+            ["function use(k,missing){a[k][\"sum\"]+=2;a[\"literal\"][\"n\"]++;a[missing]+=3;print typeof(k),typeof(missing),(k in a),(missing in a)}" +
+             "function read(k){print typeof(k),k,b[k]}" +
+             "BEGIN{key=\"007\";a[key][\"sum\"]=5;use(key);print a[\"007\"][\"sum\"],a[\"literal\"][\"n\"],a[\"\"];" +
+             "n=1.25;CONVFMT=\"%.3f\";b[n]=9;CONVFMT=\"%.2f\";b[n]=11;print b[\"1.250\"],b[\"1.25\"];key=\"café\";b[key]=12;print b[key],key}" +
+             "{b[$1]=10;read($1)}"], [],
+            "string unassigned 1 1\n7 1 3\n9 11\n12 café\nstrnum 007 10\n", "007\n");
         foreach (var option in new[] { "", "--posix", "--traditional", "-b", "--characters-as-bytes" })
         {
             const string program = "BEGIN{print toupper(\"éaΩ\"),tolower(\"ÉAΩ\");print toupper(\"é09Ω\"),tolower(\"é09ω\");print (toupper(\"0\")?1:0),(tolower(\"0\")?1:0)}";

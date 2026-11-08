@@ -747,12 +747,54 @@ internal sealed class AwkRuntimeState : IDisposable
         return value;
     }
 
+    internal bool TryResolvePreparedGlobalKey(int index, out AwkArrayKey key)
+    {
+        if (_globalReadSlots is { } slots && slots[index].Scalar is { } cell)
+        {
+            var slot = cell.State.Slot;
+            if (slot.TryGetNumber(out var number))
+            {
+                key = ToArrayKey(AwkValue.FromNumber(number));
+                return true;
+            }
+            if (slot.TryGetStoredScalarText(out var text))
+            {
+                key = new(text, CancellationCheckpoint);
+                return true;
+            }
+        }
+        key = default;
+        return false;
+    }
+
+    internal bool TryResolveFunctionLocalKey(AwkFunctionLocalSlotId slotId, out AwkArrayKey key)
+    {
+        if (_functions.TryResolveScalarLocalSlot(slotId, out var slot))
+        {
+            if (slot.TryGetNumber(out var number))
+            {
+                Counters.RecordNumericLocalRead();
+                key = ToArrayKey(AwkValue.FromNumber(number));
+                return true;
+            }
+            if (slot.TryGetStoredScalarText(out var text))
+            {
+                Counters.RecordScalarLocalValueRead();
+                key = new(text, CancellationCheckpoint);
+                return true;
+            }
+        }
+        key = default;
+        return false;
+    }
+
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name)
     {
-        if (_functions.TryResolveScalarLocalValue(slotId, out var value))
+        if (_functions.TryResolveScalarLocalSlot(slotId, out var slot))
         {
+            var value = slot.TryGetNumber(out var number) ? AwkValue.FromNumber(number) : _variables.CreateValue(slot);
             if (value.IsNumberValue) Counters.RecordNumericLocalRead();
             else Counters.RecordScalarLocalValueRead();
             return value;

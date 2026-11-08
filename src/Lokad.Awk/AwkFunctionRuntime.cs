@@ -63,8 +63,8 @@ internal sealed class AwkFunctionRuntime
     public void PopFrame() =>
         _calls.PopFrame(_removeFunctionLocalArray);
 
-    public bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value) =>
-        _calls.TryResolveScalarLocalValue(slotId, out value);
+    internal bool TryResolveScalarLocalSlot(AwkFunctionLocalSlotId slotId, out AwkVariableSlot scalar) =>
+        _calls.TryResolveScalarLocalSlot(slotId, out scalar);
 
     public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocal(name, out local);

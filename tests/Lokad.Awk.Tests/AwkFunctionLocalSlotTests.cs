@@ -74,7 +74,7 @@ public sealed class AwkFunctionLocalSlotTests
         {
             Assert.True(stack.IsInsideFunction);
             Assert.Equal(retained, memory.CurrentCommittedBytes);
-            Assert.False(stack.TryResolveScalarLocalValue(slot, out _));
+            Assert.False(stack.TryResolveScalarLocalSlot(slot, out _));
             Assert.False(stack.TryResolveLocal(name, out _));
             Assert.False(stack.TryResolveLocal(slot, out _));
             Assert.False(stack.TryResolveLocalValue(name, out _));
@@ -177,7 +177,7 @@ public sealed class AwkFunctionLocalSlotTests
     {
         var stack = CreateCallStack();
         var first = new AwkFunctionLocalSlotId(0);
-        Assert.False(stack.TryResolveScalarLocalValue(first, out _));
+        Assert.False(stack.TryResolveScalarLocalSlot(first, out _));
         AwkVariableName[] names = [AwkVariableName.FromText("x"), AwkVariableName.FromText("y"),
             AwkVariableName.FromText("potential"), AwkVariableName.FromText("array"), AwkVariableName.FromText("missing")];
         var array = AwkArrayName.FromText("a");
@@ -186,27 +186,29 @@ public sealed class AwkFunctionLocalSlotTests
             AwkFunctionLocalSlot.PotentialArrayAlias(array), AwkFunctionLocalSlot.ArrayAlias(array)]);
         try
         {
-            Assert.True(stack.TryResolveScalarLocalValue(first, out var number));
-            Assert.True(number.IsNumberValue);
-            Assert.Equal(7, number.AsNumber());
-            Assert.True(stack.TryResolveScalarLocalValue(new AwkFunctionLocalSlotId(1), out var input));
-            Assert.Equal(AwkRuntimeValueKind.NumericString, input.RuntimeKind);
+            Assert.True(stack.TryResolveScalarLocalSlot(first, out var number));
+            Assert.True(number.TryGetNumber(out var numeric));
+            Assert.Equal(7, numeric);
+            Assert.True(stack.TryResolveScalarLocalSlot(new AwkFunctionLocalSlotId(1), out var input));
+            Assert.Equal(AwkVariableSlotKind.NumericString, input.Kind);
             Assert.Equal("007", input.ByteText.AsString());
             foreach (var index in new[] { -1, 2, 3, 4, 5, int.MaxValue })
-                Assert.False(stack.TryResolveScalarLocalValue(new AwkFunctionLocalSlotId(index), out _));
+                Assert.False(stack.TryResolveScalarLocalSlot(new AwkFunctionLocalSlotId(index), out _));
             Assert.True(stack.TryResolveLocal(names[4], out var missing));
             Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, missing.Kind);
             Assert.True(stack.TryAssignLocal(new AwkFunctionLocalSlotId(4), AwkValue.FromNumber(9)));
-            Assert.True(stack.TryResolveScalarLocalValue(new AwkFunctionLocalSlotId(4), out var assigned));
-            Assert.Equal(9, assigned.AsNumber());
+            Assert.True(stack.TryResolveScalarLocalSlot(new AwkFunctionLocalSlotId(4), out var assigned));
+            Assert.True(assigned.TryGetNumber(out var assignedNumber));
+            Assert.Equal(9, assignedNumber);
             stack.PushFrame(new AwkFunctionLocalLayout([names[0]]), [AwkFunctionLocalSlot.ArrayAlias(array)]);
-            try { Assert.False(stack.TryResolveScalarLocalValue(first, out _)); }
+            try { Assert.False(stack.TryResolveScalarLocalSlot(first, out _)); }
             finally { stack.PopFrame(static _ => { }); }
-            Assert.True(stack.TryResolveScalarLocalValue(first, out var restored));
-            Assert.Equal(7, restored.AsNumber());
+            Assert.True(stack.TryResolveScalarLocalSlot(first, out var restored));
+            Assert.True(restored.TryGetNumber(out var restoredNumber));
+            Assert.Equal(7, restoredNumber);
         }
         finally { stack.PopFrame(static _ => { }); }
-        Assert.False(stack.TryResolveScalarLocalValue(first, out _));
+        Assert.False(stack.TryResolveScalarLocalSlot(first, out _));
     }
 
     [Fact]

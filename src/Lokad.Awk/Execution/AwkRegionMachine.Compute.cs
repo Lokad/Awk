@@ -102,7 +102,7 @@ internal partial struct AwkRegionMachine
                         ? state.ContainsArrayValue(membership.Name, storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
                         : IsField(keyOperand)
                             ? state.ContainsArrayField(membership.Name, FieldOrdinal(keyOperand), membership.Binding)
-                            : state.ContainsArrayValue(membership.Name, state.ToArrayKey(Value(membership.Key)), membership.Binding);
+                            : state.ContainsArrayValue(membership.Name, ReadKey(membership.Key), membership.Binding);
                     numbers[instruction.Target] = found ? 1 : 0;
                     break;
                 }
@@ -748,7 +748,28 @@ internal partial struct AwkRegionMachine
 
         AwkArrayKey CaptureKey(int index) => operands[index] is { Kind: AwkRegionOperandKind.KeyBuilder } builder
             ? new AwkArrayKey(storage.Builders[builder.Index].Buffer.CopyToAwkText(state.Counters, state.CancellationCheckpoint), state.CancellationCheckpoint)
-            : state.ToArrayKey(Value(index));
+            : ReadKey(index);
+
+        AwkArrayKey ReadKey(int index)
+        {
+            ref readonly var operand = ref operands[index];
+            switch (operand.Kind)
+            {
+                case AwkRegionOperandKind.Literal:
+                    return new(region.Literals[operand.Index], state.CancellationCheckpoint);
+                case AwkRegionOperandKind.GlobalVariable:
+                    if (state.TryResolvePreparedGlobalKey(operand.Index, out var globalKey)) return globalKey;
+                    break;
+                case AwkRegionOperandKind.LocalVariable:
+                    if (state.TryResolveFunctionLocalKey(new(operand.Index), out var localKey)) return localKey;
+                    break;
+                case AwkRegionOperandKind.NumberTemporary:
+                    return state.ToArrayKey(AwkValue.FromNumber(numbers[operand.Index]));
+                case AwkRegionOperandKind.ValueTemporary:
+                    return state.ToArrayKey(storage.Values[operand.Index]);
+            }
+            return state.ToArrayKey(Value(index));
+        }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         void CompleteComparison(in AwkRegionInstruction comparison, bool result, ref int position)
@@ -768,7 +789,7 @@ internal partial struct AwkRegionMachine
         {
             { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldKey(access.Name, FieldOrdinal(field), access.Binding),
             { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-            _ => state.ToArrayKey(Value(access.Key))
+            _ => ReadKey(access.Key)
         };
 
         AwkValue ReadArray(AwkRegionArrayAccess access)
@@ -797,7 +818,7 @@ internal partial struct AwkRegionMachine
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldNumber(access.Name, FieldOrdinal(field), access.Binding),
                 { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-                _ => state.GetArrayNumber(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding)
+                _ => state.GetArrayNumber(access.Name, ReadKey(access.Key), access.Binding)
             };
         }
 
@@ -824,7 +845,7 @@ internal partial struct AwkRegionMachine
                     target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
                     break;
                 default:
-                    target = state.PrepareArrayUpdate(access.Name, state.ToArrayKey(Value(access.Key)), access.Binding);
+                    target = state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding);
                     break;
             }
             // The complete operation captured an owned key before retiring scratch,
