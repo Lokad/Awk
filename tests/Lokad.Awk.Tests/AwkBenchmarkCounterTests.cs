@@ -2040,6 +2040,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.Counters.RuneSliceIndexAllocations);
         Assert.Equal(0, result.Counters.RuneSliceIndexBytes);
         Assert.InRange(result.Counters.RuneSliceBytesScanned, 1, rows * 8);
+        Assert.Equal(rows * 6, result.Counters.FieldRuneBytesScanned);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, rows * 3);
+        Assert.InRange(result.Counters.TextValueClassifications, 0, rows);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }

@@ -210,7 +210,7 @@ Prepared call segments bind argument source locations and stage directly into ad
 frames in source order. Dynamic types and unavailable bindings retain runtime resolution.
 Snapshots precede admission callbacks; intervening effects retain earlier captures, and the
 actual staged frame activates after the final segment.
-Persistent record cells hold slices, numeric interpretations and cache indices without text
+Persistent record cells hold slices, numeric interpretations, scalar lengths and cache indices without text
 references. The frame cache owns decoded/assigned spelling and scalar values; decoded CSV text
 stays distinct from input-value classification. Byte-only consumers read record slices directly.
 Numeric reads consume ready field numbers directly. Existing owned field values keep their
@@ -301,7 +301,10 @@ Scalar string operations consume prebound operands directly. Stable synchronous 
 their existing owners; captures remain funded before intervening computation, array reads or
 suspension. Other scalar builtins use reusable argument storage. Statement temporaries retire
 after their final users, including for functions that can report warnings.
-`length` counts fields without owning their text and distinguishes scalar text from array aliases.
+`length` counts ASCII and Unicode field slices without owning or classifying their text, caching
+scalar counts at the record cell. It reuses decoded CSV spelling without early classification
+and distinguishes scalar text from array aliases. Scans poll in bounded byte regions and before
+caching a count; cached reads use the surrounding computation-region cancellation checks.
 Prepared `getline` captures the source before its destination and retains both through the
 actual read. Main-input reads can reenter file phases without overwriting caller scratch.
 EOF and recoverable errors preserve the ordinary status, `RT` and `ERRNO` behavior.

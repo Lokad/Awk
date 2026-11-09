@@ -191,7 +191,7 @@ public sealed class AwkFieldMutationCancellationTests
 
         Grow(frame, operation, ManyFields, AwkText.Empty, preserveNumericCount: true);
 
-        var expected = committed - AwkRuntimeMemory.EstimateFieldTextListBytes(2) + AwkRuntimeMemory.EstimateFieldTextListBytes(ManyFields);
+        var expected = committed - AwkRuntimeMemory.EstimateRecordFieldListBytes(2) + AwkRuntimeMemory.EstimateRecordFieldListBytes(ManyFields);
         if (operation == "field")
         {
             expected += AwkRuntimeMemory.EstimateTextBytes(AwkText.FromSourceLiteralString("tail"));

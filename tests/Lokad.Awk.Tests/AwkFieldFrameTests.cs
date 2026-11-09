@@ -86,7 +86,7 @@ public sealed class AwkFieldFrameTests
             frame.SetRecordText(record, plan);
             Assert.Equal(expected, frame.GetFieldCount());
             frame.ResetRecord();
-            var fieldBytes = AwkRuntimeMemory.EstimateFieldTextListBytes(expected);
+            var fieldBytes = AwkRuntimeMemory.EstimateRecordFieldListBytes(expected);
             var serviceBytes = governor.CurrentCommittedBytes;
             frame.SetRecordText(record, plan);
             var committedBefore = governor.CurrentCommittedBytes;
@@ -240,6 +240,12 @@ public sealed class AwkFieldFrameTests
         memory.Budget.OnGrowth = null;
         token = CancellationToken.None;
         Assert.Equal(6, frame.GetFieldCount());
+        Assert.Equal(0, creations);
+        for (var index = 1; index <= 6; index++)
+        {
+            Assert.True(frame.TryGetFieldStringLength(new(index), false, out var length));
+            Assert.Equal(3, length);
+        }
         Assert.Equal(0, creations);
         for (var index = 1; index <= 6; index++)
             Assert.Equal("c\"d", frame.GetFieldValue(new(index)).AsString());

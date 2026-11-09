@@ -188,6 +188,13 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(AwkRuntimeMemory.FieldTextBytes, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldText>());
         Assert.Equal(AwkRuntimeMemory.RecordFieldBytes, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkRecordField>());
         Assert.False(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<AwkRecordField>());
+        Assert.Equal(AwkFieldTextKind.Empty, AwkRecordField.Empty.Kind);
+        Assert.Equal(AwkFieldTextKind.Empty, AwkRecordField.FromOwned(1, 0).Kind);
+        Assert.Equal(AwkFieldTextKind.Owned, AwkRecordField.FromOwned(1, 4).Kind);
+        var field = AwkRecordField.FromRecordSlice(1, 5).WithRuneLength(4).WithNumericValue(7).WithCacheSlot(2);
+        Assert.Equal(AwkFieldTextKind.RecordSlice, field.Kind);
+        Assert.Equal("café"u8.ToArray(), field.BytesInRecord(" café!"u8).ToArray());
+        Assert.Equal(4, field.RuneLength);
         Assert.Equal(AwkRuntimeMemory.CachedFieldValueBytes,
             System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldFrame.CachedFieldValue>());
     }

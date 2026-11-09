@@ -7,38 +7,45 @@ internal readonly struct AwkRecordField
     private readonly double _number;
     private readonly int _start;
     private readonly int _length;
+    private readonly int _runeLength;
 
-    private AwkRecordField(AwkFieldTextKind kind, int start, int length, int cacheSlot = 0, double number = 0)
+    private AwkRecordField(int start, int length, int cacheSlot = 0,
+        double number = 0, int runeLength = -1)
     {
-        Kind = kind;
         _start = start;
         _length = length;
         CacheSlot = cacheSlot;
         _number = number;
+        _runeLength = runeLength;
     }
 
     internal static AwkRecordField Empty => default;
-    internal AwkFieldTextKind Kind { get; }
+    // Raw slices have record coordinates; owned text needs no record start.
+    // Derive the kind instead of storing a second discriminator in every cell.
+    internal AwkFieldTextKind Kind => _length == 0 ? AwkFieldTextKind.Empty :
+        _start < 0 ? AwkFieldTextKind.Owned : AwkFieldTextKind.RecordSlice;
     internal int CacheSlot { get; }
     internal int ByteLength() => _length;
-    internal bool IsWholeRecord(int length) => Kind == AwkFieldTextKind.RecordSlice && _start == 0 && _length == length;
+    internal int RuneLength => _runeLength;
+    internal bool IsWholeRecord(int length) => _length > 0 && _start == 0 && _length == length;
 
     // Numeric/borrowed consumers have already excluded owned spelling. Read the
     // admitted record directly instead of constructing a detached owning-text view.
     internal ReadOnlySpan<byte> BytesInRecord(ReadOnlySpan<byte> record) =>
-        Kind == AwkFieldTextKind.RecordSlice ? record.Slice(_start, _length) : ReadOnlySpan<byte>.Empty;
+        _start >= 0 ? record.Slice(_start, _length) : ReadOnlySpan<byte>.Empty;
 
 
     internal static AwkRecordField FromRecordSlice(int start, int length) =>
-        length == 0 ? Empty : new(AwkFieldTextKind.RecordSlice, start, length);
+        length == 0 ? Empty : new(start, length);
 
     internal static AwkRecordField FromOwned(int cacheSlot, int length) =>
-        new(length == 0 ? AwkFieldTextKind.Empty : AwkFieldTextKind.Owned, 0, length, cacheSlot);
+        new(-1, length, cacheSlot);
 
-    internal AwkRecordField WithCacheSlot(int slot) => new(Kind, _start, _length, slot, _number);
-    internal AwkRecordField WithNumericValue(double number) => new(Kind, _start, _length, -1, number);
+    internal AwkRecordField WithCacheSlot(int slot) => new(_start, _length, slot, _number, _runeLength);
+    internal AwkRecordField WithNumericValue(double number) => new(_start, _length, -1, number, _runeLength);
+    internal AwkRecordField WithRuneLength(int length) => new(_start, _length, CacheSlot, _number, length);
     internal AwkRecordField WithCacheFrom(AwkRecordField source) =>
-        new(Kind, _start, _length, source.CacheSlot, source._number);
+        new(_start, _length, source.CacheSlot, source._number, source._runeLength);
 
     internal bool TryGetNumericValue(out double number)
     {

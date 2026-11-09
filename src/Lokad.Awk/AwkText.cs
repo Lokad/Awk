@@ -93,19 +93,24 @@ internal readonly struct AwkText : IEquatable<AwkText>
     {
         var count = 0;
         var offset = 0;
-        long nextCheckpoint = 0;
         while (offset < bytes.Length)
         {
-            if (offset >= nextCheckpoint)
+            checkpoint?.Invoke();
+            var chunkLength = Math.Min(bytes.Length - offset, AwkRuntimeLimits.CancellationCheckBytes);
+            if (Ascii.IsValid(bytes.Slice(offset, chunkLength)))
             {
-                checkpoint?.Invoke();
-                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
+                count += chunkLength;
+                offset += chunkLength;
+                continue;
             }
-            if (Rune.DecodeFromUtf8(bytes[offset..], out _, out var consumed) != OperationStatus.Done)
-                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
-
-            count++;
-            offset += consumed;
+            var end = offset + chunkLength;
+            do
+            {
+                if (Rune.DecodeFromUtf8(bytes[offset..], out _, out var consumed) != OperationStatus.Done)
+                    throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+                count++;
+                offset += consumed;
+            } while (offset < end);
         }
         return count;
     }

@@ -31,7 +31,6 @@ internal sealed class AwkFieldFrame(
     private ReadOnlyMemory<byte> _bufferedRecord;
     private int _bufferedSlot;
     private bool HasBufferedRecord => _bufferedStorage is not null;
-    private bool? _bufferedAscii;
 
     internal AwkRecordStorage InputRecordStorage =>
         _inputStorage ??= new(governor, counters, checkpoint ?? (static () => { }), this);
@@ -49,7 +48,6 @@ internal sealed class AwkFieldFrame(
     {
         _bufferedStorage = null;
         _bufferedRecord = default;
-        _bufferedAscii = null;
     }
 
     private AwkText OwnedRecordText()
@@ -83,7 +81,6 @@ internal sealed class AwkFieldFrame(
         _bufferedStorage = storage;
         _bufferedSlot = slot;
         _bufferedRecord = storage.ContentAt(slot);
-        _bufferedAscii = null;
         _recordWasRecomposed = false;
         _recordValue = default;
         _recordValueIsCurrent = false;
@@ -371,7 +368,7 @@ internal sealed class AwkFieldFrame(
         SetCachedFieldValue(index, value, classificationOnly);
     }
 
-    public bool TryGetUnmaterializedFieldByteLength(
+    public bool TryGetFieldStringLength(
         AwkFieldIndex index, bool byteMode, out int length)
     {
         EnsureField(index);
@@ -381,21 +378,29 @@ internal sealed class AwkFieldFrame(
 
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
-        if (HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
+        if (HasCachedScalarValue(field))
             return false;
 
-        if (!byteMode && field.Kind == AwkFieldTextKind.RecordSlice)
+        if (byteMode)
         {
-            // The text caches this fact: repeated length reads cannot rescan the record.
-            var ascii = HasBufferedRecord
-                ? (_bufferedAscii ??= Ascii.IsValid(RecordBytes()))
-                : _recordText.IsAscii(out _, checkpoint);
-            checkpoint?.Invoke();
-            if (!ascii)
-                return false;
+            length = field.ByteLength();
+            return true;
         }
-
-        length = field.ByteLength();
+        if (field.Kind == AwkFieldTextKind.Owned)
+        {
+            length = FieldSpelling(field).GetRuneLength(checkpoint);
+            return true;
+        }
+        if (field.RuneLength >= 0)
+        {
+            length = field.RuneLength;
+            return true;
+        }
+        var bytes = field.BytesInRecord(RecordBytes());
+        length = AwkText.CountRunes(bytes, checkpoint);
+        checkpoint?.Invoke();
+        counters.RecordFieldRuneBytesScanned(bytes.Length);
+        _fieldTexts[fieldIndex] = field.WithRuneLength(length);
         return true;
     }
 
@@ -1081,6 +1086,8 @@ internal sealed class AwkFieldFrame(
                 if ((index & 1023) == 0) checkpoint?.Invoke();
                 if (_fieldTexts[index].TryGetNumericValue(out var number))
                     fieldTexts[index] = fieldTexts[index].WithNumericValue(number);
+                if (_fieldTexts[index].RuneLength >= 0)
+                    fieldTexts[index] = fieldTexts[index].WithRuneLength(_fieldTexts[index].RuneLength);
             }
             // Writer-owned escaped text already has its final cell mapping.
             for (var index = 0; index < previousCacheCount; index++)

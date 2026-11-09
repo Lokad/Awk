@@ -55,6 +55,73 @@ public sealed class AwkFieldLengthTests
     }
 
     [Theory]
+    [InlineData(false, "café")] [InlineData(true, "café")]
+    [InlineData(false, "😀e\u0301")] [InlineData(true, "😀e\u0301")]
+    public void ScalarLengthFactsDoNotOwnOrClassifyFieldText(bool governed, string text)
+    {
+        using var memory = State(governed);
+        var state = memory.State;
+        state.SetCurrentRecord(AwkText.FromString(text + " 0007"));
+        _ = state.FieldCount;
+        var allocations = state.Counters.AwkTextAllocations;
+        var classifications = state.Counters.TextValueClassifications;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        for (var index = 0; index < 100; index++)
+        {
+            Assert.Equal(text.EnumerateRunes().Count(), state.CountFieldStringUnits(1));
+            Assert.Equal(4, state.CountFieldStringUnits(2));
+        }
+        Assert.Equal(allocations, state.Counters.AwkTextAllocations);
+        Assert.Equal(classifications, state.Counters.TextValueClassifications);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        var scanned = state.Counters.FieldRuneBytesScanned;
+        Assert.Equal(System.Text.Encoding.UTF8.GetByteCount(text) + 4, scanned);
+        Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.Equal(4, state.CountFieldStringUnits(2));
+        Assert.Equal(scanned, state.Counters.FieldRuneBytesScanned);
+        Assert.Equal("0007", state.GetFieldValue(2).AsString());
+        Assert.Equal(AwkRuntimeValueKind.NumericString, state.GetFieldValue(2).RuntimeKind);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void InterruptedScalarLengthPublishesNoPartialFact(bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        using var cancellation = new CancellationTokenSource();
+        var armed = false;
+        var polls = 0;
+        void Check()
+        {
+            if (!armed) return;
+            if (++polls == 3) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, checkpoint: Check);
+        var unit = new string('a', AwkRuntimeLimits.CancellationCheckBytes - 1) + "😀";
+        context.Frame.SetRecordText(AwkText.FromString(string.Concat(Enumerable.Repeat(unit, 4))));
+        _ = context.Frame.GetFieldCount();
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        armed = true;
+        Assert.Throws<OperationCanceledException>(() => context.Frame.TryGetFieldStringLength(new(1), false, out _));
+        Assert.Equal(0, counters.FieldRuneBytesScanned);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        armed = false;
+        Assert.True(context.Frame.TryGetFieldStringLength(new(1), false, out var length));
+        Assert.Equal(4 * AwkRuntimeLimits.CancellationCheckBytes, length);
+        var scanned = counters.FieldRuneBytesScanned;
+        Assert.True(context.Frame.TryGetFieldStringLength(new(1), false, out var repeated));
+        Assert.Equal(length, repeated);
+        Assert.Equal(scanned, counters.FieldRuneBytesScanned);
+        context.Frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, "success")] [InlineData(true, "success")]
     [InlineData(false, "fault")] [InlineData(true, "fault")]
     [InlineData(false, "cancel")] [InlineData(true, "cancel")]

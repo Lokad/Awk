@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldLengthCases()
     {
+        yield return Passing("field-length-facts-survive-numeric-read-copy-and-rebuild",
+            ["BEGIN{FS=\"|\";$0=\"0007|é😀|tail\";print length($1),length($2),length($2),$1+0,typeof($1),$1;$3=$2;print NF,length($3),$0;$2=\"界\";print length($2),length($3),$0;NF=2;print length($2),NF,$0}"],
+            [], "4 2 2 7 strnum 0007\n3 2 0007 é😀 é😀\n1 2 0007 界 é😀\n1 2 0007 界\n");
         yield return Passing("field-length-input-text-and-empty-fields",
             ["BEGIN{$0=\"0007 alpha\";i=1;print length($(i++)),i,typeof($1);print length($1),$1;FS=\":\";$0=\"a::xyz:\";print length($1),length($2),length($3),length($4),length($5),NF}"],
             [], "4 2 strnum\n4 0007\n1 0 3 0 0 4\n");

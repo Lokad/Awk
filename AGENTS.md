@@ -89,7 +89,7 @@ or environment dependencies.
   Borrowed record/regex bytes use their existing views and owners, not scalar-text wrappers.
   Preserve regex resolution, pinning, admission and subject-materialization order. Hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
-- Persistent record cells contain slices, numeric caches and frame-cache indices without managed
+- Persistent record cells contain slices, numeric/scalar-length caches and frame-cache indices without managed
   references. Owned spelling and scalar values live in the frame cache; detached byte views carry
   no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
   Text-only decoded CSV entries must not invoke the input-value factory early.

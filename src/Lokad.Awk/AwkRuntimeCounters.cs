@@ -16,6 +16,13 @@ internal sealed class AwkRuntimeCounters
 
     public bool IsEnabled => _enabled;
 
+    private long _fieldRuneBytesScanned;
+    public long FieldRuneBytesScanned => Volatile.Read(ref _fieldRuneBytesScanned);
+    internal void RecordFieldRuneBytesScanned(int bytes)
+    {
+        if (_enabled) Interlocked.Add(ref _fieldRuneBytesScanned, bytes);
+    }
+
     public long FunctionFramesPrepared { get; private set; }
     public long FunctionSlotBufferAllocations { get; private set; }
     private long _functionArgumentSegments;

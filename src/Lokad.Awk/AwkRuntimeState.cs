@@ -538,11 +538,9 @@ internal sealed class AwkRuntimeState : IDisposable
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
 
         var field = new AwkFieldIndex(index);
-        if (!_recordFields.TryGetUnmaterializedFieldByteLength(field, _stringRuntime.IsByteMode, out var length))
+        if (!_recordFields.TryGetFieldStringLength(field, _stringRuntime.IsByteMode, out var length))
             return CountStringUnits(FormatStringByteText(GetFieldValue(field)));
 
-        if (!_stringRuntime.IsByteMode)
-            Resources.Checkpoint();
         return length;
     }
 
