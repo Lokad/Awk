@@ -174,6 +174,8 @@ or environment dependencies.
   only the cell role selects their interpretation. Fund slot arrays at their actual element width.
   Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
   Numeric arguments initialize cleared incoming cells directly at that frame, once per index.
+  Other captured scalars initialize those cells after payload admission without transient local cells.
+  Copy source payloads before callbacks; no live source-slot references survive admission.
   Later numeric writes reuse only missing/numeric cells; other roles keep ordinary assignment.
   Private payload mutation preserves independent value/key projections and prior copies.
   Retirement clears active cells; inactive capacity was cleared at its previous retirement.

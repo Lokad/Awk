@@ -83,6 +83,17 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.Equal(value.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);
             if (value.Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.PreparedNumericString)
                 Assert.True(text.HasSameStorage(actual.ByteText));
+            var initialized = AwkFunctionLocalSlot.MissingScalar();
+            var prior = initialized;
+            initialized.InitializeScalar(in value);
+            Assert.Equal(value.Kind, initialized.Value.Kind);
+            Assert.Same(value.StoredReference, initialized.Value.StoredReference);
+            Assert.Equal(BitConverter.DoubleToInt64Bits(value.StoredNumber),
+                BitConverter.DoubleToInt64Bits(initialized.Value.StoredNumber));
+            Assert.Equal(value.RetainedTextMemoryBytes, initialized.Value.RetainedTextMemoryBytes);
+            Assert.Equal(default, initialized.ArrayName);
+            Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, prior.Kind);
+            Assert.Equal(AwkVariableSlotKind.Unassigned, prior.Value.Kind);
         }
         var untouched = RoundTrip(values[^1]);
         Assert.True(untouched.TryGetUntypedScalar(out var captured));

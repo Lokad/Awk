@@ -152,11 +152,38 @@ internal sealed class AwkFunctionCallStack(
     internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value)
     {
         if (value.IsNumberValue) frame.StageNumber(index, value.AsNumber());
-        else StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
+        else if (value.IsArrayValue || value.IsUntypedValue)
+            StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
+        else
+        {
+            var scalar = AwkVariableSlot.FromValue(value);
+            StageScalarArgument(frame, index, in scalar);
+        }
+    }
+
+    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkVariableSlot value)
+    {
+        if ((uint)index >= (uint)frame.Layout.SlotCount) return;
+        var captured = value;
+        var bytes = memoryAccounting.IsEnabled ? captured.RetainedTextMemoryBytes : 0;
+        memoryAccounting.ReserveAndCommit(bytes);
+        try
+        {
+            if (bytes > 0) checkpoint?.Invoke();
+            frame.StageScalar(index, in captured);
+            frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
+        }
+        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
     }
 
     internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument)
     {
+        if (argument.Kind == AwkFunctionLocalSlotKind.Scalar)
+        {
+            var scalar = argument.Value;
+            StageScalarArgument(frame, index, in scalar);
+            return;
+        }
         if ((uint)index >= (uint)frame.Layout.SlotCount) return; // Extra operands still evaluate in the caller.
         // Admission can invoke a callback. Capture before it, even if the caller
         // supplied a view of a live local slot.
@@ -233,7 +260,7 @@ internal sealed class AwkFunctionCallStack(
             _counters.RecordScalarLocalValueRead();
             if (prepareKey && value.TryGetStoredScalarText(out var text))
                 StageKey(incoming, index, new AwkArrayKey(text, checkpoint));
-            else StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
+            else StageScalarArgument(incoming, index, in value);
             return true;
         }
         if (!allowArray) return false;

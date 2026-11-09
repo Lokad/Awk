@@ -72,6 +72,12 @@ internal sealed class AwkFunctionFrame
             GetSlot(index).InitializeNumber(number);
     }
 
+    internal void StageScalar(int index, in AwkVariableSlot value)
+    {
+        System.Diagnostics.Debug.Assert(IsIncoming);
+        GetSlot(index).InitializeScalar(in value);
+    }
+
     internal bool TryWriteNumber(int index, double number)
     {
         ref var slot = ref GetSlot(index);
@@ -168,7 +174,7 @@ internal struct AwkFunctionLocalSlot
 {
     // Scalar and key payloads are mutually exclusive. The role selects the meaning
     // of these owning words; array names retain their full independent identity.
-    private readonly object? _reference;
+    private object? _reference;
     private long _word;
     private int _payloadTag;
 
@@ -239,6 +245,17 @@ internal struct AwkFunctionLocalSlot
         System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
         _word = BitConverter.DoubleToInt64Bits(number);
         _payloadTag = (int)AwkVariableSlotKind.Number;
+        Kind = AwkFunctionLocalSlotKind.Scalar;
+    }
+
+    // Incoming scalar storage is already cleared and funded. Capture/admission
+    // belongs to the call stack; initialize the actual cell without a cell temporary.
+    internal void InitializeScalar(in AwkVariableSlot value)
+    {
+        System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        _reference = value.StoredReference;
+        _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
+        _payloadTag = (int)value.Kind;
         Kind = AwkFunctionLocalSlotKind.Scalar;
     }
 

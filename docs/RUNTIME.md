@@ -372,6 +372,8 @@ inactive backing before admitting its replacement. Unwinding releases active sca
 local and temporary cleanup uses the activation's bounds, while retained capacity stays funded.
 Cleared local cells already represent omitted arguments with an unassigned value; supplied
 arguments replace those cells in caller evaluation order.
+Scalar arguments capture their payload before admission and initialize those incoming cells directly;
+later callbacks cannot change the captured value. Array aliases and untyped origins retain reconciliation.
 Only actual array/untyped arguments need entry reconciliation; alias registration still follows
 it, preserving later-argument mutation and admission order.
 Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted

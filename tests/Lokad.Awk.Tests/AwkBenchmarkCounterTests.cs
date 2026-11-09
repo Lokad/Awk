@@ -777,6 +777,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("16\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.BoundFunctionRuns);
+        Assert.Equal(2, result.Counters.FunctionArgumentSegments);
+        Assert.Equal(1, result.Counters.FunctionSlotBufferAllocations);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }

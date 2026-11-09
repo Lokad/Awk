@@ -778,7 +778,7 @@ internal sealed class AwkRuntimeState : IDisposable
                     }
                     else if (argument.Consumption == AwkParameterInput.Key && slot.TryGetStoredScalarText(out var text))
                         _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint));
-                    else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+                    else _functions.StageScalarArgument(incoming, index, in slot);
                     return;
                 }
             }
