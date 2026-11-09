@@ -762,9 +762,9 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal void StagePreparedGlobalArgument(int source, AwkVariableName name, AwkFunctionFrame incoming, int index,
-        bool allowArray, bool prepareKey)
+    internal void StagePreparedGlobalArgument(in AwkRegionArgument argument, AwkFunctionFrame incoming, int index)
     {
+        var source = argument.Index;
         if (_globalReadSlots is { } slots)
         {
             ref readonly var binding = ref slots[source];
@@ -778,27 +778,28 @@ internal sealed class AwkRuntimeState : IDisposable
                         Counters.RecordNumericGlobalRead();
                         incoming.StageNumber(index, number);
                     }
-                    else if (prepareKey && slot.TryGetStoredScalarText(out var text))
+                    else if (argument.Consumption == AwkParameterInput.Key && slot.TryGetStoredScalarText(out var text))
                         _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint));
                     else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
                     return;
                 }
             }
-            if (allowArray && binding.Array is { } array)
+            if (argument.AllowArray && binding.Array is { } array)
             {
                 Counters.RecordBoundGlobalArrayAccess();
-                _functions.StageArrayAlias(incoming, index, new(name.Identifier), array);
+                _functions.StageArrayAlias(incoming, index, new(argument.Name.Identifier), array);
                 return;
             }
         }
-        StageGlobalArgumentFallback(source, name, incoming, index, allowArray);
+        StageGlobalArgumentFallback(in argument, incoming, index);
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private void StageGlobalArgumentFallback(int source, AwkVariableName name, AwkFunctionFrame incoming, int index,
-        bool allowArray)
+    private void StageGlobalArgumentFallback(in AwkRegionArgument argument, AwkFunctionFrame incoming, int index)
     {
-        if (allowArray && TryResolveArrayArgument(name, out var array))
+        var source = argument.Index;
+        var name = argument.Name;
+        if (argument.AllowArray && TryResolveArrayArgument(name, out var array))
         {
             // Bind only a successfully resolved ordinary global root. Its identity
             // survives delete/split, while nested and potential aliases keep their
@@ -819,22 +820,17 @@ internal sealed class AwkRuntimeState : IDisposable
         }
     }
 
-    internal void StageFunctionLocalArgument(AwkFunctionLocalSlotId source, AwkVariableName name,
-        AwkFunctionFrame incoming, int index, bool allowArray, bool prepareKey)
-    {
-        if (_functions.TryStageLocalArgument(source, incoming, index, allowArray, prepareKey)) return;
-        StageLocalArgumentFallback(source, name, incoming, index, allowArray);
-    }
-
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private void StageLocalArgumentFallback(AwkFunctionLocalSlotId source, AwkVariableName name,
-        AwkFunctionFrame incoming, int index, bool allowArray)
+    internal void StageFunctionLocalArgument(in AwkRegionArgument argument, AwkFunctionFrame incoming, int index)
     {
-        if (allowArray && !_functions.HasLocalSlot(source) && TryResolveArrayArgument(name, out var array))
+        var source = new AwkFunctionLocalSlotId(argument.Index);
+        if (_functions.TryStageLocalArgument(source, incoming, index, argument.AllowArray,
+            argument.Consumption == AwkParameterInput.Key)) return;
+        if (argument.AllowArray && !_functions.HasLocalSlot(source) && TryResolveArrayArgument(argument.Name, out var array))
             _functions.StageArgument(incoming, index, in array);
         else
         {
-            var value = ResolveFunctionLocalValue(source, name);
+            var value = ResolveFunctionLocalValue(source, argument.Name);
             _functions.StageValue(incoming, index, in value);
         }
     }

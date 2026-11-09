@@ -224,12 +224,10 @@ internal partial struct AwkRegionMachine
                         incoming.StageNumber(index, numbers[argument.Index]);
                         break;
                     case AwkRegionArgumentKind.Local:
-                        state.StageFunctionLocalArgument(new(argument.Index), argument.Name, incoming, index,
-                            argument.AllowArray, argument.Consumption == AwkParameterInput.Key);
+                        state.StageFunctionLocalArgument(in argument, incoming, index);
                         break;
                     case AwkRegionArgumentKind.Global:
-                        state.StagePreparedGlobalArgument(argument.Index, argument.Name, incoming, index,
-                            argument.AllowArray, argument.Consumption == AwkParameterInput.Key);
+                        state.StagePreparedGlobalArgument(in argument, incoming, index);
                         break;
                     case AwkRegionArgumentKind.Field:
                     case AwkRegionArgumentKind.DynamicField:

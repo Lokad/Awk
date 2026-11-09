@@ -132,7 +132,7 @@ public sealed class AwkIncomingFrameTests
         {
             if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
             else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-            void Stage() => state.StageFunctionLocalArgument(new(0), name, incoming, 0, allowArray: false, prepareKey: true);
+            void Stage() => state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, name, Consumption: AwkParameterInput.Key), incoming, 0);
             if (cancel) Assert.ThrowsAny<OperationCanceledException>(Stage);
             else Assert.Throws<AwkRuntimeException>(Stage);
             Assert.Same(caller, state.CurrentFunctionFrame);
