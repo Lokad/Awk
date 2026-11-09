@@ -3,9 +3,11 @@
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
 71 full-invocation comparisons plus ten shared-admission measurements.
 
-Rows marked **‡** have fresh managed/GNU measurements from **2026-11-09 UTC** at
-[59c1d680](https://github.com/Lokad/Awk/commit/59c1d68045bdb881bd3190b72138ef097e0fe9d9). Other managed rows and the
-admission table retain **2026-11-09 UTC** measurements at
+Rows marked **§** have current managed/GNU measurements from **2026-11-09 UTC** at
+[6c1bc81a](https://github.com/Lokad/Awk/commit/6c1bc81a7f5e09228290b40c62e2c4a74db09fde). Rows marked **‡** retain
+**2026-11-09 UTC** managed/GNU measurements at
+[59c1d680](https://github.com/Lokad/Awk/commit/59c1d68045bdb881bd3190b72138ef097e0fe9d9).
+Other managed rows and the admission table retain **2026-11-09 UTC** measurements at
 [dd5efc8b](https://github.com/Lokad/Awk/commit/dd5efc8b4b9f48bf0068557f414411e73ff6b5fa).
 Their GNU timings retain **2026-11-06 UTC** evidence at
 [da5c6a14](https://github.com/Lokad/Awk/commit/da5c6a14ae581ff9b1a2959a3e58bcf8b2cd6ef3),
@@ -33,9 +35,9 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | gsub and output | 56.00 | 9.770 | 1.791 | 5.45× | 22.882 |
 | ERE field separator | 48.00 | 5.720 | 1.644 | 3.48× | 2.238 |
 | ERE boolean matching | 32.00 | 2.253 | 0.922 | 2.44× | 7.198 |
-| Unicode length/substr / output | 60.00 | 3.027 | 1.671 | 1.81× | 1.796 |
 | Text function with branches and local temporary | 62.00 | 2.640 | 1.636 | 1.61× | 0.654 |
 | ERE capture arrays (GNU) | 28.00 | 11.472 | 7.336 | 1.56× | 32.012 |
+| Unicode length/substr / output § | 60.00 | 2.451 | 1.674 | 1.46× | 1.296 |
 | Numeric array sort (GNU) | 18.92 | 2.870 | 2.003 | 1.43× | 2.092 |
 | Loop with two-argument calls and local temporary | 8.00 | 4.684 | 4.062 | 1.15× | 0.278 |
 | Nested-array calls, 1,024 keys (GNU) | 31.24 | 2.476 | 2.249 | 1.10× | 0.786 |
@@ -91,9 +93,9 @@ inputs dominated by process startup. Row markers identify measured source cohort
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 25.984 | 4.671 | 5.56× | 112.198 |
-| Unicode length/substr / output ‡ | 960.00 | 48.940 | 15.672 | 3.12× | 27.579 |
 | Text function with branches and local temporary ‡ | 992.00 | 43.709 | 16.474 | 2.65× | 8.156 |
 | Numeric array sort (GNU) ‡ | 373.15 | 58.616 | 23.029 | 2.55× | 27.707 |
+| Unicode length/substr / output § | 960.00 | 39.307 | 15.666 | 2.51× | 19.580 |
 | ASCII substr/index/length/casing ‡ | 832.00 | 17.759 | 10.095 | 1.76× | 4.619 |
 | Nested-array calls, 16 keys (GNU) † | 100.35 | 7.979 | 5.347 | 1.49× | 0.193 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 10.704 | 8.319 | 1.29× | 0.150 |
