@@ -83,6 +83,9 @@ or environment dependencies.
   components retain their own scratch. Do not stage separators through general value slots.
 - Sort entries retain the owned key-text projection once; reconstruct traversal keys at consumption.
   Builtin snapshots freeze mutable untyped scalars and capture their array/scalar distinction.
+  Type-order comparisons consume prepared scalar kinds and numeric payloads. Deferred conversion
+  failures stay at comparison use, after array partitioning; do not force them for 0/1-entry sorts.
+  The array bit is separate from numeric/error facts so scalar pairs share one check.
   User comparators retain original value origins and continuations. Preserve deferred errors,
   funded projections, mutation-independent snapshots and destination publication preflights.
 - Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text;

@@ -1795,6 +1795,21 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, unsorted.Counters.ByteTextComparisons);
     }
 
+    [Fact]
+    public async Task Awk_TypeSortingPreservesInputSpellingWithoutTextComparisonsForDistinctNumbers()
+    {
+        var result = await RunAsync([
+            "{a[NR]=$1}END{n=asort(a,b,\"@val_type_asc\");for(i=1;i<=n;i++)print typeof(b[i]),b[i]}"],
+            "0002\n01\n");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("strnum 01\nstrnum 0002\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.ByteTextComparisons);
+        Assert.Equal(1, result.Counters.StringDecodes); // The sort selector's existing string boundary.
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
     [Theory]
     [InlineData("@ind_str_asc", "2", "1", 1)]
     [InlineData("@ind_num_asc", "2", "1", 1)]

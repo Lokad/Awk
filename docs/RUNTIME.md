@@ -270,6 +270,7 @@ comparison phases and atomic destination publication retain their existing rules
 traversal takes its ordinary key snapshot without constructing a sort operation.
 Sorted snapshots own projected key spelling through source deletion and iteration. Builtin scalar
 captures stay independent of later source promotion; user comparators retain their origin/alias behavior.
+Type-order sorting keeps conversion failures deferred until a comparison or later numeric use requires them.
 Switch selectors are captured once; ordered case tests and fallthrough use the same branch
 driver as loops. Regex labels use the supplied provider. Function exit uses the existing
 status/phase checks and unwind path, including pending status evaluation and END handling.

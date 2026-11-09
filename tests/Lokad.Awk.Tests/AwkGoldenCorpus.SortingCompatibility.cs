@@ -4,6 +4,33 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SortingCompatibilityCases()
     {
+        yield return Passing("sorting-deferred-type-empty",
+            ["--non-decimal-data", "END{print asort(a,b,\"@val_type_asc\")}"], [], "0\n");
+        yield return Passing("sorting-deferred-type-single",
+            ["--non-decimal-data", "{a[NR]=$1}END{print asort(a,b,\"@val_type_asc\");print b[1]}"], [],
+            "1\n0x1.2\n", "0x1.2\n");
+        yield return AwkGoldenCaseBuilder.Create("sorting-deferred-type-compared",
+                ["--non-decimal-data", "BEGIN{print \"before\"}{a[NR]=$1}END{print asort(a,b,\"@val_type_asc\")}"], [])
+            .WithStandardInput("0x1.2\n1\n")
+            .WithStdOut("before\n")
+            .WithStdErr("awk: hexadecimal floating point constants require an exponent\n")
+            .ExitsWith(2)
+            .WithNondeterminismNote("The documented nondecimal conversion difference applies when type sorting compares this input; GNU accepts its numeric prefix.")
+            .Build();
+        yield return AwkGoldenCaseBuilder.Create("sorting-deferred-type-single-later-conversion",
+                ["--non-decimal-data", "{a[NR]=$1}END{print asort(a,b,\"@val_type_asc\");print b[1]+0}"], [])
+            .WithStandardInput("0x1.2\n")
+            .WithStdOut("1\n")
+            .WithStdErr("awk: hexadecimal floating point constants require an exponent\n")
+            .ExitsWith(2)
+            .WithNondeterminismNote("The documented nondecimal conversion difference applies at the later arithmetic use; GNU accepts its numeric prefix.")
+            .Build();
+        yield return Passing("sorting-deferred-type-array-partition",
+            ["--non-decimal-data", "{a[\"bad\"]=$1}END{a[\"child\"][\"k\"]=1;print asorti(a,b,\"@val_type_asc\");for(i=1;i<=length(b);i++)print b[i]}"], [],
+            "2\nbad\nchild\n", "0x1.2\n");
+        yield return Passing("sorting-deferred-type-user-comparison",
+            ["--non-decimal-data", "function cmp(k1,v1,k2,v2){return k1<k2?-1:k1>k2?1:0}{a[NR]=$1}END{print asort(a,b,\"cmp\");for(i=1;i<=length(b);i++)print b[i]}"], [],
+            "2\n0x1.2\n1\n", "0x1.2\n1\n");
         yield return Passing("sorting-traversal-retains-key-spelling-after-source-clear",
             ["BEGIN{a[1]=1;a[\"01\"]=2;a[\"long-key-spelling\"]=3;a[\"é😀\"]=4;PROCINFO[\"sorted_in\"]=\"@val_num_asc\";for(k in a){print \"[\" k \"]\";delete a}print length(a)}"], [],
             "[1]\n[01]\n[long-key-spelling]\n[é😀]\n0\n");

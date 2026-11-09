@@ -487,7 +487,7 @@ internal sealed partial class AwkArrayRuntime
             {
                 reservation.Lease.ReserveAdditional(_variables.EstimateSubarrayBytes(child));
                 var copy = _variables.CloneSubarray(child);
-                entries[index] = entries[index].WithValue(AwkValue.FromArrayReference(copy), _variables.EstimateSubarrayBytes(copy));
+                entries[index] = entries[index].WithClonedArray(copy, _variables.EstimateSubarrayBytes(copy));
             }
             transferredValueTextBytes = AwkRuntimeMemory.CheckedAdd(
                 transferredValueTextBytes, entries[index].TransferredValueTextBytes);
@@ -817,12 +817,24 @@ internal sealed partial class AwkArrayRuntime
             // strings in asort's destination. The source and other modes retain their type.
             var materializeNonfinite = stringValueOrder && value.IsNumberValue && !double.IsFinite(value.AsNumber());
             var projectedValue = materializeNonfinite ? runtime._state.CreateStringValue(valueText) : value;
+            var valueKind = projectedValue.IsArrayValue ? AwkArraySortValueKind.Array : AwkArraySortValueKind.Scalar;
+            var numericKey = ResolveNumericSortKey(keyText, value, projection.Mode, runtime._state);
+            if (typeValueOrder && valueKind != AwkArraySortValueKind.Array)
+            {
+                if (value.HasInputConversionError) valueKind = AwkArraySortValueKind.DeferredError;
+                else if (value.TryGetNumber(out var number))
+                {
+                    valueKind = AwkArraySortValueKind.Number;
+                    numericKey = number;
+                }
+            }
             return new AwkArraySortEntry(
                 keyText,
                 projectedValue,
                 valueText,
-                ResolveNumericSortKey(keyText, value, projection.Mode, runtime._state),
-                projectedValue.RetainedTextMemoryBytes);
+                numericKey,
+                projectedValue.RetainedTextMemoryBytes,
+                valueKind);
         }
 
         return _variables.SnapshotArrayValues(
@@ -883,13 +895,16 @@ internal sealed partial class AwkArrayRuntime
         AwkValue value,
         AwkText valueText,
         double numericKey,
-        long transferredValueTextBytes)
+        long transferredValueTextBytes,
+        AwkArraySortValueKind valueKind)
     {
         public AwkText KeyText => keyText;
 
         public AwkValue Value { get; } = value;
 
-        public bool IsArray { get; } = value.IsArrayValue;
+        public AwkArraySortValueKind ValueKind { get; } = valueKind;
+
+        public bool IsArray => ValueKind == AwkArraySortValueKind.Array;
 
         public AwkText ValueText => valueText;
 
@@ -897,8 +912,16 @@ internal sealed partial class AwkArrayRuntime
 
         public long TransferredValueTextBytes { get; } = transferredValueTextBytes;
 
-        public AwkArraySortEntry WithValue(AwkValue replacement, long retainedBytes) =>
-            new(KeyText, replacement, ValueText, NumericKey, retainedBytes);
+        public AwkArraySortEntry WithClonedArray(AwkArrayIdentity array, long retainedBytes) =>
+            new(KeyText, AwkValue.FromArrayReference(array), ValueText, NumericKey, retainedBytes, AwkArraySortValueKind.Array);
+    }
+
+    private enum AwkArraySortValueKind : byte
+    {
+        Scalar,
+        Number,
+        Array,
+        DeferredError = 4
     }
 
     private readonly struct AwkArraySortEntryProjection(
@@ -947,11 +970,10 @@ internal sealed partial class AwkArrayRuntime
                 AwkArraySortMode.ValueNumberAscending or AwkArraySortMode.ValueNumberDescending or
                 AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending)
             {
-                var leftArray = left.IsArray;
-                var rightArray = right.IsArray;
-                if (leftArray || rightArray)
+                // The independent array bit keeps the common scalar-pair check compact.
+                if (((left.ValueKind | right.ValueKind) & AwkArraySortValueKind.Array) != 0)
                 {
-                    var comparison = (leftArray ? 1 : 0).CompareTo(rightArray ? 1 : 0);
+                    var comparison = left.IsArray.CompareTo(right.IsArray);
                     return mode is AwkArraySortMode.ValueStringDescending or AwkArraySortMode.ValueNumberDescending or
                         AwkArraySortMode.ValueTypeDescending
                         ? ThenCompareKeys(-comparison, right, left) : ThenCompareKeys(comparison, left, right);
@@ -1006,10 +1028,12 @@ internal sealed partial class AwkArrayRuntime
 
             int CompareTypes(in AwkArraySortEntry left, in AwkArraySortEntry right)
             {
-                var leftNumeric = left.Value.TryGetNumber(out var leftNumber);
-                var rightNumeric = right.Value.TryGetNumber(out var rightNumber);
+                if (left.ValueKind == AwkArraySortValueKind.DeferredError) left.Value.TryGetNumber(out _);
+                if (right.ValueKind == AwkArraySortValueKind.DeferredError) right.Value.TryGetNumber(out _);
+                var leftNumeric = left.ValueKind == AwkArraySortValueKind.Number;
+                var rightNumeric = right.ValueKind == AwkArraySortValueKind.Number;
                 if (leftNumeric && rightNumeric)
-                    return CompareSortNumbers(leftNumber, rightNumber);
+                    return CompareNumbers(left, right);
                 if (leftNumeric != rightNumeric)
                     return leftNumeric ? -1 : 1;
                 return CompareValues(left, right);
