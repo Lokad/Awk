@@ -17,15 +17,7 @@ internal sealed class AwkFormattingRuntime(
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
-        if (AwkNumberFormatter.IsInteger(number))
-            return AwkNumberFormatter.ToAwkText(number, counters, governor, retainedTextLease);
-
-        if (UsesDefaultFormat(AwkFormattingVariable.OutputFormat))
-            return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
-
-        counters.RecordFormattingFallback();
-        return PrintfEvaluation.FormatByteText(
-            resolveVariable(AwkFormattingVariable.OutputFormat).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+        return FormatNumberByteText(value, number, AwkFormattingVariable.OutputFormat, retainedTextLease);
     }
 
     public AwkText FormatStringByteText(AwkValue value) => FormatStringByteText(value, null);
@@ -35,15 +27,22 @@ internal sealed class AwkFormattingRuntime(
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
+        return FormatNumberByteText(value, number, AwkFormattingVariable.ConversionFormat, retainedTextLease);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private AwkText FormatNumberByteText(AwkValue value, double number, AwkFormattingVariable variable,
+        AwkMemoryLease? retainedTextLease)
+    {
         if (AwkNumberFormatter.IsInteger(number))
             return AwkNumberFormatter.ToAwkText(number, counters, governor, retainedTextLease);
 
-        if (UsesDefaultFormat(AwkFormattingVariable.ConversionFormat))
+        if (UsesDefaultFormat(variable))
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
 
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
-            resolveVariable(AwkFormattingVariable.ConversionFormat).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+            resolveVariable(variable).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
     }
 
     internal static string PrepareStringValue(AwkValue value, AwkRuntimeState state, AwkMemoryLease lease, out long retainedBytes)

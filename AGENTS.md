@@ -224,6 +224,10 @@ or environment dependencies.
   numeric values still use current formatting and untyped origins retain scalar promotion.
   Ordinary string slots and computed string results use one runtime factory and defer numeric
   conversion until use, including callback/traversal keys and formatting results.
+  Stored-text formatting stays on the short conversion path. Print/string conversion share one
+  numeric formatting tail; preserve print-only scalar forcing, current OFMT/CONVFMT, numeric-string
+  spelling, admission/lease ownership and formatting diagnostics. Qualify boundary changes with
+  numeric-output and text workloads.
   Retain format-decode caches at the actual scalar owner using its existing cache allowance;
   preserve slot origins, cached numbers, earlier copies and charges without formatter history.
   Keep actual input classification and mode-sensitive numeric-string reads separate.
