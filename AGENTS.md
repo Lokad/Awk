@@ -159,8 +159,11 @@ or environment dependencies.
   One parameter-consumption graph prepares arithmetic and key-only inputs. Key cells own bytes;
   writes, observers and general scalar scratch retain full values. Capture before later arguments;
   numeric keys still use formatting at their actual use, including after CONVFMT changes.
-  Prepared calls bind source locations in canonical argument definitions. Preserve actual dynamic
-  kind/name resolution; capture caller cells before admission callbacks. Adjacent staging uses one ordered segment
+  Prepared calls bind source locations in canonical argument definitions.
+  Source category, callee consumption and array eligibility stay independent prepared data;
+  do not recombine them into cross-product execution tags.
+  Preserve actual dynamic kind/name resolution; capture caller cells before admission callbacks.
+  Adjacent staging uses one ordered segment
   and one incoming-frame lookup; earlier segments remain before intervening effects, and the
   final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
   Prepare field demand once per segment and consume it at the first static field after earlier

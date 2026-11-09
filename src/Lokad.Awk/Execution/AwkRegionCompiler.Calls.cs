@@ -107,7 +107,7 @@ internal sealed partial class AwkRegionCompiler
             {
                 if ((index & 127) == 127) compiler._scope.CheckCancellation();
                 var argument = _arguments[index];
-                if (argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.ArithmeticField or AwkRegionArgumentKind.KeyField)
+                if (argument.Kind == AwkRegionArgumentKind.Field)
                 {
                     // Whole-record reads can reconstruct/own text. Leave that
                     // demand at its operation instead of crossing it.

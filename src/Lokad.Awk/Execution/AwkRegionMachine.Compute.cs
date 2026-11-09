@@ -809,49 +809,27 @@ internal partial struct AwkRegionMachine
                         state.StageFunctionNumber(incoming, index, numbers[argument.Index]);
                         break;
                     case AwkRegionArgumentKind.Local:
-                    case AwkRegionArgumentKind.LocalValue:
-                    case AwkRegionArgumentKind.KeyLocal:
-                    case AwkRegionArgumentKind.KeyLocalValue:
                         state.StageFunctionLocalArgument(new(argument.Index), argument.Name, incoming, index,
-                            argument.Kind is AwkRegionArgumentKind.Local or AwkRegionArgumentKind.KeyLocal,
-                            argument.Kind is AwkRegionArgumentKind.KeyLocal or AwkRegionArgumentKind.KeyLocalValue);
+                            argument.AllowArray, argument.Consumption == AwkParameterInput.Key);
                         break;
                     case AwkRegionArgumentKind.Global:
-                    case AwkRegionArgumentKind.GlobalValue:
-                    case AwkRegionArgumentKind.KeyGlobal:
-                    case AwkRegionArgumentKind.KeyGlobalValue:
                         state.StagePreparedGlobalArgument(argument.Index, argument.Name, incoming, index,
-                            argument.Kind is AwkRegionArgumentKind.Global or AwkRegionArgumentKind.KeyGlobal,
-                            argument.Kind is AwkRegionArgumentKind.KeyGlobal or AwkRegionArgumentKind.KeyGlobalValue);
+                            argument.AllowArray, argument.Consumption == AwkParameterInput.Key);
                         break;
-                    case AwkRegionArgumentKind.ArithmeticField:
-                    case AwkRegionArgumentKind.DynamicArithmeticField:
-                    {
-                        if (argument.Kind == AwkRegionArgumentKind.ArithmeticField && fieldDemand > 0)
-                        {
-                            state.PrepareAdmittedFields(fieldDemand);
-                            fieldDemand = 0;
-                        }
-                        var ordinal = argument.Kind == AwkRegionArgumentKind.ArithmeticField ? argument.Index : (int)numbers[argument.Index];
-                        var value = state.GetFieldArithmeticArgument(ordinal);
-                        state.StageFunctionValue(incoming, index, in value);
-                        break;
-                    }
                     case AwkRegionArgumentKind.Field:
                     case AwkRegionArgumentKind.DynamicField:
-                    case AwkRegionArgumentKind.KeyField:
-                    case AwkRegionArgumentKind.DynamicKeyField:
                     {
-                        if (argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.KeyField && fieldDemand > 0)
+                        if (argument.Kind == AwkRegionArgumentKind.Field && fieldDemand > 0)
                         {
                             state.PrepareAdmittedFields(fieldDemand);
                             fieldDemand = 0;
                         }
-                        var ordinal = argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.KeyField
+                        var ordinal = argument.Kind == AwkRegionArgumentKind.Field
                             ? argument.Index : (int)numbers[argument.Index];
-                        if (argument.Kind is AwkRegionArgumentKind.KeyField or AwkRegionArgumentKind.DynamicKeyField &&
+                        if (argument.Consumption == AwkParameterInput.Key &&
                             state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
-                        var value = ReadField(ordinal);
+                        var value = argument.Consumption == AwkParameterInput.Arithmetic
+                            ? state.GetFieldArithmeticArgument(ordinal) : ReadField(ordinal);
                         state.StageFunctionValue(incoming, index, in value);
                         break;
                     }
