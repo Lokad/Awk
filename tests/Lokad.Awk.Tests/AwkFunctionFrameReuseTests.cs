@@ -115,7 +115,6 @@ public sealed class AwkFunctionFrameReuseTests
     }
 
     private static AwkFunctionCallStack Stack(AwkMemoryAccounting accounting) =>
-        new(8, accounting, static slot => slot.ToValue(static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
+        new(8, accounting, AwkNumberParsingMode.Decimal);
 }
 

@@ -1810,6 +1810,25 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
+    [Fact]
+    public async Task Awk_RepeatedLocalScalarReadsReuseTheirStoredValue()
+    {
+        static string Program(int count) =>
+            "function same(x,n,i,s){for(i=0;i<n;i++)s+=(x==x);return s}BEGIN{print same(\"abcd\"," + count + ")}";
+        var shortRun = await RunAsync([Program(8)]);
+        var longRun = await RunAsync([Program(128)]);
+
+        Assert.Equal(0, shortRun.ExitCode);
+        Assert.Equal(0, longRun.ExitCode);
+        Assert.Equal("8\n", shortRun.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("128\n", longRun.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", longRun.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(longRun.Counters.ScalarLocalValueReads > shortRun.Counters.ScalarLocalValueReads);
+        Assert.Equal(shortRun.Counters.ValuesCreated, longRun.Counters.ValuesCreated);
+        Assert.Equal(0, longRun.Counters.StringDecodes);
+        Assert.Equal(0, longRun.Counters.Utf8Encodes);
+    }
+
     [Theory]
     [InlineData("@ind_str_asc", "2", "1", 1)]
     [InlineData("@ind_num_asc", "2", "1", 1)]

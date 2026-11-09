@@ -10,14 +10,14 @@ public sealed class AwkUntypedStateTests
         Assert.Equal(24, Unsafe.SizeOf<AwkValue>());
         Assert.Equal(24, Unsafe.SizeOf<AwkVariableSlot>());
         var origin = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
-        var argument = AwkVariableSlot.FromArgumentValue(origin);
+        var argument = AwkFunctionLocalSlot.FromArgumentValue(origin);
         var copy = AwkVariableSlot.FromValue(origin);
 
         Assert.True(origin.IsUntypedValue);
-        Assert.True(argument.IsUntyped);
+        Assert.True(argument.Value.IsUntypedValue);
         Assert.Equal(AwkVariableSlotKind.Unassigned, copy.Kind);
         Assert.True(origin.ForceScalar().IsUnassignedValue);
-        Assert.False(argument.IsUntyped);
+        Assert.False(argument.Value.IsUntypedValue);
         Assert.True(origin.IsUnassignedValue);
         Assert.Equal(AwkRuntimeValueKind.String, default(AwkValue).RuntimeKind);
     }

@@ -39,6 +39,51 @@ internal readonly struct AwkValue
     private readonly double _number;
     private readonly AwkValueKind _kind;
 
+    internal object? StoredReference => _text;
+    internal double StoredNumber => _number;
+    internal AwkValueKind StoredKind => _kind;
+
+    internal static AwkValue FromStorage(object? reference, double number, AwkValueKind kind) =>
+        new(reference, number, kind);
+
+    // A frame fixes the reading mode once. Mode-independent input facts keep
+    // their cached number; other input spellings are classified at this owner.
+    internal AwkValue ForFunctionStorage(AwkNumberParsingMode mode, Action? checkpoint)
+    {
+        switch (_kind)
+        {
+            case AwkValueKind.Number:
+            case AwkValueKind.Unassigned:
+                return this;
+            case AwkValueKind.ArrayReference:
+            case AwkValueKind.Untyped:
+                return AsScalarCopy();
+            case AwkValueKind.NumericString:
+            case AwkValueKind.NonDecimalConversionErrorInput:
+                return TryGetPreparedNumericInput(out _) ? this : FromNumericString(ByteText, mode, checkpoint);
+            default:
+                // Other kinds already own scalar text. Keep its backing directly,
+                // without projecting it through a general text/value conversion.
+                return new(_text, 0, DeferredTextKind(mode));
+        }
+    }
+
+    internal bool TryGetStoredScalarText(out AwkText text)
+    {
+        if (!IsNumberValue && !IsArrayValue && !TryGetUntypedScalar(out _))
+        {
+            text = ByteText;
+            return true;
+        }
+        text = default;
+        return false;
+    }
+
+    internal void PromoteUntypedScalar()
+    {
+        if (TryGetUntypedScalar(out var origin)) origin.Promote();
+    }
+
     private AwkValue(
         object? text,
         double number,
@@ -140,16 +185,16 @@ internal readonly struct AwkValue
     }
 
     public static AwkValue FromDeferredText(AwkText text, AwkNumberParsingMode numberParsingMode) =>
-        new(
-            text,
-            0,
-            numberParsingMode switch
-            {
-                AwkNumberParsingMode.Decimal => AwkValueKind.DeferredDecimalText,
-                AwkNumberParsingMode.HexadecimalInput => AwkValueKind.DeferredHexadecimalText,
-                AwkNumberParsingMode.NonDecimalData => AwkValueKind.DeferredNonDecimalText,
-                _ => throw new ArgumentOutOfRangeException(nameof(numberParsingMode))
-            });
+        new(text, 0, DeferredTextKind(numberParsingMode));
+
+    private static AwkValueKind DeferredTextKind(AwkNumberParsingMode numberParsingMode) =>
+        numberParsingMode switch
+        {
+            AwkNumberParsingMode.Decimal => AwkValueKind.DeferredDecimalText,
+            AwkNumberParsingMode.HexadecimalInput => AwkValueKind.DeferredHexadecimalText,
+            AwkNumberParsingMode.NonDecimalData => AwkValueKind.DeferredNonDecimalText,
+            _ => throw new ArgumentOutOfRangeException(nameof(numberParsingMode))
+        };
 
     public static AwkValue Unassigned() =>
         new(AwkText.Empty, 0, AwkValueKind.Unassigned);

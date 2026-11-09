@@ -13,7 +13,7 @@ internal sealed class AwkFunctionRuntime
     public AwkFunctionRuntime(
         int maxFunctionCallDepth,
         AwkMemoryAccounting memoryAccounting,
-        Func<AwkVariableSlot, AwkValue> createValue,
+        AwkNumberParsingMode numberParsingMode,
         Func<AwkArrayName, bool> containsArray,
         Action<AwkArrayName> removeFunctionLocalArray,
         Action? checkpoint = null,
@@ -25,7 +25,7 @@ internal sealed class AwkFunctionRuntime
         _calls = new AwkFunctionCallStack(
             maxFunctionCallDepth,
             memoryAccounting,
-            createValue,
+            numberParsingMode,
             containsArray,
             checkpoint,
             findArray,
@@ -56,7 +56,7 @@ internal sealed class AwkFunctionRuntime
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout) => _calls.PrepareFrame(layout);
     internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, in argument);
     internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value) => _calls.StageValue(frame, index, in value);
-    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkVariableSlot value) =>
+    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkValue value) =>
         _calls.StageScalarArgument(frame, index, in value);
     internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array) =>
         _calls.StageArrayAlias(frame, index, name, array);
@@ -69,8 +69,8 @@ internal sealed class AwkFunctionRuntime
     public void PopFrame() =>
         _calls.PopFrame(_removeFunctionLocalArray);
 
-    internal bool TryResolveScalarLocalSlot(AwkFunctionLocalSlotId slotId, out AwkVariableSlot scalar) =>
-        _calls.TryResolveScalarLocalSlot(slotId, out scalar);
+    internal bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue scalar) =>
+        _calls.TryResolveScalarLocalValue(slotId, out scalar);
 
     internal bool TryGetLocalFrame(AwkFunctionLocalSlotId slotId, [NotNullWhen(true)] out AwkFunctionFrame? frame) =>
         _calls.TryGetLocalFrame(slotId, out frame);

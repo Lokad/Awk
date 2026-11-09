@@ -26,8 +26,8 @@ public sealed class AwkPreparedNumericInputTests
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
         Assert.Equal(number, result.AsNumber());
         Assert.Equal(0, AwkValue.Compare(result, AwkValue.FromNumber(number)));
-        Assert.Equal(before + 1, state.Counters.ValuesCreated);
-        Assert.Equal(1, state.Counters.PreparedNumericSlotReads);
+        Assert.Equal(before + (storage == 2 ? 0 : 1), state.Counters.ValuesCreated);
+        Assert.Equal(storage == 2 ? 0 : 1, state.Counters.PreparedNumericSlotReads);
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.StringDecodes);

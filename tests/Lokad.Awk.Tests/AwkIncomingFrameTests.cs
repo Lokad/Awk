@@ -16,7 +16,7 @@ public sealed class AwkIncomingFrameTests
             {
                 ref readonly var slot = ref frame.GetSlot(index);
                 Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, slot.Kind);
-                Assert.Equal(AwkVariableSlotKind.Unassigned, slot.Value.Kind);
+                Assert.Equal(AwkValueKind.Unassigned, slot.Value.StoredKind);
             }
             Assert.False(state.IsInsideFunction);
             state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromText("")));
@@ -137,8 +137,8 @@ public sealed class AwkIncomingFrameTests
             else Assert.Throws<AwkRuntimeException>(Stage);
             Assert.Same(caller, state.CurrentFunctionFrame);
             Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, incoming.GetSlot(0).Kind);
-            Assert.Equal(AwkVariableSlotKind.Unassigned, incoming.GetSlot(0).Value.Kind);
-            Assert.Equal(spelling, caller.GetSlot(0).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsString());
+            Assert.Equal(AwkValueKind.Unassigned, incoming.GetSlot(0).Value.StoredKind);
+            Assert.Equal(spelling, caller.GetSlot(0).Value.AsString());
             Assert.Equal(before, fixture.Budget.Reserved);
         }
         finally

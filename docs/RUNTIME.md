@@ -370,13 +370,16 @@ An open command funds its command/environment snapshot; it does not retain charg
 unrelated records or completed writes. Closing it releases that snapshot after command completion.
 Function argument/slot buffers are admitted before allocation. Cached frames and alias-index
 capacity remain funded until execution ends. Frames reuse sufficient cleared backing across
-different arities, including smaller and inline activations. A larger layout retires insufficient
+different arities, including smaller activations. A larger layout retires insufficient
 inactive backing before admitting its replacement. Unwinding releases active scalar payloads;
 local and temporary cleanup uses the activation's bounds, while retained capacity stays funded.
 Cleared local cells already represent omitted arguments with an unassigned value; supplied
 arguments replace those cells in caller evaluation order.
 Scalar arguments capture their payload before admission and initialize those incoming cells directly;
 later callbacks cannot change the captured value. Array aliases and untyped origins retain reconciliation.
+Function cells retain scalar values directly, preserving spelling and input origins without rebuilding
+a value on each read. Mode-sensitive input is classified at the frame owner; conversion errors remain
+deferred until numeric use, and long input reads retain cancellation coverage.
 Only actual array/untyped arguments need entry reconciliation; alias registration still follows
 it, preserving later-argument mutation and admission order.
 Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted

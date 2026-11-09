@@ -183,7 +183,7 @@ public sealed class AwkRuntimeStartupTests
         Assert.False(runtime.TryGetUserFunction(AwkFunctionName.FromText("missing"), out _));
 
         static AwkFunctionRuntime Create() => new(1000, AwkMemoryAccounting.Disabled,
-            static _ => AwkValue.Unassigned(), static _ => false, static _ => { });
+            AwkNumberParsingMode.Decimal, static _ => false, static _ => { });
     }
 
     [Fact]

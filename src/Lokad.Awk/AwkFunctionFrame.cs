@@ -72,7 +72,7 @@ internal sealed class AwkFunctionFrame
             GetSlot(index).InitializeNumber(number);
     }
 
-    internal void StageScalar(int index, in AwkVariableSlot value)
+    internal void StageScalar(int index, in AwkValue value)
     {
         System.Diagnostics.Debug.Assert(IsIncoming);
         GetSlot(index).InitializeScalar(in value);
@@ -180,13 +180,13 @@ internal struct AwkFunctionLocalSlot
 
     private AwkFunctionLocalSlot(
         AwkFunctionLocalSlotKind kind,
-        AwkVariableSlot value,
+        AwkValue value,
         AwkArrayName arrayName)
     {
         Kind = kind;
         _reference = value.StoredReference;
         _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
-        _payloadTag = (int)value.Kind;
+        _payloadTag = (int)value.StoredKind;
         ArrayName = arrayName;
     }
 
@@ -202,10 +202,10 @@ internal struct AwkFunctionLocalSlot
     public AwkFunctionLocalSlotKind Kind { readonly get; private set; }
 
     // Cleared cells are missing locals. Their language value is unassigned,
-    // independently of the ordinary scalar slot's text-valued default.
-    public readonly AwkVariableSlot Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key
-        ? AwkVariableSlot.Unassigned()
-        : AwkVariableSlot.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkVariableSlotKind)_payloadTag);
+    // independently of the scalar value's text-valued default.
+    public readonly AwkValue Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key
+        ? AwkValue.Unassigned()
+        : AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_payloadTag);
 
     public AwkArrayName ArrayName { get; }
 
@@ -215,7 +215,7 @@ internal struct AwkFunctionLocalSlot
 
     internal readonly bool TryReadNumber(out double number)
     {
-        if (Kind == AwkFunctionLocalSlotKind.Scalar && _payloadTag == (int)AwkVariableSlotKind.Number)
+        if (Kind == AwkFunctionLocalSlotKind.Scalar && _payloadTag == (int)AwkValueKind.Number)
         {
             number = BitConverter.Int64BitsToDouble(_word);
             return true;
@@ -234,7 +234,7 @@ internal struct AwkFunctionLocalSlot
             InitializeNumber(number);
             return true;
         }
-        if (Kind != AwkFunctionLocalSlotKind.Scalar || _payloadTag != (int)AwkVariableSlotKind.Number)
+        if (Kind != AwkFunctionLocalSlotKind.Scalar || _payloadTag != (int)AwkValueKind.Number)
             return false;
         _word = BitConverter.DoubleToInt64Bits(number);
         return true;
@@ -244,31 +244,29 @@ internal struct AwkFunctionLocalSlot
     {
         System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
         _word = BitConverter.DoubleToInt64Bits(number);
-        _payloadTag = (int)AwkVariableSlotKind.Number;
+        _payloadTag = (int)AwkValueKind.Number;
         Kind = AwkFunctionLocalSlotKind.Scalar;
     }
 
     // Incoming scalar storage is already cleared and funded. Capture/admission
     // belongs to the call stack; initialize the actual cell without a cell temporary.
-    internal void InitializeScalar(in AwkVariableSlot value)
+    internal void InitializeScalar(in AwkValue value)
     {
         System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
         _reference = value.StoredReference;
         _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
-        _payloadTag = (int)value.Kind;
+        _payloadTag = (int)value.StoredKind;
         Kind = AwkFunctionLocalSlotKind.Scalar;
     }
 
     public static AwkFunctionLocalSlot PreparedKey(AwkArrayKey key) =>
         new(key);
 
-    public static AwkFunctionLocalSlot Scalar(AwkVariableSlot value) =>
-        new(AwkFunctionLocalSlotKind.Scalar, value, default);
-
-    public static AwkFunctionLocalSlot Scalar(AwkValue value) => Scalar(AwkVariableSlot.FromValue(value));
+    public static AwkFunctionLocalSlot Scalar(AwkValue value) =>
+        new(AwkFunctionLocalSlotKind.Scalar, value.AsScalarCopy(), default);
 
     // Produce the actual incoming cell, preserving mutable untyped origins until
-    // activation. Immutable scalar values need only one representation conversion.
+    // activation. Immutable scalars keep their canonical value representation.
     public static AwkFunctionLocalSlot FromArgumentValue(AwkValue value) =>
         value.TryGetArrayBinding(out var array) ? ArrayAlias(array) :
         value.TryGetArrayName(out var name) ? ArrayAlias(name) :
@@ -278,7 +276,7 @@ internal struct AwkFunctionLocalSlot
 
     public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName, AwkArrayIdentity? array = null) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias,
-            array is null ? default : AwkVariableSlot.FromArrayBinding(array), arrayName);
+            array is null ? AwkValue.Unassigned() : AwkValue.FromArrayReference(array), arrayName);
 
     public static AwkFunctionLocalSlot ArrayAlias(AwkArrayIdentity array) => ArrayAlias(default, array);
 
@@ -286,10 +284,10 @@ internal struct AwkFunctionLocalSlot
         PotentialArrayAlias(arrayName, AwkValue.FromUntypedScalar(new AwkUntypedScalar()));
 
     public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName, AwkValue value) =>
-        new(AwkFunctionLocalSlotKind.PotentialArrayAlias, AwkVariableSlot.FromArgumentValue(value), arrayName);
+        new(AwkFunctionLocalSlotKind.PotentialArrayAlias, value, arrayName);
 
     public static AwkFunctionLocalSlot UntypedScalar(AwkValue value) =>
-        new(AwkFunctionLocalSlotKind.UntypedScalar, AwkVariableSlot.FromArgumentValue(value), default);
+        new(AwkFunctionLocalSlotKind.UntypedScalar, value, default);
 }
 
 internal enum AwkFunctionLocalSlotKind

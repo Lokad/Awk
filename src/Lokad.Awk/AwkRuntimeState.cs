@@ -84,7 +84,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryAccounting,
-            _variables.CreateValue,
+            NumberParsingMode,
             _variables.ContainsArray,
             _variables.RemoveFunctionLocalArray,
             CancellationCheckpoint,
@@ -778,7 +778,11 @@ internal sealed class AwkRuntimeState : IDisposable
                     }
                     else if (argument.Consumption == AwkParameterInput.Key && slot.TryGetStoredScalarText(out var text))
                         _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint));
-                    else _functions.StageScalarArgument(incoming, index, in slot);
+                    else
+                    {
+                        var value = _variables.CreateValue(slot);
+                        _functions.StageScalarArgument(incoming, index, in value);
+                    }
                     return;
                 }
             }
@@ -849,10 +853,10 @@ internal sealed class AwkRuntimeState : IDisposable
                 return false;
             }
             var slot = local.Value;
-            if (slot.TryGetNumber(out var number))
+            if (slot.IsNumberValue)
             {
                 Counters.RecordNumericLocalRead();
-                key = ToArrayKey(AwkValue.FromNumber(number));
+                key = ToArrayKey(slot);
                 return true;
             }
             if (slot.TryGetStoredScalarText(out var text))
@@ -882,9 +886,8 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name)
     {
-        if (_functions.TryResolveScalarLocalSlot(slotId, out var slot))
+        if (_functions.TryResolveScalarLocalValue(slotId, out var value))
         {
-            var value = slot.TryGetNumber(out var number) ? AwkValue.FromNumber(number) : _variables.CreateValue(slot);
             if (value.IsNumberValue) Counters.RecordNumericLocalRead();
             else Counters.RecordScalarLocalValueRead();
             return value;

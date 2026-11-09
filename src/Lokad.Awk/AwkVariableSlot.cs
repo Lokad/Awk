@@ -7,18 +7,11 @@ internal readonly struct AwkVariableSlot
     private readonly object? _text;
     private readonly double _number;
 
-    // The function cell retains these already-owned words without reclassification.
-    internal object? StoredReference => _text;
-    internal double StoredNumber => _number;
-
     // Implicit publication can retain an identical immutable text owner. Equal
     // spelling alone is insufficient, and numeric/input origins remain distinct.
     internal bool HasSameTextStorage(AwkVariableSlot other) =>
         Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.Unassigned &&
         Kind == other.Kind && ReferenceEquals(_text, other._text);
-
-    internal static AwkVariableSlot FromStorage(object? reference, double number, AwkVariableSlotKind kind) =>
-        new(reference, number, kind);
 
     private AwkVariableSlot(object? reference, double number, AwkVariableSlotKind kind)
     {
@@ -86,17 +79,8 @@ internal readonly struct AwkVariableSlot
 
     public static AwkVariableSlot FromUntypedScalar(AwkUntypedScalar scalar) => new(scalar);
 
-    public static AwkVariableSlot FromArgumentValue(AwkValue value) =>
-        value.TryGetUntypedScalar(out var scalar) ? FromUntypedScalar(scalar) : FromValue(value);
-
     public bool IsUntyped => Kind == AwkVariableSlotKind.Untyped &&
         _text is AwkUntypedScalar { IsScalar: false, Array: null };
-
-    public void PromoteUntypedScalar()
-    {
-        if (_text is AwkUntypedScalar scalar)
-            scalar.Promote();
-    }
 
     public static AwkVariableSlot FromText(string text) =>
         FromText(AwkText.FromString(text));

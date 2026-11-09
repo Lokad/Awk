@@ -179,7 +179,10 @@ or environment dependencies.
   Function cells share mutually exclusive scalar/key payload words and retain full array names.
   Storage views preserve owned references, raw bits and origins without classification or callbacks;
   only the cell role selects their interpretation. Fund slot arrays at their actual element width.
-  Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
+  Function scalars retain canonical values in those words, without a variable-slot projection
+  or read conversion callback. Normalize reading mode at the frame owner; preserve input spelling,
+  deferred conversion errors and long-input cancellation. Global/array slots convert at that boundary.
+  Pure numbers use funded scalar storage.
   Numeric arguments initialize cleared incoming cells directly at that frame, once per index.
   Other captured scalars initialize those cells after payload admission without transient local cells.
   Copy source payloads before callbacks; no live source-slot references survive admission.

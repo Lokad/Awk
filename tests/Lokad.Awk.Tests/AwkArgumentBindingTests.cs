@@ -48,7 +48,7 @@ public sealed class AwkArgumentBindingTests
         Assert.True(state.TryResolveArrayArgument(name, out var untouched));
         Assert.Equal(AwkFunctionLocalSlotKind.PotentialArrayAlias, untouched.Kind);
         Assert.Equal(new AwkArrayName(name.Identifier), untouched.ArrayName);
-        Assert.True(untouched.Value.IsUntyped);
+        Assert.True(untouched.Value.IsUntypedValue);
         state.AssignVariableValue(name, AwkValue.FromText("0007"));
         state.ResolvePreparedGlobalValue(name, 0);
         Assert.False(state.TryResolveArrayArgument(name, out _));
@@ -70,7 +70,7 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         try
         {
-            Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsNumber());
+            Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.AsNumber());
             using (state.EnterGlobalBindings())
             {
                 var argument = BindLocalArgument(state, new(0), name);
@@ -78,7 +78,7 @@ public sealed class AwkArgumentBindingTests
                 Assert.Equal(global, argument.ArrayName);
                 Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
             }
-            Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsNumber());
+            Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(name).AsNumber());
         }
         finally { state.PopFunctionFrame(); }
@@ -191,7 +191,7 @@ public sealed class AwkArgumentBindingTests
             if (preparedLocal) state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, name, AllowArray: true), incoming, 0);
             else state.StageFunctionArgument(incoming, 0, in source);
             Assert.Equal(1, callbacks);
-            Assert.Equal(spelling, incoming.GetSlot(0).Value.ToValue(AwkValue.FromNumericString, AwkValue.FromText).AsString());
+            Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());
             Assert.Equal(17, state.ResolveVariableValue(name).AsNumber());
         }
         finally

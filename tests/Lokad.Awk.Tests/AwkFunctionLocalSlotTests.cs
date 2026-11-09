@@ -20,10 +20,10 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.True(cell.TryWriteNumber(BitConverter.Int64BitsToDouble(bits)));
             Assert.True(cell.TryReadNumber(out var number));
             Assert.Equal(bits, BitConverter.DoubleToInt64Bits(number));
-            Assert.Equal(AwkVariableSlotKind.Number, cell.Value.Kind);
+            Assert.Equal(AwkValueKind.Number, cell.Value.StoredKind);
             Assert.Null(cell.Value.StoredReference);
             Assert.Equal(default, cell.ArrayName);
-            Assert.Equal(prior.Kind, snapshot.Value.Kind);
+            Assert.Equal(prior.StoredKind, snapshot.Value.StoredKind);
             Assert.Equal(priorBits, BitConverter.DoubleToInt64Bits(snapshot.Value.StoredNumber));
             Assert.Equal(priorBits, BitConverter.DoubleToInt64Bits(prior.StoredNumber));
         }
@@ -36,10 +36,10 @@ public sealed class AwkFunctionLocalSlotTests
         var origin = new AwkUntypedScalar();
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), long.MaxValue);
         var array = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
-        AwkFunctionLocalSlot[] cells = [AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromText(text)),
+        AwkFunctionLocalSlot[] cells = [AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromPreparedNumericInput(text, 7)),
-            AwkFunctionLocalSlot.Scalar(AwkVariableSlot.Unassigned()),
+            AwkFunctionLocalSlot.Scalar(AwkValue.Unassigned()),
             AwkFunctionLocalSlot.ArrayAlias(name, array),
             AwkFunctionLocalSlot.PotentialArrayAlias(name, AwkValue.FromUntypedScalar(origin)),
             AwkFunctionLocalSlot.UntypedScalar(AwkValue.FromUntypedScalar(origin)),
@@ -51,7 +51,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.Equal(initial.Kind, cell.Kind);
             Assert.Equal(initial.ArrayName, cell.ArrayName);
             Assert.Equal(initial.Key, cell.Key);
-            Assert.Equal(initial.Value.Kind, cell.Value.Kind);
+            Assert.Equal(initial.Value.StoredKind, cell.Value.StoredKind);
             Assert.Same(initial.Value.StoredReference, cell.Value.StoredReference);
             Assert.Equal(BitConverter.DoubleToInt64Bits(initial.Value.StoredNumber),
                 BitConverter.DoubleToInt64Bits(cell.Value.StoredNumber));
@@ -65,48 +65,55 @@ public sealed class AwkFunctionLocalSlotTests
         foreach (var bits in new long[] { 0, long.MinValue, 0x3ff4000000000000, 0x7ff0000000000000,
             unchecked((long)0xfff0000000000000UL), 0x7ff8000000000123, 0x7ff0000000000001 })
         {
-            var cell = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(BitConverter.Int64BitsToDouble(bits)));
+            var cell = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(BitConverter.Int64BitsToDouble(bits)));
             Assert.True(cell.Value.TryGetNumber(out var number));
             Assert.Equal(bits, BitConverter.DoubleToInt64Bits(number));
             Assert.Equal(default, cell.ArrayName);
         }
         var text = AwkText.FromSourceLiteralString("0007");
         var origin = new AwkUntypedScalar();
-        AwkVariableSlot[] values = [AwkVariableSlot.FromNumber(7), AwkVariableSlot.FromText(text),
-            AwkVariableSlot.FromValue(AwkValue.FromNumericString(text)), AwkVariableSlot.Unassigned(),
-            AwkVariableSlot.FromValue(AwkValue.FromPreparedNumericInput(text, 7)),
-            AwkVariableSlot.FromUntypedScalar(origin)];
+        AwkValue[] values = [AwkValue.FromNumber(7), AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
+            AwkValue.FromNumericString(text), AwkValue.Unassigned(),
+            AwkValue.FromPreparedNumericInput(text, 7),
+            AwkValue.FromUntypedScalar(origin)];
         foreach (var value in values)
         {
             var actual = RoundTrip(value);
-            Assert.Equal(value.Kind, actual.Kind);
+            Assert.Equal(value.StoredKind, actual.StoredKind);
             Assert.Equal(value.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);
-            if (value.Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.PreparedNumericString)
+            if (value.StoredKind is AwkValueKind.DeferredDecimalText or AwkValueKind.NumericString)
                 Assert.True(text.HasSameStorage(actual.ByteText));
             var initialized = AwkFunctionLocalSlot.MissingScalar();
             var prior = initialized;
             initialized.InitializeScalar(in value);
-            Assert.Equal(value.Kind, initialized.Value.Kind);
+            Assert.Equal(value.StoredKind, initialized.Value.StoredKind);
             Assert.Same(value.StoredReference, initialized.Value.StoredReference);
             Assert.Equal(BitConverter.DoubleToInt64Bits(value.StoredNumber),
                 BitConverter.DoubleToInt64Bits(initialized.Value.StoredNumber));
             Assert.Equal(value.RetainedTextMemoryBytes, initialized.Value.RetainedTextMemoryBytes);
             Assert.Equal(default, initialized.ArrayName);
             Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, prior.Kind);
-            Assert.Equal(AwkVariableSlotKind.Unassigned, prior.Value.Kind);
+            Assert.Equal(AwkValueKind.Unassigned, prior.Value.StoredKind);
         }
         var untouched = RoundTrip(values[^1]);
         Assert.True(untouched.TryGetUntypedScalar(out var captured));
         Assert.Same(origin, captured);
         for (var index = 0; index < 100; index++) RoundTrip(values[index % values.Length]);
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var last = default(AwkVariableSlot);
+        var last = default(AwkValue);
         for (var index = 0; index < 10_000; index++) last = RoundTrip(values[index % values.Length]);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.InRange(allocated, 0, 1024);
-        Assert.Equal(values[9_999 % values.Length].Kind, last.Kind);
+        Assert.Equal(values[9_999 % values.Length].StoredKind, last.StoredKind);
 
-        static AwkVariableSlot RoundTrip(AwkVariableSlot value) => AwkFunctionLocalSlot.Scalar(value).Value;
+        static AwkValue RoundTrip(AwkValue value) => RoundTripStorage(value);
+
+        static AwkValue RoundTripStorage(AwkValue value)
+        {
+            var cell = AwkFunctionLocalSlot.MissingScalar();
+            cell.InitializeScalar(in value);
+            return cell.Value;
+        }
     }
 
     [Fact]
@@ -121,7 +128,7 @@ public sealed class AwkFunctionLocalSlotTests
             var actual = cell.Key;
             Assert.Equal(AwkFunctionLocalSlotKind.Key, cell.Kind);
             Assert.Equal(default, cell.ArrayName);
-            Assert.Equal(AwkVariableSlotKind.Unassigned, cell.Value.Kind);
+            Assert.Equal(AwkValueKind.Unassigned, cell.Value.StoredKind);
             Assert.False(cell.TryReadNumber(out _));
             Assert.Equal(key, actual);
             Assert.Equal(key.GetHashCode(), actual.GetHashCode());
@@ -153,9 +160,9 @@ public sealed class AwkFunctionLocalSlotTests
         var origin = new AwkUntypedScalar();
         var potential = AwkFunctionLocalSlot.PotentialArrayAlias(name, AwkValue.FromUntypedScalar(origin));
         Assert.Equal(name, potential.ArrayName);
-        Assert.True(potential.Value.IsUntyped);
+        Assert.True(potential.Value.IsUntypedValue);
         origin.Promote();
-        Assert.False(potential.Value.IsUntyped);
+        Assert.False(potential.Value.IsUntypedValue);
         Assert.True(potential.Value.TryGetUntypedScalar(out var capturedOrigin));
         Assert.Same(origin, capturedOrigin);
         Assert.Equal(name, potential.ArrayName);
@@ -220,9 +227,7 @@ public sealed class AwkFunctionLocalSlotTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForMemory = new CooperativeTestMemory(1 << 20, AwkRuntimeCounters.Disabled);
         var memory = memoryForMemory.Accounting;
-        var stack = new AwkFunctionCallStack(2, memory, static slot => slot.ToValue(
-            static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
+        var stack = new AwkFunctionCallStack(2, memory, AwkNumberParsingMode.Decimal);
         var name = AwkVariableName.FromText("x");
         var slot = new AwkFunctionLocalSlotId(0);
         var layout = new AwkFunctionLocalLayout([name]);
@@ -234,7 +239,7 @@ public sealed class AwkFunctionLocalSlotTests
         {
             Assert.True(stack.IsInsideFunction);
             Assert.Equal(retained, memory.CurrentCommittedBytes);
-            Assert.False(stack.TryResolveScalarLocalSlot(slot, out _));
+            Assert.False(stack.TryResolveScalarLocalValue(slot, out _));
             Assert.False(stack.TryResolveLocal(name, out _));
             Assert.False(stack.TryResolveLocal(slot, out _));
             Assert.False(stack.TryResolveLocalValue(name, out _));
@@ -337,7 +342,7 @@ public sealed class AwkFunctionLocalSlotTests
     {
         var stack = CreateCallStack();
         var first = new AwkFunctionLocalSlotId(0);
-        Assert.False(stack.TryResolveScalarLocalSlot(first, out _));
+        Assert.False(stack.TryResolveScalarLocalValue(first, out _));
         AwkVariableName[] names = [AwkVariableName.FromText("x"), AwkVariableName.FromText("y"),
             AwkVariableName.FromText("potential"), AwkVariableName.FromText("array"), AwkVariableName.FromText("missing")];
         var array = AwkArrayName.FromText("a");
@@ -346,29 +351,29 @@ public sealed class AwkFunctionLocalSlotTests
             AwkFunctionLocalSlot.PotentialArrayAlias(array), AwkFunctionLocalSlot.ArrayAlias(array)]);
         try
         {
-            Assert.True(stack.TryResolveScalarLocalSlot(first, out var number));
+            Assert.True(stack.TryResolveScalarLocalValue(first, out var number));
             Assert.True(number.TryGetNumber(out var numeric));
             Assert.Equal(7, numeric);
-            Assert.True(stack.TryResolveScalarLocalSlot(new AwkFunctionLocalSlotId(1), out var input));
-            Assert.Equal(AwkVariableSlotKind.NumericString, input.Kind);
+            Assert.True(stack.TryResolveScalarLocalValue(new AwkFunctionLocalSlotId(1), out var input));
+            Assert.Equal(AwkValueKind.NumericString, input.StoredKind);
             Assert.Equal("007", input.ByteText.AsString());
             foreach (var index in new[] { -1, 2, 3, 4, 5, int.MaxValue })
-                Assert.False(stack.TryResolveScalarLocalSlot(new AwkFunctionLocalSlotId(index), out _));
+                Assert.False(stack.TryResolveScalarLocalValue(new AwkFunctionLocalSlotId(index), out _));
             Assert.True(stack.TryResolveLocal(names[4], out var missing));
             Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, missing.Kind);
             Assert.True(stack.TryAssignLocal(new AwkFunctionLocalSlotId(4), AwkValue.FromNumber(9)));
-            Assert.True(stack.TryResolveScalarLocalSlot(new AwkFunctionLocalSlotId(4), out var assigned));
+            Assert.True(stack.TryResolveScalarLocalValue(new AwkFunctionLocalSlotId(4), out var assigned));
             Assert.True(assigned.TryGetNumber(out var assignedNumber));
             Assert.Equal(9, assignedNumber);
             stack.PushFrame(new AwkFunctionLocalLayout([names[0]]), [AwkFunctionLocalSlot.ArrayAlias(array)]);
-            try { Assert.False(stack.TryResolveScalarLocalSlot(first, out _)); }
+            try { Assert.False(stack.TryResolveScalarLocalValue(first, out _)); }
             finally { stack.PopFrame(static _ => { }); }
-            Assert.True(stack.TryResolveScalarLocalSlot(first, out var restored));
+            Assert.True(stack.TryResolveScalarLocalValue(first, out var restored));
             Assert.True(restored.TryGetNumber(out var restoredNumber));
             Assert.Equal(7, restoredNumber);
         }
         finally { stack.PopFrame(static _ => { }); }
-        Assert.False(stack.TryResolveScalarLocalSlot(first, out _));
+        Assert.False(stack.TryResolveScalarLocalValue(first, out _));
     }
 
     [Fact]
@@ -550,7 +555,5 @@ public sealed class AwkFunctionLocalSlotTests
         new(
             maxFunctionCallDepth: 8,
             AwkMemoryAccounting.Disabled,
-            static slot => slot.ToValue(
-                static text => AwkValue.FromNumericString(text),
-                static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
+            AwkNumberParsingMode.Decimal);
 }

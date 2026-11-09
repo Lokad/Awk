@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
     AwkMemoryAccounting memoryAccounting,
-    Func<AwkVariableSlot, AwkValue> createValue,
+    AwkNumberParsingMode numberParsingMode,
     Func<AwkArrayName, bool>? containsArray = null,
     Action? checkpoint = null,
     Func<AwkArrayName, AwkArrayIdentity?>? findArray = null,
@@ -156,15 +156,14 @@ internal sealed class AwkFunctionCallStack(
             StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
         else
         {
-            var scalar = AwkVariableSlot.FromValue(value);
-            StageScalarArgument(frame, index, in scalar);
+            StageScalarArgument(frame, index, in value);
         }
     }
 
-    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkVariableSlot value)
+    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkValue value)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
-        var captured = value;
+        var captured = value.ForFunctionStorage(numberParsingMode, checkpoint);
         var bytes = memoryAccounting.IsEnabled ? captured.RetainedTextMemoryBytes : 0;
         memoryAccounting.ReserveAndCommit(bytes);
         try
@@ -254,7 +253,7 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
-            sourceSlot.Value.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
+            sourceSlot.Value.StoredKind is not (AwkValueKind.Untyped or AwkValueKind.ArrayReference))
         {
             var value = sourceSlot.Value;
             _counters.RecordScalarLocalValueRead();
@@ -360,14 +359,14 @@ internal sealed class AwkFunctionCallStack(
         memoryAccounting.ReleaseCommitted(payloadBytes);
     }
 
-    internal bool TryResolveScalarLocalSlot(AwkFunctionLocalSlotId slotId, out AwkVariableSlot scalar)
+    internal bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue scalar)
     {
         if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
-                scalar = slot.Value;
+                scalar = ReadScalarValue(slot.Value);
                 return true;
             }
         }
@@ -460,7 +459,7 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntypedValue)
         {
             if (_containsArray(slot.ArrayName))
             {
@@ -468,14 +467,14 @@ internal sealed class AwkFunctionCallStack(
                 return true;
             }
             argument = AwkFunctionLocalSlot.PotentialArrayAlias(slot.ArrayName,
-                createValue(slot.Value));
+                slot.Value);
             return true;
         }
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
+        if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntypedValue)
         {
             argument = AwkFunctionLocalSlot.FromArgumentValue(
-                createValue(slot.Value));
+                slot.Value);
             return true;
         }
 
@@ -517,7 +516,7 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntypedValue)
         {
             arrayName = slot.ArrayName;
             PromotePotentialArrayAliases(frame, slotId, slot);
@@ -586,7 +585,7 @@ internal sealed class AwkFunctionCallStack(
             if (TryGetLocalSlot(frame, name, out _, out var slot))
             {
                 if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
-                    slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
+                    slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntypedValue)
                 {
                     arrayName = slot.ArrayName;
                     return true;
@@ -634,7 +633,7 @@ internal sealed class AwkFunctionCallStack(
                 return true;
             }
         }
-        if (promote && slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped &&
+        if (promote && slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntypedValue &&
             slot.Value.TryGetUntypedScalar(out var origin) && origin.Parent is not null && promoteArrayOrigin is not null)
         {
             array = promoteArrayOrigin(origin);
@@ -680,13 +679,11 @@ internal sealed class AwkFunctionCallStack(
     }
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>
-        TryAssignLocal(name, AwkVariableSlot.FromText(value));
+        TryAssignLocal(name, AwkValue.FromDeferredText(AwkText.FromString(value), numberParsingMode));
 
-    public bool TryAssignLocal(AwkVariableName name, AwkValue value) =>
-        TryAssignLocal(name, AwkVariableSlot.FromValue(value));
-
-    private bool TryAssignLocal(AwkVariableName name, AwkVariableSlot value)
+    public bool TryAssignLocal(AwkVariableName name, AwkValue value)
     {
+        value = value.ForFunctionStorage(numberParsingMode, checkpoint);
         if (!TryPeekLocalFrame(out var frame))
             return false;
 
@@ -703,11 +700,9 @@ internal sealed class AwkFunctionCallStack(
         return true;
     }
 
-    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
-        TryAssignLocal(slotId, AwkVariableSlot.FromValue(value));
-
-    private bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
+    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value)
     {
+        value = value.ForFunctionStorage(numberParsingMode, checkpoint);
         if (!TryPeekLocalFrame(out var frame))
             return false;
 
@@ -802,14 +797,14 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
             return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntypedValue)
             return _containsArray(slot.ArrayName)
                 ? AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName)
                 : AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
+        if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntypedValue)
             return AwkResolvedFunctionLocal.UntypedScalar(
-                createValue(slot.Value));
+                slot.Value);
 
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
             return AwkResolvedFunctionLocal.MissingScalar();
@@ -818,9 +813,18 @@ internal sealed class AwkFunctionCallStack(
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
             AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
-                createValue(slot.Value)),
+                ReadScalarValue(slot.Value)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
         };
+    }
+
+    private AwkValue ReadScalarValue(AwkValue value)
+    {
+        // Preserve cancellation at long input reads even when classification
+        // was prepared before entering the frame.
+        if (value.RetainsInputClassification && value.ByteText.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+            checkpoint?.Invoke();
+        return value;
     }
 
     private void RegisterPotentialArrayAlias(AwkArrayName arrayName)
@@ -871,7 +875,7 @@ internal sealed class AwkFunctionCallStack(
 
         var value = slot.Kind == AwkFunctionLocalSlotKind.MissingScalar
             ? slot.Value
-            : AwkVariableSlot.FromValue(AwkValue.Unassigned());
+            : AwkValue.Unassigned();
         var promoted = AwkFunctionLocalSlot.Scalar(value);
         ReplaceLocalSlot(frame, slotId, slot, promoted);
         slot.Value.PromoteUntypedScalar();

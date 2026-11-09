@@ -10,6 +10,14 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        const string storageModeSource = "function pass(x,t){t=x;return t}function show(x,y){y=pass(x);print \"[\" y \"]\",y+0,(y==10),(y==8)}{show($1);show(\"010\");show(substr(\"0x10\",1));show($1 \"\");print \"[\" $1 \"]\"}";
+        const string decimalStorageOutput = "[010] 10 1 0\n[010] 10 0 0\n[0x10] 0 0 0\n[010] 10 0 0\n[010]\n";
+        yield return Passing("function-value-storage-mode-default", [storageModeSource], [], decimalStorageOutput, "010\n");
+        yield return Passing("function-value-storage-mode-traditional", ["--traditional", storageModeSource], [], decimalStorageOutput, "010\n");
+        yield return Passing("function-value-storage-mode-posix", ["--posix", storageModeSource], [],
+            "[010] 10 1 0\n[010] 10 0 0\n[0x10] 16 0 0\n[010] 10 0 0\n[010]\n", "010\n");
+        yield return Passing("function-value-storage-mode-nondecimal", ["--non-decimal-data", storageModeSource], [],
+            "[010] 8 0 1\n[010] 8 0 0\n[0x10] 16 0 0\n[010] 8 0 0\n[010]\n", "010\n");
         yield return Passing("forwarded-function-owned-array-keeps-identity-and-retirement",
             ["function put(p){p[\"count\"]++;return p[\"count\"]}function reset(p){delete p;p[\"value\"]=11;return 0}" +
              "function read(p,n){return p[\"value\"]}function forward(p){return read(p,reset(p))}" +
