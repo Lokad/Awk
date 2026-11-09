@@ -39,7 +39,12 @@ or environment dependencies.
   Execution location uses direct code/storage/position fields. Saved caller frames describe
   execution ownership, which can differ from the binding stack during retirement and root reentry.
   Publish the activated frame before preparing callee scratch; its saved caller owns failed-entry
-  unwinding. Computation helpers consume the current canonical operands/storage explicitly.
+  unwinding. Synchronous computation uses one stack-only view binding the actual state,
+  program, storage, frame and their existing instruction/operand/number arrays. Keep instruction
+  position separate; do not restore a parallel captured helper environment or duplicate driver
+  binding locals. Whole string/length/type operations and main-record scheduling retain their
+  deliberate call boundaries; qualify changes to these boundaries on complete workloads.
+  The view owns no storage and cannot survive an actual host suspension.
   Root record completion retains its loaded program/storage view. Reload it for actual context
   switches; preserve published pending-host locations and rule-scratch retirement.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring

@@ -6,29 +6,18 @@ internal partial struct AwkRegionMachine
 {
     private bool RunCore()
     {
-        var state = _state;
         var output = _output;
-        AwkRegion region;
-        AwkRegionStorage storage;
-        AwkRegionInstruction[] instructions;
-        AwkRegionOperand[] operands;
-        AwkFunctionFrame? frame;
-        double[] numbers;
+        AwkRegionComputation computationView;
         var position = 0;
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
-        region = _region;
-        storage = _storage;
-        frame = _frame;
-        instructions = region.Instructions;
-        operands = region.Operands;
-        numbers = storage.Numbers;
+        computationView = new(_state, _region, _storage, _frame);
         position = _position;
     Execute:
-        for (; position < instructions.Length; position++)
+        for (; position < computationView.Instructions.Length; position++)
         {
-            ref readonly var instruction = ref instructions[position];
+            ref readonly var instruction = ref computationView.Instructions[position];
             switch (instruction.Kind)
             {
                 case AwkRegionInstructionKind.MainRead:
@@ -40,215 +29,172 @@ internal partial struct AwkRegionMachine
                     if (_finished) return true;
                     break;
                 case AwkRegionInstructionKind.RuleEnd:
-                    storage.ClearRuleValues(region.RuleScopes[instruction.Left]);
+                    computationView.Storage.ClearRuleValues(computationView.Region.RuleScopes[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.Poll:
-                    state.ThrowIfCancellationRequested();
-                    if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
+                    computationView.State.ThrowIfCancellationRequested();
+                    if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.StatementBoundary:
                     if (output is { HasPendingOutput: true })
                     {
-                        if (instruction.Right > 0) storage.ReleaseValue(instruction.Right - 1);
+                        if (instruction.Right > 0) computationView.Storage.ReleaseValue(instruction.Right - 1);
                         BeginFlush(output, position + 1, instruction.Detail);
                         goto Resume;
                     }
-                    if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
+                    if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.MoveNumber:
-                    numbers[instruction.Target] = numbers[instruction.Left];
+                    computationView.Numbers[instruction.Target] = computationView.Numbers[instruction.Left];
                     break;
                 case AwkRegionInstructionKind.FieldNumber:
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction, state.GetFieldNumber(instruction.Left));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.State.GetFieldNumber(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.FieldIndex:
-                    numbers[instruction.Target] = AwkFieldIndex.FromNumber(numbers[instruction.Left]).Value;
+                    computationView.Numbers[instruction.Target] = AwkFieldIndex.FromNumber(computationView.Numbers[instruction.Left]).Value;
                     break;
                 case AwkRegionInstructionKind.DynamicFieldNumber:
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction, state.GetFieldNumber((int)numbers[instruction.Left]));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.State.GetFieldNumber((int)computationView.Numbers[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.LiteralNumber:
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction,
-                        state.CreateStringValue(region.Literals[instruction.Left].Text).AsNumber(state.CancellationCheckpoint));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.State.CreateStringValue(computationView.Region.Literals[instruction.Left].Text).AsNumber(computationView.State.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.ValueNumber:
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction,
-                        storage.Values[instruction.Left].AsNumber(state.CancellationCheckpoint));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.Storage.Values[instruction.Left].AsNumber(computationView.State.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.LocalNumber:
                 {
-                    var local = operands[instruction.Left];
-                    var localNumber = TryLocalNumber(local.Index, out var number)
-                        ? number : state.ResolveFunctionLocalValue(new(local.Index), local.Name).AsNumber(state.CancellationCheckpoint);
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction, localNumber);
+                    var local = computationView.Operands[instruction.Left];
+                    var localNumber = computationView.TryLocalNumber(local.Index, out var number)
+                        ? number : computationView.State.ResolveFunctionLocalValue(new(local.Index), local.Name).AsNumber(computationView.State.CancellationCheckpoint);
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, localNumber);
                     break;
                 }
                 case AwkRegionInstructionKind.GlobalNumber:
                 {
-                    var global = operands[instruction.Left];
-                    var globalNumber = state.TryResolvePreparedGlobalNumber(global.Index, out var number)
-                        ? number : state.ResolvePreparedGlobalValue(global.Name, global.Index).AsNumber(state.CancellationCheckpoint);
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction, globalNumber);
+                    var global = computationView.Operands[instruction.Left];
+                    var globalNumber = computationView.State.TryResolvePreparedGlobalNumber(global.Index, out var number)
+                        ? number : computationView.State.ResolvePreparedGlobalValue(global.Name, global.Index).AsNumber(computationView.State.CancellationCheckpoint);
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, globalNumber);
                     break;
                 }
                 case AwkRegionInstructionKind.VariableNumber:
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction,
-                        ReadVariable(operands[instruction.Left]).AsNumber(state.CancellationCheckpoint));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.ReadVariable(computationView.Operands[instruction.Left]).AsNumber(computationView.State.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.ArrayNumber:
-                    numbers[instruction.Target] = CompleteNumberRead(in instruction, ReadArrayNumber(region.Arrays[instruction.Left]));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.ReadArrayNumber(computationView.Region.Arrays[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.ArrayContains:
                 {
-                    var membership = region.Arrays[instruction.Left];
-                    var keyOperand = operands[membership.Key];
+                    var membership = computationView.Region.Arrays[instruction.Left];
+                    var keyOperand = computationView.Operands[membership.Key];
                     var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
-                        ? state.ContainsArrayValue(membership.Name, storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
-                        : IsField(keyOperand)
-                            ? state.ContainsArrayField(membership.Name, FieldOrdinal(keyOperand), membership.Binding)
-                            : state.ContainsArrayValue(membership.Name, ReadKey(membership.Key), membership.Binding);
-                    numbers[instruction.Target] = found ? 1 : 0;
+                        ? computationView.State.ContainsArrayValue(membership.Name, computationView.Storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
+                        : AwkRegionComputation.IsField(keyOperand)
+                            ? computationView.State.ContainsArrayField(membership.Name, computationView.FieldOrdinal(keyOperand), membership.Binding)
+                            : computationView.State.ContainsArrayValue(membership.Name, computationView.ReadKey(membership.Key), membership.Binding);
+                    computationView.Numbers[instruction.Target] = found ? 1 : 0;
                     break;
                 }
                 case AwkRegionInstructionKind.Value:
-                    storage.StoreValue(instruction.Target, Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
+                    computationView.Storage.StoreValue(instruction.Target, computationView.Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.String:
-                {
-                    var operation = region.Strings[instruction.Left];
-                    var first = Value(operation.First);
-                    var second = operation.Second >= 0 ? Value(operation.Second) : default;
-                    var third = operation.Third >= 0 ? Value(operation.Third) : default;
-                    state.ThrowIfCancellationRequested();
-                    if (operation.Id == AwkBuiltinId.Index)
-                        numbers[instruction.Target] = AwkBuiltins.EvaluateIndexNumber(state, first, second);
-                    else
-                        storage.StoreValue(instruction.Target, operation.Id == AwkBuiltinId.Substr
-                            ? AwkBuiltins.EvaluateSubstrValues(state, first, second, third, operation.Third >= 0 ? 3 : 2)
-                            : AwkBuiltins.EvaluateCaseValue(state, first, operation.Id == AwkBuiltinId.ToUpper));
+                    computationView.ExecuteString(in instruction);
                     break;
-                }
                 case AwkRegionInstructionKind.Length:
-                {
-                    var lengthOperand = operands[instruction.Left];
-                    if (IsField(lengthOperand))
-                    {
-                        numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
-                        break;
-                    }
-                    if (instruction.Detail != 0 && lengthOperand.IsVariable)
-                    {
-                        if (lengthOperand.Kind == AwkRegionOperandKind.GlobalVariable && state.HasBoundGlobalScalar(lengthOperand.Index))
-                            state.Counters.RecordBoundScalarLength();
-                        else if (state.TryGetExistingArrayCount(new(lengthOperand.Name.Identifier), out var count))
-                        {
-                            numbers[instruction.Target] = count;
-                            break;
-                        }
-                    }
-                    var lengthValue = Value(instruction.Left);
-                    numbers[instruction.Target] = lengthValue.TryGetArrayBinding(out var lengthArray) ? lengthArray.Slots.Count :
-                        lengthValue.TryGetArrayName(out var arrayName) && state.TryGetExistingArrayCount(arrayName, out var arrayCount)
-                            ? arrayCount : state.CountStringUnits(state.FormatStringByteText(lengthValue));
+                    computationView.ExecuteLength(in instruction);
                     break;
-                }
                 case AwkRegionInstructionKind.InspectVariable:
-                {
-                    var inspected = operands[instruction.Left];
-                    var isArray = state.IsArray(new(inspected.Name.Identifier));
-                    if (instruction.Detail == 0) numbers[instruction.Target] = isArray ? 1 : 0;
-                    else
-                    {
-                        var kind = isArray ? AwkRuntimeValueKind.Array : !state.HasScalar(inspected.Name)
-                            ? AwkRuntimeValueKind.Untyped : ReadVariable(inspected).RuntimeKind;
-                        storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
-                    }
+                    computationView.ExecuteVariableInspection(in instruction);
                     break;
-                }
                 case AwkRegionInstructionKind.ArrayTarget:
                 {
-                    var captured = region.Arrays[instruction.Left];
+                    var captured = computationView.Region.Arrays[instruction.Left];
                     if (captured.Key < 0 && captured.Path < 0)
-                        storage.StoreArrayTarget(instruction.Target, new(captured.Name));
+                        computationView.Storage.StoreArrayTarget(instruction.Target, new(captured.Name));
                     else
                     {
-                        storage.BeginArrayTargetCapture(instruction.Target);
-                        storage.StoreArrayTarget(instruction.Target, new(ReadArray(captured)));
+                        computationView.Storage.BeginArrayTargetCapture(instruction.Target);
+                        computationView.Storage.StoreArrayTarget(instruction.Target, new(computationView.ReadArray(captured)));
                     }
                     break;
                 }
                 case AwkRegionInstructionKind.Split:
-                    ExecuteSplit(storage, region.Splits[instruction.Left], instruction.Target);
+                    ExecuteSplit(computationView.Storage, computationView.Region.Splits[instruction.Left], instruction.Target);
                     break;
                 case AwkRegionInstructionKind.Match:
-                    ExecuteMatch(storage, region.Matches[instruction.Left], instruction.Target);
+                    ExecuteMatch(computationView.Storage, computationView.Region.Matches[instruction.Left], instruction.Target);
                     break;
                 case AwkRegionInstructionKind.SortBegin:
                 {
-                    var sort = region.Sorts[instruction.Left];
-                    storage.BeginSort(sort.Slot, storage.ArrayTarget(sort.Source),
-                        sort.Order < 0 ? AwkArraySortOrder.Default : AwkArraySortOrder.Parse(storage.PreparedString(sort.Order)), sort.Keys);
+                    var sort = computationView.Region.Sorts[instruction.Left];
+                    computationView.Storage.BeginSort(sort.Slot, computationView.Storage.ArrayTarget(sort.Source),
+                        sort.Order < 0 ? AwkArraySortOrder.Default : AwkArraySortOrder.Parse(computationView.Storage.PreparedString(sort.Order)), sort.Keys);
                     break;
                 }
                 case AwkRegionInstructionKind.SortAdvance:
-                    if (AdvanceSort(storage, region.Sorts[instruction.Left], instruction.Target, position)) goto Resume;
+                    if (AdvanceSort(computationView.Storage, computationView.Region.Sorts[instruction.Left], instruction.Target, position)) goto Resume;
                     break;
                 case AwkRegionInstructionKind.Gensub:
-                    ExecuteGensub(storage, region.Gensubs[instruction.Left], instruction.Target);
+                    ExecuteGensub(computationView.Storage, computationView.Region.Gensubs[instruction.Left], instruction.Target);
                     break;
                 case AwkRegionInstructionKind.Substitute:
                 {
-                    var substitution = region.Substitutions[instruction.Left];
-                    ExecuteSubstitution(storage, substitution, instruction.Target,
-                        substitution.Target < 0 ? default : ResolveReference(substitution.Target));
+                    var substitution = computationView.Region.Substitutions[instruction.Left];
+                    ExecuteSubstitution(computationView.Storage, substitution, instruction.Target,
+                        substitution.Target < 0 ? default : computationView.ResolveReference(substitution.Target));
                     break;
                 }
                 case AwkRegionInstructionKind.InspectArray:
                 {
-                    var inspected = region.Arrays[instruction.Left];
+                    var inspected = computationView.Region.Arrays[instruction.Left];
                     var kind = inspected.Path >= 0
-                        ? state.GetArrayAwkValue(CapturedPath(inspected.Path).ResolveOwner(state), CapturedPath(inspected.Path).Key).RuntimeKind
-                        : state.GetArrayElementRuntimeKind(inspected.Name, Key(inspected), inspected.Binding);
-                    if (instruction.Detail == 0) numbers[instruction.Target] = kind == AwkRuntimeValueKind.Array ? 1 : 0;
-                    else storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
+                        ? computationView.State.GetArrayAwkValue(computationView.CapturedPath(inspected.Path).ResolveOwner(computationView.State), computationView.CapturedPath(inspected.Path).Key).RuntimeKind
+                        : computationView.State.GetArrayElementRuntimeKind(inspected.Name, computationView.Key(inspected), inspected.Binding);
+                    if (instruction.Detail == 0) computationView.Numbers[instruction.Target] = kind == AwkRuntimeValueKind.Array ? 1 : 0;
+                    else computationView.Storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
                     break;
                 }
                 case AwkRegionInstructionKind.InspectValue:
                 {
-                    var inspected = operands[instruction.Left];
+                    var inspected = computationView.Operands[instruction.Left];
                     // Classification remains local; field spelling stays with its frame.
-                    var inspectedValue = IsField(inspected) ? state.GetFieldComparison(FieldOrdinal(inspected)).Value : Value(instruction.Left);
-                    if (instruction.Detail == 0) numbers[instruction.Target] = inspectedValue.IsArrayValue ? 1 : 0;
-                    else storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(inspectedValue.RuntimeKind));
+                    var inspectedValue = AwkRegionComputation.IsField(inspected) ? computationView.State.GetFieldComparison(computationView.FieldOrdinal(inspected)).Value : computationView.Value(instruction.Left);
+                    if (instruction.Detail == 0) computationView.Numbers[instruction.Target] = inspectedValue.IsArrayValue ? 1 : 0;
+                    else computationView.Storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(inspectedValue.RuntimeKind));
                     break;
                 }
                 case AwkRegionInstructionKind.ReleaseValue:
-                    storage.ReleaseValue(instruction.Target);
+                    computationView.Storage.ReleaseValue(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.ReleaseValues:
-                    storage.ReleaseValues(instruction.Target, instruction.Right);
+                    computationView.Storage.ReleaseValues(instruction.Target, instruction.Right);
                     break;
                 case AwkRegionInstructionKind.ConcatArgument:
-                    storage.StoreText(instruction.Target, state.FormatStringByteText(Value(instruction.Left)));
+                    computationView.Storage.StoreText(instruction.Target, computationView.State.FormatStringByteText(computationView.Value(instruction.Left)));
                     break;
                 case AwkRegionInstructionKind.ConcatValue:
-                    storage.StoreValue(instruction.Target, state.CreateStringValue(AwkText.Concat(
-                        storage.Texts.AsSpan(instruction.Left, instruction.Right),
-                        state.Counters, state.MemoryAccounting, state.CancellationCheckpoint)));
-                    storage.ReleaseTexts(instruction.Left, instruction.Right);
+                    computationView.Storage.StoreValue(instruction.Target, computationView.State.CreateStringValue(AwkText.Concat(
+                        computationView.Storage.Texts.AsSpan(instruction.Left, instruction.Right),
+                        computationView.State.Counters, computationView.State.MemoryAccounting, computationView.State.CancellationCheckpoint)));
+                    computationView.Storage.ReleaseTexts(instruction.Left, instruction.Right);
                     break;
                 case AwkRegionInstructionKind.PrintField:
-                    state.AppendFieldPrint(output ?? throw new InvalidOperationException("Print requires an output sink."),
-                        FieldOrdinal(operands[instruction.Left]));
+                    computationView.State.AppendFieldPrint(output ?? throw new InvalidOperationException("Print requires an output sink."),
+                        computationView.FieldOrdinal(computationView.Operands[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.PrintValue:
                     AwkPrintRuntime.AppendSingle(output ?? throw new InvalidOperationException("Print requires an output sink."),
-                        Value(instruction.Left), state);
+                        computationView.Value(instruction.Left), computationView.State);
                     break;
                 case AwkRegionInstructionKind.PrintList:
                 {
-                    var print = region.Prints[instruction.Left];
-                    AwkRegionPrinting.Append(state, storage,
+                    var print = computationView.Region.Prints[instruction.Left];
+                    AwkRegionPrinting.Append(computationView.State, computationView.Storage,
                         output ?? throw new InvalidOperationException("Print requires an output sink."), print);
                     if (print.Output.IsRedirected)
                     {
@@ -260,8 +206,8 @@ internal partial struct AwkRegionMachine
                 }
                 case AwkRegionInstructionKind.Printf:
                 {
-                    var print = region.Printfs[instruction.Left];
-                    AwkRegionPrinting.Printf(state, storage,
+                    var print = computationView.Region.Printfs[instruction.Left];
+                    AwkRegionPrinting.Printf(computationView.State, computationView.Storage,
                         output ?? throw new InvalidOperationException("Printf requires an output sink."), print);
                     if (print.Output.IsRedirected)
                     {
@@ -272,281 +218,281 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.KeyBegin:
-                    storage.BeginKey(instruction.Target, state.ResolveSubscriptSeparatorText());
+                    computationView.Storage.BeginKey(instruction.Target, computationView.State.ResolveSubscriptSeparatorText());
                     break;
                 case AwkRegionInstructionKind.KeySeparator:
-                    storage.Builders[instruction.Target].Buffer.Append(storage.Builders[instruction.Target].Separator, state.CancellationCheckpoint);
+                    computationView.Storage.Builders[instruction.Target].Buffer.Append(computationView.Storage.Builders[instruction.Target].Separator, computationView.State.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.KeyAppend:
-                    var component = operands[instruction.Left];
-                    if (IsField(component))
-                        state.AppendFieldByteText(storage.Builders[instruction.Target].Buffer, FieldOrdinal(component));
+                    var component = computationView.Operands[instruction.Left];
+                    if (AwkRegionComputation.IsField(component))
+                        computationView.State.AppendFieldByteText(computationView.Storage.Builders[instruction.Target].Buffer, computationView.FieldOrdinal(component));
                     else
-                        storage.Builders[instruction.Target].Buffer.Append(state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
+                        computationView.Storage.Builders[instruction.Target].Buffer.Append(computationView.State.FormatStringByteText(computationView.Value(instruction.Left)), computationView.State.CancellationCheckpoint);
                     break;
                 case AwkRegionInstructionKind.KeyReady:
-                    storage.CompleteKey(instruction.Target);
+                    computationView.Storage.CompleteKey(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.KeyEnd:
-                    storage.Builders[instruction.Target].Buffer.Clear();
+                    computationView.Storage.Builders[instruction.Target].Buffer.Clear();
                     break;
                 case AwkRegionInstructionKind.PathBegin:
-                    storage.BeginPath(region.Paths[instruction.Target]);
+                    computationView.Storage.BeginPath(computationView.Region.Paths[instruction.Target]);
                     break;
                 case AwkRegionInstructionKind.PathKey:
-                    var capturedKey = CaptureKey(instruction.Left);
-                    var capturedPath = CapturedPath(instruction.Target);
-                    if (instruction.Detail == 0) capturedPath.Append(state, instruction.Right, capturedKey);
-                    else capturedPath.CaptureKey(state, instruction.Right, capturedKey);
+                    var capturedKey = computationView.CaptureKey(instruction.Left);
+                    var capturedPath = computationView.CapturedPath(instruction.Target);
+                    if (instruction.Detail == 0) capturedPath.Append(computationView.State, instruction.Right, capturedKey);
+                    else capturedPath.CaptureKey(computationView.State, instruction.Right, capturedKey);
                     break;
                 case AwkRegionInstructionKind.NestedContains:
-                    var membershipPath = CapturedPath(instruction.Left);
-                    var membershipOwner = state.GetSubarray(membershipPath.ResolveOwner(state), membershipPath.Key);
-                    numbers[instruction.Target] = membershipOwner.ByteLookup
-                        .ContainsKey(storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
+                    var membershipPath = computationView.CapturedPath(instruction.Left);
+                    var membershipOwner = computationView.State.GetSubarray(membershipPath.ResolveOwner(computationView.State), membershipPath.Key);
+                    computationView.Numbers[instruction.Target] = membershipOwner.ByteLookup
+                        .ContainsKey(computationView.Storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.ArrayDelete:
-                    var deleted = region.Arrays[instruction.Target];
-                    var deletedKey = CaptureKey(deleted.Key);
-                    state.ThrowIfCancellationRequested();
-                    state.DeleteArrayValue(deleted.Name, deletedKey);
+                    var deleted = computationView.Region.Arrays[instruction.Target];
+                    var deletedKey = computationView.CaptureKey(deleted.Key);
+                    computationView.State.ThrowIfCancellationRequested();
+                    computationView.State.DeleteArrayValue(deleted.Name, deletedKey);
                     break;
                 case AwkRegionInstructionKind.ArrayClear:
-                    state.ThrowIfCancellationRequested();
-                    state.ClearArray(region.Arrays[instruction.Target].Name);
+                    computationView.State.ThrowIfCancellationRequested();
+                    computationView.State.ClearArray(computationView.Region.Arrays[instruction.Target].Name);
                     break;
                 case AwkRegionInstructionKind.IteratorBegin:
-                    var iteration = region.Iterations[instruction.Left];
-                    var iterated = region.Arrays[iteration.Access];
-                    var iterationKey = iterated.Key >= 0 ? Key(iterated) : default;
-                    BeginIteration(region, storage, iteration, iterated, iterationKey);
+                    var iteration = computationView.Region.Iterations[instruction.Left];
+                    var iterated = computationView.Region.Arrays[iteration.Access];
+                    var iterationKey = iterated.Key >= 0 ? computationView.Key(iterated) : default;
+                    BeginIteration(computationView.Region, computationView.Storage, iteration, iterated, iterationKey);
                     break;
                 case AwkRegionInstructionKind.IteratorSortAdvance:
-                    if (AdvanceIterationSort(storage, region.Iterations[instruction.Left], position)) goto Resume;
+                    if (AdvanceIterationSort(computationView.Storage, computationView.Region.Iterations[instruction.Left], position)) goto Resume;
                     break;
                 case AwkRegionInstructionKind.IteratorNext:
-                    if (storage.TryNextKey(instruction.Left, out var nextKey))
-                        AssignVariable(in operands[instruction.Right], state.CreateArrayKeyValue(nextKey));
+                    if (computationView.Storage.TryNextKey(instruction.Left, out var nextKey))
+                        AssignVariable(in computationView.Operands[instruction.Right], computationView.State.CreateArrayKeyValue(nextKey));
                     else position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.IteratorEnd:
-                    storage.ReleaseIterator(instruction.Target);
+                    computationView.Storage.ReleaseIterator(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.PathDelete:
-                    CapturedPath(instruction.Target).Delete(state);
+                    computationView.CapturedPath(instruction.Target).Delete(computationView.State);
                     break;
                 case AwkRegionInstructionKind.PathEnd:
-                    storage.ReleasePath(region.Paths[instruction.Target].Slot);
+                    computationView.Storage.ReleasePath(computationView.Region.Paths[instruction.Target].Slot);
                     break;
                 case AwkRegionInstructionKind.ArrayRead:
-                    storage.StoreValue(instruction.Target, ReadArray(region.Arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
+                    computationView.Storage.StoreValue(instruction.Target, computationView.ReadArray(computationView.Region.Arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Arithmetic:
-                    numbers[instruction.Target] = AwkNumericOperations.Apply(
-                        numbers[instruction.Left], numbers[instruction.Right], (AwkNumericOperation)instruction.Detail);
+                    computationView.Numbers[instruction.Target] = AwkNumericOperations.Apply(
+                        computationView.Numbers[instruction.Left], computationView.Numbers[instruction.Right], (AwkNumericOperation)instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Compound:
-                    numbers[instruction.Target] = AwkNumericOperations.ApplyCompoundAssignment(
-                        numbers[instruction.Left], numbers[instruction.Right], (AwkCompoundAssignmentOperation)instruction.Detail);
+                    computationView.Numbers[instruction.Target] = AwkNumericOperations.ApplyCompoundAssignment(
+                        computationView.Numbers[instruction.Left], computationView.Numbers[instruction.Right], (AwkCompoundAssignmentOperation)instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Compare:
                 {
                     var comparison = (AwkComparison)instruction.Detail;
                     bool result;
-                    if (TryNumberOperand(instruction.Left, out var leftNumber))
+                    if (computationView.TryNumberOperand(instruction.Left, out var leftNumber))
                     {
-                        if (TryNumberOperand(instruction.Right, out var rightNumber))
+                        if (computationView.TryNumberOperand(instruction.Right, out var rightNumber))
                             result = AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison);
                         else
                         {
                             // Reading the RHS can admit storage and invoke a host callback.
                             // Keep the captured left number even if that changes its source.
-                            var right = ComparisonOperand(instruction.Right);
+                            var right = computationView.ComparisonOperand(instruction.Right);
                             result = right.Value.TryGetNumber(out rightNumber)
                                 ? AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison)
-                                : AwkComparisonOperations.Evaluate(new(AwkValue.FromNumber(leftNumber)), right, comparison, state);
+                                : AwkComparisonOperations.Evaluate(new(AwkValue.FromNumber(leftNumber)), right, comparison, computationView.State);
                         }
                     }
                     else result = AwkComparisonOperations.Evaluate(
-                        ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), comparison, state);
-                    CompleteComparison(in instruction, result, ref position);
+                        computationView.ComparisonOperand(instruction.Left), computationView.ComparisonOperand(instruction.Right), comparison, computationView.State);
+                    position = computationView.CompleteComparison(in instruction, result, position);
                     break;
                 }
                 case AwkRegionInstructionKind.CompareText:
                 {
                     bool result;
-                    if (state.NumberParsingMode != AwkNumberParsingMode.Decimal)
+                    if (computationView.State.NumberParsingMode != AwkNumberParsingMode.Decimal)
                     {
                         // Preserve deferred invalid-input diagnostics and their
                         // operand ordering under the nondecimal compatibility modes.
                         result = AwkComparisonOperations.Evaluate(
-                            ComparisonOperand(instruction.Left), ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, state);
+                            computationView.ComparisonOperand(instruction.Left), computationView.ComparisonOperand(instruction.Right), (AwkComparison)instruction.Detail, computationView.State);
                     }
                     else
                     {
-                        state.Counters.RecordByteTextComparison();
+                        computationView.State.Counters.RecordByteTextComparison();
                         result = AwkComparisonOperations.EvaluateTextComparison(
-                            state.CompareByteText(TextOperand(instruction.Left), TextOperand(instruction.Right)),
+                            computationView.State.CompareByteText(computationView.TextOperand(instruction.Left), computationView.TextOperand(instruction.Right)),
                             (AwkComparison)instruction.Detail);
                     }
-                    CompleteComparison(in instruction, result, ref position);
+                    position = computationView.CompleteComparison(in instruction, result, position);
                     break;
                 }
                 case AwkRegionInstructionKind.Not:
-                    numbers[instruction.Target] = Value(instruction.Left).IsTruthy() ? 0 : 1;
+                    computationView.Numbers[instruction.Target] = computationView.Value(instruction.Left).IsTruthy() ? 0 : 1;
                     break;
                 case AwkRegionInstructionKind.Negate:
-                    numbers[instruction.Target] = -numbers[instruction.Left];
+                    computationView.Numbers[instruction.Target] = -computationView.Numbers[instruction.Left];
                     break;
                 case AwkRegionInstructionKind.Truth:
-                    numbers[instruction.Target] = Value(instruction.Left).IsTruthy() ? 1 : 0;
+                    computationView.Numbers[instruction.Target] = computationView.Value(instruction.Left).IsTruthy() ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.Discard:
-                    _ = Value(instruction.Left);
+                    _ = computationView.Value(instruction.Left);
                     break;
                 case AwkRegionInstructionKind.Assign:
-                    var value = Value(instruction.Left);
+                    var value = computationView.Value(instruction.Left);
                     // A region poll cannot replace the check before an observable store.
-                    AssignVariable(in operands[instruction.Target], value);
+                    AssignVariable(in computationView.Operands[instruction.Target], value);
                     break;
                 case AwkRegionInstructionKind.AssignNumber:
-                    AssignVariableNumber(in operands[instruction.Target], frame, numbers[instruction.Left]);
+                    AssignVariableNumber(in computationView.Operands[instruction.Target], computationView.Frame, computationView.Numbers[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.ScalarUpdate:
                 {
-                    var update = region.ScalarUpdates[instruction.Left];
+                    var update = computationView.Region.ScalarUpdates[instruction.Left];
                     var previous = update.CapturePrevious
-                        ? ReadBoundNumber(in operands[update.Variable])
-                        : numbers[update.Previous];
-                    if (update.CapturePrevious) numbers[update.Previous] = previous;
+                        ? computationView.ReadBoundNumber(in computationView.Operands[update.Variable])
+                        : computationView.Numbers[update.Previous];
+                    if (update.CapturePrevious) computationView.Numbers[update.Previous] = previous;
                     var rightNumber = update.Right.IsRegister
-                        ? numbers[update.Right.RegisterIndex]
-                        : ReadBoundNumber(in operands[update.Right.OperandIndex]);
+                        ? computationView.Numbers[update.Right.RegisterIndex]
+                        : computationView.ReadBoundNumber(in computationView.Operands[update.Right.OperandIndex]);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
                         rightNumber, (AwkCompoundAssignmentOperation)instruction.Detail);
-                    AssignVariableNumber(in operands[update.Variable], frame, updated);
-                    numbers[instruction.Target] = updated;
+                    AssignVariableNumber(in computationView.Operands[update.Variable], computationView.Frame, updated);
+                    computationView.Numbers[instruction.Target] = updated;
                     break;
                 }
                 case AwkRegionInstructionKind.AssignField:
-                    var fieldValue = Value(instruction.Left);
-                    state.ThrowIfCancellationRequested();
-                    state.AssignFieldValue(FieldOrdinal(operands[instruction.Target]), fieldValue);
+                    var fieldValue = computationView.Value(instruction.Left);
+                    computationView.State.ThrowIfCancellationRequested();
+                    computationView.State.AssignFieldValue(computationView.FieldOrdinal(computationView.Operands[instruction.Target]), fieldValue);
                     break;
                 case AwkRegionInstructionKind.CopyField:
-                    state.ThrowIfCancellationRequested();
-                    if (!state.TryCopyInputField(FieldOrdinal(operands[instruction.Left]), instruction.Target))
-                        state.AssignFieldValue(instruction.Target, Value(instruction.Left));
+                    computationView.State.ThrowIfCancellationRequested();
+                    if (!computationView.State.TryCopyInputField(computationView.FieldOrdinal(computationView.Operands[instruction.Left]), instruction.Target))
+                        computationView.State.AssignFieldValue(instruction.Target, computationView.Value(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
                 {
-                    var path = region.Arrays[instruction.Left].Path;
+                    var path = computationView.Region.Arrays[instruction.Left].Path;
                     AwkArrayUpdateTarget preparedTarget;
-                    if (path >= 0) preparedTarget = PreparePathUpdate(path);
-                    else PrepareArrayUpdate(instruction.Left, complete: false, out preparedTarget);
-                    storage.StoreTarget(instruction.Target, in preparedTarget);
+                    if (path >= 0) preparedTarget = computationView.PreparePathUpdate(path);
+                    else computationView.PrepareArrayUpdate(instruction.Left, complete: false, out preparedTarget);
+                    computationView.Storage.StoreTarget(instruction.Target, in preparedTarget);
                     break;
                 }
                 case AwkRegionInstructionKind.ArrayUpdate:
                 {
                     // Capture survives RHS admission/mutation. No dictionary reference
                     // or borrowed key outlives its synchronous lookup.
-                    ref readonly var updateSite = ref region.Updates[instruction.Left];
+                    ref readonly var updateSite = ref computationView.Region.Updates[instruction.Left];
                     // A complete synchronous operation keeps its target locally. Its
                     // array/key owners remain live throughout RHS conversion and commit.
                     // Captures spanning script instructions retain funded scratch storage.
                     AwkArrayUpdateTarget capturedUpdate;
-                    if (updateSite.PrepareAccess < 0) capturedUpdate = storage.Targets[updateSite.Slot];
-                    else if (updateSite.Path >= 0) capturedUpdate = PreparePathUpdate(updateSite.Path);
-                    else PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
+                    if (updateSite.PrepareAccess < 0) capturedUpdate = computationView.Storage.Targets[updateSite.Slot];
+                    else if (updateSite.Path >= 0) capturedUpdate = computationView.PreparePathUpdate(updateSite.Path);
+                    else computationView.PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
                     var rightNumber = updateSite.Right.IsRegister
-                        ? numbers[updateSite.Right.RegisterIndex]
-                        : ReadBoundNumber(in operands[updateSite.Right.OperandIndex]);
+                        ? computationView.Numbers[updateSite.Right.RegisterIndex]
+                        : computationView.ReadBoundNumber(in computationView.Operands[updateSite.Right.OperandIndex]);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
                         rightNumber,
                         (AwkCompoundAssignmentOperation)instruction.Detail);
-                    state.ThrowIfCancellationRequested();
-                    if (updateSite.Path >= 0 && region.Paths[updateSite.Path].ImmediateKeys is null)
-                        state.CommitArrayUpdate(CapturedPath(updateSite.Path), in capturedUpdate, updated);
-                    else state.CommitArrayUpdate(updateSite.Name, in capturedUpdate, updated);
-                    if (instruction.Right >= 0) numbers[instruction.Right] = capturedUpdate.Previous;
-                    if (updateSite.PrepareAccess < 0) storage.ReleaseTarget(updateSite.Slot);
-                    numbers[instruction.Target] = updated;
+                    computationView.State.ThrowIfCancellationRequested();
+                    if (updateSite.Path >= 0 && computationView.Region.Paths[updateSite.Path].ImmediateKeys is null)
+                        computationView.State.CommitArrayUpdate(computationView.CapturedPath(updateSite.Path), in capturedUpdate, updated);
+                    else computationView.State.CommitArrayUpdate(updateSite.Name, in capturedUpdate, updated);
+                    if (instruction.Right >= 0) computationView.Numbers[instruction.Right] = capturedUpdate.Previous;
+                    if (updateSite.PrepareAccess < 0) computationView.Storage.ReleaseTarget(updateSite.Slot);
+                    computationView.Numbers[instruction.Target] = updated;
                     break;
                 }
                 case AwkRegionInstructionKind.ArrayAssign:
-                    var assigned = region.Arrays[instruction.Target];
+                    var assigned = computationView.Region.Arrays[instruction.Target];
                     if (assigned.Path >= 0)
                     {
-                        if (region.Paths[assigned.Path].ImmediateKeys is not null)
+                        if (computationView.Region.Paths[assigned.Path].ImmediateKeys is not null)
                         {
-                            ResolvePath(assigned.Path, out var assignedOwner, out var assignedKey);
-                            var assignedValue = Value(instruction.Left);
-                            state.ThrowIfCancellationRequested();
-                            state.SetArrayAwkValue(assignedOwner, assignedKey, assignedValue);
+                            computationView.ResolvePath(assigned.Path, out var assignedOwner, out var assignedKey);
+                            var assignedValue = computationView.Value(instruction.Left);
+                            computationView.State.ThrowIfCancellationRequested();
+                            computationView.State.SetArrayAwkValue(assignedOwner, assignedKey, assignedValue);
                         }
                         else
                         {
-                            var assignedPath = CapturedPath(assigned.Path);
-                            var assignedValue = Value(instruction.Left);
-                            state.ThrowIfCancellationRequested();
-                            state.SetArrayAwkValue(assignedPath.ResolveOwner(state), assignedPath.Key, assignedValue);
+                            var assignedPath = computationView.CapturedPath(assigned.Path);
+                            var assignedValue = computationView.Value(instruction.Left);
+                            computationView.State.ThrowIfCancellationRequested();
+                            computationView.State.SetArrayAwkValue(assignedPath.ResolveOwner(computationView.State), assignedPath.Key, assignedValue);
                         }
                     }
                     else
                     {
                         // The RHS already lives in captured scratch. Consume a
                         // located cell directly; only misses need an owned key.
-                        var assignedValue = Value(instruction.Left);
-                        var assignedOperand = operands[assigned.Key];
-                        if (IsField(assignedOperand))
-                            state.SetArrayFieldValue(assigned.Name, FieldOrdinal(assignedOperand), assignedValue, assigned.Binding);
+                        var assignedValue = computationView.Value(instruction.Left);
+                        var assignedOperand = computationView.Operands[assigned.Key];
+                        if (AwkRegionComputation.IsField(assignedOperand))
+                            computationView.State.SetArrayFieldValue(assigned.Name, computationView.FieldOrdinal(assignedOperand), assignedValue, assigned.Binding);
                         else if (assignedOperand.Kind == AwkRegionOperandKind.KeyBuilder)
-                            state.SetArrayBuilderValue(assigned.Name, storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
+                            computationView.State.SetArrayBuilderValue(assigned.Name, computationView.Storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
                         else
                         {
-                            var assignedKey = Key(assigned);
-                            state.ThrowIfCancellationRequested();
-                            state.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                            var assignedKey = computationView.Key(assigned);
+                            computationView.State.ThrowIfCancellationRequested();
+                            computationView.State.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
                         }
                     }
                     break;
                 case AwkRegionInstructionKind.BeginCall:
-                    state.ThrowIfCancellationRequested();
-                    storage.BeginCall(in region.Calls[instruction.Left]);
+                    computationView.State.ThrowIfCancellationRequested();
+                    computationView.Storage.BeginCall(in computationView.Region.Calls[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.Arguments:
-                    StageArguments(in region.Calls[instruction.Target], instruction.Left, instruction.Right, instruction.Detail);
+                    computationView.StageArguments(in computationView.Region.Calls[instruction.Target], instruction.Left, instruction.Right, instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.Call:
                 {
-                    ref readonly var call = ref region.Calls[instruction.Left];
+                    ref readonly var call = ref computationView.Region.Calls[instruction.Left];
                     if (call.BeginsFrame)
                     {
-                        state.ThrowIfCancellationRequested();
-                        storage.BeginCall(in call);
+                        computationView.State.ThrowIfCancellationRequested();
+                        computationView.Storage.BeginCall(in call);
                     }
-                    var incomingFrame = StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right,
+                    var incomingFrame = computationView.StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right,
                         call.FinalFieldDemand);
                     _position = position + 1;
                     EnterCall(in call, incomingFrame, instruction.Target, (AwkRegionReturnConsumer)instruction.Detail);
                     goto Resume;
                 }
                 case AwkRegionInstructionKind.BuiltinArgument:
-                    var input = operands[instruction.Left];
-                    storage.StoreValue(instruction.Target,
-                        instruction.Detail != 0 && IsField(input)
-                            ? state.GetFieldArithmeticArgument(FieldOrdinal(input)) : Value(instruction.Left), preserveOrigin: true);
+                    var input = computationView.Operands[instruction.Left];
+                    computationView.Storage.StoreValue(instruction.Target,
+                        instruction.Detail != 0 && AwkRegionComputation.IsField(input)
+                            ? computationView.State.GetFieldArithmeticArgument(computationView.FieldOrdinal(input)) : computationView.Value(instruction.Left), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
                 {
-                    var builtin = region.Builtins[instruction.Left];
+                    var builtin = computationView.Region.Builtins[instruction.Left];
                     if (builtin.Host is { } host)
                     {
-                        state.ThrowIfCancellationRequested();
+                        computationView.State.ThrowIfCancellationRequested();
                         _position = position + 1;
                         _pending = Pending.BuiltinValue;
-                        _hostValue = host.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context);
+                        _hostValue = host.EvaluateBound(computationView.Storage.Values, builtin.Start, builtin.Count, Context);
                         goto Resume;
                     }
                     var computation = builtin.Computation ?? throw new InvalidOperationException("A computational builtin requires its implementation.");
@@ -554,23 +500,23 @@ internal partial struct AwkRegionMachine
                     var firstPending = builtin.Start + builtin.Count - pendingArguments.Length;
                     for (var index = 0; index < pendingArguments.Length; index++)
                     {
-                        if ((index & 63) == 63) state.ThrowIfCancellationRequested();
-                        var pendingOperand = operands[pendingArguments[index]];
-                        storage.StoreValue(firstPending + index,
-                            computation.ConsumesArithmeticInputs && IsField(pendingOperand)
-                                ? state.GetFieldArithmeticArgument(FieldOrdinal(pendingOperand)) : Value(pendingArguments[index]),
+                        if ((index & 63) == 63) computationView.State.ThrowIfCancellationRequested();
+                        var pendingOperand = computationView.Operands[pendingArguments[index]];
+                        computationView.Storage.StoreValue(firstPending + index,
+                            computation.ConsumesArithmeticInputs && AwkRegionComputation.IsField(pendingOperand)
+                                ? computationView.State.GetFieldArithmeticArgument(computationView.FieldOrdinal(pendingOperand)) : computationView.Value(pendingArguments[index]),
                             preserveOrigin: true);
                     }
-                    state.ThrowIfCancellationRequested();
-                    storage.StoreValue(instruction.Target,
-                        computation.EvaluateBound(storage.Values, builtin.Start, builtin.Count, Context));
-                    storage.ReleaseValues(builtin.Start, builtin.Count);
+                    computationView.State.ThrowIfCancellationRequested();
+                    computationView.Storage.StoreValue(instruction.Target,
+                        computation.EvaluateBound(computationView.Storage.Values, builtin.Start, builtin.Count, Context));
+                    computationView.Storage.ReleaseValues(builtin.Start, builtin.Count);
                     break;
                 }
                 case AwkRegionInstructionKind.BuiltinBoundary:
                     if (!Context.TryGetExecutionContext(out var builtinExecution))
                     {
-                        storage.StoreValue(instruction.Left, AwkValue.FromNumber(-1));
+                        computationView.Storage.StoreValue(instruction.Left, AwkValue.FromNumber(-1));
                         position = instruction.Target - 1;
                     }
                     else if (instruction.Detail != 0)
@@ -585,11 +531,11 @@ internal partial struct AwkRegionMachine
                     throw new AwkRuntimeException(AwkMessages.ErrorUnsupportedCoprocess, AwkDiagnosticId.UnsupportedPolicy);
                 case AwkRegionInstructionKind.GetlineBoundary:
                 {
-                    var read = region.Getlines[instruction.Left];
+                    var read = computationView.Region.Getlines[instruction.Left];
                     if (!Context.TryGetExecutionContext(out var execution))
                     {
                         if (!read.IsExpression) throw new InvalidOperationException("Getline requires a host context.");
-                        numbers[read.Result] = -1;
+                        computationView.Numbers[read.Result] = -1;
                         position = instruction.Target - 1;
                         break;
                     }
@@ -602,26 +548,26 @@ internal partial struct AwkRegionMachine
                     goto Resume;
                 }
                 case AwkRegionInstructionKind.PrepareString:
-                    storage.PrepareString(instruction.Target);
+                    computationView.Storage.PrepareString(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.PrepareByteText:
-                    storage.PrepareByteText(instruction.Target);
+                    computationView.Storage.PrepareByteText(instruction.Target);
                     break;
                 case AwkRegionInstructionKind.RegexMatch:
                 {
-                    var match = region.RegexMatches[instruction.Left];
-                    var regex = match.Literal ?? state.CreateRegex(new AwkRegexPattern(
-                        storage.Values[match.Pattern].ByteText, warningSite: match));
-                    var matched = state.IsRegexMatch(regex, TextOperand(match.Input));
-                    numbers[instruction.Target] = matched != (instruction.Detail != 0) ? 1 : 0;
+                    var match = computationView.Region.RegexMatches[instruction.Left];
+                    var regex = match.Literal ?? computationView.State.CreateRegex(new AwkRegexPattern(
+                        computationView.Storage.Values[match.Pattern].ByteText, warningSite: match));
+                    var matched = computationView.State.IsRegexMatch(regex, computationView.TextOperand(match.Input));
+                    computationView.Numbers[instruction.Target] = matched != (instruction.Detail != 0) ? 1 : 0;
                     break;
                 }
                 case AwkRegionInstructionKind.GetlineTarget:
-                    storage.PrepareGetlineTarget(instruction.Target, ResolveReference(instruction.Left));
+                    computationView.Storage.PrepareGetlineTarget(instruction.Target, computationView.ResolveReference(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.Getline:
                     _position = position + 1;
-                    BeginRead(region.Getlines[instruction.Left]);
+                    BeginRead(computationView.Region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
                     if (output is { HasPendingOutput: true })
@@ -629,12 +575,12 @@ internal partial struct AwkRegionMachine
                         BeginFlush(output, position);
                         goto Resume;
                     }
-                    Return(instruction.Left < 0 ? AwkValue.Unassigned() : Value(instruction.Left));
+                    Return(instruction.Left < 0 ? AwkValue.Unassigned() : computationView.Value(instruction.Left));
                     goto Resume;
                 case AwkRegionInstructionKind.ReturnNumber:
                     var returnSource = new AwkRegionNumberSource(instruction.Left);
-                    var returnedNumber = CompleteNumberRead(in instruction, returnSource.IsRegister
-                        ? numbers[returnSource.RegisterIndex] : ReadBoundNumber(in operands[returnSource.OperandIndex]));
+                    var returnedNumber = computationView.CompleteNumberRead(in instruction, returnSource.IsRegister
+                        ? computationView.Numbers[returnSource.RegisterIndex] : computationView.ReadBoundNumber(in computationView.Operands[returnSource.OperandIndex]));
                     if (output is { HasPendingOutput: true })
                     {
                         _returningNumber = returnedNumber;
@@ -648,37 +594,37 @@ internal partial struct AwkRegionMachine
                     position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.JumpIfFalse:
-                    if (!Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
-                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
+                    if (!computationView.Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfTrue:
-                    if (Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
-                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
+                    if (computationView.Value(instruction.Left).IsTruthy()) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfZero:
-                    if (numbers[instruction.Left] == 0) position = instruction.Target - 1;
-                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
+                    if (computationView.Numbers[instruction.Left] == 0) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfNonzero:
-                    if (numbers[instruction.Left] != 0) position = instruction.Target - 1;
-                    else if (instruction.Detail > 0) state.PrepareAdmittedFields(instruction.Detail);
+                    if (computationView.Numbers[instruction.Left] != 0) position = instruction.Target - 1;
+                    else if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.JumpIfCase:
-                    if (region.SwitchCases[instruction.Right].Matches(Value(instruction.Left), state)) position = instruction.Target - 1;
+                    if (computationView.Region.SwitchCases[instruction.Right].Matches(computationView.Value(instruction.Left), computationView.State)) position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.JumpIfRangeActive:
-                    if (state.IsRangePatternActive(instruction.Left)) position = instruction.Target - 1;
+                    if (computationView.State.IsRangePatternActive(instruction.Left)) position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.SetRangeState:
-                    state.SetRangePatternActive(instruction.Target, instruction.Detail != 0);
+                    computationView.State.SetRangePatternActive(instruction.Target, instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Exit:
-                    state.ThrowIfCancellationRequested();
-                    state.RequestExit(instruction.Left < 0 ? AwkOptionalExitCode.None :
-                        AwkOptionalExitCode.Specified(new((int)Math.Truncate(numbers[instruction.Left]))));
+                    computationView.State.ThrowIfCancellationRequested();
+                    computationView.State.RequestExit(instruction.Left < 0 ? AwkOptionalExitCode.None :
+                        AwkOptionalExitCode.Specified(new((int)Math.Truncate(computationView.Numbers[instruction.Left]))));
                     break;
                 case AwkRegionInstructionKind.Flow:
-                    state.ThrowIfCancellationRequested();
+                    computationView.State.ThrowIfCancellationRequested();
                     if (Finish((AwkStatementFlow)instruction.Detail)) goto ContinueRoot;
                     goto Resume;
                 default:
@@ -696,368 +642,5 @@ internal partial struct AwkRegionMachine
         position = _position;
         goto Execute;
 
-        bool TryLocalNumber(int index, out double number)
-        {
-            if (frame is null) throw new InvalidOperationException("A bound local requires an active function frame.");
-            if (!frame.TryReadNumber(index, out number)) return false;
-            state.Counters.RecordNumericLocalRead();
-            return true;
-        }
-
-        AwkResolvedReference ResolveReference(int index)
-        {
-            var target = operands[index];
-            if (target.IsVariable)
-            {
-                return target.Kind == AwkRegionOperandKind.LocalVariable
-                    ? AwkResolvedReference.LocalScalar(target.Name, new(target.Index))
-                    : target.Kind == AwkRegionOperandKind.GlobalVariable
-                        ? AwkResolvedReference.PreparedGlobalScalar(target.Name, target.Index)
-                        : AwkResolvedReference.Scalar(target.Name);
-            }
-            if (IsField(target)) return AwkResolvedReference.Field(new(FieldOrdinal(target)));
-            if (target.Kind == AwkRegionOperandKind.ArrayElement)
-            {
-                var array = region.Arrays[target.Index];
-                return array.Path >= 0
-                    ? AwkResolvedReference.NestedArrayElement(storage.TakePath(region.Paths[array.Path].Slot))
-                    : AwkResolvedReference.ArrayElement(array.Name, Key(array));
-            }
-            throw new InvalidOperationException("Unknown mutable location.");
-        }
-
-        AwkValue Value(int index)
-        {
-            var operand = operands[index];
-            switch (operand.Kind)
-            {
-                case AwkRegionOperandKind.NumberTemporary: return AwkValue.FromNumber(numbers[operand.Index]);
-                case AwkRegionOperandKind.LocalVariable:
-                    return state.ResolveFunctionLocalValue(new(operand.Index), operand.Name);
-                case AwkRegionOperandKind.GlobalVariable:
-                    return state.ResolvePreparedGlobalValue(operand.Name, operand.Index);
-                case AwkRegionOperandKind.SpecialVariable:
-                    return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index);
-                case AwkRegionOperandKind.DynamicVariable: return state.ResolveVariableValue(operand.Name);
-                case AwkRegionOperandKind.Literal: return state.CreateStringValue(region.Literals[operand.Index].Text);
-                case AwkRegionOperandKind.Field:
-                case AwkRegionOperandKind.DynamicField: return ReadField(FieldOrdinal(operand));
-                case AwkRegionOperandKind.ValueTemporary: return storage.Values[operand.Index];
-                case AwkRegionOperandKind.ArrayElement: return ReadArray(region.Arrays[operand.Index]);
-                default: throw new InvalidOperationException("Unknown bound region operand.");
-            }
-        }
-
-        AwkArrayKey CaptureKey(int index)
-        {
-            ref readonly var operand = ref operands[index];
-            if (operand.Kind == AwkRegionOperandKind.Literal) return region.Literals[operand.Index].Key;
-            if (IsField(operand)) return state.CaptureFieldKey(FieldOrdinal(in operand));
-            if (operand.Kind == AwkRegionOperandKind.KeyBuilder)
-                return AwkArrayKey.CopyTrustedBytes(storage.Builders[operand.Index].Buffer.AsSpan(),
-                    state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
-            return ReadKey(index);
-        }
-
-        AwkArrayKey ReadKey(int index)
-        {
-            ref readonly var operand = ref operands[index];
-            switch (operand.Kind)
-            {
-                case AwkRegionOperandKind.Literal:
-                    return region.Literals[operand.Index].Key;
-                case AwkRegionOperandKind.GlobalVariable:
-                    if (state.TryResolvePreparedGlobalKey(operand.Index, out var globalKey)) return globalKey;
-                    break;
-                case AwkRegionOperandKind.LocalVariable:
-                    if (state.TryResolveFunctionLocalKey(new(operand.Index), out var localKey)) return localKey;
-                    break;
-                case AwkRegionOperandKind.NumberTemporary:
-                    return state.ToArrayKey(AwkValue.FromNumber(numbers[operand.Index]));
-                case AwkRegionOperandKind.ValueTemporary:
-                    return state.ToArrayKey(storage.Values[operand.Index]);
-            }
-            return state.ToArrayKey(Value(index));
-        }
-
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        void CompleteComparison(in AwkRegionInstruction comparison, bool result, ref int position)
-        {
-            if (comparison.Target >= 0)
-            {
-                numbers[comparison.Target] = result ? 1 : 0;
-                return;
-            }
-            ref readonly var branch = ref instructions[++position];
-            if (result == (branch.Kind == AwkRegionInstructionKind.JumpIfNonzero))
-                position = branch.Target - 1;
-            else if (branch.Detail > 0) state.PrepareAdmittedFields(branch.Detail);
-        }
-
-        AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
-        {
-            { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldKey(access.Name, FieldOrdinal(field), access.Binding),
-            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-            _ => ReadKey(access.Key)
-        };
-
-        AwkCapturedArrayPath CapturedPath(int index) => storage.Path(region.Paths[index].Slot);
-
-        AwkArrayUpdateTarget PreparePathUpdate(int index)
-        {
-            ResolvePath(index, out var owner, out var key);
-            return state.PrepareArrayUpdate(owner, key);
-        }
-
-        AwkFunctionFrame StageArguments(in AwkRegionCall call, int first, int count, int fieldDemand)
-        {
-            var incoming = storage.IncomingFrame(call.Slot);
-            if (count == 0) return incoming;
-            var arguments = call.Arguments;
-            state.Counters.RecordFunctionArgumentSegment();
-            for (var index = first; index < first + count; index++)
-            {
-                if ((index & 63) == 63) state.ThrowIfCancellationRequested();
-                ref readonly var argument = ref arguments[index];
-                switch (argument.Kind)
-                {
-                    case AwkRegionArgumentKind.Number:
-                        incoming.StageNumber(index, numbers[argument.Index]);
-                        break;
-                    case AwkRegionArgumentKind.Local:
-                        state.StageFunctionLocalArgument(new(argument.Index), argument.Name, incoming, index,
-                            argument.AllowArray, argument.Consumption == AwkParameterInput.Key);
-                        break;
-                    case AwkRegionArgumentKind.Global:
-                        state.StagePreparedGlobalArgument(argument.Index, argument.Name, incoming, index,
-                            argument.AllowArray, argument.Consumption == AwkParameterInput.Key);
-                        break;
-                    case AwkRegionArgumentKind.Field:
-                    case AwkRegionArgumentKind.DynamicField:
-                    {
-                        if (argument.Kind == AwkRegionArgumentKind.Field && fieldDemand > 0)
-                        {
-                            state.PrepareAdmittedFields(fieldDemand);
-                            fieldDemand = 0;
-                        }
-                        var ordinal = argument.Kind == AwkRegionArgumentKind.Field
-                            ? argument.Index : (int)numbers[argument.Index];
-                        if (argument.Consumption == AwkParameterInput.Key &&
-                            state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
-                        if (argument.Consumption == AwkParameterInput.Arithmetic &&
-                            state.TryGetFieldArithmeticNumber(ordinal, out var fieldNumber))
-                            incoming.StageNumber(index, fieldNumber);
-                        else
-                        {
-                            // Deferred errors and owned spellings retain ordinary value capture.
-                            var value = ReadField(ordinal);
-                            state.StageFunctionValue(incoming, index, in value);
-                        }
-                        break;
-                    }
-                    default:
-                        if (argument.Kind == AwkRegionArgumentKind.Variable && state.TryResolveArrayArgument(argument.Name, out var array))
-                            state.StageFunctionArgument(incoming, index, in array);
-                        else
-                        {
-                            var value = Value(argument.Index);
-                            state.StageFunctionValue(incoming, index, in value);
-                        }
-                        break;
-                }
-            }
-            return incoming;
-        }
-
-        void ResolvePath(int index, out AwkArrayIdentity owner, out AwkArrayKey key)
-        {
-            ref readonly var path = ref region.Paths[index];
-            if (path.ImmediateKeys is not { } keys)
-            {
-                var captured = CapturedPath(index);
-                owner = captured.ResolveOwner(state);
-                key = captured.Key;
-                return;
-            }
-            if (path.Owner.Role is AwkRegionPathOwnerRole.Read or AwkRegionPathOwnerRole.Take)
-            {
-                if (storage.Values[path.Owner.Value].TryGetArrayBinding(out var boundOwner))
-                {
-                    owner = boundOwner;
-                    if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.ReleaseValue(path.Owner.Value);
-                    key = CaptureKey(keys[^1]);
-                    return;
-                }
-                // A real flush cleared this binding before the host ran. Resolve
-                // the current prefix at use, without retaining the previous owner.
-            }
-            key = CaptureKey(keys[0]);
-            owner = state.GetSubarray(path.Name, key, path.Binding);
-            for (var depth = 1; depth < keys.Length - 1; depth++)
-            {
-                if ((depth & 63) == 63) state.ThrowIfCancellationRequested();
-                key = CaptureKey(keys[depth]);
-                owner = state.GetSubarray(owner, key);
-            }
-            if (path.Owner.Role is AwkRegionPathOwnerRole.Initialize or AwkRegionPathOwnerRole.Read)
-                storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(owner), preserveOrigin: true);
-            key = CaptureKey(keys[^1]);
-        }
-
-        AwkValue ReadArray(AwkRegionArrayAccess access)
-        {
-            if (access.Path >= 0)
-            {
-                ResolvePath(access.Path, out var owner, out var key);
-                return state.GetArrayAwkValue(owner, key);
-            }
-            return operands[access.Key] switch
-            {
-                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldOrdinal(field), access.Binding),
-                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-                _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
-            };
-        }
-
-        double ReadArrayNumber(AwkRegionArrayAccess access)
-        {
-            if (access.Path >= 0)
-            {
-                ResolvePath(access.Path, out var owner, out var key);
-                return state.GetArrayNumber(owner, key);
-            }
-            return operands[access.Key] switch
-            {
-                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldNumber(access.Name, FieldOrdinal(field), access.Binding),
-                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-                _ => state.GetArrayNumber(access.Name, ReadKey(access.Key), access.Binding)
-            };
-        }
-
-        AwkValue ReadVariable(AwkRegionOperand variable) => variable.Kind switch
-        {
-            AwkRegionOperandKind.LocalVariable => state.ResolveFunctionLocalValue(new(variable.Index), variable.Name),
-            AwkRegionOperandKind.GlobalVariable => state.ResolvePreparedGlobalValue(variable.Name, variable.Index),
-            AwkRegionOperandKind.SpecialVariable => state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)variable.Index),
-            _ => state.ResolveVariableValue(variable.Name)
-        };
-
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        void PrepareArrayUpdate(int accessIndex, bool complete, out AwkArrayUpdateTarget target)
-        {
-            ref readonly var access = ref region.Arrays[accessIndex];
-            ref readonly var key = ref operands[access.Key];
-            switch (key.Kind)
-            {
-                case AwkRegionOperandKind.Field:
-                case AwkRegionOperandKind.DynamicField:
-                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding);
-                    break;
-                case AwkRegionOperandKind.KeyBuilder:
-                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
-                    break;
-                default:
-                    target = state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding);
-                    break;
-            }
-            // The complete operation captured an owned key before retiring scratch,
-            // in the same order as the separate ArrayPrepare/KeyEnd instructions.
-            if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
-        }
-
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        double CompleteNumberRead(in AwkRegionInstruction instruction, double value)
-        {
-            var continuation = new AwkRegionNumberContinuation(instruction.Detail);
-            if (!continuation.HasOperation) return value;
-            var other = numbers[instruction.Right];
-            if (!continuation.ReadIsLeft) (value, other) = (other, value);
-            return AwkNumericOperations.Apply(value, other, continuation.Operation);
-        }
-
-        double ReadBoundNumber(in AwkRegionOperand operand)
-        {
-            switch (operand.Kind)
-            {
-                case AwkRegionOperandKind.Field:
-                case AwkRegionOperandKind.DynamicField:
-                    return state.GetFieldNumber(FieldOrdinal(operand));
-                case AwkRegionOperandKind.Literal:
-                    return state.CreateStringValue(region.Literals[operand.Index].Text).AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.ValueTemporary:
-                    return storage.Values[operand.Index].AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.ArrayElement:
-                    return ReadArrayNumber(region.Arrays[operand.Index]);
-                case AwkRegionOperandKind.GlobalVariable:
-                {
-                    return state.TryResolvePreparedGlobalNumber(operand.Index, out var number) ? number :
-                        state.ResolvePreparedGlobalValue(operand.Name, operand.Index).AsNumber(state.CancellationCheckpoint);
-                }
-                case AwkRegionOperandKind.LocalVariable:
-                {
-                    return frame is not null && TryLocalNumber(operand.Index, out var number) ? number :
-                        state.ResolveFunctionLocalValue(new(operand.Index), operand.Name).AsNumber(state.CancellationCheckpoint);
-                }
-                case AwkRegionOperandKind.SpecialVariable:
-                    return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index).AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.DynamicVariable:
-                    return state.ResolveVariableValue(operand.Name).AsNumber(state.CancellationCheckpoint);
-                default:
-                    throw new InvalidOperationException("A numeric source requires a value location.");
-            }
-        }
-
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        bool TryNumberOperand(int location, out double number)
-        {
-            var source = new AwkRegionNumberSource(location);
-            if (source.IsRegister)
-            {
-                number = numbers[source.RegisterIndex];
-                return true;
-            }
-            return TryStoredNumber(source.OperandIndex, out number);
-        }
-
-        // Failed storage probes have no admission, insertion, conversion or
-        // diagnostic effects; the ordinary operand path owns those.
-        bool TryStoredNumber(int index, out double number)
-        {
-            var operand = operands[index];
-            if (operand.Kind == AwkRegionOperandKind.ValueTemporary && storage.Values[operand.Index].IsNumberValue)
-            {
-                number = storage.Values[operand.Index].AsNumber();
-                return true;
-            }
-            if (operand.Kind == AwkRegionOperandKind.GlobalVariable)
-                return state.TryResolvePreparedGlobalNumber(operand.Index, out number);
-            if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null)
-                return TryLocalNumber(operand.Index, out number);
-            number = 0;
-            return false;
-        }
-
-        AwkComparisonOperand ComparisonOperand(int index)
-        {
-            var source = new AwkRegionNumberSource(index);
-            if (source.IsRegister) return new(AwkValue.FromNumber(numbers[source.RegisterIndex]));
-            var operand = operands[index];
-            if (IsField(operand)) return state.GetFieldComparison(FieldOrdinal(operand));
-            return new(Value(index));
-        }
-
-        AwkByteTextOperand TextOperand(int index)
-        {
-            var operand = operands[index];
-            if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
-            if (operand.Kind == AwkRegionOperandKind.Literal)
-                return new(region.Literals[operand.Index].Text);
-            return new(state.FormatStringByteText(Value(index)));
-        }
-
-        static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        int FieldOrdinal(in AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];
-        AwkValue ReadField(int index) => index == 0 ? state.GetCurrentRecordValue() : state.GetFieldValue(index);
     }
 }

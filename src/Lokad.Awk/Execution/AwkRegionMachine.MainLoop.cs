@@ -17,6 +17,7 @@ internal partial struct AwkRegionMachine
     }
 
     // Ordinary completed reads stay inside the prepared instruction loop.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private bool ReadMainRecord()
     {
         EndMainRecord();
