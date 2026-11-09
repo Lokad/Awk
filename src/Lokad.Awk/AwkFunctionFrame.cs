@@ -67,9 +67,7 @@ internal sealed class AwkFunctionFrame
     internal bool TryReadNumber(int index, out double number)
     {
         ref readonly var slot = ref GetSlot(index);
-        if (slot.Kind == AwkFunctionLocalSlotKind.Scalar) return slot.Value.TryGetNumber(out number);
-        number = 0;
-        return false;
+        return slot.TryReadNumber(out number);
     }
 
     internal bool TryWriteNumber(int index, double number)
@@ -78,7 +76,7 @@ internal sealed class AwkFunctionFrame
         // Numeric and omitted-local cells own no text, alias or pending user. The
         // caller has already checked cancellation before the observable store.
         if (slot.Kind != AwkFunctionLocalSlotKind.MissingScalar &&
-            (slot.Kind != AwkFunctionLocalSlotKind.Scalar || slot.Value.Kind != AwkVariableSlotKind.Number))
+            !slot.TryReadNumber(out _))
             return false;
         slot = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
         return true;
@@ -172,34 +170,60 @@ internal sealed class AwkFunctionFrame
 
 internal readonly struct AwkFunctionLocalSlot
 {
-    private readonly AwkVariableSlot _value;
+    // Scalar and key payloads are mutually exclusive. The role selects the meaning
+    // of these owning words; array names retain their full independent identity.
+    private readonly object? _reference;
+    private readonly long _word;
+    private readonly int _payloadTag;
 
     private AwkFunctionLocalSlot(
         AwkFunctionLocalSlotKind kind,
         AwkVariableSlot value,
-        AwkArrayName arrayName,
-        AwkArrayKey key = default)
+        AwkArrayName arrayName)
     {
         Kind = kind;
-        _value = value;
+        _reference = value.StoredReference;
+        _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
+        _payloadTag = (int)value.Kind;
         ArrayName = arrayName;
-        Key = key;
+    }
+
+    private AwkFunctionLocalSlot(AwkArrayKey key)
+    {
+        Kind = AwkFunctionLocalSlotKind.Key;
+        _reference = key.StoredText.Backing;
+        _word = key.StoredOrdinal;
+        _payloadTag = key.StorageTag;
+        ArrayName = default;
     }
 
     public AwkFunctionLocalSlotKind Kind { get; }
 
     // Cleared cells are missing locals. Their language value is unassigned,
     // independently of the ordinary scalar slot's text-valued default.
-    public AwkVariableSlot Value => Kind == AwkFunctionLocalSlotKind.MissingScalar
-        ? AwkVariableSlot.Unassigned() : _value;
+    public AwkVariableSlot Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key
+        ? AwkVariableSlot.Unassigned()
+        : AwkVariableSlot.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkVariableSlotKind)_payloadTag);
 
     public AwkArrayName ArrayName { get; }
 
     // Only prepared key consumers read this owning value. It never borrows a record.
-    public AwkArrayKey Key { get; }
+    public AwkArrayKey Key => Kind == AwkFunctionLocalSlotKind.Key
+        ? AwkArrayKey.FromStorage(AwkText.FromBacking(_reference), unchecked((int)_word), _payloadTag) : default;
+
+    internal bool TryReadNumber(out double number)
+    {
+        if (Kind == AwkFunctionLocalSlotKind.Scalar && _payloadTag == (int)AwkVariableSlotKind.Number)
+        {
+            number = BitConverter.Int64BitsToDouble(_word);
+            return true;
+        }
+        number = 0;
+        return false;
+    }
 
     public static AwkFunctionLocalSlot PreparedKey(AwkArrayKey key) =>
-        new(AwkFunctionLocalSlotKind.Key, AwkVariableSlot.Unassigned(), default, key);
+        new(key);
 
     public static AwkFunctionLocalSlot Scalar(AwkVariableSlot value) =>
         new(AwkFunctionLocalSlotKind.Scalar, value, default);

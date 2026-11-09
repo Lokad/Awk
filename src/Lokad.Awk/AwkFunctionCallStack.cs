@@ -208,22 +208,20 @@ internal sealed class AwkFunctionCallStack(
             StageKey(incoming, index, sourceSlot.Key);
             return true;
         }
+        if (sourceSlot.TryReadNumber(out var number))
+        {
+            _counters.RecordNumericLocalRead();
+            StageNumber(incoming, index, number);
+            return true;
+        }
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
             sourceSlot.Value.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
         {
             var value = sourceSlot.Value;
-            if (value.TryGetNumber(out var number))
-            {
-                _counters.RecordNumericLocalRead();
-                StageNumber(incoming, index, number);
-            }
-            else
-            {
-                _counters.RecordScalarLocalValueRead();
-                if (prepareKey && value.TryGetStoredScalarText(out var text))
-                    StageKey(incoming, index, new AwkArrayKey(text, checkpoint));
-                else StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
-            }
+            _counters.RecordScalarLocalValueRead();
+            if (prepareKey && value.TryGetStoredScalarText(out var text))
+                StageKey(incoming, index, new AwkArrayKey(text, checkpoint));
+            else StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
             return true;
         }
         if (!allowArray) return false;

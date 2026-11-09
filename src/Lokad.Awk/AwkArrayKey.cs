@@ -13,6 +13,21 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     private readonly AwkArrayKeyKind _kind;
     private readonly int _ordinal;
 
+    // Restore only an existing owning key; these words never describe borrowed bytes.
+    internal AwkText StoredText => _text;
+    internal int StoredOrdinal => _ordinal;
+    internal int StorageTag => (int)_kind;
+
+    internal static AwkArrayKey FromStorage(AwkText text, int ordinal, int tag) =>
+        new(text, ordinal, tag);
+
+    private AwkArrayKey(AwkText text, int ordinal, int tag)
+    {
+        _text = text;
+        _ordinal = ordinal;
+        _kind = (AwkArrayKeyKind)tag;
+    }
+
     public AwkArrayKey(string text, Action? checkpoint = null)
         : this(AwkText.FromString(text, AwkRuntimeCounters.Disabled, checkpoint), checkpoint)
     {

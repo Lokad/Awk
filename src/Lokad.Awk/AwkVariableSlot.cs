@@ -7,16 +7,28 @@ internal readonly struct AwkVariableSlot
     private readonly object? _text;
     private readonly double _number;
 
+    // The function cell retains these already-owned words without reclassification.
+    internal object? StoredReference => _text;
+    internal double StoredNumber => _number;
+
+    internal static AwkVariableSlot FromStorage(object? reference, double number, AwkVariableSlotKind kind) =>
+        new(reference, number, kind);
+
+    private AwkVariableSlot(object? reference, double number, AwkVariableSlotKind kind)
+    {
+        _text = reference;
+        _number = number;
+        Kind = kind;
+    }
+
     private AwkVariableSlot(AwkText text, AwkVariableSlotKind kind)
         : this(text, 0, kind)
     {
     }
 
     private AwkVariableSlot(AwkText text, double number, AwkVariableSlotKind kind)
+        : this(text.Backing, number, kind)
     {
-        _text = text.Backing;
-        _number = number;
-        Kind = kind;
     }
 
     private AwkVariableSlot(double number)

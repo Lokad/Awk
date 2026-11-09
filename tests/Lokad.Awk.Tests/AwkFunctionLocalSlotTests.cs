@@ -21,6 +21,7 @@ public sealed class AwkFunctionLocalSlotTests
         var origin = new AwkUntypedScalar();
         AwkVariableSlot[] values = [AwkVariableSlot.FromNumber(7), AwkVariableSlot.FromText(text),
             AwkVariableSlot.FromValue(AwkValue.FromNumericString(text)), AwkVariableSlot.Unassigned(),
+            AwkVariableSlot.FromValue(AwkValue.FromPreparedNumericInput(text, 7)),
             AwkVariableSlot.FromUntypedScalar(origin)];
         foreach (var value in values)
         {
@@ -39,9 +40,39 @@ public sealed class AwkFunctionLocalSlotTests
         for (var index = 0; index < 10_000; index++) last = RoundTrip(values[index % values.Length]);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.InRange(allocated, 0, 1024);
-        Assert.Equal(AwkVariableSlotKind.Untyped, last.Kind);
+        Assert.Equal(values[9_999 % values.Length].Kind, last.Kind);
 
         static AwkVariableSlot RoundTrip(AwkVariableSlot value) => AwkFunctionLocalSlot.Scalar(value).Value;
+    }
+
+    [Fact]
+    public void KeyCellsPreservePackedWordsOwnedTextAndRoleWithoutBoxing()
+    {
+        AwkArrayKey[] keys = [default, AwkArrayKey.FromOrdinal(int.MinValue), AwkArrayKey.FromOrdinal(0),
+            AwkArrayKey.FromOrdinal(int.MaxValue), new("0007"), new("a\0b"), new("abc😀"), new("é😀"),
+            new("abc😀x"), new("long owned key spelling")];
+        foreach (var key in keys)
+        {
+            var cell = AwkFunctionLocalSlot.PreparedKey(key);
+            var actual = cell.Key;
+            Assert.Equal(AwkFunctionLocalSlotKind.Key, cell.Kind);
+            Assert.Equal(default, cell.ArrayName);
+            Assert.Equal(AwkVariableSlotKind.Unassigned, cell.Value.Kind);
+            Assert.False(cell.TryReadNumber(out _));
+            Assert.Equal(key, actual);
+            Assert.Equal(key.GetHashCode(), actual.GetHashCode());
+            Assert.Equal(key.AsString(AwkRuntimeCounters.Disabled), actual.AsString(AwkRuntimeCounters.Disabled));
+            Assert.Equal(key.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);
+            Assert.True(key.StoredText.HasSameStorage(actual.StoredText));
+        }
+        for (var index = 0; index < 100; index++) Copy(keys[index % keys.Length]);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var last = default(AwkArrayKey);
+        for (var index = 0; index < 10_000; index++) last = Copy(keys[index % keys.Length]);
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
+        Assert.Equal(keys[^1], last);
+
+        static AwkArrayKey Copy(AwkArrayKey key) => AwkFunctionLocalSlot.PreparedKey(key).Key;
     }
 
     [Theory]
@@ -95,6 +126,7 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkText>());
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkVariableSlot>());
+        Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFunctionLocalSlot>());
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
 

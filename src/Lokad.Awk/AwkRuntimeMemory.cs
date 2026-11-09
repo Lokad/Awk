@@ -146,7 +146,7 @@ internal static class AwkRuntimeMemory
         slot.Kind != AwkFunctionLocalSlotKind.ArrayAlias ? slot.Value.RetainedTextMemoryBytes : 0;
 
     public static long EstimateFunctionSlotBufferBytes(int capacity) =>
-        EstimateArrayBufferBytes(capacity, 64);
+        EstimateArrayBufferBytes(capacity, 40);
 
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));

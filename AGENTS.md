@@ -155,6 +155,9 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
   Arithmetic field arguments stage cached numbers directly; deferred errors and owned values
   keep ordinary capture. Builtin scratch retains its value consumer.
+  Function cells share mutually exclusive scalar/key payload words and retain full array names.
+  Storage views preserve owned references, raw bits and origins without classification or callbacks;
+  only the cell role selects their interpretation. Fund slot arrays at their actual element width.
   Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
   Known owned keys arrive as keys and construct their immutable local cell at that owner;
   retained text keeps admission and post-admission cancellation before publication.
