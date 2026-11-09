@@ -7,7 +7,15 @@ public sealed class AwkArrayKeyTests
     [Theory]
     [InlineData("")]
     [InlineData("a")]
+    [InlineData("ab")]
     [InlineData("abc")]
+    [InlineData("abcde")]
+    [InlineData("abcdef")]
+    [InlineData("\0")]
+    [InlineData("a\0")]
+    [InlineData("abc\0\0")]
+    [InlineData("abcdef\0")]
+    [InlineData("😀é")]
     [InlineData("0007")]
     [InlineData("+0")]
     [InlineData("-0")]
@@ -51,6 +59,21 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(owned.GetHashCode(), key.GetHashCode());
         Assert.Equal(comparer.GetHashCode(bytes), comparer.GetHashCode(key));
         Assert.Equal(9, values[owned]);
+        var borrowed = values.GetAlternateLookup<ReadOnlySpan<byte>>();
+        Assert.True(borrowed.TryGetValue(bytes, out var found));
+        Assert.Equal(9, found);
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            // Exact byte identity includes every compact word and trailing NULs.
+            var different = bytes.ToArray();
+            different[i] ^= 1;
+            Assert.False(comparer.Equals(different, key));
+            Assert.False(borrowed.ContainsKey(different));
+        }
+        var extended = new byte[bytes.Length + 1];
+        bytes.CopyTo(extended, 0);
+        Assert.False(comparer.Equals(extended, key));
+        Assert.False(borrowed.ContainsKey(extended));
         Assert.Equal(bytes.Length, key.ByteLength);
         Assert.Equal(bytes.Length > 7 ? AwkRuntimeMemory.EstimateTextBytes(bytes.Length) : 0,
             key.RetainedTextMemoryBytes);

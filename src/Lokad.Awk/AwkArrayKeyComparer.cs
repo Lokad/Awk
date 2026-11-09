@@ -41,12 +41,19 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     private int HashBytes(ReadOnlySpan<byte> bytes, bool borrowed)
     {
+        var hash = bytes.Length <= AwkArrayKey.InlineByteCapacity
+            ? AwkArrayKey.HashShortRuntimeBytes(bytes) : HashLongBytes(bytes);
+        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes.Length, borrowed);
+        return hash;
+    }
+
+    private int HashLongBytes(ReadOnlySpan<byte> bytes)
+    {
         var checkpoint = bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null;
         checkpoint?.Invoke();
         var hash = new System.HashCode();
         hash.AddBytes(bytes);
         checkpoint?.Invoke();
-        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes.Length, borrowed);
         return hash.ToHashCode();
     }
 
@@ -58,6 +65,16 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
     }
 
     public int GetHashCode(AwkArrayKey key)
+    {
+        if (key.TryGetInlineRuntimeHash(out var hash, out var length))
+        {
+            if (_counters.IsEnabled) _counters.RecordArrayHash(length, borrowed: false);
+            return hash;
+        }
+        return HashProjectedKey(key);
+    }
+
+    private int HashProjectedKey(AwkArrayKey key)
     {
         // Project once: ordinal formatting is also the actual hashing input.
         // The immutable text constructor already materialized any owned bytes.

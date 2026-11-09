@@ -54,7 +54,8 @@ or environment dependencies.
   Short byte keys own their bytes in the existing 16-byte key words; keep numeric ordinals
   distinct. Language/sort projections admit owned text when materialization is required.
   Runtime comparers share randomized hashing for owned/borrowed bytes. Compact equality
-  does not prepare mixed-representation buffers; raw key views stay synchronous.
+  does not prepare mixed-representation buffers; raw key views stay synchronous. Short-byte
+  runtime hashing shares the compact word encoding across owned, borrowed and ordinal projections.
   Complete nested reads/assignments/updates consume bound path components synchronously, preserving
   intermediate promotion before later keys. Only intervening key/RHS work retains a logical path;
   its dense scratch slot stays funded through actual users. Complete path metadata owns no scratch.

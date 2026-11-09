@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 {
     internal const int MaxInt32Utf8ByteLength = 11;
-    private const int InlineByteCapacity = 7;
+    internal const int InlineByteCapacity = 7;
 
     private readonly AwkText _text;
     private readonly AwkArrayKeyKind _kind;
@@ -53,8 +53,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _ordinal = lowBytes;
         // Reuse the ordinal/kind words: 56 payload bits; the low kind byte
         // holds two tag bits and three length bits. The key does not grow.
-        _kind = unchecked((AwkArrayKeyKind)((highBytes << 8) | ((uint)length << 2) |
-            (uint)AwkArrayKeyKind.Inline));
+        _kind = unchecked((AwkArrayKeyKind)(InlineWord(highBytes, length) | (uint)AwkArrayKeyKind.Inline));
     }
 
     internal static AwkArrayKey CopyTrustedBytes(ReadOnlySpan<byte> bytes,
@@ -70,11 +69,46 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     private static AwkArrayKey FromInlineBytes(ReadOnlySpan<byte> bytes)
     {
-        Span<byte> padded = stackalloc byte[sizeof(ulong)];
-        padded.Clear();
-        bytes.CopyTo(padded);
-        return new(BinaryPrimitives.ReadInt32LittleEndian(padded),
-            BinaryPrimitives.ReadUInt32LittleEndian(padded[sizeof(int)..]), bytes.Length);
+        ReadCompactWords(bytes, out var low, out var high);
+        return new(low, high, bytes.Length);
+    }
+
+    private static uint InlineWord(uint high, int length) => (high << 8) | ((uint)length << 2);
+
+    // The existing compact encoding is also the bounded input to runtime hashing
+    // and borrowed equality. Unused bytes stay zero without a padded byte buffer.
+    private static void ReadCompactWords(ReadOnlySpan<byte> bytes, out int low, out uint high)
+    {
+        low = unchecked((int)ReadWord(bytes));
+        high = bytes.Length > sizeof(int) ? ReadWord(bytes[sizeof(int)..]) : 0;
+    }
+
+    private static uint ReadWord(ReadOnlySpan<byte> bytes) => bytes.Length switch
+    {
+        0 => 0,
+        1 => bytes[0],
+        2 => BinaryPrimitives.ReadUInt16LittleEndian(bytes),
+        3 => BinaryPrimitives.ReadUInt16LittleEndian(bytes) | ((uint)bytes[2] << 16),
+        _ => BinaryPrimitives.ReadUInt32LittleEndian(bytes)
+    };
+
+    internal static int HashShortRuntimeBytes(ReadOnlySpan<byte> bytes)
+    {
+        ReadCompactWords(bytes, out var low, out var high);
+        return HashCode.Combine(low, InlineWord(high, bytes.Length));
+    }
+
+    internal bool TryGetInlineRuntimeHash(out int hash, out int length)
+    {
+        if (((uint)_kind & 3) == (uint)AwkArrayKeyKind.Inline)
+        {
+            length = InlineByteLength;
+            hash = HashCode.Combine(_ordinal, (uint)_kind & ~3u);
+            return true;
+        }
+        hash = 0;
+        length = 0;
+        return false;
     }
 
     internal static long EstimateRetainedTextBytes(int byteLength) =>
@@ -146,6 +180,13 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     internal bool Equals(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
+        if (((uint)_kind & 3) == (uint)AwkArrayKeyKind.Inline)
+        {
+            checkpoint?.Invoke();
+            if (bytes.Length != InlineByteLength) return false;
+            ReadCompactWords(bytes, out var low, out var high);
+            return _ordinal == low && (uint)_kind >> 8 == high;
+        }
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
         return AwkText.EqualBytes(bytes, AsSpan(buffer, checkpoint), checkpoint);
     }
