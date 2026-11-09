@@ -804,6 +804,8 @@ internal sealed partial class AwkArrayRuntime
         {
             var runtime = projection.Runtime;
             if (value.TryGetArrayBinding(out var child)) value = AwkValue.FromArrayReference(child);
+            else if (projection.Mode != AwkArraySortMode.UserFunction && value.TryGetUntypedScalar(out _))
+                value = value.AsScalarCopy();
             // Snapshot ownership survives source mutation, including existing text keys/values.
             var keyText = key.ToByteText(runtime._state.Counters, AwkMemoryAccounting.Disabled);
             var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
@@ -816,7 +818,6 @@ internal sealed partial class AwkArrayRuntime
             var materializeNonfinite = stringValueOrder && value.IsNumberValue && !double.IsFinite(value.AsNumber());
             var projectedValue = materializeNonfinite ? runtime._state.CreateStringValue(valueText) : value;
             return new AwkArraySortEntry(
-                key,
                 keyText,
                 projectedValue,
                 valueText,
@@ -838,7 +839,7 @@ internal sealed partial class AwkArrayRuntime
         {
             if ((index & 63) == 0)
                 _state.CancellationCheckpoint();
-            result[index] = entries[index].Key;
+            result[index] = new AwkArrayKey(entries[index].KeyText);
         }
 
         _state.CancellationCheckpoint();
@@ -878,18 +879,17 @@ internal sealed partial class AwkArrayRuntime
     }
 
     private readonly struct AwkArraySortEntry(
-        AwkArrayKey key,
         AwkText keyText,
         AwkValue value,
         AwkText valueText,
         double numericKey,
         long transferredValueTextBytes)
     {
-        public AwkArrayKey Key { get; } = key;
-
         public AwkText KeyText => keyText;
 
         public AwkValue Value { get; } = value;
+
+        public bool IsArray { get; } = value.IsArrayValue;
 
         public AwkText ValueText => valueText;
 
@@ -898,7 +898,7 @@ internal sealed partial class AwkArrayRuntime
         public long TransferredValueTextBytes { get; } = transferredValueTextBytes;
 
         public AwkArraySortEntry WithValue(AwkValue replacement, long retainedBytes) =>
-            new(Key, KeyText, replacement, ValueText, NumericKey, retainedBytes);
+            new(KeyText, replacement, ValueText, NumericKey, retainedBytes);
     }
 
     private readonly struct AwkArraySortEntryProjection(
@@ -947,8 +947,8 @@ internal sealed partial class AwkArrayRuntime
                 AwkArraySortMode.ValueNumberAscending or AwkArraySortMode.ValueNumberDescending or
                 AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending)
             {
-                var leftArray = left.Value.IsArrayValue;
-                var rightArray = right.Value.IsArrayValue;
+                var leftArray = left.IsArray;
+                var rightArray = right.IsArray;
                 if (leftArray || rightArray)
                 {
                     var comparison = (leftArray ? 1 : 0).CompareTo(rightArray ? 1 : 0);

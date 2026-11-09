@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SortingCompatibilityCases()
     {
+        yield return Passing("sorting-traversal-retains-key-spelling-after-source-clear",
+            ["BEGIN{a[1]=1;a[\"01\"]=2;a[\"long-key-spelling\"]=3;a[\"é😀\"]=4;PROCINFO[\"sorted_in\"]=\"@val_num_asc\";for(k in a){print \"[\" k \"]\";delete a}print length(a)}"], [],
+            "[1]\n[01]\n[long-key-spelling]\n[é😀]\n0\n");
         yield return Passing("sorting-user-comparator-preserves-an-odd-sized-source",
             ["function compare(k1,v1,k2,v2){return v1-v2}BEGIN{for(i=1;i<=65;i++)a[\"k\" i]=66-i;print asort(a,b,\"compare\");for(i=1;i<=65;i++)bad+=(b[i]!=i);print bad,a[\"k1\"],a[\"k65\"]}"], [],
             "65\n0 65 1\n");

@@ -81,6 +81,10 @@ or environment dependencies.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.
+- Sort entries retain the owned key-text projection once; reconstruct traversal keys at consumption.
+  Builtin snapshots freeze mutable untyped scalars and capture their array/scalar distinction.
+  User comparators retain original value origins and continuations. Preserve deferred errors,
+  funded projections, mutation-independent snapshots and destination publication preflights.
 - Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text;
   it is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
   shared mutable caches belong to that backing, and storage identity compares backing references.
