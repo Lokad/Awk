@@ -37,7 +37,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public Task NumericCallAssignmentWaitsForActualFlushCompletion(bool governed, bool cancel) =>
         VerifyCapturedReturnCompletion(governed, numeric: true, cancel, assignment: true);
 
-    private async Task VerifyCapturedReturnCompletion(bool governed, bool numeric, bool cancel, bool assignment)
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public Task StoredNumberReturnSurvivesActualFlushCompletion(bool governed, bool cancel) =>
+        VerifyCapturedReturnCompletion(governed, numeric: true, cancel, assignment: false, storedNumber: true);
+
+    private async Task VerifyCapturedReturnCompletion(bool governed, bool numeric, bool cancel, bool assignment,
+        bool storedNumber = false)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         using var cancellation = new CancellationTokenSource();
@@ -45,12 +52,15 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, cancellation.Token);
             var counters = AwkRuntimeCounters.CreateEnabled();
             using var state = State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, owner);
-            var source = numeric ? "function f(x){return x+0}BEGIN{total" + (assignment ? "=" : "+=") + "f(7)}"
+            var source = storedNumber ? "function f(x){return a[\"r\"]}BEGIN{total+=f(7)}"
+                : numeric ? "function f(x){return x+0}BEGIN{total" + (assignment ? "=" : "+=") + "f(7)}"
                 : "function f(x){return x}BEGIN{saved=f(\"0007\")}";
             var program = Bind(source);
             state.InitializeGlobalNames(program.GlobalNames);
             state.InitializeGlobalReadSlots(program.GlobalReadCount);
             state.InitializeFunctions(program.Functions);
+            if (storedNumber)
+                state.SetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("r"), AwkValue.FromNumber(7));
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var host = new TestOperationVisitor([]);
@@ -76,7 +86,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.False(pending.IsCompleted);
                 Assert.True(state.IsInsideFunction);
                 // Return evaluation precedes the flush, including an owned text capture.
-                state.AssignVariableValue(AwkVariableName.FromText("x"), AwkValue.FromText("changed"));
+                if (storedNumber)
+                    state.SetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("r"), AwkValue.FromText("changed"));
+                else state.AssignVariableValue(AwkVariableName.FromText("x"), AwkValue.FromText("changed"));
                 if (governed) Assert.True(budget.Reserved > 0);
                 if (cancel) cancellation.Cancel();
                 Assert.False(pending.IsCompleted);

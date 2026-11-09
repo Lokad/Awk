@@ -93,7 +93,6 @@ internal sealed class AwkFunctionFrame
     private AwkRegionStorage? _callerStorage;
     private AwkFunctionFrame? _callerFrame;
     private AwkRegionResumePoint _resumePoint;
-    internal bool HasAssignmentReturnConsumer => _resumePoint.IsAssignment;
 
     internal void SetCaller(AwkRegion region, AwkRegionStorage storage, int position,
         AwkFunctionFrame? frame, int destination, AwkRegionReturnConsumer consumer)

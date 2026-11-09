@@ -212,7 +212,7 @@ internal partial struct AwkRegionMachine
 
     private void Return(AwkValue value)
     {
-        if (value.IsNumberValue && _frame is { HasAssignmentReturnConsumer: true })
+        if (value.IsNumberValue)
         {
             ReturnNumber(value.AsNumber());
             return;
