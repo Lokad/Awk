@@ -48,13 +48,7 @@ internal readonly record struct AwkRecordSplitPlan
 
     public bool RequiresRegexSubject => _configuration?.RequiresRegexSubject ?? false;
 
-    public long RetainedMemoryBytes => Mode switch
-    {
-        AwkFieldSplittingMode.FieldPattern => AwkRuntimeMemory.EstimateTextBytes(FieldPattern),
-        AwkFieldSplittingMode.FieldWidths => AwkRuntimeMemory.EstimateFieldWidthListBytes(
-            FieldWidths is List<AwkFieldWidth> list ? list.Capacity : FieldWidths.Count),
-        _ => Separator.UsesWhitespaceSemantics ? 0 : AwkRuntimeMemory.EstimateTextBytes(Separator.ByteText)
-    };
+    public long RetainedMemoryBytes => _configuration?.RetainedMemoryBytes ?? 0;
 
     internal sealed record Configuration
     {
@@ -81,6 +75,14 @@ internal readonly record struct AwkRecordSplitPlan
         public IReadOnlyList<AwkFieldWidth> FieldWidths { get; }
         public bool RequiresRegexSubject { get; }
         public AwkIncrementalFieldKind IncrementalKind { get; }
+
+        public long RetainedMemoryBytes => Mode switch
+        {
+            AwkFieldSplittingMode.FieldPattern => AwkRuntimeMemory.EstimateTextBytes(FieldPattern),
+            AwkFieldSplittingMode.FieldWidths => AwkRuntimeMemory.EstimateFieldWidthListBytes(
+                FieldWidths is List<AwkFieldWidth> list ? list.Capacity : FieldWidths.Count),
+            _ => Separator.UsesWhitespaceSemantics ? 0 : AwkRuntimeMemory.EstimateTextBytes(Separator.ByteText)
+        };
     }
 }
 
