@@ -194,7 +194,7 @@ public sealed class AwkSortProjectionMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void StringSortingRetainsExistingTextWithoutCopyingAtItsAdmittedBudget(bool observed)
+    public void StringSortingRetainsExistingValueTextAtItsAdmittedBudget(bool observed)
     {
         using var memoryForState = State(observed, "default", "@val_str_asc");
         var state = memoryForState.State;
@@ -259,7 +259,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     private static long SnapshotStorage(AwkRuntimeState state, IReadOnlyCollection<AwkArrayKey> keys) =>
         SnapshotContainers(keys.Count) + keys.Sum(key =>
-            (key.IsOrdinal ? AwkRuntimeMemory.EstimateTextBytes(key.ByteLength) : key.RetainedTextMemoryBytes) +
+            (key.RequiresTextMaterialization ? AwkRuntimeMemory.EstimateTextBytes(key.ByteLength) : key.RetainedTextMemoryBytes) +
             state.GetArrayAwkValue(Source, key).RetainedTextMemoryBytes);
 
     private static long SnapshotContainers(int count) =>

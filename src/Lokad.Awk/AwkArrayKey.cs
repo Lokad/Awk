@@ -20,25 +20,21 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public AwkArrayKey(AwkText text, Action? checkpoint = null)
     {
+        // Materialize while the producer's ownership/admission is live, then own
+        // bounded spellings directly. Capture and lookup use the same key form.
+        var bytes = text.AsSpan(checkpoint);
+        if (bytes.Length is > 0 and <= InlineByteCapacity)
+        {
+            this = FromInlineBytes(bytes);
+            return;
+        }
         _kind = AwkArrayKeyKind.Text;
         _text = text;
         _ordinal = 0;
-        // Materialize while the producer's ownership/admission is live. Runtime
-        // dictionaries hash these bytes themselves; do not compute an unused hash here.
-        _ = text.AsSpan(checkpoint);
     }
 
     public static AwkArrayKey FromOrdinal(int ordinal) =>
         new(ordinal);
-
-    internal AwkArrayKey CompactForCapture()
-    {
-        // Construction already materialized these immutable bytes. This bounded
-        // copy needs no callback; capture still checks after admitting its owner.
-        if (_kind == AwkArrayKeyKind.Text && _text.ByteLength is > 0 and <= InlineByteCapacity)
-            return FromInlineBytes(_text.AsSpan());
-        return this;
-    }
 
     private AwkArrayKey(int ordinal)
     {

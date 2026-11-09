@@ -740,7 +740,7 @@ internal partial struct AwkRegionMachine
             if (operand.Kind == AwkRegionOperandKind.KeyBuilder)
                 return AwkArrayKey.CopyTrustedBytes(storage.Builders[operand.Index].Buffer.AsSpan(),
                     state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
-            return ReadKey(index).CompactForCapture();
+            return ReadKey(index);
         }
 
         AwkArrayKey ReadKey(int index)

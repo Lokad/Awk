@@ -221,7 +221,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 _counters.RecordScalarLocalValueRead();
                 if (prepareKey && value.TryGetStoredScalarText(out var text))
-                    StageKey(incoming, index, new AwkArrayKey(text, checkpoint).CompactForCapture());
+                    StageKey(incoming, index, new AwkArrayKey(text, checkpoint));
                 else StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(value));
             }
             return true;

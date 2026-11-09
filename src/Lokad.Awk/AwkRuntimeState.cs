@@ -774,7 +774,7 @@ internal sealed class AwkRuntimeState : IDisposable
                         _functions.StageNumber(incoming, index, number);
                     }
                     else if (prepareKey && slot.TryGetStoredScalarText(out var text))
-                        _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint).CompactForCapture());
+                        _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint));
                     else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
                     return;
                 }
@@ -1371,7 +1371,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
             return AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return ToArrayKey(field).CompactForCapture();
+        return ToArrayKey(field);
     }
 
     internal void SetArrayFieldValue(AwkArrayName name, int index, AwkValue value, AwkArrayBinding binding)

@@ -103,16 +103,10 @@ internal readonly record struct AwkRegionConstant(int Register, double Number);
 internal readonly struct AwkRegionLiteral
 {
     internal AwkRegionLiteral(AwkText text, Action? checkpoint)
-        : this(text, new AwkArrayKey(text, checkpoint)) { }
-
-    private AwkRegionLiteral(AwkText text, AwkArrayKey key) => (Text, Key) = (text, key);
+        => (Text, Key) = (text, new AwkArrayKey(text, checkpoint));
 
     internal AwkText Text { get; }
     internal AwkArrayKey Key { get; }
-
-    // Each source occurrence has its own definition. Captured paths already retain
-    // inline keys; ordinary accesses keep text-backed keys for later traversal.
-    internal AwkRegionLiteral ForCapture() => new(Text, Key.CompactForCapture());
 }
 internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
 // One prepared location, without another operand lookup for computed numbers.

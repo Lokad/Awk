@@ -4,12 +4,6 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
-    private void PrepareCapturedLiteral(int key)
-    {
-        if (_operands[key] is { Kind: AwkRegionOperandKind.Literal } literal)
-            _literals[literal.Index] = _literals[literal.Index].ForCapture();
-    }
-
     private void PrepareImmediatePath(int access)
     {
         var index = _arrays[access].Path;

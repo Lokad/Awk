@@ -817,10 +817,6 @@ internal sealed partial class AwkRegionCompiler
 
     private int Emit(AwkRegionInstruction instruction)
     {
-        if (instruction.Kind == AwkRegionInstructionKind.PathKey)
-            PrepareCapturedLiteral(instruction.Left);
-        else if (instruction.Kind == AwkRegionInstructionKind.ArrayDelete)
-            PrepareCapturedLiteral(_arrays[instruction.Target].Key);
         if (_straightLine == 128)
         {
             _code.Add(new(AwkRegionInstructionKind.Poll));

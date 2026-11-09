@@ -240,7 +240,8 @@ public sealed class AwkSnapshotKeyResourceTests
                 "ordinals" => AwkArrayKey.FromOrdinal(index),
                 "compact" => AwkArrayKey.CopyTrustedBytes(AwkUtf8Codec.Encode("v" + index).Span,
                     counters, state.MemoryAccounting, state.CancellationCheckpoint),
-                _ => new AwkArrayKey("v" + index)
+                // Keep owned-text lifetime/refusal coverage distinct from compact keys.
+                _ => new AwkArrayKey("long-key-" + index)
             };
             state.SetArrayAwkValue(Source, key, AwkValue.FromNumber(33 - index));
         }

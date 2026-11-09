@@ -718,18 +718,27 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData(false)] [InlineData(true)]
     public async Task RepeatedKeyedUpdatesCommitThroughLiveCells(bool ordinal)
     {
-        const int records = 128;
-        var input = string.Concat(Enumerable.Range(0, records).Select(i =>
-            (ordinal ? "" : "k") + (i % 16).ToString(System.Globalization.CultureInfo.InvariantCulture) + " 2\n"));
-        var result = await RunAsync(["{sum[$1]+=$2} END{for(k in sum)total+=sum[k];print total}"], input);
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("256\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(result.Counters.ArrayCellCommits, records - 16, records);
-        Assert.Equal(0, result.Counters.StringDecodes);
-        Assert.Equal(0, result.Counters.Utf8Encodes);
-        Assert.InRange(result.Counters.AwkTextAllocations, 0, 32);
-        Assert.Equal(records, result.Counters.BufferedInputRecords);
+        const int keys = 16;
+        long? allocations = null;
+        foreach (var records in new[] { 128, 256 })
+        {
+            var input = string.Concat(Enumerable.Range(0, records).Select(i =>
+                (ordinal ? "" : "k") + (i % keys).ToString(System.Globalization.CultureInfo.InvariantCulture) + " 2\n"));
+            var result = await RunAsync(["{sum[$1]+=$2} END{for(k in sum)total+=sum[k];print total}"], input);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal((2 * records).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
+                result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.InRange(result.Counters.ArrayCellCommits, records - keys, records);
+            Assert.Equal(0, result.Counters.StringDecodes);
+            Assert.Equal(0, result.Counters.Utf8Encodes);
+            // Cold spelling and later traversal projection are per retained key;
+            // doubling record updates must not introduce per-record text copies.
+            Assert.InRange(result.Counters.AwkTextAllocations, 0, 2 * keys + 8);
+            if (allocations is { } prior) Assert.Equal(prior, result.Counters.AwkTextAllocations);
+            allocations = result.Counters.AwkTextAllocations;
+            Assert.Equal(records, result.Counters.BufferedInputRecords);
+        }
     }
 
     [Fact]

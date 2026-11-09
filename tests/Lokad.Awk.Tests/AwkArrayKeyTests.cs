@@ -38,14 +38,13 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
         var owned = new AwkArrayKey(text);
-        var scalar = new AwkArrayKey(AwkText.FromHostBytes(bytes)).CompactForCapture();
+        var scalar = new AwkArrayKey(AwkText.FromHostBytes(bytes));
         var literal = new AwkRegionLiteral(AwkText.FromHostBytes(bytes), null);
-        var capturedLiteral = literal.ForCapture();
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkRegionLiteral>());
-        Assert.False(literal.Key.RequiresTextMaterialization);
+        Assert.Equal(bytes.Length is > 0 and <= 7, literal.Key.RequiresTextMaterialization);
         Assert.Equal(owned, literal.Key);
-        Assert.Equal(scalar, capturedLiteral.Key);
-        Assert.Equal(text, capturedLiteral.Text.AsString());
+        Assert.Equal(scalar, literal.Key);
+        Assert.Equal(text, literal.Text.AsString());
         var comparer = AwkArrayKeyComparer.Instance;
         var values = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 9 };
         Assert.Equal(owned, key);
@@ -213,7 +212,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(text.Length, fromOrdinal.ByteLength);
         Assert.Equal(0, fromOrdinal.RetainedTextMemoryBytes);
         Assert.Equal(
-            AwkRuntimeMemory.EstimateTextBytes(fromText.ByteLength),
+            fromText.ByteLength <= 7 ? 0 : AwkRuntimeMemory.EstimateTextBytes(fromText.ByteLength),
             fromText.RetainedTextMemoryBytes);
 
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -231,13 +230,14 @@ public sealed class AwkArrayKeyTests
     }
 
     [Fact]
-    public void AwkArrayKey_OrdinalKeyAccountingAvoidsRetainedTextCharge()
+    public void ShortSpellingAndOrdinalKeysNeedNoRetainedTextCharge()
     {
         var slot = AwkVariableSlot.FromText("v");
         var ordinalBytes = AwkRuntimeMemory.EstimateArrayElementBytes(AwkArrayKey.FromOrdinal(12), slot);
         var textBytes = AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("12"), slot);
 
-        Assert.True(ordinalBytes < textBytes);
+        Assert.Equal(ordinalBytes, textBytes);
+        Assert.True(textBytes < AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("long-key"), slot));
     }
 
     [Fact]

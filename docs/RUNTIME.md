@@ -258,6 +258,8 @@ arguments stay funded across nested calls and pending host operations. Cancellat
 not retire those users. There is no public execution-engine selector.
 Array traversal keeps its existing leased key snapshot in execution-owned scratch. Loop
 progression shares the computation driver; source mutation does not change the snapshot.
+Stored key spellings own their bytes independently of input records. Projecting keys into
+language strings can materialize admitted text, funded through the snapshot or value lifetime.
 `asort`, `asorti` and `sorted_in` callbacks use the same function frames and continuations as
 ordinary calls. The admitted sort snapshot survives source mutation and pending callbacks;
 comparison phases and atomic destination publication retain their existing rules. Unsorted

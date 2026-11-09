@@ -205,9 +205,10 @@ or environment dependencies.
   Prepared operands carry category, bound location and immutable fallback name directly. Reuse
   compiler variable descriptors; do not restore a separate variable metadata table. Runtime
   value-kind checks and real name fallback remain.
-  Literal definitions keep text and prepared keys together. Ordinary keys retain text backing;
-  captured paths/deletes prepare their existing compact keys once. Preserve spelling and text
-  consumers without a parallel literal cache or per-use key construction.
+  Literal definitions keep text and prepared keys together. All nonempty keys up to seven UTF-8
+  bytes own their spelling in the existing compact words, independent of producing syntax.
+  Preserve scalar literal text separately and admit text when projecting compact keys; do not
+  restore selective capture conversion or another literal cache.
   Numeric update sites reference canonical operand entries and consume computed number registers
   directly. Other bound-number reads borrow the canonical operand; variable stores retain binding
   indices. Instruction/operand references stay synchronous in immutable program storage.
