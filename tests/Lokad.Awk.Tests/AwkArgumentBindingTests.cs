@@ -2,6 +2,41 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArgumentBindingTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ForwardedChildKeepsItsCaptureUntilDetachedActivation(bool governed)
+    {
+        using var fixture = State(governed);
+        var state = fixture.State;
+        var parent = AwkArrayName.FromText("a");
+        var row = new AwkArrayKey("row");
+        var key = new AwkArrayKey("key");
+        var child = state.GetSubarray(parent, row, default);
+        state.SetArrayAwkValue(child, key, AwkValue.FromNumber(7));
+        var p = AwkVariableName.FromText("p");
+        var q = AwkVariableName.FromText("q");
+        state.PushFunctionFrame(new([p]), [AwkFunctionLocalSlot.ArrayAlias(child)]);
+        var incoming = state.PrepareFunctionFrame(new([q]));
+        try
+        {
+            state.StageFunctionLocalArgument(new(0), p, incoming, 0, allowArray: true, prepareKey: false);
+            state.DeleteArrayValue(parent, row);
+            state.ActivateFunctionFrame(incoming);
+            try
+            {
+                var local = new AwkArrayName(q.Identifier);
+                Assert.Equal(0, state.GetArrayAwkValue(local, key).AsNumber());
+                state.SetArrayAwkValue(local, key, AwkValue.FromNumber(9));
+                Assert.Equal(9, state.GetArrayAwkValue(local, key).AsNumber());
+                Assert.False(state.ContainsArrayValue(parent, row));
+            }
+            finally { state.PopFunctionFrame(); }
+        }
+        finally { state.PopFunctionFrame(); }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
     [Fact]
     public void GlobalBindingKeepsUntouchedOriginsAndSymbolTableChanges()
     {
@@ -309,9 +344,9 @@ public sealed class AwkArgumentBindingTests
         }
     }
 
-    private static CooperativeTestMemory State()
+    private static CooperativeTestMemory State(bool governed = true)
     {
-        var fixture = new CooperativeTestMemory(4 << 20);
+        var fixture = new CooperativeTestMemory(4 << 20, enabled: governed);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault());
         return fixture.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,

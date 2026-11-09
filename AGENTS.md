@@ -174,6 +174,8 @@ or environment dependencies.
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
   Ordinary global-array arguments reuse the existing execution binding, preserving their alias
   name and actual root owner. Missing/potential and special arrays keep their resolution paths.
+  Forward actual alias names/owners into incoming cells without dropping a known owner. Keep
+  activation's detached-child check and potential-origin promotion after later argument effects.
   Frame activation owns the call-entry cancellation poll. Functions carry initial admitted-field
   demand as immutable metadata, consumed after scratch initialization; keep cold admission and
   long initialization polls. Standalone internal function execution establishes its own entry poll.

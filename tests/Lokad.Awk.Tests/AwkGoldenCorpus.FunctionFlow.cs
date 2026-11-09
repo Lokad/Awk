@@ -10,6 +10,12 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("forwarded-function-owned-array-keeps-identity-and-retirement",
+            ["function put(p){p[\"count\"]++;return p[\"count\"]}function reset(p){delete p;p[\"value\"]=11;return 0}" +
+             "function read(p,n){return p[\"value\"]}function forward(p){return read(p,reset(p))}" +
+             "function owner(local){local[\"value\"]=7;local[\"count\"]=0;print forward(local),local[\"value\"];return put(local)}" +
+             "BEGIN{print owner(),owner()}"],
+            [], "11 11\n11 11\n1 1\n");
         yield return Passing("bound-global-array-argument-keeps-later-root-replacement",
             ["function read(p,n){return p[\"v\"]}function first(p,n){return p[1]}" +
              "function reset(){delete a;a[\"v\"]=9;return 0}function replace(){split(\"new words\",a);return 0}" +

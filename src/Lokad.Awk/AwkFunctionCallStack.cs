@@ -227,6 +227,14 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
         if (!allowArray) return false;
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.ArrayAlias && sourceSlot.Value.TryGetArrayBinding(out var array))
+        {
+            // Capture the actual name/owner into the incoming frame. Activation
+            // still repairs a child detached by a later argument.
+            _counters.RecordIndexedLocalArrayArgument();
+            StageArrayAlias(incoming, index, sourceSlot.ArrayName, array);
+            return true;
+        }
         // Alias resolution can admit a potential origin. Capture before that
         // callback; ordinary scalars above need only their smaller value snapshot.
         var slot = sourceSlot;
@@ -405,8 +413,7 @@ internal sealed class AwkFunctionCallStack(
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
         {
-            argument = slot.ArrayName.Text.Length == 0 && slot.Value.TryGetArrayBinding(out var array)
-                ? AwkFunctionLocalSlot.ArrayAlias(array) : AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName);
+            argument = slot;
             return true;
         }
 
