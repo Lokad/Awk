@@ -85,17 +85,39 @@ internal sealed class AwkFunctionCallStack(
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout)
     {
+        if (_recycledFrames.TryPeek(out var cached) &&
+            (layout.SlotCount <= 2 || cached.SlotCapacity >= layout.SlotCount))
+        {
+            var frame = _recycledFrames.Pop();
+            frame.Initialize(++_nextFrameId, layout);
+            return PublishIncomingFrame(frame, grewBuffer: false);
+        }
+        return PrepareFrameStorage(layout);
+    }
+
+    private AwkFunctionFrame PublishIncomingFrame(AwkFunctionFrame frame, bool grewBuffer)
+    {
+        frame.IsIncoming = true;
+        _incomingFrames++;
+        _counters.RecordFunctionFramePrepared(grewBuffer);
+        return frame;
+    }
+
+    // Only new owners or insufficient backing reach allocation preparation.
+    // Sufficient recycled capacity remains funded without another admission.
+    private AwkFunctionFrame PrepareFrameStorage(AwkFunctionLocalLayout layout)
+    {
         var newFrame = _recycledFrames.Count == 0;
         var cached = newFrame ? null : _recycledFrames.Peek();
         var bufferBytes = 0L;
         var capacity = layout.SlotCount > 2 ? layout.SlotCount : 0;
-        if (cached is not null && cached.SlotCapacity < capacity)
+        if (cached is not null)
         {
             var retiredBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(cached.SlotCapacity);
             cached.DiscardSlotBuffer();
             memoryAccounting.ReleaseCommitted(retiredBytes);
         }
-        if (capacity > 0 && (cached is null || cached.SlotCapacity == 0))
+        if (capacity > 0)
             bufferBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(capacity);
         var frameBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
         var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(frameBytes, bufferBytes);
@@ -103,7 +125,7 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionFrame? frame = null;
         try
         {
-            if (newFrame || bufferBytes > 0) checkpoint?.Invoke();
+            checkpoint?.Invoke();
             if (newFrame)
             {
                 // Covers active, incoming and recycled owners. Cleanup never grows
@@ -116,10 +138,7 @@ internal sealed class AwkFunctionCallStack(
             else frame = _recycledFrames.Pop();
             frame.Initialize(++_nextFrameId, layout);
             unpublishedBytes -= bufferBytes;
-            frame.IsIncoming = true;
-            _incomingFrames++;
-            _counters.RecordFunctionFramePrepared(bufferBytes > 0);
-            return frame;
+            return PublishIncomingFrame(frame, bufferBytes > 0);
         }
         catch
         {

@@ -198,6 +198,8 @@ or environment dependencies.
   represent missing arguments with an unassigned value; retire prior references before reuse,
   without another omitted-local initialization traversal. Reconcile actual mutable arguments
   before registering aliases.
+  Sufficient recycled capacity bypasses allocation preparation; new/growing owners keep admission
+  before construction. Incoming publication stays shared and unchanged slot backing needs no write.
   Active local/scratch bounds govern cleanup; backing capacity and pending users keep their funding.
 - Implicit special-scalar bindings reference canonical execution-owned cells. Preserve computed
   NF, lazy/disabled names and function scope. Enabled scalar names cannot be function parameters;
