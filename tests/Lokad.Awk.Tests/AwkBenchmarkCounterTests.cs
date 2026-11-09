@@ -10,6 +10,30 @@ public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task GlobalArrayArgumentsReuseTheirAdmittedRootBinding(bool governed)
+    {
+        const int records = 128;
+        const string source = "function step(p){p[\"k\"]++;return p[\"k\"]}{total+=step(values)}" +
+            "END{print total,values[\"k\"]}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("row\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("8256 128\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.BoundGlobalArrayAccesses > records / 2);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task RecycledPathCapacityRebindsRootsAndDepthsWithoutPerUseAllocation(bool governed)
     {
         var allocations = new List<(long Owners, long Buffers)>();

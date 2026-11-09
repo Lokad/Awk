@@ -57,6 +57,8 @@ internal sealed class AwkFunctionRuntime
     internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument) => _calls.StageArgument(frame, index, in argument);
     internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value) => _calls.StageValue(frame, index, in value);
     internal void StageNumber(AwkFunctionFrame frame, int index, double number) => _calls.StageNumber(frame, index, number);
+    internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array) =>
+        _calls.StageArrayAlias(frame, index, name, array);
     internal void StageKey(AwkFunctionFrame frame, int index, AwkArrayKey key) => _calls.StageKey(frame, index, key);
     internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index, bool allowArray, bool prepareKey) =>
         _calls.TryStageLocalArgument(source, incoming, index, allowArray, prepareKey);

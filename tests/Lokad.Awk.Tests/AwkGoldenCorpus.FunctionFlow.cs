@@ -10,6 +10,15 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("bound-global-array-argument-keeps-later-root-replacement",
+            ["function read(p,n){return p[\"v\"]}function first(p,n){return p[1]}" +
+             "function reset(){delete a;a[\"v\"]=9;return 0}function replace(){split(\"new words\",a);return 0}" +
+             "BEGIN{a[\"v\"]=7;print read(a,0),read(a,reset());print first(a,replace()),length(a)}"],
+            [], "7 9\nnew 2\n");
+        yield return Passing("bound-global-array-argument-binds-after-missing-promotion",
+            ["function put(p){p[\"k\"]++;return p[\"k\"]}function relay(){return put(a)}" +
+             "BEGIN{print relay(),relay();delete a;print relay(),length(a)}"],
+            [], "1 2\n1 1\n");
         yield return Passing("key-parameters-retain-scalar-scratch-for-conditional-forwarding",
             ["function put(a,k){a[k]++;return a[k]}function relay(a,k,yes){a[k]++;return put(a,yes?k:\"other\")}{print relay(a,$1,1),$1}END{print length(a),a[\"0007\"]}"], [],
             "2 0007\n1 2\n", "0007\n");

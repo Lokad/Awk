@@ -291,7 +291,7 @@ public sealed class AwkPreparedArrayKindTests
     }
 
     [Fact]
-    public async Task ParsedArrayArgumentsAndSpecialArraysKeepTheirOriginalPaths()
+    public async Task ParsedArrayArgumentsKeepTheirAliasesAndSpecialArrayBehavior()
     {
         const string source = "function size(x){return length(x)} BEGIN{a[1]=7;print size(a),length(a);ARGV[1]=\"x\";print ARGV[1]}";
         var host = new MockFileSystem();
@@ -300,6 +300,22 @@ public sealed class AwkPreparedArrayKindTests
         var result = await program.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, result.Value);
         Assert.Equal("1 1\nx\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(options.Counters.BoundGlobalArrayAccesses > 0);
+    }
+
+    [Theory]
+    [InlineData("ARGV")] [InlineData("ENVIRON")] [InlineData("SYMTAB")]
+    public async Task SpecialArrayArgumentsRetainTheirDispatch(string name)
+    {
+        var source = "function get(p){return p[\"x\"]}BEGIN{" + name + "[\"x\"]=\"kept\";print get(" +
+            name + ")," + name + "[\"x\"];exit}";
+        var host = new MockFileSystem();
+        var options = Options();
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None, options);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("kept kept\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, options.Counters.BoundGlobalArrayAccesses);
     }

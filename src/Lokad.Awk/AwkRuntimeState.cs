@@ -760,19 +760,29 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void StagePreparedGlobalArgument(int source, AwkVariableName name, AwkFunctionFrame incoming, int index,
         bool allowArray, bool prepareKey)
     {
-        if (_globalReadSlots is { } slots && slots[source].Scalar is { } cell)
+        if (_globalReadSlots is { } slots)
         {
-            var slot = cell.State.Slot;
-            if (slot.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
+            ref readonly var binding = ref slots[source];
+            if (binding.Scalar is { } cell)
             {
-                if (slot.TryGetNumber(out var number))
+                var slot = cell.State.Slot;
+                if (slot.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
                 {
-                    Counters.RecordNumericGlobalRead();
-                    _functions.StageNumber(incoming, index, number);
+                    if (slot.TryGetNumber(out var number))
+                    {
+                        Counters.RecordNumericGlobalRead();
+                        _functions.StageNumber(incoming, index, number);
+                    }
+                    else if (prepareKey && slot.TryGetStoredScalarText(out var text))
+                        _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint).CompactForCapture());
+                    else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+                    return;
                 }
-                else if (prepareKey && slot.TryGetStoredScalarText(out var text))
-                    _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint).CompactForCapture());
-                else _functions.StageArgument(incoming, index, AwkFunctionLocalSlot.Scalar(slot));
+            }
+            if (allowArray && binding.Array is { } array)
+            {
+                Counters.RecordBoundGlobalArrayAccess();
+                _functions.StageArrayAlias(incoming, index, new(name.Identifier), array);
                 return;
             }
         }
@@ -784,7 +794,19 @@ internal sealed class AwkRuntimeState : IDisposable
         bool allowArray)
     {
         if (allowArray && TryResolveArrayArgument(name, out var array))
-            _functions.StageArgument(incoming, index, in array);
+        {
+            // Bind only a successfully resolved ordinary global root. Its identity
+            // survives delete/split, while nested and potential aliases keep their
+            // existing later-argument reconciliation and promotion behavior.
+            if (array.Kind == AwkFunctionLocalSlotKind.ArrayAlias &&
+                array.ArrayName == new AwkArrayName(name.Identifier) &&
+                _globalReadSlots is { } slots && _variables.TryGetOrdinaryArray(array.ArrayName, out var owner))
+            {
+                _functions.StageArrayAlias(incoming, index, array.ArrayName, owner);
+                slots[source] = new(null, owner);
+            }
+            else _functions.StageArgument(incoming, index, in array);
+        }
         else
         {
             var value = ResolvePreparedGlobalValue(name, source);

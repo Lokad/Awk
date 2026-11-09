@@ -161,6 +161,15 @@ internal sealed class AwkFunctionCallStack(
             frame.GetSlot(index) = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
     }
 
+    internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array)
+    {
+        if ((uint)index >= (uint)frame.Layout.SlotCount) return;
+        // The array already funds its storage. This non-owning alias retains its
+        // language name and the ordinary activation/retirement bounds.
+        frame.GetSlot(index) = AwkFunctionLocalSlot.ArrayAlias(name, array);
+        frame.RecordArgument(index, AwkFunctionLocalSlotKind.ArrayAlias);
+    }
+
     internal void StageKey(AwkFunctionFrame frame, int index, AwkArrayKey key)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
