@@ -254,6 +254,9 @@ internal sealed class AwkFieldFrame(
         TryReadFieldNumber(index, mode, deferError: true, out var number, out var cachedValue)
             ? AwkValue.FromNumber(number) : ReadFieldArithmeticValue(index, cachedValue);
 
+    internal bool TryGetFieldArithmeticNumber(AwkFieldIndex index, AwkNumberParsingMode mode, out double number) =>
+        TryReadFieldNumber(index, mode, deferError: true, out number, out _);
+
     private AwkValue ReadFieldArithmeticValue(AwkFieldIndex index, int cachedValue) =>
         cachedValue >= 0 ? _fieldValueCache[cachedValue].Value : GetFieldValue(index);
 

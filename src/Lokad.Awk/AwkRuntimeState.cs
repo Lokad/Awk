@@ -565,6 +565,14 @@ internal sealed class AwkRuntimeState : IDisposable
             _recordFields.GetFieldArithmeticArgument(new(index), NumberParsingMode);
     }
 
+    internal bool TryGetFieldArithmeticNumber(int index, out double number)
+    {
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0) return _recordFields.TryGetFieldArithmeticNumber(new(index), NumberParsingMode, out number);
+        number = 0;
+        return false;
+    }
+
     internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
         _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
 

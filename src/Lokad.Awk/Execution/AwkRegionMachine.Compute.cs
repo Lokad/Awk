@@ -828,9 +828,15 @@ internal partial struct AwkRegionMachine
                             ? argument.Index : (int)numbers[argument.Index];
                         if (argument.Consumption == AwkParameterInput.Key &&
                             state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
-                        var value = argument.Consumption == AwkParameterInput.Arithmetic
-                            ? state.GetFieldArithmeticArgument(ordinal) : ReadField(ordinal);
-                        state.StageFunctionValue(incoming, index, in value);
+                        if (argument.Consumption == AwkParameterInput.Arithmetic &&
+                            state.TryGetFieldArithmeticNumber(ordinal, out var fieldNumber))
+                            state.StageFunctionNumber(incoming, index, fieldNumber);
+                        else
+                        {
+                            // Deferred errors and owned spellings retain ordinary value capture.
+                            var value = ReadField(ordinal);
+                            state.StageFunctionValue(incoming, index, in value);
+                        }
                         break;
                     }
                     default:
