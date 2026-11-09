@@ -1,23 +1,26 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-All 67 managed comparisons and ten shared-admission measurements were refreshed on
-**2026-11-09 UTC** at [dd5efc8b](https://github.com/Lokad/Awk/commit/dd5efc8b4b9f48bf0068557f414411e73ff6b5fa).
-GNU timings retain **2026-11-06 UTC** measurements at
+71 full-invocation comparisons plus ten shared-admission measurements.
+
+Rows marked **‡** have fresh managed/GNU measurements from **2026-11-09 UTC** at
+[59c1d680](https://github.com/Lokad/Awk/commit/59c1d68045bdb881bd3190b72138ef097e0fe9d9). Other managed rows and the
+admission table retain **2026-11-09 UTC** measurements at
+[dd5efc8b](https://github.com/Lokad/Awk/commit/dd5efc8b4b9f48bf0068557f414411e73ff6b5fa).
+Their GNU timings retain **2026-11-06 UTC** evidence at
 [da5c6a14](https://github.com/Lokad/Awk/commit/da5c6a14ae581ff9b1a2959a3e58bcf8b2cd6ef3),
-except the three large rows marked **†**, measured on **2026-11-08 UTC** at
+except rows marked **†**, measured on **2026-11-08 UTC** at
 [0094c5d5](https://github.com/Lokad/Awk/commit/0094c5d520fac4f2816b688f608a9b00e6d625cd).
-The native binary, fixture, policy, contract and equivalent output were reverified for all rows;
-retained GNU timings are not fresh measurements.
+Each cohort verifies source, binaries, fixture/policy/contract and equivalent output.
+Retained measurements are not fresh results for the latest source.
 
 Times are BenchmarkDotNet medians. Lower Lokad.Awk/GNU awk ratios are faster. Allocations
-include the managed benchmark host; no GNU allocation comparison is claimed. Single-launch
-medians do not establish variation between processes or the effect of a source change.
+include the managed host; no GNU allocation comparison is claimed. Single-launch medians
+do not isolate source effects or establish process-to-process variation.
 Regex uses the source adapter with published Lokad.Utf8Regex 0.4.0.
 
 The benchmark host creates a completed result task for each append. On this runtime,
-65,536 appends contribute 5.5 MiB of reported allocations; that cost depends on the
-host implementation, rather than the interpreter's record storage.
+65,536 appends contribute 5.5 MiB; that portion depends on the host implementation.
 
 ## Representative processing
 
@@ -81,13 +84,17 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 
 ## Large-input processing
 
-65,536 records, or 4,096 for the 128-column cases; nested-array calls use 16,384.
+Most cases use 65,536 records, or 4,096 for the 128-column cases; nested-array calls use 16,384.
 Join uses 65,536 records per file. Larger inputs expose processing costs better than small
-inputs dominated by process startup.
+inputs dominated by process startup. Row markers identify measured source cohorts above.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 25.984 | 4.671 | 5.56× | 112.198 |
+| Unicode length/substr / output ‡ | 960.00 | 48.940 | 15.672 | 3.12× | 27.579 |
+| Text function with branches and local temporary ‡ | 992.00 | 43.709 | 16.474 | 2.65× | 8.156 |
+| Numeric array sort (GNU) ‡ | 373.15 | 58.616 | 23.029 | 2.55× | 27.707 |
+| ASCII substr/index/length/casing ‡ | 832.00 | 17.759 | 10.095 | 1.76× | 4.619 |
 | Nested-array calls, 16 keys (GNU) † | 100.35 | 7.979 | 5.347 | 1.49× | 0.193 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 10.704 | 8.319 | 1.29× | 0.150 |
 | Nested-array calls, 1,024 keys (GNU) † | 125.01 | 7.686 | 5.977 | 1.29× | 0.786 |
@@ -106,9 +113,9 @@ inputs dominated by process startup.
 
 ## Shared memory admission
 
-Paired large-input runs with and without a supplied 512 MiB shared budget. These reuse
-execution options with no caller deadline; the public GNU comparison creates a 15 s deadline
-per invocation. Compare within each cohort. The host and actual output verification are shared.
+Paired large-input runs with and without a supplied 512 MiB shared budget, retained from dd5efc8b.
+These reuse execution options with no caller deadline; the public GNU comparison creates a
+15 s deadline per invocation. Compare within each cohort. Host/output verification is shared.
 
 | Large-input script | Default ms | Shared ms | Shared/default | Default allocated MiB | Shared allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
