@@ -20,13 +20,9 @@ internal static partial class AwkBuiltins
         var start = (int)startValue.AsNumber(state.CancellationCheckpoint);
         if (start < 1) start = 1;
         var zeroBasedStart = start - 1;
-        // Preserve the short-string path; prefix preparation only matters on larger inputs.
-        var hasStart = source.ByteLength <= AwkRuntimeMemory.TextRuneCheckpointStride
-            ? start <= state.CountStringUnits(source)
-            : state.HasStringUnitAt(source, zeroBasedStart);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
-        if (!hasStart) return AwkValue.FromText(string.Empty);
+        if (!state.HasStringUnitAt(source, zeroBasedStart)) return AwkValue.FromText(string.Empty);
         var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
         return state.CreateStringValue(state.SubstringByStringUnits(source, zeroBasedStart, length));

@@ -500,9 +500,9 @@ internal readonly struct AwkText : IEquatable<AwkText>
         void ResolveRuneByteRange(out int resolvedByteStart, out int resolvedByteEnd)
         {
             var endRuneIndex = (long)start + length;
-            // A bounded prefix needs neither total rune count nor a whole-text index.
+            // A short text or bounded prefix needs neither total rune count nor a whole-text index.
             // Keep the index for nonlocal/repeated access once it is available.
-            if (text.ByteLength > RuneCheckpointStride && endRuneIndex <= RuneCheckpointStride &&
+            if ((text.ByteLength <= RuneCheckpointStride || endRuneIndex <= RuneCheckpointStride) &&
                 Volatile.Read(ref text._runeByteCheckpoints) is null)
             {
                 var span = text.AsSpan(checkpoint);

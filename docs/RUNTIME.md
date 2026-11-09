@@ -150,8 +150,9 @@ Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--p
 overrides byte mode with a warning, independently of option order.
 Case conversion uses invariant Unicode casing in scalar mode; byte mode changes ASCII
 letters only and preserves all other UTF-8 bytes.
-String formatting and bounded substring prefixes stay byte-native; a short result does not
-require a whole-value UTF-16 conversion or rune index. Nonlocal slicing can retain an index.
+String formatting and bounded substring prefixes stay byte-native. Short text and bounded
+prefix slices need no whole-value UTF-16 conversion or rune index; nonlocal slicing of long
+text can retain an index.
 
 Selecting a [regex engine](#regex-engines) does not change ingress or units.
 [Compatibility notes](COMPATIBILITY.md#source-string-escapes) cover escape-to-text conversion

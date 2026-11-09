@@ -2026,6 +2026,25 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task ShortUtf8FieldSubstringsDoNotBuildWholeTextIndexes()
+    {
+        const int rows = 1_000;
+        var result = await RunAsync(["{print length($1),substr($2,1,2)}"],
+            string.Concat(Enumerable.Repeat("ééé 😀界z\n", rows)));
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(string.Concat(Enumerable.Repeat("3 😀界\n", rows)),
+            result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.FileSystem.OpenFileCount);
+        Assert.Equal(0, result.Counters.RuneSliceIndexAllocations);
+        Assert.Equal(0, result.Counters.RuneSliceIndexBytes);
+        Assert.InRange(result.Counters.RuneSliceBytesScanned, 1, rows * 8);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Fact]
     public async Task Awk_RuntimeCounterEvidenceBoundsRepeatedUtf8RuneSlicing()
     {
         const int runeCount = 4_096;

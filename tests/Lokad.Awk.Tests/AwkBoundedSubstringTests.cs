@@ -47,6 +47,37 @@ public sealed class AwkBoundedSubstringTests
         Assert.Empty(result.ByteText.AsSpan().ToArray());
     }
 
+    [Theory]
+    [InlineData(false, "é")] [InlineData(true, "é")]
+    [InlineData(false, "a\0é😀e\u0301z")] [InlineData(true, "a\0é😀e\u0301z")]
+    [InlineData(false, "界界界界界界界界界界界界界界界界界界界界界a")]
+    [InlineData(true, "界界界界界界界界界界界界界界界界界界界界界a")]
+    public void ShortScalarSlicesNeedNoWholeTextIndex(bool governed, string input)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using (var state = State(memory.Owner, counters))
+        {
+            var source = AwkValue.FromText(input);
+            var scalars = input.EnumerateRunes().ToArray();
+            foreach (var start in new[] { -1, 0, 1, 2, scalars.Length, scalars.Length + 1, int.MaxValue })
+            foreach (var length in new[] { -1, 0, 1, 2, int.MaxValue })
+            {
+                var expected = length <= 0 ? "" : string.Concat(scalars.Skip(Math.Max(1, start) - 1)
+                    .Take(length).Select(rune => rune.ToString()));
+                var result = AwkBuiltins.EvaluateSubstrValues(state, source,
+                    AwkValue.FromNumber(start), AwkValue.FromNumber(length), 3);
+                Assert.Equal(System.Text.Encoding.UTF8.GetBytes(expected), result.ByteText.AsSpan().ToArray());
+            }
+            var suffix = AwkBuiltins.EvaluateSubstrValues(state, source,
+                AwkValue.FromNumber(2), AwkValue.Unassigned(), 2);
+            Assert.Equal(string.Concat(scalars.Skip(1).Select(rune => rune.ToString())), suffix.ByteText.AsString());
+            Assert.Equal(0, counters.RuneSliceIndexAllocations);
+        }
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, bool bytes = false)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
