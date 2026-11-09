@@ -2,15 +2,16 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private void BeginIteration(AwkRegionIteration site, AwkRegionArrayAccess access, AwkArrayKey key)
+    private void BeginIteration(AwkRegion region, AwkRegionStorage storage,
+        AwkRegionIteration site, AwkRegionArrayAccess access, AwkArrayKey key)
     {
         _state.ThrowIfCancellationRequested();
         AwkArrayTarget target;
         if (access.Path >= 0)
         {
-            var path = _storage.Path(_region.Paths[access.Path].Slot);
+            var path = storage.Path(region.Paths[access.Path].Slot);
             target = new(AwkValue.FromArrayReference(_state.GetSubarray(path.ResolveOwner(_state), path.Key)));
-            _storage.ReleasePath(_region.Paths[access.Path].Slot);
+            storage.ReleasePath(region.Paths[access.Path].Slot);
         }
         else if (access.Key >= 0)
             target = new(AwkValue.FromArrayReference(_state.GetSubarray(access.Name, key, access.Binding)));
@@ -18,32 +19,30 @@ internal partial struct AwkRegionMachine
             target = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
                 ? new(AwkValue.FromArrayReference(array)) : new(access.Name);
         var start = _state.BeginArrayKeySnapshot(target);
-        if (start.NeedsComparisons) _storage.StoreSort(site.Sort, start.Sort);
+        if (start.NeedsComparisons) storage.StoreSort(site.Sort, start.Sort);
         else
         {
             try
             {
                 _state.ThrowIfCancellationRequested();
-                _storage.BeginIterator(site.Iterator, start.Keys);
+                storage.BeginIterator(site.Iterator, start.Keys);
             }
             catch { start.Keys.Dispose(); throw; }
         }
     }
 
-    private bool AdvanceIterationSort(AwkRegionIteration site, int position)
+    private bool AdvanceIterationSort(AwkRegionStorage storage, AwkRegionIteration site, int position)
     {
-        var storage = _storage;
         if (!storage.TryGetSort(site.Sort, out var operation)) return false;
-        if (ScheduleSortComparison(operation, site.CallSlot, site.Comparison, position)) return true;
+        if (ScheduleSortComparison(storage, operation, site.CallSlot, site.Comparison, position)) return true;
         storage.BeginIterator(site.Iterator, operation.TakeKeys());
         storage.ReleaseSort(site.Sort);
         return false;
     }
 
-    private void AssignVariable(int index, AwkValue value)
+    private void AssignVariable(in AwkRegionOperand variable, AwkValue value)
     {
         _state.ThrowIfCancellationRequested();
-        ref readonly var variable = ref _region.Operands[index];
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
             _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
         else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
@@ -52,13 +51,12 @@ internal partial struct AwkRegionMachine
             _state.AssignVariableValue(variable.Name, value);
     }
 
-    private void AssignVariableNumber(int index, double number)
+    private void AssignVariableNumber(in AwkRegionOperand variable, AwkFunctionFrame? frame, double number)
     {
         _state.ThrowIfCancellationRequested();
-        ref readonly var variable = ref _region.Operands[index];
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
         {
-            if (_frame is { } frame && frame.TryWriteNumber(variable.Index, number))
+            if (frame is not null && frame.TryWriteNumber(variable.Index, number))
                 _state.Counters.RecordBoundFrameNumberWrite();
             else _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, AwkValue.FromNumber(number));
         }

@@ -178,10 +178,10 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.Split:
-                    ExecuteSplit(region.Splits[instruction.Left], instruction.Target);
+                    ExecuteSplit(storage, region.Splits[instruction.Left], instruction.Target);
                     break;
                 case AwkRegionInstructionKind.Match:
-                    ExecuteMatch(region.Matches[instruction.Left], instruction.Target);
+                    ExecuteMatch(storage, region.Matches[instruction.Left], instruction.Target);
                     break;
                 case AwkRegionInstructionKind.SortBegin:
                 {
@@ -191,15 +191,15 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.SortAdvance:
-                    if (AdvanceSort(region.Sorts[instruction.Left], instruction.Target, position)) goto Resume;
+                    if (AdvanceSort(storage, region.Sorts[instruction.Left], instruction.Target, position)) goto Resume;
                     break;
                 case AwkRegionInstructionKind.Gensub:
-                    ExecuteGensub(region.Gensubs[instruction.Left], instruction.Target);
+                    ExecuteGensub(storage, region.Gensubs[instruction.Left], instruction.Target);
                     break;
                 case AwkRegionInstructionKind.Substitute:
                 {
                     var substitution = region.Substitutions[instruction.Left];
-                    ExecuteSubstitution(substitution, instruction.Target,
+                    ExecuteSubstitution(storage, substitution, instruction.Target,
                         substitution.Target < 0 ? default : ResolveReference(substitution.Target));
                     break;
                 }
@@ -319,14 +319,14 @@ internal partial struct AwkRegionMachine
                     var iteration = region.Iterations[instruction.Left];
                     var iterated = region.Arrays[iteration.Access];
                     var iterationKey = iterated.Key >= 0 ? Key(iterated) : default;
-                    BeginIteration(iteration, iterated, iterationKey);
+                    BeginIteration(region, storage, iteration, iterated, iterationKey);
                     break;
                 case AwkRegionInstructionKind.IteratorSortAdvance:
-                    if (AdvanceIterationSort(region.Iterations[instruction.Left], position)) goto Resume;
+                    if (AdvanceIterationSort(storage, region.Iterations[instruction.Left], position)) goto Resume;
                     break;
                 case AwkRegionInstructionKind.IteratorNext:
                     if (storage.TryNextKey(instruction.Left, out var nextKey))
-                        AssignVariable(instruction.Right, state.CreateArrayKeyValue(nextKey));
+                        AssignVariable(in operands[instruction.Right], state.CreateArrayKeyValue(nextKey));
                     else position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.IteratorEnd:
@@ -407,10 +407,10 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Assign:
                     var value = Value(instruction.Left);
                     // A region poll cannot replace the check before an observable store.
-                    AssignVariable(instruction.Target, value);
+                    AssignVariable(in operands[instruction.Target], value);
                     break;
                 case AwkRegionInstructionKind.AssignNumber:
-                    AssignVariableNumber(instruction.Target, numbers[instruction.Left]);
+                    AssignVariableNumber(in operands[instruction.Target], frame, numbers[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.ScalarUpdate:
                 {
@@ -424,7 +424,7 @@ internal partial struct AwkRegionMachine
                         : ReadBoundNumber(in operands[update.Right.OperandIndex]);
                     var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
                         rightNumber, (AwkCompoundAssignmentOperation)instruction.Detail);
-                    AssignVariableNumber(update.Variable, updated);
+                    AssignVariableNumber(in operands[update.Variable], frame, updated);
                     numbers[instruction.Target] = updated;
                     break;
                 }

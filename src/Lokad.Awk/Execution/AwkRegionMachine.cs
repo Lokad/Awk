@@ -21,7 +21,6 @@ internal partial struct AwkRegionMachine
     private int _destination;
     private int _flushFieldDemand;
     private double _returningNumber;
-    private AwkFunctionFrame? _enteringFrame;
     private bool _finished;
     private readonly AwkInputScheduler? _mainInput;
     private ValueTask<bool> _mainRead;
@@ -71,16 +70,15 @@ internal partial struct AwkRegionMachine
     {
         frame.SetCaller(_region, _storage, _position, _frame, destination, consumer);
         _state.ActivateFunctionFrame(frame);
+        // The activated frame already has its saved caller. It owns unwinding
+        // even if obtaining or preparing callee scratch fails below.
+        _frame = frame;
         _storage.ActivatedCall(call.Slot);
-        // Retain responsibility if obtaining/preparing callee scratch fails.
-        _enteringFrame = frame;
         var region = call.Function.Region ?? throw new InvalidOperationException("A called function has not been prepared.");
         var storage = frame.GetRegionStorage(_state);
         _region = region;
         _storage = storage;
         _position = 0;
-        _frame = frame;
-        _enteringFrame = null;
         storage.Initialize(region);
         // Activation owns the entry poll. Cold storage and long constant setup
         // retain their admission/bounded checkpoints before preparing fields.
@@ -229,7 +227,7 @@ internal partial struct AwkRegionMachine
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
         if (resumePoint.IsAssignment)
         {
-            AssignVariable(region.Instructions[_position].Target, storage.Values[resumePoint.Destination]);
+            AssignVariable(in region.Operands[region.Instructions[_position].Target], storage.Values[resumePoint.Destination]);
             _position++;
             _state.Counters.RecordCallAssignment(bypassedNumericScratch: false);
         }
@@ -253,7 +251,7 @@ internal partial struct AwkRegionMachine
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
         if (resumePoint.IsAssignment)
         {
-            AssignVariableNumber(region.Instructions[_position].Target, number);
+            AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
             _position++;
             _state.Counters.RecordCallAssignment(resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded);
         }
@@ -269,11 +267,6 @@ internal partial struct AwkRegionMachine
 
     private void UnwindFrames()
     {
-        if (_enteringFrame is not null)
-        {
-            _state.PopFunctionFrame();
-            _enteringFrame = null;
-        }
         while (_frame is { } frame)
         {
             if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))

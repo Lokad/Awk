@@ -38,6 +38,8 @@ or environment dependencies.
   machine continuation. Preserve awaited failure behavior and prepare immediate newline eligibility once.
   Execution location uses direct code/storage/position fields. Saved caller frames describe
   execution ownership, which can differ from the binding stack during retirement and root reentry.
+  Publish the activated frame before preparing callee scratch; its saved caller owns failed-entry
+  unwinding. Computation helpers consume the current canonical operands/storage explicitly.
   Root record completion retains its loaded program/storage view. Reload it for actual context
   switches; preserve published pending-host locations and rule-scratch retirement.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring

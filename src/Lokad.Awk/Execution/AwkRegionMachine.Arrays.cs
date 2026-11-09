@@ -2,11 +2,10 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private bool AdvanceSort(AwkRegionSort site, int result, int position)
+    private bool AdvanceSort(AwkRegionStorage storage, AwkRegionSort site, int result, int position)
     {
-        var storage = _storage;
         var operation = storage.Sort(site.Slot);
-        if (ScheduleSortComparison(operation, site.CallSlot, site.Comparison, position)) return true;
+        if (ScheduleSortComparison(storage, operation, site.CallSlot, site.Comparison, position)) return true;
         storage.Numbers[result] = operation.Publish(storage.ArrayTarget(site.Destination), site.Keys);
         storage.ReleaseSort(site.Slot);
         storage.ReleaseArrayTarget(site.Source);
@@ -15,9 +14,9 @@ internal partial struct AwkRegionMachine
         return false;
     }
 
-    private bool ScheduleSortComparison(AwkArrayRuntime.AwkArraySortOperation operation, int callSlot, int comparison, int position)
+    private bool ScheduleSortComparison(AwkRegionStorage storage, AwkArrayRuntime.AwkArraySortOperation operation,
+        int callSlot, int comparison, int position)
     {
-        var storage = _storage;
         if (operation.IsComparing) operation.AcceptComparison(storage.Numbers[comparison]);
         if (operation.TryNextComparison())
         {
@@ -32,9 +31,8 @@ internal partial struct AwkRegionMachine
         return false;
     }
 
-    private void ExecuteGensub(AwkRegionGensub operation, int result)
+    private void ExecuteGensub(AwkRegionStorage storage, AwkRegionGensub operation, int result)
     {
-        var storage = _storage;
         var pattern = new AwkRegexPattern(storage.Values[operation.Pattern].ByteText, operation.Origin, operation);
         var input = operation.Count == 3 ? storage.Values[operation.Start + 2] : _state.GetCurrentRecordValue();
         storage.StoreValue(result, AwkSubstitutionRuntime.Gensub(Context, pattern,
@@ -43,9 +41,9 @@ internal partial struct AwkRegionMachine
         storage.ReleaseValues(operation.Start, operation.Count);
     }
 
-    private void ExecuteSubstitution(AwkRegionSubstitution operation, int result, AwkResolvedReference reference)
+    private void ExecuteSubstitution(AwkRegionStorage storage, AwkRegionSubstitution operation,
+        int result, AwkResolvedReference reference)
     {
-        var storage = _storage;
         var pattern = new AwkRegexPattern(storage.Values[operation.Pattern].ByteText, operation.Origin, operation);
         using var target = ResolveSubstitutionTarget(reference, operation.Target < 0);
         storage.Numbers[result] = AwkSubstitutionRuntime.Execute(
@@ -65,9 +63,8 @@ internal partial struct AwkRegionMachine
         catch { reference.Dispose(); throw; }
     }
 
-    private void ExecuteMatch(AwkRegionMatch match, int result)
+    private void ExecuteMatch(AwkRegionStorage storage, AwkRegionMatch match, int result)
     {
-        var storage = _storage;
         storage.PrepareByteText(match.Input);
         var pattern = new AwkRegexPattern(storage.Values[match.Pattern].ByteText, match.Origin, match);
         AwkArrayTarget? capture = match.Array < 0 ? null : storage.ArrayTarget(match.Array);
@@ -77,9 +74,8 @@ internal partial struct AwkRegionMachine
         if (match.Array >= 0) storage.ReleaseArrayTarget(match.Array);
     }
 
-    private void ExecuteSplit(AwkRegionSplit split, int result)
+    private void ExecuteSplit(AwkRegionStorage storage, AwkRegionSplit split, int result)
     {
-        var storage = _storage;
         storage.PrepareByteText(split.Input);
         var csv = split.UsesDefault && !split.Patsplit && _state.CsvInput;
         if (split.UsesDefault && !csv)
