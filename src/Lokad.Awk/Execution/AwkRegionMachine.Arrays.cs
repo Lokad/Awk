@@ -22,7 +22,7 @@ internal partial struct AwkRegionMachine
         if (operation.TryNextComparison())
         {
             var call = new AwkRegionCall(operation.Function, callSlot);
-            var frame = storage.BeginCall(call);
+            var frame = storage.BeginCall(in call);
             for (var index = 0; index < 4; index++)
                 _state.StageFunctionValue(frame, index, operation.GetArgument(index));
             _position = position;

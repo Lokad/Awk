@@ -513,7 +513,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.BeginCall:
                     state.ThrowIfCancellationRequested();
-                    storage.BeginCall(region.Calls[instruction.Left]);
+                    storage.BeginCall(in region.Calls[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.Arguments:
                     StageArguments(in region.Calls[instruction.Target], instruction.Left, instruction.Right, instruction.Detail);
@@ -521,6 +521,11 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Call:
                 {
                     ref readonly var call = ref region.Calls[instruction.Left];
+                    if (call.BeginsFrame)
+                    {
+                        state.ThrowIfCancellationRequested();
+                        storage.BeginCall(in call);
+                    }
                     var incomingFrame = StageArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right,
                         call.FinalFieldDemand);
                     _position = position + 1;

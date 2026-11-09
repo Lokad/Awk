@@ -92,7 +92,16 @@ internal sealed partial class AwkRegionCompiler
                 compiler._code.RemoveAt(compiler._code.Count - 1);
                 compiler._straightLine--;
             }
-            compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray(), fieldDemand);
+            // Adjacent preparation belongs to the complete call. Intervening
+            // argument work keeps its incoming frame at the original boundary.
+            var beginsFrame = compiler._code.Count > 0 && compiler._code[^1] is
+                { Kind: AwkRegionInstructionKind.BeginCall } begin && begin.Left == _call;
+            if (beginsFrame)
+            {
+                compiler._code.RemoveAt(compiler._code.Count - 1);
+                compiler._straightLine--;
+            }
+            compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray(), fieldDemand, beginsFrame);
             var returned = compiler._values++;
             compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending));
             compiler._activeCalls--;
