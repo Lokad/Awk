@@ -163,6 +163,10 @@ or environment dependencies.
   Storage views preserve owned references, raw bits and origins without classification or callbacks;
   only the cell role selects their interpretation. Fund slot arrays at their actual element width.
   Resolved values convert at the incoming-frame owner; pure numbers use funded scalar storage.
+  Numeric arguments initialize cleared incoming cells directly at that frame, once per index.
+  Later numeric writes reuse only missing/numeric cells; other roles keep ordinary assignment.
+  Private payload mutation preserves independent value/key projections and prior copies.
+  Retirement clears active cells; inactive capacity was cleared at its previous retirement.
   Known owned keys arrive as keys and construct their immutable local cell at that owner;
   retained text keeps admission and post-admission cancellation before publication.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.

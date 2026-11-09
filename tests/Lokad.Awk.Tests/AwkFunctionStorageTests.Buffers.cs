@@ -158,12 +158,38 @@ public sealed partial class AwkFunctionStorageTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(1)] [InlineData(2)]
+    public void InlineFramesReleasePayloadsAndReuseOtherAritiesAsUnassigned(int count)
+    {
+        using var memory = new CooperativeTestMemory(4 << 20);
+        var stack = Stack(memory);
+        var weak = FillAndPop(stack, count);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(weak.TryGetTarget(out _));
+        foreach (var arity in new[] { 3, 2, 1, 0, 2 })
+        {
+            stack.PushFrame(Layout(arity), []);
+            for (var index = 0; index < arity; index++)
+            {
+                Assert.True(stack.TryResolveLocal(new AwkFunctionLocalSlotId(index), out var local));
+                Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, local.Kind);
+            }
+            stack.PopFrame(static _ => { });
+        }
+        Assert.False(stack.IsInsideFunction);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<object> FillAndPop(AwkFunctionCallStack stack)
+    private static WeakReference<object> FillAndPop(AwkFunctionCallStack stack, int count = 8)
     {
         var text = AwkText.FromString(new string('x', 32_768));
         var value = AwkValue.FromText(text);
-        stack.PushFrame(Layout(8), [AwkFunctionLocalSlot.Scalar(value)]);
+        stack.PushFrame(Layout(count), Enumerable.Repeat(AwkFunctionLocalSlot.Scalar(value), count).ToArray());
         stack.PopFrame(static _ => { });
         return new(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }

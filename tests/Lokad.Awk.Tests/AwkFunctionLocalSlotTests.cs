@@ -7,6 +7,59 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void NumericOwnerWritesPreserveRawBitsAndEarlierSnapshots()
+    {
+        var cell = AwkFunctionLocalSlot.MissingScalar();
+        foreach (var bits in new long[] { 0, long.MinValue, 0x3ff4000000000000,
+            0x7ff0000000000000, unchecked((long)0xfff0000000000000UL),
+            0x7ff8000000000123, 0x7ff0000000000001 })
+        {
+            var snapshot = cell;
+            var prior = cell.Value;
+            var priorBits = BitConverter.DoubleToInt64Bits(prior.StoredNumber);
+            Assert.True(cell.TryWriteNumber(BitConverter.Int64BitsToDouble(bits)));
+            Assert.True(cell.TryReadNumber(out var number));
+            Assert.Equal(bits, BitConverter.DoubleToInt64Bits(number));
+            Assert.Equal(AwkVariableSlotKind.Number, cell.Value.Kind);
+            Assert.Null(cell.Value.StoredReference);
+            Assert.Equal(default, cell.ArrayName);
+            Assert.Equal(prior.Kind, snapshot.Value.Kind);
+            Assert.Equal(priorBits, BitConverter.DoubleToInt64Bits(snapshot.Value.StoredNumber));
+            Assert.Equal(priorBits, BitConverter.DoubleToInt64Bits(prior.StoredNumber));
+        }
+    }
+
+    [Fact]
+    public void NumericOwnerWritesRejectOtherRolesWithoutChangingTheirPayload()
+    {
+        var text = AwkText.FromSourceLiteralString("0007");
+        var origin = new AwkUntypedScalar();
+        var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), long.MaxValue);
+        var array = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
+        AwkFunctionLocalSlot[] cells = [AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromText(text)),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text)),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromPreparedNumericInput(text, 7)),
+            AwkFunctionLocalSlot.Scalar(AwkVariableSlot.Unassigned()),
+            AwkFunctionLocalSlot.ArrayAlias(name, array),
+            AwkFunctionLocalSlot.PotentialArrayAlias(name, AwkValue.FromUntypedScalar(origin)),
+            AwkFunctionLocalSlot.UntypedScalar(AwkValue.FromUntypedScalar(origin)),
+            AwkFunctionLocalSlot.PreparedKey(new("key"))];
+        foreach (var initial in cells)
+        {
+            var cell = initial;
+            Assert.False(cell.TryWriteNumber(42));
+            Assert.Equal(initial.Kind, cell.Kind);
+            Assert.Equal(initial.ArrayName, cell.ArrayName);
+            Assert.Equal(initial.Key, cell.Key);
+            Assert.Equal(initial.Value.Kind, cell.Value.Kind);
+            Assert.Same(initial.Value.StoredReference, cell.Value.StoredReference);
+            Assert.Equal(BitConverter.DoubleToInt64Bits(initial.Value.StoredNumber),
+                BitConverter.DoubleToInt64Bits(cell.Value.StoredNumber));
+        }
+        Assert.False(origin.IsScalar);
+    }
+
+    [Fact]
     public void ScalarCellsPreserveBitsBackingAndOriginsWithoutBoxing()
     {
         foreach (var bits in new long[] { 0, long.MinValue, 0x3ff4000000000000, 0x7ff0000000000000,

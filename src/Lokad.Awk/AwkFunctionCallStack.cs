@@ -152,7 +152,7 @@ internal sealed class AwkFunctionCallStack(
     // Pure numbers publish into funded cells without an intermediate local slot.
     internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value)
     {
-        if (value.IsNumberValue) StageNumber(frame, index, value.AsNumber());
+        if (value.IsNumberValue) frame.StageNumber(index, value.AsNumber());
         else StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
     }
 
@@ -172,12 +172,6 @@ internal sealed class AwkFunctionCallStack(
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
         }
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
-    }
-
-    internal void StageNumber(AwkFunctionFrame frame, int index, double number)
-    {
-        if ((uint)index < (uint)frame.Layout.SlotCount)
-            frame.GetSlot(index) = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
     }
 
     internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array)
@@ -230,7 +224,7 @@ internal sealed class AwkFunctionCallStack(
         if (sourceSlot.TryReadNumber(out var number))
         {
             _counters.RecordNumericLocalRead();
-            StageNumber(incoming, index, number);
+            incoming.StageNumber(index, number);
             return true;
         }
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&

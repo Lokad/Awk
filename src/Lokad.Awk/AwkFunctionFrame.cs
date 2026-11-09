@@ -70,16 +70,21 @@ internal sealed class AwkFunctionFrame
         return slot.TryReadNumber(out number);
     }
 
+    // Argument segments initialize each incoming cell once, while the caller's
+    // bindings remain active. Cleared retained capacity is already funded.
+    internal void StageNumber(int index, double number)
+    {
+        System.Diagnostics.Debug.Assert(IsIncoming);
+        if ((uint)index < (uint)Layout.SlotCount)
+            GetSlot(index).InitializeNumber(number);
+    }
+
     internal bool TryWriteNumber(int index, double number)
     {
         ref var slot = ref GetSlot(index);
         // Numeric and omitted-local cells own no text, alias or pending user. The
         // caller has already checked cancellation before the observable store.
-        if (slot.Kind != AwkFunctionLocalSlotKind.MissingScalar &&
-            !slot.TryReadNumber(out _))
-            return false;
-        slot = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromNumber(number));
-        return true;
+        return slot.TryWriteNumber(number);
     }
 
     public long RetainedMemoryBytes { get; set; }
@@ -147,10 +152,16 @@ internal sealed class AwkFunctionFrame
 
     public void Reset()
     {
-        if (!UsesInlineSlots && Layout.SlotCount > 0) Array.Clear(_slots, 0, Layout.SlotCount);
+        // Inactive storage was cleared when its last activation retired. Clear
+        // only the cells that this activation could have published into.
+        var count = Layout.SlotCount;
+        if (count > 2) Array.Clear(_slots, 0, count);
+        else
+        {
+            if (count > 0) _firstSlot = default;
+            if (count > 1) _secondSlot = default;
+        }
         Layout = AwkFunctionLocalLayout.Empty;
-        _firstSlot = default;
-        _secondSlot = default;
         RetainedMemoryBytes = 0;
         IsIncoming = false;
         ReconcileEnd = 0;
@@ -166,13 +177,13 @@ internal sealed class AwkFunctionFrame
     }
 }
 
-internal readonly struct AwkFunctionLocalSlot
+internal struct AwkFunctionLocalSlot
 {
     // Scalar and key payloads are mutually exclusive. The role selects the meaning
     // of these owning words; array names retain their full independent identity.
     private readonly object? _reference;
-    private readonly long _word;
-    private readonly int _payloadTag;
+    private long _word;
+    private int _payloadTag;
 
     private AwkFunctionLocalSlot(
         AwkFunctionLocalSlotKind kind,
@@ -195,21 +206,21 @@ internal readonly struct AwkFunctionLocalSlot
         ArrayName = default;
     }
 
-    public AwkFunctionLocalSlotKind Kind { get; }
+    public AwkFunctionLocalSlotKind Kind { readonly get; private set; }
 
     // Cleared cells are missing locals. Their language value is unassigned,
     // independently of the ordinary scalar slot's text-valued default.
-    public AwkVariableSlot Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key
+    public readonly AwkVariableSlot Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key
         ? AwkVariableSlot.Unassigned()
         : AwkVariableSlot.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkVariableSlotKind)_payloadTag);
 
     public AwkArrayName ArrayName { get; }
 
     // Only prepared key consumers read this owning value. It never borrows a record.
-    public AwkArrayKey Key => Kind == AwkFunctionLocalSlotKind.Key
+    public readonly AwkArrayKey Key => Kind == AwkFunctionLocalSlotKind.Key
         ? AwkArrayKey.FromStorage(AwkText.FromBacking(_reference), unchecked((int)_word), _payloadTag) : default;
 
-    internal bool TryReadNumber(out double number)
+    internal readonly bool TryReadNumber(out double number)
     {
         if (Kind == AwkFunctionLocalSlotKind.Scalar && _payloadTag == (int)AwkVariableSlotKind.Number)
         {
@@ -218,6 +229,30 @@ internal readonly struct AwkFunctionLocalSlot
         }
         number = 0;
         return false;
+    }
+
+    // The frame owns this storage. Only cleared/numeric cells can reuse their
+    // payload words; all other roles retain ordinary admission and retirement.
+    // Value/key projections and copies remain independent snapshots.
+    internal bool TryWriteNumber(double number)
+    {
+        if (Kind == AwkFunctionLocalSlotKind.MissingScalar)
+        {
+            InitializeNumber(number);
+            return true;
+        }
+        if (Kind != AwkFunctionLocalSlotKind.Scalar || _payloadTag != (int)AwkVariableSlotKind.Number)
+            return false;
+        _word = BitConverter.DoubleToInt64Bits(number);
+        return true;
+    }
+
+    internal void InitializeNumber(double number)
+    {
+        System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        _word = BitConverter.DoubleToInt64Bits(number);
+        _payloadTag = (int)AwkVariableSlotKind.Number;
+        Kind = AwkFunctionLocalSlotKind.Scalar;
     }
 
     public static AwkFunctionLocalSlot PreparedKey(AwkArrayKey key) =>

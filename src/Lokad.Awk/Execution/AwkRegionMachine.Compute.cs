@@ -822,7 +822,7 @@ internal partial struct AwkRegionMachine
                 switch (argument.Kind)
                 {
                     case AwkRegionArgumentKind.Number:
-                        state.StageFunctionNumber(incoming, index, numbers[argument.Index]);
+                        incoming.StageNumber(index, numbers[argument.Index]);
                         break;
                     case AwkRegionArgumentKind.Local:
                         state.StageFunctionLocalArgument(new(argument.Index), argument.Name, incoming, index,
@@ -846,7 +846,7 @@ internal partial struct AwkRegionMachine
                             state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
                         if (argument.Consumption == AwkParameterInput.Arithmetic &&
                             state.TryGetFieldArithmeticNumber(ordinal, out var fieldNumber))
-                            state.StageFunctionNumber(incoming, index, fieldNumber);
+                            incoming.StageNumber(index, fieldNumber);
                         else
                         {
                             // Deferred errors and owned spellings retain ordinary value capture.

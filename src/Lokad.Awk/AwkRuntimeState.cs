@@ -436,7 +436,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout) => _functions.PrepareFrame(layout);
     internal void StageFunctionArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument) => _functions.StageArgument(frame, index, in argument);
     internal void StageFunctionValue(AwkFunctionFrame frame, int index, in AwkValue value) => _functions.StageValue(frame, index, in value);
-    internal void StageFunctionNumber(AwkFunctionFrame frame, int index, double number) => _functions.StageNumber(frame, index, number);
     internal void ActivateFunctionFrame(AwkFunctionFrame frame)
     {
         _functions.ActivateFrame(frame);
@@ -779,7 +778,7 @@ internal sealed class AwkRuntimeState : IDisposable
                     if (slot.TryGetNumber(out var number))
                     {
                         Counters.RecordNumericGlobalRead();
-                        _functions.StageNumber(incoming, index, number);
+                        incoming.StageNumber(index, number);
                     }
                     else if (prepareKey && slot.TryGetStoredScalarText(out var text))
                         _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint));
