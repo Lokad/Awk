@@ -188,13 +188,20 @@ internal partial struct AwkRegionMachine
             storage.StoreValue(resumePoint.Destination, value);
     }
 
-    private void Finish(AwkStatementFlow flow)
+    // Only root record flow keeps the currently loaded code/storage view.
+    // Calls and returns still switch to the saved execution location.
+    private bool Finish(AwkStatementFlow flow)
     {
         if (_frame is null)
         {
-            if (IsProcessingMainRecord) CompleteMainFlow(flow);
-            else { Flow = flow; _finished = true; }
-            return;
+            if (IsProcessingMainRecord)
+            {
+                CompleteMainFlow(flow);
+                return true;
+            }
+            Flow = flow;
+            _finished = true;
+            return false;
         }
         if (flow != AwkStatementFlow.Continue)
         {
@@ -202,6 +209,7 @@ internal partial struct AwkRegionMachine
             throw new AwkFunctionFlowSignal(flow);
         }
         Return(AwkValue.Unassigned());
+        return false;
     }
 
     private void Return(AwkValue value)

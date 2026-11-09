@@ -14,6 +14,7 @@ internal partial struct AwkRegionMachine
         AwkRegionOperand[] operands;
         AwkFunctionFrame? frame;
         double[] numbers;
+        var position = 0;
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
@@ -23,7 +24,9 @@ internal partial struct AwkRegionMachine
         instructions = region.Instructions;
         operands = region.Operands;
         numbers = storage.Numbers;
-        for (var position = _position; position < instructions.Length; position++)
+        position = _position;
+    Execute:
+        for (; position < instructions.Length; position++)
         {
             ref readonly var instruction = ref instructions[position];
             switch (instruction.Kind)
@@ -671,14 +674,22 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Flow:
                     state.ThrowIfCancellationRequested();
-                    Finish((AwkStatementFlow)instruction.Detail);
+                    if (Finish((AwkStatementFlow)instruction.Detail)) goto ContinueRoot;
                     goto Resume;
                 default:
                     throw new InvalidOperationException("Unknown bound region operation.");
             }
         }
-        Finish(AwkStatementFlow.Continue);
+        if (Finish(AwkStatementFlow.Continue)) goto ContinueRoot;
         goto Resume;
+
+    ContinueRoot:
+        // Root retirement keeps this program and its funded storage. Actual
+        // pending host work retains the same published continuation as before.
+        if (_pending != Pending.None && !TryCompletePending()) return false;
+        if (_finished) return true;
+        position = _position;
+        goto Execute;
 
         bool TryLocalNumber(int index, out double number)
         {

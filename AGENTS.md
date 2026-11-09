@@ -38,6 +38,8 @@ or environment dependencies.
   machine continuation. Preserve awaited failure behavior and prepare immediate newline eligibility once.
   Execution location uses direct code/storage/position fields. Saved caller frames describe
   execution ownership, which can differ from the binding stack during retirement and root reentry.
+  Root record completion retains its loaded program/storage view. Reload it for actual context
+  switches; preserve published pending-host locations and rule-scratch retirement.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring
   key scratch and evaluating the RHS. Only cross-instruction captures need retained target slots
   and rule cleanup. Fund ordinary key/cell holding with target capacity and larger live captures
