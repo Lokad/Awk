@@ -15,6 +15,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
     internal int CurrentSlot => _currentSlot;
     internal ReadOnlyMemory<byte> Content => ContentAt(_currentSlot);
     internal ReadOnlyMemory<byte> ContentAt(int slot) => BufferAt(slot).Content;
+    internal bool IsKnownAsciiAt(int slot) => BufferAt(slot).IsKnownAscii;
 
     internal static bool CanStage(int length) => length is > 0 and <= MaxReusableRecordBytes;
 
@@ -47,6 +48,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         buffer.Append(bytes, checkpoint);
         checkpoint();
         next.SetOwned();
+        next.IsKnownAscii = false;
         _currentSlot = nextSlot;
         counters.RecordBufferedInputRecord(reused);
         counters.RecordInputRecordCopy(bytes.Length);
@@ -54,6 +56,9 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
 
     internal void StageBorrowed(AwkByteReader reader, ReadOnlyMemory<byte> bytes)
     {
+        // The cursor supplies a slice of this immutable reader borrow. Capture its
+        // proof with the bytes, before admission; promotion preserves both together.
+        var knownAscii = reader.ContentIsAscii;
         var nextSlot = _currentSlot ^ 1;
         ref var next = ref BufferAt(nextSlot);
         _ = Prepare(ref next, bytes.Length, out var reused);
@@ -61,6 +66,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         reader.AttachRecordStorage(this);
         next.Borrower = reader;
         next.BorrowedBytes = bytes;
+        next.IsKnownAscii = knownAscii;
         _currentSlot = nextSlot;
         counters.RecordBufferedInputRecord(reused, borrowed: true);
     }
@@ -96,6 +102,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         internal AwkUtf8Builder? Buffer;
         internal AwkByteReader? Borrower;
         internal ReadOnlyMemory<byte> BorrowedBytes;
+        internal bool IsKnownAscii;
         internal readonly ReadOnlyMemory<byte> Content => Borrower is not null
             ? BorrowedBytes : Buffer?.AsMemory() ?? ReadOnlyMemory<byte>.Empty;
 
@@ -108,6 +115,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         internal void Dispose()
         {
             SetOwned();
+            IsKnownAscii = false;
             Buffer?.Dispose();
             Buffer = null;
         }

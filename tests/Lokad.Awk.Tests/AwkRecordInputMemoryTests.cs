@@ -4,6 +4,62 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordInputMemoryTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task SlotAsciiProofSurvivesPromotionAndResetsForNewBytes(bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        var host = new InputHost(memory.Budget, "a b\n", "é\n") { PoisonConsumedBytes = true };
+        using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), false, 4 << 10);
+        using var storage = new AwkRecordStorage(memory.Accounting, counters, static () => { });
+
+        Assert.True(await reader.TryBufferAsync());
+        Assert.True(reader.ContentIsAscii);
+        storage.StageBorrowed(reader, reader.Content[..^1]);
+        var asciiSlot = storage.CurrentSlot;
+        Assert.True(storage.IsKnownAsciiAt(asciiSlot));
+        reader.Advance(reader.Content.Length);
+        reader.ReleaseBorrow();
+        Assert.False(reader.ContentIsAscii);
+        Assert.True(storage.IsKnownAsciiAt(asciiSlot));
+        Assert.Equal("a b"u8.ToArray(), storage.ContentAt(asciiSlot).ToArray());
+
+        Assert.True(await reader.TryBufferAsync());
+        Assert.False(reader.ContentIsAscii);
+        storage.StageBorrowed(reader, reader.Content[..^1]);
+        Assert.False(storage.IsKnownAsciiAt(storage.CurrentSlot));
+        reader.Advance(reader.Content.Length);
+        reader.ReleaseBorrow();
+        Assert.Equal("é"u8.ToArray(), storage.Content.ToArray());
+        Assert.False(storage.IsKnownAsciiAt(storage.CurrentSlot));
+        storage.StageValidated("😀"u8);
+        Assert.Equal(asciiSlot, storage.CurrentSlot);
+        Assert.False(storage.IsKnownAsciiAt(asciiSlot));
+        storage.Dispose();
+        Assert.False(storage.IsKnownAsciiAt(0));
+        Assert.False(storage.IsKnownAsciiAt(1));
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task AsciiAndUnicodeBatchesKeepScalarLengthsAfterMutation(bool governed)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new InputHost(budget, "aa bb\n", "cc d\n", "é😀 x\n") { PoisonConsumedBytes = true };
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        const string source = "{print length($1),length($2);if(NR==1){$2=\"é\";print length($2),$0}}END{print length($1),$0}";
+        var exit = await AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors(
+            "awk", [source], [])).ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("2 2\n1 aa é\n2 1\n2 1\n2 é😀 x\n", host.Output);
+        Assert.Equal("", host.Error);
+        AssertRefunded(budget);
+    }
+
     public static IEnumerable<object[]> RetainedRecordCases()
     {
         var cases = new (string Source, string Output, string[] Batches)[]

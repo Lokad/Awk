@@ -396,6 +396,12 @@ internal sealed class AwkFieldFrame(
             length = field.RuneLength;
             return true;
         }
+        if (field.Kind == AwkFieldTextKind.RecordSlice && _bufferedStorage is { } storage &&
+            storage.IsKnownAsciiAt(_bufferedSlot))
+        {
+            length = field.ByteLength();
+            return true;
+        }
         var bytes = field.BytesInRecord(RecordBytes());
         length = AwkText.CountRunes(bytes, checkpoint);
         checkpoint?.Invoke();

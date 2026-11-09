@@ -127,6 +127,9 @@ or environment dependencies.
   cached view. Main-input staging uses the inactive slot; getline keeps owned input. Escaping
   values own text and raw spans stay synchronous. Preserve publication preflights and funding
   through actual users and cleanup.
+  Record slots retain the reader's positive ASCII proof with their bytes through promotion;
+  unproved replacements and disposal clear it. Field lengths consume that canonical proof without
+  another whole-record scan or a duplicate frame flag.
 - A crossing newline copies only the required prefix. Preserve the uncopied suffix through RS
   changes and transfer all read-ahead before releasing a stdin borrow. Invalid record-value
   caches need no dummy text value; genuine initialization and observed-value origins stay distinct.

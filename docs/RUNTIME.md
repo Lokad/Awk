@@ -83,6 +83,8 @@ including source files. Complete prefix records precede a read-error diagnostic;
 failed record is never published as successful EOF. An explicit later getline may attempt a
 new read after returning -1; Awk does not automatically retry a failed operation.
 The reader can reuse proof that an immutable borrow is ASCII for its record slices.
+The record slot preserves that proof through promotion, allowing field lengths to use byte
+length directly. Replacement bytes without proof retain ordinary scalar counting.
 Other records retain strict validation; inspecting later bytes never rejects them early.
 Current records may reference the live read borrow. Before retiring it, Awk preserves retained
 record bytes in already-funded storage; escaping scalar values own their text.

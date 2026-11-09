@@ -2026,6 +2026,24 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task AsciiFieldLengthsConsumeTheInputProofWithoutScalarScans()
+    {
+        const int rows = 1_000;
+        var result = await RunAsync(["{n+=length($1)+length($2)}END{print n}"],
+            string.Concat(Enumerable.Repeat("alpha beta\n", rows)));
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("9000\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.FieldRuneBytesScanned);
+        Assert.Equal(0, result.Counters.TextValueClassifications);
+        Assert.InRange(result.Counters.AwkTextAllocations, 0, 2);
+        Assert.True(result.Counters.BorrowedInputRecords > 0);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+        Assert.Equal(0, result.FileSystem.OpenFileCount);
+    }
+
+    [Fact]
     public async Task ShortUtf8FieldSubstringsDoNotBuildWholeTextIndexes()
     {
         const int rows = 1_000;
