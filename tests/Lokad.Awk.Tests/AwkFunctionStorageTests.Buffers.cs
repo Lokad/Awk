@@ -4,22 +4,26 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkFunctionStorageTests
 {
-    [Fact]
-    public void GovernedWarmFramesReuseTheirFundedBackingWithoutPerCallArrays()
+    [Theory]
+    [InlineData(1)] [InlineData(2)] [InlineData(5)] [InlineData(8)]
+    public void GovernedWarmFramesReuseTheirFundedBackingWithoutPerCallArrays(int count)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         var stack = Stack(memory);
-        var layout = Layout(8);
+        var layout = Layout(count);
         AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))];
         for (var i = 0; i < 100; i++) Cycle();
         stack.PushFrame(layout, arguments);
         Assert.True(stack.TryResolveLocalValue(new AwkFunctionLocalSlotId(0), out var value));
         Assert.Equal(42, value.Value.AsNumber());
-        Assert.True(stack.TryResolveLocal(new AwkFunctionLocalSlotId(7), out var missing));
-        Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, missing.Kind);
+        if (count > 1)
+        {
+            Assert.True(stack.TryResolveLocal(new AwkFunctionLocalSlotId(count - 1), out var missing));
+            Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, missing.Kind);
+        }
         stack.PopFrame(static _ => { });
         var retained = memory.Budget.Reserved;
-        Assert.True(retained >= 8 * Unsafe.SizeOf<AwkFunctionLocalSlot>());
+        Assert.True(retained >= count * Unsafe.SizeOf<AwkFunctionLocalSlot>());
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 10_000; i++) Cycle();
         Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
@@ -160,7 +164,7 @@ public sealed partial class AwkFunctionStorageTests
 
     [Theory]
     [InlineData(1)] [InlineData(2)]
-    public void InlineFramesReleasePayloadsAndReuseOtherAritiesAsUnassigned(int count)
+    public void FramesReleasePayloadsAndReuseOtherAritiesAsUnassigned(int count)
     {
         using var memory = new CooperativeTestMemory(4 << 20);
         var stack = Stack(memory);

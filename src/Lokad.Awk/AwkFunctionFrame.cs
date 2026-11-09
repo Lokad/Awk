@@ -45,24 +45,17 @@ internal enum AwkParameterInput : byte { Value, Arithmetic, Key }
 
 internal sealed class AwkFunctionFrame
 {
-    private AwkFunctionLocalSlot _firstSlot;
-    private AwkFunctionLocalSlot _secondSlot;
     private AwkFunctionLocalSlot[] _slots = [];
 
     // The call stack funds retained capacity, including across smaller activations.
     public AwkFunctionLocalLayout Layout { get; private set; } = AwkFunctionLocalLayout.Empty;
-
-    public bool UsesInlineSlots => Layout.SlotCount is 1 or 2;
 
     public int SlotCapacity => _slots.Length;
 
     // Only the call stack retires backing from an inactive, cleared frame.
     public void DiscardSlotBuffer() => _slots = [];
 
-    public ref AwkFunctionLocalSlot GetSlot(int index) =>
-        ref (UsesInlineSlots
-            ? ref (index == 0 ? ref _firstSlot : ref _secondSlot)
-            : ref _slots[index]);
+    public ref AwkFunctionLocalSlot GetSlot(int index) => ref _slots[index];
 
     internal bool TryReadNumber(int index, out double number)
     {
@@ -129,7 +122,7 @@ internal sealed class AwkFunctionFrame
 
     public void Initialize(long id, AwkFunctionLocalLayout layout)
     {
-        if (layout.SlotCount > 2 && _slots.Length == 0)
+        if (layout.SlotCount > 0 && _slots.Length == 0)
             _slots = new AwkFunctionLocalSlot[layout.SlotCount];
         Id = id;
         Layout = layout;
@@ -155,12 +148,7 @@ internal sealed class AwkFunctionFrame
         // Inactive storage was cleared when its last activation retired. Clear
         // only the cells that this activation could have published into.
         var count = Layout.SlotCount;
-        if (count > 2) Array.Clear(_slots, 0, count);
-        else
-        {
-            if (count > 0) _firstSlot = default;
-            if (count > 1) _secondSlot = default;
-        }
+        Array.Clear(_slots, 0, count);
         Layout = AwkFunctionLocalLayout.Empty;
         RetainedMemoryBytes = 0;
         IsIncoming = false;

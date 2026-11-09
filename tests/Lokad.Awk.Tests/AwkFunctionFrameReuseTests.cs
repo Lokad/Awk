@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Lokad.Awk.Tests;
 
 [Collection(AwkAllocationMeasurementCollection.Name)]
-public sealed class AwkInlinePairFrameTests
+public sealed class AwkFunctionFrameReuseTests
 {
     [Theory]
     [InlineData(false)]
@@ -21,7 +21,7 @@ public sealed class AwkInlinePairFrameTests
             var layout = new AwkFunctionLocalLayout(names[..count]);
             var args = Enumerable.Range(0, count == 2 ? 1 : count)
                 .Select(index => AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(20 + index))).ToArray();
-            Assert.Equal(count is 1 or 2, stack.PushFrame(layout, args));
+            stack.PushFrame(layout, args);
             try
             {
                 for (var index = 0; index < count; index++)

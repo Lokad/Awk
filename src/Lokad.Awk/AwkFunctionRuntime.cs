@@ -50,7 +50,7 @@ internal sealed class AwkFunctionRuntime
     public bool TryGetBoundArray(AwkFunctionLocalSlotId slot, [NotNullWhen(true)] out AwkArrayIdentity? array,
         bool promote = false) => _calls.TryGetBoundArray(slot, out array, promote);
 
-    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments) =>
+    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments) =>
         _calls.PushFrame(layout, arguments);
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout) => _calls.PrepareFrame(layout);

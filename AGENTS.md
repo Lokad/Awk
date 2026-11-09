@@ -208,7 +208,9 @@ or environment dependencies.
   general operands or names. Adjacent bound-scalar assignment descriptors can be consumed
   after restoring caller scope. Used results and escaping text retain funded snapshots;
   discarded numeric results retire any old scratch payload without value transport.
-- Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already
+- Function locals use one contiguous funded cell array for every arity. Keep indexed access
+  direct; do not restore separate inline cells, arity-based storage paths or their counters.
+  Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already
   represent missing arguments with an unassigned value; retire prior references before reuse,
   without another omitted-local initialization traversal. Reconcile actual mutable arguments
   before registering aliases.

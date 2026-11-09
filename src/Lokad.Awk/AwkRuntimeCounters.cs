@@ -489,14 +489,6 @@ internal sealed class AwkRuntimeCounters
     }
 
 
-    private long _inlineFunctionFrames;
-    public long InlineFunctionFrames => Volatile.Read(ref _inlineFunctionFrames);
-
-    public void RecordInlineFunctionFrame()
-    {
-        if (_enabled) Interlocked.Increment(ref _inlineFunctionFrames);
-    }
-
     private long _hostCalls;
     public long HostCalls => Volatile.Read(ref _hostCalls);
 

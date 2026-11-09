@@ -790,6 +790,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(16, result.Counters.FunctionFramesPrepared);
+        Assert.Equal(1, result.Counters.FunctionSlotBufferAllocations);
         Assert.Equal(16, result.Counters.BoundFunctionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
@@ -858,7 +860,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("file \nhelper 2\nnested 3\ncaller local\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.InlineFunctionFrames);
         Assert.Equal(1, result.Counters.RecordsRead);
     }
 
@@ -883,14 +884,15 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    internal async Task ParsedPairCallsReuseInlineFrames()
+    internal async Task ParsedPairCallsReuseFundedFrames()
     {
         const string source = "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
         var result = await RunAsync([source], "7\n7\n");
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(16, result.Counters.InlineFunctionFrames);
+        Assert.Equal(16, result.Counters.FunctionFramesPrepared);
+        Assert.Equal(1, result.Counters.FunctionSlotBufferAllocations);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -958,7 +960,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(result.Counters.NumericFieldByteParses >= 4);
         Assert.InRange(result.Counters.AwkTextAllocations, 0, 8);
-        Assert.Equal(12, result.Counters.InlineFunctionFrames);
         Assert.Equal(3, result.Counters.FieldListBufferReuses);
         Assert.Equal(12, result.Counters.BoundFunctionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
@@ -990,7 +991,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("8 3 11 1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(3, result.Counters.InlineFunctionFrames);
     }
 
     [Fact]

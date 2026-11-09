@@ -59,7 +59,7 @@ internal sealed class AwkFunctionCallStack(
 
     // Existing callers provide evaluated arguments. Bound execution stages directly
     // into the same owner before activation, without making callee locals visible.
-    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
+    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
     {
         if (_depth >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
@@ -72,7 +72,6 @@ internal sealed class AwkFunctionCallStack(
                 StageArgument(frame, index, arguments[index]);
             }
             ActivateFrame(frame);
-            return frame.UsesInlineSlots;
         }
         catch
         {
@@ -86,7 +85,7 @@ internal sealed class AwkFunctionCallStack(
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout)
     {
         if (_recycledFrames.TryPeek(out var cached) &&
-            (layout.SlotCount <= 2 || cached.SlotCapacity >= layout.SlotCount))
+            cached.SlotCapacity >= layout.SlotCount)
         {
             var frame = _recycledFrames.Pop();
             frame.Initialize(++_nextFrameId, layout);
@@ -110,7 +109,7 @@ internal sealed class AwkFunctionCallStack(
         var newFrame = _recycledFrames.Count == 0;
         var cached = newFrame ? null : _recycledFrames.Peek();
         var bufferBytes = 0L;
-        var capacity = layout.SlotCount > 2 ? layout.SlotCount : 0;
+        var capacity = layout.SlotCount;
         if (cached is not null)
         {
             var retiredBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(cached.SlotCapacity);

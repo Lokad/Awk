@@ -424,8 +424,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkFunctionLocalLayout layout,
         ReadOnlySpan<AwkFunctionLocalSlot> arguments)
     {
-        if (_functions.PushFrame(layout, arguments))
-            Counters.RecordInlineFunctionFrame();
+        _functions.PushFrame(layout, arguments);
     }
 
     public void PopFunctionFrame()
@@ -439,7 +438,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void ActivateFunctionFrame(AwkFunctionFrame frame)
     {
         _functions.ActivateFrame(frame);
-        if (frame.UsesInlineSlots) Counters.RecordInlineFunctionFrame();
     }
     internal void DiscardIncomingFunctionFrame(AwkFunctionFrame frame) => _functions.DiscardIncomingFrame(frame);
 
