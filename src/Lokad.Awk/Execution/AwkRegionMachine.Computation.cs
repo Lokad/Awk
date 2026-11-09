@@ -94,10 +94,11 @@ internal partial struct AwkRegionMachine
             return;
         }
 
-        internal bool TryLocalNumber(int index, out double number)
+        internal bool TryLocalNumericScalar(int index, out double number)
         {
             if (frame is null) throw new InvalidOperationException("A bound local requires an active function frame.");
-            if (!frame.TryReadNumber(index, out number)) return false;
+            if (!frame.TryReadNumber(index, out number) &&
+                !frame.TryReadNumericScalar(index, out number, state.CancellationCheckpoint)) return false;
             state.Counters.RecordNumericLocalRead();
             return true;
         }
@@ -392,7 +393,7 @@ internal partial struct AwkRegionMachine
                 }
                 case AwkRegionOperandKind.LocalVariable:
                 {
-                    return frame is not null && TryLocalNumber(operand.Index, out var number) ? number :
+                    return frame is not null && TryLocalNumericScalar(operand.Index, out var number) ? number :
                         state.ResolveFunctionLocalValue(new(operand.Index), operand.Name).AsNumber(state.CancellationCheckpoint);
                 }
                 case AwkRegionOperandKind.SpecialVariable:
@@ -405,7 +406,7 @@ internal partial struct AwkRegionMachine
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        internal bool TryNumberOperand(int location, out double number)
+        internal bool TryNumericScalarOperand(int location, out double number)
         {
             var source = new AwkRegionNumberSource(location);
             if (source.IsRegister)
@@ -413,23 +414,20 @@ internal partial struct AwkRegionMachine
                 number = numbers[source.RegisterIndex];
                 return true;
             }
-            return TryStoredNumber(source.OperandIndex, out number);
+            return TryStoredNumericScalar(source.OperandIndex, out number);
         }
 
         // Failed storage probes have no admission, insertion, conversion or
         // diagnostic effects; the ordinary operand path owns those.
-        internal bool TryStoredNumber(int index, out double number)
+        private bool TryStoredNumericScalar(int index, out double number)
         {
             var operand = operands[index];
-            if (operand.Kind == AwkRegionOperandKind.ValueTemporary && storage.Values[operand.Index].IsNumberValue)
-            {
-                number = storage.Values[operand.Index].AsNumber();
-                return true;
-            }
+            if (operand.Kind == AwkRegionOperandKind.ValueTemporary)
+                return storage.Values[operand.Index].TryGetStoredComparisonNumber(out number, state.CancellationCheckpoint);
             if (operand.Kind == AwkRegionOperandKind.GlobalVariable)
                 return state.TryResolvePreparedGlobalNumber(operand.Index, out number);
             if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null)
-                return TryLocalNumber(operand.Index, out number);
+                return TryLocalNumericScalar(operand.Index, out number);
             number = 0;
             return false;
         }

@@ -346,6 +346,18 @@ internal readonly struct AwkValue
         return HasComparisonNumber;
     }
 
+    // Consume an existing fact without classifying text, promoting an origin or
+    // forcing a deferred error. Failed probes leave ordinary evaluation in charge.
+    internal bool TryGetStoredComparisonNumber(out double number, Action? checkpoint)
+    {
+        number = _number;
+        if (!HasComparisonNumber || _kind == AwkValueKind.Untyped) return false;
+        if (_kind == AwkValueKind.NumericString &&
+            AwkText.FromBacking(_text).ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+            checkpoint?.Invoke();
+        return true;
+    }
+
     internal bool HasInputConversionError => _kind == AwkValueKind.NonDecimalConversionErrorInput;
 
     public bool IsNumberValue => _kind == AwkValueKind.Number;

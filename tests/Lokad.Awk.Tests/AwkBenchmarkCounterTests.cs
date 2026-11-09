@@ -1100,7 +1100,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(multiple ? "186\n" : "40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(multiple ? 30 : 14, result.Counters.NumericLocalReads);
+        // The first input-origin argument also consumes its stored numeric fact.
+        Assert.Equal(multiple ? 32 : 16, result.Counters.NumericLocalReads);
         Assert.Equal(16, result.Counters.BoundFunctionRuns);
     }
 

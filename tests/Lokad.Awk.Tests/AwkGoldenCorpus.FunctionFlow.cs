@@ -10,6 +10,13 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        const string numericFactsSource = "function check(a,b,r){r=(a<b)\" \"(a==b)\" \"(a>b);print r,\"[\"a\"]\",\"[\"b\"]\";return a}{saved=check($1,$2);check($1,\"010\");check(\"010\",$1);check($1,10);check(10,$1);print \"[\"saved\"]\"}";
+        const string decimalFactsOutput = "0 0 1 [010] [2]\n0 1 0 [010] [010]\n0 1 0 [010] [010]\n0 1 0 [010] [10]\n0 1 0 [10] [010]\n[010]\n";
+        yield return Passing("function-numeric-facts-preserve-origins-default", [numericFactsSource], [], decimalFactsOutput, "010 2\n");
+        yield return Passing("function-numeric-facts-preserve-origins-posix", ["--posix", numericFactsSource], [], decimalFactsOutput, "010 2\n");
+        yield return Passing("function-numeric-facts-preserve-origins-traditional", ["--traditional", numericFactsSource], [], decimalFactsOutput, "010 2\n");
+        yield return Passing("function-numeric-facts-preserve-origins-nondecimal", ["--non-decimal-data", numericFactsSource], [],
+            "0 0 1 [010] [2]\n0 1 0 [010] [010]\n0 1 0 [010] [010]\n1 0 0 [010] [10]\n0 0 1 [10] [010]\n[010]\n", "010 2\n");
         const string storageModeSource = "function pass(x,t){t=x;return t}function show(x,y){y=pass(x);print \"[\" y \"]\",y+0,(y==10),(y==8)}{show($1);show(\"010\");show(substr(\"0x10\",1));show($1 \"\");print \"[\" $1 \"]\"}";
         const string decimalStorageOutput = "[010] 10 1 0\n[010] 10 0 0\n[0x10] 0 0 0\n[010] 10 0 0\n[010]\n";
         yield return Passing("function-value-storage-mode-default", [storageModeSource], [], decimalStorageOutput, "010\n");

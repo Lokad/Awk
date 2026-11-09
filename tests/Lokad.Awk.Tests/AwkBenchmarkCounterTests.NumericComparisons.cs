@@ -4,6 +4,39 @@ public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task NumericInputFactsKeepSpellingWithoutRepeatedGeneralLocalReads(bool governed)
+    {
+        async Task<(MockFileSystem Host, AwkRuntimeCounters Counters)> Run(int count)
+        {
+            var source = "function read(a,b,n,i,s){for(i=0;i<n;i++){s+=(a<b)+(a==b)+(b>a);s+=a}" +
+                "print s,\"[\"a\"]\",typeof(a);return a}{x=read($1,$2," + count + ");print \"[\"x\"]\",typeof(x)}";
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var host = new MockFileSystem();
+            host.SetStandardInput("001 2\n");
+            await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+            var exit = await program.ExecuteAsync(host, CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            return (host, counters);
+        }
+
+        var shortRun = await Run(8);
+        var longRun = await Run(128);
+        Assert.Equal("24 [001] strnum\n[001] strnum\n", shortRun.Host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("384 [001] strnum\n[001] strnum\n", longRun.Host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(shortRun.Counters.ScalarLocalValueReads, longRun.Counters.ScalarLocalValueReads);
+        Assert.True(longRun.Counters.NumericLocalReads > shortRun.Counters.NumericLocalReads);
+        Assert.Equal(shortRun.Counters.ValuesCreated, longRun.Counters.ValuesCreated);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task ComparisonBranchesKeepUnorderedValuesAcrossPreparationBoundaries(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);

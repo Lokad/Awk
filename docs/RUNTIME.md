@@ -380,6 +380,8 @@ later callbacks cannot change the captured value. Array aliases and untyped orig
 Function cells retain scalar values directly, preserving spelling and input origins without rebuilding
 a value on each read. Mode-sensitive input is classified at the frame owner; conversion errors remain
 deferred until numeric use, and long input reads retain cancellation coverage.
+Arithmetic and numeric-pair comparisons consume stored scalar facts without changing their
+spelling or input origins. General comparisons retain original captures before RHS effects.
 Only actual array/untyped arguments need entry reconciliation; alias registration still follows
 it, preserving later-argument mutation and admission order.
 Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted

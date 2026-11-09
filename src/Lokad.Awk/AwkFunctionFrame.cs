@@ -63,6 +63,15 @@ internal sealed class AwkFunctionFrame
         return slot.TryReadNumber(out number);
     }
 
+    internal bool TryReadNumericScalar(int index, out double number, Action? checkpoint)
+    {
+        ref readonly var slot = ref GetSlot(index);
+        if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
+            return slot.Value.TryGetStoredComparisonNumber(out number, checkpoint);
+        number = 0;
+        return false;
+    }
+
     // Argument segments initialize each incoming cell once, while the caller's
     // bindings remain active. Cleared retained capacity is already funded.
     internal void StageNumber(int index, double number)

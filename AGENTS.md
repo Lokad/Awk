@@ -183,6 +183,9 @@ or environment dependencies.
   or read conversion callback. Normalize reading mode at the frame owner; preserve input spelling,
   deferred conversion errors and long-input cancellation. Global/array slots convert at that boundary.
   Pure numbers use funded scalar storage.
+  Arithmetic and complete comparisons may consume existing scalar numeric facts without changing
+  spelling/origins. Compare numerically only when both probes succeed; otherwise capture the
+  original left before RHS effects. Keys, arguments and owner writes retain strict kind checks.
   Numeric arguments initialize cleared incoming cells directly at that frame, once per index.
   Other captured scalars initialize those cells after payload admission without transient local cells.
   Copy source payloads before callbacks; no live source-slot references survive admission.

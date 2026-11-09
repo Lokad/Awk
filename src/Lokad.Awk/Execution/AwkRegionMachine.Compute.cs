@@ -67,7 +67,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.LocalNumber:
                 {
                     var local = computationView.Operands[instruction.Left];
-                    var localNumber = computationView.TryLocalNumber(local.Index, out var number)
+                    var localNumber = computationView.TryLocalNumericScalar(local.Index, out var number)
                         ? number : computationView.State.ResolveFunctionLocalValue(new(local.Index), local.Name).AsNumber(computationView.State.CancellationCheckpoint);
                     computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, localNumber);
                     break;
@@ -299,20 +299,11 @@ internal partial struct AwkRegionMachine
                 {
                     var comparison = (AwkComparison)instruction.Detail;
                     bool result;
-                    if (computationView.TryNumberOperand(instruction.Left, out var leftNumber))
-                    {
-                        if (computationView.TryNumberOperand(instruction.Right, out var rightNumber))
-                            result = AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison);
-                        else
-                        {
-                            // Reading the RHS can admit storage and invoke a host callback.
-                            // Keep the captured left number even if that changes its source.
-                            var right = computationView.ComparisonOperand(instruction.Right);
-                            result = right.Value.TryGetNumber(out rightNumber)
-                                ? AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison)
-                                : AwkComparisonOperations.Evaluate(new(AwkValue.FromNumber(leftNumber)), right, comparison, computationView.State);
-                        }
-                    }
+                    // Probes cannot admit or invoke a host. If either lacks a
+                    // numeric fact, capture the original left before reading RHS.
+                    if (computationView.TryNumericScalarOperand(instruction.Left, out var leftNumber) &&
+                        computationView.TryNumericScalarOperand(instruction.Right, out var rightNumber))
+                        result = AwkComparisonOperations.EvaluateNumbers(leftNumber, rightNumber, comparison);
                     else result = AwkComparisonOperations.Evaluate(
                         computationView.ComparisonOperand(instruction.Left), computationView.ComparisonOperand(instruction.Right), comparison, computationView.State);
                     position = computationView.CompleteComparison(in instruction, result, position);
