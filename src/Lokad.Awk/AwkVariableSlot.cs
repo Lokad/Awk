@@ -11,6 +11,12 @@ internal readonly struct AwkVariableSlot
     internal object? StoredReference => _text;
     internal double StoredNumber => _number;
 
+    // Implicit publication can retain an identical immutable text owner. Equal
+    // spelling alone is insufficient, and numeric/input origins remain distinct.
+    internal bool HasSameTextStorage(AwkVariableSlot other) =>
+        Kind is AwkVariableSlotKind.Text or AwkVariableSlotKind.Unassigned &&
+        Kind == other.Kind && ReferenceEquals(_text, other._text);
+
     internal static AwkVariableSlot FromStorage(object? reference, double number, AwkVariableSlotKind kind) =>
         new(reference, number, kind);
 

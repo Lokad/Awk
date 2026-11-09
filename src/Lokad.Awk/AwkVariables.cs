@@ -338,6 +338,7 @@ internal sealed partial class AwkVariables
     {
         if (!_governScalarMemory) return 0;
         var oldState = cell.State;
+        if (oldState.HasBaseline && oldState.Slot.HasSameTextStorage(slot)) return 0;
         var baseline = oldState.HasBaseline ? oldState.BaselineBytes : 0;
         var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
         return Math.Max(0, newCharge - oldState.ChargedBytes);
@@ -458,7 +459,11 @@ internal sealed partial class AwkVariables
     internal void SetRecordTerminatorSlot(AwkVariableSlot slot)
     {
         if (GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is { } cell)
+        {
+            if ((!_governScalarMemory || cell.State.HasBaseline) &&
+                cell.State.Slot.HasSameTextStorage(slot)) return;
             StoreScalarSlot(cell, slot, prepareOutputSeparator: false);
+        }
         else
             SetScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator), slot);
     }

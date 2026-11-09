@@ -214,6 +214,50 @@ public sealed class AwkRecordCounterSlotTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void RepeatedTerminatorPublicationRetainsFundingAndRestoresStringOrigin(int entry)
+    {
+        const long limit = 1 << 20;
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, limit);
+        var state = memory.State;
+        var text = AwkText.FromSourceLiteralString("0007");
+        var terminator = AwkRecordTerminator.FromText(text);
+        var record = AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("row"),
+            terminator, AwkRecordFieldSplittingMode.Ordinary);
+        void Publish()
+        {
+            if (entry == 0) state.SetRecordTerminator(terminator);
+            else if (entry == 1) state.AdvanceMainInputRecord(terminator);
+            else state.PublishInputRecord(record, readsMainInput: true);
+        }
+
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.RecordTerminator,
+            state.CreateNumericStringValue(text));
+        Publish();
+        var retained = memory.Budget.Reserved;
+        Assert.True(memory.Budget.TryReserve(limit - retained, out var otherConsumer));
+        using (otherConsumer)
+        {
+            for (var index = 0; index < 128; index++) Publish();
+            var value = state.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordTerminator);
+            Assert.Equal("0007", value.AsString());
+            Assert.False(value.RetainsInputClassification);
+            Assert.Equal(7, value.AsNumber());
+            Assert.Equal(limit, memory.Budget.Reserved);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        Assert.Equal(retained, memory.Budget.Reserved);
+
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.RecordTerminator, AwkValue.FromNumber(7));
+        Publish();
+        Assert.Equal("0007", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
+        state.SetRecordTerminator(AwkRecordTerminator.Empty);
+        Assert.True(state.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordTerminator).IsUnassignedValue);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void PublicationRetainsTheSplitCaseAdmittedBeforeAHostCallback(bool mainInput)

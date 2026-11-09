@@ -128,6 +128,8 @@ or environment dependencies.
   Capture into caller-owned result storage and forward it read-only during synchronous publication.
   Reuse the prepared split plan and record-memory estimate at publication. RT text keeps string origin with conversion on use;
   absent terminators are unassigned. Keep header preflights before observable changes.
+  Unchanged implicit RT publication retains identical immutable text storage and its existing
+  funding. Changed origins/backing and unfunded scalar baselines keep ordinary mutation admission.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
 - Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one
