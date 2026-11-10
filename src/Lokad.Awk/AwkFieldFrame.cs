@@ -234,6 +234,14 @@ internal sealed class AwkFieldFrame(
 
         var fieldIndex = index.Value - 1;
         if (TryGetCachedFieldValue(fieldIndex, out var cached)) return cached;
+        return MaterializeFieldValue(fieldIndex);
+    }
+
+    // Owned construction and cache publication stay at this frame. Keep their
+    // allocation/admission machinery out of callers performing ordinary cached reads.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private AwkValue MaterializeFieldValue(int fieldIndex)
+    {
         var value = createFieldValue(MaterializeField(_fieldTexts[fieldIndex]));
         CacheFieldValue(fieldIndex, value, classificationOnly: false);
         return value;
