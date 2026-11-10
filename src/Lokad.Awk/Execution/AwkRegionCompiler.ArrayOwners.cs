@@ -33,7 +33,7 @@ internal sealed partial class AwkRegionCompiler
             if (instruction.Kind is AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Arithmetic or
                 AwkRegionInstructionKind.Compound or AwkRegionInstructionKind.Negate or
                 AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
-                AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
+                AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
                 AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
                 AwkRegionInstructionKind.FieldIndex) continue;
             Finish();

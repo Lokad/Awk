@@ -163,6 +163,9 @@ Immediate string consumers can borrow stable record bytes; results that escape o
 Arguments crossing mutation or suspension retain owned snapshots. Formatting and numeric errors
 remain at their language consumption point. Unicode casing retains its managed-string
 compatibility boundary, with temporary source storage covered by shared admission.
+Prepared substring and case results remain strings in execution-owned text storage. Text-only
+consumers use that storage directly; scalar consumers construct the corresponding string value
+at use. Input numeric-string origins, original spelling and deferred numeric errors stay distinct.
 
 Selecting a [regex engine](#regex-engines) does not change ingress or units.
 [Compatibility notes](COMPATIBILITY.md#source-string-escapes) cover escape-to-text conversion

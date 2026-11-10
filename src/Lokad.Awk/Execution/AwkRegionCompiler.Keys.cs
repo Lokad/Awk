@@ -22,7 +22,7 @@ internal sealed partial class AwkRegionCompiler
             if (_operands[key.Left].Kind is not (AwkRegionOperandKind.LocalVariable or
                 AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
                 AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or
-                AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary)) return;
+                AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary)) return;
         }
         var keys = new int[path.Count];
         for (var depth = 0; depth < keys.Length; depth++)

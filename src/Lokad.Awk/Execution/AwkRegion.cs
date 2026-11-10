@@ -93,7 +93,7 @@ internal sealed class AwkRegion(
 internal enum AwkRegionKind : byte { Record, Function, Phase }
 internal readonly record struct AwkRegionStorageLayout(int Numbers, int Values = 0, int Texts = 0,
     int Targets = 0, int Builders = 0, int Incoming = 0, int PrintSegments = 0, int GetlineTargets = 0, int Paths = 0, int Iterators = 0, int ArrayTargets = 0, int Sorts = 0);
-internal enum AwkRegionOperandKind : byte { DynamicVariable, GlobalVariable, LocalVariable, SpecialVariable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, ArrayElement, KeyBuilder }
+internal enum AwkRegionOperandKind : byte { DynamicVariable, GlobalVariable, LocalVariable, SpecialVariable, Field, DynamicField, Literal, NumberTemporary, ValueTemporary, TextTemporary, ArrayElement, KeyBuilder }
 internal readonly record struct AwkRegionOperand(AwkRegionOperandKind Kind, int Index, AwkVariableName Name = default)
 {
     internal bool IsVariable => Kind is AwkRegionOperandKind.DynamicVariable or AwkRegionOperandKind.GlobalVariable or
@@ -136,7 +136,7 @@ internal readonly record struct AwkRegionPathOwner(int Value, AwkRegionPathOwner
 internal enum AwkRegionInstructionKind : byte
 {
     MainRead, RuleEnd,
-    Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
+    Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, TextNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeySeparator, KeyAppend, KeyReady, KeyEnd, ReleaseValue, ReleaseValues,
@@ -148,7 +148,7 @@ internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)
 {
     internal bool IsNumberRead => Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
-        AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
+        AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
         AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
         AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber;
 }
@@ -229,7 +229,7 @@ internal sealed record AwkRegionSubstitution(int Pattern, AwkRegexPatternOrigin 
 internal readonly record struct AwkRegionIteration(int Access, int Iterator, int Sort, int CallSlot, int Comparison);
 internal sealed record AwkRegionSort(int Source, int Destination, int Order, int Slot, int CallSlot, int Comparison, bool Keys);
 internal sealed record AwkRegionGensub(int Pattern, AwkRegexPatternOrigin Origin, int Start, int Count);
-internal enum AwkRegionPrintArgumentKind { Field, Number, Value }
+internal enum AwkRegionPrintArgumentKind { Field, Number, Value, Text }
 internal readonly record struct AwkRegionPrintArgument(AwkRegionPrintArgumentKind Kind, int Index, int FallbackValue = -1);
 internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArgument[] Arguments, AwkRegionOutput Output = default)
 {

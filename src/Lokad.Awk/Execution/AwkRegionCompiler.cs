@@ -456,7 +456,7 @@ internal sealed partial class AwkRegionCompiler
     {
         for (var index = 0; index < count; index++)
         {
-            if (_operands[arguments[index]].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary) continue;
+            if (_operands[arguments[index]].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary) continue;
             var captured = _values++;
             Emit(new(AwkRegionInstructionKind.BuiltinArgument, captured, arguments[index],
                 Detail: (int)definition.InputConsumption(index)));
@@ -615,6 +615,8 @@ internal sealed partial class AwkRegionCompiler
                 if (!Expression(arguments[index], out var value, preserveOrigin: true)) return false;
                 if (_operands[value] is { Kind: AwkRegionOperandKind.NumberTemporary } number)
                     prepared[index] = new(AwkRegionPrintArgumentKind.Number, number.Index);
+                else if (_operands[value] is { Kind: AwkRegionOperandKind.TextTemporary } text)
+                    prepared[index] = new(AwkRegionPrintArgumentKind.Text, text.Index);
                 else
                 {
                     var captured = CaptureValue(value, preserveOrigin: true);
@@ -780,6 +782,7 @@ internal sealed partial class AwkRegionCompiler
             AwkRegionOperandKind.DynamicField => AwkRegionInstructionKind.DynamicFieldNumber,
             AwkRegionOperandKind.Literal => AwkRegionInstructionKind.LiteralNumber,
             AwkRegionOperandKind.ValueTemporary => AwkRegionInstructionKind.ValueNumber,
+            AwkRegionOperandKind.TextTemporary => AwkRegionInstructionKind.TextNumber,
             AwkRegionOperandKind.ArrayElement => AwkRegionInstructionKind.ArrayNumber,
             AwkRegionOperandKind.LocalVariable => AwkRegionInstructionKind.LocalNumber,
             AwkRegionOperandKind.GlobalVariable => AwkRegionInstructionKind.GlobalNumber,
@@ -793,7 +796,7 @@ internal sealed partial class AwkRegionCompiler
 
     private int CaptureValue(int operand, bool preserveOrigin = false)
     {
-        if (_operands[operand].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary)
+        if (_operands[operand].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary)
             return operand;
         var target = _values++;
         Emit(new(AwkRegionInstructionKind.Value, target, operand, Detail: preserveOrigin ? 1 : 0));

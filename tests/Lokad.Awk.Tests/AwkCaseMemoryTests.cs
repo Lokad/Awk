@@ -21,12 +21,12 @@ public sealed class AwkCaseMemoryTests
             {
                 var result = AwkBuiltins.EvaluateCaseText(state, new(source), destination, upper);
                 Assert.Equal(prefix + new string(upper ? 'A' : 'a', 8193), result.AsString());
-                Assert.True(destination.Bytes >= result.RetainedTextMemoryBytes);
+                Assert.True(destination.Bytes >= result.EstimatedRetainedMemoryBytes);
                 Assert.True(budget.Reserved >= destination.Bytes);
-                Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
+                Assert.Equal(AwkRuntimeValueKind.String, state.CreateStringValue(result).RuntimeKind);
                 Assert.Equal(unicode && !bytes ? 1 : 0, state.Counters.StringInteropFallbacks);
                 // The result remains usable while its actual destination owns admission.
-                Assert.Equal(8193 + (unicode ? 2 : 0), result.ByteText.GetRuneLength());
+                Assert.Equal(8193 + (unicode ? 2 : 0), result.GetRuneLength());
             }
             Assert.Equal(initialBytes, budget.Reserved);
         }

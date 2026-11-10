@@ -108,6 +108,11 @@ internal static class AwkRegionPrinting
                         fields[index] = AwkFieldText.FromOwned(text);
                     }
                 }
+                else if (argument.Kind == AwkRegionPrintArgumentKind.Text)
+                {
+                    storage.MoveText(argument.Index, print.Texts + index);
+                    fields[index] = AwkFieldText.FromOwned(storage.Texts[print.Texts + index]);
+                }
                 else
                 {
                     var valueSlot = fieldViews ? argument.FallbackValue : argument.Index;

@@ -230,24 +230,24 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
-    internal void StoreCaseValue(int index, in AwkByteTextOperand source, bool upper, int field)
+    internal void StoreCaseText(int index, in AwkByteTextOperand source, bool upper, int field)
     {
         var before = _payload.Bytes;
-        var value = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
-        StoreProducedValue(index, value, _payload.Bytes - before);
+        var text = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
+        StoreProducedText(index, text, _payload.Bytes - before);
     }
 
-    internal void StoreSubstringValue(int index, in AwkScalarOperand source, AwkValue start, AwkValue length, int count)
+    internal void StoreSubstringText(int index, in AwkScalarOperand source, AwkValue start, AwkValue length, int count)
     {
         var before = _payload.Bytes;
-        var value = AwkBuiltins.EvaluateSubstrOperand(_state, source, start, length, count, _payload);
-        StoreProducedValue(index, value, _payload.Bytes - before);
+        var text = AwkBuiltins.EvaluateSubstrText(_state, source, start, length, count, _payload);
+        StoreProducedText(index, text, _payload.Bytes - before);
     }
 
-    private void StoreProducedValue(int index, AwkValue value, long producedBytes)
+    private void StoreProducedText(int index, AwkText text, long producedBytes)
     {
-        var oldBytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
-        var nextBytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? _texts[index].EstimatedRetainedMemoryBytes : 0;
+        var nextBytes = _state.MemoryAccounting.IsEnabled ? text.EstimatedRetainedMemoryBytes : 0;
         var funded = AwkRuntimeMemory.CheckedAdd(oldBytes, producedBytes);
         if (nextBytes > funded)
         {
@@ -256,7 +256,7 @@ internal sealed class AwkRegionStorage : IDisposable
         }
         // Fully funded construction retains primitive polls. This capture adds no
         // callback or visible effect; actual assignments/output keep their checks.
-        _values[index] = value;
+        _texts[index] = text;
         if (funded > nextBytes) _payload.Release(funded - nextBytes);
     }
 
@@ -510,6 +510,16 @@ internal sealed class AwkRegionStorage : IDisposable
         _texts[textIndex] = text;
         _values[valueIndex] = default;
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
+    }
+
+    internal void MoveText(int source, int destination)
+    {
+        // Preparation gives the print a distinct destination. Both slots belong
+        // to this payload owner; transfer the existing claim without readmission.
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? _texts[destination].EstimatedRetainedMemoryBytes : 0;
+        _texts[destination] = _texts[source];
+        _texts[source] = AwkText.Empty;
+        if (oldBytes > 0) _payload.Release(oldBytes);
     }
 
     internal void ReleasePrint(AwkRegionPrint print)

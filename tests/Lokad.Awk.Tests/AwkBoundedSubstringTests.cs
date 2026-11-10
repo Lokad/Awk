@@ -24,11 +24,11 @@ public sealed class AwkBoundedSubstringTests
                 var operand = borrowed ? new AwkScalarOperand(source.AsSpan(), -1) :
                     new AwkScalarOperand(AwkValue.FromText(source));
                 var length = bytes ? System.Text.Encoding.UTF8.GetByteCount(expected) : 8193 + (unicode ? 1 : 0);
-                var result = AwkBuiltins.EvaluateSubstrOperand(state, operand,
+                var result = AwkBuiltins.EvaluateSubstrText(state, operand,
                     AwkValue.FromNumber(2), AwkValue.FromNumber(length), 3, destination);
                 Assert.Equal(expected, result.AsString());
-                Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
-                Assert.True(destination.Bytes >= result.RetainedTextMemoryBytes);
+                Assert.Equal(AwkRuntimeValueKind.String, state.CreateStringValue(result).RuntimeKind);
+                Assert.True(destination.Bytes >= result.EstimatedRetainedMemoryBytes);
                 Assert.True(memory.Budget.Reserved >= destination.Bytes);
                 Assert.Equal(0, counters.StringDecodes);
                 Assert.Equal(0, counters.Utf8Encodes);
@@ -66,9 +66,9 @@ public sealed class AwkBoundedSubstringTests
             {
                 var operand = borrowed ? new AwkScalarOperand(source.AsSpan(), -1) :
                     new AwkScalarOperand(AwkValue.FromText(source));
-                var result = AwkBuiltins.EvaluateSubstrOperand(state, operand,
+                var result = AwkBuiltins.EvaluateSubstrText(state, operand,
                     AwkValue.FromNumber(2), AwkValue.FromNumber(500_000), 3, destination);
-                state.AssignVariableValue(target, result);
+                state.AssignVariableValue(target, state.CreateStringValue(result));
             }
             if (cancel) Assert.Throws<OperationCanceledException>(Evaluate);
             else
@@ -98,11 +98,11 @@ public sealed class AwkBoundedSubstringTests
         using var state = State(memory.Owner, counters, bytes);
         var source = AwkText.FromString("008");
         using var destination = state.MemoryAccounting.CreateTransientLease();
-        var result = AwkBuiltins.EvaluateSubstrOperand(state, new(AwkValue.FromText(source)),
+        var result = AwkBuiltins.EvaluateSubstrText(state, new(AwkValue.FromText(source)),
             AwkValue.FromNumber(1), AwkValue.FromNumber(empty ? 0 : 3), 3, destination);
         Assert.Equal(empty ? "" : "008", result.AsString());
-        Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
-        if (!empty) Assert.True(source.HasSameStorage(result.ByteText));
+        Assert.Equal(AwkRuntimeValueKind.String, state.CreateStringValue(result).RuntimeKind);
+        if (!empty) Assert.True(source.HasSameStorage(result));
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(0, destination.Bytes);
     }

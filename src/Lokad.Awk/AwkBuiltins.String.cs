@@ -20,10 +20,10 @@ internal static partial class AwkBuiltins
         AwkValue startValue, AwkValue lengthValue, int argumentCount)
     {
         using var destination = state.MemoryAccounting.CreateTransientLease();
-        return EvaluateSubstrOperand(state, new(sourceValue), startValue, lengthValue, argumentCount, destination);
+        return state.CreateStringValue(EvaluateSubstrText(state, new(sourceValue), startValue, lengthValue, argumentCount, destination));
     }
 
-    internal static AwkValue EvaluateSubstrOperand(AwkRuntimeState state, in AwkScalarOperand sourceValue,
+    internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkScalarOperand sourceValue,
         AwkValue startValue, AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
     {
         var source = sourceValue.Text(state);
@@ -33,26 +33,26 @@ internal static partial class AwkBuiltins
         sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
-        if (!state.HasStringUnitAt(source, zeroBasedStart)) return AwkValue.FromText(string.Empty);
+        if (!state.HasStringUnitAt(source, zeroBasedStart)) return AwkText.Empty;
         var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
-        if (length <= 0) return AwkValue.FromText(string.Empty);
+        if (length <= 0) return AwkText.Empty;
         sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, length);
         var slice = state.SubstringByStringUnits(source, zeroBasedStart, length, destination);
-        return state.CreateStringValue(sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength, destination));
+        return sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength, destination);
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)
     {
         using var destination = state.MemoryAccounting.CreateTransientLease();
-        return EvaluateCaseText(state, new(state.FormatStringByteText(value)), destination, upper);
+        return state.CreateStringValue(EvaluateCaseText(state, new(state.FormatStringByteText(value)), destination, upper));
     }
 
-    internal static AwkValue EvaluateCaseText(AwkRuntimeState state, in AwkByteTextOperand source,
+    internal static AwkText EvaluateCaseText(AwkRuntimeState state, in AwkByteTextOperand source,
         AwkMemoryLease destination, bool upper, int field = -1) =>
         EvaluateCaseConversion(source, field, state, destination,
             upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
 
-    private static AwkValue EvaluateCaseConversion(
+    private static AwkText EvaluateCaseConversion(
         in AwkByteTextOperand source,
         int field,
         AwkRuntimeState state,
@@ -153,7 +153,7 @@ internal static partial class AwkBuiltins
             out var asciiResult,
             out var unchanged))
         {
-            return state.CreateStringValue(unchanged ? state.OwnStringResult(source, field) : asciiResult);
+            return unchanged ? state.OwnStringResult(source, field) : asciiResult;
         }
 
         state.Counters.RecordStringInteropFallback();
@@ -169,8 +169,8 @@ internal static partial class AwkBuiltins
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();
         state.ThrowIfCancellationRequested();
-        return state.CreateStringValue(AwkText.FromUtf16(converted.AsSpan(), state.Counters,
-            state.MemoryAccounting, state.CancellationCheckpoint, destination));
+        return AwkText.FromUtf16(converted.AsSpan(), state.Counters,
+            state.MemoryAccounting, state.CancellationCheckpoint, destination);
     }
 
     private enum AwkCaseConversion

@@ -64,6 +64,10 @@ internal partial struct AwkRegionMachine
                     computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
                         computationView.Storage.Values[instruction.Left].AsNumber(computationView.State.CancellationCheckpoint));
                     break;
+                case AwkRegionInstructionKind.TextNumber:
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.State.CreateStringValue(computationView.Storage.Texts[instruction.Left]).AsNumber(computationView.State.CancellationCheckpoint));
+                    break;
                 case AwkRegionInstructionKind.LocalNumber:
                 {
                     var local = computationView.Operands[instruction.Left];

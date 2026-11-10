@@ -47,6 +47,11 @@ or environment dependencies.
   The view owns no storage and cannot survive an actual host suspension.
   Known string primitives bind to their semantic interpreter operations during preparation.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
+  Prepared substring/case results use canonical text operands in the existing funded text slots.
+  Scalar consumers construct string values at use; never reclassify these as numeric strings.
+  Print-list consumption transfers between distinct slots of that same payload owner, retires
+  the source and keeps funding through the existing print/output user. Preserve general-value
+  observations, skipped substring-length conversion and actual call/host continuations.
   Root record completion retains its loaded program/storage view. Reload it for actual context
   switches; preserve published pending-host locations and rule-scratch retirement.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring

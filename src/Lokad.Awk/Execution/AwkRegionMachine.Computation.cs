@@ -67,7 +67,7 @@ internal partial struct AwkRegionMachine
             var second = ArgumentValue(operation.Second, operation.SecondInput);
             var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
-            storage.StoreSubstringValue(instruction.Target, first, second, third, operation.Third >= 0 ? 3 : 2);
+            storage.StoreSubstringText(instruction.Target, first, second, third, operation.Third >= 0 ? 3 : 2);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -79,13 +79,18 @@ internal partial struct AwkRegionMachine
             var operand = operands[input];
             var field = IsField(operand) ? FieldOrdinal(operand) : -1;
             var text = TextOperand(input);
-            storage.StoreCaseValue(instruction.Target, text, instruction.Detail != 0, field);
+            storage.StoreCaseText(instruction.Target, text, instruction.Detail != 0, field);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         internal void ExecuteLength(in AwkRegionInstruction instruction)
         {
             var lengthOperand = operands[instruction.Left];
+            if (lengthOperand.Kind == AwkRegionOperandKind.TextTemporary)
+            {
+                numbers[instruction.Target] = state.CountStringUnits(storage.Texts[lengthOperand.Index]);
+                return;
+            }
             if (IsField(lengthOperand))
             {
                 numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
@@ -180,6 +185,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField: return ReadField(FieldOrdinal(operand));
                 case AwkRegionOperandKind.ValueTemporary: return storage.Values[operand.Index];
+                case AwkRegionOperandKind.TextTemporary: return state.CreateStringValue(storage.Texts[operand.Index]);
                 case AwkRegionOperandKind.ArrayElement: return ReadArray(region.Arrays[operand.Index]);
                 default: throw new InvalidOperationException("Unknown bound region operand.");
             }
@@ -428,6 +434,8 @@ internal partial struct AwkRegionMachine
                     return state.CreateStringValue(region.Literals[operand.Index].Text).AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ValueTemporary:
                     return storage.Values[operand.Index].AsNumber(state.CancellationCheckpoint);
+                case AwkRegionOperandKind.TextTemporary:
+                    return state.CreateStringValue(storage.Texts[operand.Index]).AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ArrayElement:
                     return ReadArrayNumber(region.Arrays[operand.Index]);
                 case AwkRegionOperandKind.GlobalVariable:
@@ -495,6 +503,8 @@ internal partial struct AwkRegionMachine
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
             if (operand.Kind == AwkRegionOperandKind.Literal)
                 return new(region.Literals[operand.Index].Text);
+            if (operand.Kind == AwkRegionOperandKind.TextTemporary)
+                return new(storage.Texts[operand.Index]);
             return new(state.FormatStringByteText(Value(index)));
         }
 

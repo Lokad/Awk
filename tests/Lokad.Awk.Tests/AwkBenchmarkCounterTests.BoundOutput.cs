@@ -3,6 +3,43 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task ProducedTextConsumersAvoidPerRecordScalarWrappers(bool governed)
+    {
+        var produced = await Run(produce: true);
+        var control = await Run(produce: false);
+        // ValuesCreated also counts text construction and input publication.
+        // Remove owned-text factories and compare the same input/output boundary;
+        // the control still constructs its ordinary string literal at use.
+        Assert.True(produced.ValuesCreated - produced.AwkTextAllocations <=
+            control.ValuesCreated - control.AwkTextAllocations);
+
+        async Task<AwkRuntimeCounters> Run(bool produce)
+        {
+            const int records = 128;
+            var host = new MockFileSystem();
+            host.SetStandardInput(string.Concat(Enumerable.Repeat("abcd efgh\n", records)));
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var source = produce ? "{print length(substr($1,1,2)),toupper(substr($2,1,2))}" : "{print 2,\"EF\"}";
+            await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+            var exit = await program.ExecuteAsync(host, CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal(string.Concat(Enumerable.Repeat("2 EF\n", records)), host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(produce ? 3 * records : 0, counters.AwkTextAllocations);
+            Assert.Equal(records, counters.PrintNumberArguments);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+            return counters;
+        }
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task ProducedPrintOperandsKeepNativeTextAndNumericRegisters(bool governed, bool wrapped)

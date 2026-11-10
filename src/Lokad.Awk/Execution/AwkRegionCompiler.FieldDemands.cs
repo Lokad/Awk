@@ -42,7 +42,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Negate or
                 AwkRegionInstructionKind.Arithmetic or AwkRegionInstructionKind.Compound or
                 AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
-                AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
+                AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
                 AwkRegionInstructionKind.KeyBegin or AwkRegionInstructionKind.KeySeparator or
                 AwkRegionInstructionKind.KeyReady or AwkRegionInstructionKind.KeyEnd or AwkRegionInstructionKind.ReleaseValue or
                 AwkRegionInstructionKind.ReleaseValues => true,
