@@ -216,6 +216,8 @@ One preparation graph tracks arithmetic, numeric-comparison, text and key consum
 function parameters can capture owned field spelling without classifying input numbers. Mixed
 or type-observing uses retain full values. Numeric arguments keep their kind and format at use;
 captured text stays funded through mutation, suspension and cleanup.
+The record owner reuses immutable field spelling across text captures and later scalar reads.
+Input classification remains deferred until observed; incoming frames fund their actual users.
 Persistent record cells hold slices, numeric interpretations, scalar lengths and cache indices without text
 references. The frame cache owns decoded/assigned spelling and scalar values; decoded CSV text
 stays distinct from input-value classification. Byte-only consumers read record slices directly.

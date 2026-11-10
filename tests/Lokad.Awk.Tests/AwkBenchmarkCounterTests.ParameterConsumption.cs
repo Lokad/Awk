@@ -2,6 +2,59 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    public static IEnumerable<object[]> RepeatedTextSnapshotCases()
+    {
+        foreach (var input in new[] { "plain", "csv", "escaped-csv" })
+        foreach (var observe in new[] { false, true })
+        foreach (var complete in new[] { false, true })
+        foreach (var governed in new[] { false, true }) yield return [input, observe, complete, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(RepeatedTextSnapshotCases))]
+    public async Task RepeatedTextArgumentsShareSpellingWithoutEarlyInputClassification(
+        string input, bool observe, bool complete, bool governed)
+    {
+        const int records = 64;
+        var escaped = input == "escaped-csv";
+        var record = input switch
+        {
+            "escaped-csv" => "\"AbCd\"\"Efghij\",tail,old\n",
+            "csv" => "AbCdEfghij,tail,old\n",
+            _ => "AbCdEfghij tail old\n"
+        };
+        var single = await Run(repeat: false);
+        var repeated = await Run(repeat: true);
+        // Contrast complete invocations so existing CSV record/decoder ownership
+        // is included on both sides; another capture must not copy per record.
+        Assert.InRange(repeated.AwkTextAllocations - single.AwkTextAllocations, 0, 4);
+
+        async Task<AwkRuntimeCounters> Run(bool repeat)
+        {
+            var source = "function find(s){return index(s,\"z\")}{a=find($1);" +
+                (repeat ? "b=find($1);" : "b=0;") +
+                (complete ? "fields=NF;" : "") + (observe ? "v=$1;total+=length(v)" : "total+=length($1)") +
+                "+a+b}END{print total}";
+            var arguments = input == "plain" ? new[] { source } : ["--csv", source];
+            var host = new MockFileSystem();
+            host.SetStandardInput(string.Concat(Enumerable.Repeat(record, records)));
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var exit = await AwkExecutor.ExecuteAsync(host,
+                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", arguments)), CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal(escaped ? "704\n" : "640\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(observe ? records : 0, counters.TextValueClassifications);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+            return counters;
+        }
+    }
+
     public static IEnumerable<object[]> TextConsumptionCases()
     {
         foreach (var operation in new[] { "lower", "substr", "index" })
@@ -31,7 +84,7 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.TextValueClassifications);
-        Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
+        Assert.Equal(1, counters.FieldValueCacheBufferAllocations);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);

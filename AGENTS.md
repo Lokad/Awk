@@ -100,6 +100,10 @@ or environment dependencies.
   references. Owned spelling and scalar values live in the frame cache; detached byte views carry
   no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
   Text-only decoded CSV entries must not invoke the input-value factory early.
+  The same cache owns raw spelling snapshots for repeated text captures and later full-value
+  promotion. TextOnly may retain an arithmetic prefix without becoming a scalar or strict
+  classification. Keep cached-number reads and allocating text capture at owner boundaries;
+  raw arithmetic and shared argument staging need no owning-value preparation.
   NF reads reuse the frame's current value. Explicit assignments retain spelling/origin
   until a record or field-count transition resets it.
 - The record frame owns its splitting and value-construction services. Keep input and recomposed

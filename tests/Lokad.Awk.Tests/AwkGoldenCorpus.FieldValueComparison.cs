@@ -4,6 +4,30 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldValueComparisonCases()
     {
+        yield return Passing("field-text-snapshots-survive-origin-observation-and-completion",
+            ["function part(s){return substr(s,1,4)}{a=part($1);b=part($1);n=NF;v=$1;$3=$1;print \"[\"a\"]\",\"[\"b\"]\",n,typeof(v),v,($1==7),$0}"],
+            [], "[0007] [0007] 3 strnum 0007 1 0007 tail 0007\n[7tai] [7tai] 3 string 7tail 0 7tail tail 7tail\n",
+            "0007 tail old\n7tail tail old\n");
+        yield return Passing("field-text-snapshots-preserve-strict-and-prefix-facts",
+            ["function part(s){return substr(s,1,4)}{a=($1==7);n=$1+0;t=part($1);u=part($1);b=($1==7);print a,n,\"[\"t\"]\",\"[\"u\"]\",b,typeof($1),NF}"],
+            [], "1 7 [0007] [0007] 1 strnum 3\n0 7 [7tai] [7tai] 0 string 3\n",
+            "0007 tail old\n7tail tail old\n");
+        yield return Passing("field-text-snapshots-preserve-arithmetic-prefix-before-classification",
+            ["function part(s){return substr(s,1,4)}{n=$1+0;t=part($1);u=$1+1;a=($1==7);print n,\"[\"t\"]\",u,a,typeof($1),$1}"],
+            [], "7 [0007] 8 1 strnum 0007\n7 [7tai] 8 0 string 7tail\n", "0007 tail old\n7tail tail old\n");
+        yield return Passing("field-text-snapshots-preserve-csv-spelling-through-reconstruction",
+            ["--csv", "function part(s){return substr(s,1,4)}{a=part($1);b=part($1);n=NF;$3=$1;print \"[\"a\"]\",\"[\"b\"]\",n,typeof($1),$0}"],
+            [], "[00\"0] [00\"0] 3 string 00\"07 tail 00\"07\n[0007] [0007] 3 strnum 0007 tail 0007\n",
+            "\"00\"\"07\",tail,old\n0007,tail,old\n");
+        yield return Passing("field-text-snapshots-own-earlier-arguments-across-mutation",
+            ["function change(){$0=\"changed next\";return 0}function part(s,u){return substr(s,1,4)}{a=part($1);b=part($1,change());print \"[\"a\"]\",\"[\"b\"]\",$0}"],
+            [], "[0007] [0007] changed next\n", "0007 tail old\n");
+        yield return AwkGoldenCaseBuilder.Create("field-text-snapshots-defer-invalid-conversion-until-numeric-use",
+                ["--non-decimal-data", "function part(s){return substr(s,1,4)}{print part($1),part($1);print $1+0;print \"later\"}"], [])
+            .WithStandardInput("0x1.8\n").WithStdOut("0x1. 0x1.\n").ExitsWith(2)
+            .WithStdErr("awk: hexadecimal floating point constants require an exponent\n")
+            .WithNondeterminismNote("Lokad preserves its deferred missing-exponent diagnostic; GNU awk 5.3.2 accepts this input as 1.")
+            .Build();
         yield return Passing("text-parameters-preserve-caller-and-result-origins",
             ["function lower(s){return tolower(s)}function observed(s){return typeof(s)\":\"tolower(s)}{v=lower($1);print \"[\"v\"]\",typeof(v),(v==7),typeof($1),observed($1)}"],
             [], "[0007] string 0 strnum strnum:0007\n[7tail] string 0 string string:7tail\n", "0007\n7tail\n");

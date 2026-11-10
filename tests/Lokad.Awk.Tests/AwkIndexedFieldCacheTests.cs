@@ -3,6 +3,44 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkIndexedFieldCacheTests
 {
     [Theory]
+    [InlineData("0007", false, false)] [InlineData("0007", true, false)]
+    [InlineData("7tail", false, false)] [InlineData("7tail", true, false)]
+    [InlineData("0007", false, true)] [InlineData("0007", true, true)]
+    [InlineData("7tail", false, true)] [InlineData("7tail", true, true)]
+    public void TextSnapshotsShareSpellingAndKeepEstablishedFactsThroughCompletion(
+        string spelling, bool strict, bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        var inputValues = 0;
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, createInputValue: text =>
+        {
+            inputValues++;
+            return AwkValue.FromNumericString(text);
+        });
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + " tail old"));
+        if (strict) _ = frame.GetFieldComparison(new(1), AwkNumberParsingMode.Decimal);
+        else Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        var parses = counters.NumericFieldByteParses;
+        Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var first));
+        Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var repeated));
+        Assert.True(first.HasSameStorage(repeated));
+        Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        Assert.Equal(parses, counters.NumericFieldByteParses);
+        Assert.Equal(0, inputValues);
+        Assert.Equal(3, frame.GetFieldCount());
+        var value = frame.GetFieldValue(new(1));
+        Assert.Equal(1, inputValues);
+        Assert.True(first.HasSameStorage(value.ByteText));
+        Assert.Equal(spelling, value.ByteText.AsString());
+        Assert.Equal(spelling == "0007", value.TryGetStoredComparisonNumber(out _, null));
+        frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
+        Assert.Equal(spelling, first.AsString());
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData(false, 3)] [InlineData(true, 3)]
     [InlineData(false, 8)] [InlineData(true, 8)]
     [InlineData(false, 16)] [InlineData(true, 16)]

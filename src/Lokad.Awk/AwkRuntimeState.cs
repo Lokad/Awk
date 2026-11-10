@@ -900,11 +900,9 @@ internal sealed class AwkRuntimeState : IDisposable
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     internal bool TryStageFunctionFieldText(int field, AwkFunctionFrame incoming, int index)
     {
-        if (field <= 0 || !_recordFields.TryGetUnmaterializedFieldBytes(new(field), out var bytes)) return false;
-        // Text-only consumers need owned spelling, not input-number classification.
-        // Existing scalar slots retain this snapshot through mutation and suspension.
-        using var admission = MemoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateTextBytes(bytes.Length));
-        var text = AwkText.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
+        if (field <= 0 || !_recordFields.TryGetFieldTextSnapshot(new(field), out var text)) return false;
+        // The record owns shared immutable spelling; the incoming frame funds its
+        // own capture through mutation and actual suspension lifetimes.
         var value = CreateStringValue(text);
         ThrowIfCancellationRequested();
         _functions.StageValue(incoming, index, in value);
