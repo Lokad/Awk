@@ -1836,7 +1836,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("@val_str_asc", "2", "1", 1)]
     [InlineData("@val_str_asc", "1", "1", 2)]
     [InlineData("@val_num_asc", "2", "1", 0)]
-    [InlineData("@val_num_asc", "1", "1", 2)]
+    [InlineData("@val_num_asc", "1", "1", 1)]
     [InlineData("@val_num_asc", "\"02\"", "\"2\"", 1)]
     [InlineData("@val_type_asc", "2", "1", 0)]
     [InlineData("@val_type_asc", "1", "1", 1)]

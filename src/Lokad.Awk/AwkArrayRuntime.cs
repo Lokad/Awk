@@ -1020,6 +1020,11 @@ internal sealed partial class AwkArrayRuntime
                 var comparison = CompareNumbers(left, right);
                 if (comparison != 0)
                     return comparison;
+                // Equal pure integers have the same canonical spelling, including
+                // signed zero. Other origins and nonintegers still need their text.
+                if (left.Value.IsNumberValue && right.Value.IsNumberValue &&
+                    AwkNumberFormatter.IsInteger(left.NumericKey))
+                    return 0;
                 counters.RecordByteTextComparison();
                 using var textLease = state.MemoryAccounting.CreateTransientLease();
                 return state.CompareByteText(state.FormatStringByteText(left.Value, textLease),
