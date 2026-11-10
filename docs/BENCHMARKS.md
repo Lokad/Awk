@@ -1,8 +1,11 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-All **73 managed comparisons and ten shared-admission measurements** were refreshed on
+**Numeric array sort, both sizes:** measured **2026-11-10 UTC** at
+[1cb243af](https://github.com/Lokad/Awk/commit/1cb243af06a482ace877280f1a49e0cd6c5c3ed7).
+**Other 71 managed comparisons and ten shared-admission measurements:** retained from
 **2026-11-10 UTC** at [93741cf0](https://github.com/Lokad/Awk/commit/93741cf08c523b365f53e170356726a47cfef158).
+Those retained rows are not fresh measurements of the current source.
 
 GNU timings retain **2026-11-06 UTC** measurements at
 [da5c6a14](https://github.com/Lokad/Awk/commit/da5c6a14ae581ff9b1a2959a3e58bcf8b2cd6ef3), except:
@@ -33,7 +36,7 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | ERE field separator | 48.00 | 5.594 | 1.644 | 3.40× | 2.238 |
 | ERE boolean matching | 32.00 | 1.792 | 0.922 | 1.94× | 7.197 |
 | ERE capture arrays (GNU) | 28.00 | 11.912 | 7.336 | 1.62× | 32.013 |
-| Numeric array sort (GNU) | 18.92 | 3.032 | 2.003 | 1.51× | 1.967 |
+| Numeric array sort (GNU) | 18.92 | 2.806 | 2.003 | 1.40× | 1.983 |
 | Text function with branches and local temporary | 62.00 | 2.161 | 1.636 | 1.32× | 0.529 |
 | Unicode length/substr / output § | 60.00 | 2.098 | 1.674 | 1.25× | 0.796 |
 | Nested-array calls, 16 keys (GNU) | 25.08 | 2.203 | 1.832 | 1.20× | 0.192 |
@@ -91,7 +94,7 @@ inputs dominated by process startup.
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 26.588 | 4.671 | 5.69× | 112.198 |
-| Numeric array sort (GNU) ‡ | 373.15 | 61.007 | 23.029 | 2.65× | 25.707 |
+| Numeric array sort (GNU) ‡ | 373.15 | 56.881 | 23.029 | 2.47× | 25.962 |
 | Unicode length/substr / output § | 960.00 | 35.097 | 15.666 | 2.24× | 11.579 |
 | Text function with branches and local temporary ‡ | 992.00 | 34.051 | 16.474 | 2.07× | 6.156 |
 | ASCII substr/index/length/casing ‡ | 832.00 | 15.755 | 10.095 | 1.56× | 2.119 |
