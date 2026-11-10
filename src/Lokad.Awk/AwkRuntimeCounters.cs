@@ -361,6 +361,14 @@ internal sealed class AwkRuntimeCounters
     private long _printIntegerSegments;
     public long PrintIntegerSegments => Volatile.Read(ref _printIntegerSegments);
 
+    private long _printNumberArguments;
+    public long PrintNumberArguments => Volatile.Read(ref _printNumberArguments);
+
+    internal void RecordPrintNumberArgument()
+    {
+        if (_enabled) Interlocked.Increment(ref _printNumberArguments);
+    }
+
     internal void RecordPrintIntegerSegment()
     {
         if (_enabled) Interlocked.Increment(ref _printIntegerSegments);

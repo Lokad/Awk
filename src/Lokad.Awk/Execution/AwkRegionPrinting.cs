@@ -53,14 +53,15 @@ internal static class AwkRegionPrinting
     {
         var fields = storage.PrintSegments.AsSpan(print.Segments, print.Count);
         var borrowed = storage.BorrowedPrintFields.AsSpan(print.Segments, print.Count);
+        var fieldViews = print.UsesFieldViews;
         AwkUtf8Builder? numbers = null;
-        if (print.Fields.Length == 0)
+        if (!fieldViews)
         {
             numbers = storage.Builders[0].Buffer;
             numbers.Clear();
         }
         ReadOnlySpan<byte> record = default;
-        if (print.Fields.Length != 0)
+        if (fieldViews)
         {
             // All addresses are fixed and cannot mutate or suspend. Views are
             // consumed in this synchronous primitive, before any host append.
@@ -68,10 +69,10 @@ internal static class AwkRegionPrinting
             for (var index = 0; index < print.Count; index++)
             {
                 if ((index & 63) == 0) state.ThrowIfCancellationRequested();
-                var field = print.Fields[index];
-                borrowed[index] = state.TryPreparePrintField(field, out fields[index], out record);
-                if (!borrowed[index]) storage.StoreValue(print.Values + index,
-                    state.GetFieldValue(field), preserveOrigin: true);
+                var argument = print.Arguments[index];
+                borrowed[index] = state.TryPreparePrintField(argument.Index, out fields[index], out record);
+                if (!borrowed[index]) storage.StoreValue(argument.FallbackValue,
+                    state.GetFieldValue(argument.Index), preserveOrigin: true);
             }
         }
         else if (print.Count <= 4) state.Counters.RecordSmallValuePrint();
@@ -89,19 +90,39 @@ internal static class AwkRegionPrinting
         for (var index = 0; index < print.Count; index++)
         {
             if ((index & 63) == 0) state.ThrowIfCancellationRequested();
-            if (print.Fields.Length == 0 || !borrowed[index])
+            if (!fieldViews || !borrowed[index])
             {
-                var start = numbers?.Length ?? 0;
-                if (numbers is not null && state.TryAppendPrintInteger(storage.Values[print.Values + index], numbers))
+                var argument = print.Arguments[index];
+                if (argument.Kind == AwkRegionPrintArgumentKind.Number)
                 {
-                    fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
-                    storage.MoveValueToText(print.Values + index, print.Texts + index, AwkText.Empty);
+                    var buffer = numbers ?? throw new InvalidOperationException("A numeric print requires its funded buffer.");
+                    var number = storage.Numbers[argument.Index];
+                    state.Counters.RecordPrintNumberArgument();
+                    var start = buffer.Length;
+                    if (state.TryAppendPrintInteger(number, buffer))
+                        fields[index] = AwkFieldText.FromRecordSlice(start, buffer.Length - start);
+                    else
+                    {
+                        var text = state.FormatPrintByteText(AwkValue.FromNumber(number));
+                        storage.StoreText(print.Texts + index, text);
+                        fields[index] = AwkFieldText.FromOwned(text);
+                    }
                 }
                 else
                 {
-                    var text = state.FormatPrintByteText(storage.Values[print.Values + index]);
-                    storage.MoveValueToText(print.Values + index, print.Texts + index, text);
-                    fields[index] = AwkFieldText.FromOwned(text);
+                    var valueSlot = fieldViews ? argument.FallbackValue : argument.Index;
+                    var start = numbers?.Length ?? 0;
+                    if (numbers is not null && state.TryAppendPrintInteger(storage.Values[valueSlot], numbers))
+                    {
+                        fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
+                        storage.MoveValueToText(valueSlot, print.Texts + index, AwkText.Empty);
+                    }
+                    else
+                    {
+                        var text = state.FormatPrintByteText(storage.Values[valueSlot]);
+                        storage.MoveValueToText(valueSlot, print.Texts + index, text);
+                        fields[index] = AwkFieldText.FromOwned(text);
+                    }
                 }
             }
             // The sum of int-sized argument lengths fits in long. Delay the

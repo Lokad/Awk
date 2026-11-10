@@ -60,7 +60,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.ArrayPrepare or AwkRegionInstructionKind.ArrayRead or
                 AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.ArrayContains => TerminalAccess(instruction.Left),
                 AwkRegionInstructionKind.PrintField or AwkRegionInstructionKind.PrintValue => TerminalOperand(instruction.Left),
-                AwkRegionInstructionKind.PrintList => TerminalFields(_prints[instruction.Left].Fields),
+                AwkRegionInstructionKind.PrintList => TerminalPrint(_prints[instruction.Left]),
                 AwkRegionInstructionKind.Printf => TerminalFields(_printfs[instruction.Left].Fields),
                 _ => InvalidatingBoundary()
             };
@@ -150,6 +150,12 @@ internal sealed partial class AwkRegionCompiler
             return InvalidatingBoundary();
         }
         bool TerminalOperand(int operand) { OperandDemand(operand); return false; }
+        bool TerminalPrint(AwkRegionPrint print)
+        {
+            foreach (var argument in print.Arguments)
+                if (argument.Kind != AwkRegionPrintArgumentKind.Field || !Field(argument.Index)) break;
+            return false;
+        }
         bool TerminalFields(int[] fields)
         {
             foreach (var field in fields) if (!Field(field)) break;

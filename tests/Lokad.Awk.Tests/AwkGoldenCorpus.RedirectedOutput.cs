@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RedirectedOutputCases()
     {
+        yield return Passing("print-computed-numbers-before-later-format-effects",
+            ["function change(){n=100;OFS=\"|\";ORS=\"!\";OFMT=\"%.2f\";return \"changed\"}BEGIN{n=1.25;print n+1,change(),n+2}"],
+            [], "2.25|changed|102!");
+        yield return Passing("print-computed-numbers-survive-recursive-arguments",
+            ["function emit(n){if(n>0)print n+0,emit(n-1),n+0;return n+10}BEGIN{print 100+1,emit(2),200+2}"],
+            [], "1 10 1\n2 11 2\n101 12 202\n");
+        yield return Passing("print-computed-numbers-survive-file-phase-reentry",
+            ["function nextValue(){getline line;return 7}BEGIN{print 100+1,nextValue(),200+2}BEGINFILE{print 1000+1,2000+2}"],
+            [], "1001 2002\n101 7 202\n", "record\n");
         yield return Passing("print-integer-fragments-keep-spelling-and-output-format",
             ["{OFS=\"|\";OFMT=\"%.2f\";print length($2),$1,1.234,-12,0,100000000000000000000}"],
             [], "1|0007|1.23|-12|0|100000000000000000000\n", "0007 é\n");

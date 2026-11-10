@@ -29,6 +29,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(string.Concat(Enumerable.Repeat(line, records)), redirected ? host.ReadFile("/out") : host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records * width, counters.PrintIntegerSegments);
+        Assert.Equal(records * width, counters.PrintNumberArguments);
         Assert.Equal(records, counters.AwkTextAllocations);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.InRange(counters.StringDecodes, 0, 2);

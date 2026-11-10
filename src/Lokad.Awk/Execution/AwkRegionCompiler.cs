@@ -319,8 +319,9 @@ internal sealed partial class AwkRegionCompiler
                 {
                     if (printTarget.IsRedirected)
                     {
-                        var recordPrint = AllocatePrint(1, [], printTarget);
-                        Emit(new(AwkRegionInstructionKind.Value, recordPrint.Values, Operand(AwkRegionOperandKind.Field, 0), Detail: 1));
+                        var capturedRecord = _values++;
+                        Emit(new(AwkRegionInstructionKind.Value, capturedRecord, Operand(AwkRegionOperandKind.Field, 0), Detail: 1));
+                        var recordPrint = AllocatePrint([new(AwkRegionPrintArgumentKind.Value, capturedRecord)], printTarget);
                         EmitPrint(recordPrint);
                     }
                     else Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
@@ -569,13 +570,12 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private AwkRegionPrint AllocatePrint(int count, int[] fields, AwkRegionOutput output)
+    private AwkRegionPrint AllocatePrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
     {
-        if (fields.Length == 0) _usesOutputBuilder = true;
-        var print = new AwkRegionPrint(_values, _texts, _printSegments, count, fields, output);
-        _values = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_values, count));
-        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)count + 2));
-        _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, count));
+        var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
+        if (!print.UsesFieldViews) _usesOutputBuilder = true;
+        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)arguments.Length + 2));
+        _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
         return print;
     }
 
@@ -589,25 +589,41 @@ internal sealed partial class AwkRegionCompiler
     private bool PrintList(IReadOnlyList<AwkExpressionSyntax> arguments, AwkRegionOutput output)
     {
         if (arguments.Count == 0) return false;
-        var fields = new int[arguments.Count];
-        for (var index = 0; index < fields.Length; index++)
+        var prepared = new AwkRegionPrintArgument[arguments.Count];
+        var fieldList = true;
+        for (var index = 0; index < arguments.Count; index++)
         {
             // $0 can reconstruct and retire record slices. Such a list owns its
             // earlier values rather than carrying views across reconstruction.
-            if (TryFixedField(arguments[index], out fields[index]) && fields[index] != 0) continue;
-            fields = [];
+            if (TryFixedField(arguments[index], out var field) && field != 0)
+            {
+                prepared[index] = new(AwkRegionPrintArgumentKind.Field, field);
+                continue;
+            }
+            fieldList = false;
             break;
         }
-        var print = AllocatePrint(arguments.Count, fields, output);
-        if (fields.Length == 0)
+        if (fieldList)
+        {
+            for (var index = 0; index < prepared.Length; index++)
+                prepared[index] = prepared[index] with { FallbackValue = _values++ };
+        }
+        else
         {
             for (var index = 0; index < arguments.Count; index++)
             {
                 if (!Expression(arguments[index], out var value, preserveOrigin: true)) return false;
-                Emit(new(AwkRegionInstructionKind.Value, print.Values + index, value, Detail: 1));
+                if (_operands[value] is { Kind: AwkRegionOperandKind.NumberTemporary } number)
+                    prepared[index] = new(AwkRegionPrintArgumentKind.Number, number.Index);
+                else
+                {
+                    var captured = _values++;
+                    Emit(new(AwkRegionInstructionKind.Value, captured, value, Detail: 1));
+                    prepared[index] = new(AwkRegionPrintArgumentKind.Value, captured);
+                }
             }
         }
-        EmitPrint(print);
+        EmitPrint(AllocatePrint(prepared, output));
         return true;
     }
 

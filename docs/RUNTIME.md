@@ -248,8 +248,9 @@ function targets. Computed values such as `NF` still resolve at their actual use
 Numeric consumers can read an already-available special-scalar number directly from its owner.
 Speculative probes never split fields, request admission or convert assigned strings; assigned
 `NF` retains its scalar value and spelling independently of the descriptor count.
-Multi-value printing stages integer fragments in execution-owned scratch, avoiding temporary
-numeric text owners. Redirected writes receive the complete payload slice; its buffer remains
+Prepared print lists keep computed numbers in execution scratch through later arguments and
+format them at use. Integer fragments avoid temporary numeric text owners. Other values retain
+their captured origins and spelling. Redirected writes receive the complete payload slice; its buffer remains
 funded until the host operation completes. Argument and formatting order are preserved.
 Array updates bind their numeric RHS at preparation. Complete synchronous updates keep their
 stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.

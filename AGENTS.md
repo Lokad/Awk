@@ -137,6 +137,9 @@ or environment dependencies.
   General print can stage integer fragments in an admitted region builder. Preserve formatting
   order, complete-record preflights and payload slices; keep the buffer funded through actual
   redirected-write completion. Preserve original spelling and numeric formatting admission.
+  Prepared print lists consume ready numeric registers directly. Keep those registers in the
+  caller's existing scratch through later arguments; field/value fallbacks retain funded captures.
+  Only complete fixed-field lists may defer field reads into the synchronous print primitive.
 - Arithmetic prefixes and strict input-classification facts share their funded, reference-free
   record cells; a prefix is not a comparison fact. Already-owned decoded spelling keeps its
   cache slot and classification through reconstruction and copying. Full value reads still own

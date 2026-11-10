@@ -5,6 +5,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkStatementCompletionTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public Task ComputedPrintNumbersRemainCapturedAcrossReadCompletion(bool suspend, bool call)
+    {
+        var source = call
+            ? "function readNext(){getline v<\"/side\";return v+0}{print \"prefix\";print 100+1,readNext(),200+2}"
+            : "{print \"prefix\";print 100+1,(getline v<\"/side\"),200+2,v}";
+        return Run(source, suspend, failRead: false,
+            call ? "prefix\n101 7 202\n" : "prefix\n101 1 202 7\n");
+    }
+
+    [Theory]
     [InlineData("continue", false)] [InlineData("continue", true)]
     [InlineData("break", false)] [InlineData("break", true)]
     [InlineData("continue-loop", false)] [InlineData("continue-loop", true)]

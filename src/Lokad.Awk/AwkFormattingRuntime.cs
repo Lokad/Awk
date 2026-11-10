@@ -11,12 +11,15 @@ internal sealed class AwkFormattingRuntime(
 {
     public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
 
-    internal bool TryAppendPrintInteger(AwkValue value, AwkUtf8Builder destination)
+    internal bool TryAppendPrintInteger(AwkValue value, AwkUtf8Builder destination) =>
+        value.IsNumberValue && TryAppendPrintInteger(value.StoredNumber, destination);
+
+    internal bool TryAppendPrintInteger(double number, AwkUtf8Builder destination)
     {
         // Integers already ignore OFMT. Reuse the same bounded emission without
         // constructing an owning text value for this immediate print consumer.
-        if (!value.IsNumberValue || !double.IsInteger(value.StoredNumber)) return false;
-        AwkNumberFormatter.Append(value.StoredNumber, destination, checkpoint);
+        if (!double.IsInteger(number)) return false;
+        AwkNumberFormatter.Append(number, destination, checkpoint);
         counters.RecordPrintIntegerSegment();
         return true;
     }
