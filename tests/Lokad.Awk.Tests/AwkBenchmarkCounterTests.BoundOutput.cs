@@ -2,6 +2,40 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    public static IEnumerable<object[]> IntegerPrintWidths()
+    {
+        foreach (var width in new[] { 1, 5, 65 })
+        foreach (var redirected in new[] { false, true })
+        foreach (var governed in new[] { false, true }) yield return [width, redirected, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(IntegerPrintWidths))]
+    public async Task IntegerPrintFragmentsKeepOnlyEscapingFieldSpelling(int width, bool redirected, bool governed)
+    {
+        const int records = 16;
+        var operands = string.Join(',', Enumerable.Range(0, width).Select(i => "n+" + i).Append("$1"));
+        var source = "{n=$1+0;print " + operands + (redirected ? ">\"/out\"" : "") + "}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("0007\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var exit = await program.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        var line = string.Join(' ', Enumerable.Range(7, width).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append("0007")) + "\n";
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(string.Concat(Enumerable.Repeat(line, records)), redirected ? host.ReadFile("/out") : host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records * width, counters.PrintIntegerSegments);
+        Assert.Equal(records, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters.StringDecodes, 0, 2);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task SingleRedirectedPrintDoesNotFormatUnusedOfs(bool governed)

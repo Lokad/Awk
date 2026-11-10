@@ -40,6 +40,12 @@ internal static class AwkNumberFormatter
         return AwkText.FromTrustedOwnedBytes(Format(value, buffer).ToArray(), counters);
     }
 
+    internal static void Append(double value, AwkUtf8Builder destination, Action? checkpoint)
+    {
+        Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
+        destination.Append(Format(value, buffer), checkpoint);
+    }
+
     public static AwkText ToAwkText(
         double value,
         AwkRuntimeCounters counters,

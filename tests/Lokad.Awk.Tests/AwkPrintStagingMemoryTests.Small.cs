@@ -2,6 +2,37 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkPrintStagingMemoryTests
 {
+    [Fact]
+    public async Task RefusalAfterIntegerStagingDoesNotPublishPrivatePrefix()
+    {
+        using var memory = State(true, "default");
+        var state = memory.State;
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        output.Append(AwkText.FromSourceLiteralString("prior"));
+        var io = Io(state, new MockFileSystem());
+        var region = BindPrint(state, "print 7,\"" + new string('x', 10_000) + "\"");
+        memory.Budget.OnGrowth = _ =>
+        {
+            if (state.Counters.PrintIntegerSegments > 0)
+                memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        };
+        try
+        {
+            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+            Assert.True(state.Counters.PrintIntegerSegments > 0);
+            Assert.Equal(1, memory.Budget.Refusals);
+            Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+            Assert.Equal("prior", output.ToString());
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally
+        {
+            memory.Budget.OnGrowth = null;
+            await io.CloseForCleanupAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

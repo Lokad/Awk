@@ -570,6 +570,7 @@ internal sealed partial class AwkRegionCompiler
 
     private AwkRegionPrint AllocatePrint(int count, int[] fields, AwkRegionOutput output)
     {
+        if (fields.Length == 0) _usesOutputBuilder = true;
         var print = new AwkRegionPrint(_values, _texts, _printSegments, count, fields, output);
         _values = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_values, count));
         _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)count + 2));

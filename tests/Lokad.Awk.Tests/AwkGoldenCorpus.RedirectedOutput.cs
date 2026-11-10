@@ -4,6 +4,17 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RedirectedOutputCases()
     {
+        yield return Passing("print-integer-fragments-keep-spelling-and-output-format",
+            ["{OFS=\"|\";OFMT=\"%.2f\";print length($2),$1,1.234,-12,0,100000000000000000000}"],
+            [], "1|0007|1.23|-12|0|100000000000000000000\n", "0007 é\n");
+        yield return Passing("redirect-integer-fragments-exclude-private-prefix",
+            ["BEGIN{OFS=\"|\";print 7,\"é\",12>\"out\";print 99,\"later\">\"out\";close(\"out\");while((getline line<\"out\")>0)print \"[\"line\"]\"}"],
+            [], "[7|é|12]\n[99|later]\n");
+        yield return Passing("print-integer-fragments-format-after-argument-effects",
+            ["function change(){OFS=\":\";OFMT=\"%.2f\";return 8}BEGIN{OFS=\"|\";print 7,1.234,change(),9}"],
+            [], "7:1.23:8:9\n");
+        yield return Passing("print-integer-fragments-with-empty-separators",
+            ["BEGIN{OFS=\"\";ORS=\"\";print 1,\"x\",2;print 3,\"y\",4}"], [], "1x23y4");
         foreach (var printf in new[] { false, true })
         foreach (var separateReadback in new[] { false, true })
         {

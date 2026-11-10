@@ -123,8 +123,10 @@ or environment dependencies.
   detached field-text values. Those spans stay within the synchronous owned-output copy.
   Reconstructed copies share cancellation intervals across short fragments; retain long-copy,
   overlap and empty-field metadata bounds, post-admission checks and final Length publication.
-  Stored-text printing needs no formatting lease; numeric fields/terminators keep their existing
-  leases through the synchronous copy. Preserve original spelling and numeric formatting admission.
+  Stored-text printing needs no formatting lease; owned numeric formatting retains its leases.
+  General print can stage integer fragments in an admitted region builder. Preserve formatting
+  order, complete-record preflights and payload slices; keep the buffer funded through actual
+  redirected-write completion. Preserve original spelling and numeric formatting admission.
 - Arithmetic field numbers live in their funded record cells. Separate classification entries
   may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
@@ -253,8 +255,9 @@ or environment dependencies.
   speculative comparison probe; preserve assigned NF's actual scalar, including fractions and text.
   Ordinary string slots and computed string results use one runtime factory and defer numeric
   conversion until use, including callback/traversal keys and formatting results.
-  Stored-text formatting stays on the short conversion path. Print/string conversion share one
-  numeric formatting tail; preserve print-only scalar forcing, current OFMT/CONVFMT, numeric-string
+  Stored-text formatting stays on the short conversion path. Integer print fragments reuse the
+  same integer emitter; owned print/string conversions share one numeric formatting tail.
+  Preserve print-only scalar forcing, current OFMT/CONVFMT, numeric-string
   spelling, admission/lease ownership and formatting diagnostics. Qualify boundary changes with
   numeric-output and text workloads.
   Retain format-decode caches at the actual scalar owner using its existing cache allowance;

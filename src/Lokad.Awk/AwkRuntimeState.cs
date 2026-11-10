@@ -1260,6 +1260,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkText FormatPrintByteText(AwkValue value) =>
         _formattingRuntime.FormatPrintByteText(value);
 
+    internal bool TryAppendPrintInteger(AwkValue value, AwkUtf8Builder destination) =>
+        _formattingRuntime.TryAppendPrintInteger(value, destination);
+
     public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease retainedTextLease) =>
         _formattingRuntime.FormatPrintByteText(value, retainedTextLease);
 

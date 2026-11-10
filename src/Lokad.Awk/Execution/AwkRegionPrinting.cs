@@ -49,10 +49,16 @@ internal static class AwkRegionPrinting
         output.Append(formatted.AsMemory());
     }
 
-    internal static void Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrint print)
+    internal static int Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrint print)
     {
         var fields = storage.PrintSegments.AsSpan(print.Segments, print.Count);
         var borrowed = storage.BorrowedPrintFields.AsSpan(print.Segments, print.Count);
+        AwkUtf8Builder? numbers = null;
+        if (print.Fields.Length == 0)
+        {
+            numbers = storage.Builders[0].Buffer;
+            numbers.Clear();
+        }
         ReadOnlySpan<byte> record = default;
         if (print.Fields.Length != 0)
         {
@@ -85,9 +91,18 @@ internal static class AwkRegionPrinting
             if ((index & 63) == 0) state.ThrowIfCancellationRequested();
             if (print.Fields.Length == 0 || !borrowed[index])
             {
-                var text = state.FormatPrintByteText(storage.Values[print.Values + index]);
-                storage.MoveValueToText(print.Values + index, print.Texts + index, text);
-                fields[index] = AwkFieldText.FromOwned(text);
+                var start = numbers?.Length ?? 0;
+                if (numbers is not null && state.TryAppendPrintInteger(storage.Values[print.Values + index], numbers))
+                {
+                    fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
+                    storage.MoveValueToText(print.Values + index, print.Texts + index, AwkText.Empty);
+                }
+                else
+                {
+                    var text = state.FormatPrintByteText(storage.Values[print.Values + index]);
+                    storage.MoveValueToText(print.Values + index, print.Texts + index, text);
+                    fields[index] = AwkFieldText.FromOwned(text);
+                }
             }
             // The sum of int-sized argument lengths fits in long. Delay the
             // bounded-size check until every argument has been formatted.
@@ -97,15 +112,32 @@ internal static class AwkRegionPrinting
         var recordByteLength = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
             payloadByteLength, AwkRuntimeMemory.CheckedMultiply(
                 storage.Texts[print.Texts + print.Count].ByteLength, Math.Max(0, print.Count - 1))));
+        var payloadStart = 0;
         if (print.Output.IsRedirected)
         {
             var redirected = storage.Builders[0].Buffer;
-            redirected.Clear();
+            if (numbers is null) redirected.Clear();
+            else
+            {
+                // Grow before borrowing this owner's numeric prefix. The complete
+                // payload follows it; only that slice reaches the pending host user.
+                payloadStart = numbers.Length;
+                redirected.EnsureCapacity(AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
+                    payloadStart, AwkRuntimeMemory.CheckedAdd(recordByteLength,
+                        storage.Texts[print.Texts + print.Count + 1].ByteLength))));
+                record = numbers.AsSpan();
+            }
             redirected.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
                 storage.Texts[print.Texts + print.Count + 1], recordByteLength, state.CancellationCheckpoint);
         }
-        else output.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
-            storage.Texts[print.Texts + print.Count + 1], recordByteLength);
+        else
+        {
+            if (numbers is not null) record = numbers.AsSpan();
+            output.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
+                storage.Texts[print.Texts + print.Count + 1], recordByteLength);
+            numbers?.Clear();
+        }
         storage.ReleasePrint(print);
+        return payloadStart;
     }
 }

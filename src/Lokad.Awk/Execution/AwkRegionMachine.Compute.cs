@@ -194,12 +194,12 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.PrintList:
                 {
                     var print = computationView.Region.Prints[instruction.Left];
-                    AwkRegionPrinting.Append(computationView.State, computationView.Storage,
+                    var payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage,
                         output ?? throw new InvalidOperationException("Print requires an output sink."), print);
                     if (print.Output.IsRedirected)
                     {
                         _position = position + 1;
-                        BeginWrite(print.Output);
+                        BeginWrite(print.Output, payloadStart);
                         goto Resume;
                     }
                     break;

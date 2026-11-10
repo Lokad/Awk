@@ -11,6 +11,16 @@ internal sealed class AwkFormattingRuntime(
 {
     public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
 
+    internal bool TryAppendPrintInteger(AwkValue value, AwkUtf8Builder destination)
+    {
+        // Integers already ignore OFMT. Reuse the same bounded emission without
+        // constructing an owning text value for this immediate print consumer.
+        if (!value.IsNumberValue || !AwkNumberFormatter.IsInteger(value.StoredNumber)) return false;
+        AwkNumberFormatter.Append(value.StoredNumber, destination, checkpoint);
+        counters.RecordPrintIntegerSegment();
+        return true;
+    }
+
     public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease? retainedTextLease)
     {
         value = value.ForceScalar();

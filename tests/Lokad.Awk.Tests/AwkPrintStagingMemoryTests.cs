@@ -250,6 +250,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
+    [InlineData(7)]
     public async Task CanceledOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(int printCount)
     {
         var budget = new CooperativeTestBudget(Limit);
@@ -263,13 +264,15 @@ public sealed partial class AwkPrintStagingMemoryTests
             4 => "BEGIN{printf \"%04096d\",7}",
             5 => "function emit(){printf \"%04096d\",7>\"result\";return 7}BEGIN{a[\"key\",emit()]=1;print \"unreachable\"}",
             6 => "function emit(){print s>\"result\";return 7}BEGIN{s=sprintf(\"%04096d\",7);a[\"key\",emit()]=1;print \"unreachable\"}",
+            7 => "BEGIN{s=sprintf(\"%04096d\",7);print 7,s,8>\"result\"}",
             _ => "BEGIN{printf \"%04096d\",7 > \"result\"}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
         var pending = tool.ExecuteAsync(host, policy, cancellation.Token);
         var ending = printCount switch { 3 => "7 café\n", 2 => "7 8\n", 1 or 6 => "7\n", _ => "7" };
-        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + ending).ToArray();
+        var expected = AwkUtf8Codec.Encode(printCount == 7
+            ? "7 " + new string('0', 4095) + "7 8\n" : new string('0', 4095) + ending).ToArray();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));

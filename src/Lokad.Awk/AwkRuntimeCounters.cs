@@ -358,6 +358,14 @@ internal sealed class AwkRuntimeCounters
     private long _smallValuePrintRuns;
     public long SmallValuePrintRuns => Volatile.Read(ref _smallValuePrintRuns);
 
+    private long _printIntegerSegments;
+    public long PrintIntegerSegments => Volatile.Read(ref _printIntegerSegments);
+
+    internal void RecordPrintIntegerSegment()
+    {
+        if (_enabled) Interlocked.Increment(ref _printIntegerSegments);
+    }
+
     private long _fieldListPrintRuns;
     public long FieldListPrintRuns => Volatile.Read(ref _fieldListPrintRuns);
 

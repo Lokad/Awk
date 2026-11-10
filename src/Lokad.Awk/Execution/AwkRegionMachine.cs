@@ -120,7 +120,7 @@ internal partial struct AwkRegionMachine
         return true;
     }
 
-    private void BeginWrite(AwkRegionOutput output)
+    private void BeginWrite(AwkRegionOutput output, int payloadStart = 0)
     {
         if (_io is not { } io) throw new InvalidOperationException("Redirection requires a host context.");
         var storage = _storage;
@@ -128,7 +128,7 @@ internal partial struct AwkRegionMachine
         _state.ThrowIfCancellationRequested();
         _destination = output.Value;
         _pending = Pending.Output;
-        _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()));
+        _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()[payloadStart..]));
     }
 
     private void BeginFlush(AwkOutputSink output, int resumePosition, int fieldDemand = 0)
