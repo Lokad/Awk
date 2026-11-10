@@ -6,20 +6,32 @@ public sealed class AwkRegexEscapeWarningTests
     [Theory]
     [InlineData(false, 4096)] [InlineData(true, 4096)]
     [InlineData(false, 262144)] [InlineData(true, 262144)]
-    public void SourceBackedWarningInspectionDoesNotCopyThePattern(bool strong, int length)
+    public async Task SourceBackedWarningInspectionDoesNotCopyThePattern(bool strong, int length)
     {
-        const string prefix = "BEGIN{print ";
-        var literal = (strong ? "@/" : "/") + new string('a', length) + "/";
-        var source = prefix + literal + "}";
-        var token = AwkToken.FromSource(strong ? AwkTokenKind.StrongRegex : AwkTokenKind.Regex,
-            source, new AwkTextSpan(prefix.Length, literal.Length));
-        var pattern = token.TextSpan[(strong ? 2 : 1)..^1];
-        var history = new AwkRegexEscapeWarnings();
-        Action<AwkRegexEscapeWarning> report = static _ => Assert.Fail("Unexpected warning.");
-        AwkRegexEscapes.ReportWarnings(pattern, AwkCompatibilityMode.GnuDefault, history, report, null);
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        AwkRegexEscapes.ReportWarnings(pattern, AwkCompatibilityMode.GnuDefault, history, report, null);
-        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 512);
+        // Keep the small allocation guard off xUnit's worker and exclude GC/pool
+        // maintenance, using the same isolation as the other exact BCL guards.
+        var allocated = await Task.Factory.StartNew(() =>
+        {
+            const string prefix = "BEGIN{print ";
+            var literal = (strong ? "@/" : "/") + new string('a', length) + "/";
+            var source = prefix + literal + "}";
+            var token = AwkToken.FromSource(strong ? AwkTokenKind.StrongRegex : AwkTokenKind.Regex,
+                source, new AwkTextSpan(prefix.Length, literal.Length));
+            var pattern = token.TextSpan[(strong ? 2 : 1)..^1];
+            var history = new AwkRegexEscapeWarnings();
+            Action<AwkRegexEscapeWarning> report = static _ => Assert.Fail("Unexpected warning.");
+            AwkRegexEscapes.ReportWarnings(pattern, AwkCompatibilityMode.GnuDefault, history, report, null);
+            Assert.True(GC.TryStartNoGCRegion(16 << 20));
+            try
+            {
+                GC.WaitForPendingFinalizers();
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                AwkRegexEscapes.ReportWarnings(pattern, AwkCompatibilityMode.GnuDefault, history, report, null);
+                return GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+            finally { GC.EndNoGCRegion(); }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Assert.InRange(allocated, 0, 512);
     }
 
     public static IEnumerable<object[]> Modes()
