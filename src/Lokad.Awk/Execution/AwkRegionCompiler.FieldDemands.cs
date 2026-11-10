@@ -50,6 +50,8 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
                 AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend => OperandDemand(instruction.Left),
+                AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring or
+                AwkRegionInstructionKind.Case => StringCall(instruction.Left),
                 AwkRegionInstructionKind.Compare =>
                     NumberSourceDemand(instruction.Left) && NumberSourceDemand(instruction.Right),
                 AwkRegionInstructionKind.CompareText =>
@@ -111,6 +113,16 @@ internal sealed partial class AwkRegionCompiler
         {
             var source = new AwkRegionNumberSource(location);
             return source.IsRegister || OperandDemand(source.OperandIndex);
+        }
+
+        bool StringCall(int site)
+        {
+            var call = _strings[site];
+            if (!OperandDemand(call.First) ||
+                (call.Second >= 0 && !OperandDemand(call.Second)) ||
+                (call.Third >= 0 && !OperandDemand(call.Third)))
+                return InvalidatingBoundary();
+            return true;
         }
 
         bool InvalidatingBoundary()

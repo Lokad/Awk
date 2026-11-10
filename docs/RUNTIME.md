@@ -196,6 +196,8 @@ an immutable owned subject. Unpublished scan storage stays owned until publicati
 Prepared computation and argument segments can extend known field prefixes within admitted capacity.
 This keeps cold admission and lazy byte materialization at their ordinary demand points, respects
 unknown effects and branches, and waits for pending output completion before preparing later work.
+Ordinary string primitives share this preparation; dynamic or potentially invalidating operands
+retain their normal demand boundaries.
 Argument preparation starts at the first static field, after earlier arguments have staged.
 Lowering's name-to-ordinal table is temporary; prepared execution retains its count and
 bound accesses, with runtime slots owned by each execution.
