@@ -10,6 +10,10 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("bound-local-values-keep-spelling-across-global-file-phase-calls",
+            ["function show(s){return \"[\"s\"]\"}function take(s,t){print show(s);getline t;print show(s),show(t);return s}" +
+             "BEGIN{s=\"global\";print take(\"007\");print s}BEGINFILE{print show(s);s=\"changed\"}END{print s}"], [],
+            "[007]\n[global]\n[007] [009]\n007\nchanged\nchanged\n", "009\n");
         const string numericFactsSource = "function check(a,b,r){r=(a<b)\" \"(a==b)\" \"(a>b);print r,\"[\"a\"]\",\"[\"b\"]\";return a}{saved=check($1,$2);check($1,\"010\");check(\"010\",$1);check($1,10);check(10,$1);print \"[\"saved\"]\"}";
         const string decimalFactsOutput = "0 0 1 [010] [2]\n0 1 0 [010] [010]\n0 1 0 [010] [010]\n0 1 0 [010] [10]\n0 1 0 [10] [010]\n[010]\n";
         yield return Passing("function-numeric-facts-preserve-origins-default", [numericFactsSource], [], decimalFactsOutput, "010 2\n");

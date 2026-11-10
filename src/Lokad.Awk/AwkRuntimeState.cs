@@ -939,12 +939,30 @@ internal sealed class AwkRuntimeState : IDisposable
         TryReadBoundFunctionLocalValue(slotId, out var value) ? value :
             _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
+    // Prepared execution supplies its actual frame. Standalone function helpers
+    // retain visible-stack resolution; root/file phases have no execution frame.
+    internal AwkValue ResolveFunctionLocalValue(AwkFunctionFrame? frame,
+        AwkFunctionLocalSlotId slotId, AwkVariableName name)
+    {
+        if (frame is null) return ResolveFunctionLocalValue(slotId, name);
+        if ((uint)slotId.Index < (uint)frame.Layout.SlotCount)
+        {
+            ref readonly var slot = ref frame.GetSlot(slotId.Index);
+            if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
+            {
+                var value = slot.ReadValue(CancellationCheckpoint);
+                Counters.RecordLocalValueRead(in value);
+                return value;
+            }
+        }
+        return _variableRuntime.ResolveFunctionLocalValue(slotId, name);
+    }
+
     internal bool TryReadBoundFunctionLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value, bool allowArray = false)
     {
         if (_functions.TryReadBoundLocalValue(slotId, out value, allowArray))
         {
-            if (value.IsNumberValue) Counters.RecordNumericLocalRead();
-            else if (!value.IsArrayValue) Counters.RecordScalarLocalValueRead();
+            Counters.RecordLocalValueRead(in value);
             return true;
         }
         return false;

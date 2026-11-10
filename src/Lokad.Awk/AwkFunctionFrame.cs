@@ -216,6 +216,20 @@ internal struct AwkFunctionLocalSlot
         ? AwkValue.Unassigned()
         : AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_payloadTag);
 
+    internal readonly AwkValue ReadValue(Action? checkpoint)
+    {
+        // Capture before the callback; the cell can retire while it runs.
+        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key)
+            return AwkValue.Unassigned();
+        var reference = _reference;
+        var word = _word;
+        var kind = (AwkValueKind)_payloadTag;
+        if (AwkValue.HasInputClassification(kind) &&
+            AwkText.FromBacking(reference).ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+            checkpoint?.Invoke();
+        return AwkValue.FromStorage(reference, BitConverter.Int64BitsToDouble(word), kind);
+    }
+
     public AwkArrayName ArrayName { get; }
 
     // Only prepared key consumers read this owning value. It never borrows a record.

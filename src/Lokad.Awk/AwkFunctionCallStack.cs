@@ -366,7 +366,7 @@ internal sealed class AwkFunctionCallStack(
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
-                value = ReadScalarValue(slot.Value);
+                value = slot.ReadValue(checkpoint);
                 return true;
             }
             if (allowArray && slot.Value.TryGetArrayBinding(out var array))
@@ -818,18 +818,9 @@ internal sealed class AwkFunctionCallStack(
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
             AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
-                ReadScalarValue(slot.Value)),
+                slot.ReadValue(checkpoint)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
         };
-    }
-
-    private AwkValue ReadScalarValue(AwkValue value)
-    {
-        // Preserve cancellation at long input reads even when classification
-        // was prepared before entering the frame.
-        if (value.RetainsInputClassification && value.ByteText.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
-            checkpoint?.Invoke();
-        return value;
     }
 
     private void RegisterPotentialArrayAlias(AwkArrayName arrayName)

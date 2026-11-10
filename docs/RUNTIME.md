@@ -415,8 +415,10 @@ Cleared local cells already represent omitted arguments with an unassigned value
 arguments replace those cells in caller evaluation order.
 Scalar arguments capture their payload before admission and initialize those incoming cells directly;
 later callbacks cannot change the captured value. Array aliases and untyped origins retain reconciliation.
-Function cells retain scalar values directly, preserving spelling and input origins without rebuilding
-a value on each read. Mode-sensitive input is classified at the frame owner; conversion errors remain
+Function cells retain canonical scalar payloads, preserving spelling and input origins without a
+variable-slot conversion. Prepared reads use their execution frame; dynamic name resolution and
+standalone helpers retain visible-scope lookup. Payloads are captured before cancellation callbacks.
+Mode-sensitive input is classified at the frame owner; conversion errors remain
 deferred until numeric use, and long input reads retain cancellation coverage.
 Arithmetic and numeric-pair comparisons consume stored scalar facts without changing their
 spelling or input origins. General comparisons retain original captures before RHS effects.

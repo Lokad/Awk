@@ -5,6 +5,12 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkStatementCompletionTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public Task BoundLocalValueReadsKeepTheirFrameAcrossReadCompletion(bool suspend) => Run(
+        "function work(s){print \"prefix\";getline v<\"/side\";print s,v;return s}{r=work(\"007\");print r}",
+        suspend, failRead: false, "prefix\n007 7\n007\n");
+
+    [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
     public Task ComputedPrintNumbersRemainCapturedAcrossReadCompletion(bool suspend, bool call)

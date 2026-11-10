@@ -518,6 +518,13 @@ internal sealed class AwkRuntimeCounters
         Interlocked.Increment(ref _numericLocalReads);
     }
 
+    internal void RecordLocalValueRead(in AwkValue value)
+    {
+        if (!_enabled) return;
+        if (value.IsNumberValue) RecordNumericLocalRead();
+        else if (!value.IsArrayValue) RecordScalarLocalValueRead();
+    }
+
 
     private long _hostCalls;
     public long HostCalls => Volatile.Read(ref _hostCalls);

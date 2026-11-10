@@ -372,7 +372,10 @@ internal readonly struct AwkValue
     }
 
     internal bool RetainsInputClassification =>
-        _kind is AwkValueKind.NumericString or AwkValueKind.NonDecimalConversionErrorInput;
+        HasInputClassification(_kind);
+
+    internal static bool HasInputClassification(AwkValueKind kind) =>
+        kind is AwkValueKind.NumericString or AwkValueKind.NonDecimalConversionErrorInput;
 
     public bool IsUnassignedValue => _kind == AwkValueKind.Unassigned ||
         _kind == AwkValueKind.Untyped && _text is AwkUntypedScalar { IsScalar: true };

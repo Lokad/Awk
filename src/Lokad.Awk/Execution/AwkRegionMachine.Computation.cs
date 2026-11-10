@@ -172,7 +172,7 @@ internal partial struct AwkRegionMachine
             {
                 case AwkRegionOperandKind.NumberTemporary: return AwkValue.FromNumber(numbers[operand.Index]);
                 case AwkRegionOperandKind.LocalVariable:
-                    return state.ResolveFunctionLocalValue(new(operand.Index), operand.Name);
+                    return state.ResolveFunctionLocalValue(frame, new(operand.Index), operand.Name);
                 case AwkRegionOperandKind.GlobalVariable:
                     return state.ResolvePreparedGlobalValue(operand.Name, operand.Index);
                 case AwkRegionOperandKind.SpecialVariable:
@@ -380,7 +380,7 @@ internal partial struct AwkRegionMachine
 
         internal AwkValue ReadVariable(AwkRegionOperand variable) => variable.Kind switch
         {
-            AwkRegionOperandKind.LocalVariable => state.ResolveFunctionLocalValue(new(variable.Index), variable.Name),
+            AwkRegionOperandKind.LocalVariable => state.ResolveFunctionLocalValue(frame, new(variable.Index), variable.Name),
             AwkRegionOperandKind.GlobalVariable => state.ResolvePreparedGlobalValue(variable.Name, variable.Index),
             AwkRegionOperandKind.SpecialVariable => state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)variable.Index),
             _ => state.ResolveVariableValue(variable.Name)
@@ -440,7 +440,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.LocalVariable:
                 {
                     return frame is not null && TryLocalNumericScalar(operand.Index, out var number) ? number :
-                        state.ResolveFunctionLocalValue(new(operand.Index), operand.Name).AsNumber(state.CancellationCheckpoint);
+                        state.ResolveFunctionLocalValue(frame, new(operand.Index), operand.Name).AsNumber(state.CancellationCheckpoint);
                 }
                 case AwkRegionOperandKind.SpecialVariable:
                     return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index).AsNumber(state.CancellationCheckpoint);

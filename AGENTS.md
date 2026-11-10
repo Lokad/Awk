@@ -210,6 +210,9 @@ or environment dependencies.
   Function scalars retain canonical values in those words, without a variable-slot projection
   or read conversion callback. Normalize reading mode at the frame owner; preserve input spelling,
   deferred conversion errors and long-input cancellation. Global/array slots convert at that boundary.
+  Prepared full-value reads use the actual execution frame; standalone/dynamic reads keep visible-scope
+  resolution. The cell captures payload words before polling and materializes the value at return.
+  Disabled observation counters need no value-kind classification.
   Pure numbers use funded scalar storage.
   Arithmetic and complete comparisons may consume existing scalar numeric facts without changing
   spelling/origins. Compare numerically only when both probes succeed; otherwise capture the
