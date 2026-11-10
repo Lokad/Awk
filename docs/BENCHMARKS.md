@@ -1,13 +1,14 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-The two **★** managed Unicode comparisons were measured on **2026-11-10 UTC** at
-[3aba93a0](https://github.com/Lokad/Awk/commit/3aba93a08b7e6413e0f8fdde2a8549832d6938f8). Four **¶** NF-loop comparisons retain
-**2026-11-10 UTC** results at
-[dd1a8b5a](https://github.com/Lokad/Awk/commit/dd1a8b5a3b9b91b7d11c15b9e1c491d71d2cd8f8).
-The other 65 managed comparisons and all ten admission measurements retain **2026-11-10 UTC**
-results at [6a45ce2c](https://github.com/Lokad/Awk/commit/6a45ce2c9b2bc560325e0c7cc71cea28729efdf6).
-Retained rows are not fresh results for the newer revision.
+The two **◇** numeric-filter comparisons were measured on **2026-11-10 UTC** at
+[ed3e9d2f](https://github.com/Lokad/Awk/commit/ed3e9d2f240540a07766cf0ae93837a305ce2d9c). The other 71 managed comparisons
+retain **2026-11-10 UTC** results: two **★** Unicode cases at
+[3aba93a0](https://github.com/Lokad/Awk/commit/3aba93a08b7e6413e0f8fdde2a8549832d6938f8), four **¶** NF-loop cases at
+[dd1a8b5a](https://github.com/Lokad/Awk/commit/dd1a8b5a3b9b91b7d11c15b9e1c491d71d2cd8f8), and 65 other cases at
+[6a45ce2c](https://github.com/Lokad/Awk/commit/6a45ce2c9b2bc560325e0c7cc71cea28729efdf6).
+All ten admission measurements retain that last revision. Retained rows are not fresh results
+for the newer source.
 
 GNU timings retain **2026-11-06 UTC** measurements at
 [da5c6a14](https://github.com/Lokad/Awk/commit/da5c6a14ae581ff9b1a2959a3e58bcf8b2cd6ef3), except:
@@ -15,6 +16,7 @@ GNU timings retain **2026-11-06 UTC** measurements at
 - **†** Three large call workloads: **2026-11-08 UTC**, [0094c5d5](https://github.com/Lokad/Awk/commit/0094c5d520fac4f2816b688f608a9b00e6d625cd).
 - **‡** Three large text/sorting workloads: **2026-11-09 UTC**, [59c1d680](https://github.com/Lokad/Awk/commit/59c1d68045bdb881bd3190b72138ef097e0fe9d9).
 - **§** Unicode: **2026-11-09 UTC**, [6c1bc81a](https://github.com/Lokad/Awk/commit/6c1bc81a7f5e09228290b40c62e2c4a74db09fde).
+- **◇** Numeric filtering: **2026-11-10 UTC**, [ed3e9d2f](https://github.com/Lokad/Awk/commit/ed3e9d2f240540a07766cf0ae93837a305ce2d9c).
 
 Each cohort verifies source, binaries, fixtures, policies, contracts and equivalent outputs at
 its stated revision. Retained GNU timings are not fresh measurements. Times are BenchmarkDotNet medians;
@@ -27,7 +29,7 @@ The benchmark host creates a completed result task for each append. On this runt
 
 ## Representative processing
 
-All 51 catalog families. Most process 4,096 records; all-field, numeric-wide, fixed-count,
+All 52 catalog families. Most process 4,096 records; all-field, numeric-wide, fixed-count,
 prefix-to-NF, wide-rebuilding and long-field cases use 256. Join uses 4,096 records per file.
 Default execution has no shared admission. GNU-marked extensions do not imply full conformance.
 
@@ -76,6 +78,7 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | Changed ASCII case | 580.00 | 1.213 | 2.492 | 0.49× | 2.830 |
 | Alternate reads from two lookup arrays | 21.50 | 0.511 | 1.081 | 0.47× | 0.155 |
 | Copy field / rebuild record (128 columns) | 101.00 | 0.545 | 1.158 | 0.47× | 0.092 |
+| Numeric range filtering / accumulation ◇ | 32.00 | 0.540 | 1.192 | 0.45× | 0.100 |
 | Literal field separator | 48.00 | 0.430 | 1.003 | 0.43× | 0.093 |
 | Field-key membership | 48.56 | 0.425 | 0.991 | 0.43× | 0.145 |
 | CSV keyed sum / quoted and multiline fields (GNU) | 100.16 | 1.002 | 2.347 | 0.43× | 0.775 |
@@ -105,6 +108,7 @@ inputs dominated by process startup.
 | Copy field / rebuild record | 960.00 | 13.177 | 10.809 | 1.22× | 5.565 |
 | Nested-array calls, 1,024 keys (GNU) † | 125.01 | 7.268 | 5.977 | 1.22× | 0.786 |
 | Two-file membership / join | 1386.30 | 33.835 | 30.948 | 1.09× | 10.120 |
+| Numeric range filtering / accumulation ◇ | 512.00 | 8.386 | 8.229 | 1.02× | 0.101 |
 | Loop with repeated numeric field reads | 401.40 | 31.061 | 31.526 | 0.99× | 0.128 |
 | Numeric prefix / finish field loop through NF (128 columns) ¶ | 1616.00 | 35.373 | 36.105 | 0.98× | 0.121 |
 | Sum one numeric column | 401.40 | 5.477 | 5.865 | 0.93× | 0.072 |
