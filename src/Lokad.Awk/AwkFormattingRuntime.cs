@@ -15,7 +15,7 @@ internal sealed class AwkFormattingRuntime(
     {
         // Integers already ignore OFMT. Reuse the same bounded emission without
         // constructing an owning text value for this immediate print consumer.
-        if (!value.IsNumberValue || !AwkNumberFormatter.IsInteger(value.StoredNumber)) return false;
+        if (!value.IsNumberValue || !double.IsInteger(value.StoredNumber)) return false;
         AwkNumberFormatter.Append(value.StoredNumber, destination, checkpoint);
         counters.RecordPrintIntegerSegment();
         return true;
@@ -44,7 +44,7 @@ internal sealed class AwkFormattingRuntime(
     private AwkText FormatNumberByteText(AwkValue value, double number, AwkFormattingVariable variable,
         AwkMemoryLease? retainedTextLease)
     {
-        if (AwkNumberFormatter.IsInteger(number))
+        if (double.IsInteger(number))
             return AwkNumberFormatter.ToAwkText(number, counters, governor, retainedTextLease);
 
         if (UsesDefaultFormat(variable))

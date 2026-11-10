@@ -1068,7 +1068,7 @@ internal sealed partial class AwkArrayRuntime
                 // Equal pure integers have the same canonical spelling, including
                 // signed zero. Other origins and nonintegers still need their text.
                 if (left.Value.IsNumberValue && right.Value.IsNumberValue &&
-                    AwkNumberFormatter.IsInteger(left.NumericKey))
+                    double.IsInteger(left.NumericKey))
                     return 0;
                 counters.RecordByteTextComparison();
                 using var textLease = state.MemoryAccounting.CreateTransientLease();

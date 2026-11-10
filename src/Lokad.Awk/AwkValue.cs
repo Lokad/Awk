@@ -385,7 +385,7 @@ internal readonly struct AwkValue
         if (_kind == AwkValueKind.Number &&
             _number >= int.MinValue &&
             _number <= int.MaxValue &&
-            AwkNumberFormatter.IsInteger(_number))
+            double.IsInteger(_number))
         {
             ordinal = (int)_number;
             return true;

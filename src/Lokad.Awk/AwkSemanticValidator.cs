@@ -458,7 +458,7 @@ internal static class AwkSemanticValidator
                     continue;
                 }
                 var key = value.TryGetNumber(out var number)
-                    ? AwkNumberFormatter.IsInteger(number) ? AwkNumberFormatter.ToString(number)
+                    ? double.IsInteger(number) ? AwkNumberFormatter.ToString(number)
                         : AwkNumberFormatter.ToDefaultFormatAwkText(number, AwkRuntimeCounters.Disabled,
                             AwkMemoryAccounting.Disabled).AsString(AwkRuntimeCounters.Disabled, scope.Checkpoint)
                     : value.ByteText.AsString(AwkRuntimeCounters.Disabled, scope.Checkpoint);

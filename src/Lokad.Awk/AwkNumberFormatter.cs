@@ -23,7 +23,7 @@ internal static class AwkNumberFormatter
         if (double.IsNaN(value))
             return "nan";
 
-        if (IsInteger(value))
+        if (double.IsInteger(value))
             return FitsSignedInteger(value)
                 ? ((long)value).ToString(CultureInfo.InvariantCulture)
                 : new BigInteger(value).ToString(CultureInfo.InvariantCulture);
@@ -93,14 +93,11 @@ internal static class AwkNumberFormatter
         return AwkText.FromTrustedOwnedBytes(owned, counters);
     }
 
-    public static bool IsInteger(double value) =>
-        Math.Abs(value % 1) < double.Epsilon;
-
     private static bool FitsSignedInteger(double value) =>
         value >= long.MinValue && value < -(double)long.MinValue;
 
     private static int FormattedByteCapacity(double value) =>
-        FitsSignedInteger(value) || !IsInteger(value) ? MaxFormattedDoubleBytes : MaxFormattedIntegerBytes;
+        FitsSignedInteger(value) || !double.IsInteger(value) ? MaxFormattedDoubleBytes : MaxFormattedIntegerBytes;
 
     private static ReadOnlySpan<byte> Format(double value, Span<byte> buffer)
     {
@@ -113,7 +110,7 @@ internal static class AwkNumberFormatter
         if (double.IsNaN(value))
             return "nan"u8;
 
-        if (IsInteger(value))
+        if (double.IsInteger(value))
         {
             var formatted = FitsSignedInteger(value)
                 ? Utf8Formatter.TryFormat((long)value, buffer, out var bytesWritten)
