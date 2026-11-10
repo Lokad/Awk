@@ -332,7 +332,7 @@ internal sealed class AwkFieldFrame(
     private AwkValue ReadFieldArithmeticValue(AwkFieldIndex index, int cachedValue) =>
         cachedValue >= 0 ? _fieldValueCache[cachedValue].Value : GetFieldValue(index);
 
-    internal AwkComparisonOperand GetFieldComparison(AwkFieldIndex index,
+    internal AwkScalarOperand GetFieldComparison(AwkFieldIndex index,
         AwkNumberParsingMode mode)
     {
         EnsureField(index);
@@ -558,6 +558,14 @@ internal sealed class AwkFieldFrame(
             return false;
         bytes = field.BytesInRecord(RecordBytes());
         return true;
+    }
+
+    internal bool TryGetStableFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
+    {
+        // An immediate $0 read can retire dirty slices while rebuilding the record.
+        if (_recordTextIsCurrent) return TryGetUnmaterializedFieldBytes(index, out bytes);
+        bytes = default;
+        return false;
     }
 
     public bool TryGetUnmaterializedFieldText(

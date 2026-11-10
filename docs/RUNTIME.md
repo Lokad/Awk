@@ -155,6 +155,10 @@ letters only and preserves all other UTF-8 bytes.
 String formatting and bounded substring prefixes stay byte-native. Short text and bounded
 prefix slices need no whole-value UTF-16 conversion or rune index; nonlocal slicing of long
 text can retain an index.
+Immediate string consumers can borrow stable record bytes; results that escape own their text.
+Arguments crossing mutation or suspension retain owned snapshots. Formatting and numeric errors
+remain at their language consumption point. Unicode casing retains its managed-string
+compatibility boundary, with temporary source storage covered by shared admission.
 
 Selecting a [regex engine](#regex-engines) does not change ingress or units.
 [Compatibility notes](COMPATIBILITY.md#source-string-escapes) cover escape-to-text conversion

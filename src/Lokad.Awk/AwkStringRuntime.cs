@@ -37,33 +37,33 @@ internal sealed class AwkStringRuntime
         ignoreCase ? AwkCaseText.Compare(left, right, _unitMode, _checkpoint) :
             AwkText.CompareBytes(left, right, _checkpoint);
 
-    public int IndexOfUnits(AwkText source, AwkText value, bool ignoreCase)
+    public int IndexOfUnits(AwkByteTextOperand source, AwkByteTextOperand value, bool ignoreCase)
     {
+        var bytes = source.AsSpan(_checkpoint);
+        var needle = value.AsSpan(_checkpoint);
         if (!ignoreCase)
             _checkpoint?.Invoke();
         var position = ignoreCase
-            ? AwkCaseText.IndexOf(source.AsSpan(_checkpoint), value.AsSpan(_checkpoint), _unitMode, _checkpoint)
-            : source.IndexOf(value, _checkpoint);
+            ? AwkCaseText.IndexOf(bytes, needle, _unitMode, _checkpoint)
+            : bytes.IndexOf(needle);
+        if (!ignoreCase) _checkpoint?.Invoke();
         if (position < 0)
             return 0;
 
         return _unitMode is AwkStringUnitMode.Byte
             ? position + 1
-            : AwkText.CountRunes(source.AsSpan(_checkpoint)[..position], _checkpoint) + 1;
+            : AwkText.CountRunes(bytes[..position], _checkpoint) + 1;
     }
 
-    public AwkText SubstringByUnits(
-        AwkText source,
+    public AwkByteTextOperand SubstringByUnits(
+        AwkByteTextOperand source,
         int start,
         int length,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor)
     {
         _checkpoint?.Invoke();
-        if (_unitMode is not AwkStringUnitMode.Byte)
-            return source.CopyRuneSlice(start, length, counters, governor, _checkpoint);
-        start = Math.Min(start, source.ByteLength);
-        return source.CopyByteSlice(start, Math.Min(length, source.ByteLength - start), counters, governor, _checkpoint);
+        return source.SliceUnits(start, length, IsByteMode, counters, governor, _checkpoint);
     }
 
 }

@@ -468,24 +468,30 @@ internal sealed class AwkRuntimeState : IDisposable
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
-    internal bool HasStringUnitAt(AwkText value, int index) =>
-        _stringRuntime.IsByteMode ? index < value.ByteLength : value.HasRuneAt(index, CancellationCheckpoint);
+    internal bool HasStringUnitAt(AwkByteTextOperand value, int index) =>
+        value.HasUnitAt(index, _stringRuntime.IsByteMode, CancellationCheckpoint);
 
     internal void PrepareAdmittedFields(int maximum) => _recordFields.PrepareAdmittedFields(maximum);
 
     internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.RecordByteOperand;
 
-    internal AwkByteTextOperand ResolveFieldByteOperand(int index)
+    internal AwkByteTextOperand ResolveFieldByteOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
+        ? new(bytes) : new(FormatStringByteText(CaptureFieldStringValue(index)));
+
+    internal AwkScalarOperand ResolveFieldTextOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
+        ? new(bytes, index) : new(CaptureFieldStringValue(index));
+
+    private bool TryGetFieldStringBytes(int index, out ReadOnlySpan<byte> bytes)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index == 0 && _recordFields.TryGetBufferedRecordBytes(out var record))
-            return new(record);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var field))
-            return new(field);
-        // Assigned numeric $0 must use current CONVFMT, rather than its cached record spelling.
-        return new(FormatStringByteText(index == 0 ? GetCurrentRecordValue() : GetFieldValue(index)));
+        return index == 0 ? _recordFields.TryGetBufferedRecordBytes(out bytes)
+            : _recordFields.TryGetStableFieldBytes(new(index), out bytes);
     }
+
+    // Assigned numbers retain formatting at actual consumption.
+    private AwkValue CaptureFieldStringValue(int index) => TryGetFieldTextArgument(index, out var text) ? text :
+        index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
 
     internal void AppendFieldByteText(AwkUtf8Builder destination, int index)
     {
@@ -606,7 +612,7 @@ internal sealed class AwkRuntimeState : IDisposable
             _ = GetFieldValue(index);
     }
 
-    internal AwkComparisonOperand GetFieldComparison(int index)
+    internal AwkScalarOperand GetFieldComparison(int index)
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         return index == 0 ? new(GetCurrentRecordValue()) :
@@ -616,13 +622,13 @@ internal sealed class AwkRuntimeState : IDisposable
     internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right) =>
         _stringRuntime.Compare(left.AsSpan(CancellationCheckpoint), right.AsSpan(CancellationCheckpoint), IsCaseInsensitive);
 
-    public int IndexOfStringUnits(AwkText source, AwkText value) =>
+    public int IndexOfStringUnits(AwkByteTextOperand source, AwkByteTextOperand value) =>
         _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);
 
     internal int CompareByteText(AwkText left, AwkText right, bool sorting = false) =>
         _stringRuntime.Compare(left, right, IsCaseInsensitive, sorting);
 
-    public AwkText SubstringByStringUnits(AwkText source, int start, int length) =>
+    public AwkByteTextOperand SubstringByStringUnits(AwkByteTextOperand source, int start, int length) =>
         _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryAccounting);
 
     public void RequestExit(AwkOptionalExitCode exitCode) =>
@@ -915,6 +921,14 @@ internal sealed class AwkRuntimeState : IDisposable
         value = CreateStringValue(text);
         return true;
     }
+
+    internal AwkText CaptureFieldStringText(int field) =>
+        _recordFields.TryGetFieldTextSnapshot(new(field), out var text) ? text :
+            FormatStringByteText(field == 0 ? GetCurrentRecordValue() : GetFieldValue(field));
+
+    internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true) =>
+        field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(field) :
+            text.Own(Counters, MemoryAccounting, CancellationCheckpoint);
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,

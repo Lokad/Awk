@@ -136,6 +136,11 @@ or environment dependencies.
   cache slot and classification through reconstruction and copying. Full value reads still own
   original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
+  Comparisons and multiargument text calls share a stack-local scalar operand. Unary text
+  consumers use byte views directly; earlier captures still own their spelling. Whole results
+  and nonlocal scalar slicing reuse the existing field owner and index, not a detached-view cache.
+  Preserve index's first-argument scalar promotion, formatting/conversion order and strict byte
+  boundaries. Unicode casing's temporary owned source stays funded through compatibility conversion.
   Speculative numeric probes consume only established field facts without splitting,
   classification or admission. Ordinary evaluation keeps cold effects and diagnostics.
 - The frame owns two record payload slots and their bounded funded fallback storage. A current

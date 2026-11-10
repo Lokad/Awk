@@ -53,16 +53,32 @@ internal partial struct AwkRegionMachine
         internal void ExecuteString(in AwkRegionInstruction instruction)
         {
             var operation = region.Strings[instruction.Left];
-            var first = ArgumentValue(operation.First, operation.FirstInput);
-            var second = operation.Second >= 0 ? ArgumentValue(operation.Second, operation.SecondInput) : default;
-            var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
-            state.ThrowIfCancellationRequested();
+            if (operation.Id is AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
+            {
+                // Unary consumers have no later argument across which to defer formatting.
+                state.ThrowIfCancellationRequested();
+                var operand = operands[operation.First];
+                var field = IsField(operand) ? FieldOrdinal(operand) : -1;
+                var text = TextOperand(operation.First);
+                storage.StoreValue(instruction.Target, AwkBuiltins.EvaluateCaseText(state, text,
+                    operation.Id == AwkBuiltinId.ToUpper, field));
+                return;
+            }
+            var first = TextArgument(operation.First);
             if (operation.Id == AwkBuiltinId.Index)
-                numbers[instruction.Target] = AwkBuiltins.EvaluateIndexNumber(state, first, second);
+            {
+                var second = TextArgument(operation.Second);
+                state.ThrowIfCancellationRequested();
+                numbers[instruction.Target] = AwkBuiltins.EvaluateIndexText(state, first.Text(state, forceScalar: true), second.Text(state));
+            }
             else
-                storage.StoreValue(instruction.Target, operation.Id == AwkBuiltinId.Substr
-                    ? AwkBuiltins.EvaluateSubstrValues(state, first, second, third, operation.Third >= 0 ? 3 : 2)
-                    : AwkBuiltins.EvaluateCaseValue(state, first, operation.Id == AwkBuiltinId.ToUpper));
+            {
+                var second = operation.Second >= 0 ? ArgumentValue(operation.Second, operation.SecondInput) : default;
+                var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
+                state.ThrowIfCancellationRequested();
+                storage.StoreValue(instruction.Target,
+                    AwkBuiltins.EvaluateSubstrOperand(state, first, second, third, operation.Third >= 0 ? 3 : 2));
+            }
             return;
         }
 
@@ -464,7 +480,7 @@ internal partial struct AwkRegionMachine
             return false;
         }
 
-        internal AwkComparisonOperand ComparisonOperand(int index)
+        internal AwkScalarOperand ComparisonOperand(int index)
         {
             var source = new AwkRegionNumberSource(index);
             if (source.IsRegister) return new(AwkValue.FromNumber(numbers[source.RegisterIndex]));
@@ -480,6 +496,12 @@ internal partial struct AwkRegionMachine
             if (operand.Kind == AwkRegionOperandKind.Literal)
                 return new(region.Literals[operand.Index].Text);
             return new(state.FormatStringByteText(Value(index)));
+        }
+
+        private AwkScalarOperand TextArgument(int index)
+        {
+            var operand = operands[index];
+            return IsField(operand) ? state.ResolveFieldTextOperand(FieldOrdinal(operand)) : new(Value(index));
         }
 
         internal static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;

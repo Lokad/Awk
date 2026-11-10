@@ -8,43 +8,59 @@ internal static partial class AwkBuiltins
 {
 
     internal static double EvaluateIndexNumber(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
-        state.IndexOfStringUnits(state.FormatStringByteText(source.ForceScalar()), state.FormatStringByteText(needle));
+        EvaluateIndexText(state, new(state.FormatStringByteText(source.ForceScalar())), new(state.FormatStringByteText(needle)));
+
+    internal static double EvaluateIndexText(AwkRuntimeState state, AwkByteTextOperand source, AwkByteTextOperand needle) =>
+        state.IndexOfStringUnits(source, needle);
 
     internal static AwkValue EvaluateIndexValues(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
         AwkValue.FromNumber(EvaluateIndexNumber(state, source, needle));
 
     internal static AwkValue EvaluateSubstrValues(AwkRuntimeState state, AwkValue sourceValue,
+        AwkValue startValue, AwkValue lengthValue, int argumentCount) =>
+        EvaluateSubstrOperand(state, new(sourceValue), startValue, lengthValue, argumentCount);
+
+    internal static AwkValue EvaluateSubstrOperand(AwkRuntimeState state, in AwkScalarOperand sourceValue,
         AwkValue startValue, AwkValue lengthValue, int argumentCount)
     {
-        var source = state.FormatStringByteText(sourceValue);
+        var source = sourceValue.Text(state);
         var start = (int)startValue.AsNumber(state.CancellationCheckpoint);
         if (start < 1) start = 1;
         var zeroBasedStart = start - 1;
+        sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
         if (!state.HasStringUnitAt(source, zeroBasedStart)) return AwkValue.FromText(string.Empty);
         var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
-        return state.CreateStringValue(state.SubstringByStringUnits(source, zeroBasedStart, length));
+        sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, length);
+        var slice = state.SubstringByStringUnits(source, zeroBasedStart, length);
+        return state.CreateStringValue(sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength));
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper) =>
-        EvaluateCaseConversion(state.FormatStringByteText(value), state, upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
+        EvaluateCaseText(state, new(state.FormatStringByteText(value)), upper);
+
+    internal static AwkValue EvaluateCaseText(AwkRuntimeState state, in AwkByteTextOperand source, bool upper, int field = -1) =>
+        EvaluateCaseConversion(source, field, state, upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
 
     private static AwkValue EvaluateCaseConversion(
-        AwkText source,
+        in AwkByteTextOperand source,
+        int field,
         AwkRuntimeState state,
         AwkCaseConversion conversion)
     {
         static bool TryConvertAsciiCase(
-            AwkText source,
+            in AwkByteTextOperand source,
             AwkCaseConversion conversion,
             bool byteMode,
             AwkRuntimeCounters counters,
             AwkMemoryAccounting governor,
             Action checkpoint,
-            out AwkText result)
+            out AwkText result,
+            out bool unchanged)
         {
+            unchanged = false;
             var bytes = source.AsSpan(checkpoint);
             var firstChange = -1;
             var isAscii = true;
@@ -57,7 +73,7 @@ internal static partial class AwkBuiltins
                 {
                     if (!byteMode)
                     {
-                        result = AwkText.Empty;
+                        result = default;
                         return false;
                     }
                     isAscii = false;
@@ -76,7 +92,8 @@ internal static partial class AwkBuiltins
 
             if (firstChange < 0)
             {
-                result = source;
+                result = default;
+                unchanged = true;
                 return true;
             }
 
@@ -122,13 +139,15 @@ internal static partial class AwkBuiltins
             state.Counters,
             state.MemoryAccounting,
             state.CancellationCheckpoint,
-            out var asciiResult))
+            out var asciiResult,
+            out var unchanged))
         {
-            return state.CreateStringValue(asciiResult);
+            return state.CreateStringValue(unchanged ? state.OwnStringResult(source, field) : asciiResult);
         }
 
         state.Counters.RecordStringInteropFallback();
-        var decoded = source.AsString(state.Counters, state.CancellationCheckpoint);
+        var decoded = state.OwnStringResult(source, field)
+            .AsString(state.Counters, state.CancellationCheckpoint);
         state.ThrowIfCancellationRequested();
         // Invariant casing preserves UTF-16 length. Keep the conversion result funded
         // until its UTF-8 copy is constructed; the source owns its decoding cache.

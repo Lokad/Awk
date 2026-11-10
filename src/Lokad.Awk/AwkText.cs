@@ -459,17 +459,67 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (facts > UnknownTextFacts) return index < facts - 1;
         if (index >= RuneCheckpointStride) return index < GetRuneLength(checkpoint);
 
-        var span = AsSpan(checkpoint);
-        if (Ascii.IsValid(span[..index])) return true;
+        return HasRuneAt(AsSpan(checkpoint), index, checkpoint);
+    }
+
+    internal static bool HasRuneAt(ReadOnlySpan<byte> span, int index, Action? checkpoint)
+    {
+        if (index >= span.Length) return false;
+        if (index == 0) return true;
+        if (index <= RuneCheckpointStride && Ascii.IsValid(span[..index])) return true;
         var offset = 0;
+        long nextCheckpoint = 0;
         for (var rune = 0; rune < index && offset < span.Length; rune++)
         {
+            if (offset >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
+            }
             if (Rune.DecodeFromUtf8(span[offset..], out _, out var consumed) != OperationStatus.Done)
                 throw new InvalidOperationException("AwkText contains invalid UTF-8.");
             offset += consumed;
         }
         checkpoint?.Invoke();
         return offset < span.Length;
+    }
+
+    // Shared one-use range scan. Owned text keeps its cached long-range index;
+    // borrowed input needs neither whole-text materialization nor an index owner.
+    internal static void ResolveRuneByteRange(ReadOnlySpan<byte> span, int start, int length,
+        AwkRuntimeCounters counters, Action? checkpoint, out int byteStart, out int byteEnd)
+    {
+        var endRuneIndex = (long)start + length;
+        var prefix = span[..(int)Math.Min(endRuneIndex, span.Length)];
+        if (prefix.Length <= AwkRuntimeLimits.CancellationCheckBytes && Ascii.IsValid(prefix))
+        {
+            byteStart = Math.Min(start, prefix.Length);
+            byteEnd = prefix.Length;
+            counters.RecordRuneSliceBytesScanned(prefix.Length);
+            checkpoint?.Invoke();
+            return;
+        }
+        var runeIndex = 0;
+        var offset = 0;
+        byteStart = 0;
+        long nextCheckpoint = 0;
+        while (runeIndex < endRuneIndex && offset < span.Length)
+        {
+            if (offset >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
+            }
+            if (runeIndex == start) byteStart = offset;
+            if (Rune.DecodeFromUtf8(span[offset..], out _, out var consumed) != OperationStatus.Done)
+                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+            offset += consumed;
+            runeIndex++;
+        }
+        if (start >= runeIndex) byteStart = offset;
+        byteEnd = offset;
+        counters.RecordRuneSliceBytesScanned(offset);
+        checkpoint?.Invoke();
     }
 
     public AwkText CopyRuneSlice(
@@ -510,31 +560,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
             if ((text.ByteLength <= RuneCheckpointStride || endRuneIndex <= RuneCheckpointStride) &&
                 Volatile.Read(ref text._runeByteCheckpoints) is null)
             {
-                var span = text.AsSpan(checkpoint);
-                var prefix = span[..(int)Math.Min(endRuneIndex, span.Length)];
-                if (Ascii.IsValid(prefix))
-                {
-                    resolvedByteStart = Math.Min(start, prefix.Length);
-                    resolvedByteEnd = prefix.Length;
-                    counters.RecordRuneSliceBytesScanned(prefix.Length);
-                    checkpoint?.Invoke();
-                    return;
-                }
-                var runeIndex = 0;
-                var offset = 0;
-                resolvedByteStart = 0;
-                while (runeIndex < endRuneIndex && offset < span.Length)
-                {
-                    if (runeIndex == start) resolvedByteStart = offset;
-                    if (Rune.DecodeFromUtf8(span[offset..], out _, out var consumed) != OperationStatus.Done)
-                        throw new InvalidOperationException("AwkText contains invalid UTF-8.");
-                    offset += consumed;
-                    runeIndex++;
-                }
-                if (start >= runeIndex) resolvedByteStart = offset;
-                resolvedByteEnd = offset;
-                counters.RecordRuneSliceBytesScanned(offset);
-                checkpoint?.Invoke();
+                AwkText.ResolveRuneByteRange(text.AsSpan(checkpoint), start, length, counters, checkpoint,
+                    out resolvedByteStart, out resolvedByteEnd);
                 return;
             }
             if (text.IsAscii(out var inspectedByteCount, checkpoint))

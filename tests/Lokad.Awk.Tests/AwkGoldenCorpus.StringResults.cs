@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("string-views-own-dirty-fields-before-immediate-record-reconstruction",
+            ["BEGIN{$0=\"old abcd\";$1=1;print substr($2,$0,2),$0;$0=\"old abcd\";$1=1;print index($2,$0),$0}"],
+            [], "ab 1 abcd\n0 1 abcd\n", "");
+        yield return Passing("string-views-keep-assigned-number-formatting-at-consumption",
+            ["function change(){CONVFMT=\"%.3f\";return \".\"}BEGIN{CONVFMT=\"%.1f\";$0=1.23456;print index($0,change());CONVFMT=\"%.1f\";$1=1.23456;print index($1,change())}"],
+            [], "2\n2\n", "");
+        yield return Passing("string-views-preserve-full-empty-and-scalar-substrings",
+            ["{a=substr($2,1);b=substr($2,2,2);c=substr($2,99);d=substr($2,1,0);print \"[\"a\"]\",\"[\"b\"]\",\"[\"c\"]\",\"[\"d\"]\",typeof(a),$2}"],
+            [], "[é😀z] [😀z] [] [] string é😀z\n", "key é😀z\n");
         yield return Passing("direct-text-keeps-input-origins-through-later-observation",
             ["{a=tolower($1);b=substr($1,2,3);n=index($1,\"0\");print \"[\"a\"]\",\"[\"b\"]\",n,typeof($1),$1}"],
             [], "[0007] [007] 1 strnum 0007\n[7tail] [tai] 0 string 7tail\n", "0007\n7tail\n");

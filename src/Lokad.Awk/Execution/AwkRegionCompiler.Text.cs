@@ -101,7 +101,7 @@ internal sealed partial class AwkRegionCompiler
             }
             var site = compiler._strings.Count;
             compiler._strings.Add(new(definition.Id, _arguments[0], _arguments[1], _arguments[2],
-                definition.InputConsumption(0), definition.InputConsumption(1), definition.InputConsumption(2)));
+                definition.InputConsumption(1), definition.InputConsumption(2)));
             var target = definition.Id == AwkBuiltinId.Index ? compiler._numbers++ : compiler._values++;
             compiler.Emit(new(AwkRegionInstructionKind.String, target, site));
             return Complete(compiler.Operand(definition.Id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, target));

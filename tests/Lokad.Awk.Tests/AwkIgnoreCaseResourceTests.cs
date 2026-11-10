@@ -22,7 +22,7 @@ public sealed class AwkIgnoreCaseResourceTests
         {
             Assert.True(AwkComparisonOperations.Evaluate(a, b, AwkComparison.Equal, state));
             Assert.True(state.CompareByteText(left, right, sorting: true) < 0);
-            Assert.Equal(2, state.IndexOfStringUnits(source, right));
+            Assert.Equal(2, state.IndexOfStringUnits(new(source), new(right)));
         }
         Assert.Equal(observed ? 16 : 0, counters.ByteTextComparisons);
         Assert.Equal(0, counters.StringDecodes);
@@ -51,7 +51,7 @@ public sealed class AwkIgnoreCaseResourceTests
         Assert.Throws<OperationCanceledException>(() =>
         {
             if (search)
-                strings.IndexOfUnits(source, value, ignoreCase: true);
+                strings.IndexOfUnits(new(source), new(value), ignoreCase: true);
             else
                 strings.Compare(source, value, ignoreCase: true, sorting: false);
         });

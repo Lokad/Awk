@@ -172,6 +172,54 @@ public sealed class AwkFieldStringTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData("tolower($2)")] [InlineData("toupper($2)")]
+    public void RefusedUnicodeSourceOwnershipPreservesRecordAndTarget(string expression)
+    {
+        using var memory = State(true);
+        var state = memory.State;
+        var record = AwkText.FromSourceLiteralString("key résumé");
+        state.SetCurrentRecord(record);
+        _ = state.GetFieldNumber(2);
+        state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
+        var region = Bind(expression);
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
+        var textAllocations = state.Counters.AwkTextAllocations;
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
+        Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
+        Assert.Equal(textAllocations, state.Counters.AwkTextAllocations);
+        Assert.InRange(memory.Budget.Refusals, 0, 1);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void LongBorrowedStringScansObserveCancellationBeforeCompleting(bool range)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(new string('é', 32_768));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var cancellation = new CancellationTokenSource();
+        var polls = 0;
+        void Checkpoint()
+        {
+            if (++polls == 3) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        var failure = Assert.ThrowsAny<OperationCanceledException>(() =>
+        {
+            var operand = new AwkByteTextOperand(bytes.AsSpan());
+            if (range) _ = operand.SliceUnits(16_384, 2, false, counters, AwkMemoryAccounting.Disabled, Checkpoint);
+            else _ = operand.HasUnitAt(16_384, false, Checkpoint);
+        });
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.RuneSliceBytesScanned);
+    }
+
     private static AwkRegion Bind(string expression)
     {
         var parsed = AwkParser.Parse("BEGIN{target=" + expression + "}");

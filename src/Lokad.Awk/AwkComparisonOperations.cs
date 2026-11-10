@@ -14,7 +14,7 @@ internal static class AwkComparisonOperations
         return EvaluateTextComparison(Compare(left, right, state), comparison);
     }
 
-    internal static bool Evaluate(in AwkComparisonOperand left, in AwkComparisonOperand right,
+    internal static bool Evaluate(in AwkScalarOperand left, in AwkScalarOperand right,
         AwkComparison comparison, AwkRuntimeState state)
     {
         if (!left.IsBorrowed && !right.IsBorrowed)
