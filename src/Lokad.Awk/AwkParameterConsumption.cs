@@ -123,10 +123,14 @@ internal static class AwkParameterConsumption
                                 }
                                 else
                                 {
-                                    var arithmeticInputs = AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
-                                        builtin.ConsumesArithmeticInputs;
-                                    for (var i = 1; i < children.Count; i++)
-                                        expressions.Push(new(children[i], arithmeticInputs ? Arithmetic : Observable));
+                                    if (AwkBuiltins.TryGetCallable(target.Name, out var builtin))
+                                    {
+                                        for (var i = 1; i < children.Count; i++)
+                                            expressions.Push(new(children[i], builtin.ConsumesArithmeticInput(i - 1) ? Arithmetic : Observable));
+                                    }
+                                    else
+                                        for (var i = 1; i < children.Count; i++)
+                                            expressions.Push(new(children[i], Observable));
                                 }
                             }
                             else foreach (var child in children) expressions.Push(new(child, Observable));

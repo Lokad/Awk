@@ -110,7 +110,7 @@ internal sealed class AwkBuiltinDefinition(
             ? ArgumentRoles[index]
             : AwkBuiltinArgumentRole.ScalarExpression;
 
-    internal bool ConsumesArithmeticInputs => implementation.ConsumesArithmeticInputs;
+    internal bool ConsumesArithmeticInput(int index) => implementation.ConsumesArithmeticInput(index);
 
     internal bool TryGetScalarComputation(
         [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
@@ -137,19 +137,22 @@ internal sealed class AwkBuiltinDefinition(
 
 internal abstract class AwkBuiltinImplementation
 {
-    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, bool arithmeticInputs = false) =>
-        new SyncBuiltinImplementation(evaluator, arithmeticInputs);
+    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1) =>
+        new SyncBuiltinImplementation(evaluator, arithmeticFrom);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
 
     public static AwkBuiltinImplementation MetadataOnly { get; } = new MetadataBuiltinImplementation();
 
-    internal virtual bool ConsumesArithmeticInputs => false;
+    internal virtual bool ConsumesArithmeticInput(int index) => false;
 
-    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, bool arithmeticInputs) : AwkBuiltinImplementation
+    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, int arithmeticFrom) : AwkBuiltinImplementation
     {
-        internal override bool ConsumesArithmeticInputs => arithmeticInputs;
+        // A negative start keeps every value observable. Otherwise the numeric tail
+        // shares one contract between preparation and evaluated argument staging.
+        internal override bool ConsumesArithmeticInput(int index) =>
+            arithmeticFrom >= 0 && index >= arithmeticFrom;
         internal AwkValue EvaluateBound(AwkValue[] values, int start, int count, AwkEvaluationContext context) =>
             evaluator(new AwkBuiltinContext(values, count, context, start));
     }

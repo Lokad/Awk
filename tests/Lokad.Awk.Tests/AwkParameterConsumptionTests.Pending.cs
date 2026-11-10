@@ -111,10 +111,37 @@ public sealed partial class AwkParameterConsumptionTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Fact]
+    public async Task RefusedMixedInputTextStopsTheCallBeforeEffectsAndRefundsItsOwners()
+    {
+        const int payload = 32_768;
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        host.SetStandardInput(new string('s', payload) + " 0002 0003\n");
+        budget.OnGrowth = _ =>
+        {
+            if (host.GetOutput(AwkFileDescriptor.StdOut) == "ready\n")
+                budget.RefuseNextAdmissionMinimumGrowth = payload;
+        };
+        const string source = "function part(s,p,n){print \"late\" > \"result\";return substr(s,p,n)}" +
+            "BEGIN{getline;print \"ready\";print part($1,$2,$3)}END{print \"end\"}";
+        var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.False(host.FileExists("/result"));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Theory]
     [InlineData(false, 0)] [InlineData(true, 0)]
     [InlineData(false, 1)] [InlineData(true, 1)]
     [InlineData(false, 2)] [InlineData(true, 2)]
+    [InlineData(false, 3)] [InlineData(true, 3)]
     public async Task DeferredErrorTextStaysFundedThroughRecordReplacementAndActualPendingRead(bool cancel, int consumption)
     {
         const int payload = 32_768;
@@ -150,7 +177,8 @@ public sealed partial class AwkParameterConsumptionTests
                 ? "function later(line){$0=\"new:9\";getline line;return 0}" +
                   "BEGIN{FS=\":\";getline;print \"ready\";print and($1,later());exit}END{print \"end\"}"
                 : "function replace(){$0=\"new:9\";return 0}" +
-                "function choose(x,ignored,line){getline line;if(line)return " + (consumption == 1 ? "int(x)" : "x+1") + ";return 0}" +
+                "function choose(x,ignored,line){getline line;if(line)return " +
+                (consumption == 3 ? "substr(\"abcdef\",x,1)" : consumption == 1 ? "int(x)" : "x+1") + ";return 0}" +
                 "BEGIN{FS=\":\";getline;print \"ready\";print choose($1,replace());exit}END{print \"end\"}";
             var budget = new CooperativeTestBudget(8 << 20);
             using var cancellation = new CancellationTokenSource();

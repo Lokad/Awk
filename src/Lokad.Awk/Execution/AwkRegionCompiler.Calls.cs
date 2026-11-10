@@ -150,7 +150,7 @@ internal sealed partial class AwkRegionCompiler
             else
             {
                 compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, CompletedResult<int>(completed),
-                    Detail: definition.ConsumesArithmeticInputs ? 1 : 0));
+                    Detail: definition.ConsumesArithmeticInput(_argument) ? 1 : 0));
                 _argument++;
             }
             if (_argument < count)

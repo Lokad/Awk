@@ -2,6 +2,37 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(true, false, false)]
+    [InlineData(false, true, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(true, false, true)]
+    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    public async Task MixedBuiltinParametersOnlyOwnObservableFieldSpellings(bool governed, bool forward, bool observable)
+    {
+        const int records = 128;
+        var source = "function part(s,p,n){" +
+            (observable ? "if(p!=\"0002\"||n!=\"0003\")return \"MISMATCH\";" : "") +
+            "return substr(s,p,n)}" +
+            (forward ? "function relay(s,p,n){return part(s,p,n)}" : "") +
+            "{sum+=length(" + (forward ? "relay" : "part") + "($1,$2,$3))}END{print sum}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("abcdef 0002 0003\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("384\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        var expected = records * (observable ? 4 : 2);
+        Assert.InRange(counters.AwkTextAllocations, expected, expected + 32);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> KeyParameterConsumptions()
     {
         foreach (var governed in new[] { false, true })

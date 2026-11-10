@@ -20,13 +20,14 @@ internal partial struct AwkRegionMachine
 
         var computation = builtin.Computation ?? throw new InvalidOperationException("A computational builtin requires its implementation.");
         var pendingArguments = builtin.PendingArguments;
-        var firstPending = builtin.Start + builtin.Count - pendingArguments.Length;
+        var firstArgument = builtin.Count - pendingArguments.Length;
+        var firstPending = builtin.Start + firstArgument;
         for (var index = 0; index < pendingArguments.Length; index++)
         {
             if ((index & 63) == 63) view.State.ThrowIfCancellationRequested();
             var pendingOperand = view.Operands[pendingArguments[index]];
             view.Storage.StoreValue(firstPending + index,
-                computation.ConsumesArithmeticInputs && AwkRegionComputation.IsField(pendingOperand)
+                computation.ConsumesArithmeticInput(firstArgument + index) && AwkRegionComputation.IsField(pendingOperand)
                     ? view.State.GetFieldArithmeticArgument(view.FieldOrdinal(pendingOperand)) : view.Value(pendingArguments[index]),
                 preserveOrigin: true);
         }

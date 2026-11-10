@@ -4,6 +4,27 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        foreach (var (mode, options, expected) in new (string, string[], string)[]
+        {
+            ("default", [], "jkl"), ("posix", ["--posix"], "jkl"),
+            ("traditional", ["--traditional"], "jkl"),
+            ("nondecimal", ["--non-decimal-data"], "hij")
+        })
+            yield return Passing("argument-mixed-builtin-numeric-positions-" + mode,
+                [.. options, "function part(s,p,n){return substr(s,p,n)}function relay(s,p,n){return part(s,p,n)}{print relay($1,$2,$3),$2,$3}"],
+                [], expected + " 0010 0003\n", "abcdefghijklmnop 0010 0003\n");
+        yield return Passing("argument-mixed-builtin-captures-before-later-record-change",
+            ["function change(){$0=\"new 0009 0001\";return 0}function part(s,p,n,ignored){return substr(s,p,n)}{print part($1,$2,$3,change()),$0}"],
+            [], "bcd new 0009 0001\n", "abcdef 0002 0003\n");
+        yield return Passing("argument-mixed-builtin-observed-numeric-spelling",
+            ["function part(s,p,n){if(p!=\"0002\"||n!=\"0003\")return \"MISMATCH\";return substr(s,p,n)}function relay(s,p,n){return part(s,p,n)}{print relay($1,$2,$3),$2,$3}"],
+            [], "bcd 0002 0003\n", "abcdef 0002 0003\n");
+        yield return Passing("argument-mixed-builtin-ordinary-prefix-strings",
+            ["function part(s,p,n){return substr(s,p,n)}BEGIN{print part(\"abcdef\",\"2tail\",\"3tail\");print part(\"abcdef\",\"2\",\"3\")}"],
+            [], "bcd\nbcd\n");
+        yield return Passing("argument-mixed-builtin-keeps-forwarded-array-aliases",
+            ["function part(s,p,n,a){a[\"seen\"]=substr(s,p,n);return a[\"seen\"]}function relay(s,p,n,a){return part(s,p,n,a)}{print relay($1,$2,$3,a),a[\"seen\"],length(a)}"],
+            [], "bcd bcd 1\n", "abcdef 0002 0003\n");
         yield return Passing("argument-field-demands-keep-captures-before-record-and-separator-changes",
             ["function show(a,b,c,d){print a,b,c,d;print $0}function change(){FS=\":\";$0=\"new:0011\";return \"done\"}BEGIN{for(i=0;i<3;i++){FS=\" \";$0=\"key 0007\";show($1,$2,change(),$2)}}"], [],
             "key 0007 done 0011\nnew:0011\nkey 0007 done 0011\nnew:0011\nkey 0007 done 0011\nnew:0011\n");

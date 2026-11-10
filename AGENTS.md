@@ -195,7 +195,8 @@ or environment dependencies.
   Known owned keys arrive as keys and construct their immutable local cell at that owner;
   retained text keeps admission and post-admission cancellation before publication.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
-  One parameter-consumption graph prepares arithmetic and key-only inputs. Key cells own bytes;
+  One parameter-consumption graph prepares arithmetic and key-only inputs, using the builtin's
+  positional numeric contract. Spelling observers and lexical comparisons retain full values. Key cells own bytes;
   writes, observers and general scalar scratch retain full values. Capture before later arguments;
   numeric keys still use formatting at their actual use, including after CONVFMT changes.
   Prepared calls bind source locations in canonical argument definitions.
