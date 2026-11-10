@@ -3,6 +3,26 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkParameterConsumptionTests
 {
     [Theory]
+    [InlineData("function f(x){return x==7}", "f", "C")]
+    [InlineData("function f(x){return 7>x+0}", "f", "A")]
+    [InlineData("function f(x){return x==\"7\"}", "f", "V")]
+    [InlineData("function f(x){return sqrt(9)>x}", "f", "C")]
+    [InlineData("function f(x){return index(\"abc\",\"b\")>x}", "f", "C")]
+    [InlineData("function f(x){return unknown()>x}function unknown(){return \"7\"}", "f", "V")]
+    [InlineData("function f(s,n){if(length(s)>n)return substr(s,1,n);return s}", "f", "VC")]
+    [InlineData("function f(s,n){return g(s,n)}function g(s,n){if(length(s)>n)return substr(s,1,n);return s}", "f", "VC")]
+    [InlineData("function f(s,n){print n;return length(s)>n}", "f", "VV")]
+    [InlineData("function f(s,n,a){a[n]++;return length(s)>n}", "f", "VVV")]
+    [InlineData("function f(n,x){if(n==0)return x+1;return g(n-1,x)}function g(n,x){return f(n,x)}", "f", "CA")]
+    [InlineData("function f(n,x){if(n==0)return x+1;return g(n-1,x)}function g(n,x){return f(n,x)}", "g", "CA")]
+    public void ProvedNumericComparisonsPreserveAllOtherUses(string source, string function, string expected)
+    {
+        var layout = Bind(source).Functions[AwkFunctionName.FromText(function)].LocalLayout;
+        Assert.Equal(expected, string.Concat(Enumerable.Range(0, layout.SlotCount).Select(i =>
+            layout.InputConsumption(i) switch { AwkParameterInput.Arithmetic => "A", AwkParameterInput.NumericComparison => "C", _ => "V" })));
+    }
+
+    [Theory]
     [InlineData("function f(a,k){a[k]++;return a[k]}", "f", "VK")]
     [InlineData("function f(a,k){a[k]++;print k}", "f", "VV")]
     [InlineData("function f(a,k){a[k]++;k=7}", "f", "VV")]

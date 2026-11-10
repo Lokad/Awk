@@ -4,6 +4,37 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        foreach (var (mode, options) in new (string, string[])[]
+        {
+            ("default", []), ("posix", ["--posix"]), ("traditional", ["--traditional"]),
+            ("nondecimal", ["--non-decimal-data"])
+        })
+        {
+            yield return Passing("argument-numeric-comparison-retains-ordinary-string-" + mode,
+                [.. options, "function clip(s,n){if(length(s)>n)return substr(s,1,n);return s}function relay(s,n){return clip(s,n)}BEGIN{print relay(\"ABCDEFGHIJ\",\"2\"),relay(\"ABCDEFGHIJ\",2);print relay(\"ABCDEFGHIJ\",\"2tail\")}{print relay($1,$2),$2}"],
+                [], "ABCDEFGHIJ AB\nABCDEFGHIJ\nAB 0002\n", "ABCDEFGHIJ 0002\n");
+            yield return Passing("argument-numeric-comparison-input-number-mode-" + mode,
+                [.. options, "function clip(s,n){if(length(s)>n)return substr(s,1,n);return s}{print clip($1,$2),$2}"],
+                [], (mode == "nondecimal" ? "ABCDEFGH" : "ABCDEFGHIJ") + " 0010\n", "ABCDEFGHIJKL 0010\n");
+        }
+        yield return Passing("argument-numeric-comparison-spelling-observer-prevents-normalization",
+            ["function clip(s,n){if(n!=\"0002\")return \"MISMATCH\";if(length(s)>n)return substr(s,1,n);return s}function relay(s,n){return clip(s,n)}{print relay($1,$2),$2,typeof($2)}"],
+            [], "AB 0002 strnum\n", "ABCDEFGHIJ 0002\n");
+        yield return Passing("argument-numeric-comparison-captures-before-later-record-mutation",
+            ["function change(){$0=\"new 0009\";return 1}function clip(s,n,ignored){if(length(s)>n)return substr(s,1,n);return s}{print clip($1,$2,change()),$0}"],
+            [], "AB new 0009\n", "ABCDEFGHIJ 0002\n");
+        yield return Passing("argument-numeric-comparison-keeps-scalar-reassignment-and-array-alias",
+            ["function clip(s,n,a){n=\"2\";a[\"seen\"]=n;return length(s)>n?substr(s,1,n):s}{print clip($1,$2,a),a[\"seen\"],$2}"],
+            [], "ABCDEFGHIJ 2 0002\n", "ABCDEFGHIJ 0002\n");
+        yield return Passing("argument-numeric-comparison-does-not-use-arithmetic-prefix-cache",
+            ["function choose(n){return 10>n?\"less\":\"more\"}{prior=$1+0;print choose($1),$1}"],
+            [], "more 2tail\nless 0002\n", "2tail\n0002\n");
+        yield return Passing("argument-numeric-comparison-keeps-untaken-conversion-error-deferred",
+            ["--non-decimal-data", "function first(n){if(0)return n<1;return \"ok\"}BEGIN{getline;print first($1);print $1}"],
+            [], "ok\n0x1.5\n", "0x1.5\n");
+        yield return Passing("argument-numeric-comparison-keeps-signed-zero-and-nonfinite-facts",
+            ["function probe(n){return (n==0)\":\"(n!=0)\":\"(n>0)\":\"(n<0)}{print probe($1),$1}"],
+            [], "1:0:0:0 -0\n0:1:0:0 +nan\n0:1:1:0 +inf\n0:1:0:1 -inf\n", "-0\n+nan\n+inf\n-inf\n");
         yield return Passing("argument-numeric-builtin-results-format-at-use",
             ["BEGIN{CONVFMT=\"%.2f\";OFMT=\"%.1f\";n=sqrt(2);print typeof(n),sprintf(\"%s\",n),n;CONVFMT=\"%.3f\";print n \"\",int(-2.9),sqrt(9)+int(2.9),typeof(strtonum(\"0x10\"))}"],
             [], "number 1.41 1.4\n1.414 -2 5 number\n");

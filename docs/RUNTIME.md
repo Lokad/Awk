@@ -243,6 +243,8 @@ Length reads visible local scalars and arrays through their ordinal bindings; mi
 and hidden locals retain ordinary promotion and name fallback.
 Numeric updates, readers and variable stores reference the same canonical operand locations.
 Known numeric builtin results stay in numeric scratch; formatting occurs at their actual text use.
+Numeric-string arguments used in proved-number comparisons can use established field numbers when the opposite
+operand is proved numeric. Ordinary strings retain lexical comparison, and observers retain spelling.
 Execution and binding-frame ownership remain distinct during reentry and cleanup.
 Rule completion retires its reference scratch. Actual host suspension saves its continuation.
 Returns keep their captured value and callee storage until required output actually completes.

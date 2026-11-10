@@ -197,6 +197,9 @@ or environment dependencies.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
   One parameter-consumption graph prepares arithmetic and key-only inputs, using the builtin's
   positional numeric contract. Spelling observers and lexical comparisons retain full values. Key cells own bytes;
+  Comparisons against proved numeric results may stage established numeric field facts directly.
+  Ordinary strings, deferred errors and observed spelling retain full capture; arithmetic prefix caches
+  are not comparison facts. The use lattice shares one bounded-membership propagation worklist.
   Qualified synchronous builtin results use existing numeric registers. Result kinds are independent
   of argument consumption; preserve formatting at use and general-value/actual-host continuations.
   writes, observers and general scalar scratch retain full values. Capture before later arguments;

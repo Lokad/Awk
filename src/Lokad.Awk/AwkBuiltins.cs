@@ -70,7 +70,7 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Length)] = CallableMetadata(AwkBuiltinId.Length, AwkArity.Range(0, 1),
                 AwkCallableKind.Function, AwkBuiltinCompatibility.Posix,
                 [AwkBuiltinArgumentRole.ScalarOrArray], AwkStatementKind.Unknown, AwkBuiltinLoweringKind.Length),
-            [Name(AwkBuiltinId.Index)] = PosixFunction(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
+            [Name(AwkBuiltinId.Index)] = PosixFunction(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex, returnsNumber: true),
             [Name(AwkBuiltinId.Substr)] = PosixFunction(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr, arithmeticFrom: 1),
             [Name(AwkBuiltinId.ToLower)] = PosixFunction(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
             [Name(AwkBuiltinId.ToUpper)] = PosixFunction(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),

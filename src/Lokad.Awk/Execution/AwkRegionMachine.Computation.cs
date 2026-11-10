@@ -251,8 +251,12 @@ internal partial struct AwkRegionMachine
                             ? argument.Index : (int)numbers[argument.Index];
                         if (argument.Consumption == AwkParameterInput.Key &&
                             state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
-                        if (argument.Consumption == AwkParameterInput.Arithmetic &&
-                            state.TryGetFieldArithmeticNumber(ordinal, out var fieldNumber))
+                        var fieldNumber = 0d;
+                        var numeric = argument.Consumption == AwkParameterInput.Arithmetic
+                            ? state.TryGetFieldArithmeticNumber(ordinal, out fieldNumber)
+                            : argument.Consumption == AwkParameterInput.NumericComparison &&
+                                state.TryGetFieldComparisonNumber(ordinal, out fieldNumber);
+                        if (numeric)
                             incoming.StageNumber(index, fieldNumber);
                         else
                         {

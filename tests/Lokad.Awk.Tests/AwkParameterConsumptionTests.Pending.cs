@@ -112,7 +112,12 @@ public sealed partial class AwkParameterConsumptionTests
     }
 
     [Fact]
-    public async Task RefusedMixedInputTextStopsTheCallBeforeEffectsAndRefundsItsOwners()
+    public Task RefusedMixedInputTextStopsTheCallBeforeEffectsAndRefundsItsOwners() => RefusedText(false);
+
+    [Fact]
+    public Task RefusedComparisonInputTextStopsTheCallBeforeEffectsAndRefundsItsOwners() => RefusedText(true);
+
+    private static async Task RefusedText(bool comparison)
     {
         const int payload = 32_768;
         var budget = new CooperativeTestBudget(8 << 20);
@@ -123,7 +128,8 @@ public sealed partial class AwkParameterConsumptionTests
             if (host.GetOutput(AwkFileDescriptor.StdOut) == "ready\n")
                 budget.RefuseNextAdmissionMinimumGrowth = payload;
         };
-        const string source = "function part(s,p,n){print \"late\" > \"result\";return substr(s,p,n)}" +
+        var source = "function part(s,p,n){print \"late\" > \"result\";" +
+            (comparison ? "if(length(s)>p)" : "") + "return substr(s,p,n)}" +
             "BEGIN{getline;print \"ready\";print part($1,$2,$3)}END{print \"end\"}";
         var exit = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
             .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), CancellationToken.None);
@@ -142,6 +148,7 @@ public sealed partial class AwkParameterConsumptionTests
     [InlineData(false, 1)] [InlineData(true, 1)]
     [InlineData(false, 2)] [InlineData(true, 2)]
     [InlineData(false, 3)] [InlineData(true, 3)]
+    [InlineData(false, 4)] [InlineData(true, 4)]
     public async Task DeferredErrorTextStaysFundedThroughRecordReplacementAndActualPendingRead(bool cancel, int consumption)
     {
         const int payload = 32_768;
@@ -178,7 +185,7 @@ public sealed partial class AwkParameterConsumptionTests
                   "BEGIN{FS=\":\";getline;print \"ready\";print and($1,later());exit}END{print \"end\"}"
                 : "function replace(){$0=\"new:9\";return 0}" +
                 "function choose(x,ignored,line){getline line;if(line)return " +
-                (consumption == 3 ? "substr(\"abcdef\",x,1)" : consumption == 1 ? "int(x)" : "x+1") + ";return 0}" +
+                (consumption == 4 ? "x<8" : consumption == 3 ? "substr(\"abcdef\",x,1)" : consumption == 1 ? "int(x)" : "x+1") + ";return 0}" +
                 "BEGIN{FS=\":\";getline;print \"ready\";print choose($1,replace());exit}END{print \"end\"}";
             var budget = new CooperativeTestBudget(8 << 20);
             using var cancellation = new CancellationTokenSource();

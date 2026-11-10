@@ -1,16 +1,20 @@
 namespace Lokad.Awk;
 
 // Preparation metadata only: preserve full values unless all reads ultimately consume
-// arithmetic or complete array keys. Actual numeric keys still convert at their use.
+// arithmetic, proved-number comparisons or complete array keys. Numeric keys format at use.
 internal static class AwkParameterConsumption
 {
     private const int Arithmetic = -1;
     private const int Observable = -2;
     private const int WriteOnly = -3;
     private const int Key = -4;
+    private const int NumericComparison = -5;
+
+    [Flags]
+    private enum Use : byte { None = 0, Arithmetic = 1, Comparison = 2, Key = 4, Storage = 8, Observable = 16 }
 
     public static void Prepare(AwkSyntaxProgram syntax,
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, Action? checkpoint)
+        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, AwkCompatibilityMode mode, Action? checkpoint)
     {
         if (functions.Count == 0) return;
         var ranges = new Dictionary<AwkFunctionName, ParameterRange>(functions.Count);
@@ -23,10 +27,10 @@ internal static class AwkParameterConsumption
         }
         if (count == 0) return;
 
-        var opaque = new bool[count];
-        var numeric = new bool[count];
-        var keys = new bool[count];
-        var scalarStorage = new bool[count];
+        // One use lattice replaces independent mark arrays/passes. Queue membership
+        // bounds pending propagation to one entry per parameter, including cycles.
+        // Existing coarse frontend admission funds this token-bounded preparation.
+        var uses = new Use[count];
         var heads = new int[count];
         Array.Fill(heads, -1);
         var edges = new List<ForwardingEdge>();
@@ -61,12 +65,14 @@ internal static class AwkParameterConsumption
                         if (!layout.TryGetSlot(new(identifier.Identifier), out var slot))
                             continue;
                         var node = current.Start + slot.Index;
-                        if (work.NeedsScalarStorage) scalarStorage[node] = true;
-                        if (use == WriteOnly) scalarStorage[node] = true;
-                        else if (use == Arithmetic) numeric[node] = true;
-                        else if (use == Key) keys[node] = true;
-                        else if (use == Observable) opaque[node] = true;
-                        else
+                        if (work.NeedsScalarStorage) uses[node] |= Use.Storage;
+                        uses[node] |= use switch
+                        {
+                            WriteOnly => Use.Storage, Arithmetic => Use.Arithmetic,
+                            NumericComparison => Use.Comparison, Key => Use.Key,
+                            Observable => Use.Observable, _ => Use.None
+                        };
+                        if (use >= 0)
                         {
                             edges.Add(new(node, heads[use]));
                             heads[use] = edges.Count - 1;
@@ -89,9 +95,15 @@ internal static class AwkParameterConsumption
                             expressions.Push(new(children[1], compound ? Arithmetic : Observable));
                             break;
                         case AwkExpressionKind.Binary when expression.OperatorTokens.Count == 1:
-                            var arithmetic = expression.OperatorTokens[0].Kind is AwkTokenKind.Plus or AwkTokenKind.Minus
+                            var token = expression.OperatorTokens[0].Kind;
+                            var arithmetic = token is AwkTokenKind.Plus or AwkTokenKind.Minus
                                 or AwkTokenKind.Star or AwkTokenKind.Slash or AwkTokenKind.Percent or AwkTokenKind.Caret;
-                            foreach (var child in children) expressions.Push(new(child, arithmetic ? Arithmetic : Observable));
+                            if (IsComparison(token) && children.Count == 2)
+                            {
+                                expressions.Push(new(children[0], ProducesNumber(children[1], layout) ? NumericComparison : Observable));
+                                expressions.Push(new(children[1], ProducesNumber(children[0], layout) ? NumericComparison : Observable));
+                            }
+                            else foreach (var child in children) expressions.Push(new(child, arithmetic ? Arithmetic : Observable));
                             break;
                         case AwkExpressionKind.Unary or AwkExpressionKind.Postfix when expression.OperatorTokens.Count == 1:
                             var numericUnary = expression.OperatorTokens[0].Kind is AwkTokenKind.Plus or AwkTokenKind.Minus
@@ -136,7 +148,7 @@ internal static class AwkParameterConsumption
                             else foreach (var child in children) expressions.Push(new(child, Observable));
                             break;
                         default:
-                            // Comparisons, truth, unknown calls and
+                            // Truth, unknown calls and
                             // every unrecognized future construct retain the original value.
                             foreach (var child in children) expressions.Push(new(child, Observable));
                             break;
@@ -146,10 +158,35 @@ internal static class AwkParameterConsumption
         }
 
         var queue = new Queue<int>(count);
-        Propagate(opaque);
-        Propagate(numeric);
-        Propagate(keys);
-        Propagate(scalarStorage);
+        var queued = new bool[count];
+        for (var index = 0; index < count; index++)
+        {
+            if ((index & 63) == 0) checkpoint?.Invoke();
+            if (uses[index] != Use.None)
+            {
+                queue.Enqueue(index);
+                queued[index] = true;
+            }
+        }
+        while (queue.TryDequeue(out var target))
+        {
+            checkpoint?.Invoke();
+            queued[target] = false;
+            var walked = 0;
+            for (var index = heads[target]; index >= 0; index = edges[index].Next)
+            {
+                if ((walked++ & 63) == 0) checkpoint?.Invoke();
+                var source = edges[index].Source;
+                var merged = uses[source] | uses[target];
+                if (merged == uses[source]) continue;
+                uses[source] = merged;
+                if (!queued[source])
+                {
+                    queue.Enqueue(source);
+                    queued[source] = true;
+                }
+            }
+        }
         foreach (var (name, range) in ranges)
         {
             checkpoint?.Invoke();
@@ -158,11 +195,13 @@ internal static class AwkParameterConsumption
             {
                 if ((index & 63) == 0) checkpoint?.Invoke();
                 var node = range.Start + index;
-                if (opaque[node]) continue;
+                var use = uses[node];
+                if ((use & Use.Observable) != 0) continue;
                 // An unread parameter can also carry an owning key unchanged. This
                 // matters when a key flows to a known callee that ignores its input.
-                var input = numeric[node] && !keys[node] ? AwkParameterInput.Arithmetic :
-                    !numeric[node] && !scalarStorage[node] ? AwkParameterInput.Key : AwkParameterInput.Value;
+                var input = (use & Use.Key) == 0 && (use & Use.Comparison) != 0 ? AwkParameterInput.NumericComparison :
+                    (use & Use.Key) == 0 && (use & Use.Arithmetic) != 0 ? AwkParameterInput.Arithmetic :
+                    (use & (Use.Arithmetic | Use.Comparison | Use.Storage)) == 0 ? AwkParameterInput.Key : AwkParameterInput.Value;
                 if (input == AwkParameterInput.Value) continue;
                 if (inputs.Length == 0) inputs = new AwkParameterInput[range.Count];
                 inputs[index] = input;
@@ -170,26 +209,32 @@ internal static class AwkParameterConsumption
             functions[name].LocalLayout.PrepareInputs(inputs);
         }
 
-        void Propagate(bool[] marks)
+        bool ProducesNumber(AwkExpressionSyntax expression, AwkFunctionLocalLayout layout)
         {
-            for (var i = 0; i < count; i++)
+            while (expression.Kind == AwkExpressionKind.Group && expression.Children.Count == 1)
             {
                 checkpoint?.Invoke();
-                if (marks[i]) queue.Enqueue(i);
+                expression = expression.Children[0];
             }
-            while (queue.TryDequeue(out var target))
+            if (expression.Kind == AwkExpressionKind.Number) return true;
+            if (expression.OperatorTokens.Count == 1)
             {
-                checkpoint?.Invoke();
-                var walked = 0;
-                for (var index = heads[target]; index >= 0; index = edges[index].Next)
-                {
-                    if ((walked++ & 63) == 0) checkpoint?.Invoke();
-                    var source = edges[index].Source;
-                    if (marks[source]) continue;
-                    marks[source] = true;
-                    queue.Enqueue(source);
-                }
+                var token = expression.OperatorTokens[0].Kind;
+                if (expression.Kind == AwkExpressionKind.Binary && (IsComparison(token) || token is
+                    AwkTokenKind.Plus or AwkTokenKind.Minus or AwkTokenKind.Star or AwkTokenKind.Slash or
+                    AwkTokenKind.Percent or AwkTokenKind.Caret or AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe)) return true;
+                if (expression.Kind is AwkExpressionKind.Unary or AwkExpressionKind.Postfix && token is
+                    AwkTokenKind.Plus or AwkTokenKind.Minus or AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus or AwkTokenKind.Bang) return true;
             }
+            return expression.Kind == AwkExpressionKind.FunctionCall &&
+                AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var called) &&
+                !layout.TryGetSlot(new(called.Identifier), out _) &&
+                AwkBuiltins.TryGetCallable(called.Name, out var builtin) &&
+                AwkCompatibilityNames.EnablesBuiltin(builtin, mode) &&
+                (builtin.LoweringKind is AwkBuiltinLoweringKind.Length or AwkBuiltinLoweringKind.IsArray or
+                    AwkBuiltinLoweringKind.Match or AwkBuiltinLoweringKind.Split or AwkBuiltinLoweringKind.Patsplit or
+                    AwkBuiltinLoweringKind.Asort or AwkBuiltinLoweringKind.Asorti or AwkBuiltinLoweringKind.Sub or AwkBuiltinLoweringKind.Gsub ||
+                 builtin.TryGetScalarComputation(out var computation) && computation.ReturnsNumber);
         }
 
         void PushStatements(IReadOnlyList<AwkStatementSyntax> body)
@@ -201,6 +246,9 @@ internal static class AwkParameterConsumption
             }
         }
     }
+
+    private static bool IsComparison(AwkTokenKind token) => token is AwkTokenKind.EqualEqual or AwkTokenKind.BangEqual or
+        AwkTokenKind.Less or AwkTokenKind.LessEqual or AwkTokenKind.Greater or AwkTokenKind.GreaterEqual;
 
     private readonly record struct ParameterRead
     {

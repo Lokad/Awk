@@ -568,6 +568,19 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
+    internal bool TryGetFieldComparisonNumber(int index, out double number)
+    {
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0)
+        {
+            var value = _recordFields.GetFieldComparison(new(index), NumberParsingMode).Value;
+            if (value.StoredKind is AwkValueKind.Number or AwkValueKind.NumericString)
+                return value.TryGetStoredComparisonNumber(out number, CancellationCheckpoint);
+        }
+        number = 0;
+        return false;
+    }
+
     internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
         _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
 
