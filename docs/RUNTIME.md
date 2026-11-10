@@ -217,9 +217,14 @@ references. The frame cache owns decoded/assigned spelling and scalar values; de
 stays distinct from input-value classification. Byte-only consumers read record slices directly.
 Numeric reads consume ready field numbers directly. Existing owned field values keep their
 spelling and origin; their cache is read before any later mutation or suspension.
+Raw input classification shares the reference-free record cells with arithmetic prefix facts;
+strict numeric-string classification stays distinct from a numeric prefix. Already-owned decoded
+spelling keeps its cache ownership when reconstruction rebases fields onto record bytes.
 Comparisons and introspection can reuse record-local classification and bytes. Values that
 escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
 keep owned capture. Caller order and deferred conversion errors remain unchanged.
+The common numeric-operand path can consume established field facts; a cold speculative probe
+does not split, classify or admit, and an arithmetic prefix is not a strict comparison fact.
 String values retain origin and spelling through keys, assignments and calls. Stored
 strings convert numerically when consumed, using the reading execution's mode; repeated
 string reads do not classify them again. Input numeric-string classification stays separate.
@@ -427,8 +432,8 @@ Regex record splitting borrows the funded UTF-8 batch; core does not create or a
 decoded regex-input cache. This is a byte-memory borrow lasting through search disposal;
 scalar text remains immutable and owned. Composite keys can copy field bytes straight into their
 owned builder; no field view survives later operand evaluation or suspension. Escaping scalar
-values still own their text. Arithmetic field reads cache numbers in their already-funded
-descriptors. Owning values and input classification use separately admitted storage;
+values still own their text. Arithmetic field reads and raw input classification cache their
+facts in already-funded descriptors. Owned spelling and scalar values use separately admitted storage;
 refused admission remains fatal. Existing composite compound targets reuse the stored key and
 capture its value/array identity, retaining key admission across a pending RHS. A new retained
 key still requires an owned copy; commit reacquires the array's current storage.

@@ -2,6 +2,35 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData("0007", true)] [InlineData("0007", false)]
+    [InlineData("7tail", true)] [InlineData("7tail", false)]
+    [InlineData("word", true)] [InlineData("word", false)]
+    public async Task FieldClassificationUsesRecordCellsWithoutAnOwningValueCache(string field, bool governed)
+    {
+        const int records = 16;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat(field + " tail\n", records)));
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk",
+                "{hits+=($1==7);hits+=($1==7);sum+=$1;lex+=($1==\"0007\")}END{print hits,sum,lex}"),
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(field == "0007" ? "32 112 16\n" : field == "7tail" ? "0 112 0\n" : "0 0 0\n",
+            host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.NumericFieldByteParses);
+        Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> FieldComparisonConsumptionCases()
     {
         foreach (var shape in new[] { "number", "reverse", "variable", "fields", "text", "warm", "mixed", "escape", "named-condition", "named-body", "do" })

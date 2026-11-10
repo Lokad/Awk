@@ -17,6 +17,7 @@ public sealed class AwkReferenceSelectionTests
     [InlineData("field-call-loop", "all", false, 3)]
     [InlineData("field-number-loop", "all", false, 3)]
     [InlineData("numeric-wide", "all", false, 3)]
+    [InlineData("numeric-filter", "all", false, 3)]
     [InlineData("fixed-field-loop", "all", false, 3)]
     [InlineData("prefix-nf-loop", "all", false, 3)]
     [InlineData("wide-field-rewrite", "all", false, 3)]
@@ -26,7 +27,7 @@ public sealed class AwkReferenceSelectionTests
     [InlineData("startup-empty", "small", true, 1)]
     [InlineData("unknown", "all", true, 0)]
     [InlineData("projection", "unknown", true, 0)]
-    [InlineData("*", "small", true, 53)]
+    [InlineData("*", "small", true, 54)]
     public void FiltersPreserveSelectedCasesAndControlOrdering(string name, string scale, bool smoke, int count)
     {
         var workloads = ReferenceWorkloads.CreateAll(name, scale, smoke).ToArray();

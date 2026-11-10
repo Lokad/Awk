@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -233,6 +233,19 @@ internal static class ReferenceWorkloads
                 for (var i = 0; i < rows; i++)
                     input.Append(i % 2 == 0 ? "A\tB\tC\n" : "A\tB\tD\n");
                 expected.Append(rows / 2).Append('\n');
+                break;
+            case "numeric-filter":
+                program = "$2>=16 && $2<48 {count++;total+=$2} END{print count+0,total+0}";
+                fields = 2;
+                var rangeCount = 0;
+                var rangeTotal = 0;
+                for (var i = 0; i < rows; i++)
+                {
+                    var number = i % 64;
+                    input.Append("key\t").Append(number.ToString("D3", CultureInfo.InvariantCulture)).Append('\n');
+                    if (number >= 16 && number < 48) { rangeCount++; rangeTotal += number; }
+                }
+                expected.Append(rangeCount).Append(' ').Append(rangeTotal).Append('\n');
                 break;
             case "early-fields-wide":
                 // Early rejection on wide records; profile-wide deliberately consumes every field.

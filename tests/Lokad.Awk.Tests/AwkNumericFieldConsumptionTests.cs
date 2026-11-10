@@ -182,6 +182,60 @@ public sealed class AwkNumericFieldConsumptionTests
     }
 
     [Fact]
+    public void StoredComparisonProbeCannotSplitOrAdmitAndNeverPromotesArithmeticPrefixes()
+    {
+        using var memory = State(true);
+        var state = memory.State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("k 0007 7tail"));
+        var splits = state.Counters.FieldSplits;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        Assert.False(state.TryGetStoredFieldComparisonNumber(2, out _));
+        Assert.False(state.TryGetStoredFieldComparisonNumber(-1, out _));
+        Assert.False(state.TryGetStoredFieldComparisonNumber(0, out _));
+        Assert.Equal(splits, state.Counters.FieldSplits);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = null;
+        Assert.Equal(3, state.FieldCount);
+        Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.False(state.TryGetStoredFieldComparisonNumber(2, out _));
+        Assert.True(state.TryGetFieldComparisonNumber(2, out _));
+        Assert.True(state.TryGetStoredFieldComparisonNumber(2, out var number));
+        Assert.Equal(7, number);
+        Assert.Equal(7, state.GetFieldNumber(3));
+        Assert.False(state.TryGetStoredFieldComparisonNumber(3, out _));
+        Assert.False(state.TryGetFieldComparisonNumber(3, out _));
+        Assert.False(state.TryGetStoredFieldComparisonNumber(3, out _));
+        Assert.Equal(0, state.Counters.FieldValueCacheBufferAllocations);
+    }
+
+    [Fact]
+    public void StrictComparisonFactsNeedNoAdmissionAndEscapeRefusalPreservesThem()
+    {
+        using var memory = State(true);
+        var state = memory.State;
+        var record = AwkText.FromSourceLiteralString("k 0007");
+        state.SetCurrentRecord(record);
+        Assert.Equal(2, state.FieldCount);
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        for (var repeat = 0; repeat < 8; repeat++)
+        {
+            Assert.True(state.TryGetFieldComparisonNumber(2, out var number));
+            Assert.Equal(7, number);
+            Assert.Equal(7, state.GetFieldNumber(2));
+        }
+        Assert.Equal(0, state.Counters.FieldValueCacheBufferAllocations);
+        Assert.Throws<AwkRuntimeException>(() => state.GetFieldValue(2));
+        Assert.True(state.TryGetFieldComparisonNumber(2, out var retained));
+        Assert.Equal(7, retained);
+        Assert.Equal(record, state.CurrentRecordByteText);
+        Assert.Equal(2, state.FieldCount);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Fact]
     public void RecordCellAndTextLayoutsMatchTheirOwners()
     {
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());

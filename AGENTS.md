@@ -127,9 +127,13 @@ or environment dependencies.
   General print can stage integer fragments in an admitted region builder. Preserve formatting
   order, complete-record preflights and payload slices; keep the buffer funded through actual
   redirected-write completion. Preserve original spelling and numeric formatting admission.
-- Arithmetic field numbers live in their funded record cells. Separate classification entries
-  may omit text; full value reads must still own original spelling. Comparison views require a proven record-preserving RHS;
+- Arithmetic prefixes and strict input-classification facts share their funded, reference-free
+  record cells; a prefix is not a comparison fact. Already-owned decoded spelling keeps its
+  cache slot and classification through reconstruction and copying. Full value reads still own
+  original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
+  Speculative numeric probes consume only established field facts without splitting,
+  classification or admission. Ordinary evaluation keeps cold effects and diagnostics.
 - The frame owns two record payload slots and their bounded funded fallback storage. A current
   record may borrow immutable host bytes; the reader promotes matching slots before ending that
   borrow, without allocation or user/cancellation callbacks. Only the owner rebinds the frame's

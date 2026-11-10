@@ -571,12 +571,14 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool TryGetFieldComparisonNumber(int index, out double number)
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0)
-        {
-            var value = _recordFields.GetFieldComparison(new(index), NumberParsingMode).Value;
-            if (value.StoredKind is AwkValueKind.Number or AwkValueKind.NumericString)
-                return value.TryGetStoredComparisonNumber(out number, CancellationCheckpoint);
-        }
+        if (index > 0) return _recordFields.TryGetFieldComparisonNumber(new(index), NumberParsingMode, out number);
+        number = 0;
+        return false;
+    }
+
+    internal bool TryGetStoredFieldComparisonNumber(int index, out double number)
+    {
+        if (index > 0) return _recordFields.TryGetStoredFieldComparisonNumber(new(index), out number);
         number = 0;
         return false;
     }

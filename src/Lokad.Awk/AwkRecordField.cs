@@ -43,6 +43,18 @@ internal readonly struct AwkRecordField
 
     internal AwkRecordField WithCacheSlot(int slot) => new(_start, _length, slot, _number, _runeLength);
     internal AwkRecordField WithNumericValue(double number) => new(_start, _length, -1, number, _runeLength);
+    // Negative slots describe facts in these existing words; positive slots own
+    // spelling/scalars in the frame cache. Arithmetic prefixes are not classifications.
+    internal bool HasInputClassification => CacheSlot < -1;
+    private AwkValueKind InputClassificationKind => (AwkValueKind)(-CacheSlot - 2);
+    internal AwkValue InputClassification => AwkValue.FromStorage(null, _number, InputClassificationKind);
+    internal AwkRecordField WithInputClassification(AwkValue value) =>
+        new(_start, _length, -(int)value.StoredKind - 2, value.StoredNumber, _runeLength);
+    internal bool TryGetComparisonNumber(out double number)
+    {
+        number = _number;
+        return CacheSlot == -(int)AwkValueKind.NumericString - 2;
+    }
     internal AwkRecordField WithRuneLength(int length) => new(_start, _length, CacheSlot, _number, length);
     internal AwkRecordField WithCacheFrom(AwkRecordField source) =>
         new(_start, _length, source.CacheSlot, source._number, source._runeLength);
@@ -50,7 +62,9 @@ internal readonly struct AwkRecordField
     internal bool TryGetNumericValue(out double number)
     {
         number = _number;
-        return CacheSlot == -1;
+        // The parser stores text, numeric text, numeric strings or a deferred
+        // input error. Every established fact except that error has a number.
+        return CacheSlot < 0 && CacheSlot != -(int)AwkValueKind.NonDecimalConversionErrorInput - 2;
     }
 
     internal AwkFieldText Text(ReadOnlySpan<AwkFieldFrame.CachedFieldValue> cache) => Kind switch
@@ -61,7 +75,7 @@ internal readonly struct AwkRecordField
     };
 }
 
-internal enum AwkFieldCacheKind : byte { TextOnly, Classification, Scalar }
+internal enum AwkFieldCacheKind : byte { TextOnly, ClassifiedText, Scalar }
 
 // A synchronous view into one record owner. It cannot outlive that owner or cross an await.
 internal readonly ref struct AwkRecordFields

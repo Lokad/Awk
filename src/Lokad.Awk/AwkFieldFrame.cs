@@ -115,7 +115,7 @@ internal sealed class AwkFieldFrame(
         internal AwkFieldCacheKind Kind { get; }
         internal AwkValue Value { get; }
         internal AwkText Spelling => _spelling;
-        internal bool IsClassificationOnly => Kind == AwkFieldCacheKind.Classification;
+        internal bool HasInputClassification => Kind == AwkFieldCacheKind.ClassifiedText;
         internal bool IsScalar => Kind == AwkFieldCacheKind.Scalar;
         internal long PayloadBytes
         {
@@ -256,7 +256,7 @@ internal sealed class AwkFieldFrame(
     private AwkValue MaterializeFieldValue(int fieldIndex)
     {
         var value = createFieldValue(MaterializeField(_fieldTexts[fieldIndex]));
-        CacheFieldValue(fieldIndex, value, classificationOnly: false);
+        CacheFieldValue(fieldIndex, value);
         return value;
     }
 
@@ -290,16 +290,67 @@ internal sealed class AwkFieldFrame(
         // Clean input storage survives all prepared computational operands.
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
             return new(GetFieldValue(index));
-        var bytes = field.BytesInRecord(RecordBytes());
-        var value = field.CacheSlot > 0 ? _fieldValueCache[field.CacheSlot - 1].Value : default;
-        // Classification preserves numeric-string/text origins independently of
-        // inline arithmetic caches and fully materialized scalar values.
-        if (field.CacheSlot <= 0 || value.IsNumberValue)
+        field = ClassifyInputField(fieldIndex, field, mode);
+        return new(field.InputClassification, field.BytesInRecord(RecordBytes()));
+    }
+
+    internal bool TryGetFieldComparisonNumber(AwkFieldIndex index, AwkNumberParsingMode mode, out double number)
+    {
+        EnsureField(index);
+        number = 0;
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return false;
+        var fieldIndex = index.Value - 1;
+        var field = _fieldTexts[fieldIndex];
+        if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
         {
-            value = ClassifyFieldBytes(bytes, mode);
-            CacheInputClassification(fieldIndex, value);
+            var value = GetFieldValue(index);
+            return value.StoredKind is AwkValueKind.Number or AwkValueKind.NumericString &&
+                value.TryGetStoredComparisonNumber(out number, checkpoint);
         }
-        return new(value, bytes);
+        return ClassifyInputField(fieldIndex, field, mode).TryGetComparisonNumber(out number);
+    }
+
+    // Speculative computation can consume an established fact, but cannot split,
+    // classify, materialize or admit. Ordinary evaluation retains those effects.
+    internal bool TryGetStoredFieldComparisonNumber(AwkFieldIndex index, out double number)
+    {
+        number = 0;
+        if (!_recordTextIsCurrent || !index.IsNamedField || index.Value > _fieldTexts.Count) return false;
+        var field = _fieldTexts[index.Value - 1];
+        if (field.TryGetComparisonNumber(out number)) return true;
+        if (field.CacheSlot <= 0) return false;
+        var cached = _fieldValueCache[field.CacheSlot - 1];
+        return cached.Kind != AwkFieldCacheKind.TextOnly &&
+            cached.Value.TryGetStoredComparisonNumber(out number, checkpoint);
+    }
+
+    private AwkRecordField ClassifyInputField(int fieldIndex, AwkRecordField field, AwkNumberParsingMode mode)
+    {
+        if (field.HasInputClassification) return field;
+        return ClassifyInputFieldBytes(fieldIndex, field, mode);
+    }
+
+    // Cached facts stay on the short owner read. Parsing and owned-spelling
+    // publication need not expand every ordinary comparison consumer.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private AwkRecordField ClassifyInputFieldBytes(int fieldIndex, AwkRecordField field, AwkNumberParsingMode mode)
+    {
+        if (field.CacheSlot > 0 && _fieldValueCache[field.CacheSlot - 1].HasInputClassification)
+            return field.WithInputClassification(_fieldValueCache[field.CacheSlot - 1].Value);
+        counters.RecordNumericFieldByteParse();
+        var value = AwkValue.ClassifyInput(field.BytesInRecord(RecordBytes()), mode, checkpoint);
+        if (field.CacheSlot > 0)
+        {
+            // Recomposition can rebase an already-owned CSV spelling onto raw
+            // record bytes. Its actual cache slot still owns that spelling.
+            var cached = _fieldValueCache[field.CacheSlot - 1];
+            _fieldValueCache[field.CacheSlot - 1] = new(fieldIndex,
+                AwkFieldCacheKind.ClassifiedText, value, cached.Spelling);
+            return field.WithInputClassification(value);
+        }
+        field = field.WithInputClassification(value);
+        _fieldTexts[fieldIndex] = field;
+        return field;
     }
 
     // Keep byte parsing/cache publication with the numeric consumer, without an
@@ -315,20 +366,21 @@ internal sealed class AwkFieldFrame(
         if (!index.IsNamedField || index.Value > _fieldTexts.Count) return true;
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
-        if (field.TryGetNumericValue(out number)) return true;
+        if (field.CacheSlot < 0)
+        {
+            if (field.TryGetNumericValue(out number)) return true;
+            if (deferError) return false;
+            throw new AwkRuntimeException(AwkMessages.ErrorHexadecimalFloatExponent);
+        }
         if (field.CacheSlot > 0)
         {
             var cached = _fieldValueCache[field.CacheSlot - 1];
-            if (cached.Kind == AwkFieldCacheKind.TextOnly) return false;
-            if (!cached.IsClassificationOnly)
+            if (!cached.HasInputClassification)
             {
-                // No callback/suspension separates this already-funded cache read
-                // from its immediate consumer. Keep its owned value and origin.
-                cachedValue = field.CacheSlot - 1;
+                if (cached.IsScalar) cachedValue = field.CacheSlot - 1;
                 return false;
             }
-            if (deferError && cached.Value.HasInputConversionError)
-                return false;
+            if (deferError && cached.Value.HasInputConversionError) return false;
             number = cached.Value.AsNumber(checkpoint);
             return true;
         }
@@ -349,22 +401,7 @@ internal sealed class AwkFieldFrame(
         return true;
     }
 
-    private AwkValue ClassifyFieldBytes(ReadOnlySpan<byte> bytes, AwkNumberParsingMode mode)
-    {
-        counters.RecordNumericFieldByteParse();
-        return AwkValue.ClassifyInput(bytes, mode, checkpoint);
-    }
-
-    private void CacheInputClassification(int fieldIndex, AwkValue value)
-    {
-        // Spare slots are already funded; only the cold initial buffer needs admission.
-        if (_fieldTexts[fieldIndex].CacheSlot > 0 || _fieldValueCache.Count < _fieldValueCache.Capacity)
-            SetCachedFieldValue(fieldIndex, value, classificationOnly: true);
-        else if (_fieldValueCache.Capacity == 0)
-            CacheFieldValue(fieldIndex, value, classificationOnly: true);
-    }
-
-    private void CacheFieldValue(int index, AwkValue value, bool classificationOnly)
+    private void CacheFieldValue(int index, AwkValue value)
     {
         var field = _fieldTexts[index];
         var capacity = PlanFieldCacheCapacity(_fieldValueCache.Count + (field.CacheSlot <= 0 ? 1 : 0));
@@ -376,8 +413,7 @@ internal sealed class AwkFieldFrame(
                     EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity), EstimateFieldCacheBufferBytes(capacity));
             retainedBytes = AdjustEstimate(retainedBytes,
                 field.CacheSlot > 0 ? _fieldValueCache[field.CacheSlot - 1].PayloadBytes : 0,
-                new CachedFieldValue(index, classificationOnly ? AwkFieldCacheKind.Classification : AwkFieldCacheKind.Scalar,
-                    value, FieldSpelling(field)).PayloadBytes);
+                new CachedFieldValue(index, AwkFieldCacheKind.Scalar, value, FieldSpelling(field)).PayloadBytes);
         }
         if (capacity != _fieldValueCache.Capacity)
             GrowFieldValueCache(capacity, retainedBytes);
@@ -386,7 +422,7 @@ internal sealed class AwkFieldFrame(
             checkpoint?.Invoke();
             ReplaceRetainedMemory(retainedBytes);
         }
-        SetCachedFieldValue(index, value, classificationOnly);
+        SetCachedFieldValue(index, value);
     }
 
     public bool TryGetFieldStringLength(
@@ -527,7 +563,7 @@ internal sealed class AwkFieldFrame(
         // Both descriptors still refer to the same funded record. Cache slots stay
         // local to each field, including when removing this slot remaps the source.
         RemoveCachedFieldValue(to);
-        _fieldTexts[to] = field.TryGetNumericValue(out _) ? field : field.WithCacheSlot(0);
+        _fieldTexts[to] = field.CacheSlot <= 0 ? field : field.WithCacheSlot(0);
         _fieldPayloadByteLength = payloadBytes;
         MarkRecordForRecomposition(separator);
         return true;
@@ -585,7 +621,7 @@ internal sealed class AwkFieldFrame(
         }
         while (_fieldTexts.Count < newFieldCount) _fieldTexts.Add(AwkRecordField.Empty);
         _fieldTexts[fieldIndex] = newField;
-        SetCachedFieldValue(fieldIndex, value, classificationOnly: false, spelling);
+        SetCachedFieldValue(fieldIndex, value, spelling);
         _fieldPayloadByteLength = newPayloadByteLength;
         _numericFieldCount += (value.IsNumberValue ? 1 : 0) - (oldIsNumeric ? 1 : 0);
         if (newFieldCount > oldFieldCount)
@@ -803,14 +839,13 @@ internal sealed class AwkFieldFrame(
     private AwkText FieldSpelling(AwkRecordField field) => field.CacheSlot > 0
         ? _fieldValueCache[field.CacheSlot - 1].Spelling : AwkText.Empty;
 
-    private void SetCachedFieldValue(int index, AwkValue value, bool classificationOnly = false) =>
-        SetCachedFieldValue(index, value, classificationOnly, FieldSpelling(_fieldTexts[index]));
+    private void SetCachedFieldValue(int index, AwkValue value) =>
+        SetCachedFieldValue(index, value, FieldSpelling(_fieldTexts[index]));
 
-    private void SetCachedFieldValue(int index, AwkValue value, bool classificationOnly, AwkText spelling)
+    private void SetCachedFieldValue(int index, AwkValue value, AwkText spelling)
     {
         var field = _fieldTexts[index];
-        var cached = new CachedFieldValue(index,
-            classificationOnly ? AwkFieldCacheKind.Classification : AwkFieldCacheKind.Scalar, value, spelling);
+        var cached = new CachedFieldValue(index, AwkFieldCacheKind.Scalar, value, spelling);
         if (field.CacheSlot <= 0 || field.CacheSlot > _fieldValueCache.Count)
         {
             _fieldValueCache.Add(cached);
@@ -1111,8 +1146,8 @@ internal sealed class AwkFieldFrame(
             for (var index = 0; index < previousCount; index++)
             {
                 if ((index & 1023) == 0) checkpoint?.Invoke();
-                if (_fieldTexts[index].TryGetNumericValue(out var number))
-                    fieldTexts[index] = fieldTexts[index].WithNumericValue(number);
+                if (_fieldTexts[index].CacheSlot < 0)
+                    fieldTexts[index] = fieldTexts[index].WithCacheFrom(_fieldTexts[index]);
                 if (_fieldTexts[index].RuneLength >= 0)
                     fieldTexts[index] = fieldTexts[index].WithRuneLength(_fieldTexts[index].RuneLength);
             }

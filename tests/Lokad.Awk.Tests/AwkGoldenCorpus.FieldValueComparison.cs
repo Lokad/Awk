@@ -4,6 +4,20 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldValueComparisonCases()
     {
+        yield return Passing("numeric-range-filter-boundaries",
+            ["$2>=16 && $2<48 {count++;total+=$2} END{print count+0,total+0}"],
+            [], "3 95\n", "key\t000\nkey\t016\nkey\t032\nkey\t047\nkey\t048\nkey\t063\n");
+        yield return Passing("field-classification-call-keeps-numeric-prefix-comparison-origin",
+            ["function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t}{print length(clip($1,$2))}"],
+            [], "4\n12\n12\n", "ID:beta:tail 4\nID:beta:tail 4x\nID:beta:tail 32\n");
+        yield return Passing("field-classification-survives-completion-and-owned-escape",
+            ["{a=($1==7);b=($1==\"0007\");n=$1+0;c=($1==7);count=NF;copy=$1;$3=$1;print a,b,n,c,count,\"[\"copy\"]\",typeof(copy),$0}"],
+            [], "1 1 7 1 3 [0007] strnum 0007 tail 0007\n0 0 7 0 3 [7tail] string 7tail tail 7tail\n0 0 0 0 3 [word] string word tail word\n",
+            "0007 tail old\n7tail tail old\nword tail old\n");
+        yield return Passing("field-classification-survives-raw-copy-and-reconstruction",
+            ["{a=($1==7);n=$1+0;$3=$1;b=($1==$3);print a,n,b,NF,$0,$1,typeof($1)}"],
+            [], "1 7 1 3 0007 tail 0007 0007 strnum\n0 7 1 3 7tail tail 7tail 7tail string\n0 0 1 3 word tail word word string\n",
+            "0007 tail old\n7tail tail old\nword tail old\n");
         yield return Passing("scoped-field-matrix",
             ["BEGIN{FS=\":\"}{n=7;s=\"7\";a=($1==n);b=(n==$1);c=($1==$2);d=($1>s);e=($1+0);print a,b,c,d,e,\"[\"$1\"]\",typeof($1)}"], [], "1 1 1 0 7 [0007] strnum\n0 0 0 1 7 [7tail] string\n0 0 0 1 0 [text] string\n0 0 0 0 0 [0x10] string\n1 1 1 0 7 [ 7 ] strnum\n0 0 0 0 0 [ ] string\n0 0 0 0 0 [] string\n", "0007:7\n7tail:7\ntext:0\n0x10:16\n 7 :7\n :0\n:0\n");
         yield return Passing("scoped-field-warm-cache",

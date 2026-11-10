@@ -443,6 +443,8 @@ internal partial struct AwkRegionMachine
                 return TryLocalNumericScalar(operand.Index, out number);
             if (operand.Kind == AwkRegionOperandKind.SpecialVariable)
                 return state.TryResolvePreparedSpecialNumber((AwkSpecialVariableId)operand.Index, out number);
+            if (IsField(operand))
+                return state.TryGetStoredFieldComparisonNumber(FieldOrdinal(operand), out number);
             number = 0;
             return false;
         }
