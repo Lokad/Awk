@@ -1,10 +1,12 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-The four **¶** managed NF-loop comparisons were measured on **2026-11-10 UTC** at
-[dd1a8b5a](https://github.com/Lokad/Awk/commit/dd1a8b5a3b9b91b7d11c15b9e1c491d71d2cd8f8). The other 67 managed comparisons
-and all ten admission measurements retain **2026-11-10 UTC** results at
-[6a45ce2c](https://github.com/Lokad/Awk/commit/6a45ce2c9b2bc560325e0c7cc71cea28729efdf6).
+The two **★** managed Unicode comparisons were measured on **2026-11-10 UTC** at
+[3aba93a0](https://github.com/Lokad/Awk/commit/3aba93a08b7e6413e0f8fdde2a8549832d6938f8). Four **¶** NF-loop comparisons retain
+**2026-11-10 UTC** results at
+[dd1a8b5a](https://github.com/Lokad/Awk/commit/dd1a8b5a3b9b91b7d11c15b9e1c491d71d2cd8f8).
+The other 65 managed comparisons and all ten admission measurements retain **2026-11-10 UTC**
+results at [6a45ce2c](https://github.com/Lokad/Awk/commit/6a45ce2c9b2bc560325e0c7cc71cea28729efdf6).
 Retained rows are not fresh results for the newer revision.
 
 GNU timings retain **2026-11-06 UTC** measurements at
@@ -36,7 +38,7 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | ERE boolean matching | 32.00 | 1.711 | 0.922 | 1.86× | 7.197 |
 | Numeric array sort (GNU) | 18.92 | 3.261 | 2.003 | 1.63× | 2.061 |
 | ERE capture arrays (GNU) | 28.00 | 11.721 | 7.336 | 1.60× | 32.013 |
-| Unicode length/substr / output § | 60.00 | 2.524 | 1.674 | 1.51× | 1.296 |
+| Unicode length/substr / output § ★ | 60.00 | 2.557 | 1.674 | 1.53× | 1.171 |
 | Text function with branches and local temporary | 62.00 | 2.272 | 1.636 | 1.39× | 0.529 |
 | Loop with two-argument calls and local temporary | 8.00 | 4.875 | 4.062 | 1.20× | 0.278 |
 | Branching function, one argument | 8.00 | 4.173 | 3.700 | 1.13× | 0.294 |
@@ -92,7 +94,7 @@ inputs dominated by process startup.
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 25.799 | 4.671 | 5.52× | 112.198 |
-| Unicode length/substr / output § | 960.00 | 39.586 | 15.666 | 2.53× | 19.580 |
+| Unicode length/substr / output § ★ | 960.00 | 39.145 | 15.666 | 2.50× | 17.580 |
 | Numeric array sort (GNU) ‡ | 373.15 | 55.692 | 23.029 | 2.42× | 27.207 |
 | Text function with branches and local temporary ‡ | 992.00 | 34.481 | 16.474 | 2.09× | 6.156 |
 | ASCII substr/index/length/casing ‡ | 832.00 | 17.072 | 10.095 | 1.69× | 4.619 |
