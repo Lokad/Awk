@@ -6,7 +6,7 @@ public sealed class AwkTextCancellationTests
 
     public static IEnumerable<object[]> Utf8IngressInvalidEdges()
     {
-        foreach (var prefix in new[] { 0, 4095, 4096, 4097, 8191 })
+        foreach (var prefix in new[] { 0, 4092, 4093, 4094, 4095, 4096, 4097, 8191, 8192, 8193 })
             foreach (var suffix in new[] { "80", "C0AF", "EDA080", "F4908080", "E282", "F0288CBC" })
                 yield return [prefix, suffix];
     }
@@ -49,6 +49,11 @@ public sealed class AwkTextCancellationTests
     [InlineData(4095, "E2FFAC", false)]
     [InlineData(4095, "F09F9880FF", true)]
     [InlineData(4096, "E282", true)]
+    [InlineData(4093, "F09F988080", true)]
+    [InlineData(4094, "E282AC80", true)]
+    [InlineData(4095, "C2A080", true)]
+    [InlineData(4095, "F09F98FF", false)]
+    [InlineData(4094, "F09FFF80", false)]
     public void Utf8IngressKeepsCancellationAndInvalidByteFailureOrder(int prefix, string suffix, bool cancellationWins)
     {
         var tail = Convert.FromHexString(suffix);
@@ -90,6 +95,10 @@ public sealed class AwkTextCancellationTests
     [InlineData(4096, false)]
     [InlineData(8193, false)]
     [InlineData(4095, true)]
+    [InlineData(4092, true)]
+    [InlineData(4093, true)]
+    [InlineData(4094, true)]
+    [InlineData(8191, true)]
     public void Utf8IngressKeepsOwnedCopyAndByteNativeCounters(int prefix, bool supplementary)
     {
         var input = AwkUtf8Codec.Encode(new string('a', prefix) + (supplementary ? "😀" : "")).ToArray();

@@ -995,26 +995,23 @@ internal readonly struct AwkText : IEquatable<AwkText>
     internal static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
         var remaining = bytes;
-        long nextCheckpoint = 0;
         while (!remaining.IsEmpty)
         {
-            var offset = bytes.Length - remaining.Length;
-            if (offset >= nextCheckpoint)
+            checkpoint?.Invoke();
+            var length = Math.Min(remaining.Length, AwkRuntimeLimits.CancellationCheckBytes);
+            if (length < remaining.Length && remaining[length - 1] >= 0x80)
             {
-                checkpoint?.Invoke();
-                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
-                var length = Math.Min(remaining.Length, AwkRuntimeLimits.CancellationCheckBytes);
-                if (Ascii.IsValid(remaining[..length]))
-                {
-                    remaining = remaining[length..];
-                    continue;
-                }
+                // Validate a crossing scalar before the next cancellation check,
+                // as ordinary decoding does. Inspect at most its four bytes;
+                // malformed prefixes still fail in this window before publication.
+                var start = length - 1;
+                while (start > length - 4 && (remaining[start] & 0xc0) == 0x80) start--;
+                if (Rune.DecodeFromUtf8(remaining[start..], out _, out var consumed) == OperationStatus.Done)
+                    length = Math.Max(length, start + consumed);
             }
-            var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
-            if (status != OperationStatus.Done)
+            if (!System.Text.Unicode.Utf8.IsValid(remaining[..length]))
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
-
-            remaining = remaining[consumed..];
+            remaining = remaining[length..];
         }
         checkpoint?.Invoke();
     }

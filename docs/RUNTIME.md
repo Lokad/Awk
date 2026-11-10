@@ -146,6 +146,7 @@ validated before publication; malformed input produces a fatal awk diagnostic. L
 values and byte mode do not permit arbitrary raw bytes. Arguments, paths and environment
 arrive as .NET strings and are strictly encoded; their original process bytes are unavailable.
 Unpaired UTF-16 surrogates fail with an awk text diagnostic rather than leaking encoding exceptions.
+Long validation scans remain cooperatively cancellable.
 
 For text, `length`, `index`, `substr`, `FIELDWIDTHS` and `%s` format width/precision count
 Unicode scalars by default, as do regex positions and capture lengths.

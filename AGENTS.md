@@ -96,8 +96,10 @@ or environment dependencies.
   The array bit is separate from numeric/error facts so scalar pairs share one check.
   User comparators retain original value origins and continuations. Preserve deferred errors,
   funded projections, mutation-independent snapshots and destination publication preflights.
-- Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text;
-  it is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
+- Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text.
+  Shared validation uses bounded BCL windows, completing a crossing scalar before its next poll.
+  Invalid crossings still fail before that poll and before allocation/publication.
+  It is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
   shared mutable caches belong to that backing, and storage identity compares backing references.
   Select cached metadata before byte-array casts in common access; preserve default empty text,
   checked casts and the private invariant that compact backing owns short ASCII bytes.
