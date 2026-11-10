@@ -9,6 +9,7 @@ public class GovernedAllocationProfile
     private AwkExecutionPolicy _policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
     private readonly Lokad.Awk.Tests.CooperativeTestBudget _budget = new(512L << 20);
     [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate",
+        "default-conditional-text", "shared-conditional-text", "default-unicode-prefix", "shared-unicode-prefix",
         "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic",
         "default-fs-regex", "shared-fs-regex", "default-rs-regex", "shared-rs-regex",
         "default-rs-engine", "shared-rs-engine",
@@ -23,6 +24,8 @@ public class GovernedAllocationProfile
             "default-arithmetic" or "default-posix-arithmetic" or "shared-posix-arithmetic" => "arithmetic-loops",
             "shared-projection" => "projection",
             "shared-aggregate" or "default-aggregate" => "aggregate",
+            "default-conditional-text" or "shared-conditional-text" => "local-conditional-text",
+            "default-unicode-prefix" or "shared-unicode-prefix" => "unicode-prefix",
             "default-fs-regex" or "shared-fs-regex" => "fs-regex",
             "default-rs-regex" or "shared-rs-regex" or "default-rs-engine" or "shared-rs-engine" => "rs-regex",
             "default-dynamic-pattern" or "shared-dynamic-pattern" => "regex-match",

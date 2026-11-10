@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     public static readonly string[] Families =
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
-        "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "numeric-output", "sorting", "unicode",
+        "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "numeric-output", "sorting", "unicode", "unicode-prefix",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
@@ -41,6 +41,15 @@ internal static class ReferenceWorkloads
 
     public static ReferenceWorkload Create(string name, string scale)
     {
+        if (name == "unicode-prefix")
+        {
+            var count = scale switch { "small" => 1, "medium" => 64, "large" => 1024, _ => throw new ArgumentException("Unknown scale.") };
+            var line = "key " + new string('é', 4096) + "\n";
+            return new(name, scale, count, 2,
+                "{total+=length(substr($2,1,2))}END{print total}",
+                Bytes(string.Concat(Enumerable.Repeat(line, count))), [],
+                Bytes((count * 2).ToString(CultureInfo.InvariantCulture) + "\n"), Locale: "C.UTF-8");
+        }
         if (name is "nested-array-calls-16" or "nested-array-calls-1024")
         {
             var keys = name == "nested-array-calls-16" ? 16 : 1024;
