@@ -1,11 +1,12 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-The two **◇** numeric-filter comparisons were measured on **2026-11-10 UTC** at
-[ed3e9d2f](https://github.com/Lokad/Awk/commit/ed3e9d2f240540a07766cf0ae93837a305ce2d9c). The other 71 managed comparisons
-retain **2026-11-10 UTC** results: two **★** Unicode cases at
+The two **◆** conditional-text comparisons were measured on **2026-11-10 UTC** at
+[9c10d9f6](https://github.com/Lokad/Awk/commit/9c10d9f69a92b393cb994e6b65d79ca5903c803c). The other 71 managed comparisons
+retain **2026-11-10 UTC** results: two **◇** numeric-filter cases at
+[ed3e9d2f](https://github.com/Lokad/Awk/commit/ed3e9d2f240540a07766cf0ae93837a305ce2d9c), two **★** Unicode cases at
 [3aba93a0](https://github.com/Lokad/Awk/commit/3aba93a08b7e6413e0f8fdde2a8549832d6938f8), four **¶** NF-loop cases at
-[dd1a8b5a](https://github.com/Lokad/Awk/commit/dd1a8b5a3b9b91b7d11c15b9e1c491d71d2cd8f8), and 65 other cases at
+[dd1a8b5a](https://github.com/Lokad/Awk/commit/dd1a8b5a3b9b91b7d11c15b9e1c491d71d2cd8f8), and 63 other cases at
 [6a45ce2c](https://github.com/Lokad/Awk/commit/6a45ce2c9b2bc560325e0c7cc71cea28729efdf6).
 All ten admission measurements retain that last revision. Retained rows are not fresh results
 for the newer source.
@@ -41,7 +42,7 @@ Default execution has no shared admission. GNU-marked extensions do not imply fu
 | Numeric array sort (GNU) | 18.92 | 3.261 | 2.003 | 1.63× | 2.061 |
 | ERE capture arrays (GNU) | 28.00 | 11.721 | 7.336 | 1.60× | 32.013 |
 | Unicode length/substr / output § ★ | 60.00 | 2.557 | 1.674 | 1.53× | 1.171 |
-| Text function with branches and local temporary | 62.00 | 2.272 | 1.636 | 1.39× | 0.529 |
+| Text function with branches and local temporary ◆ | 62.00 | 2.008 | 1.636 | 1.23× | 0.528 |
 | Loop with two-argument calls and local temporary | 8.00 | 4.875 | 4.062 | 1.20× | 0.278 |
 | Branching function, one argument | 8.00 | 4.173 | 3.700 | 1.13× | 0.294 |
 | Nested-array calls, 16 keys (GNU) | 25.08 | 1.986 | 1.832 | 1.08× | 0.192 |
@@ -99,7 +100,7 @@ inputs dominated by process startup.
 | ERE boolean matching | 512.00 | 25.799 | 4.671 | 5.52× | 112.198 |
 | Unicode length/substr / output § ★ | 960.00 | 39.145 | 15.666 | 2.50× | 17.580 |
 | Numeric array sort (GNU) ‡ | 373.15 | 55.692 | 23.029 | 2.42× | 27.207 |
-| Text function with branches and local temporary ‡ | 992.00 | 34.481 | 16.474 | 2.09× | 6.156 |
+| Text function with branches and local temporary ‡ ◆ | 992.00 | 30.443 | 16.474 | 1.85× | 6.156 |
 | ASCII substr/index/length/casing ‡ | 832.00 | 17.072 | 10.095 | 1.69× | 4.619 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 11.071 | 8.319 | 1.33× | 0.150 |
 | Nested-array calls, 16 keys (GNU) † | 100.35 | 6.873 | 5.347 | 1.29× | 0.193 |
