@@ -33,9 +33,12 @@ internal sealed class AwkStringRuntime
         return comparison == 0 && sorting ? left.CompareBytes(right, _checkpoint) : comparison;
     }
 
-    internal int Compare(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, bool ignoreCase) =>
-        ignoreCase ? AwkCaseText.Compare(left, right, _unitMode, _checkpoint) :
-            AwkText.CompareBytes(left, right, _checkpoint);
+    internal int Compare(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, bool ignoreCase, bool sorting = false)
+    {
+        if (!ignoreCase) return AwkText.CompareBytes(left, right, _checkpoint);
+        var comparison = AwkCaseText.Compare(left, right, _unitMode, _checkpoint);
+        return comparison == 0 && sorting ? AwkText.CompareBytes(left, right, _checkpoint) : comparison;
+    }
 
     public int IndexOfUnits(AwkByteTextOperand source, AwkByteTextOperand value, bool ignoreCase)
     {

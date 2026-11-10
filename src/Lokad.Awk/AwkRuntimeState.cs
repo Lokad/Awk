@@ -622,8 +622,8 @@ internal sealed class AwkRuntimeState : IDisposable
             _recordFields.GetFieldComparison(new(index), NumberParsingMode);
     }
 
-    internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right) =>
-        _stringRuntime.Compare(left.AsSpan(CancellationCheckpoint), right.AsSpan(CancellationCheckpoint), IsCaseInsensitive);
+    internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right, bool sorting = false) =>
+        _stringRuntime.Compare(left.AsSpan(CancellationCheckpoint), right.AsSpan(CancellationCheckpoint), IsCaseInsensitive, sorting);
 
     public int IndexOfStringUnits(AwkByteTextOperand source, AwkByteTextOperand value) =>
         _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);

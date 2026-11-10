@@ -259,7 +259,7 @@ public sealed class AwkSortProjectionMemoryTests
 
     private static long SnapshotStorage(AwkRuntimeState state, IReadOnlyCollection<AwkArrayKey> keys) =>
         SnapshotContainers(keys.Count) + keys.Sum(key =>
-            (key.RequiresTextMaterialization ? AwkRuntimeMemory.EstimateTextBytes(key.ByteLength) : key.RetainedTextMemoryBytes) +
+            key.RetainedTextMemoryBytes +
             state.GetArrayAwkValue(Source, key).RetainedTextMemoryBytes);
 
     private static long SnapshotContainers(int count) =>

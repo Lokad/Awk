@@ -296,7 +296,9 @@ language strings can materialize admitted text, funded through the snapshot or v
 ordinary calls. The admitted sort snapshot survives source mutation and pending callbacks;
 comparison phases and atomic destination publication retain their existing rules. Unsorted
 traversal takes its ordinary key snapshot without constructing a sort operation.
-Sorted snapshots own projected key spelling through source deletion and iteration. Builtin scalar
+Sorted snapshots retain owning keys through source deletion and iteration. Value orders avoid
+unused text projections; index orders, user comparators and `asorti` retain one admitted key-text
+projection. Traversal copies owned keys directly. Builtin scalar
 captures stay independent of later source promotion; user comparators retain their origin/alias behavior.
 Type-order sorting keeps conversion failures deferred until a comparison or later numeric use requires them.
 Switch selectors are captured once; ordered case tests and fallthrough use the same branch
@@ -374,7 +376,7 @@ the result directly; retired or retyped entries use current storage without reev
 the key. Captured cells and keys stay funded through pending users. Retirement clears a
 cell's payload before the containing array refunds it.
 Ordinary byte-key misses admit key/cell/backing storage before copying or insertion. Short keys
-own their bytes in the key value; longer keys own text. Language/sorted-snapshot projections
+own their bytes in the key value; longer keys own text. Language-key projections
 fund any text materialization. Cold names and special arrays retain their resolution policy.
 Scalar and array updates use bound numeric sources, keeping arithmetic field reads byte-native.
 Captured prior numbers survive RHS calls and suspension; numeric stores retain mutation preflights.

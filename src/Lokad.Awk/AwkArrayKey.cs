@@ -163,6 +163,13 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     internal bool RequiresTextMaterialization => _kind != AwkArrayKeyKind.Text;
 
+    // A repeated language consumer keeps one owning projection instead of
+    // compacting it again through the ordinary key constructor.
+    internal AwkArrayKey WithTextProjection(AwkRuntimeCounters counters) =>
+        RequiresTextMaterialization
+            ? new(ToByteText(counters, AwkMemoryAccounting.Disabled), 0, (int)AwkArrayKeyKind.Text)
+            : this;
+
     public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryAccounting governor)
     {
         if (!RequiresTextMaterialization)

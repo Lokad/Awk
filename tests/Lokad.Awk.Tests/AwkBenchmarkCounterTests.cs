@@ -1786,7 +1786,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("32\n", userFunction.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             numeric.Counters.AwkTextAllocations + entryCount, valueString.Counters.AwkTextAllocations);
-        Assert.Equal(numeric.Counters.AwkTextAllocations, userFunction.Counters.AwkTextAllocations);
+        Assert.Equal(numeric.Counters.AwkTextAllocations + entryCount, userFunction.Counters.AwkTextAllocations);
         foreach (var result in new[] { defaultOrder, typeAscending, typeDescending, unsorted })
         {
             Assert.Equal("32\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));

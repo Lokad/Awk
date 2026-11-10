@@ -23,7 +23,7 @@ internal sealed partial class AwkArrayRuntime
         {
             if (keys && order is AwkArraySortOrder.DefaultOrder) order = DefaultIndexOrder;
             var source = runtime.ResolveTarget(target);
-            var reservation = runtime.ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
+            var reservation = runtime.ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray, keys);
             try { return Create(runtime, source, order, reservation); }
             catch { reservation.Dispose(); throw; }
         }
@@ -39,9 +39,9 @@ internal sealed partial class AwkArrayRuntime
             {
                 if (!runtime._state.TryGetUserFunction(user.FunctionName, out function))
                     throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(user.FunctionName.Text));
-                entries = runtime.SnapshotSortEntries(source, reservation.Count, AwkArraySortMode.UserFunction, reservation.Lease);
+                entries = runtime.SnapshotSortEntries(source, AwkArraySortMode.UserFunction, reservation);
             }
-            else entries = runtime.SortEntries(source, order, reservation.Count, reservation.Lease);
+            else entries = runtime.SortEntries(source, order, reservation);
             return new(runtime, source, reservation, entries, function);
         }
 
@@ -49,13 +49,13 @@ internal sealed partial class AwkArrayRuntime
         {
             var source = runtime.ResolveTarget(target);
             if (!runtime.TryResolveSortedInOrder(out var order)) return new(runtime.SnapshotUnsortedKeyValues(source));
-            var reservation = runtime.ReserveSortedKeySnapshot(source, order);
+            var reservation = runtime.ReserveSortOperation(source, order, AwkArraySortOutput.KeySnapshot);
             try
             {
                 // Empty traversal skips comparator validation; asort/asorti do not.
                 if (reservation.Count == 0) return new(new AwkLeasedReadOnlyList<AwkArrayKey>([], reservation.Lease));
                 if (order is AwkArraySortOrder.UserFunctionOrder) return new(Create(runtime, source, order, reservation));
-                var entries = runtime.SortEntries(source, order, reservation.Count, reservation.Lease);
+                var entries = runtime.SortEntries(source, order, reservation);
                 return new(new AwkLeasedReadOnlyList<AwkArrayKey>(runtime.CopyKeyValues(entries), reservation.Lease));
             }
             catch { reservation.Dispose(); throw; }
@@ -207,9 +207,9 @@ internal sealed partial class AwkArrayRuntime
 
         internal AwkValue GetArgument(int index) => index switch
         {
-            0 => _state.CreateStringValue(_source[_left].KeyText),
+            0 => _state.CreateStringValue(_source[_left].Key.StoredText),
             1 => _source[_left].Value,
-            2 => _state.CreateStringValue(_source[_right].KeyText),
+            2 => _state.CreateStringValue(_source[_right].Key.StoredText),
             3 => _source[_right].Value,
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };

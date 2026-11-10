@@ -83,7 +83,9 @@ or environment dependencies.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.
-- Sort entries retain the owned key-text projection once; reconstruct traversal keys at consumption.
+- Sort entries retain owning keys directly. Value sorts and traversal avoid unused key-text
+  projection; repeated language-key consumers and asorti retain one admitted text projection.
+  Copy snapshot keys directly at traversal consumption; keep publication transfer matched to ownership.
   Builtin snapshots freeze mutable untyped scalars and capture their array/scalar distinction.
   Type-order comparisons consume prepared scalar kinds and numeric payloads. Deferred conversion
   failures stay at comparison use, after array partitioning; do not force them for 0/1-entry sorts.
