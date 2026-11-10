@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("print-final-array-read-preserves-earlier-values-and-missing-insertion",
+            ["function first(){delete a;a[\"k\"]=\"after\";OFS=\"|\";ORS=\"!\\n\";return \"left\"}BEGIN{a[\"k\"]=\"before\";print first(),a[\"k\"];print length(a),a[\"missing\"];print length(a),sprintf(\"%s\",a[\"k\"])}"],
+            [], "left|after!\n1|!\n2|after!\n");
         yield return Passing("produced-text-keeps-string-origin-through-calls-and-array-keys",
             ["function inspect(s){return typeof(s)\":\"(s==7)\":\"(s==\"007\")\":\"(s?1:0)}BEGIN{print inspect(substr(\"007\",1)),inspect(toupper(\"0\")),inspect(tolower(\"\"));a[substr(\"008\",1)]=\"kept\";print (\"008\" in a),(8 in a)}"],
             [], "string:0:1:1 string:0:0:1 string:0:0:0\n1 0\n");

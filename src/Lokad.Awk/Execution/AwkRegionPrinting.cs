@@ -49,8 +49,12 @@ internal static class AwkRegionPrinting
         output.Append(formatted.AsMemory());
     }
 
-    internal static int Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrint print)
+    internal static int Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
+        AwkRegionPrint print, in AwkValue current)
     {
+        // The instruction captures its final source before entering formatting.
+        // Its actual owner remains live through this synchronous copy.
+        state.ThrowIfCancellationRequested();
         var fields = storage.PrintSegments.AsSpan(print.Segments, print.Count);
         var borrowed = storage.BorrowedPrintFields.AsSpan(print.Segments, print.Count);
         var fieldViews = print.UsesFieldViews;
@@ -81,11 +85,11 @@ internal static class AwkRegionPrinting
 
         // Every argument has been evaluated. Preserve separator/terminator and
         // per-value formatting order, including untyped scalar effects and OFMT.
-        var separator = print.Count > 1 ? state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator)
+        var separatorValue = print.Count > 1 ? state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator)
             : AwkValue.FromText(AwkText.Empty);
-        var terminator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
-        storage.StoreText(print.Texts + print.Count, state.FormatStringByteText(separator));
-        storage.StoreText(print.Texts + print.Count + 1, state.FormatStringByteText(terminator));
+        var terminatorValue = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+        var separator = storage.FormatBorrowedText(print.Texts + print.Count, separatorValue, print: false);
+        var terminator = storage.FormatBorrowedText(print.TerminatorText, terminatorValue, print: false);
         long payloadByteLength = 0;
         for (var index = 0; index < print.Count; index++)
         {
@@ -95,16 +99,14 @@ internal static class AwkRegionPrinting
                 var argument = print.Arguments[index];
                 if (argument.Kind == AwkRegionPrintArgumentKind.Number)
                 {
-                    var buffer = numbers ?? throw new InvalidOperationException("A numeric print requires its funded buffer.");
                     var number = storage.Numbers[argument.Index];
                     state.Counters.RecordPrintNumberArgument();
-                    var start = buffer.Length;
-                    if (state.TryAppendPrintInteger(number, buffer))
-                        fields[index] = AwkFieldText.FromRecordSlice(start, buffer.Length - start);
+                    var start = numbers?.Length ?? 0;
+                    if (numbers is not null && state.TryAppendPrintInteger(number, numbers))
+                        fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
                     else
                     {
-                        var text = state.FormatPrintByteText(AwkValue.FromNumber(number));
-                        storage.StoreText(print.Texts + index, text);
+                        var text = storage.FormatBorrowedText(print.Texts + index, AwkValue.FromNumber(number), print: true);
                         fields[index] = AwkFieldText.FromOwned(text);
                     }
                 }
@@ -112,6 +114,13 @@ internal static class AwkRegionPrinting
                 {
                     storage.MoveText(argument.Index, print.Texts + index);
                     fields[index] = AwkFieldText.FromOwned(storage.Texts[print.Texts + index]);
+                }
+                else if (argument.Kind == AwkRegionPrintArgumentKind.Current)
+                {
+                    var start = numbers?.Length ?? 0;
+                    if (numbers is not null && state.TryAppendPrintInteger(current, numbers))
+                        fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
+                    else fields[index] = AwkFieldText.FromOwned(storage.FormatBorrowedText(print.Texts + index, current, print: true));
                 }
                 else
                 {
@@ -124,8 +133,7 @@ internal static class AwkRegionPrinting
                     }
                     else
                     {
-                        var text = state.FormatPrintByteText(storage.Values[valueSlot]);
-                        storage.MoveValueToText(valueSlot, print.Texts + index, text);
+                        var text = storage.FormatCapturedPrintText(valueSlot, print.Texts + index);
                         fields[index] = AwkFieldText.FromOwned(text);
                     }
                 }
@@ -137,7 +145,7 @@ internal static class AwkRegionPrinting
         state.ThrowIfCancellationRequested();
         var recordByteLength = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
             payloadByteLength, AwkRuntimeMemory.CheckedMultiply(
-                storage.Texts[print.Texts + print.Count].ByteLength, Math.Max(0, print.Count - 1))));
+                separator.ByteLength, Math.Max(0, print.Count - 1))));
         var payloadStart = 0;
         if (print.Output.IsRedirected)
         {
@@ -150,20 +158,72 @@ internal static class AwkRegionPrinting
                 payloadStart = numbers.Length;
                 redirected.EnsureCapacity(AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
                     payloadStart, AwkRuntimeMemory.CheckedAdd(recordByteLength,
-                        storage.Texts[print.Texts + print.Count + 1].ByteLength))));
+                        terminator.ByteLength))));
                 record = numbers.AsSpan();
             }
-            redirected.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
-                storage.Texts[print.Texts + print.Count + 1], recordByteLength, state.CancellationCheckpoint);
+            redirected.AppendRecord(new AwkRecordFields(fields), record, separator,
+                terminator, recordByteLength, state.CancellationCheckpoint);
         }
         else
         {
             if (numbers is not null) record = numbers.AsSpan();
-            output.AppendRecord(new AwkRecordFields(fields), record, storage.Texts[print.Texts + print.Count],
-                storage.Texts[print.Texts + print.Count + 1], recordByteLength);
+            output.AppendRecord(new AwkRecordFields(fields), record, separator,
+                terminator, recordByteLength);
             numbers?.Clear();
         }
-        storage.ReleasePrint(print);
+        // Local or array-backed segment references retire before their text claim.
+        fields.Clear();
+        borrowed.Clear();
+        storage.ReleaseTexts(print.Texts, print.TextCount);
         return payloadStart;
+    }
+
+    internal static void AppendSingle(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
+        AwkRegionPrint print, in AwkValue current)
+    {
+        state.ThrowIfCancellationRequested();
+        state.Counters.RecordSmallValuePrint();
+        var terminator = storage.FormatBorrowedText(print.TerminatorText,
+            state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator), print: false);
+        var argument = print.Arguments[0];
+        var value = argument.Kind switch
+        {
+            AwkRegionPrintArgumentKind.Current => current,
+            AwkRegionPrintArgumentKind.Number => AwkValue.FromNumber(storage.Numbers[argument.Index]),
+            AwkRegionPrintArgumentKind.Value => storage.Values[argument.Index],
+            _ => default,
+        };
+        if (value.IsNumberValue && double.IsInteger(value.StoredNumber))
+        {
+            if (argument.Kind == AwkRegionPrintArgumentKind.Value)
+                storage.MoveValueToText(argument.Index, print.Texts, AwkText.Empty);
+            if (argument.Kind == AwkRegionPrintArgumentKind.Number) state.Counters.RecordPrintNumberArgument();
+            AppendInteger(state, output, value.StoredNumber, terminator);
+        }
+        else
+        {
+            AwkText text;
+            if (argument.Kind == AwkRegionPrintArgumentKind.Text)
+            {
+                storage.MoveText(argument.Index, print.Texts);
+                text = storage.Texts[print.Texts];
+            }
+            else if (argument.Kind == AwkRegionPrintArgumentKind.Value)
+                text = storage.FormatCapturedPrintText(argument.Index, print.Texts);
+            else text = storage.FormatBorrowedText(print.Texts, value, print: true);
+            state.ThrowIfCancellationRequested();
+            output.Append([text, terminator]);
+        }
+        storage.ReleaseTexts(print.Texts, print.TextCount);
+    }
+
+    private static void AppendInteger(AwkRuntimeState state, AwkOutputSink output, double number, AwkText terminator)
+    {
+        // Keep the formatter's concrete bound out of the list renderer's frame.
+        Span<byte> bytes = stackalloc byte[AwkNumberFormatter.FormattedByteCapacity(number)];
+        var content = AwkNumberFormatter.Format(number, bytes);
+        state.Counters.RecordPrintIntegerSegment();
+        state.ThrowIfCancellationRequested();
+        output.Append(content, terminator);
     }
 }

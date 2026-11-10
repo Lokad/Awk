@@ -140,7 +140,7 @@ internal enum AwkRegionInstructionKind : byte
     Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeySeparator, KeyAppend, KeyReady, KeyEnd, ReleaseValue, ReleaseValues,
-    SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
+    SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
 }
@@ -229,11 +229,13 @@ internal sealed record AwkRegionSubstitution(int Pattern, AwkRegexPatternOrigin 
 internal readonly record struct AwkRegionIteration(int Access, int Iterator, int Sort, int CallSlot, int Comparison);
 internal sealed record AwkRegionSort(int Source, int Destination, int Order, int Slot, int CallSlot, int Comparison, bool Keys);
 internal sealed record AwkRegionGensub(int Pattern, AwkRegexPatternOrigin Origin, int Start, int Count);
-internal enum AwkRegionPrintArgumentKind { Field, Number, Value, Text }
+internal enum AwkRegionPrintArgumentKind { Field, Number, Value, Text, Current }
 internal readonly record struct AwkRegionPrintArgument(AwkRegionPrintArgumentKind Kind, int Index, int FallbackValue = -1);
 internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArgument[] Arguments, AwkRegionOutput Output = default)
 {
     internal int Count => Arguments.Length;
+    internal int TextCount => Count + (Count == 1 ? 1 : 2);
+    internal int TerminatorText => Texts + TextCount - 1;
     // Only a complete fixed-field list may defer reads into this synchronous primitive.
     internal bool UsesFieldViews => Arguments[0].Kind == AwkRegionPrintArgumentKind.Field;
 }

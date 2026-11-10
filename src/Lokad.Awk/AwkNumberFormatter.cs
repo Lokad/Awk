@@ -96,10 +96,10 @@ internal static class AwkNumberFormatter
     private static bool FitsSignedInteger(double value) =>
         value >= long.MinValue && value < -(double)long.MinValue;
 
-    private static int FormattedByteCapacity(double value) =>
+    internal static int FormattedByteCapacity(double value) =>
         FitsSignedInteger(value) || !double.IsInteger(value) ? MaxFormattedDoubleBytes : MaxFormattedIntegerBytes;
 
-    private static ReadOnlySpan<byte> Format(double value, Span<byte> buffer)
+    internal static ReadOnlySpan<byte> Format(double value, Span<byte> buffer)
     {
         if (double.IsPositiveInfinity(value))
             return "+inf"u8;

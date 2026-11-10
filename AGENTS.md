@@ -148,6 +148,11 @@ or environment dependencies.
   redirected-write completion. Preserve original spelling and numeric formatting admission.
   Prepared print lists consume ready numeric registers directly. Keep those registers in the
   caller's existing scratch through later arguments; field/value fallbacks retain funded captures.
+  General scalar and list printing share canonical descriptors and formatting ownership.
+  One-part output avoids record-segment staging. A final bound source is
+  captured before formatting; stored spelling and separators borrow their live owners only
+  through synchronous copying. Fresh numeric formatting uses the existing payload destination.
+  Earlier arguments keep their captures, and actual host suspension keeps the output owner.
   Only complete fixed-field lists may defer field reads into the synchronous print primitive.
 - Arithmetic prefixes and strict input-classification facts share their funded, reference-free
   record cells; a prefix is not a comparison fact. Already-owned decoded spelling keeps its

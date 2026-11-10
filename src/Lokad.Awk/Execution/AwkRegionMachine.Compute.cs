@@ -197,15 +197,16 @@ internal partial struct AwkRegionMachine
                     computationView.State.AppendFieldPrint(output ?? throw new InvalidOperationException("Print requires an output sink."),
                         computationView.FieldOrdinal(computationView.Operands[instruction.Left]));
                     break;
-                case AwkRegionInstructionKind.PrintValue:
-                    AwkPrintRuntime.AppendSingle(output ?? throw new InvalidOperationException("Print requires an output sink."),
-                        computationView.Value(instruction.Left), computationView.State);
-                    break;
                 case AwkRegionInstructionKind.PrintList:
                 {
                     var print = computationView.Region.Prints[instruction.Left];
-                    var payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage,
-                        output ?? throw new InvalidOperationException("Print requires an output sink."), print);
+                    var last = print.Arguments[^1];
+                    var current = last.Kind == AwkRegionPrintArgumentKind.Current ? computationView.Value(last.Index) : default;
+                    var sink = output ?? throw new InvalidOperationException("Print requires an output sink.");
+                    var payloadStart = 0;
+                    if (print.Count == 1 && !print.Output.IsRedirected && !print.UsesFieldViews)
+                        AwkRegionPrinting.AppendSingle(computationView.State, computationView.Storage, sink, print, in current);
+                    else payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage, sink, print, in current);
                     if (print.Output.IsRedirected)
                     {
                         _position = position + 1;

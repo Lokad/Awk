@@ -341,9 +341,9 @@ internal sealed partial class AwkRegionCompiler
                     break;
                 }
                 if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
-                var printKind = _operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField
-                    ? AwkRegionInstructionKind.PrintField : AwkRegionInstructionKind.PrintValue;
-                Emit(new(printKind, Left: printValue));
+                if (_operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
+                    Emit(new(AwkRegionInstructionKind.PrintField, Left: printValue));
+                else EmitPrint(AllocatePrint([PrintArgument(printValue, final: true)], printTarget));
                 break;
             case AwkStatementKind.Printf:
                 if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted)) return false;
@@ -573,9 +573,10 @@ internal sealed partial class AwkRegionCompiler
     private AwkRegionPrint AllocatePrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
     {
         var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
-        if (!print.UsesFieldViews) _usesOutputBuilder = true;
-        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, (long)arguments.Length + 2));
-        _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
+        if (output.IsRedirected || (!print.UsesFieldViews && arguments.Length > 1)) _usesOutputBuilder = true;
+        _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, print.TextCount));
+        if (arguments.Length > 1 || output.IsRedirected || print.UsesFieldViews)
+            _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
         return print;
     }
 
@@ -613,19 +614,26 @@ internal sealed partial class AwkRegionCompiler
             for (var index = 0; index < arguments.Count; index++)
             {
                 if (!Expression(arguments[index], out var value, preserveOrigin: true)) return false;
-                if (_operands[value] is { Kind: AwkRegionOperandKind.NumberTemporary } number)
-                    prepared[index] = new(AwkRegionPrintArgumentKind.Number, number.Index);
-                else if (_operands[value] is { Kind: AwkRegionOperandKind.TextTemporary } text)
-                    prepared[index] = new(AwkRegionPrintArgumentKind.Text, text.Index);
-                else
-                {
-                    var captured = CaptureValue(value, preserveOrigin: true);
-                    prepared[index] = new(AwkRegionPrintArgumentKind.Value, _operands[captured].Index);
-                }
+                prepared[index] = PrintArgument(value, final: index == arguments.Count - 1);
             }
         }
         EmitPrint(AllocatePrint(prepared, output));
         return true;
+    }
+
+    private AwkRegionPrintArgument PrintArgument(int value, bool final)
+    {
+        var source = _operands[value];
+        if (source.Kind == AwkRegionOperandKind.NumberTemporary)
+            return new(AwkRegionPrintArgumentKind.Number, source.Index);
+        if (source.Kind == AwkRegionOperandKind.TextTemporary)
+            return new(AwkRegionPrintArgumentKind.Text, source.Index);
+        // No argument work follows this read. Fields keep their existing capture
+        // boundaries; only complete fixed-field lists defer those reads.
+        if (final && (source.IsVariable || source.Kind is AwkRegionOperandKind.Literal or AwkRegionOperandKind.ArrayElement))
+            return new(AwkRegionPrintArgumentKind.Current, value);
+        var captured = CaptureValue(value, preserveOrigin: true);
+        return new(AwkRegionPrintArgumentKind.Value, _operands[captured].Index);
     }
 
     private bool Printf(AwkExpressionSyntax syntax, AwkRegionOutput output)

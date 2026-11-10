@@ -260,6 +260,26 @@ internal sealed class AwkRegionStorage : IDisposable
         if (funded > nextBytes) _payload.Release(funded - nextBytes);
     }
 
+    internal AwkText FormatBorrowedText(int index, AwkValue value, bool print)
+    {
+        if (print && !value.IsNumberValue) value = value.ForceScalar();
+        // The source owner remains live until this synchronous print copies its
+        // payload. Only freshly formatted numeric text needs destination funding.
+        if (!value.IsNumberValue) return value.ByteText;
+        var before = _payload.Bytes;
+        var text = print ? _state.FormatPrintByteText(value, _payload) : _state.FormatStringByteText(value, _payload);
+        StoreProducedText(index, text, _payload.Bytes - before);
+        return text;
+    }
+
+    internal AwkText FormatCapturedPrintText(int source, int destination)
+    {
+        var before = _payload.Bytes;
+        var text = _state.FormatPrintByteText(_values[source], _payload);
+        MoveValueToText(source, destination, text, _payload.Bytes - before);
+        return text;
+    }
+
     internal void StoreNumber(int index, AwkValue value)
     {
         value = value.AsScalarCopy();
@@ -497,10 +517,10 @@ internal sealed class AwkRegionStorage : IDisposable
         if (bytes > 0) _payload.Release(bytes);
     }
 
-    internal void MoveValueToText(int valueIndex, int textIndex, AwkText text)
+    internal void MoveValueToText(int valueIndex, int textIndex, AwkText text, long producedBytes = 0)
     {
-        var oldBytes = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.CheckedAdd(
-            _values[valueIndex].RetainedTextMemoryBytes, _texts[textIndex].EstimatedRetainedMemoryBytes) : 0;
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.CheckedAdd(producedBytes, AwkRuntimeMemory.CheckedAdd(
+            _values[valueIndex].RetainedTextMemoryBytes, _texts[textIndex].EstimatedRetainedMemoryBytes)) : 0;
         var nextBytes = _state.MemoryAccounting.IsEnabled ? text.EstimatedRetainedMemoryBytes : 0;
         if (nextBytes > oldBytes)
         {
@@ -520,14 +540,6 @@ internal sealed class AwkRegionStorage : IDisposable
         _texts[destination] = _texts[source];
         _texts[source] = AwkText.Empty;
         if (oldBytes > 0) _payload.Release(oldBytes);
-    }
-
-    internal void ReleasePrint(AwkRegionPrint print)
-    {
-        // Segment references must retire before the text owner's funding does.
-        Array.Clear(_printSegments, print.Segments, print.Count);
-        Array.Clear(_borrowedPrintFields, print.Segments, print.Count);
-        ReleaseTexts(print.Texts, print.Count + 2);
     }
 
     internal void ClearRuleValues(AwkRegionRuleScope scope)

@@ -352,9 +352,6 @@ internal sealed class AwkRuntimeCounters
     private long _printfSignedIntegerFastPaths;
     public long PrintfSignedIntegerFastPaths => Volatile.Read(ref _printfSignedIntegerFastPaths);
 
-    private long _singleValuePrintRuns;
-    public long SingleValuePrintRuns => Volatile.Read(ref _singleValuePrintRuns);
-
     private long _smallValuePrintRuns;
     public long SmallValuePrintRuns => Volatile.Read(ref _smallValuePrintRuns);
 
@@ -385,11 +382,6 @@ internal sealed class AwkRuntimeCounters
     public void RecordSmallValuePrint()
     {
         if (_enabled) Interlocked.Increment(ref _smallValuePrintRuns);
-    }
-
-    public void RecordSingleValuePrint()
-    {
-        if (_enabled) Interlocked.Increment(ref _singleValuePrintRuns);
     }
 
     public void RecordPrintfSignedIntegerFastPath()

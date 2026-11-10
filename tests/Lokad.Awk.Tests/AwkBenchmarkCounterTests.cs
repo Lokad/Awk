@@ -1083,7 +1083,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("7\ncafé\n2.5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(3, result.Counters.SingleValuePrintRuns);
+        Assert.Equal(3, result.Counters.SmallValuePrintRuns);
         Assert.Equal(0, result.Counters.Utf8Encodes);
         Assert.Equal(0, result.Counters.StringDecodes);
     }

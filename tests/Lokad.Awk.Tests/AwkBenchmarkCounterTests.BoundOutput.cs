@@ -3,6 +3,33 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task SingleScalarPrintsPreserveOwnedSpellingAndAvoidNumericText(bool governed, bool text)
+    {
+        const int records = 32;
+        var source = "BEGIN{x=" + (text ? "\"0007\"" : "7") + "}{print x}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("line\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var exit = await program.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(string.Concat(Enumerable.Repeat(text ? "0007\n" : "7\n", records)), host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.SmallValuePrintRuns);
+        Assert.Equal(text ? 0 : records, counters.PrintIntegerSegments);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task ProducedTextConsumersAvoidPerRecordScalarWrappers(bool governed)
     {

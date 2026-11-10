@@ -55,16 +55,19 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
+        var region = BindPrint(state, "print payload");
+        state.AssignVariableValue(AwkVariableName.FromText("payload"), AwkValue.FromText("kept"));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline);
         var io = Io(state, new MockFileSystem());
-        AwkPrintRuntime.AppendSingle(output, AwkValue.FromText("kept"), state);
+        AppendPreparedValue(state, region, storage, output);
         Assert.Equal("prior:kept\n", output.ToString());
         Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(observed ? 1 : 0, state.Counters.SingleValuePrintRuns);
         await io.CloseAsync();
     }
 
@@ -77,6 +80,10 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed, format);
         var state = memoryForState.State;
+        var region = BindPrint(state, "print payload");
+        state.AssignVariableValue(AwkVariableName.FromText("payload"), AwkValue.FromNumber(1.25));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem());
         if (format == "wide")
@@ -85,7 +92,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             await output.FlushAsync(io);
         }
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        AwkPrintRuntime.AppendSingle(output, AwkValue.FromNumber(1.25), state);
+        AppendPreparedValue(state, region, storage, output);
         Assert.Equal((format == "wide" ? new string(' ', 8188) : "") + "1.25\n", output.ToString());
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -99,15 +106,26 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
+        var region = BindPrint(state, "print payload");
+        state.AssignVariableValue(AwkVariableName.FromText("payload"), AwkValue.FromNumber(1.25));
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 1);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var error = Assert.Throws<AwkRuntimeException>(() => AwkPrintRuntime.AppendSingle(output, AwkValue.FromNumber(1.25), state));
+        var error = Assert.Throws<AwkRuntimeException>(() => AppendPreparedValue(state, region, storage, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("prior:", output.ToString());
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    private static void AppendPreparedValue(AwkRuntimeState state, AwkRegion region,
+        AwkRegionStorage storage, AwkOutputSink output)
+    {
+        var value = state.ResolveVariableValue(AwkVariableName.FromText("payload"));
+        AwkRegionPrinting.AppendSingle(state, storage, output, Assert.Single(region.Prints), in value);
     }
 
 }
