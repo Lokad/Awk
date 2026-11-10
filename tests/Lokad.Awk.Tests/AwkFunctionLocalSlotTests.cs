@@ -120,6 +120,8 @@ public sealed class AwkFunctionLocalSlotTests
     public void KeyCellsPreservePackedWordsOwnedTextAndRoleWithoutBoxing()
     {
         AwkArrayKey[] keys = [default, AwkArrayKey.FromOrdinal(int.MinValue), AwkArrayKey.FromOrdinal(0),
+            AwkArrayKey.FromOrdinal(-1000000), AwkArrayKey.FromOrdinal(-999999), AwkArrayKey.FromOrdinal(-7),
+            AwkArrayKey.FromOrdinal(7), AwkArrayKey.FromOrdinal(9999999), AwkArrayKey.FromOrdinal(10000000),
             AwkArrayKey.FromOrdinal(int.MaxValue), new("0007"), new("a\0b"), new("abc😀"), new("é😀"),
             new("abc😀x"), new("long owned key spelling")];
         foreach (var key in keys)
@@ -131,6 +133,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.Equal(AwkValueKind.Unassigned, cell.Value.StoredKind);
             Assert.False(cell.TryReadNumber(out _));
             Assert.Equal(key, actual);
+            Assert.Equal(key.IsOrdinal, actual.IsOrdinal);
             Assert.Equal(key.GetHashCode(), actual.GetHashCode());
             Assert.Equal(key.AsString(AwkRuntimeCounters.Disabled), actual.AsString(AwkRuntimeCounters.Disabled));
             Assert.Equal(key.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);

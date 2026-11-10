@@ -6,6 +6,11 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("mixed-numeric-and-field-keys-preserve-canonical-and-original-spellings",
+            ["BEGIN{a[7]=10;a[-2147483648]=20;a[2147483647]=30;a[0]=40}{a[$1]++;$0=\"gone\"}" +
+             "END{print a[7],a[\"7\"],a[\"007\"],a[\"+7\"],a[-2147483648],a[\"-2147483648\"],a[2147483647],a[\"2147483647\"],a[\"2147483648\"],a[0],a[\"-0\"],a[\"é\"],length(a);delete a[\"7\"];print (7 in a),(\"007\" in a)}"], [],
+            "11 11 1 1 21 21 31 31 1 41 1 1 9\n0 1\n",
+            "7\n007\n+7\n-2147483648\n2147483647\n2147483648\n0\n-0\né\n"),
         Passing("short-key-updates-own-spelling-through-record-reuse-and-sorted-traversal",
             ["BEGIN{FS=\"|\";PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"}{sum[$1]+=$2;$0=\"reused\"}" +
              "END{for(k in sum)print \"[\"k\"]\",sum[k]}"], [],

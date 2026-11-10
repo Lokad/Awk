@@ -63,7 +63,9 @@ or environment dependencies.
   constructing a field scalar/cache just to transport key bytes. No RHS or host work may
   intervene. Cold name binding still publishes only after success.
   Short byte keys own their bytes in the existing 16-byte key words; keep numeric ordinals
-  distinct. Language/sort projections admit owned text when materialization is required.
+  distinct. Ordinals whose full decimal spelling fits those words prepare it once at creation;
+  the origin flag survives packed storage while hashing/equality ignore it. Larger ordinals
+  keep their numeric payload. Language/sort projections admit owned text when materialization is required.
   Runtime comparers share randomized hashing for owned/borrowed bytes. Compact equality
   does not prepare mixed-representation buffers; raw key views stay synchronous. Short-byte
   runtime hashing shares the compact word encoding across owned, borrowed and ordinal projections.

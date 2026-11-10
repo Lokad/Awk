@@ -140,6 +140,73 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(2, counters.ArrayEqualityCalls);
     }
 
+    [Fact]
+    public void RuntimeOrdinalHashesAgreeAcrossCanonicalSpellingsAndSignedBoundaries()
+    {
+        var random = new Random(178);
+        int[] boundaries = [int.MinValue, int.MaxValue, -1, 0, 1, -10, 10,
+            -999999, 999999, -1000000, 1000000, -9999999, 9999999, -10000000, 10000000];
+        foreach (var ordinal in boundaries.Concat(Enumerable.Range(0, 512)
+            .Select(_ => (int)random.NextInt64(int.MinValue, (long)int.MaxValue + 1))))
+        {
+            var text = ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var bytes = AwkUtf8Codec.Encode(text).Span;
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
+            var key = AwkArrayKey.FromOrdinal(ordinal);
+            var compactOrText = new AwkArrayKey(text);
+            var projected = compactOrText.WithTextProjection(AwkRuntimeCounters.Disabled);
+            var hash = comparer.GetHashCode(key);
+            Assert.Equal(hash, comparer.GetHashCode(compactOrText));
+            Assert.Equal(hash, comparer.GetHashCode(projected));
+            Assert.Equal(hash, comparer.GetHashCode(bytes));
+            Assert.Equal(3, counters.ArrayOwnedHashCalls);
+            Assert.Equal(1, counters.ArrayBorrowedHashCalls);
+            Assert.Equal(4 * bytes.Length, counters.ArrayHashBytes);
+            Assert.Equal(0, counters.AwkTextAllocations);
+            var values = new Dictionary<AwkArrayKey, int>(comparer) { [projected] = 1 };
+            values[key] = 2;
+            values[compactOrText] = 3;
+            Assert.Single(values);
+            Assert.Equal(3, values.GetAlternateLookup<ReadOnlySpan<byte>>()[bytes]);
+        }
+    }
+
+    [Theory]
+    [InlineData("007")]
+    [InlineData("+7")]
+    [InlineData("-0")]
+    [InlineData("-07")]
+    [InlineData("7.0")]
+    [InlineData("7e0")]
+    [InlineData("7x")]
+    [InlineData("7\0")]
+    [InlineData(" 7")]
+    [InlineData("7 ")]
+    [InlineData("2147483648")]
+    [InlineData("-2147483649")]
+    [InlineData("７")]
+    public void RuntimeHashesPreserveNoncanonicalKeyIdentity(string text)
+    {
+        var comparer = AwkArrayKeyComparer.Instance;
+        var key = new AwkArrayKey(text);
+        var bytes = AwkUtf8Codec.Encode(text).Span;
+        var projected = key.WithTextProjection(AwkRuntimeCounters.Disabled);
+        Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode(projected));
+        Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode(bytes));
+        var values = new Dictionary<AwkArrayKey, int>(comparer)
+        {
+            [AwkArrayKey.FromOrdinal(0)] = 0,
+            [AwkArrayKey.FromOrdinal(7)] = 7,
+            [AwkArrayKey.FromOrdinal(int.MaxValue)] = 8,
+            [AwkArrayKey.FromOrdinal(int.MinValue)] = 9,
+            [projected] = 10
+        };
+        Assert.Equal(5, values.Count);
+        Assert.Equal(10, values[key]);
+        Assert.Equal(10, values.GetAlternateLookup<ReadOnlySpan<byte>>()[bytes]);
+    }
+
     [Theory]
     [InlineData(4097)]
     [InlineData(16384)]
