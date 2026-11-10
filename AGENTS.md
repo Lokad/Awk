@@ -86,6 +86,8 @@ or environment dependencies.
 - Sort entries retain owning keys directly. Value sorts and traversal avoid unused key-text
   projection; repeated language-key consumers and asorti retain one admitted text projection.
   Copy snapshot keys directly at traversal consumption; keep publication transfer matched to ownership.
+  Comparisons retain one owning entry snapshot and admitted integer ordering. User merges keep
+  indices; final entry permutation stays private and cancellation-safe before publication.
   Builtin snapshots freeze mutable untyped scalars and capture their array/scalar distinction.
   Type-order comparisons consume prepared scalar kinds and numeric payloads. Deferred conversion
   failures stay at comparison use, after array partitioning; do not force them for 0/1-entry sorts.

@@ -263,7 +263,8 @@ public sealed class AwkSortProjectionMemoryTests
             state.GetArrayAwkValue(Source, key).RetainedTextMemoryBytes);
 
     private static long SnapshotContainers(int count) =>
-        AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count) + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count);
+        AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count) + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count) +
+        (count >= 2 ? AwkRuntimeMemory.EstimateInt32ArrayBytes(count) : 0);
 
     private static CooperativeTestMemory State(bool observed, string format, string selector)
     {

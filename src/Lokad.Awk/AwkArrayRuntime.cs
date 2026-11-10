@@ -726,11 +726,12 @@ internal sealed partial class AwkArrayRuntime
 
         var plan = ResolveSortPlan(order, _state.Counters);
         var entries = SnapshotSortEntries(arrayName, plan.Mode, reservation);
-        if (plan.Mode == AwkArraySortMode.Unsorted)
+        if (plan.Mode == AwkArraySortMode.Unsorted || entries.Length < 2)
             return entries;
+        var indices = CreateSortOrder(entries.Length, _state);
         try
         {
-            Array.Sort(entries, new AwkBudgetedSortComparer(plan.Comparer, _state));
+            Array.Sort(indices, new AwkArraySortIndexComparer(entries, plan.Comparer, _state));
         }
         catch (InvalidOperationException exception)
             when (exception.InnerException is AwkRuntimeException runtimeException)
@@ -743,18 +744,60 @@ internal sealed partial class AwkArrayRuntime
             throw cancellationException;
         }
 
+        ApplySortOrder(entries, indices, _state);
         return entries;
     }
 
-    private sealed class AwkBudgetedSortComparer(
+    private sealed class AwkArraySortIndexComparer(
+        AwkArraySortEntry[] entries,
         AwkArraySortEntryComparer comparer,
-        AwkRuntimeState state) : IComparer<AwkArraySortEntry>
+        AwkRuntimeState state) : IComparer<int>
     {
-        public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
+        public int Compare(int left, int right)
         {
             state.Resources.Checkpoint();
-            return comparer.Compare(in left, in right, state);
+            return comparer.Compare(in entries[left], in entries[right], state);
         }
+    }
+
+    private static int[] CreateSortOrder(int count, AwkRuntimeState state)
+    {
+        var indices = new int[count];
+        for (var index = 0; index < count; index++)
+        {
+            if ((index & 63) == 0) state.CancellationCheckpoint();
+            indices[index] = index;
+        }
+        state.CancellationCheckpoint();
+        return indices;
+    }
+
+    // All comparisons have finished. Move each captured entry once around its
+    // cycle; cancellation discards only private staging, before publication.
+    private static void ApplySortOrder(AwkArraySortEntry[] entries, int[] indices, AwkRuntimeState state)
+    {
+        var moved = 0;
+        for (var first = 0; first < entries.Length; first++)
+        {
+            if ((first & 63) == 0) state.CancellationCheckpoint();
+            if (indices[first] == first) continue;
+            var saved = entries[first];
+            var current = first;
+            while (true)
+            {
+                if ((moved++ & 63) == 0) state.CancellationCheckpoint();
+                var next = indices[current];
+                indices[current] = current;
+                if (next == first)
+                {
+                    entries[current] = saved;
+                    break;
+                }
+                entries[current] = entries[next];
+                current = next;
+            }
+        }
+        state.CancellationCheckpoint();
     }
 
     private readonly struct AwkArraySortPlan
@@ -869,12 +912,14 @@ internal sealed partial class AwkArrayRuntime
         AwkArraySortOutput output)
     {
         var bytes = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count);
-        if (order is AwkArraySortOrder.UserFunctionOrder && count >= 2)
+        if (count >= 2 && order is not AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.Unsorted })
         {
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.ArrayMergeProgressBytes);
-            bytes = AwkRuntimeMemory.CheckedAdd(
-                bytes,
-                AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count));
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateInt32ArrayBytes(count));
+            if (order is AwkArraySortOrder.UserFunctionOrder)
+            {
+                bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.ArrayMergeProgressBytes);
+                bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateInt32ArrayBytes(count));
+            }
         }
 
         if (output is AwkArraySortOutput.KeySnapshot)

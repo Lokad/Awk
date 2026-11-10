@@ -1794,6 +1794,8 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.InRange(result.Counters.StringDecodes, 0, numeric.Counters.StringDecodes);
         }
         Assert.Equal(0, unsorted.Counters.ByteTextComparisons);
+        Assert.All(new[] { numeric, valueString, userFunction, defaultOrder, typeAscending, typeDescending, unsorted },
+            result => Assert.Equal(0, result.Counters.Utf8Encodes));
     }
 
     [Fact]

@@ -132,7 +132,8 @@ public sealed class AwkSnapshotKeyResourceTests
         var state = memory.State;
         state.SetArrayString(Destination, First, "keep");
         var (original, _, payload) = await MeasureExpected(state, name, source, "@ind_str_asc");
-        var required = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(original.Length) + payload;
+        var required = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(original.Length) + payload +
+            (original.Length >= 2 ? AwkRuntimeMemory.EstimateInt32ArrayBytes(original.Length) : 0);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required + 1))
         {
@@ -209,7 +210,8 @@ public sealed class AwkSnapshotKeyResourceTests
         var keys = snapshot.ToArray();
         var sorted = selector == "@ind_str_asc";
         var containers = AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(keys.Length) +
-            (sorted ? AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(keys.Length) : 0);
+            (sorted ? AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(keys.Length) +
+                (keys.Length >= 2 ? AwkRuntimeMemory.EstimateInt32ArrayBytes(keys.Length) : 0) : 0);
         var payload = source == "symbols" || (source is "ordinals" or "compact") && sorted
             ? keys.Sum(static key => AwkRuntimeMemory.EstimateTextBytes(key.ByteLength))
             : keys.Sum(static key => key.RetainedTextMemoryBytes);

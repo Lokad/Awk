@@ -122,14 +122,14 @@ internal sealed partial class AwkArrayRuntime
     internal AwkArrayIterationStart BeginKeySnapshot(AwkArrayTarget target) =>
         AwkArraySortOperation.BeginKeySnapshot(this, target);
 
-    // Snapshots and both entry buffers belong to the admitted sort operation.
+    // One entry snapshot and both index buffers belong to the admitted sort operation.
     // Only a comparison request suspends progression; merge tails stay synchronous.
     private sealed class AwkArrayMergeProgress
     {
         private readonly AwkRuntimeState _state;
         private readonly AwkArraySortEntry[] _entries;
-        private AwkArraySortEntry[] _source;
-        private AwkArraySortEntry[] _destination;
+        private int[] _source;
+        private int[] _destination;
         private int _runLength = 1;
         private int _start;
         private int _middle;
@@ -145,8 +145,8 @@ internal sealed partial class AwkArrayRuntime
         {
             _state = state;
             _entries = entries;
-            _source = entries;
-            _destination = new AwkArraySortEntry[entries.Length];
+            _source = CreateSortOrder(entries.Length, state);
+            _destination = new int[entries.Length];
         }
 
 
@@ -157,13 +157,7 @@ internal sealed partial class AwkArrayRuntime
             {
                 if (_runLength >= _entries.Length)
                 {
-                    if (!ReferenceEquals(_source, _entries))
-                        for (var offset = 0; offset < _entries.Length; offset += 64)
-                        {
-                            _state.CancellationCheckpoint();
-                            Array.Copy(_source, offset, _entries, offset, Math.Min(64, _entries.Length - offset));
-                        }
-                    _state.CancellationCheckpoint();
+                    ApplySortOrder(_entries, _source, _state);
                     _complete = true;
                     return false;
                 }
@@ -207,10 +201,10 @@ internal sealed partial class AwkArrayRuntime
 
         internal AwkValue GetArgument(int index) => index switch
         {
-            0 => _state.CreateStringValue(_source[_left].Key.StoredText),
-            1 => _source[_left].Value,
-            2 => _state.CreateStringValue(_source[_right].Key.StoredText),
-            3 => _source[_right].Value,
+            0 => _state.CreateStringValue(_entries[_source[_left]].Key.StoredText),
+            1 => _entries[_source[_left]].Value,
+            2 => _state.CreateStringValue(_entries[_source[_right]].Key.StoredText),
+            3 => _entries[_source[_right]].Value,
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };
 

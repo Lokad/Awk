@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SortingCompatibilityCases()
     {
+        yield return Passing("sorting-complete-permutation-cycles",
+            ["function cmp(k1,v1,k2,v2){return v1-v2}BEGIN{split(\"2 3 1 5 6 4 7\",a);print asort(a,b,\"@val_num_asc\");print b[1],b[2],b[3],b[4],b[5],b[6],b[7];print asort(a,c,\"cmp\");print c[1],c[2],c[3],c[4],c[5],c[6],c[7];print asorti(a,d,\"cmp\");print d[1],d[2],d[3],d[4],d[5],d[6],d[7];PROCINFO[\"sorted_in\"]=\"cmp\";for(k in a)printf \"%s%s\",k,(++n==7?\"\\n\":\" \");print asort(a,a,\"cmp\");print a[1],a[2],a[3],a[4],a[5],a[6],a[7]}"], [],
+            "7\n1 2 3 4 5 6 7\n7\n1 2 3 4 5 6 7\n7\n3 1 2 6 4 5 7\n3 1 2 6 4 5 7\n7\n1 2 3 4 5 6 7\n");
         yield return Passing("sorting-deferred-type-empty",
             ["--non-decimal-data", "END{print asort(a,b,\"@val_type_asc\")}"], [], "0\n");
         yield return Passing("sorting-deferred-type-single",

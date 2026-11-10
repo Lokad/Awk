@@ -296,6 +296,9 @@ language strings can materialize admitted text, funded through the snapshot or v
 ordinary calls. The admitted sort snapshot survives source mutation and pending callbacks;
 comparison phases and atomic destination publication retain their existing rules. Unsorted
 traversal takes its ordinary key snapshot without constructing a sort operation.
+Sorting keeps one captured entry snapshot while builtin comparisons or user callbacks establish
+an integer ordering. Its admitted buffers survive pending callbacks; final reordering affects
+only private staging before destination publication.
 Sorted snapshots retain owning keys through source deletion and iteration. Value orders avoid
 unused text projections; index orders, user comparators and `asorti` retain one admitted key-text
 projection. Traversal copies owned keys directly. Builtin scalar
