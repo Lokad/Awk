@@ -80,8 +80,7 @@ internal partial struct AwkRegionMachine
             var operand = operands[input];
             var field = IsField(operand) ? FieldOrdinal(operand) : -1;
             var text = TextOperand(input);
-            storage.StoreValue(instruction.Target,
-                AwkBuiltins.EvaluateCaseText(state, text, instruction.Detail != 0, field));
+            storage.StoreCaseValue(instruction.Target, text, instruction.Detail != 0, field);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

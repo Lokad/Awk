@@ -404,6 +404,8 @@ released on failed allocation. Routine bounded-cache eviction remains separate f
 Refund follows actual ownership. Pending host reads/writes/commands keep borrowed storage
 funded until completion; cancellation alone does not end that lifetime. Reused prepared storage
 stays funded through active executions, including when disposal prevents further use.
+Case conversion admits result storage before allocation and retains it through publication
+under its destination owner. Overlapping Unicode conversion scratch remains separately admitted.
 An open command funds its command/environment snapshot; it does not retain charges for
 unrelated records or completed writes. Closing it releases that snapshot after command completion.
 Function argument/slot buffers are admitted before allocation. Cached frames and alias-index

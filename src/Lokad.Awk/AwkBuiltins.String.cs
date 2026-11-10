@@ -38,16 +38,22 @@ internal static partial class AwkBuiltins
         return state.CreateStringValue(sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength));
     }
 
-    internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper) =>
-        EvaluateCaseText(state, new(state.FormatStringByteText(value)), upper);
+    internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)
+    {
+        using var destination = state.MemoryAccounting.CreateTransientLease();
+        return EvaluateCaseText(state, new(state.FormatStringByteText(value)), destination, upper);
+    }
 
-    internal static AwkValue EvaluateCaseText(AwkRuntimeState state, in AwkByteTextOperand source, bool upper, int field = -1) =>
-        EvaluateCaseConversion(source, field, state, upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
+    internal static AwkValue EvaluateCaseText(AwkRuntimeState state, in AwkByteTextOperand source,
+        AwkMemoryLease destination, bool upper, int field = -1) =>
+        EvaluateCaseConversion(source, field, state, destination,
+            upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
 
     private static AwkValue EvaluateCaseConversion(
         in AwkByteTextOperand source,
         int field,
         AwkRuntimeState state,
+        AwkMemoryLease destination,
         AwkCaseConversion conversion)
     {
         static bool TryConvertAsciiCase(
@@ -56,6 +62,7 @@ internal static partial class AwkBuiltins
             bool byteMode,
             AwkRuntimeCounters counters,
             AwkMemoryAccounting governor,
+            AwkMemoryLease destination,
             Action checkpoint,
             out AwkText result,
             out bool unchanged)
@@ -97,7 +104,7 @@ internal static partial class AwkBuiltins
                 return true;
             }
 
-            var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor);
+            var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor, destination, checkpoint);
             AwkText.CopyBytes(bytes, converted, checkpoint);
             for (var index = firstChange; index < converted.Length;)
             {
@@ -138,6 +145,7 @@ internal static partial class AwkBuiltins
             state.StringUnitMode is AwkStringUnitMode.Byte,
             state.Counters,
             state.MemoryAccounting,
+            destination,
             state.CancellationCheckpoint,
             out var asciiResult,
             out var unchanged))
@@ -153,11 +161,13 @@ internal static partial class AwkBuiltins
         // until its UTF-8 copy is constructed; the source owns its decoding cache.
         using var scratch = state.MemoryAccounting.ReserveAllocationPeak(
             AwkRuntimeMemory.EstimateUtf16StringBytes(decoded.Length));
+        state.ThrowIfCancellationRequested();
         var converted = conversion is AwkCaseConversion.Upper
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();
         state.ThrowIfCancellationRequested();
-        return state.CreateStringValue(converted);
+        return state.CreateStringValue(AwkText.FromUtf16(converted.AsSpan(), state.Counters,
+            state.MemoryAccounting, state.CancellationCheckpoint, destination));
     }
 
     private enum AwkCaseConversion

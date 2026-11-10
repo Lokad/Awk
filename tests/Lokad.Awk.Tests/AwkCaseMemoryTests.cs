@@ -4,6 +4,66 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCaseMemoryTests
 {
     [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task CaseDestinationFundsConstructionThroughItsActualUser(bool upper, bool bytes, bool unicode)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
+        {
+            var state = State(owner, bytes);
+            var initialBytes = budget.Reserved;
+            var prefix = unicode ? "😀_" : "";
+            var source = AwkText.FromString(prefix + new string(upper ? 'a' : 'A', 8193));
+            using (var destination = state.MemoryAccounting.CreateTransientLease())
+            {
+                var result = AwkBuiltins.EvaluateCaseText(state, new(source), destination, upper);
+                Assert.Equal(prefix + new string(upper ? 'A' : 'a', 8193), result.AsString());
+                Assert.True(destination.Bytes >= result.RetainedTextMemoryBytes);
+                Assert.True(budget.Reserved >= destination.Bytes);
+                Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
+                Assert.Equal(unicode && !bytes ? 1 : 0, state.Counters.StringInteropFallbacks);
+                // The result remains usable while its actual destination owns admission.
+                Assert.Equal(8193 + (unicode ? 2 : 0), result.ByteText.GetRuneLength());
+            }
+            Assert.Equal(initialBytes, budget.Reserved);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task CancellationDuringCaseAdmissionPrecedesAllocationAndRefundsUnusedStorage(bool upper, bool unicode)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, cancellation.Token))
+        {
+            var state = State(owner, false, cancellation.Token);
+            var initialBytes = budget.Reserved;
+            var source = AwkText.FromString((unicode ? "😀_" : "") + new string(upper ? 'a' : 'A', 1_000_000));
+            _ = source.AsString();
+            using var destination = state.MemoryAccounting.CreateTransientLease();
+            var allocatedAtAdmission = 0L;
+            budget.OnGrowth = _ =>
+            {
+                allocatedAtAdmission = GC.GetAllocatedBytesForCurrentThread();
+                cancellation.Cancel();
+            };
+            Assert.Throws<OperationCanceledException>(() =>
+                AwkBuiltins.EvaluateCaseText(state, new(source), destination, upper));
+            Assert.Equal(0, state.Counters.AwkTextAllocations);
+            Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedAtAdmission, 0, 64 * 1024);
+            Assert.Equal(0, destination.Bytes);
+            Assert.Equal(initialBytes, budget.Reserved);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task LargeCaseResultIsAdmittedBeforeAllocation(bool upper, bool bytes)
@@ -49,13 +109,14 @@ public sealed class AwkCaseMemoryTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, bool bytes)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, bool bytes,
+        CancellationToken cancellationToken = default)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, regexEngine: AwkUtf8RegexEngine.Instance) { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
-        return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
+        return new(AwkFieldSeparatorSpec.Default, cancellationToken, options,
             new AwkRuntimeResourceMonitor(limits, options.Counters), profile);
     }
 }

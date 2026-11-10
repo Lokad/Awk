@@ -230,6 +230,21 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
+    internal void StoreCaseValue(int index, in AwkByteTextOperand source, bool upper, int field)
+    {
+        var before = _payload.Bytes;
+        var value = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
+        var nextBytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        var funded = AwkRuntimeMemory.CheckedAdd(oldBytes, _payload.Bytes - before);
+        if (nextBytes > funded) _payload.ReserveAdditional(nextBytes - funded);
+        // Construction already admitted the produced text. Check publication even
+        // when no additional growth is needed; cancellation leaves cleanup its owner.
+        _state.ThrowIfCancellationRequested();
+        _values[index] = value;
+        if (funded > nextBytes) _payload.Release(funded - nextBytes);
+    }
+
     internal void StoreNumber(int index, AwkValue value)
     {
         value = value.AsScalarCopy();

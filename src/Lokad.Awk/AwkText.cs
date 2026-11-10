@@ -168,7 +168,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         ReadOnlySpan<char> text,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkMemoryLease? destination = null)
     {
         if (text.IsEmpty)
             return Empty;
@@ -176,7 +177,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint?.Invoke();
         var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
         checkpoint?.Invoke();
-        var bytes = AllocateOwnedBytes(byteCount, governor);
+        var bytes = destination is null ? AllocateOwnedBytes(byteCount, governor) :
+            AllocateOwnedBytes(byteCount, governor, destination, checkpoint);
         AwkUtf8Codec.Encode(text, bytes, counters);
         checkpoint?.Invoke();
         counters.RecordValueCreated();
@@ -956,6 +958,28 @@ internal readonly struct AwkText : IEquatable<AwkText>
         counters.RecordAwkTextAllocation(bytes.Length);
         return bytes.Length <= CompactAsciiByteLength && (knownAscii || Ascii.IsValid(bytes))
             ? new AwkText((object)bytes) : new AwkText(bytes);
+    }
+
+    // The destination retains construction funding through publication or cleanup.
+    // Admission includes text/cache capacity; the byte allocation is not probed again.
+    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting governor,
+        AwkMemoryLease destination, Action? checkpoint)
+    {
+        if (length < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        if (length == 0) return [];
+        var bytes = governor.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(length) : 0;
+        destination.ReserveAdditional(bytes);
+        try
+        {
+            checkpoint?.Invoke();
+            return new byte[length];
+        }
+        catch
+        {
+            destination.Release(bytes);
+            throw;
+        }
     }
 
     internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting governor)
