@@ -212,6 +212,10 @@ Prepared call segments bind argument source locations and stage directly into ad
 frames in source order. Dynamic types and unavailable bindings retain runtime resolution.
 Snapshots precede admission callbacks; intervening effects retain earlier captures, and the
 actual staged frame activates after the final segment.
+One preparation graph tracks arithmetic, numeric-comparison, text and key consumers. String-only
+function parameters can capture owned field spelling without classifying input numbers. Mixed
+or type-observing uses retain full values. Numeric arguments keep their kind and format at use;
+captured text stays funded through mutation, suspension and cleanup.
 Persistent record cells hold slices, numeric interpretations, scalar lengths and cache indices without text
 references. The frame cache owns decoded/assigned spelling and scalar values; decoded CSV text
 stays distinct from input-value classification. Byte-only consumers read record slices directly.

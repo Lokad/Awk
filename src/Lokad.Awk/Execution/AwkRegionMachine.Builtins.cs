@@ -27,7 +27,7 @@ internal partial struct AwkRegionMachine
             if ((index & 63) == 63) view.State.ThrowIfCancellationRequested();
             var pendingOperand = view.Operands[pendingArguments[index]];
             view.Storage.StoreValue(firstPending + index,
-                computation.ConsumesArithmeticInput(firstArgument + index) && AwkRegionComputation.IsField(pendingOperand)
+                computation.InputConsumption(firstArgument + index) == AwkParameterInput.Arithmetic && AwkRegionComputation.IsField(pendingOperand)
                     ? view.State.GetFieldArithmeticArgument(view.FieldOrdinal(pendingOperand)) : view.Value(pendingArguments[index]),
                 preserveOrigin: true);
         }

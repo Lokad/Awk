@@ -41,7 +41,7 @@ internal sealed class AwkFunctionLocalLayout
 }
 
 internal readonly record struct AwkFunctionLocalSlotId(int Index);
-internal enum AwkParameterInput : byte { Value, Arithmetic, Key, NumericComparison }
+internal enum AwkParameterInput : byte { Value, Arithmetic, Key, NumericComparison, Text }
 
 internal sealed class AwkFunctionFrame
 {

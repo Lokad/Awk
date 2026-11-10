@@ -5,11 +5,21 @@ public sealed partial class AwkParameterConsumptionTests
     [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
-    public async Task OwnedKeysStayFundedUntilActualPendingCallCompletion(bool cancel, bool forward)
+    public Task OwnedKeysStayFundedUntilActualPendingCallCompletion(bool cancel, bool forward) =>
+        PendingOwnedArgument(cancel, forward, text: false);
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public Task OwnedTextStaysFundedUntilActualPendingCallCompletion(bool cancel, bool forward) =>
+        PendingOwnedArgument(cancel, forward, text: true);
+
+    private static async Task PendingOwnedArgument(bool cancel, bool forward, bool text)
     {
         const int payload = 32_768;
-        var shortHeld = await Run("k");
-        var longHeld = await Run(new string('k', payload));
+        var character = text ? 'T' : 'k';
+        var shortHeld = await Run(character.ToString());
+        var longHeld = await Run(new string(character, payload));
         Assert.True(longHeld - shortHeld >= payload);
 
         async Task<long> Run(string key)
@@ -36,7 +46,11 @@ public sealed partial class AwkParameterConsumptionTests
                 if (reads == 1) host.ReadAsyncOverride = Read;
                 return result;
             }
-            var source = "function save(a,k,line){$0=\"new:9\";getline line;a[k]++;return a[k]}" +
+            var source = text ? "function save(s,line){$0=\"new:9\";getline line;return substr(s,1,1)}" +
+                (forward ? "function relay(s){return save(s)}" : "") +
+                "BEGIN{FS=\":\";getline;print \"ready\";print " + (forward ? "relay" : "save") +
+                "($1);exit}END{print \"end\"}" :
+                "function save(a,k,line){$0=\"new:9\";getline line;a[k]++;return a[k]}" +
                 (forward ? "function relay(a,k){return save(a,k)}" : "") +
                 "BEGIN{FS=\":\";getline;print \"ready\";print " + (forward ? "relay" : "save") +
                 "(a,$1);exit}END{print \"end\"}";
@@ -60,7 +74,7 @@ public sealed partial class AwkParameterConsumptionTests
                 resume.TrySetResult();
                 if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
                 else Assert.Equal(AwkExitCode.Success, await execution);
-                Assert.Equal(cancel ? "ready\n" : "ready\n1\nend\n", host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.Equal(cancel ? "ready\n" : text ? "ready\nT\nend\n" : "ready\n1\nend\n", host.GetOutput(AwkFileDescriptor.StdOut));
                 Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
                 Assert.Equal(0, host.OpenFileCount);
                 Assert.Equal(0, budget.Reserved);

@@ -3,6 +3,25 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkParameterConsumptionTests
 {
     [Theory]
+    [InlineData("function f(s){return tolower(s)}", "f", "T")]
+    [InlineData("function f(s){return toupper(s)}", "f", "T")]
+    [InlineData("function f(s,p,n){return substr(s,p,n)}", "f", "TAA")]
+    [InlineData("function f(s,p){return index(s,p)}", "f", "TT")]
+    [InlineData("function f(s){return g(s)}function g(s){return tolower(s)}", "f", "T")]
+    [InlineData("function f(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t}", "f", "TCV")]
+    [InlineData("function f(s){if(length(s)>3)return tolower(s);return s}", "f", "V")]
+    [InlineData("function f(s){return tolower(s)+(s+0)}", "f", "V")]
+    [InlineData("function f(s){return typeof(s)tolower(s)}", "f", "V")]
+    [InlineData("function f(a,s){a[s]++;return tolower(s)}", "f", "VT")]
+    public void TextConsumersSharePreparationAndPreserveOtherObservations(string source, string function, string expected)
+    {
+        var layout = Bind(source).Functions[AwkFunctionName.FromText(function)].LocalLayout;
+        Assert.Equal(expected, string.Concat(Enumerable.Range(0, layout.SlotCount).Select(index =>
+            layout.InputConsumption(index) switch { AwkParameterInput.Text => "T", AwkParameterInput.Arithmetic => "A",
+                AwkParameterInput.NumericComparison => "C", AwkParameterInput.Key => "K", _ => "V" })));
+    }
+
+    [Theory]
     [InlineData("function f(x){return x==7}", "f", "C")]
     [InlineData("function f(x){return 7>x+0}", "f", "A")]
     [InlineData("function f(x){return x==\"7\"}", "f", "V")]

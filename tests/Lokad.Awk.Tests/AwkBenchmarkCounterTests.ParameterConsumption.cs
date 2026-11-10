@@ -2,6 +2,42 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    public static IEnumerable<object[]> TextConsumptionCases()
+    {
+        foreach (var operation in new[] { "lower", "substr", "index" })
+        foreach (var forward in new[] { false, true })
+        foreach (var governed in new[] { false, true }) yield return [operation, forward, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(TextConsumptionCases))]
+    public async Task TextOnlyFieldArgumentsAvoidInputClassification(string operation, bool forward, bool governed)
+    {
+        const int records = 32;
+        var expression = operation switch { "substr" => "substr(s,2,4)", "index" => "index(s,\"Cd\")", _ => "tolower(s)" };
+        var source = "function work(s){return " + expression + "}" +
+            (forward ? "function relay(s){return work(s)}" : "") +
+            "{total+=" + (operation == "index" ? "" : "length(") + (forward ? "relay" : "work") +
+            "($1)" + (operation == "index" ? "" : ")") + "}END{print total}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("AbCdEfghij\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(operation == "index" ? "96\n" : operation == "substr" ? "128\n" : "320\n",
+            host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.TextValueClassifications);
+        Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Theory]
     [InlineData(false, false, false)] [InlineData(true, false, false)]
     [InlineData(false, true, false)] [InlineData(true, true, false)]

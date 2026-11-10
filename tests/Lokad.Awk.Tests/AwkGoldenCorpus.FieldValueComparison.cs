@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldValueComparisonCases()
     {
+        yield return Passing("text-parameters-preserve-caller-and-result-origins",
+            ["function lower(s){return tolower(s)}function observed(s){return typeof(s)\":\"tolower(s)}{v=lower($1);print \"[\"v\"]\",typeof(v),(v==7),typeof($1),observed($1)}"],
+            [], "[0007] string 0 strnum strnum:0007\n[7tail] string 0 string string:7tail\n", "0007\n7tail\n");
+        yield return Passing("text-parameters-format-numbers-at-use-and-retain-input-spelling",
+            ["function lower(s,u){return tolower(s)}function relay(s,u){return lower(s,u)}function change(){CONVFMT=\"%.3f\";return 0}BEGIN{CONVFMT=\"%.1f\";x=1.23456;print relay(x,change());FS=\":\";$0=\"001.23456:end\";CONVFMT=\"%.1f\";print relay($1,change()),$1}"],
+            [], "1.235\n001.23456 001.23456\n", "");
+        yield return Passing("text-parameters-capture-before-later-record-mutation",
+            ["function change(){$0=\"replaced next\";return 0}function part(s,u){return substr(s,1,4)}BEGIN{$0=\"0007 tail\";print part($1,change()),$0}"],
+            [], "0007 replaced next\n", "");
+        yield return Passing("text-parameters-defer-invalid-input-number-conversion",
+            ["--non-decimal-data", "function lower(s){return tolower(s)}function part(s){return substr(s,1,4)}{print \"[\"lower($1)\"]\",\"[\"part($1)\"]\"}"],
+            [], "[0x1p] [0x1p]\n", "0x1p\n");
         yield return Passing("numeric-range-filter-boundaries",
             ["$2>=16 && $2<48 {count++;total+=$2} END{print count+0,total+0}"],
             [], "3 95\n", "key\t000\nkey\t016\nkey\t032\nkey\t047\nkey\t048\nkey\t063\n");

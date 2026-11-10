@@ -1,7 +1,7 @@
 namespace Lokad.Awk;
 
 // Preparation metadata only: preserve full values unless all reads ultimately consume
-// arithmetic, proved-number comparisons or complete array keys. Numeric keys format at use.
+// arithmetic, proved-number comparisons, text or complete array keys. Numbers format at use.
 internal static class AwkParameterConsumption
 {
     private const int Arithmetic = -1;
@@ -9,9 +9,10 @@ internal static class AwkParameterConsumption
     private const int WriteOnly = -3;
     private const int Key = -4;
     private const int NumericComparison = -5;
+    private const int Text = -6;
 
     [Flags]
-    private enum Use : byte { None = 0, Arithmetic = 1, Comparison = 2, Key = 4, Storage = 8, Observable = 16 }
+    private enum Use : byte { None = 0, Arithmetic = 1, Comparison = 2, Key = 4, Storage = 8, Observable = 16, Text = 32 }
 
     public static void Prepare(AwkSyntaxProgram syntax,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, AwkCompatibilityMode mode, Action? checkpoint)
@@ -69,7 +70,7 @@ internal static class AwkParameterConsumption
                         uses[node] |= use switch
                         {
                             WriteOnly => Use.Storage, Arithmetic => Use.Arithmetic,
-                            NumericComparison => Use.Comparison, Key => Use.Key,
+                            NumericComparison => Use.Comparison, Key => Use.Key, Text => Use.Text,
                             Observable => Use.Observable, _ => Use.None
                         };
                         if (use >= 0)
@@ -138,7 +139,9 @@ internal static class AwkParameterConsumption
                                     if (AwkBuiltins.TryGetCallable(target.Name, out var builtin))
                                     {
                                         for (var i = 1; i < children.Count; i++)
-                                            expressions.Push(new(children[i], builtin.ConsumesArithmeticInput(i - 1) ? Arithmetic : Observable));
+                                            expressions.Push(new(children[i], builtin.InputConsumption(i - 1) switch {
+                                                AwkParameterInput.Arithmetic => Arithmetic,
+                                                AwkParameterInput.Text => Text, _ => Observable }));
                                     }
                                     else
                                         for (var i = 1; i < children.Count; i++)
@@ -199,9 +202,10 @@ internal static class AwkParameterConsumption
                 if ((use & Use.Observable) != 0) continue;
                 // An unread parameter can also carry an owning key unchanged. This
                 // matters when a key flows to a known callee that ignores its input.
-                var input = (use & Use.Key) == 0 && (use & Use.Comparison) != 0 ? AwkParameterInput.NumericComparison :
-                    (use & Use.Key) == 0 && (use & Use.Arithmetic) != 0 ? AwkParameterInput.Arithmetic :
-                    (use & (Use.Arithmetic | Use.Comparison | Use.Storage)) == 0 ? AwkParameterInput.Key : AwkParameterInput.Value;
+                var input = (use & (Use.Key | Use.Text)) == 0 && (use & Use.Comparison) != 0 ? AwkParameterInput.NumericComparison :
+                    (use & (Use.Key | Use.Text)) == 0 && (use & Use.Arithmetic) != 0 ? AwkParameterInput.Arithmetic :
+                    (use & (Use.Arithmetic | Use.Comparison | Use.Storage)) == 0
+                        ? (use & Use.Text) != 0 ? AwkParameterInput.Text : AwkParameterInput.Key : AwkParameterInput.Value;
                 if (input == AwkParameterInput.Value) continue;
                 if (inputs.Length == 0) inputs = new AwkParameterInput[range.Count];
                 inputs[index] = input;

@@ -110,7 +110,7 @@ internal sealed class AwkBuiltinDefinition(
             ? ArgumentRoles[index]
             : AwkBuiltinArgumentRole.ScalarExpression;
 
-    internal bool ConsumesArithmeticInput(int index) => implementation.ConsumesArithmeticInput(index);
+    internal AwkParameterInput InputConsumption(int index) => implementation.InputConsumption(index);
 
     internal bool TryGetScalarComputation(
         [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
@@ -137,25 +137,28 @@ internal sealed class AwkBuiltinDefinition(
 
 internal abstract class AwkBuiltinImplementation
 {
-    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1, bool returnsNumber = false) =>
-        new SyncBuiltinImplementation(evaluator, arithmeticFrom, returnsNumber);
+    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1,
+        bool returnsNumber = false, int textCount = 0) =>
+        new SyncBuiltinImplementation(evaluator, arithmeticFrom, returnsNumber, textCount);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
 
     public static AwkBuiltinImplementation MetadataOnly { get; } = new MetadataBuiltinImplementation();
 
-    internal virtual bool ConsumesArithmeticInput(int index) => false;
+    internal virtual AwkParameterInput InputConsumption(int index) => AwkParameterInput.Value;
 
-    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, int arithmeticFrom, bool returnsNumber) : AwkBuiltinImplementation
+    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, int arithmeticFrom,
+        bool returnsNumber, int textCount) : AwkBuiltinImplementation
     {
         // Independent of numeric argument consumption: e.g. strtonum consumes
         // spelling but always produces a number, while substr produces text.
         internal bool ReturnsNumber => returnsNumber;
-        // A negative start keeps every value observable. Otherwise the numeric tail
-        // shares one contract between preparation and evaluated argument staging.
-        internal override bool ConsumesArithmeticInput(int index) =>
-            arithmeticFrom >= 0 && index >= arithmeticFrom;
+        // One positional contract supplies a text prefix and numeric tail to
+        // preparation and evaluated staging; other inputs retain their full value.
+        internal override AwkParameterInput InputConsumption(int index) =>
+            arithmeticFrom >= 0 && index >= arithmeticFrom ? AwkParameterInput.Arithmetic :
+            (uint)index < (uint)textCount ? AwkParameterInput.Text : AwkParameterInput.Value;
         internal AwkValue EvaluateBound(AwkValue[] values, int start, int count, AwkEvaluationContext context) =>
             evaluator(new AwkBuiltinContext(values, count, context, start));
     }

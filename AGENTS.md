@@ -201,8 +201,12 @@ or environment dependencies.
   Known owned keys arrive as keys and construct their immutable local cell at that owner;
   retained text keeps admission and post-admission cancellation before publication.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
-  One parameter-consumption graph prepares arithmetic and key-only inputs, using the builtin's
-  positional numeric contract. Spelling observers and lexical comparisons retain full values. Key cells own bytes;
+  One parameter-consumption graph uses the builtin's positional arithmetic/text contract.
+  Origin observers, mixed uses and lexical comparisons retain full values. Key cells own bytes.
+  Text-only field arguments capture owned
+  ordinary text in scalar frames, without input-number classification. Mixed observations retain
+  full input values, and numeric arguments keep formatting at actual use. Do not use key cells as
+  general scalar text or retain raw record spans across a function call or host suspension.
   Comparisons against proved numeric results may stage established numeric field facts directly.
   Ordinary strings, deferred errors and observed spelling retain full capture; arithmetic prefix caches
   are not comparison facts. The use lattice shares one bounded-membership propagation worklist.
