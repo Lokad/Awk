@@ -337,6 +337,17 @@ internal static partial class AwkGoldenCorpus
             ["function size(a){return length(a)} BEGIN{a[1]=7;a[2]=8;print size(\"hello\"),size(12345),size(),length(a)}"],
             [], "5 5 0 2\n");
 
+        foreach (var (mode, options, expected) in new (string, string[], string)[]
+        {
+            ("unicode", [], "2 5 4\n4\n7\n"), ("bytes", ["-b"], "6 9 4\n4\n7\n")
+        })
+            yield return Passing("function-length-bound-local-format-at-use-" + mode,
+                [.. options, "function size(x){return length(x)}function temp(x,t){t=tolower(x);return length(t)}BEGIN{print size(\"é😀\"),temp(\"É😀ABC\"),size(\"0007\");CONVFMT=\"%.2f\";print size(1.23456);CONVFMT=\"%.5f\";print size(1.23456)}"],
+                [], expected);
+        yield return Passing("function-length-bound-local-keeps-current-nested-alias",
+            ["function size(x){return length(x)}function count(a,k){return size(a[k])}BEGIN{a[\"n\"][\"x\"]=1;print count(a,\"n\");delete a[\"n\"];a[\"n\"][\"p\"]=1;a[\"n\"][\"q\"]=2;print count(a,\"n\")}"],
+            [], "1\n2\n");
+
         yield return Passing("function-length-untyped-aliases-do-not-read-global-array",
             ["function size(a){return length(a)} function relay(x){return size(x)} BEGIN{a[1]=7;a[2]=8;print size(z),relay(z),size(),length(a)}"],
             [], "0 0 0 2\n");

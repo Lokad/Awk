@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkBoundScalarLengthTests
+public sealed partial class AwkBoundScalarLengthTests
 {
     [Fact]
     public void NativeLengthDistinguishesCurrentScalarsAndArrays()
@@ -47,14 +47,15 @@ public sealed class AwkBoundScalarLengthTests
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
         return Assert.Single(program.BeginActions);
     }
 
-    private static CooperativeTestMemory State()
+    private static CooperativeTestMemory State(bool governed = true, CancellationToken cancellationToken = default)
     {
-        var memory = new CooperativeTestMemory(1 << 20);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
-            CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+            cancellationToken, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault()))));
     }
 }

@@ -884,16 +884,38 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
-        AwkVariableName name)
+        AwkVariableName name) =>
+        TryReadFunctionLocalScalar(slotId, out var value) ? value :
+            _variableRuntime.ResolveFunctionLocalValue(slotId, name);
+
+    internal bool TryGetFunctionLocalLength(AwkFunctionLocalSlotId slotId, out double length)
     {
-        if (_functions.TryResolveScalarLocalValue(slotId, out var value))
+        if (TryReadFunctionLocalScalar(slotId, out var value))
+        {
+            Counters.RecordBoundScalarLength();
+            length = CountStringUnits(FormatStringByteText(value));
+            return true;
+        }
+        if (_functions.TryGetBoundArray(slotId, out var array))
+        {
+            length = array.Slots.Count;
+            return true;
+        }
+        // Missing, potential and hidden locals retain their ordinary promotion
+        // and name fallback. Only the visible binding can supply a direct read.
+        length = 0;
+        return false;
+    }
+
+    private bool TryReadFunctionLocalScalar(AwkFunctionLocalSlotId slotId, out AwkValue value)
+    {
+        if (_functions.TryResolveScalarLocalValue(slotId, out value))
         {
             if (value.IsNumberValue) Counters.RecordNumericLocalRead();
             else Counters.RecordScalarLocalValueRead();
-            return value;
+            return true;
         }
-
-        return _variableRuntime.ResolveFunctionLocalValue(slotId, name);
+        return false;
     }
 
     public void AssignPreparedGlobalValue(AwkVariableName name, int index, AwkValue value)

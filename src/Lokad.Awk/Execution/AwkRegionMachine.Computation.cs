@@ -64,6 +64,12 @@ internal partial struct AwkRegionMachine
             }
             if (instruction.Detail != 0 && lengthOperand.IsVariable)
             {
+                if (lengthOperand.Kind == AwkRegionOperandKind.LocalVariable &&
+                    state.TryGetFunctionLocalLength(new(lengthOperand.Index), out var localLength))
+                {
+                    numbers[instruction.Target] = localLength;
+                    return;
+                }
                 if (lengthOperand.Kind == AwkRegionOperandKind.GlobalVariable && state.HasBoundGlobalScalar(lengthOperand.Index))
                     state.Counters.RecordBoundScalarLength();
                 else if (state.TryGetExistingArrayCount(new(lengthOperand.Name.Identifier), out var count))

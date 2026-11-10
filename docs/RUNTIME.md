@@ -239,6 +239,8 @@ Main input, rule conditions/bodies and record backedges form one prepared progra
 the computation and call driver. Ordinary records retain their location and operand tables.
 One prepared operand carries a variable's binding and fallback name. Value kinds and required
 name-based fallback still resolve at execution time.
+Length reads visible local scalars and arrays through their ordinal bindings; missing, potential
+and hidden locals retain ordinary promotion and name fallback.
 Numeric updates, readers and variable stores reference the same canonical operand locations.
 Known numeric builtin results stay in numeric scratch; formatting occurs at their actual text use.
 Execution and binding-frame ownership remain distinct during reentry and cleanup.
