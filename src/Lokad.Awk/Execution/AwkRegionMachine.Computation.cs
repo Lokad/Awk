@@ -62,23 +62,26 @@ internal partial struct AwkRegionMachine
                 numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
                 return;
             }
-            if (instruction.Detail != 0 && lengthOperand.IsVariable)
+            AwkValue lengthValue;
+            if (instruction.Detail != 0 && lengthOperand.Kind == AwkRegionOperandKind.LocalVariable &&
+                state.TryReadBoundFunctionLocalValue(new(lengthOperand.Index), out lengthValue, allowArray: true))
             {
-                if (lengthOperand.Kind == AwkRegionOperandKind.LocalVariable &&
-                    state.TryGetFunctionLocalLength(new(lengthOperand.Index), out var localLength))
-                {
-                    numbers[instruction.Target] = localLength;
-                    return;
-                }
-                if (lengthOperand.Kind == AwkRegionOperandKind.GlobalVariable && state.HasBoundGlobalScalar(lengthOperand.Index))
-                    state.Counters.RecordBoundScalarLength();
-                else if (state.TryGetExistingArrayCount(new(lengthOperand.Name.Identifier), out var count))
-                {
-                    numbers[instruction.Target] = count;
-                    return;
-                }
+                if (!lengthValue.IsArrayValue) state.Counters.RecordBoundScalarLength();
             }
-            var lengthValue = Value(instruction.Left);
+            else
+            {
+                if (instruction.Detail != 0 && lengthOperand.IsVariable)
+                {
+                    if (lengthOperand.Kind == AwkRegionOperandKind.GlobalVariable && state.HasBoundGlobalScalar(lengthOperand.Index))
+                        state.Counters.RecordBoundScalarLength();
+                    else if (state.TryGetExistingArrayCount(new(lengthOperand.Name.Identifier), out var count))
+                    {
+                        numbers[instruction.Target] = count;
+                        return;
+                    }
+                }
+                lengthValue = Value(instruction.Left);
+            }
             numbers[instruction.Target] = lengthValue.TryGetArrayBinding(out var lengthArray) ? lengthArray.Slots.Count :
                 lengthValue.TryGetArrayName(out var arrayName) && state.TryGetExistingArrayCount(arrayName, out var arrayCount)
                     ? arrayCount : state.CountStringUnits(state.FormatStringByteText(lengthValue));

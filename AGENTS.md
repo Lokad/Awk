@@ -217,7 +217,7 @@ or environment dependencies.
   Activate the actual staged frame directly; sort callbacks also forward their prepared frame.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
-  Bound-local length uses the existing visible scalar/array probes. Missing, potential and hidden
+  Bound-local length shares the visible value projection with scalar reads. Missing, potential and hidden
   locals retain ordinary promotion/name fallback; never bypass visibility with the saved caller frame.
   Ordinary global-array arguments reuse the existing execution binding, preserving their alias
   name and actual root owner. Missing/potential and special arrays keep their resolution paths.

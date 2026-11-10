@@ -359,18 +359,23 @@ internal sealed class AwkFunctionCallStack(
         memoryAccounting.ReleaseCommitted(payloadBytes);
     }
 
-    internal bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue scalar)
+    internal bool TryReadBoundLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value, bool allowArray = false)
     {
         if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
-                scalar = ReadScalarValue(slot.Value);
+                value = ReadScalarValue(slot.Value);
+                return true;
+            }
+            if (allowArray && slot.Value.TryGetArrayBinding(out var array))
+            {
+                value = AwkValue.FromArrayReference(array);
                 return true;
             }
         }
-        scalar = default;
+        value = default;
         return false;
     }
 

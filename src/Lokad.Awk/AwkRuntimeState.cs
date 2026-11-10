@@ -885,34 +885,15 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name) =>
-        TryReadFunctionLocalScalar(slotId, out var value) ? value :
+        TryReadBoundFunctionLocalValue(slotId, out var value) ? value :
             _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
-    internal bool TryGetFunctionLocalLength(AwkFunctionLocalSlotId slotId, out double length)
+    internal bool TryReadBoundFunctionLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value, bool allowArray = false)
     {
-        if (TryReadFunctionLocalScalar(slotId, out var value))
-        {
-            Counters.RecordBoundScalarLength();
-            length = CountStringUnits(FormatStringByteText(value));
-            return true;
-        }
-        if (_functions.TryGetBoundArray(slotId, out var array))
-        {
-            length = array.Slots.Count;
-            return true;
-        }
-        // Missing, potential and hidden locals retain their ordinary promotion
-        // and name fallback. Only the visible binding can supply a direct read.
-        length = 0;
-        return false;
-    }
-
-    private bool TryReadFunctionLocalScalar(AwkFunctionLocalSlotId slotId, out AwkValue value)
-    {
-        if (_functions.TryResolveScalarLocalValue(slotId, out value))
+        if (_functions.TryReadBoundLocalValue(slotId, out value, allowArray))
         {
             if (value.IsNumberValue) Counters.RecordNumericLocalRead();
-            else Counters.RecordScalarLocalValueRead();
+            else if (!value.IsArrayValue) Counters.RecordScalarLocalValueRead();
             return true;
         }
         return false;
