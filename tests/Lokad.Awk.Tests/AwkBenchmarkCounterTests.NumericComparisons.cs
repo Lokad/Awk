@@ -4,6 +4,40 @@ public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task NumericSpecialComparisonsConsumeExistingFacts(bool governed)
+    {
+        async Task<AwkRuntimeCounters> Run(int count)
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var host = new MockFileSystem();
+            var source = "BEGIN{$0=\"a b c\";NR=7;FNR=9;for(i=0;i<" + count +
+                ";i++)total+=(i<NF)+(NR<FNR);print total}";
+            await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+            var exit = await program.ExecuteAsync(host, CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal((count + 3) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(3, counters.FieldsMaterialized);
+            Assert.True(counters.NumericSpecialScalarReads > count);
+            Assert.Equal(0, counters.ByteTextComparisons);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+            return counters;
+        }
+
+        var shortRun = await Run(8);
+        var longRun = await Run(128);
+        Assert.True(longRun.NumericSpecialScalarReads > shortRun.NumericSpecialScalarReads);
+        Assert.Equal(shortRun.AwkTextAllocations, longRun.AwkTextAllocations);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task NumericInputFactsKeepSpellingWithoutRepeatedGeneralLocalReads(bool governed)
     {
         async Task<(MockFileSystem Host, AwkRuntimeCounters Counters)> Run(int count)

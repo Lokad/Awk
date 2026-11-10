@@ -1007,6 +1007,24 @@ internal sealed class AwkRuntimeState : IDisposable
         return ResolveSpecialVariableValue(id);
     }
 
+    internal bool TryResolvePreparedSpecialNumber(AwkSpecialVariableId id, out double number)
+    {
+        if (id == AwkSpecialVariableId.FieldCount)
+        {
+            if (!_recordFields.TryGetFieldCountNumber(out number)) return false;
+        }
+        else if (_variables.GetSpecialScalarCell(id) is { } cell && cell.State.Slot.TryGetNumber(out number))
+            Counters.RecordBoundSpecialScalarRead();
+        else
+        {
+            number = 0;
+            return false;
+        }
+        Counters.RecordPreparedSpecialScalarRead();
+        Counters.RecordNumericSpecialScalarRead();
+        return true;
+    }
+
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id)
     {
         if (id == AwkSpecialVariableId.FieldCount)

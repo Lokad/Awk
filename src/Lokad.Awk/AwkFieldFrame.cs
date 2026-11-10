@@ -225,6 +225,19 @@ internal sealed class AwkFieldFrame(
         return _fieldCountValue;
     }
 
+    // A speculative comparison probe cannot complete splitting or invoke admission.
+    // Assigned NF keeps its scalar value, which can differ from the descriptor count.
+    internal bool TryGetFieldCountNumber(out double number)
+    {
+        if (_fieldsAreSplit && _fieldCountValue.IsNumberValue)
+        {
+            number = _fieldCountValue.StoredNumber;
+            return true;
+        }
+        number = 0;
+        return false;
+    }
+
     public AwkValue GetFieldValue(
         AwkFieldIndex index)
     {

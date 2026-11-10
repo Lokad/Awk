@@ -249,6 +249,8 @@ or environment dependencies.
   their cells and cached case sensitivity apply inside functions too. Disabled names and special-array
   aliases retain ordinary scope resolution. Stored text can be consumed without reclassification;
   numeric values still use current formatting and untyped origins retain scalar promotion.
+  Special-number probes consume only existing owner facts. Never complete splitting or admit in a
+  speculative comparison probe; preserve assigned NF's actual scalar, including fractions and text.
   Ordinary string slots and computed string results use one runtime factory and defer numeric
   conversion until use, including callback/traversal keys and formatting results.
   Stored-text formatting stays on the short conversion path. Print/string conversion share one

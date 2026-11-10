@@ -441,6 +441,8 @@ internal partial struct AwkRegionMachine
                 return state.TryResolvePreparedGlobalNumber(operand.Index, out number);
             if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null)
                 return TryLocalNumericScalar(operand.Index, out number);
+            if (operand.Kind == AwkRegionOperandKind.SpecialVariable)
+                return state.TryResolvePreparedSpecialNumber((AwkSpecialVariableId)operand.Index, out number);
             number = 0;
             return false;
         }

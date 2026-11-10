@@ -2,6 +2,69 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordCounterSlotTests
 {
+    [Theory]
+    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)] [InlineData(-0d)]
+    public void NumericSpecialProbePreservesNonFiniteValuesAndSignedZero(double value)
+    {
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, 1 << 20);
+        var state = memory.State;
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.RecordNumber, AwkValue.FromNumber(value));
+        Assert.True(state.TryResolvePreparedSpecialNumber(AwkSpecialVariableId.RecordNumber, out var number));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(number));
+    }
+
+    [Fact]
+    public void NumericFieldCountProbeNeverCompletesSplittingOrConvertsAssignedText()
+    {
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, 1 << 20);
+        var state = memory.State;
+        var nf = AwkSpecialVariableId.FieldCount;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("alpha beta gamma"));
+        var fields = state.Counters.FieldsMaterialized;
+        memory.Budget.OnGrowth = _ => throw new InvalidOperationException("A probe cannot admit.");
+        Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));
+        Assert.Equal(fields, state.Counters.FieldsMaterialized);
+        memory.Budget.OnGrowth = null;
+        Assert.Equal(3, state.ResolveSpecialVariableValue(nf).AsNumber());
+        Assert.True(state.TryResolvePreparedSpecialNumber(nf, out var number));
+        Assert.Equal(3, number);
+
+        state.AssignSpecialVariableValue(nf, AwkValue.FromNumber(1.5));
+        Assert.True(state.TryResolvePreparedSpecialNumber(nf, out number));
+        Assert.Equal(1.5, number);
+        state.AssignSpecialVariableValue(nf, AwkValue.FromText("02"));
+        Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));
+        Assert.Equal("02", state.ResolveSpecialVariableValue(nf).AsString());
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("1", 64))));
+        fields = state.Counters.FieldsMaterialized;
+        Assert.Equal(1, state.GetFieldNumber(1));
+        Assert.Equal(fields + 1, state.Counters.FieldsMaterialized);
+        memory.Budget.OnGrowth = _ => throw new InvalidOperationException("A prefix probe cannot admit.");
+        Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));
+        Assert.Equal(fields + 1, state.Counters.FieldsMaterialized);
+        memory.Budget.OnGrowth = null;
+    }
+
+    [Theory]
+    [MemberData(nameof(CounterProfiles))]
+    public void NumericSpecialProbeUsesTheActualCounterCell(int modeValue, bool fileCounter)
+    {
+        using var memory = CreateState((AwkCompatibilityMode)modeValue, 1 << 20);
+        var state = memory.State;
+        var id = fileCounter ? AwkSpecialVariableId.FileRecordNumber : AwkSpecialVariableId.RecordNumber;
+        state.AssignSpecialVariableValue(id, AwkValue.FromNumber(7.5));
+        Assert.True(state.TryResolvePreparedSpecialNumber(id, out var number));
+        Assert.Equal(7.5, number);
+        state.AssignSpecialVariableValue(id, AwkValue.FromText("007"));
+        Assert.False(state.TryResolvePreparedSpecialNumber(id, out _));
+        Assert.Equal("007", state.ResolveSpecialVariableValue(id).AsString());
+        state.AdvanceMainInputRecord(AwkRecordTerminator.Empty);
+        Assert.True(state.TryResolvePreparedSpecialNumber(id, out number));
+        Assert.Equal(8, number);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     public static IEnumerable<object[]> CounterProfiles()
     {
         foreach (var mode in Enum.GetValues<AwkCompatibilityMode>())

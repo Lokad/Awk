@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SpecialScalarBindingCases() =>
     [
+        Passing("special-numeric-nf-loop-keeps-mutation-and-assigned-origins",
+            ["BEGIN{$0=\"a b c\";for(i=1;i<=NF;i++){s+=i;if(i==1)$4=\"d\"}print s,NF,$0;NF=1.5;x=1.4;print(x<NF),(NF<x),NF;NF=\"02\";x=1;print(x<NF),(NF<x),NF,typeof(NF)}"],
+            [], "10 4 a b c d\n1 0 1.5\n0 1 02 string\n"),
+        Passing("special-numeric-nf-loop-reloads-replaced-record",
+            ["BEGIN{$0=\"1 2 3\";print NF;$0=\"4 5\";i=0;while(++i<=NF)s+=$i;print s,NF}"],
+            [], "3\n9 2\n"),
+        Passing("special-numeric-counter-comparisons-keep-assigned-strings",
+            ["BEGIN{NR=2;FNR=4;print(NR<FNR),(NR==2);NR=\"02\";print(NR<1),(1<NR),NR,typeof(NR);exit}"],
+            [], "1 1\n1 0 02 string\n"),
+        Passing("special-numeric-nf-comparisons-capture-before-record-change",
+            ["function change(){$0=\"9 8\";return NF}BEGIN{$0=\"01 02 03\";print($1<NF),$1,NF;print($1<change()),$1,NF}"],
+            [], "1 01 3\n1 9 2\n"),
         Passing("special-cell-subsep-symbol-assignment",
             ["BEGIN{SUBSEP=\":\";a[1,2]=7;SYMTAB[\"SUBSEP\"]=\"!\";a[1,2]+=3;print a[\"1:2\"],a[\"1!2\"]}"], [], "7 3\n"),
         Passing("special-cell-ofs-reconstruction-before-symbol-assignment",

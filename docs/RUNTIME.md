@@ -225,6 +225,9 @@ strings convert numerically when consumed, using the reading execution's mode; r
 string reads do not classify them again. Input numeric-string classification stays separate.
 Interpreter preparation binds operands, scalar/array locations, special-scalar reads and
 function targets. Computed values such as `NF` still resolve at their actual use.
+Numeric consumers can read an already-available special-scalar number directly from its owner.
+Speculative probes never split fields, request admission or convert assigned strings; assigned
+`NF` retains its scalar value and spelling independently of the descriptor count.
 Array updates bind their numeric RHS at preparation. Complete synchronous updates keep their
 stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.
 Only captures that cross instructions retain target storage and its cleanup. Earlier captures

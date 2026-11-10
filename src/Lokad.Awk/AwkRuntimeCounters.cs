@@ -124,6 +124,13 @@ internal sealed class AwkRuntimeCounters
 
     private long _preparedSpecialScalarReads;
     public long PreparedSpecialScalarReads => Volatile.Read(ref _preparedSpecialScalarReads);
+    private long _numericSpecialScalarReads;
+    public long NumericSpecialScalarReads => Volatile.Read(ref _numericSpecialScalarReads);
+
+    internal void RecordNumericSpecialScalarRead()
+    {
+        if (_enabled) Interlocked.Increment(ref _numericSpecialScalarReads);
+    }
     private long _boundSpecialScalarReads;
     public long BoundSpecialScalarReads => Volatile.Read(ref _boundSpecialScalarReads);
 
