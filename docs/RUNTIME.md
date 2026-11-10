@@ -251,7 +251,9 @@ Speculative probes never split fields, request admission or convert assigned str
 `NF` retains its scalar value and spelling independently of the descriptor count.
 Prepared print lists keep computed numbers in execution scratch through later arguments and
 format them at use. Integer fragments avoid temporary numeric text owners. Other values retain
-their captured origins and spelling. Redirected writes receive the complete payload slice; its buffer remains
+their captured origins and spelling. Already-owned results stay in their existing caller slots
+through later arguments, calls and pending host work, without a second capture. Live sources
+still capture at argument evaluation. Redirected writes receive the complete payload slice; its buffer remains
 funded until the host operation completes. Argument and formatting order are preserved.
 Array updates bind their numeric RHS at preparation. Complete synchronous updates keep their
 stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.

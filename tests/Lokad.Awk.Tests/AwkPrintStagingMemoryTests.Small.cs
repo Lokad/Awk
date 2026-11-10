@@ -75,9 +75,26 @@ public sealed partial class AwkPrintStagingMemoryTests
         var arguments = string.Join(',', Enumerable.Range(0, count).Select(i => i == position ? "operand()" : "\"x\""));
         var source = "function operand(v){evaluations++;getline v<\"/side\";return v}" +
             "BEGIN{print \"prior\";print " + arguments + ";print \"after\",evaluations}";
+        var value = count == 1 ? "1.25" : "é";
+        var line = string.Join(" ", Enumerable.Range(0, count).Select(i => i == position ? value : "x"));
+        await CheckPendingPrint(source, value, line, governed, cancel);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task OwnedPrintResultsSurviveLaterPendingArgument(bool governed, bool cancel)
+    {
+        var source = "function own(s){return substr(tolower(s),1,3)}" +
+            "function operand(v){evaluations++;getline v<\"/side\";return v}" +
+            "BEGIN{print \"prior\";print own(\"ABCDEF\"),substr(\"008\",1),operand(),toupper(\"tail\");print \"after\",evaluations}";
+        await CheckPendingPrint(source, "0009", "abc 008 0009 TAIL", governed, cancel);
+    }
+
+    private static async Task CheckPendingPrint(string source, string value, string line, bool governed, bool cancel)
+    {
         using var cancellation = new CancellationTokenSource();
         var host = new MockFileSystem();
-        var value = count == 1 ? "1.25" : "é";
         host.AddFile("/side", value + "\n");
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -108,7 +125,6 @@ public sealed partial class AwkPrintStagingMemoryTests
             release.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
-            var line = string.Join(" ", Enumerable.Range(0, count).Select(i => i == position ? value : "x"));
             Assert.Equal("prior\n" + (cancel ? "" : line + "\nafter 1\n"), host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(1, reads);

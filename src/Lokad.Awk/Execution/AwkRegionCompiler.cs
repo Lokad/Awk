@@ -617,9 +617,8 @@ internal sealed partial class AwkRegionCompiler
                     prepared[index] = new(AwkRegionPrintArgumentKind.Number, number.Index);
                 else
                 {
-                    var captured = _values++;
-                    Emit(new(AwkRegionInstructionKind.Value, captured, value, Detail: 1));
-                    prepared[index] = new(AwkRegionPrintArgumentKind.Value, captured);
+                    var captured = CaptureValue(value, preserveOrigin: true);
+                    prepared[index] = new(AwkRegionPrintArgumentKind.Value, _operands[captured].Index);
                 }
             }
         }
@@ -792,12 +791,12 @@ internal sealed partial class AwkRegionCompiler
         return Operand(AwkRegionOperandKind.NumberTemporary, target);
     }
 
-    private int CaptureValue(int operand)
+    private int CaptureValue(int operand, bool preserveOrigin = false)
     {
         if (_operands[operand].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary)
             return operand;
         var target = _values++;
-        Emit(new(AwkRegionInstructionKind.Value, target, operand));
+        Emit(new(AwkRegionInstructionKind.Value, target, operand, Detail: preserveOrigin ? 1 : 0));
         return Operand(AwkRegionOperandKind.ValueTemporary, target);
     }
 

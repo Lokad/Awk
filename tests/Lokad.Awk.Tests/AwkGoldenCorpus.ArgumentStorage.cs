@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("print-owned-results-keep-spelling-before-later-mutation-and-formatting",
+            ["function owned(s){return substr(tolower(s),1,3)}function change(){OFS=\"|\";ORS=\"!\\n\";OFMT=\"%.1f\";text=\"later\";$0=\"replaced\";return 1.26}{text=$1;print owned(text),(NR%2?substr(\"008\",1):toupper(\"kept\")),change(),text,$0}"],
+            [], "abc|008|1.3|later|replaced!\nefg|KEPT|1.3|later|replaced!\n", "ABCD\nEFGH\n");
+        yield return Passing("print-owned-result-survives-later-getline-file-phase",
+            ["function owned(s){return substr(s,2,3)}function read(v){getline v;return v}BEGINFILE{global=\"changed\";print \"header\"}BEGIN{global=\"0007\";print owned(global),read(),global}"],
+            [], "header\n007 0009 changed\n", "0009\n");
         foreach (var (mode, options) in new (string, string[])[]
         {
             ("default", []), ("posix", ["--posix"]), ("traditional", ["--traditional"]),
