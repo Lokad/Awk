@@ -4,6 +4,7 @@ namespace Lokad.Awk.Benchmarking;
 internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files, byte[] standardInput, bool capture,
     Func<AwkFileDescriptor, int, CancellationToken, ValueTask<AwkReadBuffer>>? readOverride = null) : IAwkHost, IDisposable
 {
+    private static readonly Task<AwkAppendResult> AcceptedAppendTask = Task.FromResult(AwkAppendResult.Accepted());
     private readonly Dictionary<string, byte[]> _files = files.ToDictionary(file => file.Path, file => file.ContentBytes, StringComparer.Ordinal);
     private readonly Dictionary<AwkFileDescriptor, ReadState> _openFiles = new() { [AwkFileDescriptor.StdIn] = new(standardInput) };
     private readonly ReferenceOutput _stdout = new(capture, 64L << 20);
@@ -24,7 +25,7 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
             _stderr.Append(content.Span);
         else
             throw new InvalidOperationException("Comparison workloads cannot write another descriptor.");
-        return Task.FromResult(AwkAppendResult.Accepted());
+        return AcceptedAppendTask;
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(

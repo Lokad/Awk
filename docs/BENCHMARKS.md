@@ -21,8 +21,10 @@ lower ratios are faster. Allocations include the managed host; no GNU allocation
 is claimed. Single-launch medians do not establish process-to-process variation or the effect
 of a source change. Regex uses the source adapter with published Lokad.Utf8Regex 0.4.0.
 
-The benchmark host creates a completed result task for each append. On this runtime,
-65,536 appends contribute 5.5 MiB of reported allocations; that cost depends on the host.
+The source-pinned measurements above use a host that creates a completed result task for
+each append: 65,536 appends contribute 5.5 MiB of reported allocations on this runtime.
+The current host reuses completed acceptance; the retained figures still include the old
+host cost. They have not been adjusted by subtracting an allocation estimate.
 
 ## Representative processing
 

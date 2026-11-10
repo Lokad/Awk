@@ -117,6 +117,9 @@ cleanup still awaits command users and closes owned descriptors. If stderr itsel
 or closes, Awk returns status 2 without attempting another diagnostic to that destination.
 Help/version and diagnostic appends also require full acceptance and return status 2 on failure.
 
+Hosts that consume the payload synchronously can reuse one completed `Accepted()` task.
+Pending appends must retain the borrowed bytes until their actual operation completes.
+
 Construct `AwkOperationError(kind, message)` with a safe, unprefixed message and a cause:
 `NotFound`, `PermissionDenied`, `NotSupported`, `IoFailure`, or `Unspecified`. Classification
 does not replace diagnostic filtering or turn cancellation/refused admission into I/O errors.

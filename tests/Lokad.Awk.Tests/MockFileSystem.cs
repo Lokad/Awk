@@ -9,6 +9,7 @@ namespace Lokad.Awk.Tests;
 
 public sealed class MockFileSystem : IAwkHost
 {
+    private static readonly Task<AwkAppendResult> AcceptedAppendTask = Task.FromResult(AwkAppendResult.Accepted());
     private readonly MockFileTree _files = new();
     private readonly MockFileDescriptorTable _descriptors = new();
 
@@ -106,13 +107,13 @@ public sealed class MockFileSystem : IAwkHost
         if (fileDescriptor.IsDevNull)
         {
             AfterAppend?.Invoke();
-            return Task.FromResult(AwkAppendResult.Accepted());
+            return AcceptedAppendTask;
         }
 
         var result = _descriptors.Append(fileDescriptor, content);
         AfterAppend?.Invoke();
-        return Task.FromResult(result == 0 ? AwkAppendResult.Accepted() :
-            AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "Descriptor is not writable.")));
+        return result == 0 ? AcceptedAppendTask :
+            Task.FromResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "Descriptor is not writable.")));
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
