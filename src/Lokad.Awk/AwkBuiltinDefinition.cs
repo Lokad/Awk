@@ -137,8 +137,8 @@ internal sealed class AwkBuiltinDefinition(
 
 internal abstract class AwkBuiltinImplementation
 {
-    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1) =>
-        new SyncBuiltinImplementation(evaluator, arithmeticFrom);
+    public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1, bool returnsNumber = false) =>
+        new SyncBuiltinImplementation(evaluator, arithmeticFrom, returnsNumber);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
@@ -147,8 +147,11 @@ internal abstract class AwkBuiltinImplementation
 
     internal virtual bool ConsumesArithmeticInput(int index) => false;
 
-    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, int arithmeticFrom) : AwkBuiltinImplementation
+    internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, int arithmeticFrom, bool returnsNumber) : AwkBuiltinImplementation
     {
+        // Independent of numeric argument consumption: e.g. strtonum consumes
+        // spelling but always produces a number, while substr produces text.
+        internal bool ReturnsNumber => returnsNumber;
         // A negative start keeps every value observable. Otherwise the numeric tail
         // shares one contract between preparation and evaluated argument staging.
         internal override bool ConsumesArithmeticInput(int index) =>

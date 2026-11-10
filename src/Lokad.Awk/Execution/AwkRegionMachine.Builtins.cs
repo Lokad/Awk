@@ -32,8 +32,9 @@ internal partial struct AwkRegionMachine
                 preserveOrigin: true);
         }
         view.State.ThrowIfCancellationRequested();
-        view.Storage.StoreValue(instruction.Target,
-            computation.EvaluateBound(view.Storage.Values, builtin.Start, builtin.Count, Context));
+        var result = computation.EvaluateBound(view.Storage.Values, builtin.Start, builtin.Count, Context);
+        if (computation.ReturnsNumber) view.Numbers[instruction.Target] = result.StoredNumber;
+        else view.Storage.StoreValue(instruction.Target, result);
         view.Storage.ReleaseValues(builtin.Start, builtin.Count);
         return false;
     }

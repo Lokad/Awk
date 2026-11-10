@@ -197,6 +197,8 @@ or environment dependencies.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
   One parameter-consumption graph prepares arithmetic and key-only inputs, using the builtin's
   positional numeric contract. Spelling observers and lexical comparisons retain full values. Key cells own bytes;
+  Qualified synchronous builtin results use existing numeric registers. Result kinds are independent
+  of argument consumption; preserve formatting at use and general-value/actual-host continuations.
   writes, observers and general scalar scratch retain full values. Capture before later arguments;
   numeric keys still use formatting at their actual use, including after CONVFMT changes.
   Prepared calls bind source locations in canonical argument definitions.

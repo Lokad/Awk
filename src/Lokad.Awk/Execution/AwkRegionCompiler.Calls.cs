@@ -168,9 +168,10 @@ internal sealed partial class AwkRegionCompiler
             compiler._code.RemoveRange(firstPending, pendingArguments.Length);
             var site = compiler._builtins.Count;
             compiler._builtins.Add(new(implementation, _start, count, pendingArguments));
-            var returned = compiler._values++;
+            var returned = implementation.ReturnsNumber ? compiler._numbers++ : compiler._values++;
             compiler.Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
-            return Complete(compiler.Operand(AwkRegionOperandKind.ValueTemporary, returned));
+            return Complete(compiler.Operand(implementation.ReturnsNumber
+                ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, returned));
         }
     }
 

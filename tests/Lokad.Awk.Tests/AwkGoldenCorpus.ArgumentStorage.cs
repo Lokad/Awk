@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("argument-numeric-builtin-results-format-at-use",
+            ["BEGIN{CONVFMT=\"%.2f\";OFMT=\"%.1f\";n=sqrt(2);print typeof(n),sprintf(\"%s\",n),n;CONVFMT=\"%.3f\";print n \"\",int(-2.9),sqrt(9)+int(2.9),typeof(strtonum(\"0x10\"))}"],
+            [], "number 1.41 1.4\n1.414 -2 5 number\n");
+        yield return Passing("argument-numeric-builtin-results-key-kind-and-random-state",
+            ["BEGIN{a[int(\"0007\")]=\"seven\";print a[7],a[\"0007\"],length(a);srand(7);x=rand();srand(7);print x==rand(),typeof(srand(8))}"],
+            [], "seven  2\n1 number\n");
+        yield return Passing("argument-numeric-builtin-results-nesting-and-effect-order",
+            ["function step(x){order=order x;return x+0}function total(x){return int(x)+sqrt(int(x+2))}BEGIN{print int(step(\"0007\"))+sqrt(step(\"0009\")),order;print total(7),and(7,3),or(1,2),xor(7,3),lshift(1,3),rshift(8,2);if(0)print int(1/zero)}"],
+            [], "10 00070009\n10 3 3 4 8 2\n");
+        yield return Passing("argument-numeric-builtin-results-keep-field-spelling",
+            ["{n=int(int($1)+sqrt($2));a[n]++;print n,typeof(n),$1,$2}END{print a[10]}"],
+            [], "10 number 0007 0009\n1\n", "0007 0009\n");
         foreach (var (mode, options, expected) in new (string, string[], string)[]
         {
             ("default", [], "jkl"), ("posix", ["--posix"], "jkl"),
