@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     public static readonly string[] Families =
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
-        "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "sorting", "unicode",
+        "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "numeric-output", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
@@ -259,6 +259,18 @@ internal static class ReferenceWorkloads
                 }
                 for (var i = 0; i < rows; i += 8)
                     expected.Append('v').Append(i.ToString(CultureInfo.InvariantCulture)).Append('\n');
+                break;
+            case "numeric-output":
+                fields = 1;
+                program = "{print " + string.Join(',', Enumerable.Range(0, 16)
+                    .Select(index => "$1+" + index.ToString(CultureInfo.InvariantCulture))) + "}";
+                var numericOutputLine = string.Join(' ', Enumerable.Range(7, 16)
+                    .Select(number => number.ToString(CultureInfo.InvariantCulture))) + "\n";
+                for (var i = 0; i < rows; i++)
+                {
+                    input.Append("0007\n");
+                    expected.Append(numericOutputLine);
+                }
                 break;
             case "aggregate":
                 program = "{sum[$1]+=$2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\";for(k in sum)print k,sum[k]}";
