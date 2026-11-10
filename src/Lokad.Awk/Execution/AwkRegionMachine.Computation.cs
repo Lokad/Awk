@@ -50,36 +50,38 @@ internal partial struct AwkRegionMachine
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        internal void ExecuteString(in AwkRegionInstruction instruction)
+        internal void ExecuteIndex(in AwkRegionInstruction instruction)
         {
             var operation = region.Strings[instruction.Left];
-            if (operation.Id is AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
-            {
-                // Unary consumers have no later argument across which to defer formatting.
-                state.ThrowIfCancellationRequested();
-                var operand = operands[operation.First];
-                var field = IsField(operand) ? FieldOrdinal(operand) : -1;
-                var text = TextOperand(operation.First);
-                storage.StoreValue(instruction.Target, AwkBuiltins.EvaluateCaseText(state, text,
-                    operation.Id == AwkBuiltinId.ToUpper, field));
-                return;
-            }
-            var first = TextArgument(operation.First);
-            if (operation.Id == AwkBuiltinId.Index)
-            {
-                var second = TextArgument(operation.Second);
-                state.ThrowIfCancellationRequested();
-                numbers[instruction.Target] = AwkBuiltins.EvaluateIndexText(state, first.Text(state, forceScalar: true), second.Text(state));
-            }
-            else
-            {
-                var second = operation.Second >= 0 ? ArgumentValue(operation.Second, operation.SecondInput) : default;
-                var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
-                state.ThrowIfCancellationRequested();
-                storage.StoreValue(instruction.Target,
-                    AwkBuiltins.EvaluateSubstrOperand(state, first, second, third, operation.Third >= 0 ? 3 : 2));
-            }
-            return;
+            CaptureTextArgument(operation.First, out var first);
+            CaptureTextArgument(operation.Second, out var second);
+            state.ThrowIfCancellationRequested();
+            numbers[instruction.Target] = AwkBuiltins.EvaluateIndexText(state, first.Text(state, forceScalar: true), second.Text(state));
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        internal void ExecuteSubstring(in AwkRegionInstruction instruction)
+        {
+            var operation = region.Strings[instruction.Left];
+            CaptureTextArgument(operation.First, out var first);
+            var second = ArgumentValue(operation.Second, operation.SecondInput);
+            var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
+            state.ThrowIfCancellationRequested();
+            storage.StoreValue(instruction.Target,
+                AwkBuiltins.EvaluateSubstrOperand(state, first, second, third, operation.Third >= 0 ? 3 : 2));
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        internal void ExecuteCase(in AwkRegionInstruction instruction)
+        {
+            // Unary consumers have no later argument across which to defer formatting.
+            state.ThrowIfCancellationRequested();
+            var input = region.Strings[instruction.Left].First;
+            var operand = operands[input];
+            var field = IsField(operand) ? FieldOrdinal(operand) : -1;
+            var text = TextOperand(input);
+            storage.StoreValue(instruction.Target,
+                AwkBuiltins.EvaluateCaseText(state, text, instruction.Detail != 0, field));
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -498,10 +500,11 @@ internal partial struct AwkRegionMachine
             return new(state.FormatStringByteText(Value(index)));
         }
 
-        private AwkScalarOperand TextArgument(int index)
+        private void CaptureTextArgument(int index, out AwkScalarOperand result)
         {
             var operand = operands[index];
-            return IsField(operand) ? state.ResolveFieldTextOperand(FieldOrdinal(operand)) : new(Value(index));
+            if (IsField(operand)) state.CaptureFieldTextOperand(FieldOrdinal(operand), out result);
+            else result = new(Value(index));
         }
 
         internal static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;

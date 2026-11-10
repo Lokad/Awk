@@ -478,8 +478,11 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkByteTextOperand ResolveFieldByteOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
         ? new(bytes) : new(FormatStringByteText(CaptureFieldStringValue(index)));
 
-    internal AwkScalarOperand ResolveFieldTextOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
-        ? new(bytes, index) : new(CaptureFieldStringValue(index));
+    internal void CaptureFieldTextOperand(int index, out AwkScalarOperand result)
+    {
+        if (TryGetFieldStringBytes(index, out var bytes)) result = new(bytes, index);
+        else result = new(CaptureFieldStringValue(index));
+    }
 
     private bool TryGetFieldStringBytes(int index, out ReadOnlySpan<byte> bytes)
     {

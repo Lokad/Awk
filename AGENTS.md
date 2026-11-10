@@ -45,6 +45,8 @@ or environment dependencies.
   binding locals. Whole string/length/type operations, general builtin evaluation and main-record scheduling retain their
   deliberate call boundaries; qualify changes to these boundaries on complete workloads.
   The view owns no storage and cannot survive an actual host suspension.
+  Known string primitives bind to their semantic interpreter operations during preparation.
+  Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
   Root record completion retains its loaded program/storage view. Reload it for actual context
   switches; preserve published pending-host locations and rule-scratch retirement.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring

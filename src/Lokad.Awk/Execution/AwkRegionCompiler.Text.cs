@@ -100,10 +100,16 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var site = compiler._strings.Count;
-            compiler._strings.Add(new(definition.Id, _arguments[0], _arguments[1], _arguments[2],
+            compiler._strings.Add(new(_arguments[0], _arguments[1], _arguments[2],
                 definition.InputConsumption(1), definition.InputConsumption(2)));
             var target = definition.Id == AwkBuiltinId.Index ? compiler._numbers++ : compiler._values++;
-            compiler.Emit(new(AwkRegionInstructionKind.String, target, site));
+            var kind = definition.Id switch
+            {
+                AwkBuiltinId.Index => AwkRegionInstructionKind.Index,
+                AwkBuiltinId.Substr => AwkRegionInstructionKind.Substring,
+                _ => AwkRegionInstructionKind.Case
+            };
+            compiler.Emit(new(kind, target, site, Detail: definition.Id == AwkBuiltinId.ToUpper ? 1 : 0));
             return Complete(compiler.Operand(definition.Id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, target));
         }
     }

@@ -137,7 +137,7 @@ internal enum AwkRegionInstructionKind : byte
 {
     MainRead, RuleEnd,
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
-    Value, Length, InspectVariable, InspectArray, InspectValue, String, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
+    Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeySeparator, KeyAppend, KeyReady, KeyEnd, ReleaseValue, ReleaseValues,
     SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintValue, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
@@ -218,7 +218,7 @@ internal readonly record struct AwkRegionResumePoint(int Position, int Destinati
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,
     int Start, int Count, int[] PendingArguments,
     AwkBuiltinImplementation.AsyncBuiltinImplementation? Host = null);
-internal readonly record struct AwkRegionStringCall(AwkBuiltinId Id, int First, int Second, int Third,
+internal readonly record struct AwkRegionStringCall(int First, int Second, int Third,
     AwkParameterInput SecondInput, AwkParameterInput ThirdInput);
 internal sealed record AwkRegionRegexMatch(int Input, AwkRegex? Literal, int Pattern = -1);
 internal sealed record AwkRegionSplit(int Input, int Array, int Separators, int Pattern,

@@ -102,8 +102,14 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Value:
                     computationView.Storage.StoreValue(instruction.Target, computationView.Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
-                case AwkRegionInstructionKind.String:
-                    computationView.ExecuteString(in instruction);
+                case AwkRegionInstructionKind.Index:
+                    computationView.ExecuteIndex(in instruction);
+                    break;
+                case AwkRegionInstructionKind.Substring:
+                    computationView.ExecuteSubstring(in instruction);
+                    break;
+                case AwkRegionInstructionKind.Case:
+                    computationView.ExecuteCase(in instruction);
                     break;
                 case AwkRegionInstructionKind.Length:
                     computationView.ExecuteLength(in instruction);
