@@ -42,7 +42,7 @@ or environment dependencies.
   unwinding. Synchronous computation uses one stack-only view binding the actual state,
   program, storage, frame and their existing instruction/operand/number arrays. Keep instruction
   position separate; do not restore a parallel captured helper environment or duplicate driver
-  binding locals. Whole string/length/type operations and main-record scheduling retain their
+  binding locals. Whole string/length/type operations, general builtin evaluation and main-record scheduling retain their
   deliberate call boundaries; qualify changes to these boundaries on complete workloads.
   The view owns no storage and cannot survive an actual host suspension.
   Root record completion retains its loaded program/storage view. Reload it for actual context

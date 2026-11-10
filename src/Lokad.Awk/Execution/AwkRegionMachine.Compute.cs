@@ -476,34 +476,8 @@ internal partial struct AwkRegionMachine
                             ? computationView.State.GetFieldArithmeticArgument(computationView.FieldOrdinal(input)) : computationView.Value(instruction.Left), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
-                {
-                    var builtin = computationView.Region.Builtins[instruction.Left];
-                    if (builtin.Host is { } host)
-                    {
-                        computationView.State.ThrowIfCancellationRequested();
-                        _position = position + 1;
-                        _pending = Pending.BuiltinValue;
-                        _hostValue = host.EvaluateBound(computationView.Storage.Values, builtin.Start, builtin.Count, Context);
-                        goto Resume;
-                    }
-                    var computation = builtin.Computation ?? throw new InvalidOperationException("A computational builtin requires its implementation.");
-                    var pendingArguments = builtin.PendingArguments;
-                    var firstPending = builtin.Start + builtin.Count - pendingArguments.Length;
-                    for (var index = 0; index < pendingArguments.Length; index++)
-                    {
-                        if ((index & 63) == 63) computationView.State.ThrowIfCancellationRequested();
-                        var pendingOperand = computationView.Operands[pendingArguments[index]];
-                        computationView.Storage.StoreValue(firstPending + index,
-                            computation.ConsumesArithmeticInputs && AwkRegionComputation.IsField(pendingOperand)
-                                ? computationView.State.GetFieldArithmeticArgument(computationView.FieldOrdinal(pendingOperand)) : computationView.Value(pendingArguments[index]),
-                            preserveOrigin: true);
-                    }
-                    computationView.State.ThrowIfCancellationRequested();
-                    computationView.Storage.StoreValue(instruction.Target,
-                        computation.EvaluateBound(computationView.Storage.Values, builtin.Start, builtin.Count, Context));
-                    computationView.Storage.ReleaseValues(builtin.Start, builtin.Count);
+                    if (ExecuteBuiltin(in computationView, in instruction, position)) goto Resume;
                     break;
-                }
                 case AwkRegionInstructionKind.BuiltinBoundary:
                     if (!Context.TryGetExecutionContext(out var builtinExecution))
                     {
