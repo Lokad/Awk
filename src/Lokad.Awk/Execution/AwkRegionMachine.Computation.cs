@@ -67,8 +67,7 @@ internal partial struct AwkRegionMachine
             var second = ArgumentValue(operation.Second, operation.SecondInput);
             var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
-            storage.StoreValue(instruction.Target,
-                AwkBuiltins.EvaluateSubstrOperand(state, first, second, third, operation.Third >= 0 ? 3 : 2));
+            storage.StoreSubstringValue(instruction.Target, first, second, third, operation.Third >= 0 ? 3 : 2);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

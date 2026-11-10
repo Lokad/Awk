@@ -212,7 +212,7 @@ public sealed class AwkFieldStringTests
         var failure = Assert.ThrowsAny<OperationCanceledException>(() =>
         {
             var operand = new AwkByteTextOperand(bytes.AsSpan());
-            if (range) _ = operand.SliceUnits(16_384, 2, false, counters, AwkMemoryAccounting.Disabled, Checkpoint);
+            if (range) _ = operand.SliceUnits(16_384, 2, false, counters, AwkMemoryAccounting.Disabled, Checkpoint, AwkMemoryLease.Disabled);
             else _ = operand.HasUnitAt(16_384, false, Checkpoint);
         });
         Assert.Equal(cancellation.Token, failure.CancellationToken);

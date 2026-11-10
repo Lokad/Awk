@@ -63,10 +63,11 @@ internal sealed class AwkStringRuntime
         int start,
         int length,
         AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor)
+        AwkMemoryAccounting governor,
+        AwkMemoryLease destination)
     {
         _checkpoint?.Invoke();
-        return source.SliceUnits(start, length, IsByteMode, counters, governor, _checkpoint);
+        return source.SliceUnits(start, length, IsByteMode, counters, governor, _checkpoint, destination);
     }
 
 }

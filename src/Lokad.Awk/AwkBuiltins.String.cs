@@ -17,11 +17,14 @@ internal static partial class AwkBuiltins
         AwkValue.FromNumber(EvaluateIndexNumber(state, source, needle));
 
     internal static AwkValue EvaluateSubstrValues(AwkRuntimeState state, AwkValue sourceValue,
-        AwkValue startValue, AwkValue lengthValue, int argumentCount) =>
-        EvaluateSubstrOperand(state, new(sourceValue), startValue, lengthValue, argumentCount);
+        AwkValue startValue, AwkValue lengthValue, int argumentCount)
+    {
+        using var destination = state.MemoryAccounting.CreateTransientLease();
+        return EvaluateSubstrOperand(state, new(sourceValue), startValue, lengthValue, argumentCount, destination);
+    }
 
     internal static AwkValue EvaluateSubstrOperand(AwkRuntimeState state, in AwkScalarOperand sourceValue,
-        AwkValue startValue, AwkValue lengthValue, int argumentCount)
+        AwkValue startValue, AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
     {
         var source = sourceValue.Text(state);
         var start = (int)startValue.AsNumber(state.CancellationCheckpoint);
@@ -34,8 +37,8 @@ internal static partial class AwkBuiltins
         var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
         sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, length);
-        var slice = state.SubstringByStringUnits(source, zeroBasedStart, length);
-        return state.CreateStringValue(sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength));
+        var slice = state.SubstringByStringUnits(source, zeroBasedStart, length, destination);
+        return state.CreateStringValue(sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength, destination));
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)

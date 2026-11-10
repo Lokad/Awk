@@ -40,6 +40,6 @@ internal readonly ref struct AwkScalarOperand
             source = new(state.CaptureFieldStringText(_field));
     }
 
-    internal AwkText OwnSlice(AwkRuntimeState state, in AwkByteTextOperand slice, bool whole) =>
-        state.OwnStringResult(slice, IsBorrowed ? _field : -1, whole);
+    internal AwkText OwnSlice(AwkRuntimeState state, in AwkByteTextOperand slice, bool whole, AwkMemoryLease destination) =>
+        state.OwnStringResult(slice, IsBorrowed ? _field : -1, whole, destination);
 }

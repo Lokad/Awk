@@ -13,8 +13,9 @@ internal readonly ref struct AwkByteTextOperand
     internal bool IsOwned => _owned.Backing is not null;
     internal int ByteLength => IsOwned ? _owned.ByteLength : _bytes.Length;
 
-    internal AwkText Own(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        _owned.Backing is not null ? _owned : AwkText.CopyTrustedBytes(_bytes, counters, governor, checkpoint);
+    internal AwkText Own(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint,
+        AwkMemoryLease? destination = null) =>
+        _owned.Backing is not null ? _owned : AwkText.CopyTrustedBytes(_bytes, counters, governor, checkpoint, destination);
 
     internal bool HasUnitAt(int index, bool bytes, Action? checkpoint)
     {
@@ -24,13 +25,13 @@ internal readonly ref struct AwkByteTextOperand
     }
 
     internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor, Action? checkpoint)
+        AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease destination)
     {
         if (_owned.Backing is not null)
         {
-            if (!bytes) return new(_owned.CopyRuneSlice(start, length, counters, governor, checkpoint));
+            if (!bytes) return new(_owned.CopyRuneSlice(start, length, counters, governor, checkpoint, destination));
             start = Math.Min(start, _owned.ByteLength);
-            return new(_owned.CopyByteSlice(start, Math.Min(length, _owned.ByteLength - start), counters, governor, checkpoint));
+            return new(_owned.CopyByteSlice(start, Math.Min(length, _owned.ByteLength - start), counters, governor, checkpoint, destination));
         }
         int first, last;
         if (bytes)

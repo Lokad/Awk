@@ -233,13 +233,15 @@ internal readonly struct AwkText : IEquatable<AwkText>
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkMemoryLease? destination = null)
     {
         if (bytes.IsEmpty)
             return Empty;
 
         checkpoint?.Invoke();
-        var ownedBytes = AllocateOwnedBytes(bytes.Length, governor);
+        var ownedBytes = destination is null ? AllocateOwnedBytes(bytes.Length, governor) :
+            AllocateOwnedBytes(bytes.Length, governor, destination, checkpoint);
         CopyBytes(bytes, ownedBytes, checkpoint);
         return FromTrustedOwnedBytes(ownedBytes, counters);
     }
@@ -433,7 +435,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         int length,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkMemoryLease? destination = null)
     {
         if (start < 0 || start > ByteLength)
             throw new ArgumentOutOfRangeException(nameof(start));
@@ -447,7 +450,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (start == 0 && length == ByteLength)
             return this;
 
-        var bytes = AllocateOwnedBytes(length, governor);
+        var bytes = destination is null ? AllocateOwnedBytes(length, governor) :
+            AllocateOwnedBytes(length, governor, destination, checkpoint);
         CopyBytes(AsSpan(checkpoint).Slice(start, length), bytes, checkpoint);
         return FromOwnedBytes(bytes, counters, checkpoint);
     }
@@ -529,7 +533,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         int length,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkMemoryLease? destination = null)
     {
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
@@ -550,7 +555,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return text;
 
         var byteLength = byteEnd - byteStart;
-        var bytes = AllocateOwnedBytes(byteLength, governor);
+        var bytes = destination is null ? AllocateOwnedBytes(byteLength, governor) :
+            AllocateOwnedBytes(byteLength, governor, destination, checkpoint);
         CopyBytes(text.AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
         return knownAscii ? FromTrustedAsciiOwnedBytes(bytes, counters) : FromTrustedOwnedBytes(bytes, counters);
 
@@ -972,7 +978,9 @@ internal readonly struct AwkText : IEquatable<AwkText>
         destination.ReserveAdditional(bytes);
         try
         {
-            checkpoint?.Invoke();
+            // Only admission can add a callback here. Ordinary copies retain
+            // their own entry/completion polls, including when no budget exists.
+            if (bytes > 0) checkpoint?.Invoke();
             return new byte[length];
         }
         catch

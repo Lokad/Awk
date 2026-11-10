@@ -234,13 +234,28 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         var before = _payload.Bytes;
         var value = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
+        StoreProducedValue(index, value, _payload.Bytes - before);
+    }
+
+    internal void StoreSubstringValue(int index, in AwkScalarOperand source, AwkValue start, AwkValue length, int count)
+    {
+        var before = _payload.Bytes;
+        var value = AwkBuiltins.EvaluateSubstrOperand(_state, source, start, length, count, _payload);
+        StoreProducedValue(index, value, _payload.Bytes - before);
+    }
+
+    private void StoreProducedValue(int index, AwkValue value, long producedBytes)
+    {
         var oldBytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
         var nextBytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
-        var funded = AwkRuntimeMemory.CheckedAdd(oldBytes, _payload.Bytes - before);
-        if (nextBytes > funded) _payload.ReserveAdditional(nextBytes - funded);
-        // Construction already admitted the produced text. Check publication even
-        // when no additional growth is needed; cancellation leaves cleanup its owner.
-        _state.ThrowIfCancellationRequested();
+        var funded = AwkRuntimeMemory.CheckedAdd(oldBytes, producedBytes);
+        if (nextBytes > funded)
+        {
+            _payload.ReserveAdditional(nextBytes - funded);
+            _state.ThrowIfCancellationRequested();
+        }
+        // Fully funded construction retains primitive polls. This capture adds no
+        // callback or visible effect; actual assignments/output keep their checks.
         _values[index] = value;
         if (funded > nextBytes) _payload.Release(funded - nextBytes);
     }

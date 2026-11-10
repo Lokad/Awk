@@ -4,6 +4,110 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBoundedSubstringTests
 {
     [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public void PartialResultsStayFundedByTheirActualDestination(bool bytes, bool unicode, bool borrowed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using (var state = State(memory.Owner, counters, bytes))
+        {
+            var expected = (unicode ? "😀" : "") + new string('a', 8193);
+            var source = AwkText.FromString("x" + expected + "z");
+            // This fixture owns its already-prepared source and its scalar index.
+            _ = source.CopyRuneSlice(65, 1, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+            var initialBytes = memory.Budget.Reserved;
+            using (var destination = state.MemoryAccounting.CreateTransientLease())
+            {
+                var operand = borrowed ? new AwkScalarOperand(source.AsSpan(), -1) :
+                    new AwkScalarOperand(AwkValue.FromText(source));
+                var length = bytes ? System.Text.Encoding.UTF8.GetByteCount(expected) : 8193 + (unicode ? 1 : 0);
+                var result = AwkBuiltins.EvaluateSubstrOperand(state, operand,
+                    AwkValue.FromNumber(2), AwkValue.FromNumber(length), 3, destination);
+                Assert.Equal(expected, result.AsString());
+                Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
+                Assert.True(destination.Bytes >= result.RetainedTextMemoryBytes);
+                Assert.True(memory.Budget.Reserved >= destination.Bytes);
+                Assert.Equal(0, counters.StringDecodes);
+                Assert.Equal(0, counters.Utf8Encodes);
+            }
+            Assert.Equal(initialBytes, memory.Budget.Reserved);
+        }
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void AdmissionFailurePrecedesSliceAllocationAndTargetMutation(bool borrowed, bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using (var state = State(memory.Owner, counters, token: cancellation.Token))
+        {
+            var target = AwkVariableName.FromText("saved");
+            state.AssignVariableValue(target, AwkValue.FromText("keep"));
+            var source = AwkText.FromString(new string('a', 1_000_000));
+            _ = source.GetRuneLength();
+            var initialBytes = memory.Budget.Reserved;
+            using var destination = state.MemoryAccounting.CreateTransientLease();
+            var allocatedAtAdmission = 0L;
+            memory.Budget.OnGrowth = _ =>
+            {
+                allocatedAtAdmission = GC.GetAllocatedBytesForCurrentThread();
+                if (cancel) cancellation.Cancel();
+            };
+            if (!cancel) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            void Evaluate()
+            {
+                var operand = borrowed ? new AwkScalarOperand(source.AsSpan(), -1) :
+                    new AwkScalarOperand(AwkValue.FromText(source));
+                var result = AwkBuiltins.EvaluateSubstrOperand(state, operand,
+                    AwkValue.FromNumber(2), AwkValue.FromNumber(500_000), 3, destination);
+                state.AssignVariableValue(target, result);
+            }
+            if (cancel) Assert.Throws<OperationCanceledException>(Evaluate);
+            else
+            {
+                var failure = Assert.Throws<AwkRuntimeException>(Evaluate);
+                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+                Assert.Equal(1, memory.Budget.Refusals);
+                Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+            }
+            Assert.Equal("keep", state.ResolveVariableValue(target).AsString());
+            Assert.Equal(0, counters.AwkTextAllocations);
+            Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedAtAdmission, 0, 64 * 1024);
+            Assert.Equal(0, destination.Bytes);
+            Assert.Equal(initialBytes, memory.Budget.Reserved);
+        }
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void WholeAndEmptyResultsKeepTheirExistingStorage(bool bytes, bool empty)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var state = State(memory.Owner, counters, bytes);
+        var source = AwkText.FromString("008");
+        using var destination = state.MemoryAccounting.CreateTransientLease();
+        var result = AwkBuiltins.EvaluateSubstrOperand(state, new(AwkValue.FromText(source)),
+            AwkValue.FromNumber(1), AwkValue.FromNumber(empty ? 0 : 3), 3, destination);
+        Assert.Equal(empty ? "" : "008", result.AsString());
+        Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
+        if (!empty) Assert.True(source.HasSameStorage(result.ByteText));
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, destination.Bytes);
+    }
+
+    [Theory]
     [InlineData(false, "a")] [InlineData(true, "a")]
     [InlineData(false, "é")] [InlineData(true, "é")]
     [InlineData(false, "😀")] [InlineData(true, "😀")]
@@ -78,13 +182,14 @@ public sealed class AwkBoundedSubstringTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
-    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, bool bytes = false)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, bool bytes = false,
+        CancellationToken token = default)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
             { MemoryOwner = owner };
-        return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
-            new AwkRuntimeResourceMonitor(limits, counters, CancellationToken.None),
+        return new(AwkFieldSeparatorSpec.Default, token, options,
+            new AwkRuntimeResourceMonitor(limits, counters, token),
             bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default);
     }
 }

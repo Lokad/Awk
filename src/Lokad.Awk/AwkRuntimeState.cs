@@ -631,8 +631,9 @@ internal sealed class AwkRuntimeState : IDisposable
     internal int CompareByteText(AwkText left, AwkText right, bool sorting = false) =>
         _stringRuntime.Compare(left, right, IsCaseInsensitive, sorting);
 
-    public AwkByteTextOperand SubstringByStringUnits(AwkByteTextOperand source, int start, int length) =>
-        _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryAccounting);
+    public AwkByteTextOperand SubstringByStringUnits(AwkByteTextOperand source, int start, int length,
+        AwkMemoryLease destination) =>
+        _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryAccounting, destination);
 
     public void RequestExit(AwkOptionalExitCode exitCode) =>
         _executionControl.RequestExit(exitCode);
@@ -929,9 +930,10 @@ internal sealed class AwkRuntimeState : IDisposable
         _recordFields.TryGetFieldTextSnapshot(new(field), out var text) ? text :
             FormatStringByteText(field == 0 ? GetCurrentRecordValue() : GetFieldValue(field));
 
-    internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true) =>
+    internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true,
+        AwkMemoryLease? destination = null) =>
         field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(field) :
-            text.Own(Counters, MemoryAccounting, CancellationCheckpoint);
+            text.Own(Counters, MemoryAccounting, CancellationCheckpoint, destination);
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
