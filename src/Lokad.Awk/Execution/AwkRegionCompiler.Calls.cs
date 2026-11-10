@@ -25,7 +25,7 @@ internal sealed partial class AwkRegionCompiler
                 if (builtin.Id is AwkBuiltinId.Asort or AwkBuiltinId.Asorti) return new SortWork(syntax, builtin.Id == AwkBuiltinId.Asorti);
                 if (builtin.Id == AwkBuiltinId.Gensub) return new GensubWork(syntax);
                 if (builtin.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
-                    return new StringCallWork(syntax, builtin.Id);
+                    return new StringCallWork(syntax, builtin);
                 if (builtin.TryGetScalarComputation(out var computation))
                     return new ScalarBuiltinWork(syntax, builtin, computation);
                 if (builtin.TryGetHostComputation(out var host)) return new HostBuiltinWork(syntax, builtin, host, false);
@@ -150,7 +150,7 @@ internal sealed partial class AwkRegionCompiler
             else
             {
                 compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, CompletedResult<int>(completed),
-                    Detail: definition.InputConsumption(_argument) == AwkParameterInput.Arithmetic ? 1 : 0));
+                    Detail: (int)definition.InputConsumption(_argument)));
                 _argument++;
             }
             if (_argument < count)

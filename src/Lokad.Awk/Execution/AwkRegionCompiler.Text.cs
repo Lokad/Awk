@@ -75,7 +75,7 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
-    private sealed class StringCallWork(AwkExpressionSyntax syntax, AwkBuiltinId id) : PreparationWork<int>
+    private sealed class StringCallWork(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition) : PreparationWork<int>
     {
         private readonly int[] _arguments = [-1, -1, -1];
         private int _position;
@@ -89,21 +89,22 @@ internal sealed partial class AwkRegionCompiler
                 var value = CompletedResult<int>(completed);
                 _arguments[_position] = value;
                 if (compiler._operands[value].Kind == AwkRegionOperandKind.ArrayElement)
-                    compiler.CaptureStringArguments(_arguments, _position + 1);
+                    compiler.CaptureStringArguments(_arguments, _position + 1, definition);
                 _position++;
             }
             if (_position < syntax.Children.Count - 1)
             {
-                if (!compiler.IsImmediateRead(syntax.Children[_position + 1])) compiler.CaptureStringArguments(_arguments, _position);
+                if (!compiler.IsImmediateRead(syntax.Children[_position + 1])) compiler.CaptureStringArguments(_arguments, _position, definition);
                 _waiting = true;
                 next = compiler.CreateOperandWork(syntax.Children[_position + 1]);
                 return true;
             }
             var site = compiler._strings.Count;
-            compiler._strings.Add(new(id, _arguments[0], _arguments[1], _arguments[2]));
-            var target = id == AwkBuiltinId.Index ? compiler._numbers++ : compiler._values++;
+            compiler._strings.Add(new(definition.Id, _arguments[0], _arguments[1], _arguments[2],
+                definition.InputConsumption(0), definition.InputConsumption(1), definition.InputConsumption(2)));
+            var target = definition.Id == AwkBuiltinId.Index ? compiler._numbers++ : compiler._values++;
             compiler.Emit(new(AwkRegionInstructionKind.String, target, site));
-            return Complete(compiler.Operand(id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, target));
+            return Complete(compiler.Operand(definition.Id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, target));
         }
     }
 

@@ -36,13 +36,26 @@ internal partial struct AwkRegionMachine
         internal AwkRegionOperand[] Operands => operands;
         internal double[] Numbers => numbers;
 
+        internal AwkValue ArgumentValue(int index, AwkParameterInput consumption)
+        {
+            var operand = operands[index];
+            if (IsField(operand))
+            {
+                if (consumption == AwkParameterInput.Arithmetic)
+                    return state.GetFieldArithmeticArgument(FieldOrdinal(operand));
+                if (consumption == AwkParameterInput.Text &&
+                    state.TryGetFieldTextArgument(FieldOrdinal(operand), out var text)) return text;
+            }
+            return Value(index);
+        }
+
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         internal void ExecuteString(in AwkRegionInstruction instruction)
         {
             var operation = region.Strings[instruction.Left];
-            var first = Value(operation.First);
-            var second = operation.Second >= 0 ? Value(operation.Second) : default;
-            var third = operation.Third >= 0 ? Value(operation.Third) : default;
+            var first = ArgumentValue(operation.First, operation.FirstInput);
+            var second = operation.Second >= 0 ? ArgumentValue(operation.Second, operation.SecondInput) : default;
+            var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
             if (operation.Id == AwkBuiltinId.Index)
                 numbers[instruction.Target] = AwkBuiltins.EvaluateIndexNumber(state, first, second);

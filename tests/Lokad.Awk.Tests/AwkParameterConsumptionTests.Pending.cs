@@ -2,21 +2,32 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkParameterConsumptionTests
 {
+    private enum OwnedArgumentKind { Key, UserText, BuiltinFieldText, BuiltinRecordText }
+
     [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
     public Task OwnedKeysStayFundedUntilActualPendingCallCompletion(bool cancel, bool forward) =>
-        PendingOwnedArgument(cancel, forward, text: false);
+        PendingOwnedArgument(cancel, forward, OwnedArgumentKind.Key);
 
     [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
     public Task OwnedTextStaysFundedUntilActualPendingCallCompletion(bool cancel, bool forward) =>
-        PendingOwnedArgument(cancel, forward, text: true);
+        PendingOwnedArgument(cancel, forward, OwnedArgumentKind.UserText);
 
-    private static async Task PendingOwnedArgument(bool cancel, bool forward, bool text)
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(true, false, false)]
+    [InlineData(false, true, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(true, false, true)]
+    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    public Task BuiltinTextStaysFundedUntilLaterArgumentActuallyCompletes(bool cancel, bool forward, bool record) =>
+        PendingOwnedArgument(cancel, forward, record ? OwnedArgumentKind.BuiltinRecordText : OwnedArgumentKind.BuiltinFieldText);
+
+    private static async Task PendingOwnedArgument(bool cancel, bool forward, OwnedArgumentKind kind)
     {
         const int payload = 32_768;
+        var text = kind != OwnedArgumentKind.Key;
         var character = text ? 'T' : 'k';
         var shortHeld = await Run(character.ToString());
         var longHeld = await Run(new string(character, payload));
@@ -54,6 +65,12 @@ public sealed partial class AwkParameterConsumptionTests
                 (forward ? "function relay(a,k){return save(a,k)}" : "") +
                 "BEGIN{FS=\":\";getline;print \"ready\";print " + (forward ? "relay" : "save") +
                 "(a,$1);exit}END{print \"end\"}";
+            if (kind is OwnedArgumentKind.BuiltinFieldText or OwnedArgumentKind.BuiltinRecordText)
+                source = "function later(line){$0=\"new:9\";getline line;return 1}" +
+                    (forward ? "function relay(){return later()}" : "") +
+                    "BEGIN{FS=\":\"}{print \"ready\";print substr($" +
+                    (kind == OwnedArgumentKind.BuiltinRecordText ? "0" : "1") + "," +
+                    (forward ? "relay" : "later") + "(),1);exit}END{print \"end\"}";
             var budget = new CooperativeTestBudget(8 << 20);
             using var cancellation = new CancellationTokenSource();
             var execution = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))

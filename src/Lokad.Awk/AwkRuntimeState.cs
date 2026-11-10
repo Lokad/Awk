@@ -900,12 +900,19 @@ internal sealed class AwkRuntimeState : IDisposable
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     internal bool TryStageFunctionFieldText(int field, AwkFunctionFrame incoming, int index)
     {
-        if (field <= 0 || !_recordFields.TryGetFieldTextSnapshot(new(field), out var text)) return false;
+        if (!TryGetFieldTextArgument(field, out var value)) return false;
         // The record owns shared immutable spelling; the incoming frame funds its
         // own capture through mutation and actual suspension lifetimes.
-        var value = CreateStringValue(text);
         ThrowIfCancellationRequested();
         _functions.StageValue(incoming, index, in value);
+        return true;
+    }
+
+    internal bool TryGetFieldTextArgument(int field, out AwkValue value)
+    {
+        value = default;
+        if (field < 0 || !_recordFields.TryGetFieldTextSnapshot(new(field), out var text)) return false;
+        value = CreateStringValue(text);
         return true;
     }
 

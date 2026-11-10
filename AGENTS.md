@@ -206,6 +206,9 @@ or environment dependencies.
   retained text keeps admission and post-admission cancellation before publication.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
   One parameter-consumption graph uses the builtin's positional arithmetic/text contract.
+  Prepared string and general builtin arguments use that same contract at early captures and
+  final consumption. Text snapshots include record zero; assigned numbers retain formatting
+  at actual use. Buffered-record materialization stays at its owner, outside cached reads.
   Origin observers, mixed uses and lexical comparisons retain full values. Key cells own bytes.
   Text-only field arguments capture owned
   ordinary text in scalar frames, without input-number classification. Mixed observations retain

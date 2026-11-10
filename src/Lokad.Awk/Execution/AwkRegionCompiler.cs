@@ -451,13 +451,14 @@ internal sealed partial class AwkRegionCompiler
         return PrepareOperandWork(new HostBuiltinWork(syntax, definition, implementation, flushBeforeArguments), out result);
     }
 
-    private void CaptureStringArguments(Span<int> arguments, int count)
+    private void CaptureStringArguments(Span<int> arguments, int count, AwkBuiltinDefinition definition)
     {
         for (var index = 0; index < count; index++)
         {
             if (_operands[arguments[index]].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary) continue;
             var captured = _values++;
-            Emit(new(AwkRegionInstructionKind.Value, captured, arguments[index], Detail: 1));
+            Emit(new(AwkRegionInstructionKind.BuiltinArgument, captured, arguments[index],
+                Detail: (int)definition.InputConsumption(index)));
             arguments[index] = Operand(AwkRegionOperandKind.ValueTemporary, captured);
         }
     }

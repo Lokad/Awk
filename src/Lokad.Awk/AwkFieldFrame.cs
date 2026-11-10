@@ -53,7 +53,14 @@ internal sealed class AwkFieldFrame(
     private AwkText OwnedRecordText()
     {
         EnsureRecordText();
-        if (!HasBufferedRecord) return _recordText;
+        return HasBufferedRecord ? MaterializeBufferedRecordText() : _recordText;
+    }
+
+    // Keep allocation/admission state at the actual owner, away from repeated
+    // cached record and field-text reads.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private AwkText MaterializeBufferedRecordText()
+    {
         var retained = AdjustEstimate(_retainedMemoryBytes, 0,
             AwkRuntimeMemory.EstimateTextBytes(BufferedRecord.Length));
         using var admission = governor.AdmitMutation(Math.Max(0, retained - _retainedMemoryBytes));
@@ -264,6 +271,15 @@ internal sealed class AwkFieldFrame(
 
     internal bool TryGetFieldTextSnapshot(AwkFieldIndex index, out AwkText text)
     {
+        if (index.IsCurrentRecord)
+        {
+            // Assigned numbers retain formatting at the actual consumer, after
+            // later arguments. Input/recomposed text already has this owner.
+            text = AwkText.Empty;
+            if (_recordValueIsCurrent && _recordValue.IsNumberValue) return false;
+            text = OwnedRecordText();
+            return true;
+        }
         EnsureField(index);
         text = AwkText.Empty;
         if (!index.IsNamedField || index.Value > _fieldTexts.Count) return true;

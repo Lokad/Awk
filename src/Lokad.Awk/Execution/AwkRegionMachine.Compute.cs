@@ -470,10 +470,8 @@ internal partial struct AwkRegionMachine
                     goto Resume;
                 }
                 case AwkRegionInstructionKind.BuiltinArgument:
-                    var input = computationView.Operands[instruction.Left];
                     computationView.Storage.StoreValue(instruction.Target,
-                        instruction.Detail != 0 && AwkRegionComputation.IsField(input)
-                            ? computationView.State.GetFieldArithmeticArgument(computationView.FieldOrdinal(input)) : computationView.Value(instruction.Left), preserveOrigin: true);
+                        computationView.ArgumentValue(instruction.Left, (AwkParameterInput)instruction.Detail), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
                     if (ExecuteBuiltin(in computationView, in instruction, position)) goto Resume;

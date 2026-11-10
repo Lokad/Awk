@@ -218,7 +218,8 @@ internal readonly record struct AwkRegionResumePoint(int Position, int Destinati
 internal sealed record AwkRegionBuiltin(AwkBuiltinImplementation.SyncBuiltinImplementation? Computation,
     int Start, int Count, int[] PendingArguments,
     AwkBuiltinImplementation.AsyncBuiltinImplementation? Host = null);
-internal readonly record struct AwkRegionStringCall(AwkBuiltinId Id, int First, int Second = -1, int Third = -1);
+internal readonly record struct AwkRegionStringCall(AwkBuiltinId Id, int First, int Second, int Third,
+    AwkParameterInput FirstInput, AwkParameterInput SecondInput, AwkParameterInput ThirdInput);
 internal sealed record AwkRegionRegexMatch(int Input, AwkRegex? Literal, int Pattern = -1);
 internal sealed record AwkRegionSplit(int Input, int Array, int Separators, int Pattern,
     AwkRegexPatternOrigin Origin, bool IsRegexLiteral, bool UsesDefault, bool Patsplit);
