@@ -95,6 +95,8 @@ eventual text materialization before the borrowed argument is published.
 Prepared function returns transfer existing scratch funding to the caller before retiring
 the callee. Numeric conversion uses the still-funded callee snapshot; assigning a retained
 result keeps its ordinary target preflight.
+Discarded local text assignments can transfer their existing temporary funding into the
+validated local cell. Used assignment results and unresolved targets retain owning captures.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,

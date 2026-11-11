@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("local-text-assignments-preserve-used-snapshots-and-chained-values",
+            ["""function f(s,t,a){t=tolower(s);print typeof(t),t;a=t=substr(s,1);print a,t;print (t=tolower(s)),(t="changed");print t;return a}BEGIN{print f("0007"),f("CAFÉ")}"""],
+            [], "string 0007\n0007 0007\n0007 changed\nchanged\nstring café\nCAFÉ CAFÉ\ncafé changed\nchanged\n0007 CAFÉ\n", "");
         yield return Passing("string-views-own-dirty-fields-before-immediate-record-reconstruction",
             ["BEGIN{$0=\"old abcd\";$1=1;print substr($2,$0,2),$0;$0=\"old abcd\";$1=1;print index($2,$0),$0}"],
             [], "ab 1 abcd\n0 1 abcd\n", "");

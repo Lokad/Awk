@@ -304,6 +304,13 @@ internal sealed class AwkRegionStorage : IDisposable
         if (bytes > 0) _payload.Release(bytes);
     }
 
+    internal void TransferTextFunding(int index)
+    {
+        var bytes = _state.MemoryAccounting.IsEnabled ? _texts[index].EstimatedRetainedMemoryBytes : 0;
+        _payload.Transfer(bytes);
+        _texts[index] = AwkText.Empty;
+    }
+
     internal void ReleaseValues(int start, int count)
     {
         var bytes = 0L;

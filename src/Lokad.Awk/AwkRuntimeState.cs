@@ -1072,6 +1072,16 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
+    internal void AssignFunctionLocalText(AwkFunctionLocalSlotId slotId, AwkVariableName name,
+        AwkRegionStorage source, int textIndex)
+    {
+        var value = CreateStringValue(source.Texts[textIndex]);
+        if (!_functions.TryAssignLocal(slotId, value, source, textIndex))
+            // Hidden, absent and array locals retain ordinary name resolution.
+            // Failed resolution leaves the canonical source and funding intact.
+            _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
+    }
+
     internal AwkValue ResolvePreparedSpecialVariableValue(AwkSpecialVariableId id)
     {
         Counters.RecordPreparedSpecialScalarRead();

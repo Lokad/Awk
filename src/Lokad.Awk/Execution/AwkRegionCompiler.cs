@@ -816,6 +816,12 @@ internal sealed partial class AwkRegionCompiler
     private void Discard(int operand)
     {
         var source = _operands[operand];
+        if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count > 0 &&
+            _code[^1] is { Kind: AwkRegionInstructionKind.Assign } textAssignment && textAssignment.Left == operand &&
+            _operands[textAssignment.Target].Kind == AwkRegionOperandKind.LocalVariable)
+            // No consumer follows this statement's assignment. Its local owner
+            // can take the canonical text instead of retaining a second claim.
+            _code[^1] = textAssignment with { Kind = AwkRegionInstructionKind.AssignText, Left = source.Index };
         if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
             _code[^1] is { Kind: AwkRegionInstructionKind.Assign } assignment && assignment.Left == operand &&
             _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&

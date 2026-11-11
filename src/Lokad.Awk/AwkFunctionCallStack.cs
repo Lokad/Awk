@@ -721,7 +721,8 @@ internal sealed class AwkFunctionCallStack(
         return true;
     }
 
-    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value)
+    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value,
+        AwkRegionStorage? source = null, int textIndex = 0)
     {
         value = value.ForFunctionStorage(numberParsingMode, checkpoint);
         if (!TryPeekLocalFrame(out var frame))
@@ -735,7 +736,7 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value));
+        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value), source, textIndex);
         slot.Value.PromoteUntypedScalar();
         return true;
     }
@@ -744,7 +745,9 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionFrame frame,
         AwkFunctionLocalSlotId slotId,
         AwkFunctionLocalSlot oldSlot,
-        AwkFunctionLocalSlot newSlot)
+        AwkFunctionLocalSlot newSlot,
+        AwkRegionStorage? source = null,
+        int textIndex = 0)
     {
         var replacesPotentialAlias =
             oldSlot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
@@ -757,36 +760,39 @@ internal sealed class AwkFunctionCallStack(
         if (addsPotentialAlias)
             RegisterPotentialArrayAlias(newSlot.ArrayName);
 
-        var growth = memoryAccounting.IsEnabled
-            ? EstimateLocalSlotBytes(newSlot) - EstimateLocalSlotBytes(oldSlot)
-            : 0;
+        var oldBytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(oldSlot) : 0;
+        var nextBytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(newSlot) : 0;
+        var growth = nextBytes - oldBytes;
+        // A prepared discarded text source already funds the new scalar payload.
+        // Both cases share validation, publication, alias handling and retirement.
+        var admission = source is null ? Math.Max(0, growth) : 0;
         try
         {
-            if (growth > 0)
-                memoryAccounting.Reserve(growth);
+            var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, growth);
+            if (admission > 0)
+                memoryAccounting.Reserve(admission);
 
             try
             {
-                if (growth > 0) checkpoint?.Invoke();
+                if (admission > 0) checkpoint?.Invoke();
+                source?.TransferTextFunding(textIndex);
                 frame.GetSlot(slotId.Index) = newSlot;
                 frame.RecordAlias(slotId.Index, newSlot.Kind);
             }
             catch
             {
-                if (growth > 0)
-                    memoryAccounting.ReleaseReserved(growth);
+                if (admission > 0)
+                    memoryAccounting.ReleaseReserved(admission);
 
                 throw;
             }
 
-            if (growth > 0)
-                memoryAccounting.CommitReserved(growth);
-            else if (growth < 0)
-                memoryAccounting.ReleaseCommitted(-growth);
-
-            frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
-                frame.RetainedMemoryBytes,
-                growth);
+            // Publish the funded local and clear a consumed source before refunds
+            // can call the provider. Actual new admission retains its checkpoint.
+            frame.RetainedMemoryBytes = retained;
+            if (admission > 0) memoryAccounting.CommitReserved(admission);
+            var refund = source is null ? Math.Max(0, -growth) : oldBytes;
+            if (refund > 0) memoryAccounting.ReleaseCommitted(refund);
         }
         catch
         {

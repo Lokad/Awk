@@ -298,6 +298,10 @@ or environment dependencies.
   Immediate numeric consumers convert within the funded callee snapshot. Keep caller scratch
   through actual target admission and preserve scalar origins and overwritten-user refunds;
   do not restore a duplicate conversion lease or admit the same return handoff again.
+  Discarded canonical text assignments bind their consuming local store directly. Keep
+  ordinary Assign free of a consumption flag and share actual local mutation/publication.
+  Clear the source and publish its transferred funding before refund callbacks; used
+  snapshots and hidden/invalid targets retain their ordinary ownership and preflights.
   Saved returns carry caller scratch indices and their prepared consumer meaning, without
   general operands or names. Adjacent bound-scalar assignment descriptors can be consumed
   after restoring caller scope. Used results and escaping text retain funded snapshots;
