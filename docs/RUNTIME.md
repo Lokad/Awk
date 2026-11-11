@@ -404,8 +404,9 @@ records, CSV and other record separators keep their ordinary input path. Buffer 
 stays funded through active use and cleanup; this is an internal cache bound, not an input limit.
 An array's stable identity stays funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
-Growing ordinal arrays and bulk `split`/sort results hold values directly in indexed storage.
-Admission covers wider value-buffer growth and temporary copies before publication. Sparse or
+Ordinal arrays, including bulk `split`/sort results, hold owning values in admitted pages.
+Growth stages replacement page/table storage while retaining earlier full pages. Admission covers
+owner headers and overlapping storage before publication. Sparse or
 noncanonical keys can require dictionary promotion, including real entry cells; refusal or
 cancellation preserves existing entries. Aliases retain their stable array owner.
 Numeric updates capture an owned key and prior value before the RHS. Dictionary targets can

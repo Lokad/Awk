@@ -70,8 +70,10 @@ or environment dependencies.
   handle. Synchronous byte views follow the current owner; never capture a backing across RHS
   mutation or suspension or retain a duplicate dictionary reference. Bulk 1..N producers and
   ordinary canonical ordinal population share admitted insertion. Available indexed slots keep
-  their backing and hold nullable owning values directly; adjacent growth copies these values
-  privately under admission before publication. Reads/enumeration project owning values. Ordinal
+  their backing and hold nullable owning values in pages. Growth retains earlier full pages;
+  partial pages and reference tables are copied privately under admission before publication.
+  Keep staged replacements out of the live table through post-admission checks, and fund
+  actual page/table overlap and owner headers. Reads/enumeration project owning values. Ordinal
   targets keep owner/key/prior number and re-locate at commit; dictionary targets may keep their
   real stable cell. Promotion admits the new dictionary cells and old/new backing overlap before
   construction. Sparse/noncanonical insertion retains private dictionary promotion. Preserve aliases,

@@ -45,7 +45,8 @@ key and prior value across RHS mutation, deletion, replacement and rehash. Never
 entry references across mutation or suspension. Membership must not insert missing elements.
 Ordinal entries hold owning values directly; captured updates re-locate after RHS work,
 while dictionary captures may retain real cells. Promotion admits new cells plus overlapping
-backing. Cover logical values and payload retirement rather than ordinal object identity.
+backing. Cover partial-page and table growth, logical values and payload retirement
+rather than ordinal object identity. Pending-host updates also cross page boundaries.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.
 Key equality and hashes agree across inline, ordinal, owned and borrowed forms; long comparisons

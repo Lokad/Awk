@@ -60,6 +60,9 @@ public sealed class AwkIndexedArrayStorageTests
     [InlineData("start", false)] [InlineData("start", true)]
     [InlineData("append", false)] [InlineData("append", true)]
     [InlineData("hole", false)] [InlineData("hole", true)]
+    [InlineData("new-page", false)] [InlineData("new-page", true)]
+    [InlineData("partial-page", false)] [InlineData("partial-page", true)]
+    [InlineData("table", false)] [InlineData("table", true)]
     public void IndexedInsertionRefusalOrCancellationPreservesTheActualOwner(string shape, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -67,8 +70,13 @@ public sealed class AwkIndexedArrayStorageTests
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             static (_, _) => { }, checkpoint: cancellation.Token.ThrowIfCancellationRequested);
         var name = AwkArrayName.FromText("a");
-        if (shape != "start") variables.SetArrayValuesFromExternalText(name,
-            [AwkText.FromString("0007"), AwkText.FromString("8"), AwkText.FromString("9")]);
+        if (shape != "start")
+        {
+            var initial = shape switch { "new-page" => 2048, "partial-page" => 2049, "table" => 6144, _ => 3 };
+            var values = Enumerable.Repeat(AwkText.FromString("8"), initial).ToArray();
+            values[0] = AwkText.FromString("0007");
+            variables.SetArrayValuesFromExternalText(name, values);
+        }
         var owner = variables.ResolveOrdinaryArray(name);
         if (shape == "hole") variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
         var hasFirst = owner.TryGetValue(AwkArrayKey.FromOrdinal(1), out var first);
@@ -76,7 +84,7 @@ public sealed class AwkIndexedArrayStorageTests
         var count = owner.Count;
         var indexed = owner.IsIndexed;
         var held = memory.Budget.Reserved;
-        var key = AwkArrayKey.FromOrdinal(shape == "start" ? 1 : shape == "hole" ? 2 : 4);
+        var key = AwkArrayKey.FromOrdinal(shape == "start" ? 1 : shape == "hole" ? 2 : count + 1);
         var value = shape == "hole" ? AwkValue.FromText(AwkText.FromString("new payload")) : AwkValue.FromNumber(11);
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -137,7 +145,16 @@ public sealed class AwkIndexedArrayStorageTests
     [InlineData(true, false, false)] [InlineData(true, true, false)]
     [InlineData(false, false, true)] [InlineData(false, true, true)]
     [InlineData(true, false, true)] [InlineData(true, true, true)]
-    public async Task CapturedIndexedUpdatesRemainFundedThroughPendingOutput(bool governed, bool cancel, bool grow)
+    public Task CapturedIndexedUpdatesRemainFundedThroughPendingOutput(bool governed, bool cancel, bool grow) =>
+        CapturedUpdatesRemainFunded(governed, cancel, grow ? 257 : 2);
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public Task CapturedUpdatesRemainFundedAcrossPagesAndPendingOutput(bool governed, bool cancel) =>
+        CapturedUpdatesRemainFunded(governed, cancel, 4097);
+
+    private static async Task CapturedUpdatesRemainFunded(bool governed, bool cancel, int last)
     {
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(8 << 20);
@@ -159,7 +176,7 @@ public sealed class AwkIndexedArrayStorageTests
             writes.Add(bytes.ToArray());
             return AwkAppendResult.Accepted();
         };
-        var growth = grow ? "for(j=3;j<=257;j++)p[j]=j;" : "";
+        var growth = last > 2 ? "for(j=3;j<=" + last + ";j++)p[j]=j;" : "";
         var command = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "function change(p,j){print \"ready\";" + growth + "p[\"x\"]=11;return 3}BEGIN{split(\"007 8\",a);a[1]+=change(a);print a[1],a[2],a[\"x\"],length(a)}"));
         var policy = AwkTestHarness.CreatePolicy();
@@ -176,7 +193,7 @@ public sealed class AwkIndexedArrayStorageTests
             release.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
             else Assert.Equal(AwkExitCode.Success, await pending);
-            Assert.Equal(cancel ? "ready\n" : grow ? "ready\n10 8 11 258\n" : "ready\n10 8 11 3\n",
+            Assert.Equal(cancel ? "ready\n" : "ready\n10 8 11 " + (last + 1) + "\n",
                 System.Text.Encoding.UTF8.GetString(writes.SelectMany(bytes => bytes).ToArray()));
         }
         finally

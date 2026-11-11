@@ -13,9 +13,9 @@ internal static class AwkRuntimeMemory
     internal const int ArrayCellBytes = 48;
     internal const int Utf8BuilderObjectBytes = 48;
     private const int ArrayObjectBytes = 24;
-    // Coarse owner estimate includes the identity and a possible dictionary object,
-    // including empty children. Indexed or entry/bucket capacity is charged separately.
-    internal const int ArrayIdentityBytes = 128;
+    // Fund the identity, a possible dictionary and small backing-header slack.
+    // Larger page/table or entry/bucket capacity is charged separately.
+    internal const int ArrayIdentityBytes = 176;
     private const int DictionaryObjectBytes = 56;
     private const int DictionaryEntryBytes = 40;
     private const int ListObjectBytes = 32;
@@ -117,11 +117,17 @@ internal static class AwkRuntimeMemory
     public static long EstimateArrayConstructionBytes(int capacity, int count) =>
         CheckedAdd(EstimateArrayBackingBytes(capacity), CheckedMultiply(ArrayCellBytes, count));
 
-    internal static long EstimateIndexedArrayBackingBytes(int capacity) =>
-        EstimateArrayBufferBytes(capacity, 32);
+    // Physical capacities are nonnegative ints. Even their maximum possible sum
+    // is below 128 GiB, so this fixed-layout estimate cannot overflow Int64.
+    internal static long EstimateIndexedArrayBackingBytes(int capacity, int tableCapacity) =>
+        capacity <= 0 ? 0 : ArrayObjectBytes + (long)tableCapacity * ReferenceBytes +
+            (long)capacity * 32 + (long)AwkArrayIdentity.IndexedPageCount(capacity) * ArrayObjectBytes;
+
+    internal static long EstimateIndexedValuePageBytes(int capacity) => EstimateArrayBufferBytes(capacity, 32);
+    internal static long EstimateIndexedTableBytes(int capacity) => EstimateArrayBufferBytes(capacity, ReferenceBytes);
 
     internal static long EstimateIndexedArrayConstructionBytes(int count) =>
-        EstimateIndexedArrayBackingBytes(count);
+        EstimateIndexedArrayBackingBytes(count, AwkArrayIdentity.IndexedPageCount(count));
 
     internal static int PlanArrayCapacity(int capacity)
     {

@@ -953,14 +953,16 @@ internal sealed partial class AwkVariables
     {
         if (firstIndex == 1)
         {
-            var cells = new AwkValue?[values.Count];
-            for (var index = 0; index < cells.Length; index++)
+            var cells = AwkArrayIdentity.AllocateIndexedSlots(values.Count,
+                AwkArrayIdentity.IndexedPageCount(values.Count), _checkpoint);
+            for (var index = 0; index < values.Count; index++)
             {
                 if ((index & 63) == 0) _checkpoint?.Invoke();
-                cells[index] = createSlot(values[index]).InVariableStorageMode(_numberParsingMode);
+                cells[index >> AwkArrayIdentity.IndexedPageShift][index & AwkArrayIdentity.IndexedPageMask] =
+                    createSlot(values[index]).InVariableStorageMode(_numberParsingMode);
             }
             _checkpoint?.Invoke();
-            return AwkArrayIdentity.FromIndexed(cells, _arrayKeyComparer, _checkpoint);
+            return AwkArrayIdentity.FromIndexed(cells, values.Count, _arrayKeyComparer, _checkpoint);
         }
         var destination = CreateArraySlots(values.Count);
         for (var index = 0; index < values.Count; index++)
@@ -1152,12 +1154,12 @@ internal sealed partial class AwkVariables
         AwkArrayKey index, AwkValue slot)
     {
         var oldBacking = values.BackingBytes;
-        var newBacking = AwkRuntimeMemory.EstimateIndexedArrayBackingBytes(capacity);
+        var newBacking = values.EstimateIndexedBackingBytes(capacity);
         using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(
             newBacking, AwkRuntimeMemory.EstimateArrayPayloadBytes(index, slot)), oldBacking);
         var slots = values.PrepareIndexedCapacity(capacity, _checkpoint);
         if (_memoryAccounting.IsEnabled || oldBacking != newBacking) _checkpoint?.Invoke();
-        values.PublishIndexedInsertion(slots, ordinal, slot, _checkpoint);
+        values.PublishIndexedInsertion(in slots, ordinal, slot, _checkpoint);
         mutation.Commit();
     }
 
