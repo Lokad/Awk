@@ -178,18 +178,8 @@ internal sealed class AwkFunctionCallStack(
     internal void StageReaderText(AwkFunctionFrame frame, int index, AwkReadBuffer borrow, int offset, int length)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
-        // Capture the reader coordinates in arguments before admission can call
-        // the provider. The incoming cell already owns its cleared capacity.
-        var bytes = memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(length) : 0;
-        memoryAccounting.ReserveAndCommit(bytes);
-        try
-        {
-            if (bytes > 0) checkpoint?.Invoke();
-            var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
-            frame.StageReaderText(index, borrow, offset, length);
-            frame.RetainedMemoryBytes = retained;
-        }
-        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
+        // The host owns the live borrow; this cell's capacity is already funded.
+        frame.StageReaderText(index, borrow, offset, length);
     }
 
     internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument)
@@ -906,16 +896,28 @@ internal sealed class AwkFunctionCallStack(
         if (!slot.TryGetReaderText(out var bytes)) throw new InvalidOperationException("A reader-text cell needs an active borrow.");
         var captured = slot;
         var id = frame.Id;
-        // This frame admitted the complete text/cache capacity at argument capture.
-        // Materialization consumes that capacity without another admission callback.
-        var text = AwkText.CopyTrustedBytes(bytes.Span, _counters, AwkMemoryAccounting.Disabled, checkpoint);
-        _counters.RecordValueCreated();
-        var owned = AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, numberParsingMode));
-        // Polls can retire/reuse a cell. Preserve the captured result regardless;
-        // cache only into the original live payload, without changing its funding.
-        if (frame.Id == id && (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
-            frame.GetSlot(slotId.Index).HasSameReaderText(in captured)) frame.GetSlot(slotId.Index) = owned;
-        return owned;
+        var source = bytes.Span;
+        var retained = memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(source.Length) : 0;
+        memoryAccounting.ReserveAndCommit(retained);
+        try
+        {
+            if (retained > 0) checkpoint?.Invoke();
+            var text = AwkText.CopyTrustedBytes(source, _counters, AwkMemoryAccounting.Disabled, checkpoint);
+            _counters.RecordValueCreated();
+            var owned = AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, numberParsingMode));
+            // Admission and polls can retire/reuse a cell. Keep the copy funded
+            // through construction, caching only into its original live owner.
+            if (frame.Id == id && (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
+                frame.GetSlot(slotId.Index).HasSameReaderText(in captured))
+            {
+                var total = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, retained);
+                frame.GetSlot(slotId.Index) = owned;
+                frame.RetainedMemoryBytes = total;
+                retained = 0;
+            }
+            return owned;
+        }
+        finally { memoryAccounting.ReleaseCommitted(retained); }
     }
 
     private AwkFunctionLocalSlot PromoteScalarProjection(

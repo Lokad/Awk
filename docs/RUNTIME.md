@@ -90,8 +90,9 @@ Current records may reference the live read borrow. Before retiring it, Awk pres
 record bytes in already-funded storage; escaping scalar values own their text.
 Prepared computation-only calls may retain an immutable reader slice for text arguments.
 Later field writes preserve the argument's original spelling; escaping values own text,
-and calls that may perform host work retain owning captures. Frame admission covers any
-eventual text materialization before the borrowed argument is published.
+and calls that may perform host work retain owning captures. The frame funds its cells;
+borrowed text keeps the host's existing charge. An owning copy requests admission when
+materialized and may fail then, before allocation or publication.
 Prepared function returns transfer existing scratch funding to the caller before retiring
 the callee. Numeric conversion uses the still-funded callee snapshot. Discarded assignments
 transfer funded return scratch into validated scalar cells; local text assignments use the

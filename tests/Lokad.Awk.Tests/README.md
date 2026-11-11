@@ -64,7 +64,8 @@ Call and sort/traversal tests exercise aliases, snapshots and captured payloads 
 pending calls. Cancellation tests establish bounded responsiveness, effect order and cleanup,
 not historical checkpoint counts. Public host tests retain capability/path/pipe/append contracts.
 Reader-backed text arguments also use poisoned buffers and custom memory to verify original
-spelling, retirement, owning materialization and admission before frame publication.
+spelling, retirement and admission before an actual owning copy. Borrow forwarding needs no
+future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.
 Stored-text consumers preserve scalar origins, scope hiding and earlier captures; exercise
 their restored frame after actual host suspension, including cancellation and final refunds.
 

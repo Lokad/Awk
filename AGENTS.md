@@ -282,7 +282,9 @@ or environment dependencies.
   Text-only field arguments may capture the immutable reader owner and absolute range in existing
   frame-cell words when prepared calls and later arguments exclude host work and staging has no
   pending output/diagnostics. Function-level effects stay separate from parameter consumption.
-  Frames prepay prospective text/cache capacity; full-value consumers materialize once within it.
+  Borrowed text retains the host's charge; frame cells retain their funded capacity. Full-value
+  materialization admits an owning copy at actual use, caching its charge only in the original
+  live cell. Preserve captured results and temporary funding if callbacks retire/reuse that cell.
   Field mutation cannot change that captured spelling. Owned/promoted/decoded fields and unproved
   calls keep owned ordinary text, without input-number classification. Mixed observations retain
   full input values, and numeric arguments keep formatting at actual use. Do not use key cells as

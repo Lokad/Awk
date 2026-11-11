@@ -249,7 +249,6 @@ internal struct AwkFunctionLocalSlot
         return true;
     }
 
-    internal readonly long ReaderTextCapacityBytes => AwkRuntimeMemory.EstimateTextBytes((int)_word);
     internal readonly bool HasSameReaderText(in AwkFunctionLocalSlot other) =>
         Kind == AwkFunctionLocalSlotKind.ReaderText && other.Kind == Kind &&
         ReferenceEquals(_reference, other._reference) && _word == other._word;
