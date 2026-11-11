@@ -78,10 +78,9 @@ internal partial struct AwkRegionMachine
         {
             // Unary consumers have no later argument across which to defer formatting.
             state.ThrowIfCancellationRequested();
-            var input = region.Strings[instruction.Left].First;
-            var operand = operands[input];
+            ref readonly var operand = ref operands[instruction.Left];
             var field = IsField(operand) ? FieldOrdinal(operand) : -1;
-            var text = TextOperand(input);
+            var text = TextOperand(instruction.Left);
             storage.StoreCaseText(instruction.Target, text, instruction.Detail != 0, field);
         }
 

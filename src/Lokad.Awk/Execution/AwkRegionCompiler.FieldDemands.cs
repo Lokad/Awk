@@ -49,9 +49,9 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.FieldNumber => Field(instruction.Left),
                 AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
-                AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend => OperandDemand(instruction.Left),
-                AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring or
-                AwkRegionInstructionKind.Case => StringCall(instruction.Left),
+                AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend or
+                AwkRegionInstructionKind.Case => OperandDemand(instruction.Left),
+                AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring => StringCall(instruction.Left),
                 AwkRegionInstructionKind.Compare =>
                     NumberSourceDemand(instruction.Left) && NumberSourceDemand(instruction.Right),
                 AwkRegionInstructionKind.CompareText =>

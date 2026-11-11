@@ -99,9 +99,6 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[_position + 1]);
                 return true;
             }
-            var site = compiler._strings.Count;
-            compiler._strings.Add(new(_arguments[0], _arguments[1], _arguments[2],
-                definition.InputConsumption(1), definition.InputConsumption(2)));
             var target = definition.Id == AwkBuiltinId.Index ? compiler._numbers++ : compiler._texts++;
             var kind = definition.Id switch
             {
@@ -109,6 +106,13 @@ internal sealed partial class AwkRegionCompiler
                 AwkBuiltinId.Substr => AwkRegionInstructionKind.Substring,
                 _ => AwkRegionInstructionKind.Case
             };
+            var site = _arguments[0];
+            if (kind != AwkRegionInstructionKind.Case)
+            {
+                site = compiler._strings.Count;
+                compiler._strings.Add(new(_arguments[0], _arguments[1], _arguments[2],
+                    definition.InputConsumption(1), definition.InputConsumption(2)));
+            }
             compiler.Emit(new(kind, target, site, Detail: definition.Id == AwkBuiltinId.ToUpper ? 1 : 0));
             return Complete(compiler.Operand(definition.Id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.TextTemporary, target));
         }

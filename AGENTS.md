@@ -46,6 +46,8 @@ or environment dependencies.
   deliberate call boundaries; qualify changes to these boundaries on complete workloads.
   The view owns no storage and cannot survive an actual host suspension.
   Known string primitives bind to their semantic interpreter operations during preparation.
+  Unary casing names its canonical operand directly; only multiargument string operations
+  need call descriptors. Field-demand preparation uses the same operand location.
   Substring indices retain captured readonly values and existing pure-number facts. Keep source
   formatting before conversion, and defer length conversion until the start is in range.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
@@ -289,8 +291,8 @@ or environment dependencies.
   calls keep owned ordinary text, without input-number classification. Mixed observations retain
   full input values, and numeric arguments keep formatting at actual use. Do not use key cells as
   general scalar text or retain raw record spans across a function call or host suspension.
-  Reader arguments initialize their actual cleared incoming cells from captured borrow coordinates
-  after admission and its cancellation check. Keep materialization funding and source capture
+  Reader arguments initialize their actual cleared incoming cells from captured borrow coordinates;
+  frame preparation already funds their capacity. Keep materialization funding and source capture
   before callbacks; reader roles need no alias-index work or temporary general local cells.
   Comparisons against proved numeric results may stage established numeric field facts directly.
   Ordinary strings, deferred errors and observed spelling retain full capture; arithmetic prefix caches
