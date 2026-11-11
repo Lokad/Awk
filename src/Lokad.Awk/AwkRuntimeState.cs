@@ -1076,10 +1076,32 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRegionStorage source, int textIndex)
     {
         var value = CreateStringValue(source.Texts[textIndex]);
-        if (!_functions.TryAssignLocal(slotId, value, source, textIndex))
+        if (!_functions.TryAssignLocal(slotId, value, source, new(AwkRegionOperandKind.TextTemporary, textIndex)))
             // Hidden, absent and array locals retain ordinary name resolution.
             // Failed resolution leaves the canonical source and funding intact.
             _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
+    }
+
+    internal void AssignConsumedReturn(in AwkRegionOperand variable, AwkRegionStorage source, int valueIndex)
+    {
+        var value = source.Values[valueIndex];
+        var operand = new AwkRegionOperand(AwkRegionOperandKind.ValueTemporary, valueIndex);
+        ThrowIfCancellationRequested();
+        if (variable.Kind == AwkRegionOperandKind.LocalVariable)
+        {
+            if (_functions.TryAssignLocal(new(variable.Index), value, source, in operand)) return;
+            _variableRuntime.AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
+        }
+        else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
+        {
+            if (_globalReadSlots is { } slots && slots[variable.Index].Scalar is { } cell &&
+                _variables.TrySetConsumedScalarValue(cell, value, source, in operand)) return;
+            AssignPreparedGlobalValue(variable.Name, variable.Index, value);
+        }
+        else AssignVariableValue(variable.Name, value);
+        // Dynamic/special/cold owners retain all of their ordinary preflights.
+        // A failed assignment leaves this source funded for normal cleanup.
+        source.ReleaseValue(valueIndex);
     }
 
     internal AwkValue ResolvePreparedSpecialVariableValue(AwkSpecialVariableId id)

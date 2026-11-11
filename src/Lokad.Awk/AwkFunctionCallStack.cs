@@ -722,7 +722,7 @@ internal sealed class AwkFunctionCallStack(
     }
 
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value,
-        AwkRegionStorage? source = null, int textIndex = 0)
+        AwkRegionStorage? source = null, in AwkRegionOperand sourceOperand = default)
     {
         value = value.ForFunctionStorage(numberParsingMode, checkpoint);
         if (!TryPeekLocalFrame(out var frame))
@@ -736,7 +736,7 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value), source, textIndex);
+        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value), source, in sourceOperand);
         slot.Value.PromoteUntypedScalar();
         return true;
     }
@@ -747,7 +747,7 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalSlot oldSlot,
         AwkFunctionLocalSlot newSlot,
         AwkRegionStorage? source = null,
-        int textIndex = 0)
+        in AwkRegionOperand sourceOperand = default)
     {
         var replacesPotentialAlias =
             oldSlot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
@@ -763,7 +763,7 @@ internal sealed class AwkFunctionCallStack(
         var oldBytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(oldSlot) : 0;
         var nextBytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(newSlot) : 0;
         var growth = nextBytes - oldBytes;
-        // A prepared discarded text source already funds the new scalar payload.
+        // Prepared discarded text/value scratch already funds the new scalar payload.
         // Both cases share validation, publication, alias handling and retirement.
         var admission = source is null ? Math.Max(0, growth) : 0;
         try
@@ -775,7 +775,7 @@ internal sealed class AwkFunctionCallStack(
             try
             {
                 if (admission > 0) checkpoint?.Invoke();
-                source?.TransferTextFunding(textIndex);
+                source?.TransferScalarFunding(in sourceOperand, nextBytes);
                 frame.GetSlot(slotId.Index) = newSlot;
                 frame.RecordAlias(slotId.Index, newSlot.Kind);
             }

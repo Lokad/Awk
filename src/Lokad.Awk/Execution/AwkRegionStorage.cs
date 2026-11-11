@@ -326,11 +326,13 @@ internal sealed class AwkRegionStorage : IDisposable
         if (bytes > 0) _payload.Release(bytes);
     }
 
-    internal void TransferTextFunding(int index)
+    internal void TransferScalarFunding(in AwkRegionOperand source, long bytes)
     {
-        var bytes = _state.MemoryAccounting.IsEnabled ? _texts[index].EstimatedRetainedMemoryBytes : 0;
+        if (source.Kind is not (AwkRegionOperandKind.TextTemporary or AwkRegionOperandKind.ValueTemporary))
+            throw new InvalidOperationException("A consumed scalar requires owning scratch.");
         _payload.Transfer(bytes);
-        _texts[index] = AwkText.Empty;
+        if (source.Kind == AwkRegionOperandKind.TextTemporary) _texts[source.Index] = AwkText.Empty;
+        else _values[source.Index] = default;
     }
 
     internal void ReleaseValues(int start, int count)

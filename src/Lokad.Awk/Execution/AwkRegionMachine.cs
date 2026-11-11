@@ -221,7 +221,15 @@ internal partial struct AwkRegionMachine
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
         if (resumePoint.IsAssignment)
         {
-            AssignVariable(in region.Operands[region.Instructions[_position].Target], storage.Values[resumePoint.Destination]);
+            ref readonly var variable = ref region.Operands[region.Instructions[_position].Target];
+            if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded && _state.MemoryAccounting.IsEnabled)
+                _state.AssignConsumedReturn(in variable, storage, resumePoint.Destination);
+            else
+            {
+                AssignVariable(in variable, storage.Values[resumePoint.Destination]);
+                if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
+                    storage.ReleaseValue(resumePoint.Destination);
+            }
             _position++;
             _state.Counters.RecordCallAssignment(bypassedNumericScratch: false);
         }

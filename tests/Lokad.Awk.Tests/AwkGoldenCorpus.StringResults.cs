@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("consumed-return-assignments-preserve-scalar-origins-and-used-snapshots",
+            ["""function keep(x){return x}function local(x,t){t=keep(x);print typeof(t),"["t"]",t+0;return t}BEGIN{v=keep("0007");print typeof(v),v;print (v=keep("before")),(v="after");v=local(7);print typeof(v),v}{v=local($1);print typeof(v),v}"""],
+            [], "string 0007\nbefore after\nnumber [7] 7\nnumber 7\nstrnum [0007] 7\nstrnum 0007\n", "0007\n");
+        yield return Passing("consumed-return-assignments-preserve-recursion-and-special-targets",
+            ["""function keep(x){return x}function recurse(x,n,t){if(n==0)return x;t=recurse(x,n-1);return t}BEGIN{v=recurse("é0007",4);OFS=keep("|");ORS=keep("!");$0="a b c";NF=keep("02");print v,NF,$0;v=keep("");print typeof(v),"["v"]"}"""],
+            [], "é0007|02|a|b!string|[]!", "");
         yield return Passing("substring-indices-preserve-observed-numeric-string-origins",
             ["""function clip(s,n,t){t=typeof(n);if(length(s)>n)return t ":" substr(s,1,n);return t ":" s}{print clip($1,$2),$2,typeof($2)}"""],
             [], "strnum:ré 0002 strnum\nstring:ré 2tail string\n", "résumé 0002\nrésumé 2tail\n");
