@@ -49,6 +49,10 @@ or environment dependencies.
   Substring indices retain captured readonly values and existing pure-number facts. Keep source
   formatting before conversion, and defer length conversion until the start is in range.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
+  Prepared text consumers share the existing byte view for reader and owned scalar text.
+  Borrow canonical operand metadata synchronously; keep mode-sensitive input, numeric formatting,
+  array/untyped behavior and actual frame/scope fallback at their existing boundaries.
+  Capture owning spelling before later effects, and keep long-input polls after the capture.
   Prepared string results use canonical text operands when an owning value is needed.
   A fresh final substring consumed by print binds directly to the existing funded print
   fragments; remove its unused result slot/operand. Share the range kernel and retain

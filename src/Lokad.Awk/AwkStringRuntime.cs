@@ -24,6 +24,10 @@ internal sealed class AwkStringRuntime
         return _unitMode is AwkStringUnitMode.Byte ? value.ByteLength : value.GetRuneLength(_checkpoint);
     }
 
+    internal int CountUnits(in AwkByteTextOperand value) => value.TryGetOwned(out var owned)
+        ? CountUnits(owned)
+        : _unitMode == AwkStringUnitMode.Byte ? value.ByteLength : AwkText.CountRunes(value.AsSpan(checkpoint: null), _checkpoint);
+
     public int Compare(AwkText left, AwkText right, bool ignoreCase, bool sorting)
     {
         if (!ignoreCase)

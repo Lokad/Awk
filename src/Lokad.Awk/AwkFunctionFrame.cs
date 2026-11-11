@@ -230,6 +230,25 @@ internal struct AwkFunctionLocalSlot
         return false;
     }
 
+    internal readonly bool TryGetText(out AwkByteTextOperand text, Action? checkpoint)
+    {
+        if (TryGetReaderText(out var bytes))
+        {
+            text = new(bytes.Span);
+            return true;
+        }
+        var kind = (AwkValueKind)_payloadTag;
+        if (Kind != AwkFunctionLocalSlotKind.Scalar || !AwkValue.HasStoredScalarText(kind))
+        {
+            text = default;
+            return false;
+        }
+        text = new(AwkText.FromBacking(_reference));
+        if (AwkValue.HasInputClassification(kind) && text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+            checkpoint?.Invoke();
+        return true;
+    }
+
     internal readonly long ReaderTextCapacityBytes => AwkRuntimeMemory.EstimateTextBytes((int)_word);
     internal readonly bool HasSameReaderText(in AwkFunctionLocalSlot other) =>
         Kind == AwkFunctionLocalSlotKind.ReaderText && other.Kind == Kind &&

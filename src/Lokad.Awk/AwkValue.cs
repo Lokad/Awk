@@ -122,7 +122,7 @@ internal readonly struct AwkValue
 
     internal bool TryGetStoredScalarText(out AwkText text)
     {
-        if (!IsNumberValue && !IsArrayValue && !TryGetUntypedScalar(out _))
+        if (HasStoredScalarText(_kind))
         {
             text = ByteText;
             return true;
@@ -130,6 +130,9 @@ internal readonly struct AwkValue
         text = default;
         return false;
     }
+
+    internal static bool HasStoredScalarText(AwkValueKind kind) =>
+        kind is not (AwkValueKind.Number or AwkValueKind.Untyped or AwkValueKind.ArrayReference);
 
     internal void PromoteUntypedScalar()
     {

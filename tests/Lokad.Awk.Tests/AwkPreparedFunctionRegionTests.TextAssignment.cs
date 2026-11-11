@@ -127,7 +127,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task ConsumedLocalTextStaysFundedUntilPendingOutputActuallyCompletes(bool cancel)
+    public Task ConsumedLocalTextStaysFundedUntilPendingOutputActuallyCompletes(bool cancel) =>
+        VerifyPendingLocalText(cancel,
+            "function f(s,t){t=tolower(s);print \"held\";return t}BEGIN{print f(\"0007\")}", "0007\n");
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public Task StoredTextConsumersAfterPendingOutputKeepTheirActualFrame(bool cancel) =>
+        VerifyPendingLocalText(cancel,
+            "function f(s,t){t=tolower(s);print \"held\";print length(t),substr(t,2,2),index(t,\"0\");return toupper(t)}" +
+            "BEGIN{print f(\"0007\")}", "4 00 1\n0007\n");
+
+    private static async Task VerifyPendingLocalText(bool cancel, string script, string expected)
     {
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(8 << 20);
@@ -150,7 +161,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 return AwkAppendResult.Accepted();
             }
         };
-        const string script = "function f(s,t){t=tolower(s);print \"held\";return t}BEGIN{print f(\"0007\")}";
         var run = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
             .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
         try
@@ -164,7 +174,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             release.SetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
             else Assert.Equal(0, (await run).Value);
-            Assert.Equal(cancel ? "held\n" : "held\n0007\n", stdout);
+            Assert.Equal(cancel ? "held\n" : "held\n" + expected, stdout);
         }
         finally
         {

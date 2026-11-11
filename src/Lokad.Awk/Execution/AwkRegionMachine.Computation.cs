@@ -88,21 +88,16 @@ internal partial struct AwkRegionMachine
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         internal void ExecuteLength(in AwkRegionInstruction instruction)
         {
-            var lengthOperand = operands[instruction.Left];
-            if (lengthOperand.Kind == AwkRegionOperandKind.TextTemporary)
-            {
-                numbers[instruction.Target] = state.CountStringUnits(storage.Texts[lengthOperand.Index]);
-                return;
-            }
+            ref readonly var lengthOperand = ref operands[instruction.Left];
             if (IsField(lengthOperand))
             {
                 numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
                 return;
             }
-            if (TryReaderText(lengthOperand, out var readerText))
+            if (TryText(lengthOperand, out var text))
             {
-                state.Counters.RecordBoundScalarLength();
-                numbers[instruction.Target] = state.StringUnitMode == AwkStringUnitMode.Byte ? readerText.Length : AwkText.CountRunes(readerText.Span, state.CancellationCheckpoint);
+                if (instruction.Detail != 0 && lengthOperand.IsVariable) state.Counters.RecordBoundScalarLength();
+                numbers[instruction.Target] = state.CountStringUnits(in text);
                 return;
             }
             AwkValue lengthValue;
@@ -532,35 +527,56 @@ internal partial struct AwkRegionMachine
             return new(Value(index));
         }
 
-        private bool TryReaderText(AwkRegionOperand operand, out ReadOnlyMemory<byte> bytes)
+        private bool TryText(scoped in AwkRegionOperand operand, out AwkByteTextOperand text)
         {
-            if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
-                (uint)operand.Index < (uint)frame.Layout.SlotCount && frame.GetSlot(operand.Index).TryGetReaderText(out bytes))
+            switch (operand.Kind)
             {
-                state.Counters.RecordScalarLocalValueRead();
-                return true;
+                case AwkRegionOperandKind.Literal:
+                    text = new(region.Literals[operand.Index].Text);
+                    return true;
+                case AwkRegionOperandKind.TextTemporary:
+                    text = new(storage.Texts[operand.Index]);
+                    return true;
+                case AwkRegionOperandKind.ValueTemporary:
+                    if (storage.Values[operand.Index].TryGetStoredScalarText(out var valueText))
+                    {
+                        text = new(valueText);
+                        return true;
+                    }
+                    break;
+                case AwkRegionOperandKind.GlobalVariable:
+                    if (state.TryResolvePreparedGlobalText(operand.Index, out var globalText))
+                    {
+                        text = new(globalText);
+                        return true;
+                    }
+                    break;
+                case AwkRegionOperandKind.LocalVariable:
+                    if (frame is not null && (uint)operand.Index < (uint)frame.Layout.SlotCount &&
+                        frame.GetSlot(operand.Index).TryGetText(out text, state.CancellationCheckpoint))
+                    {
+                        state.Counters.RecordScalarLocalValueRead();
+                        return true;
+                    }
+                    break;
             }
-            bytes = default;
+            text = default;
             return false;
         }
 
         internal AwkByteTextOperand TextOperand(int index)
         {
-            var operand = operands[index];
+            ref readonly var operand = ref operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
-            if (TryReaderText(operand, out var readerText)) return new(readerText.Span);
-            if (operand.Kind == AwkRegionOperandKind.Literal)
-                return new(region.Literals[operand.Index].Text);
-            if (operand.Kind == AwkRegionOperandKind.TextTemporary)
-                return new(storage.Texts[operand.Index]);
+            if (TryText(operand, out var text)) return text;
             return new(state.FormatStringByteText(Value(index)));
         }
 
         private void CaptureTextArgument(int index, out AwkScalarOperand result)
         {
-            var operand = operands[index];
+            ref readonly var operand = ref operands[index];
             if (IsField(operand)) state.CaptureFieldTextOperand(FieldOrdinal(operand), out result);
-            else if (TryReaderText(operand, out var readerText)) result = new(readerText.Span, -1);
+            else if (TryText(operand, out var text)) result = new(text);
             else result = new(Value(index));
         }
 

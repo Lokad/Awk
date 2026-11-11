@@ -468,6 +468,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
+    internal int CountStringUnits(in AwkByteTextOperand value) =>
+        _stringRuntime.CountUnits(in value);
+
     internal bool HasStringUnitAt(AwkByteTextOperand value, int index) =>
         value.HasUnitAt(index, _stringRuntime.IsByteMode, CancellationCheckpoint);
 
@@ -746,6 +749,23 @@ internal sealed class AwkRuntimeState : IDisposable
             }
         }
         number = 0;
+        return false;
+    }
+
+    internal bool TryResolvePreparedGlobalText(int index, out AwkText text)
+    {
+        if (_globalReadSlots is { } slots && slots[index].Scalar is { } cell)
+        {
+            var value = cell.State.Slot;
+            // Input awaiting classification keeps its mode-sensitive owner read.
+            if (value.StoredKind != AwkValueKind.StoredInputText && value.TryGetStoredScalarText(out text))
+            {
+                if (AwkValue.HasInputClassification(value.StoredKind) && text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+                    ThrowIfCancellationRequested();
+                return true;
+            }
+        }
+        text = default;
         return false;
     }
 

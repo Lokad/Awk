@@ -13,6 +13,12 @@ internal readonly ref struct AwkByteTextOperand
     internal bool IsOwned => _owned.Backing is not null;
     internal int ByteLength => IsOwned ? _owned.ByteLength : _bytes.Length;
 
+    internal bool TryGetOwned(out AwkText text)
+    {
+        text = _owned;
+        return IsOwned;
+    }
+
     internal AwkText Own(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint,
         AwkMemoryLease? destination = null) =>
         _owned.Backing is not null ? _owned : AwkText.CopyTrustedBytes(_bytes, counters, governor, checkpoint, destination);

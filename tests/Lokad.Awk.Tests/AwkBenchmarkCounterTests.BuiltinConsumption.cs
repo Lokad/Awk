@@ -2,6 +2,33 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task PreparedStoredTextConsumersKeepSpellingWithoutGeneralValueTransport(bool governed)
+    {
+        const int records = 1024;
+        const string source = "function score(s,t){t=tolower(s);return length(t)+index(t,\":\")+length(substr(t,1,2))}" +
+            "{v=tolower($1);total+=score(v)+length(v)}END{print total}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("ID:beta:tail 4\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("29696\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.BoundScalarLengths >= 2 * records);
+        Assert.InRange(counters.ValuesCreated, 0, 4 * records + 32);
+        Assert.InRange(counters.AwkTextAllocations, 0, 3 * records + 32);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> DirectTextInputCases()
     {
         foreach (var operation in new[] { "lower", "upper", "substr", "index" })

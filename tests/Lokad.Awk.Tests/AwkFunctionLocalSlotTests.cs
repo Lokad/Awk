@@ -7,6 +7,25 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void StoredTextReadCapturesSpellingBeforeLongInputCallback()
+    {
+        var spelling = new string('0', 4096) + "7";
+        var text = AwkText.FromString(spelling);
+        var slot = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text));
+        var entered = false;
+        Assert.True(slot.TryGetText(out var captured, () =>
+        {
+            entered = true;
+            slot = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9));
+        }));
+        Assert.True(entered);
+        Assert.True(captured.TryGetOwned(out var owned));
+        Assert.True(text.HasSameStorage(owned));
+        Assert.Equal(spelling, owned.AsString());
+        Assert.Equal(9, slot.Value.AsNumber());
+    }
+
+    [Fact]
     public void ScalarReadCapturesSpellingAndPayloadBeforeLongInputCallback()
     {
         var spelling = new string('0', 4096) + "7";

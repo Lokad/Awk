@@ -12,6 +12,16 @@ internal readonly ref struct AwkScalarOperand
 
     internal AwkScalarOperand(AwkValue value) => Value = value;
 
+    internal AwkScalarOperand(AwkByteTextOperand text)
+    {
+        if (text.TryGetOwned(out var owned)) Value = AwkValue.ForStoredText(owned);
+        else
+        {
+            _bytes = text.AsSpan(checkpoint: null);
+            IsBorrowed = true;
+        }
+    }
+
     internal AwkScalarOperand(ReadOnlySpan<byte> bytes, int field)
     {
         _bytes = bytes;

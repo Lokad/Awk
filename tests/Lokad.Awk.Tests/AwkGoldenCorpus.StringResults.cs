@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("stored-text-consumers-preserve-origins-formatting-and-array-length",
+            ["""function show(x,t){t=tolower(x);print length(x),length(t),substr(x,2,2),index(x,"0"),typeof(x),typeof(t),x}function count(a){return length(a)}BEGIN{CONVFMT="%.2f";show("0007");show(12.5);a[1]=1;a[2]=2;print count(a)}{show($1)}"""], [],
+            "4 4 00 1 string string 0007\n5 5 2. 5 number string 12.5\n2\n4 4 00 1 strnum string 0007\n", "0007\n");
+        yield return Passing("stored-text-captures-precede-later-global-mutation-and-format-at-use",
+            ["""function later(){s="changed";CONVFMT="%.3f";return 2}function dot(){CONVFMT="%.3f";return "."}function clip(x,t){t=tolower(x);return substr(t,later(),2)}BEGIN{s="café";print substr(s,later(),2),s;print clip("CAFÉ"),s;CONVFMT="%.1f";s=1.23456;print index(s,dot()),s;print length(s),typeof(s)}"""], [],
+            "af changed\naf changed\n2 1.23456\n5 number\n");
+        yield return Passing("stored-text-reads-hide-caller-locals-during-file-phase-reentry",
+            ["""function consume(s){getline;print length(s),tolower(s);return substr(s,1,2)}BEGIN{s="GLOBAL";print consume("LOCAL")}BEGINFILE{print length(s),tolower(s)}"""], [],
+            "6 global\n5 local\nLO\n", "data\n");
         yield return Passing("consumed-return-assignments-preserve-scalar-origins-and-used-snapshots",
             ["""function keep(x){return x}function local(x,t){t=keep(x);print typeof(t),"["t"]",t+0;return t}BEGIN{v=keep("0007");print typeof(v),v;print (v=keep("before")),(v="after");v=local(7);print typeof(v),v}{v=local($1);print typeof(v),v}"""],
             [], "string 0007\nbefore after\nnumber [7] 7\nnumber 7\nstrnum [0007] 7\nstrnum 0007\n", "0007\n");

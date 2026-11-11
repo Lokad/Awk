@@ -369,7 +369,9 @@ share the arithmetic-input consumption rule. Values, arguments, captured
 keys and formatted concatenation prefixes remain funded through their actual pending users.
 Scalar string operations consume prebound operands directly. Stable synchronous reads keep
 their existing owners; captures remain funded before intervening computation, array reads or
-suspension. Other scalar builtins use reusable argument storage. Statement temporaries retire
+suspension. Prepared text consumers share owned and borrowed byte views; type-sensitive uses
+retain full scalar values and numeric formatting occurs at use. Other scalar builtins use reusable
+argument storage. Statement temporaries retire
 after their final users, including for functions that can report warnings.
 `length` counts ASCII and Unicode field slices without owning or classifying their text, caching
 scalar counts at the record cell. It reuses decoded CSV spelling without early classification
