@@ -81,7 +81,7 @@ internal sealed partial class AwkVariables
         IReadOnlyList<AwkCapturedSeparator> separators, bool includeSeparators)
     {
         var bytes = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
-            AwkRuntimeMemory.EstimateArrayBackingBytes(BoundArrayCapacity(fields.Count)));
+            AwkRuntimeMemory.EstimateArrayBackingBytes(AwkRuntimeMemory.BoundArrayCapacity(fields.Count)));
         for (var index = 0; index < fields.Count; index++)
         {
             if ((index & 63) == 0) _checkpoint?.Invoke();
@@ -90,7 +90,7 @@ internal sealed partial class AwkVariables
         }
         if (!includeSeparators) return bytes;
         bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
-            AwkRuntimeMemory.EstimateArrayBackingBytes(BoundArrayCapacity(separators.Count))));
+            AwkRuntimeMemory.EstimateArrayBackingBytes(AwkRuntimeMemory.BoundArrayCapacity(separators.Count))));
         foreach (var separator in separators)
             bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(
                 AwkArrayKey.FromOrdinal(separator.FieldIndex), AwkValue.ForStoredInputText(separator.Text)));
@@ -217,7 +217,7 @@ internal sealed partial class AwkVariables
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
 
         var growth = AwkRuntimeMemory.ArrayIdentityBytes;
-        var estimatedGrowth = found ? growth : EstimateArrayInsertionGrowth(slots,
+        var estimatedGrowth = found ? growth : EstimateArrayInsertionGrowth(slots, key,
             AwkRuntimeMemory.CheckedAdd(growth, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, default(AwkValue))));
         using var admission = _memoryAccounting.AdmitMutation(estimatedGrowth);
         using var creation = ReserveMemoryMutation(growth, 0);

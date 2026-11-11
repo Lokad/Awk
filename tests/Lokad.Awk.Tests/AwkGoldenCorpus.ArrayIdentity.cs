@@ -6,6 +6,18 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("ordinal-population-keeps-values-through-growth-holes-and-reinsertion",
+            ["""BEGIN{for(i=1;i<=257;i++){a[i]=sprintf("%04d",i);sum+=a[i]}print sum,length(a),a[1],a[257],typeof(a[1]);delete a[2];delete a[256];a[2]="0002";a[258]="0258";sum=0;for(i=1;i<=258;i++)if(i in a)sum+=a[i];print sum,length(a),a[2],a[258],(256 in a),("02" in a)}"""], [],
+            "33153 257 0001 0257 string\n33155 257 0002 0258 0 0\n"),
+        Passing("borrowed-ordinal-keys-keep-spelling-through-growth-and-mixed-promotion",
+            ["""{a[$1]=$2}END{print length(a),a[1],a["1"],a[2],a["01"],typeof(a[2]);delete a[3];print (3 in a),(4 in a)}"""], [],
+            "5 0005 0005 0011 0023 strnum\n0 1\n", "1 0007\n2 0011\n3 0013\n4 0017\n01 0023\n1 0005\n"),
+        Passing("captured-ordinal-updates-survive-rhs-growth-through-an-alias",
+            ["""function grow(p,j){for(j=3;j<=257;j++)p[j]=j;return 3}BEGIN{split("0007 8",a);a[1]+=grow(a);print a[1],a[2],a[257],length(a);old=a[257]++;print old,a[257]}"""], [],
+            "10 8 257 257\n257 258\n"),
+        Passing("growing-nested-ordinal-arrays-preserve-independent-sorted-clones",
+            ["""BEGIN{for(i=1;i<=17;i++){a[i][1]=sprintf("%03d",i);a[i][2]=i}asort(a,b,"@ind_num_asc");b[17][3]="new";b[18][1]="last";delete a[17];print length(a),length(b),b[17][1],typeof(b[17][1]),b[17][3],b[18][1],a[16][2];delete b;print length(b)}"""], [],
+            "16 18 017 string new last 16\n0\n"),
         Passing("indexed-arrays-preserve-canonical-keys-holes-and-promotion",
             ["""BEGIN{split("0007 8 9",a);print a[1],a["1"],("01" in a),length(a);delete a[2];print (2 in a),length(a);a["01"]="leading";a[2]="new";a["x"]="tail";print a[1],a[2],a[3],a["01"],a["x"],length(a),typeof(a[1])}"""], [],
             "0007 0007 0 3\n0 2\n0007 new 9 leading tail 5 strnum\n"),

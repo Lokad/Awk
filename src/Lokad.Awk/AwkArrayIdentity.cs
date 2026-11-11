@@ -65,7 +65,7 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         get => TryGetValue(key, out var cell) ? cell : throw new KeyNotFoundException();
         set
         {
-            if (_indexed is not null) throw new InvalidOperationException("Indexed insertion requires admitted promotion.");
+            if (_indexed is not null) throw new InvalidOperationException("Indexed insertion requires admitted storage preparation.");
             WritableDictionary()[key] = value;
         }
     }
@@ -102,19 +102,99 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
     private bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal,
         [NotNullWhen(true)] out AwkArrayCell? cell)
     {
-        ordinal = 0;
         cell = null;
-        if (_indexed is not { } indexed || bytes.Length is 0 or > 10 || bytes[0] < (byte)'1' || bytes[0] > (byte)'9' ||
-            !Utf8Parser.TryParse(bytes, out ordinal, out var consumed) || consumed != bytes.Length || ordinal < 1 || ordinal > indexed.Length)
+        if (!TryParseOrdinal(bytes, out ordinal) || _indexed is not { } indexed || ordinal > indexed.Length)
             return false;
         cell = indexed[ordinal - 1];
         return cell is not null;
     }
 
+    private static bool TryParseOrdinal(ReadOnlySpan<byte> bytes, out int ordinal)
+    {
+        ordinal = 0;
+        return bytes.Length is > 0 and <= 10 && bytes[0] >= (byte)'1' && bytes[0] <= (byte)'9' &&
+            Utf8Parser.TryParse(bytes, out ordinal, out var consumed) && consumed == bytes.Length && ordinal > 0;
+    }
+
+    // Preparation is bounded and owns no storage. Only a virgin owner can start
+    // indexed storage; sparse or noncanonical insertions keep dictionary semantics.
+    internal bool TryPlanIndexedInsertion(AwkArrayKey key, out int ordinal, out int capacity)
+    {
+        ordinal = capacity = 0;
+        return (_indexed is not null || ReferenceEquals(_lookup.Dictionary, DetachedSlots)) &&
+            PlanIndexedKeyInsertion(key, out ordinal, out capacity);
+    }
+
+    private bool PlanIndexedKeyInsertion(AwkArrayKey key, out int ordinal, out int capacity)
+    {
+        ordinal = capacity = 0;
+        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        return key.ByteLength <= 10 && PlanIndexedByteInsertion(key.AsSpan(buffer), out ordinal, out capacity);
+    }
+
+    internal bool TryPlanIndexedInsertion(ReadOnlySpan<byte> bytes, out int ordinal, out int capacity)
+    {
+        ordinal = capacity = 0;
+        return (_indexed is not null || ReferenceEquals(_lookup.Dictionary, DetachedSlots)) &&
+            PlanIndexedByteInsertion(bytes, out ordinal, out capacity);
+    }
+
+    private bool PlanIndexedByteInsertion(ReadOnlySpan<byte> bytes, out int ordinal, out int capacity)
+    {
+        capacity = 0;
+        if (!TryParseOrdinal(bytes, out ordinal)) return false;
+        if (_indexed is not { } indexed)
+        {
+            if (ordinal != 1) return false;
+            capacity = AwkRuntimeMemory.PlanArrayCapacity(0);
+            return true;
+        }
+        if (ordinal <= indexed.Length)
+        {
+            capacity = indexed.Length;
+            return true;
+        }
+        if (ordinal != indexed.Length + 1 || indexed.Length >= Array.MaxLength) return false;
+        capacity = AwkRuntimeMemory.PlanArrayCapacity(indexed.Length);
+        return true;
+    }
+
+    internal long EstimateIndexedInsertionBackingBytes(int capacity) =>
+        _indexed is { } indexed && indexed.Length == capacity ? 0 : AwkRuntimeMemory.EstimateIndexedArrayBackingBytes(capacity);
+
+    // The caller admits the complete new backing while the current one is live.
+    // Hole insertion reuses that backing; growth copies stay private until publication.
+    internal AwkArrayCell?[] PrepareIndexedCapacity(int capacity, Action? checkpoint)
+    {
+        if (_indexed is { } ready && ready.Length == capacity) return ready;
+        var result = new AwkArrayCell?[capacity];
+        if (_indexed is { } source)
+        {
+            const int chunk = AwkRuntimeLimits.CancellationCheckBytes / sizeof(long);
+            for (var offset = 0; offset < source.Length;)
+            {
+                checkpoint?.Invoke();
+                var length = Math.Min(chunk, source.Length - offset);
+                Array.Copy(source, offset, result, offset, length);
+                offset += length;
+            }
+        }
+        return result;
+    }
+
+    internal void PublishIndexedInsertion(AwkArrayCell?[] cells, int ordinal, AwkArrayCell cell, Action? checkpoint)
+    {
+        if (cells[ordinal - 1] is not null) throw new InvalidOperationException("Duplicate indexed insertion.");
+        cells[ordinal - 1] = cell;
+        _indexed = cells;
+        _indexedCount++;
+        _checkpoint = checkpoint;
+    }
+
     internal int EnsureCapacity(int capacity)
     {
         if (_indexed is not { } cells) return capacity == 0 ? _lookup.Dictionary.EnsureCapacity(0) : WritableDictionary().EnsureCapacity(capacity);
-        if (capacity != 0) throw new InvalidOperationException("Indexed growth requires admitted promotion.");
+        if (capacity != 0) throw new InvalidOperationException("Indexed growth requires admitted storage preparation.");
         return cells.Length;
     }
 
@@ -122,11 +202,10 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
     {
         if (_indexed is { } indexed)
         {
-            // Unpublished clones fill already admitted slots. Language insertion promotes first.
+            // Unpublished clones fill admitted slots. Language insertion prepares storage separately.
             Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
             var bytes = key.AsSpan(buffer);
-            if (!Utf8Parser.TryParse(bytes, out int ordinal, out var consumed) || consumed != bytes.Length ||
-                ordinal < 1 || ordinal > indexed.Length || indexed[ordinal - 1] is not null)
+            if (!TryParseOrdinal(bytes, out var ordinal) || ordinal > indexed.Length || indexed[ordinal - 1] is not null)
                 throw new InvalidOperationException("Invalid indexed clone position.");
             indexed[ordinal - 1] = value;
             _indexedCount++;

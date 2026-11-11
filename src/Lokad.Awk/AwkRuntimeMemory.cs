@@ -123,6 +123,15 @@ internal static class AwkRuntimeMemory
     internal static long EstimateIndexedArrayConstructionBytes(int count) =>
         CheckedAdd(EstimateIndexedArrayBackingBytes(count), CheckedMultiply(ArrayCellBytes, count));
 
+    internal static int PlanArrayCapacity(int capacity)
+    {
+        if (capacity >= Array.MaxLength) throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        return (int)Math.Min(Array.MaxLength, Math.Max(3, (long)capacity * 2));
+    }
+
+    internal static int BoundArrayCapacity(int requested) =>
+        requested == 0 ? 0 : (int)Math.Min(Array.MaxLength, Math.Max(3, (long)requested * 2));
+
     public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkArrayCell cell) =>
         EstimateArrayElementPayloadBytes(key, cell.Slot);
 

@@ -404,9 +404,10 @@ records, CSV and other record separators keep their ordinary input path. Buffer 
 stays funded through active use and cleanup; this is an internal cache bound, not an input limit.
 An array's stable identity stays funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
-Bulk ordinal results from `split` and sorting can use indexed storage. Inserting a new key
-admits temporary dictionary storage before replacing that backing; refusal or cancellation
-preserves the existing entries. Cells, aliases and captured updates retain their identity.
+Growing ordinal arrays and bulk `split`/sort results can use indexed storage. Admission covers
+backing growth and temporary copies before publication. Sparse or noncanonical keys can require
+dictionary promotion; refusal or cancellation preserves existing entries. Cells, aliases and
+captured updates retain their identity.
 Ordinary field/composite-key assignments consume an existing cell directly after capturing
 the RHS; missing keys retain their ordinary owned-key admission and insertion behavior.
 Numeric updates capture their key and prior value before the RHS. Live entry cells receive
