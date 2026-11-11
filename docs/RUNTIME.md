@@ -97,6 +97,9 @@ the callee. Numeric conversion uses the still-funded callee snapshot; assigning 
 result keeps its ordinary target preflight.
 Discarded local text assignments can transfer their existing temporary funding into the
 validated local cell. Used assignment results and unresolved targets retain owning captures.
+Text consumed only by an immediate print may use the execution's funded byte scratch;
+whole owned text retains its existing backing. Output is copied before host suspension,
+while escaping values retain owning text and ordinary admission.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,

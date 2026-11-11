@@ -230,7 +230,7 @@ internal sealed record AwkRegionSubstitution(int Pattern, AwkRegexPatternOrigin 
 internal readonly record struct AwkRegionIteration(int Access, int Iterator, int Sort, int CallSlot, int Comparison);
 internal sealed record AwkRegionSort(int Source, int Destination, int Order, int Slot, int CallSlot, int Comparison, bool Keys);
 internal sealed record AwkRegionGensub(int Pattern, AwkRegexPatternOrigin Origin, int Start, int Count);
-internal enum AwkRegionPrintArgumentKind { Field, Number, Value, Text, Current }
+internal enum AwkRegionPrintArgumentKind { Field, Number, Value, Text, Current, PreparedText }
 internal readonly record struct AwkRegionPrintArgument(AwkRegionPrintArgumentKind Kind, int Index, int FallbackValue = -1);
 internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArgument[] Arguments, AwkRegionOutput Output = default)
 {
@@ -239,6 +239,7 @@ internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArg
     internal int TerminatorText => Texts + TextCount - 1;
     // Only a complete fixed-field list may defer reads into this synchronous primitive.
     internal bool UsesFieldViews => Arguments[0].Kind == AwkRegionPrintArgumentKind.Field;
+    internal bool HasPreparedText => Arguments[^1].Kind == AwkRegionPrintArgumentKind.PreparedText;
 }
 internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields, AwkRegionOutput Output = default);
 internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result, bool IsExpression);

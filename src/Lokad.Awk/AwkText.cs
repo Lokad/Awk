@@ -537,16 +537,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         AwkMemoryLease? destination = null)
     {
         var text = this;
-        ArgumentOutOfRangeException.ThrowIfNegative(start);
-        ArgumentOutOfRangeException.ThrowIfNegative(length);
-        var knownAscii = text.RequiresStringCache || Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
-        int byteStart, byteEnd;
-        if (knownAscii)
-        {
-            byteStart = Math.Min(start, text.ByteLength);
-            byteEnd = (int)Math.Min((long)start + length, text.ByteLength);
-        }
-        else ResolveRuneByteRange(out byteStart, out byteEnd);
+        var knownAscii = ResolveRuneSliceRange(start, length, counters, governor, checkpoint, out var byteStart, out var byteEnd);
 
         if (byteStart == byteEnd)
             return Empty;
@@ -559,6 +550,29 @@ internal readonly struct AwkText : IEquatable<AwkText>
             AllocateOwnedBytes(byteLength, governor, destination, checkpoint);
         CopyBytes(text.AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
         return knownAscii ? FromTrustedAsciiOwnedBytes(bytes, counters) : FromTrustedOwnedBytes(bytes, counters);
+    }
+
+    internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkRuntimeCounters counters,
+        AwkMemoryAccounting governor, Action? checkpoint)
+    {
+        ResolveRuneSliceRange(start, length, counters, governor, checkpoint, out var byteStart, out var byteEnd);
+        return AsSpan(checkpoint)[byteStart..byteEnd];
+    }
+
+    private bool ResolveRuneSliceRange(int start, int length, AwkRuntimeCounters counters,
+        AwkMemoryAccounting governor, Action? checkpoint, out int byteStart, out int byteEnd)
+    {
+        var text = this;
+        ArgumentOutOfRangeException.ThrowIfNegative(start);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        var knownAscii = text.RequiresStringCache || Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
+        if (knownAscii)
+        {
+            byteStart = Math.Min(start, text.ByteLength);
+            byteEnd = (int)Math.Min((long)start + length, text.ByteLength);
+        }
+        else ResolveRuneByteRange(out byteStart, out byteEnd);
+        return knownAscii;
 
         void ResolveRuneByteRange(out int resolvedByteStart, out int resolvedByteEnd)
         {

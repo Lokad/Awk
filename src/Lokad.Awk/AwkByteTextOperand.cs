@@ -25,24 +25,31 @@ internal readonly ref struct AwkByteTextOperand
     }
 
     internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease destination)
+        AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease destination, bool borrowOwned = false)
     {
-        if (_owned.Backing is not null)
+        if (_owned.Backing is not null && !borrowOwned)
         {
             if (!bytes) return new(_owned.CopyRuneSlice(start, length, counters, governor, checkpoint, destination));
             start = Math.Min(start, _owned.ByteLength);
             return new(_owned.CopyByteSlice(start, Math.Min(length, _owned.ByteLength - start), counters, governor, checkpoint, destination));
         }
+        if (_owned.Backing is not null && !bytes)
+        {
+            var view = _owned.BorrowRuneSlice(start, length, counters, governor, checkpoint);
+            return view.Length == _owned.ByteLength ? new(_owned) : new(view);
+        }
+        var content = _owned.Backing is not null ? _owned.AsSpan(checkpoint) : _bytes;
         int first, last;
         if (bytes)
         {
-            first = Math.Min(start, _bytes.Length);
-            last = (int)Math.Min((long)first + length, _bytes.Length);
+            first = Math.Min(start, content.Length);
+            last = (int)Math.Min((long)first + length, content.Length);
         }
-        else AwkText.ResolveRuneByteRange(_bytes, start, length, counters, checkpoint, out first, out last);
-        var slice = _bytes[first..last];
+        else AwkText.ResolveRuneByteRange(content, start, length, counters, checkpoint, out first, out last);
+        var slice = content[first..last];
         // Byte slicing can cut a scalar; validate before admitting the escaping result.
         if (bytes) AwkText.ThrowIfInvalidUtf8(slice, checkpoint);
+        if (_owned.Backing is not null && slice.Length == _owned.ByteLength) return new(_owned);
         return new(slice);
     }
 

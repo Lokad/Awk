@@ -64,10 +64,10 @@ internal sealed class AwkStringRuntime
         int length,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        AwkMemoryLease destination)
+        AwkMemoryLease destination, bool borrowOwned = false)
     {
         _checkpoint?.Invoke();
-        return source.SliceUnits(start, length, IsByteMode, counters, governor, _checkpoint, destination);
+        return source.SliceUnits(start, length, IsByteMode, counters, governor, _checkpoint, destination, borrowOwned);
     }
 
 }

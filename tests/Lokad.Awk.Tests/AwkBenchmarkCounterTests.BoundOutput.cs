@@ -85,12 +85,41 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(string.Concat(Enumerable.Repeat("4 ré\n", records)), host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.AwkTextAllocations);
+        Assert.Equal(wrapped ? records : 0, counters.AwkTextAllocations);
         Assert.Equal(records, counters.PrintNumberArguments);
         Assert.Equal(records, counters.PrintIntegerSegments);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 5)] [InlineData(true, 5)]
+    [InlineData(false, 65)] [InlineData(true, 65)]
+    public async Task SubstringPrintFragmentsSurviveNumericBufferGrowthWithoutOwningText(bool governed, int width)
+    {
+        const int records = 8;
+        var numbers = Enumerable.Range(1, width - 1).ToArray();
+        var arguments = string.Join(",", numbers.Select(number => number.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append("substr($2,1,2)"));
+        var source = "{print " + arguments + "}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("key résumé\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var exit = await program.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        var line = string.Join(" ", numbers.Select(number => number.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append("ré")) + "\n";
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(string.Concat(Enumerable.Repeat(line, records)), host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(records * (width - 1), counters.PrintNumberArguments);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);
     }
 

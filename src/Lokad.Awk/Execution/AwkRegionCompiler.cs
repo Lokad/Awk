@@ -574,10 +574,22 @@ internal sealed partial class AwkRegionCompiler
 
     private AwkRegionPrint AllocatePrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
     {
+        if (arguments[^1] is { Kind: AwkRegionPrintArgumentKind.Text } last && _code.Count > 0 &&
+            _code[^1] is { Kind: AwkRegionInstructionKind.Substring } producer && producer.Target == last.Index &&
+            last.Index == _texts - 1 && _operands[^1] is { Kind: AwkRegionOperandKind.TextTemporary } result && result.Index == last.Index)
+        {
+            // This fresh result has one immediate consumer. Its bytes can live
+            // in print's existing funded fragment buffer instead of owned text.
+            var segmentEnd = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
+            _code[^1] = producer with { Target = 0, Right = _prints.Count + 1 };
+            arguments[^1] = new(AwkRegionPrintArgumentKind.PreparedText, segmentEnd - 1);
+            _texts--;
+            _operands.RemoveAt(_operands.Count - 1);
+        }
         var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
-        if (output.IsRedirected || (!print.UsesFieldViews && arguments.Length > 1)) _usesOutputBuilder = true;
+        if (output.IsRedirected || print.HasPreparedText || (!print.UsesFieldViews && arguments.Length > 1)) _usesOutputBuilder = true;
         _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, print.TextCount));
-        if (arguments.Length > 1 || output.IsRedirected || print.UsesFieldViews)
+        if (arguments.Length > 1 || output.IsRedirected || print.UsesFieldViews || print.HasPreparedText)
             _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
         return print;
     }

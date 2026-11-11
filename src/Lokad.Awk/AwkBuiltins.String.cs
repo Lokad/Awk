@@ -26,6 +26,16 @@ internal static partial class AwkBuiltins
     internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkScalarOperand sourceValue,
         AwkValue startValue, AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
     {
+        var slice = EvaluateSubstrSlice(state, sourceValue, startValue, lengthValue, argumentCount, destination,
+            borrowOwned: false, out var whole);
+        return sourceValue.OwnSlice(state, slice, whole, destination);
+    }
+
+    internal static AwkByteTextOperand EvaluateSubstrSlice(AwkRuntimeState state, AwkScalarOperand sourceValue,
+        AwkValue startValue, AwkValue lengthValue, int argumentCount, AwkMemoryLease destination,
+        bool borrowOwned, out bool whole)
+    {
+        whole = false;
         var source = sourceValue.Text(state);
         var start = (int)startValue.AsNumber(state.CancellationCheckpoint);
         if (start < 1) start = 1;
@@ -33,12 +43,13 @@ internal static partial class AwkBuiltins
         sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
-        if (!state.HasStringUnitAt(source, zeroBasedStart)) return AwkText.Empty;
+        if (!state.HasStringUnitAt(source, zeroBasedStart)) return default;
         var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
-        if (length <= 0) return AwkText.Empty;
+        if (length <= 0) return default;
         sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, length);
-        var slice = state.SubstringByStringUnits(source, zeroBasedStart, length, destination);
-        return sourceValue.OwnSlice(state, slice, slice.ByteLength == source.ByteLength, destination);
+        var slice = state.SubstringByStringUnits(source, zeroBasedStart, length, destination, borrowOwned);
+        whole = slice.ByteLength == source.ByteLength;
+        return slice;
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)

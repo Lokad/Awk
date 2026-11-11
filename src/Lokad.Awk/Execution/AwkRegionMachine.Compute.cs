@@ -204,7 +204,7 @@ internal partial struct AwkRegionMachine
                     var current = last.Kind == AwkRegionPrintArgumentKind.Current ? computationView.Value(last.Index) : default;
                     var sink = output ?? throw new InvalidOperationException("Print requires an output sink.");
                     var payloadStart = 0;
-                    if (print.Count == 1 && !print.Output.IsRedirected && !print.UsesFieldViews)
+                    if (print.Count == 1 && !print.Output.IsRedirected && last.Kind != AwkRegionPrintArgumentKind.Field)
                         AwkRegionPrinting.AppendSingle(computationView.State, computationView.Storage, sink, print, in current);
                     else payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage, sink, print, in current);
                     if (print.Output.IsRedirected)

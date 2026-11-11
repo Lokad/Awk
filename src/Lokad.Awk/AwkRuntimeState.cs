@@ -632,8 +632,8 @@ internal sealed class AwkRuntimeState : IDisposable
         _stringRuntime.Compare(left, right, IsCaseInsensitive, sorting);
 
     public AwkByteTextOperand SubstringByStringUnits(AwkByteTextOperand source, int start, int length,
-        AwkMemoryLease destination) =>
-        _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryAccounting, destination);
+        AwkMemoryLease destination, bool borrowOwned = false) =>
+        _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryAccounting, destination, borrowOwned);
 
     public void RequestExit(AwkOptionalExitCode exitCode) =>
         _executionControl.RequestExit(exitCode);

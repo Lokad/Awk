@@ -62,7 +62,7 @@ internal static class AwkRegionPrinting
         if (!fieldViews)
         {
             numbers = storage.Builders[0].Buffer;
-            numbers.Clear();
+            if (!print.HasPreparedText) numbers.Clear();
         }
         ReadOnlySpan<byte> record = default;
         if (fieldViews)
@@ -122,7 +122,7 @@ internal static class AwkRegionPrinting
                         fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
                     else fields[index] = AwkFieldText.FromOwned(storage.FormatBorrowedText(print.Texts + index, current, print: true));
                 }
-                else
+                else if (argument.Kind != AwkRegionPrintArgumentKind.PreparedText)
                 {
                     var valueSlot = fieldViews ? argument.FallbackValue : argument.Index;
                     var start = numbers?.Length ?? 0;
@@ -202,17 +202,33 @@ internal static class AwkRegionPrinting
         }
         else
         {
-            AwkText text;
-            if (argument.Kind == AwkRegionPrintArgumentKind.Text)
+            if (argument.Kind == AwkRegionPrintArgumentKind.PreparedText)
             {
-                storage.MoveText(argument.Index, print.Texts);
-                text = storage.Texts[print.Texts];
+                // The same single-output primitive consumes owned whole text or
+                // a slice of the existing funded fragment buffer, without list
+                // formatting or an intermediate text object.
+                var fragment = storage.PrintSegments[print.Segments];
+                var buffer = storage.Builders[0].Buffer;
+                var bytes = fragment.AsSpan(buffer.AsSpan(), state.CancellationCheckpoint);
+                state.ThrowIfCancellationRequested();
+                output.Append(bytes, terminator);
+                storage.PrintSegments[print.Segments] = default;
+                buffer.Clear();
             }
-            else if (argument.Kind == AwkRegionPrintArgumentKind.Value)
-                text = storage.FormatCapturedPrintText(argument.Index, print.Texts);
-            else text = storage.FormatBorrowedText(print.Texts, value, print: true);
-            state.ThrowIfCancellationRequested();
-            output.Append([text, terminator]);
+            else
+            {
+                AwkText text;
+                if (argument.Kind == AwkRegionPrintArgumentKind.Text)
+                {
+                    storage.MoveText(argument.Index, print.Texts);
+                    text = storage.Texts[print.Texts];
+                }
+                else if (argument.Kind == AwkRegionPrintArgumentKind.Value)
+                    text = storage.FormatCapturedPrintText(argument.Index, print.Texts);
+                else text = storage.FormatBorrowedText(print.Texts, value, print: true);
+                state.ThrowIfCancellationRequested();
+                output.Append([text, terminator]);
+            }
         }
         storage.ReleaseTexts(print.Texts, print.TextCount);
     }
