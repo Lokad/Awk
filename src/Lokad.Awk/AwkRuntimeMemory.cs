@@ -118,10 +118,10 @@ internal static class AwkRuntimeMemory
         CheckedAdd(EstimateArrayBackingBytes(capacity), CheckedMultiply(ArrayCellBytes, count));
 
     internal static long EstimateIndexedArrayBackingBytes(int capacity) =>
-        EstimateArrayBufferBytes(capacity, ReferenceBytes);
+        EstimateArrayBufferBytes(capacity, 32);
 
     internal static long EstimateIndexedArrayConstructionBytes(int count) =>
-        CheckedAdd(EstimateIndexedArrayBackingBytes(count), CheckedMultiply(ArrayCellBytes, count));
+        EstimateIndexedArrayBackingBytes(count);
 
     internal static int PlanArrayCapacity(int capacity)
     {
@@ -132,11 +132,11 @@ internal static class AwkRuntimeMemory
     internal static int BoundArrayCapacity(int requested) =>
         requested == 0 ? 0 : (int)Math.Min(Array.MaxLength, Math.Max(3, (long)requested * 2));
 
-    public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkArrayCell cell) =>
-        EstimateArrayElementPayloadBytes(key, cell.Slot);
-
     public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkValue slot) =>
-        CheckedAdd(key.RetainedTextMemoryBytes, CheckedAdd(ArrayCellBytes, slot.RetainedTextMemoryBytes));
+        CheckedAdd(ArrayCellBytes, EstimateArrayPayloadBytes(key, slot));
+
+    internal static long EstimateArrayPayloadBytes(AwkArrayKey key, AwkValue slot) =>
+        CheckedAdd(key.RetainedTextMemoryBytes, slot.RetainedTextMemoryBytes);
 
     public static long EstimateArrayElementBytes(AwkArrayKey key, AwkValue slot) =>
         CheckedAdd(

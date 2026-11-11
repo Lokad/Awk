@@ -43,6 +43,9 @@ Focused field/value/array tests preserve numeric-string origins and original spe
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
 key and prior value across RHS mutation, deletion, replacement and rehash. Never keep dictionary
 entry references across mutation or suspension. Membership must not insert missing elements.
+Ordinal entries hold owning values directly; captured updates re-locate after RHS work,
+while dictionary captures may retain real cells. Promotion admits new cells plus overlapping
+backing. Cover logical values and payload retirement rather than ordinal object identity.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.
 Key equality and hashes agree across inline, ordinal, owned and borrowed forms; long comparisons

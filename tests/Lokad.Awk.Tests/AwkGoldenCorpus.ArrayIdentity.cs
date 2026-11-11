@@ -24,9 +24,14 @@ internal static partial class AwkGoldenCorpus
         Passing("indexed-sort-destinations-preserve-independent-values-and-origins",
             ["""BEGIN{split("003 001 002",a);n=asort(a,b,"@val_num_asc");b[1]="changed";print n,a[1],b[1],b[2],typeof(b[2]);asorti(a,k,"@ind_num_asc");print k[1],typeof(k[1]);asort(a,a,"@val_num_asc");print a[1],a[2],a[3],typeof(a[1]);a[4]=4;print a[4],length(a)}"""], [],
             "3 003 changed 002 strnum\n1 string\n001 002 003 strnum\n4 4\n"),
-        Passing("indexed-update-keeps-its-captured-cell-through-rhs-promotion",
+        Passing("indexed-update-keeps-its-captured-key-through-rhs-promotion",
             ["""function change(a){a["x"]=11;return 2}BEGIN{split("7 8",a);old=a[1]++;print old,a[1];a[1]+=change(a);print a[1],a[2],a["x"],length(a)}"""], [],
             "7 8\n10 8 11 3\n"),
+        AwkGoldenCaseBuilder.Create("captured-ordinal-updates-reacquire-reinserted-cleared-and-replaced-values",
+            ["""function change(p,m){if(m==1){delete p[1];p[1]=20}else if(m==2){delete p;p[1]=20}else split("20 30",p);return 3}BEGIN{for(m=1;m<=3;m++){split("0005 9",a);a[1]+=change(a,m);print m,a[1],length(a),(2 in a),typeof(a[1])}}"""], [])
+            .WithStdOut("1 8 2 1 number\n2 8 1 0 number\n3 8 2 1 number\n")
+            .WithNondeterminismNote("Lokad preserves its qualified prior-value-before-RHS order across logical ordinal replacement, as for dictionary keys.")
+            .Build(),
         Passing("indexed-subarray-sort-clones-preserve-parentage-and-lifetimes",
             ["""BEGIN{split("3 1 2",a[1]);a[2]["x"]=9;asort(a,b,"@ind_num_asc");b[1][1]=7;print a[1][1],b[1][1],b[1][2],length(b[1]);b[1]["new"]=4;print a[1][1],b[1][1],b[1]["new"],length(b[1]);delete a[1];print b[1][3],b[2]["x"]}"""], [],
             "3 7 1 3\n3 7 4 4\n2 9\n"),

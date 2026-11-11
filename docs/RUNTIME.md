@@ -266,7 +266,7 @@ function targets. Computed values such as `NF` still resolve at their actual use
 Numeric consumers can read an already-available special-scalar number directly from its owner.
 Speculative probes never split fields, request admission or convert assigned strings; assigned
 `NF` retains its scalar value and spelling independently of the descriptor count.
-Global, array and function cells retain the same unboxed scalar payload. Ordinary strings
+Global, array and function storage retain the same unboxed scalar payload. Ordinary strings
 bind their numeric conversion mode at storage; external input keeps classification at read.
 Cached input numbers keep their original spelling.
 
@@ -284,7 +284,7 @@ Array updates bind their numeric RHS at preparation. Complete synchronous update
 stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.
 Only captures that cross instructions retain target storage and its cleanup. Earlier captures
 remain funded across RHS mutation, calls or suspension.
-Nested numeric updates use the same captured-cell operation. Their owned path repairs the
+Nested numeric updates use the same captured-target operation. Their owned path repairs the
 destination after RHS deletion or replacement; a valid captured cell avoids a second lookup.
 The update publishes any postfix old-number result directly before retiring its target.
 Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
@@ -404,16 +404,14 @@ records, CSV and other record separators keep their ordinary input path. Buffer 
 stays funded through active use and cleanup; this is an internal cache bound, not an input limit.
 An array's stable identity stays funded after `delete array` clears
 its entries/backing storage; that small owner retires with its execution or function scope.
-Growing ordinal arrays and bulk `split`/sort results can use indexed storage. Admission covers
-backing growth and temporary copies before publication. Sparse or noncanonical keys can require
-dictionary promotion; refusal or cancellation preserves existing entries. Cells, aliases and
-captured updates retain their identity.
-Ordinary field/composite-key assignments consume an existing cell directly after capturing
-the RHS; missing keys retain their ordinary owned-key admission and insertion behavior.
-Numeric updates capture their key and prior value before the RHS. Live entry cells receive
-the result directly; retired or retyped entries use current storage without reevaluating
-the key. Captured cells and keys stay funded through pending users. Retirement clears a
-cell's payload before the containing array refunds it.
+Growing ordinal arrays and bulk `split`/sort results hold values directly in indexed storage.
+Admission covers wider value-buffer growth and temporary copies before publication. Sparse or
+noncanonical keys can require dictionary promotion, including real entry cells; refusal or
+cancellation preserves existing entries. Aliases retain their stable array owner.
+Numeric updates capture an owned key and prior value before the RHS. Dictionary targets can
+retain a stable cell; ordinal targets locate the current value at commit. Deletion, reinsertion,
+replacement and suspension preserve the captured prior number without reevaluating the key.
+Captured users stay funded, and retirement clears payloads before the containing owner refunds them.
 Ordinary byte-key misses admit key/cell/backing storage before copying or insertion. Short keys
 own their bytes in the key value; longer keys own text. Language-key projections
 fund any text materialization. Cold names and special arrays retain their resolution policy.

@@ -1,16 +1,15 @@
 using System.Buffers.Text;
 using System.Collections;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
 // Bind this owner, not its replaceable dictionary. RHS evaluation may clear/split it.
-internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArrayCell>
+internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkValue>
 {
     private static readonly Dictionary<AwkArrayKey, AwkArrayCell> DetachedSlots = new(AwkArrayKeyComparer.Instance);
     private Dictionary<AwkArrayKey, AwkArrayCell>.AlternateLookup<ReadOnlySpan<byte>> _lookup;
     private IEqualityComparer<AwkArrayKey> _comparer;
-    private AwkArrayCell?[]? _indexed;
+    private AwkValue?[]? _indexed;
     private int _indexedCount;
     private Action? _checkpoint;
 
@@ -22,7 +21,7 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         Parent = parent;
     }
 
-    private AwkArrayIdentity(AwkArrayCell?[] indexed, IEqualityComparer<AwkArrayKey> comparer,
+    private AwkArrayIdentity(AwkValue?[] indexed, IEqualityComparer<AwkArrayKey> comparer,
         int count, Action? checkpoint, AwkArrayIdentity? parent = null)
     {
         _lookup = DetachedSlots.GetAlternateLookup<ReadOnlySpan<byte>>();
@@ -34,11 +33,11 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         if (count > 0) AdoptChildren();
     }
 
-    internal static AwkArrayIdentity FromIndexed(AwkArrayCell?[] cells, IEqualityComparer<AwkArrayKey> comparer,
+    internal static AwkArrayIdentity FromIndexed(AwkValue?[] cells, IEqualityComparer<AwkArrayKey> comparer,
         Action? checkpoint) => new(cells, comparer, cells.Length, checkpoint);
 
     internal AwkArrayIdentity CreateEmptyCopy(AwkArrayIdentity? parent = null) => _indexed is { } cells
-        ? new(new AwkArrayCell?[cells.Length], _comparer, 0, _checkpoint, parent)
+        ? new(new AwkValue?[cells.Length], _comparer, 0, _checkpoint, parent)
         : new(Count, _comparer, parent);
 
     // The owner retains one prepared BCL handle. This synchronous view follows its current backing.
@@ -55,58 +54,84 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         get { foreach (var pair in this) yield return pair.Key; }
     }
 
-    public IEnumerable<AwkArrayCell> Values
+    public IEnumerable<AwkValue> Values
     {
         get { foreach (var pair in this) yield return pair.Value; }
     }
 
-    public AwkArrayCell this[AwkArrayKey key]
+    public AwkValue this[AwkArrayKey key]
     {
-        get => TryGetValue(key, out var cell) ? cell : throw new KeyNotFoundException();
+        get => TryGetValue(key, out var value) ? value : throw new KeyNotFoundException();
         set
         {
             if (_indexed is not null) throw new InvalidOperationException("Indexed insertion requires admitted storage preparation.");
-            WritableDictionary()[key] = value;
+            WritableDictionary()[key] = new(value);
         }
     }
 
-    public bool ContainsKey(AwkArrayKey key) => TryGetValue(key, out _);
+    public bool ContainsKey(AwkArrayKey key) => _indexed is null
+        ? _lookup.Dictionary.ContainsKey(key) : TryGetIndexed(key, out _, out _);
 
-    public bool TryGetValue(AwkArrayKey key, [NotNullWhen(true)] out AwkArrayCell? cell) =>
-        _indexed is null ? _lookup.Dictionary.TryGetValue(key, out cell) : TryGetIndexed(key, out _, out cell);
-
-    private bool TryGetIndexed(AwkArrayKey key, out int ordinal, [NotNullWhen(true)] out AwkArrayCell? cell)
+    public bool TryGetValue(AwkArrayKey key, out AwkValue value)
     {
-        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
-        if (key.ByteLength <= 10) return TryGetIndexed(key.AsSpan(buffer), out ordinal, out cell);
-        ordinal = 0;
-        cell = null;
+        if (_indexed is not null) return TryGetIndexed(key, out _, out value);
+        if (_lookup.Dictionary.TryGetValue(key, out var cell))
+        {
+            value = cell.Slot;
+            return true;
+        }
+        value = default;
         return false;
     }
 
-    internal bool TryGetValue(AwkArrayKey key, out AwkArrayKey retainedKey,
-        [NotNullWhen(true)] out AwkArrayCell? cell)
+    private bool TryGetIndexed(AwkArrayKey key, out int ordinal, out AwkValue value)
+    {
+        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        if (key.ByteLength <= 10) return TryGetIndexed(key.AsSpan(buffer), out ordinal, out value);
+        ordinal = 0;
+        value = default;
+        return false;
+    }
+
+    // Only mutation/capture consumers ask for dictionary cell identity. Ordinal
+    // storage keeps values directly and is located again after RHS evaluation.
+    internal bool TryGetEntry(AwkArrayKey key, out AwkArrayKey retainedKey,
+        out AwkValue value, out AwkArrayCell? cell)
     {
         if (_indexed is null)
-            return _lookup.Dictionary.GetAlternateLookup<AwkArrayKey>().TryGetValue(key, out retainedKey, out cell);
-        if (TryGetIndexed(key, out var ordinal, out cell))
+        {
+            if (_lookup.Dictionary.GetAlternateLookup<AwkArrayKey>().TryGetValue(key, out retainedKey, out cell))
+            {
+                value = cell.Slot;
+                return true;
+            }
+            value = default;
+            return false;
+        }
+        cell = null;
+        if (TryGetIndexed(key, out var ordinal, out value))
         {
             retainedKey = AwkArrayKey.FromOrdinal(ordinal);
             return true;
         }
         retainedKey = default;
-        cell = null;
         return false;
     }
 
-    private bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal,
-        [NotNullWhen(true)] out AwkArrayCell? cell)
+    private bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal, out AwkValue value)
     {
-        cell = null;
-        if (!TryParseOrdinal(bytes, out ordinal) || _indexed is not { } indexed || ordinal > indexed.Length)
-            return false;
-        cell = indexed[ordinal - 1];
-        return cell is not null;
+        value = default;
+        if (!TryParseOrdinal(bytes, out ordinal) || _indexed is not { } indexed || ordinal > indexed.Length ||
+            indexed[ordinal - 1] is not { } stored) return false;
+        value = stored;
+        return true;
+    }
+
+    internal void SetIndexedValue(AwkArrayKey key, AwkValue value)
+    {
+        if (_indexed is not { } indexed || !TryGetIndexed(key, out var ordinal, out _))
+            throw new InvalidOperationException("An indexed update requires an existing ordinal.");
+        indexed[ordinal - 1] = value;
     }
 
     private static bool TryParseOrdinal(ReadOnlySpan<byte> bytes, out int ordinal)
@@ -164,13 +189,13 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
 
     // The caller admits the complete new backing while the current one is live.
     // Hole insertion reuses that backing; growth copies stay private until publication.
-    internal AwkArrayCell?[] PrepareIndexedCapacity(int capacity, Action? checkpoint)
+    internal AwkValue?[] PrepareIndexedCapacity(int capacity, Action? checkpoint)
     {
         if (_indexed is { } ready && ready.Length == capacity) return ready;
-        var result = new AwkArrayCell?[capacity];
+        var result = new AwkValue?[capacity];
         if (_indexed is { } source)
         {
-            const int chunk = AwkRuntimeLimits.CancellationCheckBytes / sizeof(long);
+            const int chunk = AwkRuntimeLimits.CancellationCheckBytes / 32;
             for (var offset = 0; offset < source.Length;)
             {
                 checkpoint?.Invoke();
@@ -182,10 +207,10 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         return result;
     }
 
-    internal void PublishIndexedInsertion(AwkArrayCell?[] cells, int ordinal, AwkArrayCell cell, Action? checkpoint)
+    internal void PublishIndexedInsertion(AwkValue?[] cells, int ordinal, AwkValue value, Action? checkpoint)
     {
         if (cells[ordinal - 1] is not null) throw new InvalidOperationException("Duplicate indexed insertion.");
-        cells[ordinal - 1] = cell;
+        cells[ordinal - 1] = value;
         _indexed = cells;
         _indexedCount++;
         _checkpoint = checkpoint;
@@ -198,7 +223,7 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         return cells.Length;
     }
 
-    internal void Add(AwkArrayKey key, AwkArrayCell value)
+    internal void Add(AwkArrayKey key, AwkValue value)
     {
         if (_indexed is { } indexed)
         {
@@ -211,7 +236,15 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
             _indexedCount++;
             return;
         }
-        WritableDictionary().Add(key, value);
+        WritableDictionary().Add(key, new(value));
+    }
+
+    internal AwkArrayCell AddDictionarySlot(AwkArrayKey key, AwkValue value)
+    {
+        if (_indexed is not null) throw new InvalidOperationException("A dictionary insertion requires dictionary storage.");
+        var cell = new AwkArrayCell(value);
+        WritableDictionary().Add(key, cell);
+        return cell;
     }
 
     private Dictionary<AwkArrayKey, AwkArrayCell> WritableDictionary()
@@ -240,7 +273,7 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
         for (var index = 0; index < indexed.Length; index++)
         {
             if ((index & 63) == 0) checkpoint?.Invoke();
-            if (indexed[index] is { } cell) result.Add(AwkArrayKey.FromOrdinal(index + 1), cell);
+            if (indexed[index] is { } value) result.Add(AwkArrayKey.FromOrdinal(index + 1), new(value));
         }
         return result;
     }
@@ -296,8 +329,8 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
     {
         if (_indexed is { } indexed)
         {
-            foreach (var cell in indexed)
-                if (cell is not null && cell.TryGetArrayBinding(out var child)) child.Parent = this;
+            foreach (var slot in indexed)
+                if (slot is { } value && value.TryGetArrayBinding(out var child)) child.Parent = this;
             return;
         }
         foreach (var pair in this)
@@ -306,25 +339,26 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
 
     public Enumerator GetEnumerator() => GetEnumerator(_checkpoint);
     internal Enumerator GetEnumerator(Action? checkpoint) => _indexed is { } cells ? new(cells, checkpoint) : new(_lookup.Dictionary.GetEnumerator());
-    IEnumerator<KeyValuePair<AwkArrayKey, AwkArrayCell>> IEnumerable<KeyValuePair<AwkArrayKey, AwkArrayCell>>.GetEnumerator() => GetEnumerator();
+    IEnumerator<KeyValuePair<AwkArrayKey, AwkValue>> IEnumerable<KeyValuePair<AwkArrayKey, AwkValue>>.GetEnumerator() => GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    public struct Enumerator : IEnumerator<KeyValuePair<AwkArrayKey, AwkArrayCell>>
+    public struct Enumerator : IEnumerator<KeyValuePair<AwkArrayKey, AwkValue>>
     {
         private Dictionary<AwkArrayKey, AwkArrayCell>.Enumerator _dictionary;
-        private readonly AwkArrayCell?[]? _indexed;
+        private readonly AwkValue?[]? _indexed;
         private readonly Action? _checkpoint;
         private int _index;
-        public KeyValuePair<AwkArrayKey, AwkArrayCell> Current { get; private set; }
+        public KeyValuePair<AwkArrayKey, AwkValue> Current { get; private set; }
         object IEnumerator.Current => Current;
-        internal Enumerator(AwkArrayCell?[] cells, Action? checkpoint) { _indexed = cells; _checkpoint = checkpoint; }
+        internal Enumerator(AwkValue?[] cells, Action? checkpoint) { _indexed = cells; _checkpoint = checkpoint; }
         internal Enumerator(Dictionary<AwkArrayKey, AwkArrayCell>.Enumerator dictionary) { _dictionary = dictionary; }
         public bool MoveNext()
         {
             if (_indexed is not { } cells)
             {
                 if (!_dictionary.MoveNext()) return false;
-                Current = _dictionary.Current;
+                var entry = _dictionary.Current;
+                Current = new(entry.Key, entry.Value.Slot);
                 return true;
             }
             while (_index < cells.Length)
@@ -340,19 +374,54 @@ internal sealed class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkArr
             }
             return false;
         }
-        public void Dispose() => _dictionary.Dispose();
+        // Retirement consumes the captured backing, even after its owner detaches.
+        internal void RetireCurrent()
+        {
+            if (_indexed is { } values) values[_index - 1] = null;
+            else _dictionary.Current.Value.Detach();
+            Current = default;
+        }
+        public void Dispose()
+        {
+            Current = default;
+            _dictionary.Dispose();
+            _dictionary = default;
+        }
         public void Reset() => throw new NotSupportedException();
     }
 
     public readonly struct ByteView(AwkArrayIdentity owner)
     {
-        public bool ContainsKey(ReadOnlySpan<byte> key) => TryGetValue(key, out _);
-        public bool TryGetValue(ReadOnlySpan<byte> key, [NotNullWhen(true)] out AwkArrayCell? value) =>
-            owner._indexed is null ? owner._lookup.TryGetValue(key, out value) : owner.TryGetIndexed(key, out _, out value);
-        public bool TryGetValue(ReadOnlySpan<byte> key, out AwkArrayKey retainedKey,
-            [NotNullWhen(true)] out AwkArrayCell? value)
+        public bool ContainsKey(ReadOnlySpan<byte> key) => owner._indexed is null
+            ? owner._lookup.ContainsKey(key) : owner.TryGetIndexed(key, out _, out _);
+        public bool TryGetValue(ReadOnlySpan<byte> key, out AwkValue value)
         {
-            if (owner._indexed is null) return owner._lookup.TryGetValue(key, out retainedKey, out value);
+            if (owner._indexed is not null) return owner.TryGetIndexed(key, out _, out value);
+            if (owner._lookup.TryGetValue(key, out var cell))
+            {
+                value = cell.Slot;
+                return true;
+            }
+            value = default;
+            return false;
+        }
+        public bool TryGetValue(ReadOnlySpan<byte> key, out AwkArrayKey retainedKey, out AwkValue value) =>
+            TryGetEntry(key, out retainedKey, out value, out _);
+
+        internal bool TryGetEntry(ReadOnlySpan<byte> key, out AwkArrayKey retainedKey,
+            out AwkValue value, out AwkArrayCell? cell)
+        {
+            if (owner._indexed is null)
+            {
+                if (owner._lookup.TryGetValue(key, out retainedKey, out cell))
+                {
+                    value = cell.Slot;
+                    return true;
+                }
+                value = default;
+                return false;
+            }
+            cell = null;
             if (owner.TryGetIndexed(key, out var ordinal, out value))
             {
                 retainedKey = AwkArrayKey.FromOrdinal(ordinal);

@@ -2,6 +2,34 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkIndexedArrayStorageTests
 {
+    [Fact]
+    public void OrdinalGrowthAndPromotionFundTheirActualLiveStorage()
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
+        var name = AwkArrayName.FromText("a");
+        var owner = variables.ResolveOrdinaryArray(name);
+        var emptyBytes = memory.Budget.Reserved;
+        for (var index = 1; index <= 257; index++)
+            variables.SetArrayValue(owner, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
+        Assert.True(owner.IsIndexed);
+        Assert.Equal(emptyBytes + AwkVariables.EstimateArrayBytes(owner), memory.Budget.Reserved);
+        var captured = variables.PrepareArrayUpdate(owner, AwkArrayKey.FromOrdinal(1));
+        Assert.Null(captured.Cell);
+        variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
+        variables.SetArrayValue(owner, new("01"), AwkValue.FromNumber(11));
+        Assert.False(owner.IsIndexed);
+        Assert.Equal(emptyBytes + AwkVariables.EstimateArrayBytes(owner), memory.Budget.Reserved);
+        Assert.True(variables.TrySetCapturedArrayNumber(owner, in captured, captured.Previous + 3));
+        Assert.Equal(4, variables.GetArrayNumber(owner, AwkArrayKey.FromOrdinal(1)));
+        Assert.False(owner.ContainsKey(AwkArrayKey.FromOrdinal(2)));
+        Assert.Equal(11, variables.GetArrayNumber(owner, new AwkArrayKey("01")));
+        variables.ClearArray(name);
+        Assert.Equal(emptyBytes, memory.Budget.Reserved);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public void SparseEnumerationObservesCancellationButLocalRetirementStillCompletes(bool bulk)
@@ -15,7 +43,6 @@ public sealed class AwkIndexedArrayStorageTests
         if (bulk) variables.SetArrayValuesFromExternalText(name, Enumerable.Repeat(AwkText.FromString("7"), 1024).ToArray());
         else for (var index = 1; index <= 1024; index++) variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(7));
         var owner = variables.ResolveOrdinaryArray(name);
-        var last = owner[AwkArrayKey.FromOrdinal(1024)];
         for (var index = 1; index < 1024; index++) variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(index));
         Assert.True(owner.IsIndexed);
         Assert.Single(owner);
@@ -24,7 +51,7 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.ThrowsAny<OperationCanceledException>(() => entries.MoveNext());
         variables.RemoveFunctionLocalArray(name);
         Assert.True(owner.IsDetached);
-        Assert.False(last.IsAttached);
+        Assert.Empty(owner);
         Assert.Equal(baseline, memory.Budget.Reserved);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
@@ -44,29 +71,29 @@ public sealed class AwkIndexedArrayStorageTests
             [AwkText.FromString("0007"), AwkText.FromString("8"), AwkText.FromString("9")]);
         var owner = variables.ResolveOrdinaryArray(name);
         if (shape == "hole") variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
-        owner.TryGetValue(AwkArrayKey.FromOrdinal(1), out var first);
+        var hasFirst = owner.TryGetValue(AwkArrayKey.FromOrdinal(1), out var first);
         var capacity = owner.EnsureCapacity(0);
         var count = owner.Count;
         var indexed = owner.IsIndexed;
         var held = memory.Budget.Reserved;
         var key = AwkArrayKey.FromOrdinal(shape == "start" ? 1 : shape == "hole" ? 2 : 4);
+        var value = shape == "hole" ? AwkValue.FromText(AwkText.FromString("new payload")) : AwkValue.FromNumber(11);
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         try
         {
-            if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => variables.SetArrayValue(owner, key, AwkValue.FromNumber(11)));
-            else Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(owner, key, AwkValue.FromNumber(11)));
+            if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => variables.SetArrayValue(owner, key, value));
+            else Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(owner, key, value));
         }
         finally { memory.Budget.OnGrowth = null; }
         Assert.Equal(indexed, owner.IsIndexed);
         Assert.Equal(count, owner.Count);
         Assert.Equal(capacity, owner.EnsureCapacity(0));
         Assert.False(owner.ContainsKey(key));
-        if (first is not null)
+        if (hasFirst)
         {
-            Assert.Same(first, owner[AwkArrayKey.FromOrdinal(1)]);
-            Assert.Equal("0007", first.Slot.ByteText.AsString());
-            Assert.True(first.IsAttached);
+            Assert.Equal(first, owner[AwkArrayKey.FromOrdinal(1)]);
+            Assert.Equal("0007", first.ByteText.AsString());
         }
         Assert.Equal(held, memory.Budget.Reserved);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
@@ -75,7 +102,7 @@ public sealed class AwkIndexedArrayStorageTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void GrowingOrdinalsKeepCellsAndBorrowedLookupUntilSparsePromotion(bool borrowed)
+    public void GrowingOrdinalsKeepValuesAndBorrowedLookupUntilSparsePromotion(bool borrowed)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
@@ -91,17 +118,16 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.Equal(257, owner.Count);
         var first = owner[AwkArrayKey.FromOrdinal(1)];
         Assert.True(owner.ByteLookup.TryGetValue("257"u8, out var last));
-        Assert.Equal(257, last.Slot.AsNumber());
+        Assert.Equal(257, last.AsNumber());
         variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
         variables.SetArrayValue(owner, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(11));
         Assert.True(owner.IsIndexed);
         variables.SetArrayValue(owner, AwkArrayKey.FromOrdinal(8192), AwkValue.FromNumber(9));
         Assert.False(owner.IsIndexed);
-        Assert.Same(first, owner[AwkArrayKey.FromOrdinal(1)]);
-        Assert.True(first.IsAttached);
-        Assert.Equal(11, owner[AwkArrayKey.FromOrdinal(2)].Slot.AsNumber());
+        Assert.Equal(first, owner[AwkArrayKey.FromOrdinal(1)]);
+        Assert.Equal(11, owner[AwkArrayKey.FromOrdinal(2)].AsNumber());
         variables.RemoveFunctionLocalArray(name);
-        Assert.False(first.IsAttached);
+        Assert.Empty(owner);
         Assert.Equal(held, memory.Budget.Reserved);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
@@ -187,15 +213,14 @@ public sealed class AwkIndexedArrayStorageTests
         finally { memory.Budget.OnGrowth = null; }
         Assert.True(owner.IsIndexed);
         Assert.Equal(2, owner.Count);
-        Assert.Same(first, owner[AwkArrayKey.FromOrdinal(1)]);
-        Assert.Equal("0007", first.Slot.ByteText.AsString());
-        Assert.True(first.IsAttached);
+        Assert.Equal(first, owner[AwkArrayKey.FromOrdinal(1)]);
+        Assert.Equal("0007", first.ByteText.AsString());
         Assert.Equal(before, memory.Budget.Reserved);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Fact]
-    public void PromotionRetainsLiveCellsAndPreservesDeletedPositions()
+    public void PromotionRetainsValuesAndPreservesDeletedPositions()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
@@ -203,20 +228,18 @@ public sealed class AwkIndexedArrayStorageTests
         variables.SetArrayValuesFromExternalText(name, [AwkText.FromString("7"), AwkText.FromString("8"), AwkText.FromString("9")]);
         var owner = variables.ResolveOrdinaryArray(name);
         var first = owner[AwkArrayKey.FromOrdinal(1)];
-        var deleted = owner[AwkArrayKey.FromOrdinal(2)];
         variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
         Assert.True(owner.IsIndexed);
-        Assert.False(deleted.IsAttached);
+        Assert.False(owner.ContainsKey(AwkArrayKey.FromOrdinal(2)));
         variables.SetArrayValue(owner, new("01"), AwkValue.FromNumber(11));
         Assert.False(owner.IsIndexed);
-        Assert.Same(first, owner[AwkArrayKey.FromOrdinal(1)]);
-        Assert.True(first.IsAttached);
+        Assert.Equal(first, owner[AwkArrayKey.FromOrdinal(1)]);
         Assert.False(owner.ContainsKey(AwkArrayKey.FromOrdinal(2)));
         Assert.Equal(3, owner.Count);
         Assert.True(owner.ByteLookup.TryGetValue("01"u8, out var leading));
-        Assert.Equal(11, leading.Slot.AsNumber());
+        Assert.Equal(11, leading.AsNumber());
         variables.ClearArray(name);
-        Assert.False(first.IsAttached);
+        Assert.Empty(owner);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 }

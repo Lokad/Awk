@@ -213,9 +213,11 @@ internal sealed partial class AwkArrayRuntime
         AwkValue value, AwkArrayBinding binding)
     {
         AwkArrayCell? cell;
+        AwkArrayKey key;
+        AwkValue prior;
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell))
+            if (!_variables.TryGetArrayKeySlot(array, index, out key, out prior, out cell))
             {
                 _variables.InsertArrayValue(array, index, value);
                 return true;
@@ -229,12 +231,12 @@ internal sealed partial class AwkArrayRuntime
                 // Special arrays keep their mutation policy and existing key.
                 // Materializing a field first could move admission before a
                 // required read-only diagnostic.
-                if (!_variables.TryGetExistingArrayKey(resolved, index, out var key)) return false;
+                if (!_variables.TryGetExistingArrayKey(resolved, index, out var specialKey)) return false;
                 _state.ThrowIfCancellationRequested();
-                SetAwkValue(name, key, value, binding);
+                SetAwkValue(name, specialKey, value, binding);
                 return true;
             }
-            if (!_variables.TryGetArrayKeySlot(array, index, out _, out cell))
+            if (!_variables.TryGetArrayKeySlot(array, index, out key, out prior, out cell))
             {
                 _variables.InsertArrayValue(array, index, value);
                 _state.BindGlobalArray(binding, resolved);
@@ -242,10 +244,10 @@ internal sealed partial class AwkArrayRuntime
             }
             _state.BindGlobalArray(binding, resolved);
         }
-        // Only the stable cell survives lookup; no borrowed bytes or dictionary
-        // entry reference crosses mutation admission or its callbacks.
+        // Keep the owning key/value and optional stable dictionary cell. No borrowed
+        // bytes or backing reference crosses mutation admission or its callbacks.
         _state.ThrowIfCancellationRequested();
-        _variables.SetArrayCellValue(array, cell, value);
+        _variables.SetLocatedArrayValue(array, key, prior, cell, value);
         return true;
     }
 
@@ -289,7 +291,7 @@ internal sealed partial class AwkArrayRuntime
             _variables.TryGetOrdinaryArray(resolved, out array);
         }
         AwkArrayCell? cell = null;
-        if (array is not null) array.TryGetValue(key, out cell);
+        if (array is not null) array.TryGetEntry(key, out _, out _, out cell);
         return new(key, previous, array, cell);
     }
 
@@ -529,11 +531,11 @@ internal sealed partial class AwkArrayRuntime
                     continue;
 
                 var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                slots[ordinalKey] = new(AwkValue.ForVariableStorage(_state.CreateStringValue(group.Value)));
+                slots[ordinalKey] = AwkValue.ForVariableStorage(_state.CreateStringValue(group.Value));
                 slots[MetadataKey(ordinalKey, MatchStartCaptureKeyPart)] =
-                    new(AwkValue.ForVariableStorage(AwkValue.FromNumber(group.Index + 1)));
+                    AwkValue.ForVariableStorage(AwkValue.FromNumber(group.Index + 1));
                 slots[MetadataKey(ordinalKey, MatchLengthCaptureKeyPart)] =
-                    new(AwkValue.ForVariableStorage(AwkValue.FromNumber(group.Length)));
+                    AwkValue.ForVariableStorage(AwkValue.FromNumber(group.Length));
             }
         }
 

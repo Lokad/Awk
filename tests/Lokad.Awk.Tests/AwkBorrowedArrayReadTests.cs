@@ -53,7 +53,7 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
         Assert.NotNull(array);
         var key = new AwkArrayKey(composite ? "0009\x1ctail" : "0009");
-        Assert.True(array[key].IsUntyped);
+        Assert.True(array[key].IsUntypedValue);
         Assert.Equal(2, array.Count);
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed record"));
@@ -133,7 +133,7 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.False(state.TryGetBoundGlobalArray(0, out _));
         Assert.Single(array);
-        Assert.True(array[seed].Slot.TryGetNumber(out var number));
+        Assert.True(array[seed].TryGetNumber(out var number));
         Assert.Equal(7, number);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -234,7 +234,7 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
         Assert.NotNull(array);
         Assert.Single(array);
-        Assert.True(array[seed].Slot.TryGetNumber(out var seedNumber));
+        Assert.True(array[seed].TryGetNumber(out var seedNumber));
         Assert.Equal(7, seedNumber);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

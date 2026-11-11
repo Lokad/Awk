@@ -241,7 +241,7 @@ public sealed class AwkNestedArrayStorageTests
         using var cancellation = new CancellationTokenSource();
         var parent = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
         var child = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance, parent);
-        parent.Add(AwkArrayKey.FromOrdinal(1), new(AwkValue.FromArrayReference(child)));
+        parent.Add(AwkArrayKey.FromOrdinal(1), AwkValue.FromArrayReference(child));
         var parameter = AwkVariableName.FromText("p");
         var calls = new AwkFunctionCallStack(4, AwkMemoryAccounting.Disabled, AwkNumberParsingMode.Decimal,
             checkpoint: cancellation.Token.ThrowIfCancellationRequested);

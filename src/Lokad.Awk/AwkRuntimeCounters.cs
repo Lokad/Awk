@@ -151,8 +151,8 @@ internal sealed class AwkRuntimeCounters
     public long BorrowedFieldTargetSnapshots => Volatile.Read(ref _borrowedFieldTargetSnapshots);
     private long _numericArraySlotReads;
     public long NumericArraySlotReads => Volatile.Read(ref _numericArraySlotReads);
-    private long _arrayCellCommits;
-    public long ArrayCellCommits => Volatile.Read(ref _arrayCellCommits);
+    private long _arrayTargetCommits;
+    public long ArrayTargetCommits => Volatile.Read(ref _arrayTargetCommits);
     private long _capturedPathAllocations;
     public long CapturedPathAllocations => Volatile.Read(ref _capturedPathAllocations);
     private long _capturedPathKeyBufferAllocations;
@@ -191,9 +191,9 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) Interlocked.Increment(ref _arrayEqualityCalls);
     }
 
-    public void RecordArrayCellCommit()
+    public void RecordArrayTargetCommit()
     {
-        if (_enabled) Interlocked.Increment(ref _arrayCellCommits);
+        if (_enabled) Interlocked.Increment(ref _arrayTargetCommits);
     }
 
     public void RecordNumericArraySlotRead()

@@ -147,7 +147,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.True(counters.BoundFunctionRuns > 0);
         Assert.Equal(0, counters.FunctionNameLookups);
         Assert.True(counters.IndexedLocalArrayAccesses > 0);
-        Assert.InRange(counters.ArrayCellCommits, records * 2 - keys * 2, records * 2);
+        Assert.InRange(counters.ArrayTargetCommits, records * 2 - keys * 2, records * 2);
         Assert.True(counters.NumericFieldByteParses >= records);
         Assert.InRange(counters.AwkTextAllocations, 0, records + 64); // Keys still own spelling; arithmetic values do not.
         Assert.Equal(0, counters.StringDecodes);
@@ -729,7 +729,7 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal((2 * records).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
                 result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.InRange(result.Counters.ArrayCellCommits, records - keys, records);
+            Assert.InRange(result.Counters.ArrayTargetCommits, records - keys, records);
             Assert.Equal(0, result.Counters.StringDecodes);
             Assert.Equal(0, result.Counters.Utf8Encodes);
             // Cold spelling and later traversal projection are per retained key;

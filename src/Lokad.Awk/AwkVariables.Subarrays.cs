@@ -53,8 +53,8 @@ internal sealed partial class AwkVariables
                     if (origin.IsScalar) copiedOrigin.Promote();
                     copy = AwkValue.FromUntypedScalar(copiedOrigin);
                 }
-                else copy = pair.Value.Slot;
-                destination.Add(pair.Key, CreateArrayCell(copy));
+                else copy = pair.Value;
+                destination.Add(pair.Key, copy.InVariableStorageMode(_numberParsingMode));
             }
             if (pending is null || !pending.TryPop(out var next)) break;
             source = next.Source;
@@ -81,11 +81,11 @@ internal sealed partial class AwkVariables
         IReadOnlyList<AwkCapturedSeparator> separators, bool includeSeparators)
     {
         var bytes = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
-            AwkRuntimeMemory.EstimateArrayBackingBytes(AwkRuntimeMemory.BoundArrayCapacity(fields.Count)));
+            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(fields.Count));
         for (var index = 0; index < fields.Count; index++)
         {
             if ((index & 63) == 0) _checkpoint?.Invoke();
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayPayloadBytes(
                 AwkArrayKey.FromOrdinal(index + 1), AwkValue.ForStoredInputText(fields[index])));
         }
         if (!includeSeparators) return bytes;
@@ -203,16 +203,14 @@ internal sealed partial class AwkVariables
     {
         ThrowIfDetached(parent);
         var slots = parent;
-        slots.TryGetValue(key, out var entry);
-        if (entry is not null && entry.TryGetArrayBinding(out var existing)) return existing;
-        return CreateSubarray(parent, key, slots, entry);
+        var found = slots.TryGetValue(key, out var value);
+        if (found && value.TryGetArrayBinding(out var existing)) return existing;
+        return CreateSubarray(parent, key, slots, found, value);
     }
 
     private AwkArrayIdentity CreateSubarray(AwkArrayIdentity parent, AwkArrayKey key,
-        AwkArrayIdentity slots, AwkArrayCell? entry)
+        AwkArrayIdentity slots, bool found, AwkValue slot)
     {
-        var found = entry is not null;
-        var slot = entry?.Slot ?? default;
         if (found && !slot.IsUntypedValue)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
 
@@ -234,7 +232,7 @@ internal sealed partial class AwkVariables
     internal AwkArrayIdentity? FindSubarray(AwkArrayIdentity parent, AwkArrayKey key)
     {
         ThrowIfDetached(parent);
-        if (!parent.TryGetValue(key, out var slot) || slot.IsUntyped) return null;
+        if (!parent.TryGetValue(key, out var slot) || slot.IsUntypedValue) return null;
         if (slot.TryGetArrayBinding(out var child)) return child;
         throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
     }
@@ -253,8 +251,9 @@ internal sealed partial class AwkVariables
     {
         ThrowIfDetached(array);
         var slots = array;
-        if (!slots.TryGetValue(key, out var retainedKey, out var slot)) return;
-        var oldBytes = AwkRuntimeMemory.EstimateArrayElementPayloadBytes(retainedKey, slot);
+        if (!slots.TryGetEntry(key, out var retainedKey, out var slot, out var cell)) return;
+        var oldBytes = slots.IsIndexed ? AwkRuntimeMemory.EstimateArrayPayloadBytes(retainedKey, slot)
+            : AwkRuntimeMemory.EstimateArrayElementPayloadBytes(retainedKey, slot);
         if (slot.TryGetArrayBinding(out var child))
         {
             oldBytes = AwkRuntimeMemory.CheckedAdd(oldBytes,
@@ -267,7 +266,8 @@ internal sealed partial class AwkVariables
             origin.Detach();
         }
         slots.Remove(retainedKey);
-        slot.Detach();
+        cell?.Detach();
+        slot = default;
         _memoryAccounting.ReleaseCommitted(oldBytes);
     }
 
@@ -289,7 +289,7 @@ internal sealed partial class AwkVariables
                 var slot = entries.Current.Value;
                 if (slot.TryGetArrayBinding(out var child)) (pending ??= new()).Push(child);
                 if (slot.TryGetUntypedScalar(out var origin)) origin.Detach();
-                slot.Detach();
+                entries.RetireCurrent();
             }
             entries.Dispose();
             if (pending is null || !pending.TryPop(out var next)) break;

@@ -73,13 +73,13 @@ public sealed class AwkArrayEstimateTests
     [Fact]
     public void EmptyAndMixedArrayTotalsIncludeRetainedKeysAndValues()
     {
-        Assert.Equal(0, AwkVariables.EstimateArrayBytes(new Dictionary<AwkArrayKey, AwkArrayCell>()));
+        Assert.Equal(0, AwkVariables.EstimateArrayBytes(new Dictionary<AwkArrayKey, AwkValue>()));
         var key = new AwkArrayKey("café");
         var text = AwkText.FromString("été");
-        Dictionary<AwkArrayKey, AwkArrayCell> slots = new()
+        Dictionary<AwkArrayKey, AwkValue> slots = new()
         {
-            [AwkArrayKey.FromOrdinal(1)] = new(AwkValue.ForVariableStorage(AwkValue.FromNumber(42))),
-            [key] = new(AwkValue.ForStoredText(text))
+            [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(42)),
+            [key] = AwkValue.ForStoredText(text)
         };
         var filled = AwkVariables.EstimateArrayBytes(slots);
         slots.Remove(key);
@@ -107,7 +107,7 @@ public sealed class AwkArrayEstimateTests
         var committed = accounting.CurrentCommittedBytes;
         var reserved = budget.Reserved;
         var replacement = variables.CreateMutableArraySlots(0);
-        replacement[key] = new(AwkValue.ForStoredText(new string('x', refuse ? 4096 : 16)));
+        replacement[key] = AwkValue.ForStoredText(new string('x', refuse ? 4096 : 16));
 
         void Replace() => variables.ReplaceMutableArraySlots(name, replacement, AwkMemoryLease.Disabled, 0);
         if (refuse)
@@ -139,7 +139,7 @@ public sealed class AwkArrayEstimateTests
         variables.ClearArray(name);
         var emptyArrayBytes = memory.Budget.Reserved;
         for (var index = 1; index <= 4096; index++)
-            variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
+            variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromText(AwkText.FromString("retained payload")));
         var filled = memory.Budget.Reserved;
         for (var index = 1; index <= 4096; index++) variables.DeleteArrayValue(name, AwkArrayKey.FromOrdinal(index));
         Assert.True(variables.TryGetArrayCount(name, out var count));
@@ -193,19 +193,18 @@ public sealed class AwkArrayEstimateTests
 
     // The estimator needs enumeration only. Unique ordinal keys avoid a multi-GB dictionary.
     private sealed class RepeatedSlots(int count, AwkValue slot)
-        : IReadOnlyDictionary<AwkArrayKey, AwkArrayCell>
+        : IReadOnlyDictionary<AwkArrayKey, AwkValue>
     {
         public int Count => count;
         public IEnumerable<AwkArrayKey> Keys => Enumerable.Range(0, count).Select(AwkArrayKey.FromOrdinal);
-        private readonly AwkArrayCell _cell = new(slot);
-        public IEnumerable<AwkArrayCell> Values => Enumerable.Repeat(_cell, count);
-        public AwkArrayCell this[AwkArrayKey key] => throw new NotSupportedException();
+        public IEnumerable<AwkValue> Values => Enumerable.Repeat(slot, count);
+        public AwkValue this[AwkArrayKey key] => throw new NotSupportedException();
         public bool ContainsKey(AwkArrayKey key) => throw new NotSupportedException();
-        public bool TryGetValue(AwkArrayKey key, out AwkArrayCell value) => throw new NotSupportedException();
-        public IEnumerator<KeyValuePair<AwkArrayKey, AwkArrayCell>> GetEnumerator()
+        public bool TryGetValue(AwkArrayKey key, out AwkValue value) => throw new NotSupportedException();
+        public IEnumerator<KeyValuePair<AwkArrayKey, AwkValue>> GetEnumerator()
         {
             for (var index = 0; index < count; index++)
-                yield return new(AwkArrayKey.FromOrdinal(index), _cell);
+                yield return new(AwkArrayKey.FromOrdinal(index), slot);
         }
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }

@@ -19,10 +19,14 @@ public sealed class AwkArrayMemoryModeTests
         Assert.Equal(100, variables.GetArrayValue(array, text).AsNumber());
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(3)));
+        var capacity = variables.ResolveOrdinaryArray(array).EnsureCapacity(0);
+        for (var index = 2; index <= capacity; index++)
+            variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(3));
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(capacity + 1), AwkValue.FromNumber(3)));
         Assert.Equal(100, variables.GetArrayValue(array, ordinal).AsNumber());
         Assert.True(variables.TryGetArrayCount(array, out var count));
-        Assert.Equal(1, count);
+        Assert.Equal(capacity, count);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);

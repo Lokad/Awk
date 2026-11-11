@@ -14,7 +14,7 @@ public sealed class AwkArrayStorageCacheTests
         var replacement = Values(9);
         storage.SetSlots(name, replacement);
         Assert.Same(identity, storage.ResolveArray(name));
-        Assert.Equal(9, identity[AwkArrayKey.FromOrdinal(1)].Slot.AsNumber());
+        Assert.Equal(9, identity[AwkArrayKey.FromOrdinal(1)].AsNumber());
         storage.Clear(name);
         Assert.Same(identity, storage.ResolveArray(name));
         Assert.Empty(identity);
@@ -42,7 +42,7 @@ public sealed class AwkArrayStorageCacheTests
         storage.SetSlots(name, second);
         Assert.True(storage.TryGetArray(name, out var replacement));
         Assert.Same(original, replacement);
-        Assert.Equal(9, replacement[AwkArrayKey.FromOrdinal(1)].Slot.AsNumber());
+        Assert.Equal(9, replacement[AwkArrayKey.FromOrdinal(1)].AsNumber());
         storage.Clear(name);
         Assert.True(storage.TryGetArray(name, out var cleared));
         Assert.Same(original, cleared);
@@ -106,7 +106,7 @@ public sealed class AwkArrayStorageCacheTests
         var slots = Values(7);
         storage.SetSlots(name, slots);
         Assert.True(storage.TryGetArray(name, out _));
-        var reference = new WeakReference<AwkArrayCell>(slots[AwkArrayKey.FromOrdinal(1)]);
+        var reference = new WeakReference<AwkArrayCell>(DictionaryCell(slots, AwkArrayKey.FromOrdinal(1)));
         if (remove)
             Assert.True(storage.Remove(name, out _));
         else
@@ -114,6 +114,12 @@ public sealed class AwkArrayStorageCacheTests
         return reference;
     }
 
+    private static AwkArrayCell DictionaryCell(AwkArrayIdentity array, AwkArrayKey key)
+    {
+        Assert.True(array.TryGetEntry(key, out _, out _, out var cell));
+        return Assert.IsType<AwkArrayCell>(cell);
+    }
+
     private static AwkArrayIdentity Values(int number) =>
-        new(0, AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = new(AwkValue.ForVariableStorage(AwkValue.FromNumber(number))) };
+        new(0, AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(number)) };
 }

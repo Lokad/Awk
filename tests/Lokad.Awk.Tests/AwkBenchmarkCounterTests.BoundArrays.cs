@@ -52,7 +52,7 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
 
-        Assert.True(counters.ArrayCellCommits >= records);
+        Assert.True(counters.ArrayTargetCommits >= records);
         Assert.Equal(records, counters.NumericFieldByteParses);
         Assert.InRange(counters.AwkTextAllocations, 0, 4 * keys + 32);
         Assert.Equal(0, counters.StringDecodes);

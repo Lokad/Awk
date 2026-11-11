@@ -6,22 +6,28 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayCellTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void CapturedCellRetiresItsPayloadBeforeArrayRefund(bool clear)
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void CapturedTargetRetiresItsPayloadBeforeArrayRefund(bool clear, bool indexed)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = Variables(memory);
         var array = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
-        var key = AwkArrayKey.FromOrdinal(1);
+        var key = indexed ? AwkArrayKey.FromOrdinal(1) : new AwkArrayKey("cell");
         variables.SetArrayValue(array, key, AwkValue.FromNumber(5));
         var target = variables.PrepareArrayUpdate(array, key);
-        var cell = Assert.IsType<AwkArrayCell>(target.Cell);
+        if (indexed) Assert.Null(target.Cell);
+        else Assert.IsType<AwkArrayCell>(target.Cell);
         using var heldTarget = memory.Accounting.ReserveTransient(target.RetainedTargetBytes);
         var text = ReplaceAndRetire(variables, array, key, clear);
         Assert.Equal(5, target.Previous);
-        Assert.False(cell.IsAttached);
+        if (target.Cell is { } cell)
+        {
+            Assert.False(cell.IsAttached);
+            Assert.Equal(0, cell.Slot.RetainedTextMemoryBytes);
+        }
         Assert.Equal(key, target.Key);
-        Assert.Equal(0, cell.RetainedTextMemoryBytes);
+        Assert.False(array.ContainsKey(key));
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         Assert.False(text.TryGetTarget(out _));
         Assert.InRange(memory.Budget.Reserved, 1, 100_000);
@@ -66,15 +72,15 @@ public sealed class AwkArrayCellTests
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = Variables(memory);
         var array = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
-        variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(5));
+        variables.SetArrayValue(array, new("first"), AwkValue.FromNumber(5));
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(() =>
-            variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(9)));
+            variables.SetArrayValue(array, new("second"), AwkValue.FromNumber(9)));
         Assert.Single(array);
-        Assert.Equal(5, variables.GetArrayNumber(array, AwkArrayKey.FromOrdinal(1)));
-        Assert.True(array.ByteLookup.TryGetValue("1"u8, out var stored));
+        Assert.Equal(5, variables.GetArrayNumber(array, new AwkArrayKey("first")));
+        Assert.True(array.ByteLookup.TryGetValue("first"u8, out var stored));
         Assert.Equal(5, variables.ReadArraySlotNumber(stored));
-        Assert.False(array.ByteLookup.ContainsKey("2"u8));
+        Assert.False(array.ByteLookup.ContainsKey("second"u8));
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
@@ -86,12 +92,14 @@ public sealed class AwkArrayCellTests
         var name = AwkArrayName.FromText("a");
         var array = variables.ResolveOrdinaryArray(name);
         variables.SetArrayValue(array, new AwkArrayKey("0007"), AwkValue.FromNumber(5));
-        Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var original));
+        Assert.True(array.TryGetEntry(new("0007"), out _, out _, out var original));
+        Assert.NotNull(original);
         for (var index = 0; index < 1024; index++)
             variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
 
         Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var retainedKey, out var grown));
-        Assert.Same(original, grown);
+        Assert.True(array.TryGetEntry(retainedKey, out _, out _, out var grownCell));
+        Assert.Same(original, grownCell);
         Assert.Equal("0007", retainedKey.AsString(AwkRuntimeCounters.Disabled));
         Assert.Equal(5, variables.ReadArraySlotNumber(grown));
         var count = array.Count;
@@ -112,8 +120,9 @@ public sealed class AwkArrayCellTests
     private static WeakReference<AwkArrayCell> RetireTable(AwkVariables variables,
         AwkArrayName name, AwkArrayIdentity array, bool detach)
     {
-        variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
-        var reference = new WeakReference<AwkArrayCell>(array[AwkArrayKey.FromOrdinal(1)]);
+        variables.SetArrayValue(array, new("cell"), AwkValue.FromNumber(7));
+        Assert.True(array.TryGetEntry(new("cell"), out _, out _, out var cell));
+        var reference = new WeakReference<AwkArrayCell>(Assert.IsType<AwkArrayCell>(cell));
         if (detach) variables.RemoveFunctionLocalArray(name);
         else variables.ClearArray(name);
         return reference;

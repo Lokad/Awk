@@ -64,17 +64,20 @@ or environment dependencies.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring
   key scratch and evaluating the RHS. Only cross-instruction captures need retained target slots
   and rule cleanup. Fund ordinary key/cell holding with target capacity and larger live captures
-  through the existing payload lease. Preserve admitted owners and stable cells across mutation/calls/suspension;
+  through the existing payload lease. Preserve admitted owners and useful dictionary cells across mutation/calls/suspension;
   never retain a dictionary entry reference across RHS evaluation.
   Array identities own either indexed storage or one prepared dictionary byte-lookup
   handle. Synchronous byte views follow the current owner; never capture a backing across RHS
   mutation or suspension or retain a duplicate dictionary reference. Bulk 1..N producers and
   ordinary canonical ordinal population share admitted insertion. Available indexed slots keep
-  their backing; adjacent growth copies references privately under admission before publication.
-  Sparse/noncanonical insertion retains private dictionary promotion. Preserve live stable cells,
+  their backing and hold nullable owning values directly; adjacent growth copies these values
+  privately under admission before publication. Reads/enumeration project owning values. Ordinal
+  targets keep owner/key/prior number and re-locate at commit; dictionary targets may keep their
+  real stable cell. Promotion admits the new dictionary cells and old/new backing overlap before
+  construction. Sparse/noncanonical insertion retains private dictionary promotion. Preserve aliases,
   independent clones, parentage and atomic refusal/cancellation. Enumeration bounds hole scans;
   cleanup estimates and retirement remain noncancellable after their preflight.
-  Plain field/composite assignments consume located cells directly; preserve captured RHS values,
+  Plain field/composite assignments consume located values and optional dictionary cells directly; preserve captured RHS values,
   special-array behavior and owned-key admission on misses without repeating a successful lookup.
   Ordinary byte-key misses admit retained key construction and insertion together, without
   constructing a field scalar/cache just to transport key bytes. No RHS or host work may
@@ -237,7 +240,7 @@ or environment dependencies.
   only the cell role selects their interpretation. Fund slot arrays at their actual element width.
   Function scalars retain canonical values in those words, without a variable-slot projection
   or read conversion callback. Normalize reading mode at the frame owner; preserve input spelling,
-  deferred conversion errors and long-input cancellation. Global and array cells share that
+  deferred conversion errors and long-input cancellation. Global and array storage share that
   canonical payload. Ordinary strings bind their deferred numeric mode at publication; input
   text keeps classification at read. Ready values return without reconstruction. Preserve
   original spelling, mutation preflights and the same 24-byte footprint.

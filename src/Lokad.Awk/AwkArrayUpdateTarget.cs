@@ -1,6 +1,7 @@
 namespace Lokad.Awk;
 
-// Keep an owned entry cell, never a dictionary reference. Retired cells hold no payload.
+// Capture the owning key and old number. Dictionary cells survive rehash; ordinal
+// locations are resolved again at commit. Never retain an entry/backing reference.
 internal readonly record struct AwkArrayUpdateTarget(AwkArrayKey Key, double Previous,
     AwkArrayIdentity? Array, AwkArrayCell? Cell = null)
 {
