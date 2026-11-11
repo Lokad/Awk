@@ -270,6 +270,9 @@ or environment dependencies.
   calls keep owned ordinary text, without input-number classification. Mixed observations retain
   full input values, and numeric arguments keep formatting at actual use. Do not use key cells as
   general scalar text or retain raw record spans across a function call or host suspension.
+  Reader arguments initialize their actual cleared incoming cells from captured borrow coordinates
+  after admission and its cancellation check. Keep materialization funding and source capture
+  before callbacks; reader roles need no alias-index work or temporary general local cells.
   Comparisons against proved numeric results may stage established numeric field facts directly.
   Ordinary strings, deferred errors and observed spelling retain full capture; arithmetic prefix caches
   are not comparison facts. The use lattice shares one bounded-membership propagation worklist.

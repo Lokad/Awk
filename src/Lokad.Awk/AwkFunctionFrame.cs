@@ -92,6 +92,12 @@ internal sealed class AwkFunctionFrame
         GetSlot(index).InitializeScalar(in value);
     }
 
+    internal void StageReaderText(int index, AwkReadBuffer borrow, int offset, int length)
+    {
+        System.Diagnostics.Debug.Assert(IsIncoming);
+        GetSlot(index).InitializeReaderText(borrow, offset, length);
+    }
+
     internal bool TryWriteNumber(int index, double number)
     {
         ref var slot = ref GetSlot(index);
@@ -213,18 +219,6 @@ internal struct AwkFunctionLocalSlot
         ArrayName = default;
     }
 
-    private AwkFunctionLocalSlot(AwkReadBuffer borrow, int offset, int length)
-    {
-        Kind = AwkFunctionLocalSlotKind.ReaderText;
-        _reference = borrow;
-        _word = ((long)offset << 32) | (uint)length;
-        _payloadTag = 0;
-        ArrayName = default;
-    }
-
-    internal static AwkFunctionLocalSlot FromReaderText(AwkReadBuffer borrow, int offset, int length) =>
-        new(borrow, offset, length);
-
     internal readonly bool TryGetReaderText(out ReadOnlyMemory<byte> bytes)
     {
         if (Kind == AwkFunctionLocalSlotKind.ReaderText && _reference is AwkReadBuffer borrow)
@@ -315,6 +309,14 @@ internal struct AwkFunctionLocalSlot
         _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
         _payloadTag = (int)value.StoredKind;
         Kind = AwkFunctionLocalSlotKind.Scalar;
+    }
+
+    internal void InitializeReaderText(AwkReadBuffer borrow, int offset, int length)
+    {
+        System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        _reference = borrow;
+        _word = ((long)offset << 32) | (uint)length;
+        Kind = AwkFunctionLocalSlotKind.ReaderText;
     }
 
     public static AwkFunctionLocalSlot PreparedKey(AwkArrayKey key) =>

@@ -175,6 +175,23 @@ internal sealed class AwkFunctionCallStack(
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
     }
 
+    internal void StageReaderText(AwkFunctionFrame frame, int index, AwkReadBuffer borrow, int offset, int length)
+    {
+        if ((uint)index >= (uint)frame.Layout.SlotCount) return;
+        // Capture the reader coordinates in arguments before admission can call
+        // the provider. The incoming cell already owns its cleared capacity.
+        var bytes = memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(length) : 0;
+        memoryAccounting.ReserveAndCommit(bytes);
+        try
+        {
+            if (bytes > 0) checkpoint?.Invoke();
+            var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
+            frame.StageReaderText(index, borrow, offset, length);
+            frame.RetainedMemoryBytes = retained;
+        }
+        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
+    }
+
     internal void StageArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument)
     {
         if (argument.Kind == AwkFunctionLocalSlotKind.Scalar)

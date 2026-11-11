@@ -913,8 +913,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (borrowReader && field >= 0 && _recordFields.TryCaptureReaderText(new(field), out var borrow, out var offset, out var length))
         {
             ThrowIfCancellationRequested();
-            var captured = AwkFunctionLocalSlot.FromReaderText(borrow, offset, length);
-            _functions.StageArgument(incoming, index, in captured);
+            _functions.StageReaderText(incoming, index, borrow, offset, length);
             return true;
         }
         if (!TryGetFieldTextArgument(field, out var value)) return false;

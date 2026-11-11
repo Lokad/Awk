@@ -59,6 +59,8 @@ internal sealed class AwkFunctionRuntime
     internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value) => _calls.StageValue(frame, index, in value);
     internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkValue value) =>
         _calls.StageScalarArgument(frame, index, in value);
+    internal void StageReaderText(AwkFunctionFrame frame, int index, AwkReadBuffer borrow, int offset, int length) =>
+        _calls.StageReaderText(frame, index, borrow, offset, length);
     internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array) =>
         _calls.StageArrayAlias(frame, index, name, array);
     internal void StageKey(AwkFunctionFrame frame, int index, AwkArrayKey key) => _calls.StageKey(frame, index, key);
