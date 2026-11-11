@@ -39,7 +39,7 @@ internal partial struct AwkRegionMachine
                     if (output is { HasPendingOutput: true })
                     {
                         if (instruction.Right > 0) computationView.Storage.ReleaseValue(instruction.Right - 1);
-                        BeginFlush(output, position + 1, instruction.Detail);
+                        TryFlush(output, position + 1, instruction.Detail);
                         goto Resume;
                     }
                     if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
@@ -502,8 +502,7 @@ internal partial struct AwkRegionMachine
                     else if (instruction.Detail != 0)
                     {
                         _position = position + 1;
-                        _pending = Pending.Flush;
-                        _hostCompletion = builtinExecution.Output.FlushDiagnosticsAsync(builtinExecution.Io);
+                        TryCompleteFlush(builtinExecution.Output.FlushDiagnosticsAsync(builtinExecution.Io));
                         goto Resume;
                     }
                     break;
@@ -521,10 +520,10 @@ internal partial struct AwkRegionMachine
                     }
                     if (read.Kind != AwkGetlineSourceKind.MainInput && !read.IsExpression) break;
                     _position = position + 1;
-                    _pending = Pending.Flush;
-                    _hostCompletion = read.Kind == AwkGetlineSourceKind.MainInput
+                    var flush = read.Kind == AwkGetlineSourceKind.MainInput
                         ? execution.Output.FlushAsync(execution.Io)
                         : execution.Output.FlushDiagnosticsAsync(execution.Io);
+                    TryCompleteFlush(flush);
                     goto Resume;
                 }
                 case AwkRegionInstructionKind.PrepareString:
@@ -550,21 +549,16 @@ internal partial struct AwkRegionMachine
                     BeginRead(computationView.Region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
-                    if (output is { HasPendingOutput: true })
-                    {
-                        BeginFlush(output, position);
-                        goto Resume;
-                    }
+                    if (output is { HasPendingOutput: true } && !TryFlush(output, position)) goto Resume;
                     Return(instruction.Left < 0 ? AwkValue.Unassigned() : computationView.Value(instruction.Left));
                     goto Resume;
                 case AwkRegionInstructionKind.ReturnNumber:
                     var returnSource = new AwkRegionNumberSource(instruction.Left);
                     var returnedNumber = computationView.CompleteNumberRead(in instruction, returnSource.IsRegister
                         ? computationView.Numbers[returnSource.RegisterIndex] : computationView.ReadBoundNumber(in computationView.Operands[returnSource.OperandIndex]));
-                    if (output is { HasPendingOutput: true })
+                    if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
                     {
                         _returningNumber = returnedNumber;
-                        BeginFlush(output, position + 1);
                         _pending = Pending.NumberReturn;
                         goto Resume;
                     }

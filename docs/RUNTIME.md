@@ -304,6 +304,8 @@ Numeric-string arguments used in proved-number comparisons can use established f
 operand is proved numeric. Ordinary strings retain lexical comparison, and observers retain spelling.
 Execution and binding-frame ownership remain distinct during reentry and cleanup.
 Rule completion retires its reference scratch. Actual host suspension saves its continuation.
+Ready and pending flushes share statement visibility, post-host cancellation and field
+preparation. Pending operations and failures retain their existing awaited completion path.
 Returns keep their captured value and callee storage until required output actually completes.
 An adjacent bound-scalar assignment can be prepared as the return's consumer and completed
 after restoring caller scope. Used expression results and escaping text retain funded snapshots;

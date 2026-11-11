@@ -131,13 +131,24 @@ internal partial struct AwkRegionMachine
         _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()[payloadStart..]));
     }
 
-    private void BeginFlush(AwkOutputSink output, int resumePosition, int fieldDemand = 0)
+    private bool TryFlush(AwkOutputSink output, int resumePosition, int fieldDemand = 0)
     {
         if (_io is not { } io) throw new InvalidOperationException("Flush requires a host context.");
         _position = resumePosition;
+        return TryCompleteFlush(output.FlushAsync(io), fieldDemand);
+    }
+
+    private bool TryCompleteFlush(Task completion, int fieldDemand = 0)
+    {
+        if (completion.IsCompletedSuccessfully)
+        {
+            CompleteFlush(fieldDemand);
+            return true;
+        }
+        _hostCompletion = completion;
         _flushFieldDemand = fieldDemand;
-        _hostCompletion = output.FlushAsync(io);
         _pending = Pending.Flush;
+        return false;
     }
 
     private void CompleteHostOperation()
@@ -150,13 +161,19 @@ internal partial struct AwkRegionMachine
         }
         _hostCompletion = Task.CompletedTask;
         _pending = Pending.None;
-        _state.ThrowIfCancellationRequested();
         if (completed == Pending.Flush)
         {
             var fieldDemand = _flushFieldDemand;
             _flushFieldDemand = 0;
-            if (fieldDemand > 0) _state.PrepareAdmittedFields(fieldDemand);
+            CompleteFlush(fieldDemand);
         }
+        else _state.ThrowIfCancellationRequested();
+    }
+
+    private void CompleteFlush(int fieldDemand)
+    {
+        _state.ThrowIfCancellationRequested();
+        if (fieldDemand > 0) _state.PrepareAdmittedFields(fieldDemand);
     }
 
     private void CompleteBuiltinValue(AwkValue value)

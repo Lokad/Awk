@@ -41,14 +41,29 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task TextReturnConvertsWithinItsFundedCalleeAfterActualFlush(bool cancel)
+    public Task TextReturnConvertsWithinItsFundedCalleeAfterActualFlush(bool cancel) =>
+        CheckReturnedValueAsync(numeric: false, pending: true, cancel);
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public Task ReadyReturnKeepsItsFundedCalleeThroughHostCompletion(bool numeric, bool cancel) =>
+        CheckReturnedValueAsync(numeric, pending: false, cancel);
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public Task NumericReturnKeepsItsFundedCalleeAfterActualFlush(bool cancel) =>
+        CheckReturnedValueAsync(numeric: true, pending: true, cancel);
+
+    private static async Task CheckReturnedValueAsync(bool numeric, bool pending, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(4 << 20, counters);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
-        var program = Bind("function part(s){return substr(s,1)}BEGIN{total+=part(\"0007\")}");
+        var program = Bind("function part(s){return " + (numeric ? "s+0" : "substr(s,1)") +
+            "}BEGIN{total+=part(\"0007\")}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
@@ -61,10 +76,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             AppendOverride = async (_, bytes, _) =>
             {
+                Assert.True(state.IsInsideFunction);
                 Assert.True(memory.Budget.TryReserve(memory.Budget.Limit - memory.Budget.Reserved, out var reserved));
                 pressure = reserved;
                 entered.SetResult();
-                await release.Task.ConfigureAwait(false);
+                if (pending) await release.Task.ConfigureAwait(false);
+                else if (cancel) cancellation.Cancel();
                 Assert.True(bytes.Span.SequenceEqual("before\n"u8));
                 return AwkAppendResult.Accepted();
             }
@@ -77,11 +94,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.False(run.IsCompleted);
-            Assert.True(state.IsInsideFunction);
-            if (cancel) cancellation.Cancel();
-            Assert.False(run.IsCompleted);
-            release.SetResult();
+            if (pending)
+            {
+                Assert.False(run.IsCompleted);
+                Assert.True(state.IsInsideFunction);
+                if (cancel) cancellation.Cancel();
+                Assert.False(run.IsCompleted);
+                release.SetResult();
+            }
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
             else Assert.Equal(AwkStatementFlow.Continue, await run);
             Assert.Equal(cancel ? 0 : 7, state.ResolveVariableValue(total).AsNumber());
