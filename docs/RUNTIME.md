@@ -401,6 +401,8 @@ cell's payload before the containing array refunds it.
 Ordinary byte-key misses admit key/cell/backing storage before copying or insertion. Short keys
 own their bytes in the key value; longer keys own text. Language-key projections
 fund any text materialization. Cold names and special arrays retain their resolution policy.
+Reads and update captures can complete an ordinary miss without a field scalar or repeated lookup;
+the retained entry still starts untyped. Membership remains non-inserting.
 Scalar and array updates use bound numeric sources, keeping arithmetic field reads byte-native.
 Captured prior numbers survive RHS calls and suspension; numeric stores retain mutation preflights.
 Plain numbers retain no text reference. Numeric overwrites reuse their funded owners;

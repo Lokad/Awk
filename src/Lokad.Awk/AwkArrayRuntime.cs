@@ -167,13 +167,8 @@ internal sealed partial class AwkArrayRuntime
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            if (_variables.TryGetArrayKeySlot(array, index, out _, out var slot))
-            {
-                number = _variables.ReadArraySlotNumber(slot);
-                return true;
-            }
-            number = 0;
-            return false;
+            number = _variables.GetArrayNumber(array, index);
+            return true;
         }
         var found = TryGetBorrowedAwkValue(name, index, out var value, binding);
         number = found ? value.AsNumber(_state.CancellationCheckpoint) : 0;
@@ -184,8 +179,17 @@ internal sealed partial class AwkArrayRuntime
         AwkArrayBinding binding = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
-            return _variables.TryGetArrayValue(array, index, out value);
+        {
+            value = _variables.GetArrayValue(array, index);
+            return true;
+        }
         var resolved = _variableRuntime.ResolveArrayReadName(name);
+        if (_variables.TryGetOrdinaryArray(resolved, out array))
+        {
+            value = _variables.GetArrayValue(array, index);
+            _state.BindGlobalArray(binding, resolved);
+            return true;
+        }
         var found = _variables.TryGetExistingArrayValue(resolved, index, out value);
         if (found) _state.BindGlobalArray(binding, resolved);
         return found;
@@ -206,13 +210,8 @@ internal sealed partial class AwkArrayRuntime
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
-            {
-                target = new(key, _variables.ReadArraySlotNumber(slot), array, slot);
-                return true;
-            }
-            target = default;
-            return false;
+            target = _variables.PrepareArrayUpdate(array, index);
+            return true;
         }
         return TryPrepareUnboundBorrowedUpdate(name, index, out target, binding);
     }
@@ -223,12 +222,9 @@ internal sealed partial class AwkArrayRuntime
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetOrdinaryArray(resolved, out var array))
         {
-            if (_variables.TryGetArrayKeySlot(array, index, out var key, out var slot))
-            {
-                _state.BindGlobalArray(binding, resolved);
-                target = new(key, _variables.ReadArraySlotNumber(slot), array, slot);
-                return true;
-            }
+            target = _variables.PrepareArrayUpdate(array, index);
+            _state.BindGlobalArray(binding, resolved);
+            return true;
         }
         else if (_variables.TryGetExistingArrayKeyValue(resolved, index, out var key, out var value))
         {

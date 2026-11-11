@@ -189,6 +189,27 @@ internal sealed partial class AwkVariables
             : CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
     }
 
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index) =>
+        CreateValue(GetArrayCell(array, index));
+
+    internal double GetArrayNumber(AwkArrayIdentity array, ReadOnlySpan<byte> index) =>
+        ReadArraySlotNumber(GetArrayCell(array, index));
+
+    private AwkArrayCell GetArrayCell(AwkArrayIdentity array, ReadOnlySpan<byte> index)
+    {
+        ThrowIfDetached(array);
+        return array.ByteLookup.TryGetValue(index, out var cell)
+            ? cell : InsertByteCell(array, index, default, missing: true, out _);
+    }
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index)
+    {
+        ThrowIfDetached(array);
+        if (!array.ByteLookup.TryGetValue(index, out var key, out var cell))
+            cell = InsertByteCell(array, index, default, missing: true, out key);
+        return new(key, ReadArraySlotNumber(cell), array, cell);
+    }
+
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
     {
         ThrowIfDetached(array);
@@ -219,17 +240,6 @@ internal sealed partial class AwkVariables
         return SetArraySlot(slots, index, slot);
     }
 
-    internal bool TryGetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, out AwkValue value)
-    {
-        if (array.ByteLookup.TryGetValue(index, out var slot))
-        {
-            value = CreateValue(slot);
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
     internal bool TryGetArrayKeySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index,
         out AwkArrayKey key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayCell? slot) =>
         array.ByteLookup.TryGetValue(index, out key, out slot);
@@ -243,19 +253,26 @@ internal sealed partial class AwkVariables
     // The caller's synchronous borrowed lookup proved this key absent. Admit the
     // retained key and insertion together; no field scalar or cache entry is needed.
     internal void InsertArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, AwkValue value)
+        => InsertByteCell(array, index, AwkValue.ForVariableStorage(value), missing: false, out _);
+
+    // A missing read creates its untyped origin only after the same admission as
+    // the retained key/cell. Callers have already proved this byte key absent.
+    private AwkArrayCell InsertByteCell(AwkArrayIdentity array, ReadOnlySpan<byte> index,
+        AwkValue slot, bool missing, out AwkArrayKey key)
     {
         ThrowIfDetached(array);
-        var slot = AwkValue.ForVariableStorage(value);
         var slots = array.Slots;
         var oldCapacity = _memoryAccounting.IsEnabled ? slots.EnsureCapacity(0) : 0;
         using var admission = _memoryAccounting.AdmitMutation(_memoryAccounting.IsEnabled
             ? EstimateArrayInsertionGrowth(slots, AwkRuntimeMemory.CheckedAdd(
                 AwkArrayKey.EstimateRetainedTextBytes(index.Length),
-                AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayCellBytes, slot.RetainedTextMemoryBytes))) : 0);
-        var key = AwkArrayKey.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint);
+                AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayCellBytes,
+                    missing ? AwkRuntimeMemory.EstimateUntypedScalarBytes() : slot.RetainedTextMemoryBytes))) : 0);
+        key = AwkArrayKey.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint);
         _checkpoint?.Invoke();
-        if (_memoryAccounting.IsEnabled) InsertAdmittedArraySlot(slots, key, slot, oldCapacity);
-        else AddArraySlot(slots, key, slot);
+        if (missing) slot = AwkValue.FromUntypedScalar(new AwkUntypedScalar(array));
+        return _memoryAccounting.IsEnabled ? InsertAdmittedArraySlot(slots, key, slot, oldCapacity)
+            : AddArraySlot(slots, key, slot);
     }
 
     internal void SetArrayCellValue(AwkArrayIdentity array, AwkArrayCell cell, AwkValue value)

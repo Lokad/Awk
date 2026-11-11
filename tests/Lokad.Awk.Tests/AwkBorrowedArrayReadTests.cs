@@ -3,6 +3,146 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
+    [InlineData(false, false, false, 0)] [InlineData(true, false, false, 0)]
+    [InlineData(false, true, false, 0)] [InlineData(true, true, false, 0)]
+    [InlineData(false, false, true, 0)] [InlineData(true, false, true, 0)]
+    [InlineData(false, true, true, 0)] [InlineData(true, true, true, 0)]
+    [InlineData(false, false, false, 1)] [InlineData(true, false, false, 1)]
+    [InlineData(false, true, false, 1)] [InlineData(true, true, false, 1)]
+    [InlineData(false, false, true, 1)] [InlineData(true, false, true, 1)]
+    [InlineData(false, true, true, 1)] [InlineData(true, true, true, 1)]
+    [InlineData(false, false, false, 2)] [InlineData(true, false, false, 2)]
+    [InlineData(false, true, false, 2)] [InlineData(true, true, false, 2)]
+    [InlineData(false, false, true, 2)] [InlineData(true, false, true, 2)]
+    [InlineData(false, true, true, 2)] [InlineData(true, true, true, 2)]
+    public void OrdinaryMissOwnsUntypedKeyWithoutFieldClassificationOrRepeatedLookup(
+        bool governed, bool composite, bool bound, int operation)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = memory.Initialize(() => State(memory.Owner, counters)).State;
+        state.InitializeGlobalReadSlots(1);
+        var name = AwkArrayName.FromText("a");
+        var binding = AwkArrayBinding.Global(0);
+        state.SetArrayAwkValue(name, new AwkArrayKey("seed"), AwkValue.FromNumber(7), bound ? binding : default);
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("0009 tail"));
+        _ = state.FieldCount;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append("0009\x1ctail"u8);
+        var borrowedHashes = counters.ArrayBorrowedHashCalls;
+        var ownedHashes = counters.ArrayOwnedHashCalls;
+        var classifications = counters.TextValueClassifications;
+        var fieldCaches = counters.FieldValueCacheBufferAllocations;
+        AwkArrayUpdateTarget target = default;
+
+        if (operation == 2)
+            target = composite ? state.PrepareArrayUpdate(name, builder, binding) : state.PrepareArrayFieldUpdate(name, 1, binding);
+        else if (operation == 1)
+            Assert.Equal(0, composite ? state.GetArrayNumber(name, builder, binding) : state.GetArrayFieldNumber(name, 1, binding));
+        else
+        {
+            var value = composite ? state.GetArrayAwkValue(name, builder, binding) : state.GetArrayFieldValue(name, 1, binding);
+            Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
+            Assert.Equal("", value.AsString());
+        }
+
+        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
+        Assert.Equal(ownedHashes + 1, counters.ArrayOwnedHashCalls);
+        Assert.Equal(classifications, counters.TextValueClassifications);
+        Assert.Equal(fieldCaches, counters.FieldValueCacheBufferAllocations);
+        Assert.True(state.TryGetBoundGlobalArray(0, out var array));
+        Assert.NotNull(array);
+        var key = new AwkArrayKey(composite ? "0009\x1ctail" : "0009");
+        Assert.True(array.Slots[key].IsUntyped);
+        Assert.Equal(2, array.Slots.Count);
+        builder.Clear();
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed record"));
+        if (operation == 2)
+        {
+            Assert.Equal(0, target.Previous);
+            Assert.Equal(key, target.Key);
+            state.DeleteArrayValue(name, key);
+            state.CommitArrayUpdate(name, in target, 9);
+            Assert.Equal(9, state.GetArrayAwkValue(name, key).AsNumber());
+        }
+        else Assert.Equal("", state.GetArrayAwkValue(name, key).AsString());
+        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("9")));
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false, 0)] [InlineData(true, false, 0)]
+    [InlineData(false, true, 0)] [InlineData(true, true, 0)]
+    [InlineData(false, false, 1)] [InlineData(true, false, 1)]
+    [InlineData(false, true, 1)] [InlineData(true, true, 1)]
+    [InlineData(false, false, 2)] [InlineData(true, false, 2)]
+    [InlineData(false, true, 2)] [InlineData(true, true, 2)]
+    public void ColdOrdinaryMissRejectsOrCancelsBeforeKeyAllocationAndBinding(bool composite, bool cancel, int operation)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = memory.Initialize(() => State(memory.Owner, counters, cancellation.Token)).State;
+        state.InitializeGlobalReadSlots(2);
+        var name = AwkArrayName.FromText("a");
+        var seed = new AwkArrayKey("seed");
+        state.SetArrayAwkValue(name, seed, AwkValue.FromNumber(7), AwkArrayBinding.Global(1));
+        Assert.True(state.TryGetBoundGlobalArray(1, out var array));
+        Assert.NotNull(array);
+        var binding = AwkArrayBinding.Global(0);
+        var keyText = new string('x', 8192);
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(keyText + " tail"));
+        _ = state.FieldCount;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
+        builder.Append(AwkUtf8Codec.Encode(keyText + "\x1ctail").Span);
+        var allocations = counters.AwkTextAllocations;
+        if (cancel) memory.Budget.OnGrowth = bytes => { if (bytes >= 8192) cancellation.Cancel(); };
+        else memory.Budget.RefuseNextAdmissionMinimumGrowth = 8192;
+
+        void Read()
+        {
+            if (operation == 2)
+            {
+                if (composite) state.PrepareArrayUpdate(name, builder, binding);
+                else state.PrepareArrayFieldUpdate(name, 1, binding);
+            }
+            else if (operation == 1)
+            {
+                if (composite) state.GetArrayNumber(name, builder, binding);
+                else state.GetArrayFieldNumber(name, 1, binding);
+            }
+            else if (composite) state.GetArrayAwkValue(name, builder, binding);
+            else state.GetArrayFieldValue(name, 1, binding);
+        }
+
+        try
+        {
+            if (cancel) Assert.ThrowsAny<OperationCanceledException>(Read);
+            else
+            {
+                var error = Assert.Throws<AwkRuntimeException>(Read);
+                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            }
+        }
+        finally { memory.Budget.OnGrowth = null; }
+        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.False(state.TryGetBoundGlobalArray(0, out _));
+        Assert.Single(array.Slots);
+        Assert.True(array.Slots[seed].Slot.TryGetNumber(out var number));
+        Assert.Equal(7, number);
+        Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(true, false, false)]
     [InlineData(false, true, false)] [InlineData(true, true, false)]
     [InlineData(false, false, true)] [InlineData(true, false, true)]

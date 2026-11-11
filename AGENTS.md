@@ -66,7 +66,10 @@ or environment dependencies.
   special-array behavior and owned-key admission on misses without repeating a successful lookup.
   Ordinary byte-key misses admit retained key construction and insertion together, without
   constructing a field scalar/cache just to transport key bytes. No RHS or host work may
-  intervene. Cold name binding still publishes only after success.
+  intervene. Reads, numeric consumers and update captures complete ordinary misses at that
+  owner, creating an untyped origin after admission. Membership keeps its non-inserting path;
+  absent and special arrays keep their promotion/policy boundary. Cold name binding still
+  publishes only after success.
   Short byte keys own their bytes in the existing 16-byte key words; keep numeric ordinals
   distinct. Ordinals whose full decimal spelling fits those words prepare it once at creation;
   the origin flag survives packed storage while hashing/equality ignore it. Larger ordinals

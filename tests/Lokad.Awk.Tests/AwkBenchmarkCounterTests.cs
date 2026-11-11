@@ -821,7 +821,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("14 7 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(3, result.Counters.BorrowedFieldTargetSnapshots);
+        Assert.Equal(4, result.Counters.BorrowedFieldTargetSnapshots);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -1236,7 +1236,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(miss ? "9 2\n" : "9 1\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut), owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", direct.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, owned.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
+        Assert.Equal(miss ? 3 : 2, owned.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
         Assert.Equal(0, direct.Counters.StringDecodes);
         Assert.Equal(0, direct.Counters.Utf8Encodes);
     }
@@ -1254,7 +1254,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(miss ? "14 2\n" : "14 1\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut), owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, owned.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
+        Assert.Equal(miss ? 3 : 2, owned.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
         Assert.Equal(0, borrowed.Counters.StringDecodes);
         Assert.Equal(0, borrowed.Counters.Utf8Encodes);
     }
