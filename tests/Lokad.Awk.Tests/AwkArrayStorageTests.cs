@@ -13,10 +13,10 @@ public sealed class AwkArrayStorageTests
         {
             var storage = new AwkArrayStorage();
             var name = AwkArrayName.FromText("missing");
-            var foundAny = storage.TryGetSlots(name, out _);
+            var foundAny = storage.TryGetArray(name, out _);
             var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
             for (var index = 0; index < 10_000; index++)
-                foundAny |= storage.TryGetSlots(name, out _);
+                foundAny |= storage.TryGetArray(name, out _);
 
             var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
             return (storage, name, foundAny, allocatedBytes);
@@ -33,9 +33,9 @@ public sealed class AwkArrayStorageTests
         var storage = new AwkArrayStorage();
         var name = AwkArrayName.FromText("values");
 
-        var resolved = storage.ResolveArray(name).Slots;
+        var resolved = storage.ResolveArray(name);
 
-        Assert.True(storage.TryGetSlots(name, out var found));
+        Assert.True(storage.TryGetArray(name, out var found));
         Assert.Same(resolved, found);
     }
 }

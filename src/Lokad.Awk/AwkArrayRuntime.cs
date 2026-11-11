@@ -289,7 +289,7 @@ internal sealed partial class AwkArrayRuntime
             _variables.TryGetOrdinaryArray(resolved, out array);
         }
         AwkArrayCell? cell = null;
-        if (array is not null) array.Slots.TryGetValue(key, out cell);
+        if (array is not null) array.TryGetValue(key, out cell);
         return new(key, previous, array, cell);
     }
 
@@ -313,7 +313,7 @@ internal sealed partial class AwkArrayRuntime
 
     public bool ContainsValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default)
     {
-        if (_state.TryGetBoundArray(name, binding, out var array)) return array.Slots.ContainsKey(index);
+        if (_state.TryGetBoundArray(name, binding, out var array)) return array.ContainsKey(index);
         var resolved = _variableRuntime.ResolveOrPromoteArrayName(name);
         var found = _variables.ContainsArrayValue(resolved, index);
         _state.BindGlobalArray(binding, resolved);

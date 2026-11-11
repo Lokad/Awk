@@ -52,7 +52,7 @@ internal sealed class AwkVariableRuntime(
     {
         if (functions.TryGetBoundArray(new AwkVariableName(name.Identifier), out var array))
         {
-            count = array.Slots.Count;
+            count = array.Count;
             return true;
         }
         var resolved = ResolveName(new AwkVariableName(name.Identifier));

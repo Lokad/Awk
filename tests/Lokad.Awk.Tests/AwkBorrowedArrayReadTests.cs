@@ -53,8 +53,8 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
         Assert.NotNull(array);
         var key = new AwkArrayKey(composite ? "0009\x1ctail" : "0009");
-        Assert.True(array.Slots[key].IsUntyped);
-        Assert.Equal(2, array.Slots.Count);
+        Assert.True(array[key].IsUntyped);
+        Assert.Equal(2, array.Count);
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed record"));
         if (operation == 2)
@@ -132,8 +132,8 @@ public sealed class AwkBorrowedArrayReadTests
         finally { memory.Budget.OnGrowth = null; }
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.False(state.TryGetBoundGlobalArray(0, out _));
-        Assert.Single(array.Slots);
-        Assert.True(array.Slots[seed].Slot.TryGetNumber(out var number));
+        Assert.Single(array);
+        Assert.True(array[seed].Slot.TryGetNumber(out var number));
         Assert.Equal(7, number);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -233,8 +233,8 @@ public sealed class AwkBorrowedArrayReadTests
         // Inspect the retained owner without a new cancellable language operation.
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
         Assert.NotNull(array);
-        Assert.Single(array.Slots);
-        Assert.True(array.Slots[seed].Slot.TryGetNumber(out var seedNumber));
+        Assert.Single(array);
+        Assert.True(array[seed].Slot.TryGetNumber(out var seedNumber));
         Assert.Equal(7, seedNumber);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

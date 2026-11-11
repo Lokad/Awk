@@ -53,7 +53,7 @@ public sealed class AwkFunctionLocalSlotTests
         var text = AwkText.FromSourceLiteralString("0007");
         var origin = new AwkUntypedScalar();
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), long.MaxValue);
-        var array = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
+        var array = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
         AwkFunctionLocalSlot[] cells = [AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromPreparedNumericInput(text, 7)),
@@ -172,7 +172,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void AliasCellsKeepFullIdentityAndMutableOrigin(long frameId)
     {
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), frameId);
-        var array = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
+        var array = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
         var alias = AwkFunctionLocalSlot.ArrayAlias(name, array);
         Assert.Equal(name, alias.ArrayName);
         Assert.True(alias.ArrayName.IsOwnedByFunctionFrame(frameId));

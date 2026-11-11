@@ -14,10 +14,10 @@ public sealed class AwkArrayStorageCacheTests
         var replacement = Values(9);
         storage.SetSlots(name, replacement);
         Assert.Same(identity, storage.ResolveArray(name));
-        Assert.Same(replacement, identity.Slots);
+        Assert.Equal(9, identity[AwkArrayKey.FromOrdinal(1)].Slot.AsNumber());
         storage.Clear(name);
         Assert.Same(identity, storage.ResolveArray(name));
-        Assert.Empty(identity.Slots);
+        Assert.Empty(identity);
         Assert.True(storage.Remove(name, out _));
         Assert.False(storage.TryGetArray(name, out _));
         Assert.NotSame(identity, storage.ResolveArray(name));
@@ -33,18 +33,20 @@ public sealed class AwkArrayStorageCacheTests
         var name = AwkArrayName.FromText(text);
         var first = Values(7);
         storage.SetSlots(name, first);
-        Assert.True(storage.TryGetSlots(name, out var original));
+        Assert.True(storage.TryGetArray(name, out var original));
         Assert.Same(first, original);
         Assert.True(storage.Contains(name));
         Assert.Equal(1, counters.ArrayContainerCacheHits);
 
         var second = Values(9);
         storage.SetSlots(name, second);
-        Assert.True(storage.TryGetSlots(name, out var replacement));
-        Assert.Same(second, replacement);
+        Assert.True(storage.TryGetArray(name, out var replacement));
+        Assert.Same(original, replacement);
+        Assert.Equal(9, replacement[AwkArrayKey.FromOrdinal(1)].Slot.AsNumber());
         storage.Clear(name);
-        Assert.True(storage.TryGetSlots(name, out var cleared));
-        Assert.Empty(Assert.IsType<Dictionary<AwkArrayKey, AwkArrayCell>>(cleared));
+        Assert.True(storage.TryGetArray(name, out var cleared));
+        Assert.Same(original, cleared);
+        Assert.Empty(cleared);
     }
 
     [Fact]
@@ -64,21 +66,21 @@ public sealed class AwkArrayStorageCacheTests
         storage.SetSlots(special, Values(5));
         Assert.Equal(new[] { global, special }.OrderBy(name => name.ToString()),
             storage.Names.OrderBy(name => name.ToString()));
-        Assert.True(storage.TryGetSlots(first, out var selected));
+        Assert.True(storage.TryGetArray(first, out var selected));
         Assert.Same(firstSlots, selected);
-        Assert.True(storage.TryGetSlots(second, out selected));
+        Assert.True(storage.TryGetArray(second, out selected));
         Assert.Same(secondSlots, selected);
         Assert.True(storage.Remove(first, out _));
         Assert.False(storage.Contains(first));
-        Assert.True(storage.TryGetSlots(second, out selected));
+        Assert.True(storage.TryGetArray(second, out selected));
         Assert.Same(secondSlots, selected);
         Assert.True(storage.Remove(second, out _));
         Assert.False(storage.Contains(second));
-        Assert.False(storage.TryGetSlots(second, out _));
+        Assert.False(storage.TryGetArray(second, out _));
         storage.SetSlots(second, Values(4));
-        Assert.True(storage.TryGetSlots(global, out selected));
+        Assert.True(storage.TryGetArray(global, out selected));
         Assert.Same(globalSlots, selected);
-        Assert.True(storage.TryGetSlots(second, out selected));
+        Assert.True(storage.TryGetArray(second, out selected));
         Assert.NotSame(secondSlots, selected);
     }
 
@@ -97,14 +99,14 @@ public sealed class AwkArrayStorageCacheTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<Dictionary<AwkArrayKey, AwkArrayCell>> RetireCachedContainer(
+    private static WeakReference<AwkArrayCell> RetireCachedContainer(
         AwkArrayStorage storage, bool remove)
     {
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("scratch"), 1);
         var slots = Values(7);
         storage.SetSlots(name, slots);
-        Assert.True(storage.TryGetSlots(name, out _));
-        var reference = new WeakReference<Dictionary<AwkArrayKey, AwkArrayCell>>(slots);
+        Assert.True(storage.TryGetArray(name, out _));
+        var reference = new WeakReference<AwkArrayCell>(slots[AwkArrayKey.FromOrdinal(1)]);
         if (remove)
             Assert.True(storage.Remove(name, out _));
         else
@@ -112,6 +114,6 @@ public sealed class AwkArrayStorageCacheTests
         return reference;
     }
 
-    private static Dictionary<AwkArrayKey, AwkArrayCell> Values(int number) =>
-        new(AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = new(AwkValue.ForVariableStorage(AwkValue.FromNumber(number))) };
+    private static AwkArrayIdentity Values(int number) =>
+        new(0, AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = new(AwkValue.ForVariableStorage(AwkValue.FromNumber(number))) };
 }

@@ -175,7 +175,7 @@ public sealed class AwkNestedArrayStorageTests
 
         var failure = Assert.Throws<AwkRuntimeException>(() => variables.GetSubarray(parent, key));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-        Assert.Equal(missingRead ? 1 : 0, parent.Slots.Count);
+        Assert.Equal(missingRead ? 1 : 0, parent.Count);
         Assert.False(argument.IsArrayValue);
         if (missingRead) Assert.Equal(AwkRuntimeValueKind.Untyped, argument.RuntimeKind);
         Assert.Equal(reserved, memory.Budget.Reserved);
@@ -239,9 +239,9 @@ public sealed class AwkNestedArrayStorageTests
     public void AliasRepairPollsCancellationAndStillCompletesDuringUnwind()
     {
         using var cancellation = new CancellationTokenSource();
-        var parent = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
-        var child = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance), parent);
-        parent.Slots.Add(AwkArrayKey.FromOrdinal(1), new(AwkValue.FromArrayReference(child)));
+        var parent = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
+        var child = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance, parent);
+        parent.Add(AwkArrayKey.FromOrdinal(1), new(AwkValue.FromArrayReference(child)));
         var parameter = AwkVariableName.FromText("p");
         var calls = new AwkFunctionCallStack(4, AwkMemoryAccounting.Disabled, AwkNumberParsingMode.Decimal,
             checkpoint: cancellation.Token.ThrowIfCancellationRequested);

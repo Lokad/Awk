@@ -898,7 +898,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var localName = AwkVariableName.FromText("a");
         var arrayName = new AwkArrayName(localName.Identifier);
-        using var memoryForState = CreateGovernedState(1_024);
+        using var memoryForState = CreateGovernedState(2_048);
         var state = memoryForState.State;
         state.PushFunctionFrame(new AwkFunctionLocalLayout([localName]), []);
 

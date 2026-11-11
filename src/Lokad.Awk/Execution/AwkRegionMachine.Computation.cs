@@ -125,7 +125,7 @@ internal partial struct AwkRegionMachine
                 }
                 lengthValue = Value(instruction.Left);
             }
-            numbers[instruction.Target] = lengthValue.TryGetArrayBinding(out var lengthArray) ? lengthArray.Slots.Count :
+            numbers[instruction.Target] = lengthValue.TryGetArrayBinding(out var lengthArray) ? lengthArray.Count :
                 lengthValue.TryGetArrayName(out var arrayName) && state.TryGetExistingArrayCount(arrayName, out var arrayCount)
                     ? arrayCount : state.CountStringUnits(state.FormatStringByteText(lengthValue));
             return;

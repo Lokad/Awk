@@ -121,7 +121,7 @@ public sealed class AwkArrayEstimateTests
         {
             Replace();
             Assert.Equal(new string('x', 16), variables.GetArrayValue(name, key).AsString());
-            Assert.Equal(emptyArrayBytes + AwkVariables.EstimateArrayBytes(replacement), accounting.CurrentCommittedBytes);
+            Assert.Equal(emptyArrayBytes + AwkVariables.EstimateArrayBytes(variables.ResolveOrdinaryArray(name)), accounting.CurrentCommittedBytes);
         }
         Assert.Equal(0, accounting.CurrentReservedBytes);
         variables.ClearArray(name);

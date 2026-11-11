@@ -44,15 +44,6 @@ internal sealed class AwkArrayStorage
     public bool Contains(AwkArrayName name) =>
         TryGetCachedArray(name, out _) || _arrays.ContainsKey(name);
 
-    public bool TryGetSlots(
-        AwkArrayName name,
-        [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkArrayCell>? slots)
-    {
-        var found = TryGetArray(name, out var array);
-        slots = array?.Slots;
-        return found;
-    }
-
     public bool TryGetArray(AwkArrayName name, [NotNullWhen(true)] out AwkArrayIdentity? array)
     {
         if (TryGetCachedArray(name, out array)) return true;
@@ -65,28 +56,28 @@ internal sealed class AwkArrayStorage
     public AwkArrayIdentity ResolveArray(AwkArrayName name)
     {
         if (_arrays.TryGetValue(name, out var array)) return array;
-        array = new AwkArrayIdentity(new Dictionary<AwkArrayKey, AwkArrayCell>(_keyComparer));
+        array = new AwkArrayIdentity(0, _keyComparer);
         _arrays[name] = array;
         return array;
     }
 
-    public void SetSlots(AwkArrayName name, Dictionary<AwkArrayKey, AwkArrayCell> slots)
+    public void SetSlots(AwkArrayName name, AwkArrayIdentity slots)
     {
         if (_arrays.TryGetValue(name, out var array)) array.ReplaceSlots(slots);
-        else _arrays[name] = new AwkArrayIdentity(slots);
+        else _arrays[name] = slots;
     }
 
     public void Clear(AwkArrayName name)
     {
-        SetSlots(name, new Dictionary<AwkArrayKey, AwkArrayCell>(_keyComparer));
+        SetSlots(name, new AwkArrayIdentity(0, _keyComparer));
     }
 
     public bool Remove(
         AwkArrayName name,
-        [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkArrayCell>? slots)
+        [NotNullWhen(true)] out AwkArrayIdentity? slots)
     {
         var removed = _arrays.Remove(name, out var array);
-        slots = array?.Slots;
+        slots = array;
         if (removed && _cachedName == name)
         {
             _cachedName = default;

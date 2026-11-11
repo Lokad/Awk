@@ -82,8 +82,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.Equal(success ? 40 : 5, state.ResolveVariableValue(total).AsNumber());
                 Assert.Equal(success, state.HasScalar(AwkVariableName.FromText("later")));
                 var current = state.GetSubarray(name, new(changeKey ? "new" : "k"), default);
-                Assert.Equal(success, current.Slots.ContainsKey(new("n")));
-                if (changeKey) Assert.False(original.Slots.ContainsKey(new("n")));
+                Assert.Equal(success, current.ContainsKey(new("n")));
+                if (changeKey) Assert.False(original.ContainsKey(new("n")));
                 else Assert.True(original.IsDetached);
                 Assert.True(Assert.Single(writes).AsSpan().SequenceEqual("before\n"u8));
                 Assert.False(state.IsInsideFunction);

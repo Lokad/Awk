@@ -44,8 +44,8 @@ public sealed partial class AwkRegionTests
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
         else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
-        Assert.Single(owner.Slots);
-        Assert.False(owner.Slots.ContainsKey(new("missing")));
+        Assert.Single(owner);
+        Assert.False(owner.ContainsKey(new("missing")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(held, fixture.Budget.Reserved);
         storage.Dispose();
@@ -92,8 +92,8 @@ public sealed partial class AwkRegionTests
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
         else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
-        Assert.Single(owner.Slots);
-        Assert.False(owner.Slots.ContainsKey(new("missing")));
+        Assert.Single(owner);
+        Assert.False(owner.ContainsKey(new("missing")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("kind")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(held, fixture.Budget.Reserved);

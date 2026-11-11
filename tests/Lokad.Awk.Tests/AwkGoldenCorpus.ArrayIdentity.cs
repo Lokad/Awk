@@ -6,6 +6,18 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("indexed-arrays-preserve-canonical-keys-holes-and-promotion",
+            ["""BEGIN{split("0007 8 9",a);print a[1],a["1"],("01" in a),length(a);delete a[2];print (2 in a),length(a);a["01"]="leading";a[2]="new";a["x"]="tail";print a[1],a[2],a[3],a["01"],a["x"],length(a),typeof(a[1])}"""], [],
+            "0007 0007 0 3\n0 2\n0007 new 9 leading tail 5 strnum\n"),
+        Passing("indexed-sort-destinations-preserve-independent-values-and-origins",
+            ["""BEGIN{split("003 001 002",a);n=asort(a,b,"@val_num_asc");b[1]="changed";print n,a[1],b[1],b[2],typeof(b[2]);asorti(a,k,"@ind_num_asc");print k[1],typeof(k[1]);asort(a,a,"@val_num_asc");print a[1],a[2],a[3],typeof(a[1]);a[4]=4;print a[4],length(a)}"""], [],
+            "3 003 changed 002 strnum\n1 string\n001 002 003 strnum\n4 4\n"),
+        Passing("indexed-update-keeps-its-captured-cell-through-rhs-promotion",
+            ["""function change(a){a["x"]=11;return 2}BEGIN{split("7 8",a);old=a[1]++;print old,a[1];a[1]+=change(a);print a[1],a[2],a["x"],length(a)}"""], [],
+            "7 8\n10 8 11 3\n"),
+        Passing("indexed-subarray-sort-clones-preserve-parentage-and-lifetimes",
+            ["""BEGIN{split("3 1 2",a[1]);a[2]["x"]=9;asort(a,b,"@ind_num_asc");b[1][1]=7;print a[1][1],b[1][1],b[1][2],length(b[1]);b[1]["new"]=4;print a[1][1],b[1][1],b[1]["new"],length(b[1]);delete a[1];print b[1][3],b[2]["x"]}"""], [],
+            "3 7 1 3\n3 7 4 4\n2 9\n"),
         Passing("mixed-numeric-and-field-keys-preserve-canonical-and-original-spellings",
             ["BEGIN{a[7]=10;a[-2147483648]=20;a[2147483647]=30;a[0]=40}{a[$1]++;$0=\"gone\"}" +
              "END{print a[7],a[\"7\"],a[\"007\"],a[\"+7\"],a[-2147483648],a[\"-2147483648\"],a[2147483647],a[\"2147483647\"],a[\"2147483648\"],a[0],a[\"-0\"],a[\"é\"],length(a);delete a[\"7\"];print (7 in a),(\"007\" in a)}"], [],

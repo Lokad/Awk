@@ -20,11 +20,11 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         {
             Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch));
             Assert.False(reference.IsArrayValue);
-            Assert.Single(parent.Slots);
+            Assert.Single(parent);
         }
         state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch);
         Assert.True(reference.TryGetArrayBinding(out var child));
-        Assert.Empty(child.Slots);
+        Assert.Empty(child);
     }
 
     [Theory]
