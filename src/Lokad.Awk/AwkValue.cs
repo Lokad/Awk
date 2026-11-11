@@ -124,7 +124,8 @@ internal readonly struct AwkValue
     {
         if (HasStoredScalarText(_kind))
         {
-            text = ByteText;
+            // The kind proof already excludes numbers, arrays and untyped origins.
+            text = AwkText.FromBacking(_text);
             return true;
         }
         text = default;
