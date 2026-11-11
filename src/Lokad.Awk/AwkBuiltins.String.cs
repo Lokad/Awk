@@ -120,19 +120,23 @@ internal static partial class AwkBuiltins
             }
 
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor, destination, checkpoint);
-            AwkText.CopyBytes(bytes, converted, checkpoint);
+            // Publish into the admitted result directly instead of copying all
+            // bytes and then traversing the changed suffix again in place.
+            if (firstChange > 0)
+                AwkText.CopyBytes(bytes[..firstChange], converted.AsSpan(0, firstChange), checkpoint);
             for (var index = firstChange; index < converted.Length;)
             {
                 var chunkOffset = index & (AwkRuntimeLimits.CancellationCheckBytes - 1);
                 if (chunkOffset == 0)
                     checkpoint();
                 var length = Math.Min(converted.Length - index, AwkRuntimeLimits.CancellationCheckBytes - chunkOffset);
+                var input = bytes.Slice(index, length);
                 var chunk = converted.AsSpan(index, length);
                 if (isAscii)
                 {
                     var status = conversion is AwkCaseConversion.Upper
-                        ? Ascii.ToUpperInPlace(chunk, out var written)
-                        : Ascii.ToLowerInPlace(chunk, out written);
+                        ? Ascii.ToUpper(input, chunk, out var written)
+                        : Ascii.ToLower(input, chunk, out written);
                     if (status != OperationStatus.Done || written != length)
                         throw new InvalidOperationException("Previously validated ASCII conversion failed.");
                 }
@@ -141,8 +145,10 @@ internal static partial class AwkBuiltins
                     var lower = conversion is AwkCaseConversion.Upper ? (byte)'a' : (byte)'A';
                     var delta = conversion is AwkCaseConversion.Upper ? -32 : 32;
                     for (var offset = 0; offset < chunk.Length; offset++)
-                        if ((uint)(chunk[offset] - lower) <= 25)
-                            chunk[offset] = (byte)(chunk[offset] + delta);
+                    {
+                        var value = input[offset];
+                        chunk[offset] = (uint)(value - lower) <= 25 ? (byte)(value + delta) : value;
+                    }
                 }
                 counters.RecordAsciiCaseConversionChunk(length);
                 index += length;
