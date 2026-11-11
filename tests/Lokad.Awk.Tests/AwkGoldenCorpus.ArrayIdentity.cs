@@ -6,6 +6,15 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("numeric-index-reads-share-ordinal-values-across-prepared-sources",
+            ["""function read(p,k){return p[k]}function sum(p,lo,hi, i,s){for(i=lo;i<=hi;i++)s+=p[i];return s}BEGIN{for(i=1;i<=4097;i++)a[i]=i;g=2049;print a[g],a[g+1],read(a,g),sum(a,2047,2050);delete a[2048];print (2048 in a),"["read(a,2048)"]",(2048 in a),length(a);a["02049"]="spelled";print a[g],read(a,"02049"),sum(a,2047,2050)}"""], [],
+            "2049 2050 2049 8194\n0 [] 1 4097\n2049 spelled 6146\n"),
+        Passing("numeric-index-reads-retain-text-origins-formatting-and-missing-insertion",
+            ["""function read(p,k){return p[k]}BEGIN{split("0007 08 9",a);i=1;print a[i],typeof(a[i]),read(a,i),typeof(read(a,i));a["01"]="spelled";$0="01 1";print a[$1],a[$2],read(a,$1),read(a,+$1);CONVFMT="%.2f";a[1.5]="fraction";a[0]="zero";a[-1]="negative";a[2147483648]="large";print read(a,1.5),read(a,-0),read(a,-1),read(a,2147483648);print (4 in a),"["a[3+1]"]",(4 in a),length(a)}"""], [],
+            "0007 strnum 0007 strnum\nspelled 0007 spelled 0007\nfraction zero negative large\n0 [] 1 9\n"),
+        Passing("numeric-index-reads-capture-values-before-later-call-mutation",
+            ["""function replace(p){delete p;split("changed next",p);return 3}function pair(x,y){print x,y,typeof(x)}function read(p,k){return p[k]}BEGIN{split("0007 8",a);i=1;pair(a[i],replace(a));print read(a,i);delete a;a[1]["v"]=11;print a[i]["v"],length(a[i])}"""], [],
+            "0007 3 strnum\nchanged\n11 1\n"),
         Passing("ordinal-population-keeps-values-through-growth-holes-and-reinsertion",
             ["""BEGIN{for(i=1;i<=257;i++){a[i]=sprintf("%04d",i);sum+=a[i]}print sum,length(a),a[1],a[257],typeof(a[1]);delete a[2];delete a[256];a[2]="0002";a[258]="0258";sum=0;for(i=1;i<=258;i++)if(i in a)sum+=a[i];print sum,length(a),a[2],a[258],(256 in a),("02" in a)}"""], [],
             "33153 257 0001 0257 string\n33155 257 0002 0258 0 0\n"),

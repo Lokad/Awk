@@ -123,8 +123,15 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
 
     private bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal, out AwkValue value)
     {
+        if (TryParseOrdinal(bytes, out ordinal)) return TryGetIndexed(ordinal, out value);
         value = default;
-        if (!TryParseOrdinal(bytes, out ordinal) || _indexed is not { } indexed || ordinal > _indexedCapacity ||
+        return false;
+    }
+
+    internal bool TryGetIndexed(int ordinal, out AwkValue value)
+    {
+        value = default;
+        if (_indexed is not { } indexed || ordinal <= 0 || ordinal > _indexedCapacity ||
             indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] is not { } stored) return false;
         value = stored;
         return true;

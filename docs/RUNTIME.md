@@ -409,6 +409,8 @@ Growth stages replacement page/table storage while retaining earlier full pages.
 owner headers and overlapping storage before publication. Sparse or
 noncanonical keys can require dictionary promotion, including real entry cells; refusal or
 cancellation preserves existing entries. Aliases retain their stable array owner.
+Prepared pure numeric indices reach ordinal storage without decimal-key formatting or parsing.
+Text origins keep their spelling, and missing reads retain their usual admission and insertion.
 Numeric updates capture an owned key and prior value before the RHS. Dictionary targets can
 retain a stable cell; ordinal targets locate the current value at commit. Deletion, reinsertion,
 replacement and suspension preserve the captured prior number without reevaluating the key.

@@ -73,8 +73,11 @@ or environment dependencies.
   their backing and hold nullable owning values in pages. Growth retains earlier full pages;
   partial pages and reference tables are copied privately under admission before publication.
   Keep staged replacements out of the live table through post-admission checks, and fund
-  actual page/table overlap and owner headers. Reads/enumeration project owning values. Ordinal
-  targets keep owner/key/prior number and re-locate at commit; dictionary targets may keep their
+  actual page/table overlap and owner headers. Reads/enumeration project owning values.
+  Ordinal reads carry pure numeric operands into the actual owner without decimal-key transport.
+  Visible local bindings, string/strnum spelling, ordinary missing-read admission and scalar
+  reading mode remain at their existing boundaries; never retain page references across callbacks.
+  Ordinal targets keep owner/key/prior number and re-locate at commit; dictionary targets may keep their
   real stable cell. Promotion admits the new dictionary cells and old/new backing overlap before
   construction. Sparse/noncanonical insertion retains private dictionary promotion. Preserve aliases,
   independent clones, parentage and atomic refusal/cancellation. Enumeration bounds hole scans;

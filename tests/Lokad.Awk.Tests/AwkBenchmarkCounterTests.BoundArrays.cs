@@ -5,6 +5,33 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task NumericIndexReadsKeepStoredNumbersAndSpellingWithoutTextTransport(bool governed)
+    {
+        const int count = 4097;
+        var source = "function sum(p,n, i,s){for(i=1;i<=n;i++)s+=p[i];return s}" +
+            "BEGIN{for(i=1;i<=" + count + ";i++)a[i]=i;print sum(a," + count + ");" +
+            "split(\"0007 8\",b);i=1;print b[i],typeof(b[i]);delete a[2048];print a[2048]+0,(2048 in a)}";
+        var host = new MockFileSystem();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("8394753\n0007 strnum\n0 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.NumericArraySlotReads >= count);
+        Assert.True(counters.NumericLocalReads >= count);
+        Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> BoundArrayWorkloads()
     {
         foreach (var keys in new[] { 16, 1024 })

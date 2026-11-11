@@ -437,15 +437,18 @@ internal readonly struct AwkValue
 
     public bool TryGetArrayOrdinal(out int ordinal)
     {
-        if (_kind == AwkValueKind.Number &&
-            _number >= int.MinValue &&
-            _number <= int.MaxValue &&
-            double.IsInteger(_number))
+        if (_kind == AwkValueKind.Number) return TryGetArrayOrdinal(_number, out ordinal);
+        ordinal = 0;
+        return false;
+    }
+
+    internal static bool TryGetArrayOrdinal(double number, out int ordinal)
+    {
+        if (number >= int.MinValue && number <= int.MaxValue && double.IsInteger(number))
         {
-            ordinal = (int)_number;
+            ordinal = (int)number;
             return true;
         }
-
         ordinal = 0;
         return false;
     }

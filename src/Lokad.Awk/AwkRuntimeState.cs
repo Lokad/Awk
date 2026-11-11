@@ -862,6 +862,17 @@ internal sealed class AwkRuntimeState : IDisposable
         }
     }
 
+    internal bool TryResolveFunctionLocalNumber(AwkFunctionLocalSlotId slotId, out double number)
+    {
+        if (_functions.TryGetLocalFrame(slotId, out var frame) && frame.TryReadNumber(slotId.Index, out number))
+        {
+            Counters.RecordNumericLocalRead();
+            return true;
+        }
+        number = 0;
+        return false;
+    }
+
     internal bool TryResolveFunctionLocalKey(AwkFunctionLocalSlotId slotId, out AwkArrayKey key)
     {
         if (_functions.TryGetLocalFrame(slotId, out var frame))
@@ -1451,6 +1462,12 @@ internal sealed class AwkRuntimeState : IDisposable
         _arrayRuntime.GetAwkValue(name, index, binding);
 
     internal double GetArrayNumber(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding) =>
+        _arrayRuntime.GetNumber(name, index, binding);
+
+    internal AwkValue GetArrayAwkValue(AwkArrayName name, double index, AwkArrayBinding binding) =>
+        _arrayRuntime.GetAwkValue(name, index, binding);
+
+    internal double GetArrayNumber(AwkArrayName name, double index, AwkArrayBinding binding) =>
         _arrayRuntime.GetNumber(name, index, binding);
 
     internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, AwkArrayBinding binding = default) =>

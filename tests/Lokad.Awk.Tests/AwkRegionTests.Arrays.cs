@@ -4,6 +4,36 @@ public sealed partial class AwkRegionTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void NumericMissingReadAdmissionPrecedesInsertionAndLaterEffects(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token, true);
+        var state = fixture.State;
+        var region = Compile("result=a[i]+(later=9)", state);
+        var name = AwkArrayName.FromText("a");
+        state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
+        state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(1));
+        using var storage = new AwkRegionStorage(state);
+        region.Execute(state, storage);
+        state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(2));
+        state.AssignVariableValue(AwkVariableName.FromText("later"), AwkValue.FromNumber(0));
+        var owner = state.ResolveOrdinaryArray(name);
+        var held = fixture.Budget.Reserved;
+        if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
+        else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        Assert.Single(owner);
+        Assert.False(owner.ContainsKey(AwkArrayKey.FromOrdinal(2)));
+        Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("later")).AsNumber());
+        Assert.Equal(held, fixture.Budget.Reserved);
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void PreparedOwnersDistinguishNamesWithoutIndexedBindings(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);

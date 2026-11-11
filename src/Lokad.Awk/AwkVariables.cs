@@ -189,6 +189,20 @@ internal sealed partial class AwkVariables
             : CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
     }
 
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, int ordinal) =>
+        CreateValue(GetArrayOrdinalSlot(array, ordinal));
+
+    internal double GetArrayNumber(AwkArrayIdentity array, int ordinal) =>
+        ReadArraySlotNumber(GetArrayOrdinalSlot(array, ordinal));
+
+    private AwkValue GetArrayOrdinalSlot(AwkArrayIdentity array, int ordinal)
+    {
+        ThrowIfDetached(array);
+        if (array.TryGetIndexed(ordinal, out var slot)) return slot;
+        var key = AwkArrayKey.FromOrdinal(ordinal);
+        return array.TryGetValue(key, out slot) ? slot : CreateMissingArraySlot(array, key, out _);
+    }
+
     internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index) =>
         CreateValue(GetArraySlot(array, index));
 

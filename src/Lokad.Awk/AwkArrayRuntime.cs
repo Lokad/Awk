@@ -132,6 +132,22 @@ internal sealed partial class AwkArrayRuntime
             : GetAwkValue(name, index, binding).AsNumber(_state.CancellationCheckpoint);
     }
 
+    internal AwkValue GetAwkValue(AwkArrayName name, double index, AwkArrayBinding binding)
+    {
+        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
+            _state.TryGetBoundArray(name, binding, out var array))
+            return _variables.GetArrayValue(array, ordinal);
+        return GetAwkValue(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding);
+    }
+
+    internal double GetNumber(AwkArrayName name, double index, AwkArrayBinding binding)
+    {
+        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
+            _state.TryGetBoundArray(name, binding, out var array))
+            return _variables.GetArrayNumber(array, ordinal);
+        return GetNumber(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding);
+    }
+
     public bool TryGetBorrowedNumber(AwkArrayName name, ReadOnlySpan<byte> index, out double number,
         AwkArrayBinding binding)
     {

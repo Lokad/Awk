@@ -363,6 +363,26 @@ internal partial struct AwkRegionMachine
             key = CaptureKey(keys[^1]);
         }
 
+        private bool TryReadArrayNumberKey(int index, out double number)
+        {
+            ref readonly var operand = ref operands[index];
+            switch (operand.Kind)
+            {
+                case AwkRegionOperandKind.NumberTemporary:
+                    number = numbers[operand.Index];
+                    return true;
+                case AwkRegionOperandKind.GlobalVariable:
+                    return state.TryResolvePreparedGlobalNumber(operand.Index, out number);
+                case AwkRegionOperandKind.LocalVariable:
+                    return state.TryResolveFunctionLocalNumber(new(operand.Index), out number);
+                case AwkRegionOperandKind.ValueTemporary:
+                    return storage.Values[operand.Index].TryGetNumberValue(out number);
+                default:
+                    number = 0;
+                    return false;
+            }
+        }
+
         internal AwkValue ReadArray(AwkRegionArrayAccess access)
         {
             if (access.Path >= 0)
@@ -370,6 +390,8 @@ internal partial struct AwkRegionMachine
                 ResolvePath(access.Path, out var owner, out var key);
                 return state.GetArrayAwkValue(owner, key);
             }
+            if (TryReadArrayNumberKey(access.Key, out var number))
+                return state.GetArrayAwkValue(access.Name, number, access.Binding);
             return operands[access.Key] switch
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldOrdinal(field), access.Binding),
@@ -385,6 +407,8 @@ internal partial struct AwkRegionMachine
                 ResolvePath(access.Path, out var owner, out var key);
                 return state.GetArrayNumber(owner, key);
             }
+            if (TryReadArrayNumberKey(access.Key, out var number))
+                return state.GetArrayNumber(access.Name, number, access.Binding);
             return operands[access.Key] switch
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldNumber(access.Name, FieldOrdinal(field), access.Binding),
