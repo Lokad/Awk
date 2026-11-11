@@ -173,7 +173,7 @@ public sealed class AwkSnapshotKeyResourceTests
             if (++checks == 4) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(governor, counters, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
+        var variables = new AwkVariables(governor, counters,  (_, _) => { }, checkpoint: Check);
         var name = source == "symbols" ? Symbols : Source;
         if (source == "symbols")
             variables.InitializeGlobalNames(Enumerable.Range(1, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet());

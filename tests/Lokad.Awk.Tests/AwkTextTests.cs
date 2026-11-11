@@ -35,7 +35,7 @@ public sealed class AwkTextTests
         var text = AwkText.FromHostBytes("0007"u8.ToArray());
         Assert.IsType<byte[]>(text.Backing);
         var value = AwkValue.FromNumericString(text);
-        var copied = AwkVariableSlot.FromValue(value).ToValue(AwkValue.FromNumericString, AwkValue.FromText);
+        var copied = AwkValue.ForVariableStorage(value).ReadVariableStorage(AwkNumberParsingMode.Decimal, AwkRuntimeCounters.Disabled);
         Assert.True(text.HasSameStorage(copied.ByteText));
         Assert.Equal(AwkRuntimeValueKind.NumericString, copied.RuntimeKind);
         Assert.Equal(7, copied.AsNumber());

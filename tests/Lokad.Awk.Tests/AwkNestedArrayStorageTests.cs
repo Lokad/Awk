@@ -241,7 +241,7 @@ public sealed class AwkNestedArrayStorageTests
         using var cancellation = new CancellationTokenSource();
         var parent = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance));
         var child = new AwkArrayIdentity(new(AwkArrayKeyComparer.Instance), parent);
-        parent.Slots.Add(AwkArrayKey.FromOrdinal(1), new(AwkVariableSlot.FromArrayBinding(child)));
+        parent.Slots.Add(AwkArrayKey.FromOrdinal(1), new(AwkValue.FromArrayReference(child)));
         var parameter = AwkVariableName.FromText("p");
         var calls = new AwkFunctionCallStack(4, AwkMemoryAccounting.Disabled, AwkNumberParsingMode.Decimal,
             checkpoint: cancellation.Token.ThrowIfCancellationRequested);
@@ -263,7 +263,7 @@ public sealed class AwkNestedArrayStorageTests
             token, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
 
     private static AwkVariables Variables(CooperativeTestMemory memory, AwkRuntimeCounters? counters = null) =>
-        new(memory.Accounting, counters ?? AwkRuntimeCounters.Disabled, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+        new(memory.Accounting, counters ?? AwkRuntimeCounters.Disabled, (_, _) => { });
 
     private static AwkArrayIdentity Parent(AwkVariables variables)
     {

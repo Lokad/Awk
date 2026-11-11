@@ -299,7 +299,7 @@ public sealed class AwkArrayKeyTests
     [Fact]
     public void ShortSpellingAndOrdinalKeysNeedNoRetainedTextCharge()
     {
-        var slot = AwkVariableSlot.FromText("v");
+        var slot = AwkValue.ForStoredText("v");
         var ordinalBytes = AwkRuntimeMemory.EstimateArrayElementBytes(AwkArrayKey.FromOrdinal(12), slot);
         var textBytes = AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("12"), slot);
 

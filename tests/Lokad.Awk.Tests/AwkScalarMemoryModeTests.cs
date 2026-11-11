@@ -28,7 +28,7 @@ public sealed class AwkScalarMemoryModeTests
 
         Assert.Equal(funded, memory.Budget.Reserved);
         Assert.Equal(0, memory.Budget.Refusals);
-        Assert.Equal(previous.Kind, cell.State.Slot.Kind);
+        Assert.Equal(previous.StoredKind, cell.State.Slot.StoredKind);
         Assert.True(text.HasSameStorage(previous.ByteText));
         Assert.True(prepared.AsMemory().Equals(text.AsMemory()));
         Assert.False(prepared.HasSameStorage(text));
@@ -225,5 +225,5 @@ public sealed class AwkScalarMemoryModeTests
 
     private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
         Action<string, AwkValue> assign, Func<int> fieldCount, Action prepareOfs, Action? checkpoint = null) =>
-        new(accounting, counters, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs, checkpoint: checkpoint);
+        new(accounting, counters, assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs, checkpoint: checkpoint);
 }

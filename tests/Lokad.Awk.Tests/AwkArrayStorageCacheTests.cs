@@ -113,5 +113,5 @@ public sealed class AwkArrayStorageCacheTests
     }
 
     private static Dictionary<AwkArrayKey, AwkArrayCell> Values(int number) =>
-        new(AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = new(AwkVariableSlot.FromValue(AwkValue.FromNumber(number))) };
+        new(AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = new(AwkValue.ForVariableStorage(AwkValue.FromNumber(number))) };
 }

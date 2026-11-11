@@ -217,7 +217,7 @@ public sealed class AwkFunctionLocalSlotTests
     {
         Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkText>());
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
-        Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkVariableSlot>());
+        Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFunctionLocalSlot>());
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
@@ -238,8 +238,8 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Same(text.PreparedString, value.ByteText.AsString(counters));
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
 
-        static AwkValue RoundTrip(AwkValue value) => AwkVariableSlot.FromValue(value)
-            .ToValue(AwkValue.FromNumericString, AwkValue.FromText);
+        static AwkValue RoundTrip(AwkValue value) => AwkValue.ForVariableStorage(value)
+            .ReadVariableStorage(AwkNumberParsingMode.Decimal, AwkRuntimeCounters.Disabled);
     }
 
     [Fact]

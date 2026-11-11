@@ -60,8 +60,8 @@ public sealed partial class AwkFieldProjectionTests
         var values = counters.ValuesCreated;
         state.AppendFieldPrint(output, 1);
         Assert.Equal(allocations, counters.AwkTextAllocations);
-        // Reading ORS creates one value; the projected field creates none.
-        Assert.Equal(values + 1, counters.ValuesCreated);
+        // ORS is already canonical, and the projected field creates no scalar.
+        Assert.Equal(values, counters.ValuesCreated);
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         Assert.True(original.Span.StartsWith("next"u8));

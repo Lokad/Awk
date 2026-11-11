@@ -289,7 +289,7 @@ public sealed class AwkBorrowedArrayReadTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForAccounting = new CooperativeTestMemory(1024, counters);
         var accounting = memoryForAccounting.Accounting;
-        var variables = new AwkVariables(accounting, counters, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
+        var variables = new AwkVariables(accounting, counters,  static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var retained = accounting.CurrentCommittedBytes;
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));

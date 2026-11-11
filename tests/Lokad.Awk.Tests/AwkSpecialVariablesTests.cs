@@ -53,7 +53,7 @@ public sealed class AwkSpecialVariablesTests
     {
         var mode = Enum.Parse<AwkCompatibilityMode>(modeName);
         using var memory = new CooperativeTestMemory(1 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             static (_, _) => { }, mode: mode);
         Assert.Null(variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator));
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.OutputFieldSeparator);

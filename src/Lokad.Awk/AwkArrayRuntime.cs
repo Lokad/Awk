@@ -499,7 +499,7 @@ internal sealed partial class AwkArrayRuntime
             destination,
             entries,
             static entry => entry.Value.TryGetArrayBinding(out var child)
-                ? AwkVariableSlot.FromArrayBinding(child) : AwkVariableSlot.FromValue(entry.Value),
+                ? AwkValue.FromArrayReference(child) : AwkValue.ForVariableStorage(entry.Value),
             reservation.Lease,
             transferredValueTextBytes);
         return entries.Length;
@@ -513,7 +513,7 @@ internal sealed partial class AwkArrayRuntime
         _variables.SetArrayValues(
             destination,
             entries,
-            static entry => AwkVariableSlot.FromText(entry.Key.StoredText),
+            static entry => AwkValue.ForStoredText(entry.Key.StoredText),
             reservation.Lease,
             reservation.KeyTextBytes);
         return entries.Length;
@@ -563,11 +563,11 @@ internal sealed partial class AwkArrayRuntime
                     continue;
 
                 var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                slots[ordinalKey] = new(AwkVariableSlot.FromValue(_state.CreateStringValue(group.Value)));
+                slots[ordinalKey] = new(AwkValue.ForVariableStorage(_state.CreateStringValue(group.Value)));
                 slots[MetadataKey(ordinalKey, MatchStartCaptureKeyPart)] =
-                    new(AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1)));
+                    new(AwkValue.ForVariableStorage(AwkValue.FromNumber(group.Index + 1)));
                 slots[MetadataKey(ordinalKey, MatchLengthCaptureKeyPart)] =
-                    new(AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Length)));
+                    new(AwkValue.ForVariableStorage(AwkValue.FromNumber(group.Length)));
             }
         }
 

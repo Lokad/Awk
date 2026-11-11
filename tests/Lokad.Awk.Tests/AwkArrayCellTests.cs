@@ -133,6 +133,5 @@ public sealed class AwkArrayCellTests
     }
 
     private static AwkVariables Variables(CooperativeTestMemory memory) =>
-        new(memory.Accounting, AwkRuntimeCounters.Disabled, AwkValue.FromNumericString,
-            text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
+        new(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
 }

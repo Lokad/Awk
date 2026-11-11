@@ -28,7 +28,9 @@ internal enum AwkValueKind
     DeferredHexadecimalText,
     DeferredNonDecimalText,
     NonDecimalConversionErrorText,
-    NonDecimalConversionErrorInput
+    NonDecimalConversionErrorInput,
+    // Variable owners resolve external input in their reading mode before use.
+    StoredInputText
 }
 
 internal readonly struct AwkValue
@@ -45,6 +47,56 @@ internal readonly struct AwkValue
 
     internal static AwkValue FromStorage(object? reference, double number, AwkValueKind kind) =>
         new(reference, number, kind);
+
+    // Globals and arrays retain this same payload. Ordinary text loses arithmetic
+    // interpretation at storage, while input spelling is classified at its reader.
+    internal static AwkValue ForStoredText(string text) => ForStoredText(AwkText.FromString(text));
+    internal static AwkValue ForStoredText(AwkText text) => new(text, 0, AwkValueKind.Text);
+    internal static AwkValue ForStoredInputText(string text) => ForStoredInputText(AwkText.FromString(text));
+    internal static AwkValue ForStoredInputText(AwkText text) => new(text, 0, AwkValueKind.StoredInputText);
+
+    internal static AwkValue ForVariableStorage(AwkValue value)
+    {
+        value = value.AsScalarCopy();
+        if (value.IsNumberValue || value.IsUnassignedValue || value.TryGetPreparedNumericInput(out _)) return value;
+        return value.RetainsInputClassification ? ForStoredInputText(value.ByteText) : ForStoredText(value.ByteText);
+    }
+
+    internal AwkValue ReadVariableStorage(AwkNumberParsingMode mode, AwkRuntimeCounters counters, Action? checkpoint = null)
+    {
+        switch (_kind)
+        {
+            case AwkValueKind.NumericString:
+                if (ByteText.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes) checkpoint?.Invoke();
+                counters.RecordPreparedNumericSlotRead();
+                return this;
+            case AwkValueKind.StoredInputText:
+                counters.RecordValueCreated();
+                counters.RecordTextValueClassification();
+                return FromNumericString(ByteText, mode, checkpoint);
+            case AwkValueKind.Text:
+                counters.RecordValueCreated();
+                return new(_text, 0, DeferredTextKind(mode));
+            default:
+                return this;
+        }
+    }
+
+    internal bool TryGetNumberValue(out double number)
+    {
+        number = _number;
+        return IsNumberValue;
+    }
+
+    internal bool HasSameTextStorage(AwkValue other) =>
+        _kind is AwkValueKind.Text or AwkValueKind.DeferredDecimalText or
+            AwkValueKind.DeferredHexadecimalText or AwkValueKind.DeferredNonDecimalText or AwkValueKind.Unassigned &&
+        _kind == other._kind && ReferenceEquals(_text, other._text);
+
+    // Ordinary text can bind its numeric mode without parsing or allocating.
+    // Input origins retain classification at their actual read boundary.
+    internal AwkValue InVariableStorageMode(AwkNumberParsingMode mode) =>
+        _kind == AwkValueKind.Text ? new(_text, 0, DeferredTextKind(mode)) : this;
 
     // A frame fixes the reading mode once. Mode-independent input facts keep
     // their cached number; other input spellings are classified at this owner.

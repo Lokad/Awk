@@ -6,7 +6,7 @@ public sealed class AwkArrayKeyFootprintTests
     [Fact]
     public void ThousandNumericCellsKeepCompactKeysWithoutTextAllocation()
     {
-        var slot = AwkVariableSlot.FromValue(AwkValue.FromNumber(7));
+        var slot = AwkValue.ForVariableStorage(AwkValue.FromNumber(7));
         var comparer = AwkArrayKeyComparer.Instance;
         _ = new Dictionary<AwkArrayKey, AwkArrayCell>(1, comparer) { [AwkArrayKey.FromOrdinal(1)] = new(slot) };
         var before = GC.GetAllocatedBytesForCurrentThread();

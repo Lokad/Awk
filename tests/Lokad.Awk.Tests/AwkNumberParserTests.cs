@@ -34,13 +34,12 @@ public sealed class AwkNumberParserTests
     {
         var text = AwkText.FromSourceLiteralString("0x1.8");
         var input = AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData);
-        var slot = AwkVariableSlot.FromValue(input);
-        var restored = slot.ToValue(static text => AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.NonDecimalData));
+        var slot = AwkValue.ForVariableStorage(input);
+        var restored = slot.ReadVariableStorage(AwkNumberParsingMode.NonDecimalData, AwkRuntimeCounters.Disabled);
         var literal = AwkValue.FromText(text, AwkNumberParsingMode.NonDecimalData);
 
         Assert.Equal(text, restored.ByteText);
-        Assert.Equal(AwkVariableSlotKind.NumericString, slot.Kind);
+        Assert.Equal(AwkValueKind.StoredInputText, slot.StoredKind);
         Assert.True(literal.IsTruthy());
         Assert.False(literal.TryGetNumber(out _));
         Assert.Equal(AwkRuntimeValueKind.String, literal.RuntimeKind);

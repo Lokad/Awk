@@ -10,7 +10,7 @@ public sealed class AwkArrayEstimateTests
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+             (_, _) => { });
         var name = AwkArrayName.FromText("values");
         var retained = memory.Budget.Reserved;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -26,7 +26,7 @@ public sealed class AwkArrayEstimateTests
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+             (_, _) => { });
         var first = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("fields"), 1);
         var retained = memory.Budget.Reserved;
         var second = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("separators"), 1);
@@ -52,7 +52,7 @@ public sealed class AwkArrayEstimateTests
         var text = AwkText.FromString("x");
         for (var index = 0; index < 30; index++)
             text = text.Concat(text, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
-        var slot = AwkVariableSlot.FromText(text);
+        var slot = AwkValue.ForStoredText(text);
         var elementBytes = AwkRuntimeMemory.EstimateArrayElementBytes(AwkArrayKey.FromOrdinal(0), slot);
         var count = checked((int)(long.MaxValue / elementBytes + (overflow ? 1 : 0)));
         var mathematicalTotal = (BigInteger)elementBytes * count;
@@ -78,12 +78,12 @@ public sealed class AwkArrayEstimateTests
         var text = AwkText.FromString("été");
         Dictionary<AwkArrayKey, AwkArrayCell> slots = new()
         {
-            [AwkArrayKey.FromOrdinal(1)] = new(AwkVariableSlot.FromValue(AwkValue.FromNumber(42))),
-            [key] = new(AwkVariableSlot.FromText(text))
+            [AwkArrayKey.FromOrdinal(1)] = new(AwkValue.ForVariableStorage(AwkValue.FromNumber(42))),
+            [key] = new(AwkValue.ForStoredText(text))
         };
         var filled = AwkVariables.EstimateArrayBytes(slots);
         slots.Remove(key);
-        Assert.Equal(AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, AwkVariableSlot.FromText(text)),
+        Assert.Equal(AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, AwkValue.ForStoredText(text)),
             filled - AwkVariables.EstimateArrayBytes(slots));
         slots.Clear();
         Assert.True(AwkVariables.EstimateArrayBytes(slots) > 0);
@@ -98,7 +98,7 @@ public sealed class AwkArrayEstimateTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
-        var variables = new AwkVariables(accounting, counters, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
+        var variables = new AwkVariables(accounting, counters,  static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);
@@ -107,7 +107,7 @@ public sealed class AwkArrayEstimateTests
         var committed = accounting.CurrentCommittedBytes;
         var reserved = budget.Reserved;
         var replacement = variables.CreateMutableArraySlots(0);
-        replacement[key] = new(AwkVariableSlot.FromText(new string('x', refuse ? 4096 : 16)));
+        replacement[key] = new(AwkValue.ForStoredText(new string('x', refuse ? 4096 : 16)));
 
         void Replace() => variables.ReplaceMutableArraySlots(name, replacement, AwkMemoryLease.Disabled, 0);
         if (refuse)
@@ -134,7 +134,7 @@ public sealed class AwkArrayEstimateTests
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+             (_, _) => { });
         var name = AwkArrayName.FromText("values");
         variables.ClearArray(name);
         var emptyArrayBytes = memory.Budget.Reserved;
@@ -157,7 +157,7 @@ public sealed class AwkArrayEstimateTests
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { });
+             (_, _) => { });
         var name = AwkArrayName.FromText("values");
         variables.ClearArray(name);
         var ownerBytes = memory.Budget.Reserved;
@@ -192,7 +192,7 @@ public sealed class AwkArrayEstimateTests
     }
 
     // The estimator needs enumeration only. Unique ordinal keys avoid a multi-GB dictionary.
-    private sealed class RepeatedSlots(int count, AwkVariableSlot slot)
+    private sealed class RepeatedSlots(int count, AwkValue slot)
         : IReadOnlyDictionary<AwkArrayKey, AwkArrayCell>
     {
         public int Count => count;

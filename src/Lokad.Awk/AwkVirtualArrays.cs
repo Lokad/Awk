@@ -12,7 +12,7 @@ internal readonly record struct AwkArraySnapshotSize(int Count, long KeyTextByte
 
 internal delegate bool AwkTryResolveScalarSlot(AwkVariableName name, out AwkGlobalSlotId slotId);
 
-internal delegate bool AwkTryGetScalarSlot(AwkGlobalSlotId slotId, out AwkVariableSlot slot);
+internal delegate bool AwkTryGetScalarSlot(AwkGlobalSlotId slotId, out AwkValue slot);
 
 internal sealed class AwkSymbolTableArray(
     Func<IReadOnlySet<AwkVariableName>> getGlobalNames,
@@ -21,7 +21,7 @@ internal sealed class AwkSymbolTableArray(
     AwkTryGetScalarSlot tryGetScalar,
     Func<AwkArrayName, bool> containsArray,
     Func<IEnumerable<AwkArrayName>> getArrayNames,
-    Func<AwkVariableSlot, AwkValue> createValue,
+    Func<AwkValue, AwkValue> createValue,
     Action<string, AwkValue> assignScalarValue,
     Action? checkpoint = null)
 {

@@ -78,9 +78,9 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariableDispatcher? specialVariables = null;
         AwkFieldFrame? recordFields = null;
         _variables = new AwkVariables(
-            MemoryAccounting, Counters, CreateNumericStringValue, CreateStringValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+            MemoryAccounting, Counters, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint);
+                .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint, NumberParsingMode);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryAccounting,
@@ -739,7 +739,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (_globalReadSlots is { } slots)
         {
-            if (slots[index].Scalar is { } cell && cell.State.Slot.TryGetNumber(out number))
+            if (slots[index].Scalar is { } cell && cell.State.Slot.TryGetNumberValue(out number))
             {
                 Counters.RecordNumericGlobalRead();
                 return true;
@@ -770,7 +770,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (_globalReadSlots is { } slots && slots[index].Scalar is { } cell)
         {
             var slot = cell.State.Slot;
-            if (slot.TryGetNumber(out var number))
+            if (slot.TryGetNumberValue(out var number))
             {
                 key = ToArrayKey(AwkValue.FromNumber(number));
                 return true;
@@ -794,9 +794,9 @@ internal sealed class AwkRuntimeState : IDisposable
             if (binding.Scalar is { } cell)
             {
                 var slot = cell.State.Slot;
-                if (slot.Kind is not (AwkVariableSlotKind.Untyped or AwkVariableSlotKind.ArrayBinding))
+                if (slot.StoredKind is not (AwkValueKind.Untyped or AwkValueKind.ArrayReference))
                 {
-                    if (slot.TryGetNumber(out var number))
+                    if (slot.TryGetNumberValue(out var number))
                     {
                         Counters.RecordNumericGlobalRead();
                         incoming.StageNumber(index, number);
@@ -1071,7 +1071,7 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             if (!_recordFields.TryGetFieldCountNumber(out number)) return false;
         }
-        else if (_variables.GetSpecialScalarCell(id) is { } cell && cell.State.Slot.TryGetNumber(out number))
+        else if (_variables.GetSpecialScalarCell(id) is { } cell && cell.State.Slot.TryGetNumberValue(out number))
             Counters.RecordBoundSpecialScalarRead();
         else
         {
@@ -1153,11 +1153,11 @@ internal sealed class AwkRuntimeState : IDisposable
         _variables.SetRecordTerminatorSlot(PrepareRecordTerminatorSlot(terminator));
     }
 
-    private AwkVariableSlot PrepareRecordTerminatorSlot(AwkRecordTerminator terminator)
+    private AwkValue PrepareRecordTerminatorSlot(AwkRecordTerminator terminator)
     {
         var text = terminator.ByteText;
         Counters.RecordPreparedRecordTerminatorSlot();
-        return text.ByteLength == 0 ? AwkVariableSlot.Unassigned() : AwkVariableSlot.FromText(text);
+        return text.ByteLength == 0 ? AwkValue.Unassigned() : AwkValue.ForStoredText(text);
     }
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
@@ -1198,7 +1198,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.FileRecordNumber));
     }
 
-    private long EstimateRecordTerminatorMemoryGrowth(AwkVariableSlot slot)
+    private long EstimateRecordTerminatorMemoryGrowth(AwkValue slot)
     {
         if (!MemoryAccounting.IsEnabled ||
             !AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode)) return 0;

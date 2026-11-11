@@ -254,6 +254,10 @@ function targets. Computed values such as `NF` still resolve at their actual use
 Numeric consumers can read an already-available special-scalar number directly from its owner.
 Speculative probes never split fields, request admission or convert assigned strings; assigned
 `NF` retains its scalar value and spelling independently of the descriptor count.
+Global, array and function cells retain the same unboxed scalar payload. Ordinary strings
+bind their numeric conversion mode at storage; external input keeps classification at read.
+Cached input numbers keep their original spelling.
+
 Prepared print lists keep computed numbers in execution scratch through later arguments and
 format them at use. Integer fragments avoid temporary numeric text owners. Other values retain
 their captured origins and spelling. Already-owned results stay in their existing caller slots

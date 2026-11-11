@@ -3,6 +3,31 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPreparedNumericInputTests
 {
     [Theory]
+    [InlineData(false, 0)] [InlineData(false, 1)] [InlineData(false, 2)]
+    [InlineData(true, 0)] [InlineData(true, 1)] [InlineData(true, 2)]
+    public void StoredStringsUseOwnerModeWithoutReadReconstruction(bool nonDecimal, int storage)
+    {
+        using var memoryForState = CreateState(nonDecimal: nonDecimal);
+        var state = memoryForState.State;
+        var text = AwkText.FromSourceLiteralString("010");
+        var producerMode = nonDecimal ? AwkNumberParsingMode.Decimal : AwkNumberParsingMode.NonDecimalData;
+        using var frame = Store(state, AwkValue.FromDeferredText(text, producerMode), storage);
+        var before = state.Counters.ValuesCreated;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var first = Read(state, storage);
+        var second = Read(state, storage);
+        Assert.Equal(before, state.Counters.ValuesCreated);
+        Assert.True(text.HasSameStorage(first.ByteText));
+        Assert.True(text.HasSameStorage(second.ByteText));
+        Assert.Equal(AwkRuntimeValueKind.String, first.RuntimeKind);
+        Assert.False(first.TryGetNumber(out _));
+        Assert.Equal(nonDecimal ? 8 : 10, first.AsNumber(state.CancellationCheckpoint));
+        Assert.Equal("010", first.AsString());
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData("123.5", 123.5, 0)]
     [InlineData("123.5", 123.5, 1)]
     [InlineData("123.5", 123.5, 2)]
@@ -26,7 +51,7 @@ public sealed class AwkPreparedNumericInputTests
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
         Assert.Equal(number, result.AsNumber());
         Assert.Equal(0, AwkValue.Compare(result, AwkValue.FromNumber(number)));
-        Assert.Equal(before + (storage == 2 ? 0 : 1), state.Counters.ValuesCreated);
+        Assert.Equal(before, state.Counters.ValuesCreated);
         Assert.Equal(storage == 2 ? 0 : 1, state.Counters.PreparedNumericSlotReads);
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

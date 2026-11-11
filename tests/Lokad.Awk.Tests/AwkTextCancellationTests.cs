@@ -420,7 +420,7 @@ public sealed class AwkTextCancellationTests
             if (governor.CurrentReservedBytes > 0) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         };
-        var variables = new AwkVariables(governor, counters, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: checkpoint);
+        var variables = new AwkVariables(governor, counters,  (_, _) => { }, checkpoint: checkpoint);
         var name = AwkArrayName.FromText("kept");
         var key = new AwkArrayKey(new string('k', LongText));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(7));

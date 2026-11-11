@@ -161,7 +161,7 @@ public sealed partial class AwkRegionTests
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Targets: 1));
         var key = new AwkArrayKey("café");
-        var cell = new AwkArrayCell(AwkVariableSlot.FromNumber(7));
+        var cell = new AwkArrayCell(AwkValue.FromNumber(7));
         var target = new AwkArrayUpdateTarget(key, 7, null, cell);
         var held = fixture.Budget.Reserved;
         fixture.Budget.SetAvailableBytes(0);

@@ -8,7 +8,7 @@ internal static class AwkRuntimeMemory
     private const int AwkTextObjectBytes = 64;
     private const int ByteArrayObjectBytes = 24;
     private const int StringObjectBytes = 24;
-    private const int VariableSlotBytes = 24;
+    private const int StoredValueBytes = 24;
     private const int ArrayEntryBytes = 48;
     internal const int ArrayCellBytes = 48;
     internal const int Utf8BuilderObjectBytes = 48;
@@ -84,8 +84,8 @@ internal static class AwkRuntimeMemory
             ((long)byteLength / TextRuneCheckpointStride + 2) * sizeof(int);
     }
 
-    public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
-        CheckedAdd(VariableSlotBytes, slot.RetainedTextMemoryBytes);
+    public static long EstimateStoredValueBytes(AwkValue slot) =>
+        CheckedAdd(StoredValueBytes, slot.RetainedTextMemoryBytes);
 
     public static long EstimateUntypedScalarBytes() => 32;
 
@@ -120,10 +120,10 @@ internal static class AwkRuntimeMemory
     public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkArrayCell cell) =>
         EstimateArrayElementPayloadBytes(key, cell.Slot);
 
-    public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkVariableSlot slot) =>
+    public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkValue slot) =>
         CheckedAdd(key.RetainedTextMemoryBytes, CheckedAdd(ArrayCellBytes, slot.RetainedTextMemoryBytes));
 
-    public static long EstimateArrayElementBytes(AwkArrayKey key, AwkVariableSlot slot) =>
+    public static long EstimateArrayElementBytes(AwkArrayKey key, AwkValue slot) =>
         CheckedAdd(
             CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
             CheckedAdd(ArrayCellBytes, slot.RetainedTextMemoryBytes));
