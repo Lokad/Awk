@@ -52,6 +52,8 @@ ownership. Preserve input versus recomposed-value factories and owner-specific r
 Call and sort/traversal tests exercise aliases, snapshots and captured payloads through actual
 pending calls. Cancellation tests establish bounded responsiveness, effect order and cleanup,
 not historical checkpoint counts. Public host tests retain capability/path/pipe/append contracts.
+Reader-backed text arguments also use poisoned buffers and custom memory to verify original
+spelling, retirement, owning materialization and admission before frame publication.
 
 `AwkRuntimeCounters` assertions measure actual byte conversion, field preparation, copies and
 transport. Retire counters when their mechanism disappears. Tests that force GC or measure

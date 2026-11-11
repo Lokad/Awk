@@ -296,6 +296,25 @@ internal sealed class AwkFieldFrame(
         return true;
     }
 
+    internal bool TryCaptureReaderText(AwkFieldIndex index,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow,
+        out int offset, out int length)
+    {
+        borrow = null;
+        offset = length = 0;
+        if (_bufferedStorage is not { } storage) return false;
+        ReadOnlySpan<byte> bytes;
+        if (index.IsCurrentRecord)
+        {
+            if (!_recordTextIsCurrent || _recordValueIsCurrent && _recordValue.IsNumberValue) return false;
+            bytes = BufferedRecord.Span;
+        }
+        else if (!TryGetUnmaterializedFieldBytes(index, out bytes)) return false;
+        if (!storage.TryCaptureText(_bufferedSlot, bytes, out borrow, out offset)) return false;
+        length = bytes.Length;
+        return true;
+    }
+
     // Keep immutable spelling with the record's existing cache owner. Repeated
     // captures and later scalar promotion reuse it without classifying early.
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

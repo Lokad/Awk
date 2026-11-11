@@ -224,11 +224,13 @@ internal sealed partial class AwkRegionCompiler
     {
         if (_mainBodyStart < 0) PrepareArrayOwners(0);
         var entryFieldDemand = PrepareFieldDemands();
-        return new(_code.ToArray(), _operands.ToArray(),
+        var region = new AwkRegion(_code.ToArray(), _operands.ToArray(),
             _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
             StorageLayout(),
             _calls.ToArray(),
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _mainBodyStart, _ruleScopes.ToArray(), entryFieldDemand);
+        if (_kind != AwkRegionKind.Function) AwkFunctionHostEffects.PrepareCalls(region, _scope.CheckCancellation);
+        return region;
     }
 
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements) =>

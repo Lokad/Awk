@@ -908,8 +908,15 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    internal bool TryStageFunctionFieldText(int field, AwkFunctionFrame incoming, int index)
+    internal bool TryStageFunctionFieldText(int field, AwkFunctionFrame incoming, int index, bool borrowReader)
     {
+        if (borrowReader && field >= 0 && _recordFields.TryCaptureReaderText(new(field), out var borrow, out var offset, out var length))
+        {
+            ThrowIfCancellationRequested();
+            var captured = AwkFunctionLocalSlot.FromReaderText(borrow, offset, length);
+            _functions.StageArgument(incoming, index, in captured);
+            return true;
+        }
         if (!TryGetFieldTextArgument(field, out var value)) return false;
         // The record owns shared immutable spelling; the incoming frame funds its
         // own capture through mutation and actual suspension lifetimes.
@@ -953,6 +960,12 @@ internal sealed class AwkRuntimeState : IDisposable
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
                 var value = slot.ReadValue(CancellationCheckpoint);
+                Counters.RecordLocalValueRead(in value);
+                return value;
+            }
+            if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText)
+            {
+                var value = _functions.ReadFrameValue(frame, slotId);
                 Counters.RecordLocalValueRead(in value);
                 return value;
             }

@@ -85,7 +85,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(string.Concat(Enumerable.Repeat("4 ré\n", records)), host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records * (wrapped ? 2 : 1), counters.AwkTextAllocations);
+        Assert.Equal(records, counters.AwkTextAllocations);
         Assert.Equal(records, counters.PrintNumberArguments);
         Assert.Equal(records, counters.PrintIntegerSegments);
         Assert.Equal(0, counters.StringDecodes);

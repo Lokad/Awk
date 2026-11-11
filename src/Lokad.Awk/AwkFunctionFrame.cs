@@ -9,7 +9,12 @@ internal sealed class AwkFunctionLocalLayout
     private readonly Dictionary<AwkVariableName, AwkFunctionLocalSlotId> _slotsByName;
     private AwkParameterInput[] _inputs = [];
 
-    internal void PrepareInputs(AwkParameterInput[] inputs) => _inputs = inputs;
+    internal void PrepareInputs(AwkParameterInput[] inputs)
+    {
+        _inputs = inputs;
+        HasTextInput = inputs.Contains(AwkParameterInput.Text);
+    }
+    internal bool HasTextInput { get; private set; }
 
     internal AwkParameterInput InputConsumption(int index) =>
         (uint)index < (uint)_inputs.Length ? _inputs[index] : AwkParameterInput.Value;
@@ -208,16 +213,46 @@ internal struct AwkFunctionLocalSlot
         ArrayName = default;
     }
 
+    private AwkFunctionLocalSlot(AwkReadBuffer borrow, int offset, int length)
+    {
+        Kind = AwkFunctionLocalSlotKind.ReaderText;
+        _reference = borrow;
+        _word = ((long)offset << 32) | (uint)length;
+        _payloadTag = 0;
+        ArrayName = default;
+    }
+
+    internal static AwkFunctionLocalSlot FromReaderText(AwkReadBuffer borrow, int offset, int length) =>
+        new(borrow, offset, length);
+
+    internal readonly bool TryGetReaderText(out ReadOnlyMemory<byte> bytes)
+    {
+        if (Kind == AwkFunctionLocalSlotKind.ReaderText && _reference is AwkReadBuffer borrow)
+        {
+            bytes = borrow.Content.Slice((int)(_word >> 32), (int)_word);
+            return true;
+        }
+        bytes = default;
+        return false;
+    }
+
+    internal readonly long ReaderTextCapacityBytes => AwkRuntimeMemory.EstimateTextBytes((int)_word);
+    internal readonly bool HasSameReaderText(in AwkFunctionLocalSlot other) =>
+        Kind == AwkFunctionLocalSlotKind.ReaderText && other.Kind == Kind &&
+        ReferenceEquals(_reference, other._reference) && _word == other._word;
+
     public AwkFunctionLocalSlotKind Kind { readonly get; private set; }
 
     // Cleared cells are missing locals. Their language value is unassigned,
     // independently of the scalar value's text-valued default.
-    public readonly AwkValue Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key
+    public readonly AwkValue Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.ReaderText
         ? AwkValue.Unassigned()
         : AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_payloadTag);
 
     internal readonly AwkValue ReadValue(Action? checkpoint)
     {
+        if (Kind == AwkFunctionLocalSlotKind.ReaderText)
+            throw new InvalidOperationException("Reader text requires its funded frame consumer.");
         // Capture before the callback; the cell can retire while it runs.
         if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key)
             return AwkValue.Unassigned();
@@ -320,7 +355,8 @@ internal enum AwkFunctionLocalSlotKind
     ArrayAlias,
     PotentialArrayAlias,
     UntypedScalar,
-    Key
+    Key,
+    ReaderText
 }
 
 internal readonly struct AwkResolvedFunctionLocal

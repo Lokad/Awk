@@ -17,6 +17,15 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
     internal ReadOnlyMemory<byte> ContentAt(int slot) => BufferAt(slot).Content;
     internal bool IsKnownAsciiAt(int slot) => BufferAt(slot).IsKnownAscii;
 
+    internal bool TryCaptureText(int slot, ReadOnlySpan<byte> bytes,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow, out int offset)
+    {
+        if (BufferAt(slot).Borrower is { } reader) return reader.TryCaptureText(bytes, out borrow, out offset);
+        borrow = null;
+        offset = 0;
+        return false;
+    }
+
     internal static bool CanStage(int length) => length is > 0 and <= MaxReusableRecordBytes;
 
     private ref RecordBuffer BufferAt(int slot)

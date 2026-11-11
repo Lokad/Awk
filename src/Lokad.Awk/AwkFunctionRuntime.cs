@@ -35,6 +35,7 @@ internal sealed class AwkFunctionRuntime
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
     internal AwkFunctionFrame CurrentFrame => _calls.CurrentFrame;
+    internal AwkValue ReadFrameValue(AwkFunctionFrame frame, AwkFunctionLocalSlotId slot) => _calls.ReadFrameValue(frame, slot);
 
     public AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _calls.EnterGlobalBindings();
 

@@ -84,7 +84,7 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.TextValueClassifications);
-        Assert.Equal(1, counters.FieldValueCacheBufferAllocations);
+        Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, host.OpenFileCount);
@@ -196,7 +196,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("384\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        var expected = records * (observable ? 4 : 2);
+        var expected = records * (observable ? 3 : 1);
         Assert.InRange(counters.AwkTextAllocations, expected, expected + 32);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);

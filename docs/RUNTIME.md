@@ -88,6 +88,10 @@ length directly. Replacement bytes without proof retain ordinary scalar counting
 Other records retain strict validation; inspecting later bytes never rejects them early.
 Current records may reference the live read borrow. Before retiring it, Awk preserves retained
 record bytes in already-funded storage; escaping scalar values own their text.
+Prepared computation-only calls may retain an immutable reader slice for text arguments.
+Later field writes preserve the argument's original spelling; escaping values own text,
+and calls that may perform host work retain owning captures. Frame admission covers any
+eventual text materialization before the borrowed argument is published.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,

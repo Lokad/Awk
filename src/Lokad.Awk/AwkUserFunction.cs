@@ -6,6 +6,8 @@ internal sealed class AwkUserFunction
 {
     // Preparation finishes before the program is published to any execution.
     internal AwkRegion? Region { get; private set; }
+    internal bool MayInvokeHost { get; private set; } = true;
+    internal void PrepareHostEffects(bool mayInvokeHost) => MayInvokeHost = mayInvokeHost;
 
     internal void PrepareRegion(AwkRegion region)
     {

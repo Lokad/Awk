@@ -5,6 +5,64 @@ public sealed partial class AwkFunctionStorageTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void ReaderTextAdmissionFailureLeavesIncomingCellUnpublished(bool cancel)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var stack = Stack(memory, cancellation.Token.ThrowIfCancellationRequested);
+        var frame = stack.PrepareFrame(new([AwkVariableName.FromText("s")]));
+        var before = memory.Budget.Reserved;
+        using var borrow = AwkReadBuffer.FromContent(new byte[3000], AwkReadCompletion.EndOfFile, static _ => { });
+        var argument = AwkFunctionLocalSlot.FromReaderText(borrow, 0, 3000);
+        if (cancel)
+        {
+            memory.Budget.OnGrowth = _ => cancellation.Cancel();
+            Assert.ThrowsAny<OperationCanceledException>(() => stack.StageArgument(frame, 0, in argument));
+        }
+        else
+        {
+            memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            Assert.Throws<AwkRuntimeException>(() => stack.StageArgument(frame, 0, in argument));
+            Assert.Equal(1, memory.Budget.Refusals);
+            Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        }
+        Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, frame.GetSlot(0).Kind);
+        Assert.Equal(before, memory.Budget.Reserved);
+        Assert.Equal(0, frame.RetainedMemoryBytes);
+        memory.Budget.OnGrowth = null;
+        stack.DiscardIncomingFrame(frame);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ReaderTextMaterializesOnceWithinItsFundedFrame(bool governed)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
+        var stack = Stack(memory);
+        var bytes = "0007é"u8.ToArray();
+        using var borrow = AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, _ => bytes.AsSpan().Fill(0xFF));
+        var frame = stack.PrepareFrame(new([AwkVariableName.FromText("s")]));
+        stack.StageArgument(frame, 0, AwkFunctionLocalSlot.FromReaderText(borrow, 0, bytes.Length));
+        var funded = memory.Budget.Reserved;
+        memory.Budget.OnGrowth = _ => throw new InvalidOperationException("Already-funded materialization cannot admit again.");
+        var value = stack.ReadFrameValue(frame, new(0));
+        Assert.Equal(AwkFunctionLocalSlotKind.Scalar, frame.GetSlot(0).Kind);
+        Assert.Equal(funded, memory.Budget.Reserved);
+        borrow.Dispose();
+        Assert.Equal("0007é", value.ByteText.AsString());
+        Assert.Equal(AwkRuntimeValueKind.String, value.RuntimeKind);
+        Assert.Equal(7, value.AsNumber());
+        Assert.True(value.ByteText.HasSameStorage(stack.ReadFrameValue(frame, new(0)).ByteText));
+        memory.Budget.OnGrowth = null;
+        stack.DiscardIncomingFrame(frame);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void GeneralCallPreparationObservesCancellationBeforeTheArgumentTail(bool preCanceled)
     {
         const int count = 256;

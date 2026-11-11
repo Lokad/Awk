@@ -1,9 +1,106 @@
+using System.Buffers;
 using System.Text;
 
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordInputMemoryTests
 {
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task CapturedReaderRangeKeepsSpellingAfterRecordSlotsAreReplaced(bool governed, bool customMemory)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
+        var source = "pad café tail\n"u8.ToArray();
+        using var manager = new TestMemoryManager(source);
+        ReadOnlyMemory<byte> bytes = customMemory ? manager.Memory : source;
+        Assert.True(memory.Budget.TryReserve(bytes.Length, out var funding));
+        var completions = 0;
+        var host = new MockFileSystem
+        {
+            ReadAsyncOverride = (_, _, _) => ValueTask.FromResult(AwkReadBuffer.FromContent(bytes,
+                AwkReadCompletion.EndOfFile, consumed =>
+                {
+                    Assert.Equal(source.Length, consumed);
+                    source.AsSpan().Fill(0xFF);
+                    funding.Dispose();
+                    completions++;
+                }))
+        };
+        using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), false, 4096);
+        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
+        Assert.True(await reader.TryBufferAsync());
+        reader.Advance(4);
+        storage.StageBorrowed(reader, reader.Content[..^1]);
+        Assert.True(storage.TryCaptureText(storage.CurrentSlot, storage.Content.Span[..5], out var owner, out var offset));
+        Assert.Equal(4, offset);
+        storage.StageValidated("replacement"u8);
+        storage.StageValidated("another replacement"u8);
+        reader.Advance(reader.Content.Length);
+        Assert.Equal("café"u8.ToArray(), owner.Content.Slice(offset, 5).ToArray());
+        Assert.Equal(0, completions);
+        reader.ReleaseBorrow();
+        reader.ReleaseBorrow();
+        Assert.Equal(1, completions);
+        Assert.Throws<ObjectDisposedException>(() => owner.Content);
+        Assert.False(storage.TryCaptureText(storage.CurrentSlot, storage.Content.Span, out _, out _));
+        storage.Dispose();
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+    }
+
+    public static IEnumerable<object[]> TextArgumentLifetimeCases()
+    {
+        var cases = new (string Source, string Output, string[] Batches)[]
+        {
+            ("function width(){$2=\"other\";return 4}function view(s,n){$1=\"changed\";return toupper(substr(s,1,n))}{print view($1,width()),$0}",
+                "CAFÉ changed other\nWXYZ changed other\n", ["café 3\n", "wxyz 5\n"]),
+            ("function inner(t){return tolower(t)}function outer(s){return inner(s)}{v=outer($1);$0=\"new\";print v}",
+                "abcdef\nsecond\n", ["ABCDEF tail\n", "SECOND tail\n"]),
+            ("function later(s){getline;return tolower(s)\":\"$1}{print later($1)}",
+                "first:SECOND\n", ["FIRST x\n", "SECOND y\n"]),
+            ("function readnext(){getline;return 2}function view(s,n){return substr(s,1,n)}{print view($1,readnext())}",
+                "FI\n", ["FIRST x\n", "SECOND y\n"]),
+            ("function recur(s,n){if(n)return recur(s,n-1);$0=\"new\";return tolower(s)}{print recur($1,8)}",
+                "first\nsecond\n", ["FIRST x\n", "SECOND y\n"]),
+            ("function view(s){print \"inside\";return tolower(s)}{print view($1)}",
+                "inside\nfirst\ninside\nsecond\n", ["FIRST x\n", "SECOND y\n"])
+        };
+        foreach (var governed in new[] { false, true })
+        foreach (var pending in new[] { false, true })
+        foreach (var item in cases) yield return [governed, pending, item.Source, item.Output, item.Batches];
+    }
+
+    [Theory]
+    [MemberData(nameof(TextArgumentLifetimeCases))]
+    public async Task TextArgumentsSurviveMutationAndActualHostRetirement(
+        bool governed, bool pending, string source, string expected, string[] batches)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var host = new InputHost(budget, batches)
+        {
+            PoisonConsumedBytes = true,
+            PendingOutput = pending ? async () => await Task.Yield() : null
+        };
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors(
+            "awk", [source], [])).ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(expected, host.Output);
+        Assert.Equal("", host.Error);
+        AssertRefunded(budget);
+    }
+
+    private sealed class TestMemoryManager(byte[] bytes) : MemoryManager<byte>
+    {
+        public override Span<byte> GetSpan() => bytes;
+        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+        public override void Unpin() { }
+        protected override void Dispose(bool disposing) { }
+    }
+
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task SlotAsciiProofSurvivesPromotionAndResetsForNewBytes(bool governed)

@@ -76,6 +76,8 @@ internal static partial class AwkProgramLowerer
             function.PrepareRegion(region);
         }
 
+        AwkFunctionHostEffects.Prepare(functions, checkpoint);
+
         var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, functions);
         var main = AwkRegionCompiler.CreateMain(globalScope);
         var rangeCount = 0;

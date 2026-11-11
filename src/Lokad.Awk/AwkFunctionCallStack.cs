@@ -252,6 +252,17 @@ internal sealed class AwkFunctionCallStack(
             incoming.StageNumber(index, number);
             return true;
         }
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.ReaderText)
+        {
+            _counters.RecordScalarLocalValueRead();
+            if (!prepareKey) StageArgument(incoming, index, in sourceSlot);
+            else
+            {
+                var owned = MaterializeReaderText(frame, source, in sourceSlot).Value;
+                StageKey(incoming, index, new AwkArrayKey(owned.ByteText, checkpoint));
+            }
+            return true;
+        }
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
             sourceSlot.Value.StoredKind is not (AwkValueKind.Untyped or AwkValueKind.ArrayReference))
         {
@@ -367,6 +378,11 @@ internal sealed class AwkFunctionCallStack(
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
                 value = slot.ReadValue(checkpoint);
+                return true;
+            }
+            if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText)
+            {
+                value = ReadFrameValue(frame, slotId);
                 return true;
             }
             if (allowArray && slot.Value.TryGetArrayBinding(out var array))
@@ -854,12 +870,39 @@ internal sealed class AwkFunctionCallStack(
             _potentialArrayAliasCounts[arrayName] = count - 1;
     }
 
+    internal AwkValue ReadFrameValue(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId)
+    {
+        var slot = frame.GetSlot(slotId.Index);
+        if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText) slot = MaterializeReaderText(frame, slotId, in slot);
+        return slot.ReadValue(checkpoint);
+    }
+
+    private AwkFunctionLocalSlot MaterializeReaderText(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
+        in AwkFunctionLocalSlot slot)
+    {
+        if (!slot.TryGetReaderText(out var bytes)) throw new InvalidOperationException("A reader-text cell needs an active borrow.");
+        var captured = slot;
+        var id = frame.Id;
+        // This frame admitted the complete text/cache capacity at argument capture.
+        // Materialization consumes that capacity without another admission callback.
+        var text = AwkText.CopyTrustedBytes(bytes.Span, _counters, AwkMemoryAccounting.Disabled, checkpoint);
+        _counters.RecordValueCreated();
+        var owned = AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, numberParsingMode));
+        // Polls can retire/reuse a cell. Preserve the captured result regardless;
+        // cache only into the original live payload, without changing its funding.
+        if (frame.Id == id && (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
+            frame.GetSlot(slotId.Index).HasSameReaderText(in captured)) frame.GetSlot(slotId.Index) = owned;
+        return owned;
+    }
+
     private AwkFunctionLocalSlot PromoteScalarProjection(
         AwkFunctionFrame frame,
         AwkFunctionLocalSlotId slotId,
         AwkFunctionLocalSlot slot,
         AwkFunctionLocalProjection projection)
     {
+        if (projection == AwkFunctionLocalProjection.Value && slot.Kind == AwkFunctionLocalSlotKind.ReaderText)
+            return MaterializeReaderText(frame, slotId, in slot);
         if (projection == AwkFunctionLocalProjection.Value && slot.Value.TryGetArrayBinding(out _))
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(frame.Layout.Parameters[slotId.Index].Text));
         if (projection != AwkFunctionLocalProjection.Value ||

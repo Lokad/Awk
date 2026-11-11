@@ -10,6 +10,16 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("text-argument-preserves-spelling-through-later-argument-and-callee-record-writes",
+            ["function width(){$2=\"other\";return 4}function view(s,n){$1=\"changed\";return toupper(substr(s,1,n))}{print view($1,width()),$0}"], [],
+            "CAFÉ changed other\n", "café 3\n");
+        yield return Passing("text-argument-forwarding-owns-the-return-before-record-replacement",
+            ["function inner(t){return tolower(t)}function outer(s){return inner(s)}{v=outer($1);$0=\"new\";print v}"], [],
+            "abcdef\n", "ABCDEF tail\n");
+        yield return Passing("text-argument-remains-captured-through-callee-main-input",
+            ["function later(s){getline;return tolower(s)\":\"$1}{print later($1)}"], [],
+            "first:SECOND\n", "FIRST x\nSECOND y\n");
+
         yield return Passing("bound-local-values-keep-spelling-across-global-file-phase-calls",
             ["function show(s){return \"[\"s\"]\"}function take(s,t){print show(s);getline t;print show(s),show(t);return s}" +
              "BEGIN{s=\"global\";print take(\"007\");print s}BEGINFILE{print show(s);s=\"changed\"}END{print s}"], [],

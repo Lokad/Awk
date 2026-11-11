@@ -96,6 +96,12 @@ internal partial struct AwkRegionMachine
                 numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
                 return;
             }
+            if (TryReaderText(lengthOperand, out var readerText))
+            {
+                state.Counters.RecordBoundScalarLength();
+                numbers[instruction.Target] = state.StringUnitMode == AwkStringUnitMode.Byte ? readerText.Length : AwkText.CountRunes(readerText.Span, state.CancellationCheckpoint);
+                return;
+            }
             AwkValue lengthValue;
             if (instruction.Detail != 0 && lengthOperand.Kind == AwkRegionOperandKind.LocalVariable &&
                 state.TryReadBoundFunctionLocalValue(new(lengthOperand.Index), out lengthValue, allowArray: true))
@@ -257,6 +263,8 @@ internal partial struct AwkRegionMachine
         {
             var incoming = storage.IncomingFrame(call.Slot);
             if (count == 0) return incoming;
+            var borrowReader = call.CanBorrowReaderText &&
+                (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);
             var arguments = call.Arguments;
             state.Counters.RecordFunctionArgumentSegment();
             for (var index = first; index < first + count; index++)
@@ -287,7 +295,7 @@ internal partial struct AwkRegionMachine
                         if (argument.Consumption == AwkParameterInput.Key &&
                             state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
                         if (argument.Consumption == AwkParameterInput.Text &&
-                            state.TryStageFunctionFieldText(ordinal, incoming, index)) break;
+                            state.TryStageFunctionFieldText(ordinal, incoming, index, borrowReader)) break;
                         var fieldNumber = 0d;
                         var numeric = argument.Consumption == AwkParameterInput.Arithmetic
                             ? state.TryGetFieldArithmeticNumber(ordinal, out fieldNumber)
@@ -497,10 +505,23 @@ internal partial struct AwkRegionMachine
             return new(Value(index));
         }
 
+        private bool TryReaderText(AwkRegionOperand operand, out ReadOnlyMemory<byte> bytes)
+        {
+            if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
+                (uint)operand.Index < (uint)frame.Layout.SlotCount && frame.GetSlot(operand.Index).TryGetReaderText(out bytes))
+            {
+                state.Counters.RecordScalarLocalValueRead();
+                return true;
+            }
+            bytes = default;
+            return false;
+        }
+
         internal AwkByteTextOperand TextOperand(int index)
         {
             var operand = operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
+            if (TryReaderText(operand, out var readerText)) return new(readerText.Span);
             if (operand.Kind == AwkRegionOperandKind.Literal)
                 return new(region.Literals[operand.Index].Text);
             if (operand.Kind == AwkRegionOperandKind.TextTemporary)
@@ -512,6 +533,7 @@ internal partial struct AwkRegionMachine
         {
             var operand = operands[index];
             if (IsField(operand)) state.CaptureFieldTextOperand(FieldOrdinal(operand), out result);
+            else if (TryReaderText(operand, out var readerText)) result = new(readerText.Span, -1);
             else result = new(Value(index));
         }
 

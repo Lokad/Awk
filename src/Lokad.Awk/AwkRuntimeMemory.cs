@@ -142,6 +142,7 @@ internal static class AwkRuntimeMemory
         FunctionFrameBytes;
 
     public static long EstimateFunctionLocalPayloadBytes(in AwkFunctionLocalSlot slot) =>
+        slot.Kind == AwkFunctionLocalSlotKind.ReaderText ? slot.ReaderTextCapacityBytes :
         slot.Kind == AwkFunctionLocalSlotKind.Key ? slot.Key.RetainedTextMemoryBytes :
         slot.Kind != AwkFunctionLocalSlotKind.ArrayAlias ? slot.Value.RetainedTextMemoryBytes : 0;
 

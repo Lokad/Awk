@@ -250,8 +250,12 @@ or environment dependencies.
   final consumption. Text snapshots include record zero; assigned numbers retain formatting
   at actual use. Buffered-record materialization stays at its owner, outside cached reads.
   Origin observers, mixed uses and lexical comparisons retain full values. Key cells own bytes.
-  Text-only field arguments capture owned
-  ordinary text in scalar frames, without input-number classification. Mixed observations retain
+  Text-only field arguments may capture the immutable reader owner and absolute range in existing
+  frame-cell words when prepared calls and later arguments exclude host work and staging has no
+  pending output/diagnostics. Function-level effects stay separate from parameter consumption.
+  Frames prepay prospective text/cache capacity; full-value consumers materialize once within it.
+  Field mutation cannot change that captured spelling. Owned/promoted/decoded fields and unproved
+  calls keep owned ordinary text, without input-number classification. Mixed observations retain
   full input values, and numeric arguments keep formatting at actual use. Do not use key cells as
   general scalar text or retain raw record spans across a function call or host suspension.
   Comparisons against proved numeric results may stage established numeric field facts directly.
