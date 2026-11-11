@@ -33,6 +33,9 @@ Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests 
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Structured read failures are recoverable `getline`; faulted host operations are redacted failures.
 Mock file truncation occurs at open and appended data becomes visible after close.
+Append tests cover completed faults, synchronous throws and cancellation during callbacks,
+as well as pending stdout/warning borrows. Check stopped effects, cleanup and funding until
+actual completion, including hosts that ignore cancellation.
 
 Memory tests distinguish ordinary execution from a supplied shared budget. Refusal fails the
 command without retry or fallback. Check admission before mutation and keep storage funded through

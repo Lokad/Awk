@@ -22,6 +22,11 @@ internal static class AwkHostBoundaryPolicy
         return result;
     }
 
+    // Ready paths retain async failure semantics, even for cancellation with an
+    // unrequested token. Actual host users still complete through AwaitAsync.
+    public static async Task AwaitFailureAsync(Exception error) =>
+        await Task.FromException(error).ConfigureAwait(false);
+
     public static string ResolveError(
         AwkOperationError error,
         bool exposeDetails,

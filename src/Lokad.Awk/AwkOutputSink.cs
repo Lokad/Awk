@@ -116,18 +116,34 @@ internal sealed class AwkOutputSink : IDisposable
         _diagnostics.Add(diagnostic);
     }
 
-    public async Task FlushAsync(AwkIo io)
+    public Task FlushAsync(AwkIo io)
     {
-        if (_standardOutput.Length != 0)
+        try
         {
-            await io.WriteStandardOutputAsync(_standardOutput.AsMemory()).ConfigureAwait(false);
-            _standardOutput.Clear();
-        }
+            if (_standardOutput.Length != 0)
+            {
+                var append = io.WriteStandardOutputAsync(_standardOutput.AsMemory());
+                if (!append.IsCompletedSuccessfully)
+                    return CompleteOutputAsync(io, append);
+                _standardOutput.Clear();
+            }
 
+            return FlushDiagnosticsAsync(io);
+        }
+        catch (Exception error) { return AwkHostBoundaryPolicy.AwaitFailureAsync(error); }
+    }
+
+    private async Task CompleteOutputAsync(AwkIo io, Task append)
+    {
+        await append.ConfigureAwait(false);
+        _standardOutput.Clear();
         await FlushDiagnosticsAsync(io).ConfigureAwait(false);
     }
 
-    public async Task FlushDiagnosticsAsync(AwkIo io)
+    public Task FlushDiagnosticsAsync(AwkIo io) =>
+        _diagnostics.Count == 0 ? Task.CompletedTask : FlushPendingDiagnosticsAsync(io);
+
+    private async Task FlushPendingDiagnosticsAsync(AwkIo io)
     {
         try
         {

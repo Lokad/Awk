@@ -245,6 +245,139 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
     }
 
+    [Theory]
+    [InlineData(false, "throw")] [InlineData(true, "throw")]
+    [InlineData(false, "fault")] [InlineData(true, "fault")]
+    [InlineData(false, "cancel-accepted")] [InlineData(true, "cancel-accepted")]
+    [InlineData(false, "cancel-rejected")] [InlineData(true, "cancel-rejected")]
+    [InlineData(false, "throw-canceled")] [InlineData(true, "throw-canceled")]
+    [InlineData(false, "task-canceled")] [InlineData(true, "task-canceled")]
+    [InlineData(false, "unrequested-canceled")] [InlineData(true, "unrequested-canceled")]
+    public async Task CompletedAppendsPreserveFailureCancellationAndCleanup(bool warning, string completion)
+    {
+        foreach (var governed in new[] { false, true })
+        {
+            using var cancellation = new CancellationTokenSource();
+            var host = new TestOperationVisitor([]);
+            host.EnqueueOpenAwkFileDescriptor(31);
+            var closes = 0;
+            host.CloseDescriptorOverride = (descriptor, token) =>
+            {
+                Assert.Equal(new AwkFileDescriptor(31), descriptor);
+                Assert.False(token.IsCancellationRequested);
+                closes++;
+                return Task.FromResult(AwkDescriptorCloseResult.Closed());
+            };
+            var output = new List<string>();
+            var errors = new List<string>();
+            var attempted = false;
+            host.AppendOverride = (descriptor, bytes, token) =>
+            {
+                var text = System.Text.Encoding.UTF8.GetString(bytes.Span);
+                if (descriptor == AwkFileDescriptor.StdOut) output.Add(text);
+                if (descriptor == AwkFileDescriptor.StdErr) errors.Add(text);
+                if (descriptor != (warning ? AwkFileDescriptor.StdErr : AwkFileDescriptor.StdOut) || attempted)
+                    return Task.FromResult(AwkAppendResult.Accepted());
+                attempted = true;
+                if (completion is "cancel-accepted" or "cancel-rejected" or "throw-canceled" or "task-canceled")
+                    cancellation.Cancel();
+                return completion switch
+                {
+                    "throw" => throw new InvalidOperationException("private append detail"),
+                    "fault" => Task.FromException<AwkAppendResult>(new InvalidOperationException("private append detail")),
+                    "throw-canceled" => throw new OperationCanceledException(token),
+                    "task-canceled" => Task.FromCanceled<AwkAppendResult>(token),
+                    "unrequested-canceled" => throw new OperationCanceledException(CancellationToken.None),
+                    "cancel-rejected" => Task.FromResult(AwkAppendResult.Failure(default)),
+                    _ => Task.FromResult(AwkAppendResult.Accepted())
+                };
+            };
+            var budget = new CooperativeTestBudget(2 << 20);
+            var policy = AwkTestHarness.CreatePolicy();
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            var statement = warning ? "fflush(\"missing\")" : "print \"held\"";
+            var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+                "BEGIN{print \"file prefix\">\"held\";" + statement + ";print \"after\"}"));
+            var execution = tool.ExecuteAsync(host, policy, cancellation.Token);
+            if (cancellation.IsCancellationRequested)
+            {
+                var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+                Assert.Equal(cancellation.Token, error.CancellationToken);
+                Assert.True(execution.IsCanceled);
+            }
+            else
+                Assert.Equal(AwkExitCode.FatalError, await execution);
+            Assert.Equal(1, closes);
+            Assert.True(attempted);
+            Assert.Equal(warning ? "" : "held\n", string.Concat(output));
+            var expected = warning ? "awk: warning: fflush: `missing' is not an open file, pipe or co-process\n" : "";
+            if (!cancellation.IsCancellationRequested)
+                expected += AwkUtf8Codec.Decode(Lokad.Awk.AwkMessages.ErrorUnexpectedFailure);
+            Assert.Equal(expected, string.Concat(errors));
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task AcceptedPendingAppendRetainsItsBorrowThroughCancellation(bool warning, bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var host = new TestOperationVisitor([]);
+        host.EnqueueOpenAwkFileDescriptor(31);
+        var closes = 0;
+        host.CloseDescriptorOverride = (descriptor, token) =>
+        {
+            Assert.Equal(new AwkFileDescriptor(31), descriptor);
+            Assert.False(token.IsCancellationRequested);
+            closes++;
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
+        };
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<AwkAppendResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var budget = new CooperativeTestBudget(2 << 20);
+        ReadOnlyMemory<byte> borrow = default;
+        var output = new List<string>();
+        var errors = new List<string>();
+        host.AppendOverride = (descriptor, bytes, _) =>
+        {
+            if (descriptor == AwkFileDescriptor.StdOut) output.Add(System.Text.Encoding.UTF8.GetString(bytes.Span));
+            if (descriptor == AwkFileDescriptor.StdErr) errors.Add(System.Text.Encoding.UTF8.GetString(bytes.Span));
+            if (descriptor != (warning ? AwkFileDescriptor.StdErr : AwkFileDescriptor.StdOut) || entered.Task.IsCompleted)
+                return Task.FromResult(AwkAppendResult.Accepted());
+            borrow = bytes;
+            entered.SetResult();
+            return release.Task;
+        };
+        var statement = warning ? "fflush(\"missing\")" : "print \"held\"";
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            "BEGIN{print \"file prefix\">\"held\";" + statement + ";print \"after\"}"));
+        var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
+        var expectedBorrow = warning ? "awk: warning: fflush: `missing' is not an open file, pipe or co-process\n" : "held\n";
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.Equal(0, closes);
+            Assert.True(budget.Reserved > 0);
+            Assert.Equal(expectedBorrow, System.Text.Encoding.UTF8.GetString(borrow.Span));
+            Assert.Equal(warning ? "" : "held\n", string.Concat(output));
+        }
+        finally { release.TrySetResult(AwkAppendResult.Accepted()); }
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else
+            Assert.Equal(AwkExitCode.Success, await execution);
+        Assert.Equal(1, closes);
+        Assert.Equal((warning ? "" : "held\n") + (cancel ? "" : "after\n"), string.Concat(output));
+        Assert.Equal(warning ? expectedBorrow : "", string.Concat(errors));
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
     [Fact]
     public void HostResultsDoNotConfuseDefaultFailureWithAcceptance()
     {

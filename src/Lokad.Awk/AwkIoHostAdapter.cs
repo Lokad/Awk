@@ -38,36 +38,32 @@ internal sealed class AwkIoHostAdapter(
             accessiblePathRoot: accessiblePathRoot);
     }
 
-    public async Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
-    {
-        if (content.Length == 0)
-            return;
+    public Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content) => AppendAsync(stdOut, content);
 
-        resources.RecordHostCall();
-        resources.RecordOutputBytes(content.Length);
-        var status = await AwaitHostAsync(host.AppendAsync(stdOut, content, cancellationToken)).ConfigureAwait(false);
-        ThrowIfAppendFailed(stdOut, status);
+    public Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content) => AppendAsync(stdErr, content);
+
+    public Task AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content)
+    {
+        try
+        {
+            if (content.Length == 0)
+                return Task.CompletedTask;
+
+            resources.RecordHostCall();
+            resources.RecordOutputBytes(content.Length);
+            var append = AwaitHostAsync(host.AppendAsync(descriptor, content, cancellationToken));
+            if (!append.IsCompletedSuccessfully)
+                return CompleteAppendAsync(descriptor, append);
+
+            ThrowIfAppendFailed(descriptor, append.Result);
+            return Task.CompletedTask;
+        }
+        catch (Exception error) { return AwkHostBoundaryPolicy.AwaitFailureAsync(error); }
     }
 
-    public async Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content)
+    private async Task CompleteAppendAsync(AwkFileDescriptor descriptor, Task<AwkAppendResult> append)
     {
-        if (content.Length == 0)
-            return;
-
-        resources.RecordHostCall();
-        resources.RecordOutputBytes(content.Length);
-        var status = await AwaitHostAsync(host.AppendAsync(stdErr, content, cancellationToken)).ConfigureAwait(false);
-        ThrowIfAppendFailed(stdErr, status);
-    }
-
-    public async Task AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content)
-    {
-        if (content.Length == 0)
-            return;
-
-        resources.RecordHostCall();
-        resources.RecordOutputBytes(content.Length);
-        var status = await AwaitHostAsync(host.AppendAsync(descriptor, content, cancellationToken)).ConfigureAwait(false);
+        var status = await append.ConfigureAwait(false);
         ThrowIfAppendFailed(descriptor, status);
     }
 

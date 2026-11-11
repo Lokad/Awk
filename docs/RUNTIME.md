@@ -131,6 +131,8 @@ Help/version and diagnostic appends also require full acceptance and return stat
 
 Hosts that consume the payload synchronously can reuse one completed `Accepted()` task.
 Pending appends must retain the borrowed bytes until their actual operation completes.
+Cancellation requested during an append stops later execution after that completion, even
+when the host accepts the bytes. It does not shorten the pending borrow's lifetime.
 
 Construct `AwkOperationError(kind, message)` with a safe, unprefixed message and a cause:
 `NotFound`, `PermissionDenied`, `NotSupported`, `IoFailure`, or `Unspecified`. Classification

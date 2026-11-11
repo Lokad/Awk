@@ -221,6 +221,8 @@ or environment dependencies.
   status, and `CreatePipeAsync` accepts only a cancellation token.
 - Appends return `AwkAppendResult`, separately from command exit statuses. Only full acceptance
   leaves output writable; terminal closure/failure must never cause payload or diagnostic replay.
+  Share append completion/status handling. Ready completion preserves awaited failures and
+  post-host cancellation; pending users keep their payload and funding until actual completion.
 - Reads return bounded byte borrows (`AwkReadBuffer`). Advance an absolute consumed prefix and
   dispose before another operation on that descriptor. Preserve unread suffixes, terminal errors,
   UTF-8 chunk boundaries and funding through actual users; the host does not split lines.
