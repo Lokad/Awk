@@ -50,7 +50,18 @@ internal static class AwkRegionPrinting
     }
 
     internal static int Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
-        AwkRegionPrint print, in AwkValue current)
+        AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText = default)
+    {
+        if (print.Count == 1 && !print.Output.IsRedirected && print.Arguments[0].Kind != AwkRegionPrintArgumentKind.Field)
+        {
+            AppendSingle(state, storage, output, print, in current, finalText);
+            return 0;
+        }
+        return AppendList(state, storage, output, print, in current, finalText);
+    }
+
+    private static int AppendList(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
+        AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText)
     {
         // The instruction captures its final source before entering formatting.
         // Its actual owner remains live through this synchronous copy.
@@ -62,7 +73,7 @@ internal static class AwkRegionPrinting
         if (!fieldViews)
         {
             numbers = storage.Builders[0].Buffer;
-            if (!print.HasPreparedText) numbers.Clear();
+            numbers.Clear();
         }
         ReadOnlySpan<byte> record = default;
         if (fieldViews)
@@ -90,8 +101,9 @@ internal static class AwkRegionPrinting
         var terminatorValue = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         var separator = storage.FormatBorrowedText(print.Texts + print.Count, separatorValue, print: false);
         var terminator = storage.FormatBorrowedText(print.TerminatorText, terminatorValue, print: false);
-        long payloadByteLength = 0;
-        for (var index = 0; index < print.Count; index++)
+        long payloadByteLength = print.HasPreparedText ? finalText.Length : 0;
+        var capturedCount = print.HasPreparedText ? print.Count - 1 : print.Count;
+        for (var index = 0; index < capturedCount; index++)
         {
             if ((index & 63) == 0) state.ThrowIfCancellationRequested();
             if (!fieldViews || !borrowed[index])
@@ -122,7 +134,7 @@ internal static class AwkRegionPrinting
                         fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
                     else fields[index] = AwkFieldText.FromOwned(storage.FormatBorrowedText(print.Texts + index, current, print: true));
                 }
-                else if (argument.Kind != AwkRegionPrintArgumentKind.PreparedText)
+                else
                 {
                     var valueSlot = fieldViews ? argument.FallbackValue : argument.Index;
                     var start = numbers?.Length ?? 0;
@@ -147,6 +159,7 @@ internal static class AwkRegionPrinting
             payloadByteLength, AwkRuntimeMemory.CheckedMultiply(
                 separator.ByteLength, Math.Max(0, print.Count - 1))));
         var payloadStart = 0;
+        var parts = print.HasPreparedText ? new AwkRecordFields(fields, finalText) : new AwkRecordFields(fields);
         if (print.Output.IsRedirected)
         {
             var redirected = storage.Builders[0].Buffer;
@@ -161,13 +174,13 @@ internal static class AwkRegionPrinting
                         terminator.ByteLength))));
                 record = numbers.AsSpan();
             }
-            redirected.AppendRecord(new AwkRecordFields(fields), record, separator,
+            redirected.AppendRecord(parts, record, separator,
                 terminator, recordByteLength, state.CancellationCheckpoint);
         }
         else
         {
             if (numbers is not null) record = numbers.AsSpan();
-            output.AppendRecord(new AwkRecordFields(fields), record, separator,
+            output.AppendRecord(parts, record, separator,
                 terminator, recordByteLength);
             numbers?.Clear();
         }
@@ -178,8 +191,8 @@ internal static class AwkRegionPrinting
         return payloadStart;
     }
 
-    internal static void AppendSingle(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
-        AwkRegionPrint print, in AwkValue current)
+    private static void AppendSingle(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
+        AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText)
     {
         state.ThrowIfCancellationRequested();
         state.Counters.RecordSmallValuePrint();
@@ -204,16 +217,8 @@ internal static class AwkRegionPrinting
         {
             if (argument.Kind == AwkRegionPrintArgumentKind.PreparedText)
             {
-                // The same single-output primitive consumes owned whole text or
-                // a slice of the existing funded fragment buffer, without list
-                // formatting or an intermediate text object.
-                var fragment = storage.PrintSegments[print.Segments];
-                var buffer = storage.Builders[0].Buffer;
-                var bytes = fragment.AsSpan(buffer.AsSpan(), state.CancellationCheckpoint);
                 state.ThrowIfCancellationRequested();
-                output.Append(bytes, terminator);
-                storage.PrintSegments[print.Segments] = default;
-                buffer.Clear();
+                output.Append(finalText, terminator);
             }
             else
             {

@@ -110,8 +110,20 @@ internal partial struct AwkRegionMachine
                     computationView.ExecuteIndex(in instruction);
                     break;
                 case AwkRegionInstructionKind.Substring:
-                    computationView.ExecuteSubstring(in instruction);
+                {
+                    var payloadStart = computationView.ExecuteSubstring(in instruction, output);
+                    if (instruction.Right > 0)
+                    {
+                        var print = computationView.Region.Prints[instruction.Right - 1];
+                        if (print.Output.IsRedirected)
+                        {
+                            _position = position + 1;
+                            BeginWrite(print.Output, payloadStart);
+                            goto Resume;
+                        }
+                    }
                     break;
+                }
                 case AwkRegionInstructionKind.Case:
                     computationView.ExecuteCase(in instruction);
                     break;
@@ -203,10 +215,7 @@ internal partial struct AwkRegionMachine
                     var last = print.Arguments[^1];
                     var current = last.Kind == AwkRegionPrintArgumentKind.Current ? computationView.Value(last.Index) : default;
                     var sink = output ?? throw new InvalidOperationException("Print requires an output sink.");
-                    var payloadStart = 0;
-                    if (print.Count == 1 && !print.Output.IsRedirected && last.Kind != AwkRegionPrintArgumentKind.Field)
-                        AwkRegionPrinting.AppendSingle(computationView.State, computationView.Storage, sink, print, in current);
-                    else payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage, sink, print, in current);
+                    var payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage, sink, print, in current);
                     if (print.Output.IsRedirected)
                     {
                         _position = position + 1;

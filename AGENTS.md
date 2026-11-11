@@ -56,11 +56,12 @@ or environment dependencies.
   array/untyped behavior and actual frame/scope fallback at their existing boundaries.
   Capture owning spelling before later effects, and keep long-input polls after the capture.
   Prepared string results use canonical text operands when an owning value is needed.
-  A fresh final substring consumed by print binds directly to the existing funded print
-  fragments; remove its unused result slot/operand. Share the range kernel and retain
-  whole already-owned text in the print owner instead of copying it into scratch.
-  Scalar and list printing share this destination; keep the single-output primitive,
-  conversion order, source ownership through synchronous admission, and real host users.
+  A fresh final substring completes the shared print preparation synchronously with a
+  stack-local final byte view. Remove its unused result slot/operand, fragment staging
+  and separate print dispatch. Whole owned text retains its existing print owner;
+  the actual output destination owns bytes before host suspension. Scalar and list
+  printing share the range/output kernels. Preserve conversion order, source funding
+  through admission, field-demand termination and the fused operation's host effects.
   Scalar consumers construct string values at use; never reclassify these as numeric strings.
   Print-list consumption transfers between distinct slots of that same payload owner, retires
   the source and keeps funding through the existing print/output user. Preserve general-value

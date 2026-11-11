@@ -83,6 +83,8 @@ internal readonly ref struct AwkRecordFields
     private readonly ReadOnlySpan<AwkRecordField> _fields;
     private readonly ReadOnlySpan<AwkFieldText> _texts;
     private readonly ReadOnlySpan<AwkFieldFrame.CachedFieldValue> _cache;
+    private readonly ReadOnlySpan<byte> _finalText;
+    private readonly bool _hasFinalText;
     internal AwkRecordFields(ReadOnlySpan<AwkRecordField> fields, ReadOnlySpan<AwkFieldFrame.CachedFieldValue> cache)
     {
         _fields = fields;
@@ -95,11 +97,19 @@ internal readonly ref struct AwkRecordFields
         _fields = default;
         _cache = default;
     }
+    internal AwkRecordFields(ReadOnlySpan<AwkFieldText> texts, ReadOnlySpan<byte> finalText)
+    {
+        _texts = texts;
+        _finalText = finalText;
+        _hasFinalText = true;
+    }
     internal int Length => _fields.IsEmpty ? _texts.Length : _fields.Length;
 
     internal ReadOnlySpan<byte> BytesAt(int index, ReadOnlySpan<byte> record, Action? checkpoint)
     {
-        if (_fields.IsEmpty) return _texts[index].AsSpan(record, checkpoint);
+        if (_fields.IsEmpty)
+            return _hasFinalText && index == _texts.Length - 1 ? _finalText :
+                _texts[index].AsSpan(record, checkpoint);
         ref readonly var field = ref _fields[index];
         return field.Kind == AwkFieldTextKind.Owned
             ? _cache[field.CacheSlot - 1].Spelling.AsSpan(checkpoint)

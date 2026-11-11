@@ -125,7 +125,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         AwkRegionStorage storage, AwkOutputSink output)
     {
         var value = state.ResolveVariableValue(AwkVariableName.FromText("payload"));
-        AwkRegionPrinting.AppendSingle(state, storage, output, Assert.Single(region.Prints), in value);
+        AwkRegionPrinting.Append(state, storage, output, Assert.Single(region.Prints), in value);
     }
 
 }

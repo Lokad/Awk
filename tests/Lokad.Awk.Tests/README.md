@@ -38,6 +38,9 @@ as well as pending stdout/warning borrows. Check stopped effects, cleanup and fu
 actual completion, including hosts that ignore cancellation.
 Return-owner tests retain the funded callee through both ready and pending host completion,
 including numeric/text captures and cancellation before caller mutation.
+Final-string print tests cover direct copying into actual output, numeric-buffer growth,
+refusal before publication and pending stdout/redirected payloads through cancellation.
+Check source/output ownership and visible effects rather than retired fragment-cache mechanics.
 
 Memory tests distinguish ordinary execution from a supplied shared budget. Refusal fails the
 command without retry or fallback. Check admission before mutation and keep storage funded through

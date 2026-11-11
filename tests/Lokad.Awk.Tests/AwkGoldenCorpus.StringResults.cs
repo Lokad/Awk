@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("substring-printing-function-keeps-its-text-argument-through-host-output",
+            ["""function emit(s){print substr(s,1,2);return index(s,"!")}{print emit($1);exit}"""], [],
+            "ré\n7\n", "résumé! tail\n");
         yield return Passing("stored-text-consumers-preserve-origins-formatting-and-array-length",
             ["""function show(x,t){t=tolower(x);print length(x),length(t),substr(x,2,2),index(x,"0"),typeof(x),typeof(t),x}function count(a){return length(a)}BEGIN{CONVFMT="%.2f";show("0007");show(12.5);a[1]=1;a[2]=2;print count(a)}{show($1)}"""], [],
             "4 4 00 1 string string 0007\n5 5 2. 5 number string 12.5\n2\n4 4 00 1 strnum string 0007\n", "0007\n");

@@ -51,7 +51,9 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
                 AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend or
                 AwkRegionInstructionKind.Case => OperandDemand(instruction.Left),
-                AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring => StringCall(instruction.Left),
+                AwkRegionInstructionKind.Index => StringCall(instruction.Left),
+                AwkRegionInstructionKind.Substring => StringCall(instruction.Left) &&
+                    (instruction.Right == 0 || TerminalPrint(_prints[instruction.Right - 1])),
                 AwkRegionInstructionKind.Compare =>
                     NumberSourceDemand(instruction.Left) && NumberSourceDemand(instruction.Right),
                 AwkRegionInstructionKind.CompareText =>

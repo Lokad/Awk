@@ -244,26 +244,20 @@ internal sealed class AwkRegionStorage : IDisposable
         StoreProducedText(index, text, _payload.Bytes - before);
     }
 
-    internal void StoreSubstringPrint(AwkRegionPrint print, in AwkScalarOperand source, in AwkValue start, in AwkValue length, int count)
+    internal int PrintSubstring(AwkOutputSink output, AwkRegionPrint print, in AwkScalarOperand source,
+        in AwkValue start, in AwkValue length, int count)
     {
         var slice = AwkBuiltins.EvaluateSubstrSlice(_state, source, start, length, count, _payload,
             borrowOwned: true, out _);
-        var buffer = _builders[0].Buffer;
-        buffer.Clear();
-        var segment = print.Segments + print.Count - 1;
         if (slice.IsOwned)
         {
             // A whole already-owned result needs no staging copy. Its ordinary
             // print slot keeps the existing owner through later formatting.
             var text = slice.Own(_state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint, _payload);
             StoreText(print.Texts + print.Count - 1, text);
-            _printSegments[segment] = AwkFieldText.FromOwned(text);
         }
-        else
-        {
-            buffer.Append(slice.AsSpan(_state.CancellationCheckpoint), _state.CancellationCheckpoint);
-            _printSegments[segment] = AwkFieldText.FromRecordSlice(0, buffer.Length);
-        }
+        return AwkRegionPrinting.Append(_state, this, output, print, default,
+            slice.AsSpan(_state.CancellationCheckpoint));
     }
 
     private void StoreProducedText(int index, AwkText text, long producedBytes)

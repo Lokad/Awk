@@ -98,9 +98,9 @@ the callee. Numeric conversion uses the still-funded callee snapshot. Discarded 
 transfer funded return scratch into validated scalar cells; local text assignments use the
 same ownership transfer. Used results and unresolved or special targets retain ordinary
 captures and mutation preflights.
-Text consumed only by an immediate print may use the execution's funded byte scratch;
-whole owned text retains its existing backing. Output is copied before host suspension,
-while escaping values retain owning text and ordinary admission.
+Immediate substring output can borrow text until it is copied into the funded output
+buffer. Whole owned text keeps its backing; escaping values still own text. Output bytes
+are owned before host suspension, with the existing formatting order and statement visibility.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,
