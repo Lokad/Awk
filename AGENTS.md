@@ -292,6 +292,12 @@ or environment dependencies.
   long initialization polls. Standalone internal function execution establishes its own entry poll.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
+  Non-number return operands name canonical owning value/text scratch. Move their existing
+  payload claim to caller scratch before retiring the callee. Existing retirement clears
+  the source; keep the handoff adjacent to that retirement rather than clearing slots twice.
+  Immediate numeric consumers convert within the funded callee snapshot. Keep caller scratch
+  through actual target admission and preserve scalar origins and overwritten-user refunds;
+  do not restore a duplicate conversion lease or admit the same return handoff again.
   Saved returns carry caller scratch indices and their prepared consumer meaning, without
   general operands or names. Adjacent bound-scalar assignment descriptors can be consumed
   after restoring caller scope. Used results and escaping text retain funded snapshots;

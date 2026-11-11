@@ -178,14 +178,6 @@ internal partial struct AwkRegionMachine
         ReturnNumber(number);
     }
 
-    private static void StoreReturnValue(AwkRegionStorage storage, AwkRegionResumePoint resumePoint, AwkValue value)
-    {
-        if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
-            storage.StoreNumber(resumePoint.Destination, value);
-        else
-            storage.StoreValue(resumePoint.Destination, value);
-    }
-
     // Only root record flow keeps the currently loaded code/storage view.
     // Calls and returns still switch to the saved execution location.
     private bool Finish(AwkStatementFlow flow)
@@ -220,9 +212,11 @@ internal partial struct AwkRegionMachine
         var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
         if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
-        // Escaping data is funded, or an immediate numeric consumer completes,
-        // before the callee's locals/captures retire.
-        StoreReturnValue(storage, resumePoint, value);
+        value = value.AsScalarCopy();
+        if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
+            // Conversion consumes the actual funded callee snapshot before retirement.
+            storage.Numbers[resumePoint.Destination] = value.AsNumber(_state.CancellationCheckpoint);
+        else _storage.MoveRetiringReturnValueTo(storage, resumePoint.Destination, in value);
         _state.PopFunctionFrame();
         RestoreCaller(region, storage, resumePoint.Position, callerFrame);
         if (resumePoint.IsAssignment)

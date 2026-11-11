@@ -92,6 +92,9 @@ Prepared computation-only calls may retain an immutable reader slice for text ar
 Later field writes preserve the argument's original spelling; escaping values own text,
 and calls that may perform host work retain owning captures. Frame admission covers any
 eventual text materialization before the borrowed argument is published.
+Prepared function returns transfer existing scratch funding to the caller before retiring
+the callee. Numeric conversion uses the still-funded callee snapshot; assigning a retained
+result keeps its ordinary target preflight.
 
 `SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
 without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,

@@ -280,24 +280,21 @@ internal sealed class AwkRegionStorage : IDisposable
         return text;
     }
 
-    internal void StoreNumber(int index, AwkValue value)
+    internal void MoveRetiringReturnValueTo(AwkRegionStorage caller, int destination, in AwkValue value)
     {
-        value = value.AsScalarCopy();
-        var bytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
-        if (bytes == 0)
+        // Return preparation captures every non-number source in owning scratch.
+        // This storage retires immediately after publication; its existing cleanup
+        // clears all source slots and releases only the remaining payload claim.
+        var oldBytes = 0L;
+        if (_state.MemoryAccounting.IsEnabled)
         {
-            _numbers[index] = value.AsNumber(_state.CancellationCheckpoint);
-            return;
+            oldBytes = caller._values[destination].RetainedTextMemoryBytes;
+            _payload.MoveTo(caller._payload, value.RetainedTextMemoryBytes);
         }
-        // A legacy producer can return fresh text without a retained value slot.
-        // Fund the conversion's actual user, then retire it before the caller runs.
-        _payload.ReserveAdditional(bytes);
-        try
-        {
-            _state.ThrowIfCancellationRequested();
-            _numbers[index] = value.AsNumber(_state.CancellationCheckpoint);
-        }
-        finally { _payload.Release(bytes); }
+        caller._values[destination] = value;
+        // Publish the funded caller before refunding overwritten storage;
+        // that refund can invoke the provider while callee retirement is pending.
+        if (oldBytes > 0) caller._payload.Release(oldBytes);
     }
 
     internal void ReleaseValue(int index)
