@@ -98,6 +98,9 @@ or environment dependencies.
   Copy snapshot keys directly at traversal consumption; keep publication transfer matched to ownership.
   Comparisons retain one owning entry snapshot and admitted integer ordering. User merges keep
   indices; final entry permutation stays private and cancellation-safe before publication.
+  Builtin ordering binds its semantic comparison once. Kernels borrow entries by reference
+  and consume the actual runtime/counters, without captured execution state. Descending
+  order preserves operand/error order; numeric tie-formatting leases end before key fallback.
   Builtin snapshots freeze mutable untyped scalars and capture their array/scalar distinction.
   Type-order comparisons consume prepared scalar kinds and numeric payloads. Deferred conversion
   failures stay at comparison use, after array partitioning; do not force them for 0/1-entry sorts.
