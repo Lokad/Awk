@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("substring-indices-preserve-observed-numeric-string-origins",
+            ["""function clip(s,n,t){t=typeof(n);if(length(s)>n)return t ":" substr(s,1,n);return t ":" s}{print clip($1,$2),$2,typeof($2)}"""],
+            [], "strnum:ré 0002 strnum\nstring:ré 2tail string\n", "résumé 0002\nrésumé 2tail\n");
+        yield return Passing("substring-indices-retain-captures-before-later-effects",
+            ["""function later(){start=3;FS=":";$0="new:uvw";return 2}BEGIN{start=2;$0="key abcd";print substr($2,start,later()),start,$0}"""],
+            [], "bc 3 new:uvw\n");
+        yield return Passing("substring-indices-preserve-computed-and-general-numeric-arguments",
+            ["""function clip(s,n){return substr(s,1,n)}BEGIN{s="é😀z";print "["clip(s,1+1)"]","["clip(s,"02tail")"]","["clip(s,0)"]","["clip(s,-1)"]","["clip(s,2.9)"]";print substr(s,1+0),substr(s,1+1,1+0)}"""],
+            [], "[é😀] [é😀] [] [] [é😀]\né😀z 😀\n");
         yield return Passing("substring-print-keeps-earlier-captures-and-later-separators",
             ["""function change(){$0="next abcd";OFS="|";ORS="!";return 2}BEGIN{$0="old café";print length($1),substr($2,change(),2)}"""],
             [], "3|af!", "");

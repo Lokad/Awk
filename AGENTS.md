@@ -46,6 +46,8 @@ or environment dependencies.
   deliberate call boundaries; qualify changes to these boundaries on complete workloads.
   The view owns no storage and cannot survive an actual host suspension.
   Known string primitives bind to their semantic interpreter operations during preparation.
+  Substring indices retain captured readonly values and existing pure-number facts. Keep source
+  formatting before conversion, and defer length conversion until the start is in range.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
   Prepared string results use canonical text operands when an owning value is needed.
   A fresh final substring consumed by print binds directly to the existing funded print

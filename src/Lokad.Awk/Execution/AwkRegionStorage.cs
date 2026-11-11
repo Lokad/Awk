@@ -237,14 +237,14 @@ internal sealed class AwkRegionStorage : IDisposable
         StoreProducedText(index, text, _payload.Bytes - before);
     }
 
-    internal void StoreSubstringText(int index, in AwkScalarOperand source, AwkValue start, AwkValue length, int count)
+    internal void StoreSubstringText(int index, in AwkScalarOperand source, in AwkValue start, in AwkValue length, int count)
     {
         var before = _payload.Bytes;
         var text = AwkBuiltins.EvaluateSubstrText(_state, source, start, length, count, _payload);
         StoreProducedText(index, text, _payload.Bytes - before);
     }
 
-    internal void StoreSubstringPrint(AwkRegionPrint print, in AwkScalarOperand source, AwkValue start, AwkValue length, int count)
+    internal void StoreSubstringPrint(AwkRegionPrint print, in AwkScalarOperand source, in AwkValue start, in AwkValue length, int count)
     {
         var slice = AwkBuiltins.EvaluateSubstrSlice(_state, source, start, length, count, _payload,
             borrowOwned: true, out _);
