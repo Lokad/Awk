@@ -651,9 +651,9 @@ internal sealed partial class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkArrayReservation reservation)
     {
-        static (AwkArraySortMode Mode, AwkArrayComparison Compare) ResolveSortPlan(AwkArraySortOrder sortOrder)
+        static AwkArraySortMode ResolveSortMode(AwkArraySortOrder sortOrder)
         {
-            var mode = sortOrder switch
+            return sortOrder switch
             {
                 AwkArraySortOrder.DefaultOrder =>
                     AwkArraySortMode.ValueTypeAscending,
@@ -684,22 +684,41 @@ internal sealed partial class AwkArrayRuntime
                 _ => throw new InvalidOperationException("Unknown awk array sort order.")
             };
 
-            AwkArrayComparison comparison = mode switch
+        }
+
+        static Comparison<int> BindComparison(
+            AwkArraySortMode mode, AwkArraySortEntry[] entries, AwkRuntimeState state)
+        {
+            ref readonly AwkArraySortEntry FirstEntry(int index)
             {
-                AwkArraySortMode.IndexStringAscending => CompareKeys,
-                AwkArraySortMode.IndexStringDescending => CompareKeysDescending,
-                AwkArraySortMode.IndexNumberAscending => CompareIndexNumbers,
-                AwkArraySortMode.IndexNumberDescending => CompareIndexNumbersDescending,
-                AwkArraySortMode.ValueStringAscending => CompareValueStrings,
-                AwkArraySortMode.ValueStringDescending => CompareValueStringsDescending,
-                AwkArraySortMode.ValueNumberAscending => CompareValueNumbers,
-                AwkArraySortMode.ValueNumberDescending => CompareValueNumbersDescending,
-                AwkArraySortMode.ValueTypeAscending => CompareValueTypes,
-                AwkArraySortMode.ValueTypeDescending => CompareValueTypesDescending,
-                AwkArraySortMode.Unsorted => CompareKeys,
+                state.Resources.Checkpoint();
+                return ref entries[index];
+            }
+
+            return mode switch
+            {
+                AwkArraySortMode.IndexStringAscending =>
+                    (left, right) => CompareKeys(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.IndexStringDescending =>
+                    (left, right) => CompareKeysDescending(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.IndexNumberAscending =>
+                    (left, right) => CompareIndexNumbers(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.IndexNumberDescending =>
+                    (left, right) => CompareIndexNumbersDescending(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.ValueStringAscending =>
+                    (left, right) => CompareValueStrings(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.ValueStringDescending =>
+                    (left, right) => CompareValueStringsDescending(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.ValueNumberAscending =>
+                    (left, right) => CompareValueNumbers(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.ValueNumberDescending =>
+                    (left, right) => CompareValueNumbersDescending(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.ValueTypeAscending =>
+                    (left, right) => CompareValueTypes(in FirstEntry(left), in entries[right], state),
+                AwkArraySortMode.ValueTypeDescending =>
+                    (left, right) => CompareValueTypesDescending(in FirstEntry(left), in entries[right], state),
                 _ => throw new InvalidOperationException("Unknown awk array sort mode.")
             };
-            return (mode, comparison);
         }
 
         if (order is AwkArraySortOrder.UserFunctionOrder)
@@ -707,14 +726,14 @@ internal sealed partial class AwkArrayRuntime
             throw new InvalidOperationException("User-defined awk sort comparators require asynchronous evaluation.");
         }
 
-        var plan = ResolveSortPlan(order);
-        var entries = SnapshotSortEntries(arrayName, plan.Mode, reservation);
-        if (plan.Mode == AwkArraySortMode.Unsorted || entries.Length < 2)
+        var mode = ResolveSortMode(order);
+        var entries = SnapshotSortEntries(arrayName, mode, reservation);
+        if (mode == AwkArraySortMode.Unsorted || entries.Length < 2)
             return entries;
         var indices = CreateSortOrder(entries.Length, _state);
         try
         {
-            Array.Sort(indices, new AwkArraySortIndexComparer(entries, plan.Compare, _state));
+            Array.Sort(indices, BindComparison(mode, entries, _state));
         }
         catch (InvalidOperationException exception)
             when (exception.InnerException is AwkRuntimeException runtimeException)
@@ -729,18 +748,6 @@ internal sealed partial class AwkArrayRuntime
 
         ApplySortOrder(entries, indices, _state);
         return entries;
-    }
-
-    private sealed class AwkArraySortIndexComparer(
-        AwkArraySortEntry[] entries,
-        AwkArrayComparison comparison,
-        AwkRuntimeState state) : IComparer<int>
-    {
-        public int Compare(int left, int right)
-        {
-            state.Resources.Checkpoint();
-            return comparison(in entries[left], in entries[right], state);
-        }
     }
 
     private static int[] CreateSortOrder(int count, AwkRuntimeState state)
@@ -973,10 +980,6 @@ internal sealed partial class AwkArrayRuntime
         DestinationArray,
         KeySnapshot
     }
-
-    // Choose the semantic operation once. Entries remain in their admitted snapshot;
-    // the comparison borrows them and the actual runtime only during synchronous sort.
-    private delegate int AwkArrayComparison(in AwkArraySortEntry left, in AwkArraySortEntry right, AwkRuntimeState state);
 
     private static int ThenCompareKeys(int comparison, in AwkArraySortEntry left,
         in AwkArraySortEntry right, AwkRuntimeState state) =>
