@@ -130,6 +130,8 @@ public sealed partial class AwkRegionTests
     [InlineData(false, "while(1){}")] [InlineData(true, "while(1){}")]
     [InlineData(false, "for(;;){}")] [InlineData(true, "for(;;){}")]
     [InlineData(false, "do{}while(1)")] [InlineData(true, "do{}while(1)")]
+    [InlineData(false, "while(1){if(0)break;if(1)continue}")]
+    [InlineData(true, "while(1){if(0)break;if(1)continue}")]
     public async Task FunctionLoopRespondsToCancellationAndUnwindsWithoutCheckpointCounts(bool governed, string body)
     {
         using var cancellation = new CancellationTokenSource();

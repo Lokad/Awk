@@ -69,6 +69,13 @@ internal sealed partial class AwkRegionCompiler
                     next = new StatementsWork(statement.BodyStatements);
                     return true;
                 case 2:
+                    if (statement.ElseStatements.Count == 0)
+                    {
+                        // Both routes share this join. There is no else arm to
+                        // jump over or poll separately before the same boundary.
+                        compiler.PatchBranches(_otherwise, compiler.Label());
+                        return Complete();
+                    }
                     _done = compiler.Emit(new(AwkRegionInstructionKind.Jump));
                     compiler.PatchBranches(_otherwise, compiler.Label());
                     next = new StatementsWork(statement.ElseStatements);
