@@ -17,7 +17,7 @@ internal partial struct AwkRegionMachine
     private Pending _pending;
     private Task _hostCompletion;
     private ValueTask<AwkStatementFlow> _hostFlow;
-    private ValueTask<AwkValue> _hostValue;
+    private ValueTask<AwkValue> _pendingValue;
     private int _destination;
     private int _flushFieldDemand;
     private double _returningNumber;
@@ -99,6 +99,10 @@ internal partial struct AwkRegionMachine
                 if (!_hostCompletion.IsCompletedSuccessfully) return false;
                 CompleteNumberReturn();
                 break;
+            case Pending.ValueReturn:
+                if (!_hostCompletion.IsCompletedSuccessfully) return false;
+                CompleteValueReturn();
+                break;
             case Pending.Read:
                 if (!_hostCompletion.IsCompletedSuccessfully) return false;
                 CompleteRead();
@@ -112,8 +116,8 @@ internal partial struct AwkRegionMachine
                 CompleteMainClose(_hostFlow.Result);
                 break;
             case Pending.BuiltinValue:
-                if (!_hostValue.IsCompletedSuccessfully) return false;
-                CompleteBuiltinValue(_hostValue.Result);
+                if (!_pendingValue.IsCompletedSuccessfully) return false;
+                CompleteBuiltinValue(_pendingValue.Result);
                 break;
             default: throw new InvalidOperationException("The pending operation has no completion source.");
         }
@@ -178,7 +182,7 @@ internal partial struct AwkRegionMachine
 
     private void CompleteBuiltinValue(AwkValue value)
     {
-        _hostValue = default;
+        _pendingValue = default;
         _pending = Pending.None;
         _state.ThrowIfCancellationRequested();
         var instruction = _region.Instructions[_position - 1];
@@ -193,6 +197,16 @@ internal partial struct AwkRegionMachine
         var number = _returningNumber;
         _returningNumber = 0;
         ReturnNumber(number);
+    }
+
+    private void CompleteValueReturn()
+    {
+        // Only an actual pending flush retains this already-captured scalar.
+        // The callee still funds its owning scratch through host completion.
+        var value = _pendingValue.Result;
+        _pendingValue = default;
+        CompleteHostOperation();
+        Return(value);
     }
 
     // Only root record flow keeps the currently loaded code/storage view.
@@ -300,7 +314,7 @@ internal partial struct AwkRegionMachine
         EndMainRecord();
         _hostCompletion = Task.CompletedTask;
         _hostFlow = default;
-        _hostValue = default;
+        _pendingValue = default;
         _mainRead = default;
     }
 
@@ -323,6 +337,10 @@ internal partial struct AwkRegionMachine
                             await machine._hostCompletion.ConfigureAwait(false);
                             machine.CompleteNumberReturn();
                             break;
+                        case Pending.ValueReturn:
+                            await machine._hostCompletion.ConfigureAwait(false);
+                            machine.CompleteValueReturn();
+                            break;
                         case Pending.Read:
                             await machine._hostCompletion.ConfigureAwait(false);
                             machine.CompleteRead();
@@ -336,7 +354,7 @@ internal partial struct AwkRegionMachine
                             machine.CompleteMainClose(mainFlow);
                             break;
                         case Pending.BuiltinValue:
-                            var builtinValue = await machine._hostValue.ConfigureAwait(false);
+                            var builtinValue = await machine._pendingValue.ConfigureAwait(false);
                             machine.CompleteBuiltinValue(builtinValue);
                             break;
                         default: throw new InvalidOperationException("The pending operation has no completion source.");
@@ -352,5 +370,5 @@ internal partial struct AwkRegionMachine
         finally { machine.Cleanup(); }
     }
 
-    private enum Pending : byte { None, Flush, NumberReturn, Output, Read, MainRead, MainClose, BuiltinValue }
+    private enum Pending : byte { None, Flush, NumberReturn, ValueReturn, Output, Read, MainRead, MainClose, BuiltinValue }
 }

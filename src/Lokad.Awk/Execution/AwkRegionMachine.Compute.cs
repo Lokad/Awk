@@ -104,8 +104,7 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.Value:
-                    if (instruction.Detail == (int)AwkRegionValueCapture.RetiringLocal) computationView.CaptureRetiringLocal(in instruction);
-                    else computationView.Storage.StoreValue(instruction.Target, computationView.Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
+                    computationView.Storage.StoreValue(instruction.Target, computationView.Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Index:
                     computationView.ExecuteIndex(in instruction);
@@ -557,8 +556,14 @@ internal partial struct AwkRegionMachine
                     BeginRead(computationView.Region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
-                    if (output is { HasPendingOutput: true } && !TryFlush(output, position)) goto Resume;
-                    Return(instruction.Left < 0 ? AwkValue.Unassigned() : computationView.Value(instruction.Left));
+                    var returnedValue = computationView.CaptureReturn(in instruction);
+                    if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
+                    {
+                        _pendingValue = new(returnedValue);
+                        _pending = Pending.ValueReturn;
+                        goto Resume;
+                    }
+                    Return(returnedValue);
                     goto Resume;
                 case AwkRegionInstructionKind.ReturnNumber:
                     var returnSource = new AwkRegionNumberSource(instruction.Left);

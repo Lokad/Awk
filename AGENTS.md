@@ -344,6 +344,9 @@ or environment dependencies.
   long initialization polls. Standalone internal function execution establishes its own entry poll.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
+  Return binds its source and owning destination together, without a separate value-capture
+  dispatch. Actual pending completion retains the captured scalar in the existing pending-value
+  field; never reread the source or replay return preparation after a host callback.
   Terminal scalar locals can transfer their existing claim into that owning capture. Read
   at the actual frame owner; only token polling may intervene before publication. Other
   local roles retain ordinary resolution and materialization.

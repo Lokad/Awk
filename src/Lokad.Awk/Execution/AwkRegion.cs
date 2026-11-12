@@ -153,8 +153,6 @@ internal readonly record struct AwkRegionInstruction(
         AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber;
 }
 
-internal enum AwkRegionValueCapture : byte { Scalar, PreserveOrigin, RetiringLocal }
-
 // Typed numeric reads can finish their immediate arithmetic consumer. Zero keeps
 // an ordinary read; the low bits hold operation+1 and bit three reverses operands.
 internal readonly record struct AwkRegionNumberContinuation(int Detail)

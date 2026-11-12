@@ -89,7 +89,7 @@ internal partial struct AwkRegionMachine
         _pending = Pending.None;
         _hostCompletion = Task.CompletedTask;
         _hostFlow = default;
-        _hostValue = default;
+        _pendingValue = default;
         EndMainRecord();
         if (_mainInput is not { } input)
         {

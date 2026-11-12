@@ -175,11 +175,17 @@ internal partial struct AwkRegionMachine
             throw new InvalidOperationException("Unknown mutable location.");
         }
 
-        internal void CaptureRetiringLocal(in AwkRegionInstruction instruction)
+        internal AwkValue CaptureReturn(in AwkRegionInstruction instruction)
         {
-            if (frame is not null && storage.TryTakeRetiringLocal(instruction.Target, frame,
-                operands[instruction.Left].Index)) return;
-            storage.StoreValue(instruction.Target, Value(instruction.Left));
+            if (instruction.Left >= 0)
+            {
+                ref readonly var source = ref operands[instruction.Left];
+                var target = operands[instruction.Target].Index;
+                if (source.Kind != AwkRegionOperandKind.LocalVariable || frame is null ||
+                    !storage.TryTakeRetiringLocal(target, frame, source.Index))
+                    storage.StoreValue(target, Value(instruction.Left));
+            }
+            return instruction.Target < 0 ? AwkValue.Unassigned() : Value(instruction.Target);
         }
 
         internal AwkValue Value(int index)

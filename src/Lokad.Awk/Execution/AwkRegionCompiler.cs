@@ -296,12 +296,7 @@ internal sealed partial class AwkRegionCompiler
                 var returned = -1;
                 if (statement.Expression.TryGetValue(out var returning))
                 {
-                    if (!Expression(returning, out var operand)) return false;
-                    returned = CaptureValue(operand);
-                    if (_operands[operand].Kind == AwkRegionOperandKind.LocalVariable)
-                        // The owning capture is immediately followed by return.
-                        // It may consume this local, before any output flush.
-                        _code[^1] = _code[^1] with { Detail = (int)AwkRegionValueCapture.RetiringLocal };
+                    if (!Expression(returning, out returned)) return false;
                 }
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
                 {
@@ -311,7 +306,20 @@ internal sealed partial class AwkRegionCompiler
                             Target = 0, Left = _lastNumberOperand };
                     else Emit(new(AwkRegionInstructionKind.ReturnNumber, Left: ~numericReturn.Index));
                 }
-                else Emit(new(AwkRegionInstructionKind.Return, Left: returned));
+                else
+                {
+                    // Return owns capture and actual flush completion. Existing
+                    // value/text results already have owning scratch; other sources
+                    // use the same funded value slot without a separate dispatch.
+                    var source = -1;
+                    if (returned >= 0 && _operands[returned].Kind is not
+                        (AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary))
+                    {
+                        source = returned;
+                        returned = Operand(AwkRegionOperandKind.ValueTemporary, _values++);
+                    }
+                    Emit(new(AwkRegionInstructionKind.Return, Target: returned, Left: source));
+                }
                 break;
             case AwkStatementKind.Print:
                 if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;

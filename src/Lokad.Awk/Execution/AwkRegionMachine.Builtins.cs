@@ -14,7 +14,7 @@ internal partial struct AwkRegionMachine
             view.State.ThrowIfCancellationRequested();
             _position = position + 1;
             _pending = Pending.BuiltinValue;
-            _hostValue = host.EvaluateBound(view.Storage.Values, builtin.Start, builtin.Count, Context);
+            _pendingValue = host.EvaluateBound(view.Storage.Values, builtin.Start, builtin.Count, Context);
             return true;
         }
 
