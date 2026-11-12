@@ -149,7 +149,9 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, CompletedResult<int>(completed),
+                var argument = CompletedResult<int>(completed);
+                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument,
+                    AwkRegionNumberSource.Bind(argument, compiler._operands[argument]).Location,
                     Detail: (int)definition.InputConsumption(_argument)));
                 _argument++;
             }
@@ -201,7 +203,9 @@ internal sealed partial class AwkRegionCompiler
             }
             else
             {
-                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument, CompletedResult<int>(completed)));
+                var argument = CompletedResult<int>(completed);
+                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument,
+                    AwkRegionNumberSource.Bind(argument, compiler._operands[argument]).Location));
                 // close formats its captured name before evaluating the direction.
                 if (definition.Id == AwkBuiltinId.Close && _argument == 0)
                     compiler.Emit(new(AwkRegionInstructionKind.PrepareString, _start));

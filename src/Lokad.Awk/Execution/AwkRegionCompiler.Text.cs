@@ -126,10 +126,18 @@ internal sealed partial class AwkRegionCompiler
             if (kind != AwkRegionInstructionKind.Case)
             {
                 site = compiler._strings.Count;
-                compiler._strings.Add(new(_arguments[0], _arguments[1], _arguments[2],
+                var second = _arguments[1];
+                var third = _arguments[2];
+                if (kind == AwkRegionInstructionKind.Substring)
+                {
+                    second = AwkRegionNumberSource.Bind(second, compiler._operands[second]).Location;
+                    if (third >= 0) third = AwkRegionNumberSource.Bind(third, compiler._operands[third]).Location;
+                }
+                compiler._strings.Add(new(_arguments[0], second, third,
                     definition.InputConsumption(1), definition.InputConsumption(2)));
             }
-            compiler.Emit(new(kind, target, site, Detail: definition.Id == AwkBuiltinId.ToUpper ? 1 : 0));
+            compiler.Emit(new(kind, target, site, Detail: kind == AwkRegionInstructionKind.Substring
+                ? syntax.Children.Count - 1 : definition.Id == AwkBuiltinId.ToUpper ? 1 : 0));
             return Complete(compiler.Operand(definition.Id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.TextTemporary, target));
         }
     }

@@ -241,6 +241,8 @@ Prepared call segments bind argument source locations and stage directly into ad
 frames in source order. Dynamic types and unavailable bindings retain runtime resolution.
 Snapshots precede admission callbacks; intervening effects retain earlier captures, and the
 actual staged frame activates after the final segment.
+Prepared builtin arguments consume ready numeric registers directly; other arguments retain
+their ordinary value capture, spelling and conversion order.
 One preparation graph tracks arithmetic, numeric-comparison, text and key consumers. String-only
 parameters and direct builtins capture owned record/field spelling without classifying input numbers. Mixed
 or type-observing uses retain full values. Numeric arguments keep their kind and format at use;

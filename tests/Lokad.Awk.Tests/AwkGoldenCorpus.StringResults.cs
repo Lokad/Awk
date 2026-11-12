@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("numeric-builtin-arguments-keep-arity-captures-and-format-at-use",
+            ["""function change(){CONVFMT="%.2f";return "done"}BEGIN{print substr("abcdef","2",3);print substr("abcdef",2);CONVFMT="%.1f";print sprintf("%s:%s",1.25+0,change());print sprintf("%d",sqrt(16)+1)}"""],
+            [], "bcd\nbcdef\n1.25:done\n5\n", "");
         yield return Passing("text-producer-special-assignment-ends-prior-field-demand",
             ["""BEGIN{FS=",";OFS="2"}{seen=length($3);NF=tolower(OFS);printf "[%s] %s <%s>\n",$3,NF,$0;NF=substr("0004",1);printf "[%s] %s <%s>\n",$4,NF,$0}"""],
             [], "[] 2 <a2b>\n[] 0004 <a2b22>\n", "a,b,c\n");

@@ -36,9 +36,11 @@ internal partial struct AwkRegionMachine
         internal AwkRegionOperand[] Operands => operands;
         internal double[] Numbers => numbers;
 
-        internal AwkValue ArgumentValue(int index, AwkParameterInput consumption)
+        internal AwkValue ArgumentValue(int location, AwkParameterInput consumption)
         {
-            var operand = operands[index];
+            var source = new AwkRegionNumberSource(location);
+            if (source.IsRegister) return AwkValue.FromNumber(numbers[source.RegisterIndex]);
+            var operand = operands[source.OperandIndex];
             if (IsField(operand))
             {
                 if (consumption == AwkParameterInput.Arithmetic)
@@ -46,7 +48,7 @@ internal partial struct AwkRegionMachine
                 if (consumption == AwkParameterInput.Text &&
                     state.TryGetFieldTextArgument(FieldOrdinal(operand), out var text)) return text;
             }
-            return Value(index);
+            return Value(source.OperandIndex);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -65,7 +67,7 @@ internal partial struct AwkRegionMachine
             var operation = region.Strings[instruction.Left];
             CaptureTextArgument(operation.First, out var first);
             var second = ArgumentValue(operation.Second, operation.SecondInput);
-            var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
+            var third = instruction.Detail == 3 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
             // Full values remain captured through argument preparation. From
             // this ordered formatting boundary onward, slicing consumes bytes.
@@ -73,11 +75,11 @@ internal partial struct AwkRegionMachine
             var field = first.TextField;
             if (instruction.Right == 0)
             {
-                storage.StoreSubstringText(instruction.Target, source, field, second, third, operation.Third >= 0 ? 3 : 2);
+                storage.StoreSubstringText(instruction.Target, source, field, second, third, instruction.Detail);
                 return 0;
             }
             return storage.PrintSubstring(output ?? throw new InvalidOperationException("Print requires an output sink."),
-                region.Prints[instruction.Right - 1], source, field, second, third, operation.Third >= 0 ? 3 : 2);
+                region.Prints[instruction.Right - 1], source, field, second, third, instruction.Detail);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

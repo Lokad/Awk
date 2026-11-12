@@ -51,6 +51,8 @@ or environment dependencies.
   need call descriptors. Field-demand preparation uses the same operand location.
   Substring indices retain captured readonly values and existing pure-number facts. Keep source
   formatting before conversion, and defer length conversion until the start is in range.
+  Substring indices and builtin captures bind existing numeric registers directly. Other
+  operands keep ordinary field/value capture; substring arity is separate from location encoding.
   After ordered captures and source formatting, substring storage/print/range kernels consume
   a byte view and optional field identity. Keep range promotion and whole-result ownership at
   the runtime owner; do not pass the comparison scalar carrier through these kernels.
