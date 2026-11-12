@@ -4,6 +4,22 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
+    private bool TryTakeFreshTextProducer(int operand, AwkRegionInstructionKind kind,
+        out AwkRegionInstruction producer)
+    {
+        producer = default;
+        if (operand < 0 || operand != _operands.Count - 1 || _code.Count == 0) return false;
+        var result = _operands[operand];
+        var candidate = _code[^1];
+        if (result.Kind != AwkRegionOperandKind.TextTemporary || result.Index != _texts - 1 ||
+            candidate.Kind != kind || candidate.Target != result.Index) return false;
+        // Only the immediate consumer can replace this canonical result.
+        _texts--;
+        _operands.RemoveAt(operand);
+        producer = candidate;
+        return true;
+    }
+
     private readonly record struct PreparedPattern(int Slot, AwkRegexPatternOrigin Origin, bool Literal);
 
     private sealed class PatternWork(AwkExpressionSyntax syntax) : PreparationWork<PreparedPattern>

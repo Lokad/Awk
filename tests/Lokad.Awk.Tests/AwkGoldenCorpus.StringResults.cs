@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("immediate-case-length-keeps-formatting-unicode-and-input-origins",
+            ["""function size(s){return length(tolower(s))+length(toupper(s))}BEGIN{OFS="|";print length(tolower("CAFÉ")),length(toupper("résumé")),length(tolower("")),length(toupper(1.25)),size("AbC")}{print size($1),length(tolower($1)),typeof($1),$1}"""], [],
+            "4|6|0|4|6\n8|4|strnum|0007\n8|4|string|café\n", "0007\ncafé\n");
+        yield return Passing("case-length-keeps-observed-assignments-and-nested-producers",
+            ["""function sizes(s,t){print length(t=tolower(s)),typeof(t),t;print length((t=toupper(s))),typeof(t),t;print length(tolower(toupper(s))),s}BEGIN{sizes("café")}"""], [],
+            "4 string café\n4 string CAFÉ\n4 café\n");
         yield return Passing("substring-printing-function-keeps-its-text-argument-through-host-output",
             ["""function emit(s){print substr(s,1,2);return index(s,"!")}{print emit($1);exit}"""], [],
             "ré\n7\n", "résumé! tail\n");

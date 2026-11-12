@@ -84,7 +84,8 @@ internal partial struct AwkRegionMachine
             ref readonly var operand = ref operands[instruction.Left];
             var field = IsField(operand) ? FieldOrdinal(operand) : -1;
             var text = TextOperand(instruction.Left);
-            storage.StoreCaseText(instruction.Target, text, instruction.Detail != 0, field);
+            storage.StoreCaseResult(instruction.Target, text, instruction.Detail != 0, field,
+                countLength: instruction.Right != 0);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

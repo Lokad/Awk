@@ -19,8 +19,12 @@ internal sealed partial class AwkRegionCompiler
             }
             var value = argument is null ? compiler.Operand(AwkRegionOperandKind.Field, 0) : CompletedResult<int>(completed);
             var number = compiler._numbers++;
-            compiler.Emit(new(AwkRegionInstructionKind.Length, number, value,
-                Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
+            if (compiler.TryTakeFreshTextProducer(value, AwkRegionInstructionKind.Case, out var producer))
+                // Case's immediate length consumer uses a numeric destination.
+                compiler._code[^1] = producer with { Target = number, Right = 1 };
+            else
+                compiler.Emit(new(AwkRegionInstructionKind.Length, number, value,
+                    Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
             return Complete(compiler.Operand(AwkRegionOperandKind.NumberTemporary, number));
         }
     }

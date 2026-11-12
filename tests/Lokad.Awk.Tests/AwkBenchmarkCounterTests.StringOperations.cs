@@ -3,6 +3,40 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData("literal", false)] [InlineData("literal", true)]
+    [InlineData("global", false)] [InlineData("global", true)]
+    [InlineData("field", false)] [InlineData("field", true)]
+    [InlineData("local", false)] [InlineData("local", true)]
+    public async Task ImmediateCaseLengthsKeepTheSemanticProducerAndNativeText(string source, bool governed)
+    {
+        const int records = 32;
+        foreach (var upper in new[] { false, true })
+        {
+            var operation = upper ? "toupper" : "tolower";
+            var operand = source switch { "literal" => "\"beta\"", "global" => "stored", "local" => "s", _ => "$1" };
+            var expression = "length(" + operation + "(" + operand + "))";
+            var script = (source == "local" ? "function size(s){return " + expression + "}" : "") +
+                "BEGIN{stored=\"beta\"}{total+=" + (source == "local" ? "size($1)" : expression) + "}END{print total}";
+            var host = new MockFileSystem();
+            host.SetStandardInput(string.Concat(Enumerable.Repeat("beta tail\n", records)));
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var budget = new CooperativeTestBudget(8 << 20);
+            var exit = await AwkExecutor.ExecuteAsync(host,
+                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", script)), CancellationToken.None,
+                CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal("128\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(records * 4, counters.AsciiCasePreparationBytes);
+            Assert.Equal(upper ? records * 4 : 0, counters.AsciiCaseConversionBytes);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task LocalTextProducersKeepByteNativeValuesAcrossRepeatedAssignments(bool governed)
     {

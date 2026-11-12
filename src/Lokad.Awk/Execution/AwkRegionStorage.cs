@@ -230,11 +230,19 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
-    internal void StoreCaseText(int index, in AwkByteTextOperand source, bool upper, int field)
+    internal void StoreCaseResult(int index, in AwkByteTextOperand source, bool upper, int field, bool countLength)
     {
         var before = _payload.Bytes;
         var text = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
-        StoreProducedText(index, text, _payload.Bytes - before);
+        var producedBytes = _payload.Bytes - before;
+        if (countLength)
+        {
+            // The producer made the bytes available. Counting needs no new owner;
+            // the source or this payload lease remains funded through the scan.
+            _numbers[index] = _state.CountStringUnits(text);
+            if (producedBytes > 0) _payload.Release(producedBytes);
+        }
+        else StoreProducedText(index, text, producedBytes);
     }
 
     internal void StoreSubstringText(int index, in AwkScalarOperand source, in AwkValue start, in AwkValue length, int count)

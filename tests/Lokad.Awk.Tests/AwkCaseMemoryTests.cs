@@ -4,6 +4,64 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCaseMemoryTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task UnchangedBorrowedCaseResultStaysFundedUntilConsumption(bool upper, bool bytes)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
+        {
+            var state = State(owner, bytes);
+            var initialBytes = budget.Reserved;
+            var source = AwkText.FromString(new string(upper ? 'A' : 'a', 8193));
+            using (var destination = state.MemoryAccounting.CreateTransientLease())
+            {
+                var result = AwkBuiltins.EvaluateCaseText(state, new(source.AsSpan()), destination, upper);
+                Assert.Equal(source.AsString(), result.AsString());
+                Assert.True(destination.Bytes >= result.EstimatedRetainedMemoryBytes);
+                Assert.True(budget.Reserved >= initialBytes + destination.Bytes);
+                Assert.Equal(8193, state.CountStringUnits(result));
+                Assert.Equal(0, state.Counters.StringInteropFallbacks);
+            }
+            Assert.Equal(initialBytes, budget.Reserved);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task BorrowedUnicodeSourceRemainsFundedThroughCompatibilityConversion(bool upper)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
+        {
+            var state = State(owner, false);
+            var initialBytes = budget.Reserved;
+            var source = AwkText.FromString("😀_" + new string(upper ? 'a' : 'A', 8193));
+            using (var destination = state.MemoryAccounting.CreateTransientLease())
+            {
+                var sawFundedDecodedSource = false;
+                budget.OnGrowth = _ =>
+                {
+                    if (state.Counters.StringDecodes == 0) return;
+                    // A decoded source exists before conversion/output allocation. Its copied
+                    // UTF-8 owner must still be funded, without relying on future result funding.
+                    Assert.True(destination.Bytes >= source.EstimatedRetainedMemoryBytes);
+                    sawFundedDecodedSource = true;
+                };
+                var result = AwkBuiltins.EvaluateCaseText(state, new(source.AsSpan()), destination, upper);
+                budget.OnGrowth = null;
+                Assert.True(sawFundedDecodedSource);
+                Assert.Equal("😀_" + new string(upper ? 'A' : 'a', 8193), result.AsString());
+                Assert.Equal(result.EstimatedRetainedMemoryBytes, destination.Bytes);
+                Assert.Equal(8195, state.CountStringUnits(result));
+            }
+            Assert.Equal(initialBytes, budget.Reserved);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(false, false, true)]
     [InlineData(false, true, false)] [InlineData(false, true, true)]
     [InlineData(true, false, false)] [InlineData(true, false, true)]

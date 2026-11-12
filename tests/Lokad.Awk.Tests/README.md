@@ -71,6 +71,8 @@ spelling, retirement and admission before an actual owning copy. Borrow forwardi
 future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.
 Stored-text consumers preserve scalar origins, scope hiding and earlier captures; exercise
 their restored frame after actual host suspension, including cancellation and final refunds.
+Immediate case-length counters retain actual casing preparation/conversion and byte-native
+consumption; goldens also observe assignments, nested producers, formatting and input origins.
 
 `AwkRuntimeCounters` assertions measure actual byte conversion, field preparation, copies and
 transport. Retire counters when their mechanism disappears. Tests that force GC or measure

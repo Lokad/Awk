@@ -171,12 +171,14 @@ internal static partial class AwkBuiltins
             out var asciiResult,
             out var unchanged))
         {
-            return unchanged ? state.OwnStringResult(source, field) : asciiResult;
+            return unchanged ? state.OwnStringResult(source, field, destination: destination) : asciiResult;
         }
 
         state.Counters.RecordStringInteropFallback();
-        var decoded = state.OwnStringResult(source, field)
-            .AsString(state.Counters, state.CancellationCheckpoint);
+        var beforeSource = destination.Bytes;
+        var ownedSource = state.OwnStringResult(source, field, destination: destination);
+        var sourceBytes = destination.Bytes - beforeSource;
+        var decoded = ownedSource.AsString(state.Counters, state.CancellationCheckpoint);
         state.ThrowIfCancellationRequested();
         // Invariant casing preserves UTF-16 length. Keep the conversion result funded
         // until its UTF-8 copy is constructed; the source owns its decoding cache.
@@ -187,8 +189,12 @@ internal static partial class AwkBuiltins
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();
         state.ThrowIfCancellationRequested();
-        return AwkText.FromUtf16(converted.AsSpan(), state.Counters,
+        var result = AwkText.FromUtf16(converted.AsSpan(), state.Counters,
             state.MemoryAccounting, state.CancellationCheckpoint, destination);
+        // A borrowed source's owning copy is needed only through conversion.
+        // The completed result keeps its own existing destination funding.
+        if (sourceBytes > 0) destination.Release(sourceBytes);
+        return result;
     }
 
     private enum AwkCaseConversion

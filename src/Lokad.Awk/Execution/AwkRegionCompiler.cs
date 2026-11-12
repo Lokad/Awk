@@ -574,16 +574,14 @@ internal sealed partial class AwkRegionCompiler
 
     private AwkRegionPrint AllocatePrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
     {
-        if (arguments[^1] is { Kind: AwkRegionPrintArgumentKind.Text } last && _code.Count > 0 &&
-            _code[^1] is { Kind: AwkRegionInstructionKind.Substring } producer && producer.Target == last.Index &&
-            last.Index == _texts - 1 && _operands[^1] is { Kind: AwkRegionOperandKind.TextTemporary } result && result.Index == last.Index)
+        if (arguments[^1] is { Kind: AwkRegionPrintArgumentKind.Text } last && _operands.Count > 0 &&
+            _operands[^1].Index == last.Index &&
+            TryTakeFreshTextProducer(_operands.Count - 1, AwkRegionInstructionKind.Substring, out var producer))
         {
             // One immediate consumer completes the print before the byte view
             // expires; no retained text result or fragment staging is needed.
             _code[^1] = producer with { Target = 0, Right = _prints.Count + 1 };
             arguments[^1] = new(AwkRegionPrintArgumentKind.PreparedText, 0);
-            _texts--;
-            _operands.RemoveAt(_operands.Count - 1);
         }
         var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
         if (output.IsRedirected || (!print.UsesFieldViews && arguments.Length > 1)) _usesOutputBuilder = true;

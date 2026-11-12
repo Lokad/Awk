@@ -56,6 +56,10 @@ or environment dependencies.
   array/untyped behavior and actual frame/scope fallback at their existing boundaries.
   Capture owning spelling before later effects, and keep long-input polls after the capture.
   Prepared string results use canonical text operands when an owning value is needed.
+  Fresh casing-to-length consumption uses the shared case kernel and its numeric destination,
+  through existing case-result metadata, without a new opcode, text slot or separate length
+  dispatch. Count while source/result funding is live;
+  retire produced payload after use. Keep the fresh-result proof shared with substring/print.
   A fresh final substring completes the shared print preparation synchronously with a
   stack-local final byte view. Remove its unused result slot/operand, fragment staging
   and separate print dispatch. Whole owned text retains its existing print owner;
