@@ -273,17 +273,17 @@ internal sealed class AwkRegionStorage : IDisposable
         return true;
     }
 
-    internal void StoreSubstringText(int index, in AwkScalarOperand source, in AwkValue start, in AwkValue length, int count)
+    internal void StoreSubstringText(int index, in AwkByteTextOperand source, int field, in AwkValue start, in AwkValue length, int count)
     {
         var before = _payload.Bytes;
-        var text = AwkBuiltins.EvaluateSubstrText(_state, source, start, length, count, _payload);
+        var text = AwkBuiltins.EvaluateSubstrText(_state, source, field, start, length, count, _payload);
         StoreProducedText(index, text, _payload.Bytes - before);
     }
 
-    internal int PrintSubstring(AwkOutputSink output, AwkRegionPrint print, in AwkScalarOperand source,
+    internal int PrintSubstring(AwkOutputSink output, AwkRegionPrint print, in AwkByteTextOperand source, int field,
         in AwkValue start, in AwkValue length, int count)
     {
-        var slice = AwkBuiltins.EvaluateSubstrSlice(_state, source, start, length, count, _payload,
+        var slice = AwkBuiltins.EvaluateSubstrSlice(_state, source, field, start, length, count, _payload,
             borrowOwned: true, out _);
         if (slice.IsOwned)
         {

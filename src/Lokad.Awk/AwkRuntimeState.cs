@@ -474,6 +474,14 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool HasStringUnitAt(AwkByteTextOperand value, int index) =>
         value.HasUnitAt(index, _stringRuntime.IsByteMode, CancellationCheckpoint);
 
+    internal void PrepareStringRangeSource(int field, scoped ref AwkByteTextOperand source, int start, int length)
+    {
+        if (field >= 0 && !source.IsOwned && StringUnitMode != AwkStringUnitMode.Byte &&
+            source.ByteLength > AwkRuntimeMemory.TextRuneCheckpointStride &&
+            (long)start + length > AwkRuntimeMemory.TextRuneCheckpointStride)
+            source = new(CaptureFieldStringText(field));
+    }
+
     internal void PrepareAdmittedFields(int maximum) => _recordFields.PrepareAdmittedFields(maximum);
 
     internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.RecordByteOperand;

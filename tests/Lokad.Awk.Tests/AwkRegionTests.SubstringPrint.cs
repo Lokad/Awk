@@ -46,11 +46,11 @@ public sealed partial class AwkRegionTests
         {
             if (cancel)
                 Assert.ThrowsAny<OperationCanceledException>(() =>
-                    storage.PrintSubstring(output, print, new(value), AwkValue.FromNumber(1), AwkValue.FromNumber(whole ? 4096 : 2048), 3));
+                    storage.PrintSubstring(output, print, new(value.ByteText), -1, AwkValue.FromNumber(1), AwkValue.FromNumber(whole ? 4096 : 2048), 3));
             else
             {
                 var failure = Assert.Throws<AwkRuntimeException>(() =>
-                    storage.PrintSubstring(output, print, new(value), AwkValue.FromNumber(1), AwkValue.FromNumber(whole ? 4096 : 2048), 3));
+                    storage.PrintSubstring(output, print, new(value.ByteText), -1, AwkValue.FromNumber(1), AwkValue.FromNumber(whole ? 4096 : 2048), 3));
                 Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
                 Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
             }
@@ -158,7 +158,7 @@ public sealed partial class AwkRegionTests
         var print = new AwkRegionPrint(0, 0, [new(AwkRegionPrintArgumentKind.PreparedText, 0)]);
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 8000)));
         using var source = state.MemoryAccounting.RetainValue(value);
-        storage.PrintSubstring(output, print, new(value), AwkValue.FromNumber(1), AwkValue.FromNumber(3000), 3);
+        storage.PrintSubstring(output, print, new(value.ByteText), -1, AwkValue.FromNumber(1), AwkValue.FromNumber(3000), 3);
         source.Dispose();
         storage.Dispose();
         Assert.True(output.HasPendingOutput);

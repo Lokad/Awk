@@ -39,14 +39,5 @@ internal readonly ref struct AwkScalarOperand
     internal AwkByteTextOperand Text(AwkRuntimeState state, bool forceScalar = false) => IsBorrowed
         ? new(_bytes) : new(state.FormatStringByteText(forceScalar ? Value.ForceScalar() : Value));
 
-    internal void PrepareRangeSource(AwkRuntimeState state, scoped ref AwkByteTextOperand source, int start, int length)
-    {
-        if (IsBorrowed && _field >= 0 && !source.IsOwned && state.StringUnitMode != AwkStringUnitMode.Byte &&
-            _bytes.Length > AwkRuntimeMemory.TextRuneCheckpointStride &&
-            (long)start + length > AwkRuntimeMemory.TextRuneCheckpointStride)
-            source = new(state.CaptureFieldStringText(_field));
-    }
-
-    internal AwkText OwnSlice(AwkRuntimeState state, in AwkByteTextOperand slice, bool whole, AwkMemoryLease destination) =>
-        state.OwnStringResult(slice, IsBorrowed ? _field : -1, whole, destination);
+    internal int TextField => IsBorrowed ? _field : -1;
 }

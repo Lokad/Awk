@@ -51,6 +51,8 @@ writes; sort goldens also cover ordinary string keys and nondecimal input values
 Text projection also preserves untyped origins and charges, and rejects array scalars.
 Final-string print tests cover direct copying into actual output, numeric-buffer growth,
 refusal before publication and pending stdout/redirected payloads through cancellation.
+Substring kernel fixtures consume already-formatted byte views; public/prepared cases retain
+the source-formatting, index-capture and deferred length-conversion contracts.
 Check source/output ownership and visible effects rather than retired fragment-cache mechanics.
 
 Memory tests distinguish ordinary execution from a supplied shared budget. Refusal fails the

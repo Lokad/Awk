@@ -67,13 +67,17 @@ internal partial struct AwkRegionMachine
             var second = ArgumentValue(operation.Second, operation.SecondInput);
             var third = operation.Third >= 0 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
+            // Full values remain captured through argument preparation. From
+            // this ordered formatting boundary onward, slicing consumes bytes.
+            var source = first.Text(state);
+            var field = first.TextField;
             if (instruction.Right == 0)
             {
-                storage.StoreSubstringText(instruction.Target, first, second, third, operation.Third >= 0 ? 3 : 2);
+                storage.StoreSubstringText(instruction.Target, source, field, second, third, operation.Third >= 0 ? 3 : 2);
                 return 0;
             }
             return storage.PrintSubstring(output ?? throw new InvalidOperationException("Print requires an output sink."),
-                region.Prints[instruction.Right - 1], first, second, third, operation.Third >= 0 ? 3 : 2);
+                region.Prints[instruction.Right - 1], source, field, second, third, operation.Third >= 0 ? 3 : 2);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

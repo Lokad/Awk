@@ -51,6 +51,9 @@ or environment dependencies.
   need call descriptors. Field-demand preparation uses the same operand location.
   Substring indices retain captured readonly values and existing pure-number facts. Keep source
   formatting before conversion, and defer length conversion until the start is in range.
+  After ordered captures and source formatting, substring storage/print/range kernels consume
+  a byte view and optional field identity. Keep range promotion and whole-result ownership at
+  the runtime owner; do not pass the comparison scalar carrier through these kernels.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
   Prepared text consumers share the existing byte view for reader and owned scalar text.
   Borrow canonical operand metadata synchronously; keep mode-sensitive input, numeric formatting,

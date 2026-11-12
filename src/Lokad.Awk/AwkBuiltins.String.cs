@@ -20,34 +20,34 @@ internal static partial class AwkBuiltins
         AwkValue startValue, AwkValue lengthValue, int argumentCount)
     {
         using var destination = state.MemoryAccounting.CreateTransientLease();
-        return state.CreateStringValue(EvaluateSubstrText(state, new(sourceValue), startValue, lengthValue, argumentCount, destination));
+        var source = new AwkByteTextOperand(state.FormatStringByteText(sourceValue));
+        return state.CreateStringValue(EvaluateSubstrText(state, source, -1, startValue, lengthValue, argumentCount, destination));
     }
 
-    internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkScalarOperand sourceValue,
+    internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkByteTextOperand source, int field,
         in AwkValue startValue, in AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
     {
-        var slice = EvaluateSubstrSlice(state, sourceValue, startValue, lengthValue, argumentCount, destination,
+        var slice = EvaluateSubstrSlice(state, source, field, startValue, lengthValue, argumentCount, destination,
             borrowOwned: false, out var whole);
-        return sourceValue.OwnSlice(state, slice, whole, destination);
+        return state.OwnStringResult(slice, field, whole, destination);
     }
 
-    internal static AwkByteTextOperand EvaluateSubstrSlice(AwkRuntimeState state, AwkScalarOperand sourceValue,
+    internal static AwkByteTextOperand EvaluateSubstrSlice(AwkRuntimeState state, AwkByteTextOperand source, int field,
         in AwkValue startValue, in AwkValue lengthValue, int argumentCount, AwkMemoryLease destination,
         bool borrowOwned, out bool whole)
     {
         whole = false;
-        var source = sourceValue.Text(state);
         var start = (int)(startValue.TryGetNumberValue(out var startNumber) ? startNumber : startValue.AsNumber(state.CancellationCheckpoint));
         if (start < 1) start = 1;
         var zeroBasedStart = start - 1;
-        sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, 0);
+        state.PrepareStringRangeSource(field, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
         if (!state.HasStringUnitAt(source, zeroBasedStart)) return default;
         var length = argumentCount == 2 ? int.MaxValue :
             (int)(lengthValue.TryGetNumberValue(out var lengthNumber) ? lengthNumber : lengthValue.AsNumber(state.CancellationCheckpoint));
         if (length <= 0) return default;
-        sourceValue.PrepareRangeSource(state, ref source, zeroBasedStart, length);
+        state.PrepareStringRangeSource(field, ref source, zeroBasedStart, length);
         var slice = state.SubstringByStringUnits(source, zeroBasedStart, length, destination, borrowOwned);
         whole = slice.ByteLength == source.ByteLength;
         return slice;
