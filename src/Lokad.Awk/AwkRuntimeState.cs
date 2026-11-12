@@ -489,10 +489,11 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkByteTextOperand ResolveFieldByteOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
         ? new(bytes) : new(FormatStringByteText(CaptureFieldStringValue(index)));
 
-    internal void CaptureFieldTextOperand(int index, out AwkScalarOperand result)
+    internal void CaptureFieldTextInput(int index, out AwkTextInput result)
     {
-        if (TryGetFieldStringBytes(index, out var bytes)) result = new(bytes, index);
-        else result = new(CaptureFieldStringValue(index));
+        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (!_recordFields.TryCaptureTextInput(new(index), out result))
+            result = new(CaptureFieldStringValue(index));
     }
 
     private bool TryGetFieldStringBytes(int index, out ReadOnlySpan<byte> bytes)

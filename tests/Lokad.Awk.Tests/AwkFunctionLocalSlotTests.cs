@@ -13,13 +13,13 @@ public sealed class AwkFunctionLocalSlotTests
         var text = AwkText.FromString(spelling);
         var slot = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text));
         var entered = false;
-        Assert.True(slot.TryGetText(out var captured, () =>
+        Assert.True(slot.TryGetTextInput(out var captured, () =>
         {
             entered = true;
             slot = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9));
         }));
         Assert.True(entered);
-        Assert.True(captured.TryGetOwned(out var owned));
+        Assert.True(captured.ReadyText.TryGetOwned(out var owned));
         Assert.True(text.HasSameStorage(owned));
         Assert.Equal(spelling, owned.AsString());
         Assert.Equal(9, slot.Value.AsNumber());

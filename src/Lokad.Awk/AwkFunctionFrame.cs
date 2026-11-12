@@ -230,11 +230,12 @@ internal struct AwkFunctionLocalSlot
         return false;
     }
 
-    internal readonly bool TryGetText(out AwkByteTextOperand text, Action? checkpoint)
+    internal readonly bool TryGetTextInput(out AwkTextInput text, Action? checkpoint)
     {
-        if (TryGetReaderText(out var bytes))
+        if (Kind == AwkFunctionLocalSlotKind.ReaderText && _reference is AwkReadBuffer reader)
         {
-            text = new(bytes.Span);
+            var word = _word;
+            text = AwkTextInput.FromReader(reader, (int)(word >> 32), (int)word);
             return true;
         }
         var kind = (AwkValueKind)_payloadTag;
@@ -243,8 +244,9 @@ internal struct AwkFunctionLocalSlot
             text = default;
             return false;
         }
-        text = new(AwkText.FromBacking(_reference));
-        if (AwkValue.HasInputClassification(kind) && text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+        var owned = AwkText.FromBacking(_reference);
+        text = new(owned);
+        if (AwkValue.HasInputClassification(kind) && owned.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
             checkpoint?.Invoke();
         return true;
     }

@@ -25,6 +25,7 @@ internal readonly struct AwkRecordField
     internal AwkFieldTextKind Kind => _length == 0 ? AwkFieldTextKind.Empty :
         _start < 0 ? AwkFieldTextKind.Owned : AwkFieldTextKind.RecordSlice;
     internal int CacheSlot { get; }
+    internal int RecordStart => _start;
     internal int ByteLength() => _length;
     internal int RuneLength => _runeLength;
     internal bool IsWholeRecord(int length) => _length > 0 && _start == 0 && _length == length;

@@ -56,6 +56,11 @@ or environment dependencies.
   the runtime owner; do not pass the comparison scalar carrier through these kernels.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
   Prepared text consumers share the existing byte view for reader and owned scalar text.
+  Text captures use one24-byte stack-only snapshot of canonical scalar words or the actual
+  array/manager/reader/text owner and range. Existing owners retain funding; snapshots cannot
+  cross actual suspension. Preserve custom-memory access at capture, field identity, deferred
+  numeric formatting and classification fallbacks. Comparisons keep their own scalar view;
+  do not reconstruct that view merely to consume text or retain a mutable frame as its source.
   Borrow canonical operand metadata synchronously; keep mode-sensitive input, numeric formatting,
   array/untyped behavior and actual frame/scope fallback at their existing boundaries.
   Capture owning spelling before later effects, and keep long-input polls after the capture.

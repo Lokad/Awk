@@ -89,6 +89,8 @@ not historical checkpoint counts. Public host tests retain capability/path/pipe/
 Reader-backed text arguments also use poisoned buffers and custom memory to verify original
 spelling, retirement and admission before an actual owning copy. Borrow forwarding needs no
 future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.
+Compact text-input tests verify owner/range snapshots, reader-cell and record replacement,
+source capture before callbacks, numeric formatting at use and the24-byte representation.
 Stored-text consumers preserve scalar origins, scope hiding and earlier captures; exercise
 their restored frame after actual host suspension, including cancellation and final refunds.
 Immediate case-length counters retain actual casing preparation/conversion and byte-native

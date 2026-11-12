@@ -1,33 +1,14 @@
 namespace Lokad.Awk;
 
-// Immediate scalar consumers may use stable field bytes without owning the spelling.
-// Effects and suspension require owned capture. Comparison classification stays local;
-// text consumers need no classification before formatting at use.
+// Comparisons retain their scalar classification and may borrow stable field
+// spelling. Effects and suspension require owned capture.
 internal readonly ref struct AwkScalarOperand
 {
     private readonly ReadOnlySpan<byte> _bytes;
-    private readonly int _field = -1;
     internal AwkValue Value { get; }
     internal bool IsBorrowed { get; }
 
     internal AwkScalarOperand(AwkValue value) => Value = value;
-
-    internal AwkScalarOperand(AwkByteTextOperand text)
-    {
-        if (text.TryGetOwned(out var owned)) Value = AwkValue.ForStoredText(owned);
-        else
-        {
-            _bytes = text.AsSpan(checkpoint: null);
-            IsBorrowed = true;
-        }
-    }
-
-    internal AwkScalarOperand(ReadOnlySpan<byte> bytes, int field)
-    {
-        _bytes = bytes;
-        IsBorrowed = true;
-        _field = field;
-    }
 
     internal AwkScalarOperand(AwkValue classification, ReadOnlySpan<byte> bytes)
     {
@@ -36,8 +17,6 @@ internal readonly ref struct AwkScalarOperand
         IsBorrowed = true;
     }
 
-    internal AwkByteTextOperand Text(AwkRuntimeState state, bool forceScalar = false) => IsBorrowed
-        ? new(_bytes) : new(state.FormatStringByteText(forceScalar ? Value.ForceScalar() : Value));
-
-    internal int TextField => IsBorrowed ? _field : -1;
+    internal AwkByteTextOperand Text(AwkRuntimeState state) => IsBorrowed
+        ? new(_bytes) : new(state.FormatStringByteText(Value));
 }

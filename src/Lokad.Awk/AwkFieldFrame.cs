@@ -296,6 +296,38 @@ internal sealed class AwkFieldFrame(
         return true;
     }
 
+    internal bool TryCaptureTextInput(AwkFieldIndex index, out AwkTextInput input)
+    {
+        input = default;
+        if (index.IsCurrentRecord)
+        {
+            EnsureRecordText();
+            if (!HasBufferedRecord) return false;
+            input = AwkTextInput.FromMemory(BufferedRecord, 0);
+            return true;
+        }
+        if (!_recordTextIsCurrent) return false;
+        EnsureField(index);
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+        {
+            input = new(AwkText.Empty);
+            return true;
+        }
+        var field = _fieldTexts[index.Value - 1];
+        if (HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned) return false;
+        if (HasBufferedRecord)
+            input = AwkTextInput.FromMemory(BufferedRecord.Slice(field.RecordStart, field.ByteLength()), index.Value);
+        else
+        {
+            // Capture the immutable backing before its materialization poll can
+            // reenter and replace this frame's current record.
+            var record = _recordText;
+            input = AwkTextInput.FromTextRange(record, field.RecordStart, field.ByteLength(), index.Value);
+            _ = record.AsSpan(checkpoint);
+        }
+        return true;
+    }
+
     internal bool TryCaptureReaderText(AwkFieldIndex index,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow,
         out int offset, out int length)

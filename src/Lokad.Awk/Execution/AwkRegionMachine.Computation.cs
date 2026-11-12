@@ -104,7 +104,8 @@ internal partial struct AwkRegionMachine
             if (TryText(lengthOperand, out var text))
             {
                 if (instruction.Detail != 0 && lengthOperand.IsVariable) state.Counters.RecordBoundScalarLength();
-                numbers[instruction.Target] = state.CountStringUnits(in text);
+                var bytes = text.ReadyText;
+                numbers[instruction.Target] = state.CountStringUnits(in bytes);
                 return;
             }
             AwkValue lengthValue;
@@ -550,7 +551,7 @@ internal partial struct AwkRegionMachine
             return new(Value(index));
         }
 
-        private bool TryText(scoped in AwkRegionOperand operand, out AwkByteTextOperand text)
+        private bool TryText(scoped in AwkRegionOperand operand, out AwkTextInput text)
         {
             switch (operand.Kind)
             {
@@ -576,7 +577,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionOperandKind.LocalVariable:
                     if (frame is not null && (uint)operand.Index < (uint)frame.Layout.SlotCount &&
-                        frame.GetSlot(operand.Index).TryGetText(out text, state.CancellationCheckpoint))
+                        frame.GetSlot(operand.Index).TryGetTextInput(out text, state.CancellationCheckpoint))
                     {
                         state.Counters.RecordScalarLocalValueRead();
                         return true;
@@ -591,15 +592,15 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var operand = ref operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
-            if (TryText(operand, out var text)) return text;
+            if (TryText(operand, out var text)) return text.ReadyText;
             return new(state.FormatStringByteText(Value(index)));
         }
 
-        private void CaptureTextArgument(int index, out AwkScalarOperand result)
+        private void CaptureTextArgument(int index, out AwkTextInput result)
         {
             ref readonly var operand = ref operands[index];
-            if (IsField(operand)) state.CaptureFieldTextOperand(FieldOrdinal(operand), out result);
-            else if (TryText(operand, out var text)) result = new(text);
+            if (IsField(operand)) state.CaptureFieldTextInput(FieldOrdinal(operand), out result);
+            else if (TryText(operand, out var text)) result = text;
             else result = new(Value(index));
         }
 
