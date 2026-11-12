@@ -4,6 +4,13 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> AssignmentOperandCompatibilityRepairs()
     {
+        const string sortedOrigins = "BEGIN{split(\"010 0x10 0007\",a);asort(a,b,\"@val_str_asc\");" +
+            "print b[1],b[2],b[3],b[1]+0,b[2]+0,b[3]+0;" +
+            "print typeof(b[1]),typeof(b[2]),typeof(b[3]);asorti(a,k);print k[1],typeof(k[1])}";
+        yield return Passing("bulk-stored-values-keep-decimal-input-and-string-key-origins",
+            [sortedOrigins], [], "0007 010 0x10 7 10 0\nstrnum strnum string\n1 string\n");
+        yield return Passing("bulk-stored-values-keep-nondecimal-input-and-string-key-origins",
+            ["--non-decimal-data", sortedOrigins], [], "0007 010 0x10 7 8 16\nstrnum strnum strnum\n1 string\n");
         yield return Passing("scalar-text-publication-keeps-chained-and-observed-results",
             ["function f(s,t,a){t=tolower(s);a=t;global=substr(s,2);print t,a,global;" +
              "a=t=tolower(\"ABC\");print a,t;print(t=tolower(\"XYZ\"));print t;" +

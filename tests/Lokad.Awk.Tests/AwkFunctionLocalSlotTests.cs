@@ -257,7 +257,7 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Same(text.PreparedString, value.ByteText.AsString(counters));
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
 
-        static AwkValue RoundTrip(AwkValue value) => AwkValue.ForVariableStorage(value)
+        static AwkValue RoundTrip(AwkValue value) => AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal)
             .ReadVariableStorage(AwkNumberParsingMode.Decimal, AwkRuntimeCounters.Disabled);
     }
 

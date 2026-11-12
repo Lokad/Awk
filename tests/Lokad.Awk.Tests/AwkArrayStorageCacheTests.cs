@@ -121,5 +121,5 @@ public sealed class AwkArrayStorageCacheTests
     }
 
     private static AwkArrayIdentity Values(int number) =>
-        new(0, AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(number)) };
+        new(0, AwkArrayKeyComparer.Instance) { [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(number), AwkNumberParsingMode.Decimal) };
 }

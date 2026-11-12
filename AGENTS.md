@@ -265,8 +265,10 @@ or environment dependencies.
   Function scalars retain canonical values in those words, without a variable-slot projection
   or read conversion callback. Normalize reading mode at the frame owner; preserve input spelling,
   deferred conversion errors and long-input cancellation. Global and array storage share that
-  canonical payload. Ordinary strings bind their deferred numeric mode at publication; input
-  text keeps classification at read. Ready values return without reconstruction. Preserve
+  canonical payload, prepared once in the actual owner's fixed numeric mode while retaining
+  its backing directly. Bulk factories receive that mode; clones copy canonical slots while
+  preserving independent array/untyped construction. Runtime mode reads reuse the owner;
+  input text keeps classification at read. Ready values return without reconstruction. Preserve
   original spelling, mutation preflights and the same 24-byte footprint.
   Prepared full-value reads use the actual execution frame; standalone/dynamic reads keep visible-scope
   resolution. The cell captures payload words before polling and materializes the value at return.

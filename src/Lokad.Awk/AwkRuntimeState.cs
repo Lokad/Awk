@@ -69,6 +69,12 @@ internal sealed class AwkRuntimeState : IDisposable
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
         NonDecimalData = compatibilityProfile.NonDecimalData;
+        var numberParsingMode = CompatibilityMode switch
+        {
+            AwkCompatibilityMode.Posix => AwkNumberParsingMode.HexadecimalInput,
+            AwkCompatibilityMode.Traditional => AwkNumberParsingMode.Decimal,
+            _ => NonDecimalData ? AwkNumberParsingMode.NonDecimalData : AwkNumberParsingMode.Decimal
+        };
         StringUnitMode = compatibilityProfile.StringUnitMode;
         var stringUnitMode = StringUnitMode;
         _timeRuntime = new AwkTimeRuntime(runtimeOptions.CurrentUnixTimeSeconds, runtimeOptions.TimeZone);
@@ -80,11 +86,11 @@ internal sealed class AwkRuntimeState : IDisposable
         _variables = new AwkVariables(
             MemoryAccounting, Counters, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint, NumberParsingMode);
+                .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint, numberParsingMode);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryAccounting,
-            NumberParsingMode,
+            numberParsingMode,
             _variables.ContainsArray,
             _variables.RemoveFunctionLocalArray,
             CancellationCheckpoint,
@@ -258,13 +264,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _rangePatterns = states;
     }
 
-    internal AwkNumberParsingMode NumberParsingMode =>
-        CompatibilityMode switch
-        {
-            AwkCompatibilityMode.Posix => AwkNumberParsingMode.HexadecimalInput,
-            AwkCompatibilityMode.Traditional => AwkNumberParsingMode.Decimal,
-            _ => NonDecimalData ? AwkNumberParsingMode.NonDecimalData : AwkNumberParsingMode.Decimal
-        };
+    internal AwkNumberParsingMode NumberParsingMode => _variables.NumberParsingMode;
 
     public AwkValue CreateStringValue(string text) =>
         CreateStringValue(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint));
@@ -1227,7 +1227,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var text = terminator.ByteText;
         Counters.RecordPreparedRecordTerminatorSlot();
-        return text.ByteLength == 0 ? AwkValue.Unassigned() : AwkValue.ForStoredText(text);
+        return text.ByteLength == 0 ? AwkValue.Unassigned() : AwkValue.FromDeferredText(text, NumberParsingMode);
     }
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)

@@ -55,11 +55,14 @@ internal readonly struct AwkValue
     internal static AwkValue ForStoredInputText(string text) => ForStoredInputText(AwkText.FromString(text));
     internal static AwkValue ForStoredInputText(AwkText text) => new(text, 0, AwkValueKind.StoredInputText);
 
-    internal static AwkValue ForVariableStorage(AwkValue value)
+    internal static AwkValue ForVariableStorage(AwkValue value, AwkNumberParsingMode mode)
     {
         value = value.AsScalarCopy();
         if (value.IsNumberValue || value.IsUnassignedValue || value.TryGetPreparedNumericInput(out _)) return value;
-        return value.RetainsInputClassification ? ForStoredInputText(value.ByteText) : ForStoredText(value.ByteText);
+        // The owner fixes ordinary text's reading mode now. Input spelling keeps
+        // classification at its actual read; neither path projects the backing.
+        return new(value._text, 0, value.RetainsInputClassification
+            ? AwkValueKind.StoredInputText : DeferredTextKind(mode));
     }
 
     internal AwkValue ReadVariableStorage(AwkNumberParsingMode mode, AwkRuntimeCounters counters, Action? checkpoint = null)
@@ -92,11 +95,6 @@ internal readonly struct AwkValue
         _kind is AwkValueKind.Text or AwkValueKind.DeferredDecimalText or
             AwkValueKind.DeferredHexadecimalText or AwkValueKind.DeferredNonDecimalText or AwkValueKind.Unassigned &&
         _kind == other._kind && ReferenceEquals(_text, other._text);
-
-    // Ordinary text can bind its numeric mode without parsing or allocating.
-    // Input origins retain classification at their actual read boundary.
-    internal AwkValue InVariableStorageMode(AwkNumberParsingMode mode) =>
-        _kind == AwkValueKind.Text ? new(_text, 0, DeferredTextKind(mode)) : this;
 
     // A frame fixes the reading mode once. Mode-independent input facts keep
     // their cached number; other input spellings are classified at this owner.

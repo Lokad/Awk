@@ -10,7 +10,7 @@ public sealed class AwkUntypedStateTests
         Assert.Equal(24, Unsafe.SizeOf<AwkValue>());
         var origin = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
         var argument = AwkFunctionLocalSlot.FromArgumentValue(origin);
-        var copy = AwkValue.ForVariableStorage(origin);
+        var copy = AwkValue.ForVariableStorage(origin, AwkNumberParsingMode.Decimal);
 
         Assert.True(origin.IsUntypedValue);
         Assert.True(argument.Value.IsUntypedValue);

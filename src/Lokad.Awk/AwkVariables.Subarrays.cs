@@ -54,7 +54,7 @@ internal sealed partial class AwkVariables
                     copy = AwkValue.FromUntypedScalar(copiedOrigin);
                 }
                 else copy = pair.Value;
-                destination.Add(pair.Key, copy.InVariableStorageMode(_numberParsingMode));
+                destination.Add(pair.Key, copy);
             }
             if (pending is null || !pending.TryPop(out var next)) break;
             source = next.Source;
@@ -124,7 +124,7 @@ internal sealed partial class AwkVariables
     }
 
     internal void SetArrayValues<TValue>(AwkArrayTarget target, IReadOnlyList<TValue> values,
-        Func<TValue, AwkValue> createSlot, AwkMemoryLease sourceMemoryLease, long sourceRetainedTextBytes)
+        Func<TValue, AwkNumberParsingMode, AwkValue> createSlot, AwkMemoryLease sourceMemoryLease, long sourceRetainedTextBytes)
     {
         if (target.IsNamed)
         {
@@ -145,7 +145,7 @@ internal sealed partial class AwkVariables
         }
         using var construction = _memoryAccounting.AdmitMutation(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
-        ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, AwkValue.ForStoredInputText),
+        ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, static (text, _) => AwkValue.ForStoredInputText(text)),
             AwkMemoryLease.Disabled, 0);
     }
 

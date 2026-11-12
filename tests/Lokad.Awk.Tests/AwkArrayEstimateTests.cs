@@ -78,7 +78,7 @@ public sealed class AwkArrayEstimateTests
         var text = AwkText.FromString("été");
         Dictionary<AwkArrayKey, AwkValue> slots = new()
         {
-            [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(42)),
+            [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(42), AwkNumberParsingMode.Decimal),
             [key] = AwkValue.ForStoredText(text)
         };
         var filled = AwkVariables.EstimateArrayBytes(slots);

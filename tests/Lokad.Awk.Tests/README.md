@@ -40,6 +40,8 @@ Return-owner tests retain the funded callee through both ready and pending host 
 including numeric/text captures and cancellation before caller mutation.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
+Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array
+writes; sort goldens also cover ordinary string keys and nondecimal input values.
 Final-string print tests cover direct copying into actual output, numeric-buffer growth,
 refusal before publication and pending stdout/redirected payloads through cancellation.
 Check source/output ownership and visible effects rather than retired fragment-cache mechanics.
