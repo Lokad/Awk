@@ -27,6 +27,7 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
     public Action? OnRefusal { get; set; }
 
     public Action<long>? OnGrowth { get; set; }
+    public Action? OnRefund { get; set; }
 
     private bool Refuse(long growth)
     {
@@ -116,6 +117,7 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
                 root._reserved += growth;
                 _bytes = next;
                 root.Peak = Math.Max(root.Peak, root._reserved);
+                if (growth < 0) root.OnRefund?.Invoke();
                 return true;
             }
         }
@@ -124,9 +126,11 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
             lock (root._gate)
             {
                 if (_disposed) return;
+                var refunded = _bytes > 0;
                 root._reserved -= _bytes;
                 _bytes = 0;
                 _disposed = true;
+                if (refunded) root.OnRefund?.Invoke();
             }
         }
     }

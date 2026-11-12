@@ -342,18 +342,18 @@ or environment dependencies.
   Immediate numeric consumers convert within the funded callee snapshot. Keep caller scratch
   through actual target admission and preserve scalar origins and overwritten-user refunds;
   do not restore a duplicate conversion lease or admit the same return handoff again.
-  Discarded canonical text assignments bind their consuming local store directly. Keep
-  ordinary Assign free of a consumption flag and share actual local mutation/publication.
-  Clear the source and publish its transferred funding before refund callbacks; used
-  snapshots and hidden/invalid targets retain their ordinary ownership and preflights.
+  Discarded canonical text/value assignments and consumed scalar returns share actual
+  local/global publication from their funded source operand. Keep ordinary Assign free
+  of a consumption flag. Capture before callbacks; clear the source and publish its
+  transferred funding before refunds. Used snapshots retain ordinary ownership; special,
+  hidden, cold and invalid targets retain their own preflights. Successful fallback
+  publication releases its source; failed publication leaves it funded for cleanup.
   Saved returns carry caller scratch indices and their prepared consumer meaning, without
   general operands or names. Adjacent bound-scalar assignment descriptors can be consumed
   after restoring caller scope. Used results and escaping text retain funded snapshots;
   discarded numeric results retire any old scratch payload without value transport.
-  Discarded scalar returns keep their funded caller handoff through callee retirement, then
-  transfer its payload into the actual validated scalar owner and clear the source before
-  refunds. Canonical text/value operands share retirement; ordinary Assign retains no
-  consumption flag. Special, hidden and cold targets keep their ordinary preflights.
+  Discarded scalar returns keep their funded caller handoff through callee retirement,
+  then use that shared scalar publication. Canonical text/value operands share retirement.
 - Function locals use one contiguous funded cell array for every arity. Keep indexed access
   direct; do not restore separate inline cells, arity-based storage paths or their counters.
   Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already

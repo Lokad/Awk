@@ -85,7 +85,7 @@ internal static class AwkFunctionHostEffects
         AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Arithmetic or AwkRegionInstructionKind.Compound or
         AwkRegionInstructionKind.Compare or AwkRegionInstructionKind.CompareText or AwkRegionInstructionKind.Negate or
         AwkRegionInstructionKind.Not or AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Discard or
-        AwkRegionInstructionKind.Assign or AwkRegionInstructionKind.AssignNumber or AwkRegionInstructionKind.AssignText or
+        AwkRegionInstructionKind.Assign or AwkRegionInstructionKind.AssignNumber or AwkRegionInstructionKind.AssignConsumedScalar or
         AwkRegionInstructionKind.ScalarUpdate or
         AwkRegionInstructionKind.AssignField or AwkRegionInstructionKind.CopyField or AwkRegionInstructionKind.ArrayPrepare or
         AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.ArrayAssign or AwkRegionInstructionKind.ArrayRead or

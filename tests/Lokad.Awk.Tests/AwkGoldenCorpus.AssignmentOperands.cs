@@ -4,6 +4,20 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> AssignmentOperandCompatibilityRepairs()
     {
+        yield return Passing("scalar-text-publication-keeps-chained-and-observed-results",
+            ["function f(s,t,a){t=tolower(s);a=t;global=substr(s,2);print t,a,global;" +
+             "a=t=tolower(\"ABC\");print a,t;print(t=tolower(\"XYZ\"));print t;" +
+             "t=(a=tolower(\"Q\"))\"x\";print t,a;return t}BEGIN{print f(\"0007\")}"],
+            [], "0007 0007 007\nabc abc\nxyz\nxyz\nqx q\nqx\n");
+        yield return Passing("scalar-publication-keeps-captured-input-and-ordinary-string-origins",
+            ["{x=$1;y=x;x=substr(\"0009\",1);print y,(y==7),typeof(y),x,(x==9),typeof(x);" +
+             "v=a[\"missing\"];print length(v),(\"missing\" in a),typeof(v)}"],
+            [], "0007 1 strnum 0009 0 string\n0 1 unassigned\n", "0007\n");
+        yield return Passing("scalar-text-publication-keeps-special-variable-effects",
+            ["BEGIN{OFS=substr(\"x|y\",2,1);OFMT=tolower(\"%.2F\");CONVFMT=tolower(\"%.3G\");" +
+             "RS=substr(\"a:b\",2,1);FS=substr(\"a,b\",2,1);$0=\"a,b\";print $1,$2;" +
+             "NF=substr(\"12\",1,1);print NF,$0;ORS=toupper(\"!\");print \"end\"}"],
+            [], "a|b\n1|a\nend!");
         yield return Passing("bound-arithmetic-keeps-number-origins-spelling-and-missing-reads",
             ["function calc(x,y){return -x+y*2}BEGIN{x=\"0007\";a[\"k\"]=\"0003\";$0=\"0005 0002\";print calc(x,$2),$1+$2,x-a[\"k\"],a[\"missing\"]+1,(\"missing\" in a),$1,$2,x,a[\"k\"]}"],
             [], "-3 7 4 1 1 0005 0002 0007 0003\n");

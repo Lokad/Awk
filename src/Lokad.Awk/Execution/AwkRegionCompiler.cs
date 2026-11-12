@@ -825,17 +825,17 @@ internal sealed partial class AwkRegionCompiler
     private void Discard(int operand)
     {
         var source = _operands[operand];
-        if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count > 0 &&
-            _code[^1] is { Kind: AwkRegionInstructionKind.Assign } textAssignment && textAssignment.Left == operand &&
-            _operands[textAssignment.Target].Kind == AwkRegionOperandKind.LocalVariable)
-            // No consumer follows this statement's assignment. Its local owner
-            // can take the canonical text instead of retaining a second claim.
-            _code[^1] = textAssignment with { Kind = AwkRegionInstructionKind.AssignText, Left = source.Index };
-        if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
-            _code[^1] is { Kind: AwkRegionInstructionKind.Assign } assignment && assignment.Left == operand &&
-            _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&
-            call.Target == source.Index)
-            _code[^2] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentDiscarded };
+        if (source.Kind is AwkRegionOperandKind.TextTemporary or AwkRegionOperandKind.ValueTemporary &&
+            _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.Assign } assignment && assignment.Left == operand)
+        {
+            // The statement has no later consumer. Publish from its existing
+            // owner; adjacent calls keep their already-prepared return handoff.
+            if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
+                _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&
+                call.Target == source.Index)
+                _code[^2] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentDiscarded };
+            else _code[^1] = assignment with { Kind = AwkRegionInstructionKind.AssignConsumedScalar };
+        }
         if (source.IsVariable || source.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement)
             Emit(new(AwkRegionInstructionKind.Discard, Left: operand));
     }

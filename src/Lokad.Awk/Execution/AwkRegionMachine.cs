@@ -239,13 +239,11 @@ internal partial struct AwkRegionMachine
         if (resumePoint.IsAssignment)
         {
             ref readonly var variable = ref region.Operands[region.Instructions[_position].Target];
-            if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded && _state.MemoryAccounting.IsEnabled)
-                _state.AssignConsumedReturn(in variable, storage, resumePoint.Destination);
+            if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
+                _state.AssignConsumedScalar(in variable, storage, new(AwkRegionOperandKind.ValueTemporary, resumePoint.Destination));
             else
             {
                 AssignVariable(in variable, storage.Values[resumePoint.Destination]);
-                if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
-                    storage.ReleaseValue(resumePoint.Destination);
             }
             _position++;
             _state.Counters.RecordCallAssignment(bypassedNumericScratch: false);

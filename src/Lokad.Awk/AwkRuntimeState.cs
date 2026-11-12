@@ -1102,20 +1102,12 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
-    internal void AssignFunctionLocalText(AwkFunctionLocalSlotId slotId, AwkVariableName name,
-        AwkRegionStorage source, int textIndex)
+    internal void AssignConsumedScalar(in AwkRegionOperand variable, AwkRegionStorage source,
+        in AwkRegionOperand operand)
     {
-        var value = CreateStringValue(source.Texts[textIndex]);
-        if (!_functions.TryAssignLocal(slotId, value, source, new(AwkRegionOperandKind.TextTemporary, textIndex)))
-            // Hidden, absent and array locals retain ordinary name resolution.
-            // Failed resolution leaves the canonical source and funding intact.
-            _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
-    }
-
-    internal void AssignConsumedReturn(in AwkRegionOperand variable, AwkRegionStorage source, int valueIndex)
-    {
-        var value = source.Values[valueIndex];
-        var operand = new AwkRegionOperand(AwkRegionOperandKind.ValueTemporary, valueIndex);
+        // Capture before admission/refund callbacks can retire or reuse scratch.
+        var text = operand.Kind == AwkRegionOperandKind.TextTemporary;
+        var value = text ? CreateStringValue(source.Texts[operand.Index]) : source.Values[operand.Index];
         ThrowIfCancellationRequested();
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
         {
@@ -1128,10 +1120,13 @@ internal sealed class AwkRuntimeState : IDisposable
                 _variables.TrySetConsumedScalarValue(cell, value, source, in operand)) return;
             AssignPreparedGlobalValue(variable.Name, variable.Index, value);
         }
+        else if (variable.Kind == AwkRegionOperandKind.SpecialVariable)
+            AssignSpecialVariableValue((AwkSpecialVariableId)variable.Index, value);
         else AssignVariableValue(variable.Name, value);
         // Dynamic/special/cold owners retain all of their ordinary preflights.
         // A failed assignment leaves this source funded for normal cleanup.
-        source.ReleaseValue(valueIndex);
+        if (text) source.ReleaseTexts(operand.Index, 1);
+        else source.ReleaseValue(operand.Index);
     }
 
     internal AwkValue ResolvePreparedSpecialVariableValue(AwkSpecialVariableId id)

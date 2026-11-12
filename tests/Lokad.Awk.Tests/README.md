@@ -38,6 +38,8 @@ as well as pending stdout/warning borrows. Check stopped effects, cleanup and fu
 actual completion, including hosts that ignore cancellation.
 Return-owner tests retain the funded callee through both ready and pending host completion,
 including numeric/text captures and cancellation before caller mutation.
+Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
+including tight admission, fallback failures and refund reentry after source retirement.
 Final-string print tests cover direct copying into actual output, numeric-buffer growth,
 refusal before publication and pending stdout/redirected payloads through cancellation.
 Check source/output ownership and visible effects rather than retired fragment-cache mechanics.

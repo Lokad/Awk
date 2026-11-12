@@ -366,11 +366,9 @@ internal partial struct AwkRegionMachine
                     // A region poll cannot replace the check before an observable store.
                     AssignVariable(in computationView.Operands[instruction.Target], value);
                     break;
-                case AwkRegionInstructionKind.AssignText:
-                    computationView.State.ThrowIfCancellationRequested();
-                    ref readonly var variable = ref computationView.Operands[instruction.Target];
-                    computationView.State.AssignFunctionLocalText(new(variable.Index), variable.Name,
-                        computationView.Storage, instruction.Left);
+                case AwkRegionInstructionKind.AssignConsumedScalar:
+                    computationView.State.AssignConsumedScalar(in computationView.Operands[instruction.Target],
+                        computationView.Storage, in computationView.Operands[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.AssignNumber:
                     AssignVariableNumber(in computationView.Operands[instruction.Target], computationView.Frame, computationView.Numbers[instruction.Left]);
