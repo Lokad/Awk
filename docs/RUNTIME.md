@@ -249,8 +249,10 @@ The record owner reuses immutable field spelling across text captures and later 
 Input classification remains deferred until observed; incoming frames fund their actual users.
 Earlier builtin arguments retain funded snapshots across later effects and actual suspension.
 Assigned numeric records and fields keep formatting at use, after later argument evaluation.
-Persistent record cells hold slices, numeric interpretations, scalar lengths and cache indices without text
-references. The frame cache owns decoded/assigned spelling and scalar values; decoded CSV text
+One frame-owned buffer holds record cells: slices, numeric interpretations, scalar lengths and
+cache indices without text references. Incremental scans publish their count after preflights;
+cancellation preserves the earlier prefix. The frame cache owns decoded/assigned spelling and
+scalar values; decoded CSV text
 stays distinct from input-value classification. Byte-only consumers read record slices directly.
 Numeric reads consume ready field numbers directly. Existing owned field values keep their
 spelling and origin; their cache is read before any later mutation or suspension.

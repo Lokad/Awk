@@ -161,12 +161,14 @@ or environment dependencies.
 - The record frame owns its splitting and value-construction services. Keep input and recomposed
   value origins separate, captured plans immutable, and mutation separators evaluated at the
   language boundary. Conditional field copies resolve their separator only after validating slices.
-  All record producers write into the frame's funded record-cell destination. Keep staging in frame
+  All record producers write into the frame's single funded record-cell buffer. Keep staging in frame
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
   The scoped producer carries its current staging lease; frame cleanup disposes it and rolls back
   unpublished cache entries. Do not duplicate that lease through an external byref handle.
-  Incremental raw-slice scans consume the frame's admitted destination directly; frame cleanup
-  retains their staging lease. General writers serve producers that actually grow or retain text.
+  Incremental raw-slice scans write an admitted tail with local result counters, then publish
+  the logical count after existing checks. Failed scans leave the earlier count intact;
+  reference-free unpublished cells need no rollback. Keep the scoped growth lease. General
+  writers share this buffer for producers that actually grow or retain text.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
   Prepared field demand requires already-available record/separator bytes and respects unknown
   effects, conditional fallthrough and actual flush completion; it must not move cold admission.

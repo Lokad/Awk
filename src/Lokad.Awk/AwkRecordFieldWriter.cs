@@ -12,14 +12,14 @@ internal interface IAwkFieldSink<out TFields>
 // lease through publication or interrupted-scan cleanup.
 internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
 {
-    private readonly List<AwkRecordField> _fields;
+    private readonly AwkRecordFieldBuffer _fields;
     private List<AwkFieldFrame.CachedFieldValue> _values;
     private readonly AwkMemoryAccounting _accounting;
     private readonly AwkRuntimeCounters _counters;
     private readonly Action _checkpoint;
     private AwkMemoryLease _staging;
 
-    public AwkRecordFieldWriter(List<AwkRecordField> fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting,
+    public AwkRecordFieldWriter(AwkRecordFieldBuffer fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting,
         AwkRuntimeCounters counters, Action checkpoint, AwkMemoryLease staging)
     {
         _fields = fields;

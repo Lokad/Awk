@@ -201,32 +201,41 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     public int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan,
-        int position, int targetCount, List<AwkRecordField> fields, out int payloadBytes)
+        int position, Span<AwkRecordField> destination, out int count, out int payloadBytes)
     {
-        // The frame admits capacity through targetCount before entering this bounded
+        // The frame admits capacity for the destination before entering this bounded
         // scan. Only raw slices are produced; growth and owned text use the full writer.
-        payloadBytes = 0;
-        if (line.IsEmpty) return -1;
+        var produced = 0;
+        var payload = 0;
+        if (line.IsEmpty)
+        {
+            count = payloadBytes = 0;
+            return -1;
+        }
         var kind = plan.IncrementalKind;
         if (kind == AwkIncrementalFieldKind.Whitespace)
         {
             var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters, position);
-            while (fields.Count < targetCount && scanner.MoveNext(out var field, out _))
+            while (produced < destination.Length && scanner.MoveNext(out var field, out _))
             {
-                fields.Add(AwkRecordField.FromRecordSlice(field.Start, field.Length));
-                payloadBytes += field.Length;
+                destination[produced++] = AwkRecordField.FromRecordSlice(field.Start, field.Length);
+                payload += field.Length;
             }
+            count = produced;
+            payloadBytes = payload;
             return scanner.Position == line.Length ? -1 : scanner.Position;
         }
         if (kind != AwkIncrementalFieldKind.SingleByte)
             throw new InvalidOperationException("The record plan does not support incremental fields.");
         var literal = plan.Separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
         var literalScanner = new AwkSingleByteFieldScanner(line, literal, throwIfCancellationRequested, position);
-        while (fields.Count < targetCount && literalScanner.MoveNext(out var field, out _))
+        while (produced < destination.Length && literalScanner.MoveNext(out var field, out _))
         {
-            fields.Add(AwkRecordField.FromRecordSlice(field.Start, field.Length));
-            payloadBytes += field.Length;
+            destination[produced++] = AwkRecordField.FromRecordSlice(field.Start, field.Length);
+            payload += field.Length;
         }
+        count = produced;
+        payloadBytes = payload;
         return literalScanner.Completed ? -1 : literalScanner.Position;
     }
 
