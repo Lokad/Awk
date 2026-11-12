@@ -34,7 +34,6 @@ internal static class AwkRuntimeMemory
     // Rounded constants cover small text/metadata without a general helper initializer.
     internal const int ArrayUpdateTargetHoldingBytes = 320;
     internal const int KeySeparatorHoldingBytes = 256;
-    private const int ArraySortEntryBytes = 96;
     // Four references, seven ints and three flags, including an aligned object header.
     internal const int ArrayMergeProgressBytes = 96;
     internal const int ArraySortOperationBytes = 176;
@@ -217,7 +216,7 @@ internal static class AwkRuntimeMemory
         EstimateArrayBufferBytes(count, 80);
 
     public static long EstimateArraySortEntryArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, ArraySortEntryBytes);
+        EstimateArrayBufferBytes(count, AwkArrayRuntime.SortEntryElementBytes);
 
     public static long EstimateGensubReplacementPartArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, 16);

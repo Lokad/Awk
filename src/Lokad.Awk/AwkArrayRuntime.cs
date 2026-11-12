@@ -898,6 +898,9 @@ internal sealed partial class AwkArrayRuntime
         return bytes;
     }
 
+    internal static int SortEntryElementBytes =>
+        System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArraySortEntry>();
+
     private readonly struct AwkArraySortEntry(
         AwkArrayKey key,
         AwkValue value,
