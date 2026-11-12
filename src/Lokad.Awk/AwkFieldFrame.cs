@@ -1108,6 +1108,7 @@ internal sealed class AwkFieldFrame(
             EnsureRecordText();
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     internal void PrepareAdmittedFields(int maximum)
     {
         // Do not move allocation/admission ahead of its language operation. Warm
