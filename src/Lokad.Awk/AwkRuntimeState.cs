@@ -1573,15 +1573,16 @@ internal sealed class AwkRuntimeState : IDisposable
             Counters.RecordBorrowedFieldTargetSnapshot();
             return target;
         }
-        return PrepareArrayFieldValueUpdate(name, index, binding);
+        return PrepareArrayFieldValueUpdate(name, index, binding, in previous);
     }
 
-    private AwkArrayUpdateTarget PrepareArrayFieldValueUpdate(AwkArrayName name, int index, AwkArrayBinding binding)
+    private AwkArrayUpdateTarget PrepareArrayFieldValueUpdate(AwkArrayName name, int index, AwkArrayBinding binding,
+        in AwkArrayUpdateTarget previous)
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return PrepareArrayUpdate(name, ToArrayKey(field), binding);
+        return PrepareArrayUpdate(name, ToArrayKey(field), binding, in previous);
     }
 
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
@@ -1596,11 +1597,13 @@ internal sealed class AwkRuntimeState : IDisposable
     internal double GetArrayNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.GetNumber(name, builder, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        _arrayRuntime.PrepareUpdate(name, builder, binding);
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
+        in AwkArrayUpdateTarget previous = default) =>
+        _arrayRuntime.PrepareUpdate(name, builder, binding, in previous);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
-        _arrayRuntime.PrepareUpdate(name, key, binding);
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
+        in AwkArrayUpdateTarget previous = default) =>
+        _arrayRuntime.PrepareUpdate(name, key, binding, in previous);
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key) =>
         _variables.PrepareArrayUpdate(array, key);

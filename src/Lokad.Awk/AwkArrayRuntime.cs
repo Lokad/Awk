@@ -281,26 +281,28 @@ internal sealed partial class AwkArrayRuntime
     public double GetNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryGetBorrowedNumber(name, builder.AsSpan(), out var number, binding) ? number : GetNumber(name, CopyKey(builder), binding);
 
-    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        TryPrepareBorrowedUpdate(name, builder.AsSpan(), out var target, binding)
-            ? target : PrepareUpdate(name, CopyKey(builder), binding);
+    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
+        in AwkArrayUpdateTarget previous = default) =>
+        TryPrepareBorrowedUpdate(name, builder.AsSpan(), out var target, binding, in previous)
+            ? target : PrepareUpdate(name, CopyKey(builder), binding, in previous);
 
     private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
         new(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint), _state.CancellationCheckpoint);
 
-    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding)
+    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
+        in AwkArrayUpdateTarget previous = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
-            return _variables.PrepareArrayUpdate(array, key);
+            return _variables.PrepareArrayUpdate(array, key, in previous);
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetOrdinaryArray(resolved, out array))
         {
             _state.BindGlobalArray(binding, resolved);
-            return _variables.PrepareArrayUpdate(array, key);
+            return _variables.PrepareArrayUpdate(array, key, in previous);
         }
         // Keep missing-read promotion/admission and special-array behavior in their
         // established order. The already-bound ordinary path above needs no second resolve.
-        var previous = GetAwkValue(name, key, binding).AsNumber(_state.CancellationCheckpoint);
+        var priorNumber = GetAwkValue(name, key, binding).AsNumber(_state.CancellationCheckpoint);
         if (!_state.TryGetBoundArray(name, binding, out array))
         {
             resolved = _variableRuntime.ResolveArrayReadName(name);
@@ -308,7 +310,7 @@ internal sealed partial class AwkArrayRuntime
         }
         AwkArrayCell? cell = null;
         if (array is not null) array.TryGetEntry(key, out _, out _, out cell);
-        return new(key, previous, array, cell);
+        return new(key, priorNumber, array, cell);
     }
 
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default)

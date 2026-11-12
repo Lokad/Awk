@@ -236,9 +236,19 @@ internal sealed partial class AwkVariables
         return new(key, ReadArraySlotNumber(slot), array, cell);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,
+        in AwkArrayUpdateTarget previous = default)
     {
         ThrowIfDetached(array);
+        if (ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
+            previous.Key.RequiresTextMaterialization && previous.Key.Equals(index, checkpoint: null) &&
+            priorCell.Slot.TryGetNumberValue(out var number))
+        {
+            // Keep the newly evaluated owning key, including its origin. The old
+            // location supplies only the attached cell and its current number.
+            _counters.RecordNumericArraySlotRead();
+            return new(index, number, array, priorCell);
+        }
         if (!array.TryGetEntry(index, out _, out var slot, out var cell))
             slot = CreateMissingArraySlot(array, index, out cell);
         return new(index, ReadArraySlotNumber(slot), array, cell);

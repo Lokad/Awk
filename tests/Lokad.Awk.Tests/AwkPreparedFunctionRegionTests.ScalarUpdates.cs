@@ -8,11 +8,19 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(false, 2, false)] [InlineData(false, 2, true)]
     [InlineData(false, 3, false)] [InlineData(false, 3, true)]
     [InlineData(false, 4, false)] [InlineData(false, 4, true)]
+    [InlineData(false, 5, false)] [InlineData(false, 5, true)]
+    [InlineData(false, 6, false)] [InlineData(false, 6, true)]
+    [InlineData(false, 7, false)] [InlineData(false, 7, true)]
+    [InlineData(false, 8, false)] [InlineData(false, 8, true)]
     [InlineData(true, 0, false)] [InlineData(true, 0, true)]
     [InlineData(true, 1, false)] [InlineData(true, 1, true)]
     [InlineData(true, 2, false)] [InlineData(true, 2, true)]
     [InlineData(true, 3, false)] [InlineData(true, 3, true)]
     [InlineData(true, 4, false)] [InlineData(true, 4, true)]
+    [InlineData(true, 5, false)] [InlineData(true, 5, true)]
+    [InlineData(true, 6, false)] [InlineData(true, 6, true)]
+    [InlineData(true, 7, false)] [InlineData(true, 7, true)]
+    [InlineData(true, 8, false)] [InlineData(true, 8, true)]
     public async Task CapturedPriorNumbersSurvivePendingRhsUsers(bool governed, int shape, bool cancel)
     {
         var (source, expected) = shape switch
@@ -23,6 +31,15 @@ public sealed partial class AwkPreparedFunctionRegionTests
             3 => ("function rhs(){$0=\"new 100\";print \"hold\";return 3}BEGIN{$0=\"old 0007\";print $2+rhs(),$2;exit}", "hold\n10 100\n"),
             4 => ("function rhs(n){if(n==2){a[\"k\"]=100;print \"hold\"}return n}" +
                 "BEGIN{a[\"k\"]=0;$0=\"k\";for(i=1;i<=3;i++)a[$1]+=rhs(i);print a[\"k\"];exit}", "hold\n6\n"),
+            5 => ("function rhs(n){if(n==2){a[\"k\"]=100;print \"hold\"}return n}" +
+                "BEGIN{a[\"k\"]=0;for(i=1;i<=3;i++)a[\"k\"]+=rhs(i);print a[\"k\"];exit}", "hold\n6\n"),
+            6 => ("function rhs(n){if(n==2){a[\"k\"]=100;key=\"next\";print \"hold\"}return n}" +
+                "BEGIN{a[\"k\"]=0;key=\"k\";for(i=1;i<=3;i++)a[key]+=rhs(i);print a[\"k\"],a[\"next\"];exit}", "hold\n3 3\n"),
+            7 => ("function rhs(n){if(n==2){a[\"k:x\"]=100;SUBSEP=\"|\";print \"hold\"}return n}" +
+                "BEGIN{SUBSEP=\":\";a[\"k:x\"]=0;for(i=1;i<=3;i++)a[\"k\",\"x\"]+=rhs(i);print a[\"k:x\"],a[\"k|x\"];exit}", "hold\n3 3\n"),
+            8 => ("function rhs(p,n){if(n==2){delete p;p[\"k\"]=100;print \"hold\"}return n}" +
+                "function bump(p,k,i){for(i=1;i<=3;i++)p[k]+=rhs(p,i)}" +
+                "BEGIN{a[\"k\"]=0;bump(a,\"k\");print a[\"k\"];exit}", "hold\n6\n"),
             _ => throw new ArgumentOutOfRangeException(nameof(shape))
         };
         if (!Awk.TryParse(AwkTestHarness.BuildInvocation("awk", source), out var command))

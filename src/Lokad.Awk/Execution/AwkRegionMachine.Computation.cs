@@ -428,18 +428,20 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var access = ref region.Arrays[accessIndex];
             ref readonly var key = ref operands[access.Key];
+            // Key evaluation can enter admission callbacks. Keep an owning snapshot,
+            // not a reference into scratch that a callback may retire or reuse.
+            var previous = captureSlot < 0 ? default : storage.Targets[captureSlot];
             switch (key.Kind)
             {
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
-                    var previous = captureSlot < 0 ? default : storage.Targets[captureSlot];
                     target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding, in previous);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
-                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
+                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);
                     break;
                 default:
-                    target = state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding);
+                    target = state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
                     break;
             }
             // The complete operation captured an owned key before retiring scratch,

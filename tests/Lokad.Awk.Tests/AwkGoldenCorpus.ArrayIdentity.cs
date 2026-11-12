@@ -6,6 +6,12 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("repeated-captured-alias-updates-observe-current-values-cells-and-keys",
+            ["""function one(x){return x}function bump(p,k,i){for(i=0;i<4;i++){p[k]+=one(i+1);if(i==0)p[k]="010";else if(i==1){delete p[k];p[k]=20}else if(i==2)k="other"}}BEGIN{bump(a,"k");print a["k"],a["other"],typeof(a["k"]),typeof(a["other"])}"""], [],
+            "23 4 number number\n"),
+        Passing("repeated-captured-updates-use-current-key-format-and-subsep",
+            ["""function one(x){return x}BEGIN{CONVFMT="%.2f";n=1.5;for(i=1;i<=3;i++){a[n]+=one(i);if(i==1)CONVFMT="%.1f"}print a["1.50"],a["1.5"],length(a);SUBSEP=":";for(i=1;i<=3;i++){b["x","y"]+=one(i);if(i==1)SUBSEP="|"}print b["x:y"],b["x|y"],length(b)}"""], [],
+            "1 5 2\n1 5 2\n"),
         Passing("repeated-captured-field-updates-observe-current-values-cells-and-keys",
             ["""function one(x){return x}{for(i=0;i<4;i++){a[$1]+=one(i+1);if(i==0)a[$1]="010";else if(i==1){delete a[$1];a[$1]=20}else if(i==2)$1="other"}print a["k"],a["other"],typeof(a["k"]),typeof(a["other"])}"""], [],
             "23 4 number number\n", "k\n"),

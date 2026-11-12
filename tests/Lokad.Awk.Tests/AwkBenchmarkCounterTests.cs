@@ -9,23 +9,37 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task RepeatedCapturedFieldUpdatesReuseValidatedLocations(bool governed)
+    [InlineData("field", false)] [InlineData("field", true)]
+    [InlineData("literal", false)] [InlineData("literal", true)]
+    [InlineData("global", false)] [InlineData("global", true)]
+    [InlineData("local-alias", false)] [InlineData("local-alias", true)]
+    [InlineData("temporary", false)] [InlineData("temporary", true)]
+    [InlineData("composite", false)] [InlineData("composite", true)]
+    public async Task RepeatedCapturedUpdatesReuseValidatedLocations(string keySource, bool governed)
     {
         const int records = 128;
         var host = new MockFileSystem();
         host.SetStandardInput(string.Concat(Enumerable.Range(0, records).Select(index => $"k{index % 16}\n")));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
-        const string source = "function one(x){return x}{for(i=0;i<8;i++)a[$1]+=one(1)}" +
+        var update = keySource switch
+        {
+            "literal" => "{for(i=0;i<8;i++)a[\"k\"]+=one(1)}",
+            "global" => "{key=$1;for(i=0;i<8;i++)a[key]+=one(1)}",
+            "local-alias" => "function bump(p,k,i){for(i=0;i<8;i++)p[k]+=one(1)}{bump(a,$1)}",
+            "temporary" => "function key(x){return x}{for(i=0;i<8;i++)a[key($1)]+=one(1)}",
+            "composite" => "{for(i=0;i<8;i++)a[$1,\"x\"]+=one(1)}",
+            _ => "{for(i=0;i<8;i++)a[$1]+=one(1)}"
+        };
+        var source = "function one(x){return x}" + update +
             "END{for(k in a)sum+=a[k];print sum,length(a)}";
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
-        Assert.Equal("1024 16\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(keySource == "literal" ? "1024 1\n" : "1024 16\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.ArrayBorrowedHashCalls, 0, records * 2);
+        Assert.InRange(counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls, 0, records * 3);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, budget.Reserved);
