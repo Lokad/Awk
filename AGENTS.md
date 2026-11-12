@@ -143,6 +143,8 @@ or environment dependencies.
   Shared validation uses bounded BCL windows, completing a crossing scalar before its next poll.
   Invalid crossings still fail before that poll and before allocation/publication.
   It is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
+  restore that backing only after its value/cell role proves text. Non-text empty/charge
+  projections stay at value boundaries; byte consumers retain their checked casts.
   shared mutable caches belong to that backing, and storage identity compares backing references.
   Select cached metadata before byte-array casts in common access; preserve default empty text,
   checked casts and the private invariant that compact backing owns short ASCII bytes.

@@ -343,7 +343,7 @@ internal readonly struct AwkValue
             ThrowIfArrayValue();
             return _kind == AwkValueKind.Number
                 ? AwkNumberFormatter.ToAwkText(_number)
-                : AwkText.FromBacking(_text);
+                : _kind == AwkValueKind.Untyped ? AwkText.Empty : AwkText.FromBacking(_text);
         }
     }
 
@@ -355,7 +355,7 @@ internal readonly struct AwkValue
             ? 0
             : _text is AwkUntypedScalar
                 ? AwkRuntimeMemory.EstimateUntypedScalarBytes()
-                : AwkText.FromBacking(_text).EstimatedRetainedMemoryBytes;
+                : _kind == AwkValueKind.ArrayReference ? 0 : AwkText.FromBacking(_text).EstimatedRetainedMemoryBytes;
 
     public double AsNumber(Action? checkpoint = null)
     {

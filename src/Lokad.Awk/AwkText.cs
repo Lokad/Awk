@@ -31,13 +31,16 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     internal object? Backing => _backing;
     internal bool RequiresStringCache => _backing is not (null or TextStorage);
-    // Recover text backing previously produced by this type; scalar payloads
-    // may also contain non-text objects, which project as empty text here.
-    internal static AwkText FromBacking(object? backing) =>
-        backing is TextStorage or byte[] ? new(backing) : Empty;
+    // Restore only backing produced by this type. Value/cell roles exclude their
+    // non-text payloads before reaching this boundary; default remains empty.
+    internal static AwkText FromBacking(object? backing) => new(backing);
     internal bool HasSameStorage(AwkText other) => ReferenceEquals(_backing, other._backing);
 
-    private AwkText(object backing) => _backing = backing;
+    private AwkText(object? backing)
+    {
+        System.Diagnostics.Debug.Assert(backing is null or TextStorage or byte[]);
+        _backing = backing;
+    }
 
     private AwkText(byte[] bytes)
     {

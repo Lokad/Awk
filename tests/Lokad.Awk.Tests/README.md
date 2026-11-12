@@ -42,6 +42,7 @@ Scalar-publication tests exercise both canonical source kinds and actual local/g
 including tight admission, fallback failures and refund reentry after source retirement.
 Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array
 writes; sort goldens also cover ordinary string keys and nondecimal input values.
+Text projection also preserves untyped origins and charges, and rejects array scalars.
 Final-string print tests cover direct copying into actual output, numeric-buffer growth,
 refusal before publication and pending stdout/redirected payloads through cancellation.
 Check source/output ownership and visible effects rather than retired fragment-cache mechanics.

@@ -87,8 +87,16 @@ public sealed class AwkStoredValueTests
         Assert.Throws<AwkRuntimeException>(() => value.AsNumber());
         Assert.False(AwkValue.FromNumber(1.25).TryGetStoredScalarText(out _));
         var origin = new AwkUntypedScalar();
-        Assert.False(AwkValue.FromUntypedScalar(origin).TryGetStoredScalarText(out _));
+        var untyped = AwkValue.FromUntypedScalar(origin);
+        Assert.False(untyped.TryGetStoredScalarText(out _));
+        Assert.True(untyped.ByteText.AsSpan().IsEmpty);
+        Assert.Equal(AwkRuntimeMemory.EstimateUntypedScalarBytes(), untyped.RetainedTextMemoryBytes);
         Assert.False(origin.IsScalar);
+        Assert.True(AwkIdentifier.TryParse("a", out var identifier));
+        var array = AwkValue.FromGlobalArrayReference(identifier);
+        Assert.False(array.TryGetStoredScalarText(out _));
+        Assert.Equal(0, array.RetainedTextMemoryBytes);
+        Assert.Throws<AwkRuntimeException>(() => array.ByteText);
     }
 
     [Fact]
