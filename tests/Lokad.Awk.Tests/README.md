@@ -44,6 +44,8 @@ Return capture also covers ready/pending host mutation of fields, globals, local
 public failed diagnostic completion, and return field-demand termination before unreachable code.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
+Text producers also cover used assignment snapshots, plain-string origins and refusal or
+cancellation at publication after actual RHS production.
 Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array
 writes; sort goldens also cover ordinary string keys and nondecimal input values.
 Text projection also preserves untyped origins and charges, and rejects array scalars.
