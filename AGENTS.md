@@ -154,6 +154,9 @@ or environment dependencies.
 - Preserve strict UTF-8 ingress. `AwkText` owns valid immutable UTF-8 bytes or concatenated text.
   Shared validation uses bounded BCL windows, completing a crossing scalar before its next poll.
   Invalid crossings still fail before that poll and before allocation/publication.
+  Ready span access is constant-time and uses the surrounding computation/primitive polls.
+  Long owned-record captures poll explicitly after saving their immutable source coordinates;
+  concatenation materialization retains its own entry, waiting, copying and publication checks.
   It is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
   restore that backing only after its value/cell role proves text. Non-text empty/charge
   projections stay at value boundaries; byte consumers retain their checked casts.

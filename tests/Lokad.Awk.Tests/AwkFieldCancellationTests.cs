@@ -155,13 +155,16 @@ public sealed class AwkFieldCancellationTests
     [InlineData("characters", true)]
     public void SplittingChecksLongWhitespaceLiteralAndCharacterWork(string scenario, bool captures)
     {
+        // Keep enough scan regions to cancel within long work independently
+        // of how many constant-time setup/accessor checks precede the scanner.
+        var scanLength = scenario == "characters" ? LongScan : 8 * LongScan;
         var source = scenario switch
         {
-            "whitespace-word" => new string('a', LongScan) + " b",
-            "whitespace-leading" => new string(' ', LongScan) + "a b",
-            "whitespace-trailing" => "a b" + new string(' ', LongScan),
-            "literal" => new string('a', LongScan) + ",b",
-            "characters" => new string('a', LongScan),
+            "whitespace-word" => new string('a', scanLength) + " b",
+            "whitespace-leading" => new string(' ', scanLength) + "a b",
+            "whitespace-trailing" => "a b" + new string(' ', scanLength),
+            "literal" => new string('a', scanLength) + ",b",
+            "characters" => new string('a', scanLength),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario))
         };
         var separator = AwkFieldSeparatorSpec.FromText(scenario == "literal" ? "," : scenario == "characters" ? "" : " ");
@@ -171,16 +174,7 @@ public sealed class AwkFieldCancellationTests
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
-        var check = scenario switch
-        {
-            "whitespace-word" => 5,
-            "whitespace-leading" => 6,
-            "whitespace-trailing" => captures ? 15 : 19,
-            "literal" => captures ? 5 : 4,
-            "characters" => 1_000,
-            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
-        };
-        var cancel = CancelOnCheck(cancellation, check);
+        var cancel = CancelOnCheck(cancellation, 4 * LongScan / AwkRuntimeLimits.CancellationCheckBytes);
         Action checkpoint = () => { if (armed) cancel(); };
         var splitter = Splitter(checkpoint, counters, governor);
         splitter.ValidateFieldSeparator(separator.ByteText);
@@ -192,8 +186,8 @@ public sealed class AwkFieldCancellationTests
         Assert.Equal(0, governor.CurrentCommittedBytes);
         armed = false;
         var retry = splitter.SplitFieldTextsBySeparator(text, separator, mode, counters);
-        Assert.Equal(scenario == "characters" ? LongScan : 2, retry.Fields.Count);
-        Assert.Equal(scenario == "characters" ? "a" : scenario == "literal" || scenario == "whitespace-word" ? new string('a', LongScan) : "a", retry.Fields[0].AsString());
+        Assert.Equal(scenario == "characters" ? scanLength : 2, retry.Fields.Count);
+        Assert.Equal(scenario == "characters" ? "a" : scenario == "literal" || scenario == "whitespace-word" ? new string('a', scanLength) : "a", retry.Fields[0].AsString());
         Assert.Equal(scenario == "characters" ? "a" : "b", retry.Fields[^1].AsString());
     }
 

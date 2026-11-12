@@ -532,9 +532,9 @@ long formats retain cancellation checkpoints and shared-memory admission before 
 CPU control uses the caller's `CancellationToken`, including caller-owned `CancelAfter`
 deadlines. Checkpoints remain active with observational counters disabled. Cancellation
 requests that runtime and host work stop; it cannot forcibly terminate a non-cooperating host.
-Short numeric conversions and borrowed byte views use the surrounding computational
-checkpoints. Long scans retain their own checks; admission callbacks and observable mutations
-retain their boundary checks.
+Short numeric conversions and ready byte views use the surrounding computational checkpoints.
+Long input captures, scans and lazy text materialization retain their own checks; admission
+callbacks and observable mutations retain their boundary checks.
 Reconstructed-record output checks cancellation across bounded byte and field-metadata intervals,
 after destination admission and before publishing the completed copy. Cancellation preserves
 earlier buffered output; retained output capacity stays funded.

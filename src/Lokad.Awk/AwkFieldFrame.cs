@@ -319,10 +319,11 @@ internal sealed class AwkFieldFrame(
             input = AwkTextInput.FromMemory(BufferedRecord.Slice(field.RecordStart, field.ByteLength()), index.Value);
         else
         {
-            // Capture the immutable backing before its materialization poll can
+            // Capture the immutable backing before long-input or materialization polling can
             // reenter and replace this frame's current record.
             var record = _recordText;
             input = AwkTextInput.FromTextRange(record, field.RecordStart, field.ByteLength(), index.Value);
+            if (record.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes) checkpoint?.Invoke();
             _ = record.AsSpan(checkpoint);
         }
         return true;

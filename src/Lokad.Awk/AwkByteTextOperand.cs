@@ -63,7 +63,7 @@ internal readonly ref struct AwkByteTextOperand
     {
         // Keep owned flattening at the consumer's original point, after provider pinning.
         if (_owned.Backing is not null) return _owned.AsSpan(checkpoint);
-        checkpoint?.Invoke();
+        // The consumer owns cancellation for scanning these already-ready bytes.
         return _bytes;
     }
 }

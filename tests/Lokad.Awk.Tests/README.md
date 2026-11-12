@@ -91,6 +91,8 @@ spelling, retirement and admission before an actual owning copy. Borrow forwardi
 future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.
 Compact text-input tests verify owner/range snapshots, reader-cell and record replacement,
 source capture before callbacks, numeric formatting at use and the24-byte representation.
+Long owned-record capture checks cancellation after saving its immutable source. Ready span
+access uses surrounding computation/primitive checks; lazy materialization retains its checks.
 Stored-text consumers preserve scalar origins, scope hiding and earlier captures; exercise
 their restored frame after actual host suspension, including cancellation and final refunds.
 Immediate case-length counters retain actual casing preparation/conversion and byte-native

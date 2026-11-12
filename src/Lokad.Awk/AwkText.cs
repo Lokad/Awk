@@ -120,10 +120,14 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     public ReadOnlySpan<byte> AsSpan(Action? checkpoint = null)
     {
-        checkpoint?.Invoke();
         if (_backing is TextStorage storage)
-            return storage.Concatenation is { } concatenation
-                ? MaterializeConcatenation(concatenation, checkpoint) : storage.Bytes;
+        {
+            if (storage.Concatenation is not { } concatenation) return storage.Bytes;
+            // Ready bytes need no callback. Flattening can wait, allocate and
+            // copy, so retain its entry check as well as its bounded work checks.
+            checkpoint?.Invoke();
+            return MaterializeConcatenation(concatenation, checkpoint);
+        }
         return ((byte[]?)_backing).AsSpan();
     }
 
