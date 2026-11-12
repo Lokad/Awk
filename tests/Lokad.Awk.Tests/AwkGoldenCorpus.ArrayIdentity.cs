@@ -6,6 +6,23 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("complete-and-crossed-updates-share-record-rule-lifetimes",
+            ["""function one(x){return x}{for(i=0;i<2;i++)a[$1]++;first+=a[$1]}{a[$1]+=one(c[$1]+=one(1));middle+=a[$1]}{for(i=0;i<2;i++)b[$1]+=2;last+=b[$1];delete a;delete b;delete c}END{print first,middle,last}"""], [],
+            "4 6 8\n", "k\nnext\n"),
+        Passing("repeated-complete-updates-keep-current-values-across-key-size-changes",
+            ["""BEGIN{k="k";for(i=1;i<=3;i++){a[k]+=i;if(i==1){a[k]="010";k="a-longer-key"}else k="k"}print a["k"],a["a-longer-key"],length(a);k="k";for(i=1;i<=3;i++){b[k]+=i;if(i==1){delete b[k];k="a-longer-key"}else k="k"}print b["k"],b["a-longer-key"],length(b)}"""], [],
+            "13 2 2\n3 2 2\n"),
+        Passing("repeated-complete-updates-preserve-current-cells-and-loop-control",
+            ["""BEGIN{for(i=0;i<4;i++){a["k"]+=i+1;b["x"]++;if(i==0)a["k"]="010";else if(i==1){delete a["k"];a["k"]=20}else if(i==2)continue}print a["k"],b["x"],typeof(a["k"]);for(i=0;i<9&&++c["condition"];c["step"]++){i++;if(i==2)continue;if(i==4)break}print c["condition"],c["step"],i;do{d["k"]++;if(d["k"]==2)break}while(++d["test"]);print d["k"],d["test"]}"""], [],
+            "27 4 number\n4 3 4\n2 1\n"),
+        Passing("repeated-complete-updates-keep-aliases-and-missing-insertion",
+            ["""function bump(p,k,i){for(i=0;i<4;i++){p[k]+=i+1;if(i==0){delete p;p[k]=10}else if(i==1)split("40 50",p)}}BEGIN{bump(a,"k");print a["k"],a[1],a[2],length(a);for(i=1;i<=4;i++)a[i]++;a["01"]++;print a[1],a[2],a[3],a[4],a["01"],length(a);print ("missing" in a),length(a);a["missing"]+=0;print ("missing" in a),length(a)}"""], [],
+            "7 40 50 3\n41 51 1 1 1 6\n0 6\n1 7\n"),
+        AwkGoldenCaseBuilder.Create("complete-updates-preserve-live-crossed-captures",
+            ["""function one(x){return x}BEGIN{for(i=0;i<4;i++){a["k"]+=1;a["k"]+=one(a["k"]+=2);b["x"]++}print a["k"],b["x"]}"""], [])
+            .WithStdOut("60 4\n")
+            .WithNondeterminismNote("Compound updates retain their qualified prior-before-RHS order, including an inner update of the same key.")
+            .Build(),
         Passing("repeated-captured-alias-updates-observe-current-values-cells-and-keys",
             ["""function one(x){return x}function bump(p,k,i){for(i=0;i<4;i++){p[k]+=one(i+1);if(i==0)p[k]="010";else if(i==1){delete p[k];p[k]=20}else if(i==2)k="other"}}BEGIN{bump(a,"k");print a["k"],a["other"],typeof(a["k"]),typeof(a["other"])}"""], [],
             "23 4 number number\n"),

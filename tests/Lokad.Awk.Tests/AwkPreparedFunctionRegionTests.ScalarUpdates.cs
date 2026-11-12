@@ -12,6 +12,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(false, 6, false)] [InlineData(false, 6, true)]
     [InlineData(false, 7, false)] [InlineData(false, 7, true)]
     [InlineData(false, 8, false)] [InlineData(false, 8, true)]
+    [InlineData(false, 9, false)] [InlineData(false, 9, true)]
     [InlineData(true, 0, false)] [InlineData(true, 0, true)]
     [InlineData(true, 1, false)] [InlineData(true, 1, true)]
     [InlineData(true, 2, false)] [InlineData(true, 2, true)]
@@ -21,6 +22,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(true, 6, false)] [InlineData(true, 6, true)]
     [InlineData(true, 7, false)] [InlineData(true, 7, true)]
     [InlineData(true, 8, false)] [InlineData(true, 8, true)]
+    [InlineData(true, 9, false)] [InlineData(true, 9, true)]
     public async Task CapturedPriorNumbersSurvivePendingRhsUsers(bool governed, int shape, bool cancel)
     {
         var (source, expected) = shape switch
@@ -40,6 +42,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
             8 => ("function rhs(p,n){if(n==2){delete p;p[\"k\"]=100;print \"hold\"}return n}" +
                 "function bump(p,k,i){for(i=1;i<=3;i++)p[k]+=rhs(p,i)}" +
                 "BEGIN{a[\"k\"]=0;bump(a,\"k\");print a[\"k\"];exit}", "hold\n6\n"),
+            9 => ("function bump(p,k,i){for(i=1;i<=3;i++){p[k]+=i;" +
+                "if(i==1){print \"hold\";delete p[k];p[k]=100;k=\"next\"}}}" +
+                "BEGIN{a[\"k\"]=0;bump(a,\"k\");print a[\"k\"],a[\"next\"];exit}", "hold\n100 5\n"),
             _ => throw new ArgumentOutOfRangeException(nameof(shape))
         };
         if (!Awk.TryParse(AwkTestHarness.BuildInvocation("awk", source), out var command))

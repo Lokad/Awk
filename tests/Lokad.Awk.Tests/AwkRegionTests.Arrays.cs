@@ -183,6 +183,32 @@ public sealed partial class AwkRegionTests
         Assert.Equal(0, fixture.Budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void RepeatedCompleteStorageAdmissionPrecedesEffects(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token, true);
+        var state = fixture.State;
+        var region = Compile("for(i=0;i<8;i++)a[\"k\"]+=1;later=9", state);
+        var array = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey("k");
+        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
+        using var storage = new AwkRegionStorage(state);
+        var before = fixture.Budget.Reserved;
+        if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
+        else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
+        Assert.Equal(5, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.All(storage.Targets, target => Assert.Null(target.Array));
+        Assert.Equal(before, fixture.Budget.Reserved);
+        storage.Dispose();
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
     [Fact]
     public void OrdinaryTargetCapturesReuseTheirFundedHoldingCapacity()
     {

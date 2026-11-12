@@ -6,8 +6,8 @@ internal readonly record struct AwkArrayUpdateTarget(AwkArrayKey Key, double Pre
     AwkArrayIdentity? Array, AwkArrayCell? Cell = null)
 {
     // Inline/ordinal keys own their spelling in their words, without text payload.
-    internal bool CanRetainLocation => Array is { IsDetached: false } &&
-        Cell is { IsAttached: true } && Key.RequiresTextMaterialization;
+    internal bool CanRetainLocation => Key.RequiresTextMaterialization &&
+        Array is { IsDetached: false } && Cell is { IsAttached: true };
 
     public long RetainedTargetBytes => AwkRuntimeMemory.CheckedAdd(Key.RetainedTextMemoryBytes,
         Cell is null ? 0 : AwkRuntimeMemory.ArrayCellBytes);

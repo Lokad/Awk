@@ -60,6 +60,9 @@ Repeated captured updates cover changing keys, cells, values and array storage. 
 measure lookup reuse across field, literal, variable, alias, temporary and composite keys.
 Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,
 funded users and cancellation through key changes and array replacement.
+Loop updates also cover conditions/steps, distinct sites, multiple rules and overlap with
+live RHS captures. Admission tests check stopped mutation and retirement, and pending-host
+tests keep their actual frame funded through completion and cancellation.
 Ordinal entries hold owning values directly; captured updates re-locate after RHS work,
 while dictionary captures may retain real cells. Promotion admits new cells plus overlapping
 backing. Cover partial-page and table growth, logical values and payload retirement
