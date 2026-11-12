@@ -6,6 +6,12 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("repeated-captured-field-updates-observe-current-values-cells-and-keys",
+            ["""function one(x){return x}{for(i=0;i<4;i++){a[$1]+=one(i+1);if(i==0)a[$1]="010";else if(i==1){delete a[$1];a[$1]=20}else if(i==2)$1="other"}print a["k"],a["other"],typeof(a["k"]),typeof(a["other"])}"""], [],
+            "23 4 number number\n", "k\n"),
+        Passing("repeated-captured-field-updates-survive-clear-split-and-promotion",
+            ["""function one(x){return x}{for(i=1;i<=4;i++){a[$1]+=one(i);if(i==1){delete a;a[$1]=10}else if(i==2)split("40 50",a)}print a[$1],a[1],a[2],length(a)}"""], [],
+            "7 40 50 3\n", "k\n"),
         Passing("numeric-index-reads-share-ordinal-values-across-prepared-sources",
             ["""function read(p,k){return p[k]}function sum(p,lo,hi, i,s){for(i=lo;i<=hi;i++)s+=p[i];return s}BEGIN{for(i=1;i<=4097;i++)a[i]=i;g=2049;print a[g],a[g+1],read(a,g),sum(a,2047,2050);delete a[2048];print (2048 in a),"["read(a,2048)"]",(2048 in a),length(a);a["02049"]="spelled";print a[g],read(a,"02049"),sum(a,2047,2050)}"""], [],
             "2049 2050 2049 8194\n0 [] 1 4097\n2049 spelled 6146\n"),
