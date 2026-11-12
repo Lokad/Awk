@@ -253,6 +253,26 @@ internal sealed class AwkRegionStorage : IDisposable
         else StoreProducedText(index, text, producedBytes);
     }
 
+    internal bool TryTakeRetiringLocal(int index, AwkFunctionFrame frame, int local)
+    {
+        if ((uint)local >= (uint)frame.Layout.SlotCount ||
+            frame.GetSlot(local).Kind != AwkFunctionLocalSlotKind.Scalar) return false;
+        // Capture at the actual owner. This scalar read only polls Awk's token;
+        // no host/admission callback intervenes before the funded handoff.
+        // Reader text, aliases and unresolved locals keep ordinary evaluation.
+        var value = frame.GetSlot(local).ReadValue(_state.CancellationCheckpoint);
+        _state.Counters.RecordLocalValueRead(in value);
+        var bytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        var oldBytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
+        _payload.ReceiveTransferred(bytes);
+        frame.RetainedMemoryBytes -= bytes;
+        frame.GetSlot(local) = default;
+        _values[index] = value.AsScalarCopy();
+        // Publish the funded snapshot and retire its source before refund reentry.
+        if (oldBytes > 0) _payload.Release(oldBytes);
+        return true;
+    }
+
     internal void StoreSubstringText(int index, in AwkScalarOperand source, in AwkValue start, in AwkValue length, int count)
     {
         var before = _payload.Bytes;

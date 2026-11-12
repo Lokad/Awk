@@ -104,7 +104,8 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.Value:
-                    computationView.Storage.StoreValue(instruction.Target, computationView.Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
+                    if (instruction.Detail == (int)AwkRegionValueCapture.RetiringLocal) computationView.CaptureRetiringLocal(in instruction);
+                    else computationView.Storage.StoreValue(instruction.Target, computationView.Value(instruction.Left), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Index:
                     computationView.ExecuteIndex(in instruction);

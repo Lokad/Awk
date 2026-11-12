@@ -344,6 +344,9 @@ or environment dependencies.
   long initialization polls. Standalone internal function execution establishes its own entry poll.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
+  Terminal scalar locals can transfer their existing claim into that owning capture. Read
+  at the actual frame owner; only token polling may intervene before publication. Other
+  local roles retain ordinary resolution and materialization.
   Non-number return operands name canonical owning value/text scratch. Move their existing
   payload claim to caller scratch before retiring the callee. Existing retirement clears
   the source; keep the handoff adjacent to that retirement rather than clearing slots twice.

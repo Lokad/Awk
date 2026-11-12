@@ -38,6 +38,8 @@ as well as pending stdout/warning borrows. Check stopped effects, cleanup and fu
 actual completion, including hosts that ignore cancellation.
 Return-owner tests retain the funded callee through both ready and pending host completion,
 including numeric/text captures and cancellation before caller mutation.
+Terminal local returns also cover full-budget handoffs, original spelling/input origins,
+long-input cancellation before source retirement and current cells after frame reuse.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
 Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array

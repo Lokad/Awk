@@ -298,6 +298,10 @@ internal sealed partial class AwkRegionCompiler
                 {
                     if (!Expression(returning, out var operand)) return false;
                     returned = CaptureValue(operand);
+                    if (_operands[operand].Kind == AwkRegionOperandKind.LocalVariable)
+                        // The owning capture is immediately followed by return.
+                        // It may consume this local, before any output flush.
+                        _code[^1] = _code[^1] with { Detail = (int)AwkRegionValueCapture.RetiringLocal };
                 }
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
                 {

@@ -184,6 +184,15 @@ internal sealed class AwkMemoryLease : IDisposable
         _byteCount -= byteCount;
     }
 
+    // The former storage owner has already admitted these bytes. Its caller
+    // relinquishes the same committed claim before any callback can observe it.
+    internal void ReceiveTransferred(long byteCount)
+    {
+        if (_accounting is null) return;
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        _byteCount = AwkRuntimeMemory.CheckedAdd(_byteCount, byteCount);
+    }
+
     public void MoveTo(AwkMemoryLease destination, long byteCount)
     {
         ArgumentNullException.ThrowIfNull(destination);

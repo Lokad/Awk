@@ -55,14 +55,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public Task NumericReturnKeepsItsFundedCalleeAfterActualFlush(bool cancel) =>
         CheckReturnedValueAsync(numeric: true, pending: true, cancel);
 
-    private static async Task CheckReturnedValueAsync(bool numeric, bool pending, bool cancel)
+    private static async Task CheckReturnedValueAsync(bool numeric, bool pending, bool cancel, bool local = false)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(4 << 20, counters);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
-        var program = Bind("function part(s){return " + (numeric ? "s+0" : "substr(s,1)") +
+        var program = Bind("function part(s){return " + (numeric ? "s+0" : local ? "s" : "substr(s,1)") +
             "}BEGIN{total+=part(\"0007\")}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
@@ -122,10 +122,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task PublicTextReturnKeepsFundingAcrossPendingDiagnostics(bool cancel)
+    public Task PublicTextReturnKeepsFundingAcrossPendingDiagnostics(bool cancel) =>
+        CheckPublicTextReturnAsync(cancel, local: false);
+
+    private static async Task CheckPublicTextReturnAsync(bool cancel, bool local)
     {
         const string warning = "awk: warning: sqrt: received negative argument -1\n";
-        const string source = "function part(s){return sqrt(-1)?substr(s,1):substr(s,1)}" +
+        var source = (local ? "function part(s){if(sqrt(-1))return s;return s}" :
+            "function part(s){return sqrt(-1)?substr(s,1):substr(s,1)}") +
             "BEGIN{print \"ready\";total=0;total+=part(\"0007\");print total}";
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(8 << 20);
