@@ -32,10 +32,10 @@ public sealed class AwkScanCancellationTests
         using var cancellation = new CancellationTokenSource();
         var checkpoint = CancelDuringScan(cancellation);
 
-        var error = Assert.Throws<OperationCanceledException>(() => AwkNumberParser.Parse(bytes, mode, checkpoint));
+        var error = Assert.Throws<OperationCanceledException>(() => AwkNumberParser.Parse(bytes, mode, out _, checkpoint));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        var result = AwkNumberParser.Parse(bytes, mode);
+        AwkNumberParser.Parse(bytes, mode, out var result);
         Assert.Equal(AwkNumberParseStatus.Number, result.Status);
         Assert.Equal(scenario == "special" ? 4 : bytes.Length, result.End);
         Assert.Equal(source, AwkUtf8Codec.Decode(bytes));
@@ -52,8 +52,9 @@ public sealed class AwkScanCancellationTests
         var bytes = AwkUtf8Codec.Encode(source).ToArray();
         using var cancellation = new CancellationTokenSource();
         Assert.Throws<OperationCanceledException>(() =>
-            AwkNumberParser.ParseNonDecimal(bytes, 0, 16, CancelDuringScan(cancellation)));
-        Assert.Equal(AwkNumberParseStatus.Number, AwkNumberParser.ParseNonDecimal(bytes, 0, 16).Status);
+            AwkNumberParser.ParseNonDecimal(bytes, 0, 16, out _, CancelDuringScan(cancellation)));
+        AwkNumberParser.ParseNonDecimal(bytes, 0, 16, out var result);
+        Assert.Equal(AwkNumberParseStatus.Number, result.Status);
     }
 
     [Fact]

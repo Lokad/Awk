@@ -1092,7 +1092,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     private static bool TryParseNumberPrefix(ReadOnlySpan<byte> span, AwkNumberParsingMode mode,
         out double number, out int end, Action? checkpoint)
     {
-        var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
+        AwkNumberParser.Parse(span, mode, out var parsed, checkpoint);
         parsed.ThrowIfError();
         number = parsed.Number;
         end = parsed.End;

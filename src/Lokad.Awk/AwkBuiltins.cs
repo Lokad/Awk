@@ -395,7 +395,7 @@ internal static partial class AwkBuiltins
             var numberBase = AwkNumberParser.GetBase(text.AsSpan(context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
             if (numberBase == 10)
                 return AwkValue.FromNumber(argument.AsNumber(context.State.CancellationCheckpoint));
-            var parsed = AwkNumberParser.ParseNonDecimal(text.AsSpan(context.State.CancellationCheckpoint), 0, numberBase, context.State.CancellationCheckpoint);
+            AwkNumberParser.ParseNonDecimal(text.AsSpan(context.State.CancellationCheckpoint), 0, numberBase, out var parsed, context.State.CancellationCheckpoint);
             parsed.ThrowIfError();
             return AwkValue.FromNumber(parsed.Number);
         }

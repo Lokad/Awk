@@ -602,7 +602,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (!_recordFields.TryGetUnmaterializedFieldText(new(index), out field, out record)) return false;
         var bytes = field.AsSpan(record, CancellationCheckpoint);
-        var parsed = AwkNumberParser.Parse(bytes, NumberParsingMode, CancellationCheckpoint);
+        AwkNumberParser.Parse(bytes, NumberParsingMode, out var parsed, CancellationCheckpoint);
         // Match eager input classification, keeping numeric-conversion errors deferred.
         if (parsed.Status == AwkNumberParseStatus.Number)
             _ = AwkNumberParser.SkipWhitespace(bytes, parsed.End, CancellationCheckpoint);
@@ -613,7 +613,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (TryGetPrintfFieldBytes(index, out var bytes))
             // Original field values classify numeric input eagerly, but conversion errors stay deferred.
-            _ = AwkNumberParser.Parse(bytes, NumberParsingMode, CancellationCheckpoint);
+            AwkNumberParser.Parse(bytes, NumberParsingMode, out _, CancellationCheckpoint);
         else
             _ = GetFieldValue(index);
     }

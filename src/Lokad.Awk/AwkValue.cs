@@ -210,7 +210,7 @@ internal readonly struct AwkValue
     private static AwkValue FromParsedText(AwkText text, ReadOnlySpan<byte> span,
         AwkNumberParsingMode mode, bool input, Action? checkpoint)
     {
-        var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
+        AwkNumberParser.Parse(span, mode, out var parsed, checkpoint);
         // Text may still be printed or sliced. GNU diagnoses this only when numeric conversion/type is requested.
         if (parsed.Status == AwkNumberParseStatus.MissingHexExponent)
             return new(text, 0, input ? AwkValueKind.NonDecimalConversionErrorInput : AwkValueKind.NonDecimalConversionErrorText);

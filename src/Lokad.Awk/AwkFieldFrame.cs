@@ -449,7 +449,7 @@ internal sealed class AwkFieldFrame(
             return TryReadCachedFieldNumber(fieldIndex, field, mode, deferError, out number, out cachedValue);
 
         counters.RecordNumericFieldByteParse();
-        var parsed = AwkNumberParser.Parse(field.BytesInRecord(RecordBytes()), mode, checkpoint);
+        AwkNumberParser.Parse(field.BytesInRecord(RecordBytes()), mode, out var parsed, checkpoint);
         // Capturing an argument must not diagnose an untaken numeric conversion.
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
         parsed.ThrowIfError();
@@ -485,7 +485,7 @@ internal sealed class AwkFieldFrame(
             return true;
         }
         counters.RecordNumericFieldByteParse();
-        var parsed = AwkNumberParser.Parse(cached.Spelling.AsSpan(checkpoint), mode, checkpoint);
+        AwkNumberParser.Parse(cached.Spelling.AsSpan(checkpoint), mode, out var parsed, checkpoint);
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
         parsed.ThrowIfError();
         number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
