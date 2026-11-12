@@ -36,9 +36,6 @@ internal readonly ref struct AwkScalarOperand
         IsBorrowed = true;
     }
 
-    internal AwkMemoryLease Retain(AwkRuntimeState state) => IsBorrowed
-        ? AwkMemoryLease.Disabled : state.MemoryAccounting.RetainValue(Value);
-
     internal AwkByteTextOperand Text(AwkRuntimeState state, bool forceScalar = false) => IsBorrowed
         ? new(_bytes) : new(state.FormatStringByteText(forceScalar ? Value.ForceScalar() : Value));
 
