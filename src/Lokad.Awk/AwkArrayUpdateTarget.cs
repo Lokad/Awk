@@ -5,6 +5,10 @@ namespace Lokad.Awk;
 internal readonly record struct AwkArrayUpdateTarget(AwkArrayKey Key, double Previous,
     AwkArrayIdentity? Array, AwkArrayCell? Cell = null)
 {
+    // Inline/ordinal keys own their spelling in their words, without text payload.
+    internal bool CanRetainLocation => Array is { IsDetached: false } &&
+        Cell is { IsAttached: true } && Key.RequiresTextMaterialization;
+
     public long RetainedTargetBytes => AwkRuntimeMemory.CheckedAdd(Key.RetainedTextMemoryBytes,
         Cell is null ? 0 : AwkRuntimeMemory.ArrayCellBytes);
 }

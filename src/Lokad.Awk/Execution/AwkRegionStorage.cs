@@ -180,6 +180,14 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
+    internal void CompleteTarget(int index)
+    {
+        // The slot already funds bounded key/cell/owner holding. Keep only a
+        // location, revalidated at the next capture; retirement still clears it.
+        if (_targets[index].CanRetainLocation) return;
+        ReleaseTarget(index);
+    }
+
     internal void ReleaseTarget(int index)
     {
         var bytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(_targets[index]) : 0;

@@ -1564,10 +1564,11 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetElementRuntimeKind(name, index, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default)
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default,
+        in AwkArrayUpdateTarget previous = default)
     {
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, binding))
+            _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, binding, in previous))
         {
             Counters.RecordBorrowedFieldTargetSnapshot();
             return target;

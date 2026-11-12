@@ -10,6 +10,30 @@ public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task RepeatedCapturedFieldUpdatesReuseValidatedLocations(bool governed)
+    {
+        const int records = 128;
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Range(0, records).Select(index => $"k{index % 16}\n")));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        const string source = "function one(x){return x}{for(i=0;i<8;i++)a[$1]+=one(1)}" +
+            "END{for(k in a)sum+=a[k];print sum,length(a)}";
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("1024 16\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(counters.ArrayBorrowedHashCalls, 0, records * 2);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task GlobalArrayArgumentsReuseTheirAdmittedRootBinding(bool governed)
     {
         const int records = 128;

@@ -192,11 +192,11 @@ internal sealed partial class AwkArrayRuntime
     }
 
     public bool TryPrepareBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
-        out AwkArrayUpdateTarget target, AwkArrayBinding binding = default)
+        out AwkArrayUpdateTarget target, AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            target = _variables.PrepareArrayUpdate(array, index);
+            target = _variables.PrepareArrayUpdate(array, index, in previous);
             return true;
         }
         return TryPrepareUnboundBorrowedUpdate(name, index, out target, binding);

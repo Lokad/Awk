@@ -56,6 +56,8 @@ Focused field/value/array tests preserve numeric-string origins and original spe
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
 key and prior value across RHS mutation, deletion, replacement and rehash. Never keep dictionary
 entry references across mutation or suspension. Membership must not insert missing elements.
+Repeated captured updates cover changing keys, cells, values and array storage. Hash counters
+measure lookup reuse; pending RHS tests preserve prior numbers, funded users and cancellation.
 Ordinal entries hold owning values directly; captured updates re-locate after RHS work,
 while dictionary captures may retain real cells. Promotion admits new cells plus overlapping
 backing. Cover partial-page and table growth, logical values and payload retirement

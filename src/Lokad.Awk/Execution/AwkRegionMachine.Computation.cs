@@ -424,7 +424,7 @@ internal partial struct AwkRegionMachine
         };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        internal void PrepareArrayUpdate(int accessIndex, bool complete, out AwkArrayUpdateTarget target)
+        internal void PrepareArrayUpdate(int accessIndex, bool complete, out AwkArrayUpdateTarget target, int captureSlot = -1)
         {
             ref readonly var access = ref region.Arrays[accessIndex];
             ref readonly var key = ref operands[access.Key];
@@ -432,7 +432,8 @@ internal partial struct AwkRegionMachine
             {
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
-                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding);
+                    var previous = captureSlot < 0 ? default : storage.Targets[captureSlot];
+                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding, in previous);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
                     target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
