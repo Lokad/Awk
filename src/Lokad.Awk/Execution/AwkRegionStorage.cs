@@ -283,8 +283,8 @@ internal sealed class AwkRegionStorage : IDisposable
     internal int PrintSubstring(AwkOutputSink output, AwkRegionPrint print, in AwkByteTextOperand source, int field,
         in AwkValue start, in AwkValue length, int count)
     {
-        var slice = AwkBuiltins.EvaluateSubstrSlice(_state, source, field, start, length, count, _payload,
-            borrowOwned: true, out _);
+        AwkBuiltins.EvaluateSubstrSlice(_state, source, field, start, length, count, _payload,
+            borrowOwned: true, out var slice, out _);
         if (slice.IsOwned)
         {
             // A whole already-owned result needs no staging copy. Its ordinary

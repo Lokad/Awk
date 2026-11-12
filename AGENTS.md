@@ -56,6 +56,8 @@ or environment dependencies.
   After ordered captures and source formatting, substring storage/print/range kernels consume
   a byte view and optional field identity. Keep range promotion and whole-result ownership at
   the runtime owner; do not pass the comparison scalar carrier through these kernels.
+  The semantic slice producer writes the consumer's view directly. It owns unit selection
+  and the primitive poll; raw slicing retains its value-return boundary without range facades.
   Keep per-operation locals and shared value/byte kernels; text captures write into caller storage.
   Prepared text consumers share the existing byte view for reader and owned scalar text.
   Text captures use one24-byte stack-only snapshot of canonical scalar words or the actual

@@ -27,15 +27,16 @@ internal static partial class AwkBuiltins
     internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkByteTextOperand source, int field,
         in AwkValue startValue, in AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
     {
-        var slice = EvaluateSubstrSlice(state, source, field, startValue, lengthValue, argumentCount, destination,
-            borrowOwned: false, out var whole);
+        EvaluateSubstrSlice(state, source, field, startValue, lengthValue, argumentCount, destination,
+            borrowOwned: false, out var slice, out var whole);
         return state.OwnStringResult(slice, field, whole, destination);
     }
 
-    internal static AwkByteTextOperand EvaluateSubstrSlice(AwkRuntimeState state, AwkByteTextOperand source, int field,
+    internal static void EvaluateSubstrSlice(AwkRuntimeState state, AwkByteTextOperand source, int field,
         in AwkValue startValue, in AwkValue lengthValue, int argumentCount, AwkMemoryLease destination,
-        bool borrowOwned, out bool whole)
+        bool borrowOwned, out AwkByteTextOperand slice, out bool whole)
     {
+        slice = default;
         whole = false;
         var start = (int)(startValue.TryGetNumberValue(out var startNumber) ? startNumber : startValue.AsNumber(state.CancellationCheckpoint));
         if (start < 1) start = 1;
@@ -43,14 +44,16 @@ internal static partial class AwkBuiltins
         state.PrepareStringRangeSource(field, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
-        if (!state.HasStringUnitAt(source, zeroBasedStart)) return default;
+        var byteMode = state.StringUnitMode == AwkStringUnitMode.Byte;
+        if (!source.HasUnitAt(zeroBasedStart, byteMode, state.CancellationCheckpoint)) return;
         var length = argumentCount == 2 ? int.MaxValue :
             (int)(lengthValue.TryGetNumberValue(out var lengthNumber) ? lengthNumber : lengthValue.AsNumber(state.CancellationCheckpoint));
-        if (length <= 0) return default;
+        if (length <= 0) return;
         state.PrepareStringRangeSource(field, ref source, zeroBasedStart, length);
-        var slice = state.SubstringByStringUnits(source, zeroBasedStart, length, destination, borrowOwned);
+        state.CancellationCheckpoint();
+        slice = source.SliceUnits(zeroBasedStart, length, byteMode, state.Counters, state.MemoryAccounting,
+            state.CancellationCheckpoint, destination, borrowOwned);
         whole = slice.ByteLength == source.ByteLength;
-        return slice;
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)

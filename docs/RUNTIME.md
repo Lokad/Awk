@@ -175,6 +175,8 @@ String formatting and bounded substring prefixes stay byte-native. Short text an
 prefix slices need no whole-value UTF-16 conversion or rune index; nonlocal slicing of long
 text can retain an index.
 Immediate string consumers can borrow stable record bytes; results that escape own their text.
+The semantic substring producer writes the consumer's byte view directly; field promotion
+and escaping copies stay at their existing owners.
 Arguments crossing mutation or suspension retain owned snapshots. Formatting and numeric errors
 remain at their language consumption point. Unicode casing retains its managed-string
 compatibility boundary, with temporary source storage covered by shared admission.

@@ -62,16 +62,4 @@ internal sealed class AwkStringRuntime
             : AwkText.CountRunes(bytes[..position], _checkpoint) + 1;
     }
 
-    public AwkByteTextOperand SubstringByUnits(
-        AwkByteTextOperand source,
-        int start,
-        int length,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkMemoryLease destination, bool borrowOwned = false)
-    {
-        _checkpoint?.Invoke();
-        return source.SliceUnits(start, length, IsByteMode, counters, governor, _checkpoint, destination, borrowOwned);
-    }
-
 }

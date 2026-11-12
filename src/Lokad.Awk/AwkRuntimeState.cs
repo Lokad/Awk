@@ -471,9 +471,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal int CountStringUnits(in AwkByteTextOperand value) =>
         _stringRuntime.CountUnits(in value);
 
-    internal bool HasStringUnitAt(AwkByteTextOperand value, int index) =>
-        value.HasUnitAt(index, _stringRuntime.IsByteMode, CancellationCheckpoint);
-
     internal void PrepareStringRangeSource(int field, scoped ref AwkByteTextOperand source, int start, int length)
     {
         if (field >= 0 && !source.IsOwned && StringUnitMode != AwkStringUnitMode.Byte &&
@@ -642,10 +639,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal int CompareByteText(AwkText left, AwkText right, bool sorting = false) =>
         _stringRuntime.Compare(left, right, IsCaseInsensitive, sorting);
-
-    public AwkByteTextOperand SubstringByStringUnits(AwkByteTextOperand source, int start, int length,
-        AwkMemoryLease destination, bool borrowOwned = false) =>
-        _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryAccounting, destination, borrowOwned);
 
     public void RequestExit(AwkOptionalExitCode exitCode) =>
         _executionControl.RequestExit(exitCode);
