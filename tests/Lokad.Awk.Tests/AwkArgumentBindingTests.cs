@@ -19,7 +19,7 @@ public sealed class AwkArgumentBindingTests
         var incoming = state.PrepareFunctionFrame(new([q]));
         try
         {
-            state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, p, AllowArray: true), incoming, 0);
+            state.StageFunctionLocalArguments([new(AwkRegionArgumentKind.Local, 0, p, AllowArray: true)], incoming, 0, 1);
             state.DeleteArrayValue(parent, row);
             state.ActivateFunctionFrame(incoming);
             try
@@ -114,7 +114,7 @@ public sealed class AwkArgumentBindingTests
         var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("argument")]));
         try
         {
-            state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, source.Index, name, AllowArray: true), incoming, 0);
+            state.StageFunctionLocalArguments([new(AwkRegionArgumentKind.Local, source.Index, name, AllowArray: true)], incoming, 0, 1);
             return incoming.GetSlot(0);
         }
         finally { state.DiscardIncomingFunctionFrame(incoming); }
@@ -151,7 +151,7 @@ public sealed class AwkArgumentBindingTests
                 callbacks++;
                 caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
             };
-            state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, name, Consumption: AwkParameterInput.Key), incoming, 0);
+            state.StageFunctionLocalArguments([new(AwkRegionArgumentKind.Local, 0, name, Consumption: AwkParameterInput.Key)], incoming, 0, 1);
             Assert.Equal(1, callbacks);
             Assert.Equal(AwkFunctionLocalSlotKind.Key, incoming.GetSlot(0).Kind);
             Assert.Equal(spelling, incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
@@ -188,7 +188,7 @@ public sealed class AwkArgumentBindingTests
                 caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
             };
             ref var source = ref state.CurrentFunctionFrame.GetSlot(0);
-            if (preparedLocal) state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, name, AllowArray: true), incoming, 0);
+            if (preparedLocal) state.StageFunctionLocalArguments([new(AwkRegionArgumentKind.Local, 0, name, AllowArray: true)], incoming, 0, 1);
             else state.StageFunctionArgument(incoming, 0, in source);
             Assert.Equal(1, callbacks);
             Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());

@@ -270,8 +270,8 @@ internal sealed class AwkFunctionCallStack(
             }
             return true;
         }
-        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar &&
-            sourceSlot.Value.StoredKind is not (AwkValueKind.Untyped or AwkValueKind.ArrayReference))
+        // Scalar publication already normalizes the payload at its actual owner.
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Scalar)
         {
             var value = sourceSlot.Value;
             _counters.RecordScalarLocalValueRead();

@@ -304,6 +304,8 @@ Main input, rule conditions/bodies and record backedges form one prepared progra
 the computation and call driver. Ordinary records retain their location and operand tables.
 Consecutive key-assembly operations share a synchronous computation block. Intervening
 evaluation, polls and host work retain their original boundaries and funded captures.
+Consecutive local arguments share a staging call while retaining per-argument scope resolution,
+ordered capture and admission. Later argument effects still precede callee activation.
 One prepared operand carries a variable's binding and fallback name. Value kinds and required
 name-based fallback still resolve at execution time.
 Length reads visible local scalars and arrays through their ordinal bindings; missing, potential

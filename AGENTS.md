@@ -344,6 +344,9 @@ or environment dependencies.
   Adjacent staging uses one ordered segment
   and one incoming-frame lookup; earlier segments remain before intervening effects, and the
   final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
+  Consecutive local arguments share their staging boundary and advance the caller to the first
+  unconsumed descriptor. Resolve visible scope for each argument; never cache a frame or cell
+  across admission callbacks. Keep original long-run polls and field-demand boundaries.
   Adjacent frame preparation also belongs to Call,keeping initial cancellation/admission before
   final staging. Intervening argument work retains its registered incoming owner at the original
   boundary. Borrow immutable call and argument descriptors during synchronous preparation;

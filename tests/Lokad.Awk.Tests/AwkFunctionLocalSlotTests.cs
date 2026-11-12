@@ -213,6 +213,41 @@ public sealed class AwkFunctionLocalSlotTests
     }
 
     [Fact]
+    public void CellBindingsKeepAliasesAndLiveOriginsWithoutPromotingScalarCopies()
+    {
+        var name = AwkArrayName.FromText("a");
+        var array = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
+        var origin = new AwkUntypedScalar();
+        var value = AwkValue.FromUntypedScalar(origin);
+        var potential = AwkFunctionLocalSlot.PotentialArrayAlias(name, value);
+        var untyped = AwkFunctionLocalSlot.UntypedScalar(value);
+        var scalar = AwkFunctionLocalSlot.Scalar(value);
+        AwkFunctionLocalSlot[] unbound = [AwkFunctionLocalSlot.MissingScalar(),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromText("a")), scalar,
+            AwkFunctionLocalSlot.PreparedKey(AwkArrayKey.FromOrdinal(7)),
+            AwkFunctionLocalSlot.ArrayAlias(name), potential, untyped];
+        foreach (var cell in unbound)
+        {
+            Assert.False(cell.Value.TryGetArrayBinding(out var missing));
+            Assert.Null(missing);
+        }
+        Assert.False(origin.IsScalar);
+        origin.PromoteArray(array);
+        foreach (var cell in new[] { potential, untyped, AwkFunctionLocalSlot.ArrayAlias(name, array),
+            AwkFunctionLocalSlot.ArrayAlias(array) })
+        {
+            Assert.True(cell.Value.TryGetArrayBinding(out var bound));
+            Assert.Same(array, bound);
+        }
+        Assert.False(scalar.Value.TryGetArrayBinding(out _));
+        Assert.Equal(name, potential.ArrayName);
+        origin.Detach();
+        Assert.False(potential.Value.TryGetArrayBinding(out _));
+        Assert.False(untyped.Value.TryGetArrayBinding(out _));
+    }
+
+    [Fact]
     public void ShortOwnedAsciiCopiesDoNotAllocateMandatoryMetadata()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

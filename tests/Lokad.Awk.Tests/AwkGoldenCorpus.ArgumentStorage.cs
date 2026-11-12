@@ -4,6 +4,14 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("local-call-arguments-keep-mixed-sources-and-interrupted-captures",
+            ["function join(a,b,c,d,e){return a \"|\" b \"|\" c \"|\" d \"|\" e}function change(){g=\"after\";return \"middle\"}function relay(x,y,z){return join(x,y,g,z,x)}function interrupted(x,y,z){return join(x,change(),y,g,z)}BEGIN{g=\"before\";print relay(\"001\",\"two\",\"003\");print interrupted(\"001\",\"two\",\"003\")}"],
+            [], "001|two|before|003|001\n001|middle|two|after|003\n");
+        var manyLocals = string.Join(',', Enumerable.Range(0, 130).Select(index => "p" + index));
+        yield return Passing("long-local-call-arguments-keep-positions-and-spelling",
+            ["function last(" + manyLocals + "){return p0 \":\" p63 \":\" p64 \":\" p129}function relay(v){return last(" +
+                string.Join(',', Enumerable.Repeat("v", 130)) + ")}BEGIN{print relay(\"0007\")}"],
+            [], "0007:0007:0007:0007\n");
         yield return Passing("print-final-array-read-preserves-earlier-values-and-missing-insertion",
             ["function first(){delete a;a[\"k\"]=\"after\";OFS=\"|\";ORS=\"!\\n\";return \"left\"}BEGIN{a[\"k\"]=\"before\";print first(),a[\"k\"];print length(a),a[\"missing\"];print length(a),sprintf(\"%s\",a[\"k\"])}"],
             [], "left|after!\n1|!\n2|after!\n");

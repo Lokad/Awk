@@ -325,6 +325,7 @@ internal struct AwkFunctionLocalSlot
     internal void InitializeScalar(in AwkValue value)
     {
         System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        System.Diagnostics.Debug.Assert(value.StoredKind is not (AwkValueKind.Untyped or AwkValueKind.ArrayReference));
         _reference = value.StoredReference;
         _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
         _payloadTag = (int)value.StoredKind;
