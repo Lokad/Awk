@@ -36,6 +36,43 @@ internal partial struct AwkRegionMachine
         internal AwkRegionOperand[] Operands => operands;
         internal double[] Numbers => numbers;
 
+        // Consume the same ordered operations until the key completes or another
+        // computation/poll/call needs the driver. Buffer ownership stays unchanged.
+        internal int ExecuteKeyAssembly(int position)
+        {
+            do
+            {
+                ref readonly var instruction = ref instructions[position];
+                switch (instruction.Kind)
+                {
+                    case AwkRegionInstructionKind.KeyBegin:
+                        storage.BeginKey(instruction.Target, state.ResolveSubscriptSeparatorText());
+                        break;
+                    case AwkRegionInstructionKind.KeySeparator:
+                        storage.Builders[instruction.Target].Buffer.Append(
+                            storage.Builders[instruction.Target].Separator, state.CancellationCheckpoint);
+                        break;
+                    case AwkRegionInstructionKind.KeyAppend:
+                    {
+                        ref readonly var component = ref operands[instruction.Left];
+                        if (IsField(component))
+                            state.AppendFieldByteText(storage.Builders[instruction.Target].Buffer, FieldOrdinal(component));
+                        else
+                            storage.Builders[instruction.Target].Buffer.Append(
+                                state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
+                        break;
+                    }
+                    case AwkRegionInstructionKind.KeyReady:
+                        storage.CompleteKey(instruction.Target);
+                        return position;
+                    default:
+                        return position - 1;
+                }
+            }
+            while (++position < instructions.Length);
+            return position - 1;
+        }
+
         internal AwkValue ArgumentValue(int location, AwkParameterInput consumption)
         {
             var source = new AwkRegionNumberSource(location);

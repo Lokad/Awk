@@ -238,20 +238,10 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.KeyBegin:
-                    computationView.Storage.BeginKey(instruction.Target, computationView.State.ResolveSubscriptSeparatorText());
-                    break;
                 case AwkRegionInstructionKind.KeySeparator:
-                    computationView.Storage.Builders[instruction.Target].Buffer.Append(computationView.Storage.Builders[instruction.Target].Separator, computationView.State.CancellationCheckpoint);
-                    break;
                 case AwkRegionInstructionKind.KeyAppend:
-                    var component = computationView.Operands[instruction.Left];
-                    if (AwkRegionComputation.IsField(component))
-                        computationView.State.AppendFieldByteText(computationView.Storage.Builders[instruction.Target].Buffer, computationView.FieldOrdinal(component));
-                    else
-                        computationView.Storage.Builders[instruction.Target].Buffer.Append(computationView.State.FormatStringByteText(computationView.Value(instruction.Left)), computationView.State.CancellationCheckpoint);
-                    break;
                 case AwkRegionInstructionKind.KeyReady:
-                    computationView.Storage.CompleteKey(instruction.Target);
+                    position = computationView.ExecuteKeyAssembly(position);
                     break;
                 case AwkRegionInstructionKind.KeyEnd:
                     computationView.Storage.Builders[instruction.Target].Buffer.Clear();

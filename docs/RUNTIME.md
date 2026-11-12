@@ -302,6 +302,8 @@ capacity checks and initialization. Switching bodies refreshes preparation witho
 unrelated scratch payloads.
 Main input, rule conditions/bodies and record backedges form one prepared program, sharing
 the computation and call driver. Ordinary records retain their location and operand tables.
+Consecutive key-assembly operations share a synchronous computation block. Intervening
+evaluation, polls and host work retain their original boundaries and funded captures.
 One prepared operand carries a variable's binding and fallback name. Value kinds and required
 name-based fallback still resolve at execution time.
 Length reads visible local scalars and arrays through their ordinal bindings; missing, potential
