@@ -7,19 +7,27 @@ public sealed class AwkIndexedFieldCacheTests
     [InlineData("7tail", false, false)] [InlineData("7tail", true, false)]
     [InlineData("0007", false, true)] [InlineData("0007", true, true)]
     [InlineData("7tail", false, true)] [InlineData("7tail", true, true)]
+    [InlineData("7e0", false, false)] [InlineData("7e0", true, false)]
+    [InlineData("7e0", false, true)] [InlineData("7e0", true, true)]
+    [InlineData("+007", false, false)] [InlineData("+007", true, false)]
+    [InlineData("+007", false, true)] [InlineData("+007", true, true)]
+    [InlineData("7\u00e9", false, false)] [InlineData("7\u00e9", true, false)]
+    [InlineData("7\u00e9", false, true)] [InlineData("7\u00e9", true, true)]
+    [InlineData(" 7 ", false, false)] [InlineData(" 7 ", true, false)]
+    [InlineData(" 7 ", false, true)] [InlineData(" 7 ", true, true)]
     public void TextSnapshotsShareSpellingAndKeepEstablishedFactsThroughCompletion(
         string spelling, bool strict, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
         var inputValues = 0;
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, createInputValue: text =>
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|", createInputValue: text =>
         {
             inputValues++;
             return AwkValue.FromNumericString(text);
         });
         var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + " tail old"));
+        frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail|old"));
         if (strict) _ = frame.GetFieldComparison(new(1), AwkNumberParsingMode.Decimal);
         else Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
         var parses = counters.NumericFieldByteParses;
@@ -34,7 +42,7 @@ public sealed class AwkIndexedFieldCacheTests
         Assert.Equal(1, inputValues);
         Assert.True(first.HasSameStorage(value.ByteText));
         Assert.Equal(spelling, value.ByteText.AsString());
-        Assert.Equal(spelling == "0007", value.TryGetStoredComparisonNumber(out _, null));
+        Assert.Equal(spelling is not ("7tail" or "7\u00e9"), value.TryGetStoredComparisonNumber(out _, null));
         frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
         Assert.Equal(spelling, first.AsString());
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
