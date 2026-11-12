@@ -332,8 +332,14 @@ internal static class AwkRuntimeMemory
         return left + right;
     }
 
-    public static long CheckedMultiply(int left, int right) =>
-        CheckedMultiply((long)left, right);
+    public static long CheckedMultiply(int left, int right)
+    {
+        if (left < 0 || right < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+
+        // Nonnegative Int32 operands always have an Int64 product.
+        return (long)left * right;
+    }
 
     public static long CheckedMultiply(long left, int right)
     {

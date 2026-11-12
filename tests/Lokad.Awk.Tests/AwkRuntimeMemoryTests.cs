@@ -29,6 +29,29 @@ public sealed class AwkRuntimeMemoryTests
         AssertMemoryLimit(() => AwkRuntimeMemory.CheckedToInt32((long)int.MaxValue + 1));
     }
 
+    [Theory]
+    [InlineData(0, int.MaxValue, 0L)]
+    [InlineData(int.MaxValue, 0, 0L)]
+    [InlineData(46_341, 46_341, 2_147_488_281L)]
+    [InlineData(int.MaxValue, int.MaxValue, 4_611_686_014_132_420_609L)]
+    public void IntegerCapacityProductsRetainTheirFullLongResult(int left, int right, long expected) =>
+        Assert.Equal(expected, AwkRuntimeMemory.CheckedMultiply(left, right));
+
+    [Theory]
+    [InlineData(-1, 0)] [InlineData(0, -1)]
+    [InlineData(-1, 1)] [InlineData(1, -1)]
+    [InlineData(int.MinValue, int.MinValue)]
+    public void NegativeCapacityOperandsStillFailEvenWhenTheirProductIsNonnegative(int left, int right) =>
+        AssertMemoryLimit(() => AwkRuntimeMemory.CheckedMultiply(left, right));
+
+    [Fact]
+    public void LongCapacityProductsKeepTheirSeparateRepresentabilityBoundary()
+    {
+        Assert.Equal(0L, AwkRuntimeMemory.CheckedMultiply(long.MaxValue, 0));
+        Assert.Equal(long.MaxValue - 1, AwkRuntimeMemory.CheckedMultiply(long.MaxValue / 2, 2));
+        AssertMemoryLimit(() => AwkRuntimeMemory.CheckedMultiply(long.MaxValue, 2));
+    }
+
     [Fact]
     public void AwkRuntimeMemory_UsesOneSplitBufferEstimateForFieldsAndSeparatorBoundaries()
     {
