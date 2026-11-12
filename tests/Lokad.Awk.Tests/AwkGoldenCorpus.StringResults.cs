@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("text-producer-special-assignment-ends-prior-field-demand",
+            ["""BEGIN{FS=",";OFS="2"}{seen=length($3);NF=tolower(OFS);printf "[%s] %s <%s>\n",$3,NF,$0;NF=substr("0004",1);printf "[%s] %s <%s>\n",$4,NF,$0}"""],
+            [], "[] 2 <a2b>\n[] 0004 <a2b22>\n", "a,b,c\n");
         yield return Passing("immediate-case-length-keeps-formatting-unicode-and-input-origins",
             ["""function size(s){return length(tolower(s))+length(toupper(s))}BEGIN{OFS="|";print length(tolower("CAFÉ")),length(toupper("résumé")),length(tolower("")),length(toupper(1.25)),size("AbC")}{print size($1),length(tolower($1)),typeof($1),$1}"""], [],
             "4|6|0|4|6\n8|4|strnum|0007\n8|4|string|café\n", "0007\ncafé\n");
