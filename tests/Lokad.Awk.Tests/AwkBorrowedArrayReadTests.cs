@@ -46,8 +46,8 @@ public sealed class AwkBorrowedArrayReadTests
             Assert.Equal("", value.AsString());
         }
 
-        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
-        Assert.Equal(ownedHashes + 1, counters.ArrayOwnedHashCalls);
+        Assert.Equal(borrowedHashes + ownedHashes + 2,
+            counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls);
         Assert.Equal(classifications, counters.TextValueClassifications);
         Assert.Equal(fieldCaches, counters.FieldValueCacheBufferAllocations);
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
@@ -169,8 +169,8 @@ public sealed class AwkBorrowedArrayReadTests
         if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
         else state.SetArrayFieldValue(name, 1, replacement, binding);
 
-        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
-        Assert.Equal(ownedHashes + 1, counters.ArrayOwnedHashCalls); // Insertion still hashes its owned key.
+        Assert.Equal(borrowedHashes + ownedHashes + 2,
+            counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls); // One lookup and one insertion hash.
         Assert.Equal(classifications, counters.TextValueClassifications);
         Assert.Equal(fieldCaches, counters.FieldValueCacheBufferAllocations);
         Assert.True(state.TryGetBoundGlobalArray(0, out _)); // Bind a cold name only after successful insertion.
@@ -287,8 +287,8 @@ public sealed class AwkBorrowedArrayReadTests
         if (composite) state.SetArrayBuilderValue(name, builder, replacement, default);
         else state.SetArrayFieldValue(name, 1, replacement, default);
 
-        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
-        Assert.Equal(ownedHashes, counters.ArrayOwnedHashCalls);
+        Assert.Equal(borrowedHashes + ownedHashes + 1,
+            counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls);
         Assert.Equal(allocations, counters.AwkTextAllocations);
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("different record"));

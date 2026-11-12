@@ -58,6 +58,17 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(owned.GetHashCode(), key.GetHashCode());
         Assert.Equal(comparer.GetHashCode(bytes), comparer.GetHashCode(key));
         Assert.Equal(9, values[owned]);
+        var owner = new AwkArrayIdentity(1, comparer) { [key] = AwkValue.FromNumber(9) };
+        var view = owner.ByteLookup;
+        Assert.True(view.ContainsKey(bytes));
+        Assert.True(view.TryGetValue(bytes, out var observed));
+        Assert.Equal(9, observed.AsNumber());
+        Assert.True(view.TryGetValue(bytes, out var retained, out observed));
+        Assert.Equal(key, retained);
+        Assert.False(retained.IsOrdinal);
+        Assert.Equal(9, observed.AsNumber());
+        Assert.False(view.ContainsKey(AwkUtf8Codec.Encode(text + "x").Span));
+        Assert.Single(owner);
         var borrowed = values.GetAlternateLookup<ReadOnlySpan<byte>>();
         Assert.True(borrowed.TryGetValue(bytes, out var found));
         Assert.Equal(9, found);
@@ -294,6 +305,12 @@ public sealed class AwkArrayKeyTests
         Assert.Single(borrowedValues);
         Assert.True(counters.ArrayBorrowedHashCalls > 0);
         Assert.Equal(0, counters.AwkTextAllocations);
+        var owner = new AwkArrayIdentity(1, comparer) { [fromOrdinal] = AwkValue.FromNumber(7) };
+        Assert.True(owner.ByteLookup.TryGetValue(AwkUtf8Codec.Encode(text).Span,
+            out var retained, out var observed));
+        Assert.True(retained.IsOrdinal);
+        Assert.Equal(7, observed.AsNumber());
+        Assert.Single(owner);
     }
 
     [Fact]
