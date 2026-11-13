@@ -235,8 +235,7 @@ internal sealed partial class AwkRegionCompiler
                             Right = readIsLeft ? rightNumber : leftNumber,
                             Detail = AwkRegionNumberContinuation.Arithmetic(_arithmetic, readIsLeft).Detail };
                     }
-                    else compiler.Emit(new(AwkRegionInstructionKind.Arithmetic, _number,
-                        leftNumber, rightNumber, (int)_arithmetic));
+                    else compiler.Emit(AwkRegionInstruction.Arithmetic(_arithmetic, _number, leftNumber, rightNumber));
                 }
                 else if (_stringComparison || compiler._operands[right].Kind == AwkRegionOperandKind.Literal)
                     compiler.Emit(new(AwkRegionInstructionKind.CompareText, _number, _left, right, (int)_comparison));

@@ -444,6 +444,8 @@ or environment dependencies.
   Numeric update sites reference canonical operand entries and consume computed number registers
   directly. Other bound-number reads borrow the canonical operand; variable stores retain binding
   indices. Instruction/operand references stay synchronous in immutable program storage.
+  Register arithmetic binds its operator during preparation. Keep operator binding independent
+  of operand source categories; source-read continuations retain their shared semantic kernels.
   Typed numeric reads can finish fresh adjacent arithmetic through their existing Right/Detail
   metadata. Preserve single-consumer proof, operand order, earlier captures across RHS work and
   Call's funded conversion. Plain register arithmetic and field-demand classification stay direct.

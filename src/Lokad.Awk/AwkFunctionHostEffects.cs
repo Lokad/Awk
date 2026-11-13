@@ -71,6 +71,7 @@ internal static class AwkFunctionHostEffects
 
     private static bool DirectHost(in AwkRegionInstruction instruction) => instruction.Kind switch
     {
+        _ when instruction.IsArithmetic => false,
         AwkRegionInstructionKind.Substring when new AwkRegionTextDestination(instruction.Target).IsPrint => true,
         // General builtins and regex/provider operations may publish diagnostics,
         // even without an explicit host builtin. Keep their ordinary owned capture.
@@ -82,7 +83,7 @@ internal static class AwkFunctionHostEffects
         AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber or AwkRegionInstructionKind.Value or
         AwkRegionInstructionKind.Length or AwkRegionInstructionKind.InspectVariable or AwkRegionInstructionKind.InspectArray or
         AwkRegionInstructionKind.InspectValue or AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring or
-        AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Arithmetic or AwkRegionInstructionKind.Compound or
+        AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Compound or
         AwkRegionInstructionKind.Compare or AwkRegionInstructionKind.CompareText or AwkRegionInstructionKind.Negate or
         AwkRegionInstructionKind.Not or AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Discard or
         AwkRegionInstructionKind.Assign or AwkRegionInstructionKind.AssignNumber or AwkRegionInstructionKind.AssignConsumedScalar or

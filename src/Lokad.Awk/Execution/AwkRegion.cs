@@ -154,7 +154,7 @@ internal enum AwkRegionInstructionKind : byte
 {
     MainRead, RuleEnd,
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, TextNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
-    Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Arithmetic, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
+    Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Add, Subtract, Multiply, Divide, Modulo, Power, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, AssignConsumedScalar, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
@@ -164,6 +164,22 @@ internal enum AwkRegionInstructionKind : byte
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)
 {
+    internal static AwkRegionInstruction Arithmetic(AwkNumericOperation operation, int target, int left, int right) =>
+        new(operation switch
+        {
+            AwkNumericOperation.Add => AwkRegionInstructionKind.Add,
+            AwkNumericOperation.Subtract => AwkRegionInstructionKind.Subtract,
+            AwkNumericOperation.Multiply => AwkRegionInstructionKind.Multiply,
+            AwkNumericOperation.Divide => AwkRegionInstructionKind.Divide,
+            AwkNumericOperation.Modulo => AwkRegionInstructionKind.Modulo,
+            AwkNumericOperation.Power => AwkRegionInstructionKind.Power,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        }, target, left, right);
+
+    internal bool IsArithmetic => Kind is AwkRegionInstructionKind.Add or AwkRegionInstructionKind.Subtract or
+        AwkRegionInstructionKind.Multiply or AwkRegionInstructionKind.Divide or
+        AwkRegionInstructionKind.Modulo or AwkRegionInstructionKind.Power;
+
     internal bool IsNumberRead => Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
         AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
         AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or

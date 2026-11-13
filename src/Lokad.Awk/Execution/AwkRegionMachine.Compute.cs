@@ -296,9 +296,29 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.ArrayRead:
                     computationView.Storage.StoreValue(instruction.Target, computationView.ReadArray(computationView.Region.Arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
                     break;
-                case AwkRegionInstructionKind.Arithmetic:
-                    computationView.Numbers[instruction.Target] = AwkNumericOperations.Apply(
-                        computationView.Numbers[instruction.Left], computationView.Numbers[instruction.Right], (AwkNumericOperation)instruction.Detail);
+                case AwkRegionInstructionKind.Add:
+                    computationView.Numbers[instruction.Target] =
+                        computationView.Numbers[instruction.Left] + computationView.Numbers[instruction.Right];
+                    break;
+                case AwkRegionInstructionKind.Subtract:
+                    computationView.Numbers[instruction.Target] =
+                        computationView.Numbers[instruction.Left] - computationView.Numbers[instruction.Right];
+                    break;
+                case AwkRegionInstructionKind.Multiply:
+                    computationView.Numbers[instruction.Target] =
+                        computationView.Numbers[instruction.Left] * computationView.Numbers[instruction.Right];
+                    break;
+                case AwkRegionInstructionKind.Divide:
+                    computationView.Numbers[instruction.Target] = AwkNumericOperations.Divide(
+                        computationView.Numbers[instruction.Left], computationView.Numbers[instruction.Right], AwkMessages.ErrorDivisionByZero);
+                    break;
+                case AwkRegionInstructionKind.Modulo:
+                    computationView.Numbers[instruction.Target] = AwkNumericOperations.Modulo(
+                        computationView.Numbers[instruction.Left], computationView.Numbers[instruction.Right], AwkMessages.ErrorDivisionByZeroInModulo);
+                    break;
+                case AwkRegionInstructionKind.Power:
+                    computationView.Numbers[instruction.Target] =
+                        Math.Pow(computationView.Numbers[instruction.Left], computationView.Numbers[instruction.Right]);
                     break;
                 case AwkRegionInstructionKind.Compound:
                     computationView.Numbers[instruction.Target] = AwkNumericOperations.ApplyCompoundAssignment(

@@ -39,8 +39,9 @@ internal sealed partial class AwkRegionCompiler
             }
             var continues = instruction.Kind switch
             {
+                _ when instruction.IsArithmetic => true,
                 AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Negate or
-                AwkRegionInstructionKind.Arithmetic or AwkRegionInstructionKind.Compound or
+                AwkRegionInstructionKind.Compound or
                 AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
                 AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
                 AwkRegionInstructionKind.KeyBegin or AwkRegionInstructionKind.KeyEnd or AwkRegionInstructionKind.ReleaseValue or

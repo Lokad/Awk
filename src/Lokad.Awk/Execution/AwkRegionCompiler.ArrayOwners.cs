@@ -30,7 +30,7 @@ internal sealed partial class AwkRegionCompiler
             }
             if (instruction.Kind == AwkRegionInstructionKind.StatementBoundary)
                 continue;
-            if (instruction.Kind is AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Arithmetic or
+            if (instruction.IsArithmetic || instruction.Kind is AwkRegionInstructionKind.MoveNumber or
                 AwkRegionInstructionKind.Compound or AwkRegionInstructionKind.Negate or
                 AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
                 AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
