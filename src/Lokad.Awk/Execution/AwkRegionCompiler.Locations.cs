@@ -95,6 +95,7 @@ internal sealed partial class AwkRegionCompiler
     {
         private byte _stage;
         private int _value;
+        private int _scalar = -1;
         private PreparedUpdate _update;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
@@ -104,6 +105,9 @@ internal sealed partial class AwkRegionCompiler
             {
                 if (_stage == 0)
                 {
+                    // Static identifier binding has no execution effects. Keep
+                    // field/array destination evaluation after the captured RHS.
+                    if (compiler.Variable(syntax.Children[0], out var scalar)) _scalar = scalar;
                     _stage = 1;
                     next = compiler.CreateOperandWork(syntax.Children[1]);
                     return true;
@@ -112,21 +116,24 @@ internal sealed partial class AwkRegionCompiler
                 {
                     // Ordinary assignment owns its RHS before destination effects.
                     _value = compiler.CaptureValue(CompletedResult<int>(completed));
+                    if (_scalar >= 0)
+                    {
+                        compiler.Assign(_scalar, _value);
+                        return Complete(_value);
+                    }
                     _stage = 2;
                     next = new LocationWork(syntax.Children[0]);
                     return true;
                 }
                 var location = CompletedResult<PreparedLocation>(completed);
-                var operand = compiler._operands[location.Operand];
                 if (location.Access >= 0)
                 {
                     compiler.PrepareImmediatePath(location.Access);
                     compiler.Emit(new(AwkRegionInstructionKind.ArrayAssign, location.Access, _value));
                     compiler.FinishKey(location.Access);
                 }
-                else if (operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
+                else
                     compiler.Emit(new(AwkRegionInstructionKind.AssignField, location.Operand, _value));
-                else compiler.Assign(location.Operand, _value);
                 return Complete(_value);
             }
             if (!AwkAssignmentOperators.TryGetCompoundOperation(syntax.OperatorTokens[0].Kind, out var operation)) return false;
