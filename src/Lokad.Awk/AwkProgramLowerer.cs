@@ -13,7 +13,9 @@ internal static partial class AwkProgramLowerer
 
     public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        IReadOnlyList<AwkSymbolReference>? symbols = null,
+        AwkRuntimeArgumentPlan? externalArguments = null)
     {
         checkpoint?.Invoke();
         List<AwkDiagnostic>? syntaxErrors = null;
@@ -78,6 +80,8 @@ internal static partial class AwkProgramLowerer
 
         AwkFunctionHostEffects.Prepare(functions, checkpoint);
 
+        var scratchResults = AwkScalarResultUses.Prepare(syntax, functions, symbols, externalArguments, checkpoint);
+
         var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, functions);
         var main = AwkRegionCompiler.CreateMain(globalScope);
         var rangeCount = 0;
@@ -88,7 +92,8 @@ internal static partial class AwkProgramLowerer
             var rangeIndex = rule.PatternSyntax is AwkRangePatternSyntax ? rangeCount++ : -1;
             if (rule.Kind == AwkRuleKind.Main)
             {
-                if (!main.AppendMainRule(rule, rangeIndex, out var diagnostic))
+                scratchResults.TryGetValue(ruleIndex, out var results);
+                if (!main.AppendMainRule(rule, rangeIndex, out var diagnostic, results))
                     return AwkLoweringResult.Failure([diagnostic]);
                 continue;
             }

@@ -4,6 +4,33 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("closed-call-results-keep-values-across-statements-branches-and-loops",
+            ["""function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t}{v=clip($1,$2);x=3;if(NR%2)total+=length((v));else for(i=0;i<2;i++)total+=length(v);total+=length(v)}END{print total}"""],
+            [], "21\n", "CAFÉ 2\nHELLO 9\nx 1\n");
+        yield return Passing("call-result-publication-preserves-end-and-other-rule-observers",
+            ["""function copy(s){return s}{v=copy($1);total+=length(v)}{print v,typeof(v)}END{print total,v,typeof(v)}"""],
+            [], "0007 strnum\ncafé string\n8 café string\n", "0007\ncafé\n");
+        yield return Passing("call-result-publication-preserves-function-global-observers",
+            ["""function copy(s){return s}function observe(){print v,typeof(v)}{v=copy($1);observe();print length(v)}"""],
+            [], "0007 strnum\n4\n", "0007\n");
+        yield return Passing("call-result-publication-preserves-symbol-table-observers",
+            ["""function copy(s){return s}{v=copy($1);print length(v),SYMTAB["v"],typeof(SYMTAB["v"])}"""],
+            [], "4 0007 strnum\n", "0007\n");
+        yield return Passing("call-result-publication-preserves-dynamic-argument-assignments",
+            ["""function copy(s){return s}BEGIN{ARGV[2]="v=changed";ARGC=4}{v=copy($1);getline nextline;print length(v)}""", "-", "ignored", "-"],
+            [], "7\n", "row\n");
+        yield return Passing("call-result-publication-preserves-conditional-definitions-and-old-values",
+            ["""function copy(s){return s}BEGIN{v="old"}{if(NR%2)v=copy($1);print length(v)}"""],
+            [], "4\n4\n", "0007\nlonger\n");
+        yield return Passing("call-result-publication-preserves-mixed-reads-and-aliases",
+            ["""function copy(s){return s}function see(p){print p,typeof(p)}{v=copy($1);print length(v),v+0;see(v)}"""],
+            [], "4 7\n0007 strnum\n", "0007\n");
+        yield return Passing("call-result-publication-preserves-external-initialization",
+            ["-v", "v=old", """function copy(s){return s}{v=copy($1);print length(v)}""", "v=before", "-"],
+            [], "4\n", "0007\n");
+        yield return Passing("closed-call-results-keep-number-formatting-at-consumption",
+            ["""function number(){return 1.23456789}{v=number();CONVFMT="%.2f";a=length(v);CONVFMT="%.4f";print a,length(v)}"""],
+            [], "4 6\n", "row\n");
         yield return Passing("counted-text-producers-preserve-units-formatting-and-input-origins",
             ["""function sizes(s){return length(tolower(s)) ":" length(toupper(s)) ":" length(substr(s,2,2))}BEGIN{CONVFMT="%.2f";print sizes("İıKſßﬃΣ𐐀😀");print sizes(12.5);s="0007";print sizes(s),s,typeof(s)}{print sizes($1),$1,typeof($1)}"""],
             [], "9:9:2\n5:5:2\n4:4:2 0007 string\n4:4:2 0007 strnum\n", "0007\n");

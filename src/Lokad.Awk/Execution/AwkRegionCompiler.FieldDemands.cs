@@ -25,7 +25,9 @@ internal sealed partial class AwkRegionCompiler
                 Finish();
                 // Conditional metadata belongs to fallthrough; the taken target
                 // has its own label. Statement metadata runs after actual flush.
-                boundary = index;
+                // A removed scalar store still polls after callee retirement,
+                // but must not acquire the following statement's field demand.
+                boundary = instruction.Kind == AwkRegionInstructionKind.Poll && instruction.Detail < 0 ? -1 : index;
                 first = maximum = 0;
                 if (instruction.Kind == AwkRegionInstructionKind.Poll) readyThrough = 0;
                 continue;

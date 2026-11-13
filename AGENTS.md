@@ -406,6 +406,10 @@ or environment dependencies.
   discarded numeric results retire any old scratch payload without value transport.
   Discarded scalar returns keep their funded caller handoff through callee retirement,
   then use that shared scalar publication. Canonical text/value operands share retirement.
+  Closed scalar definition/use ranges may instead retain the complete returned value in
+  existing rule-funded caller scratch. Prove external definitions and every observer first;
+  standalone preparation remains conservative. Keep post-retirement cancellation and flush/
+  field-demand ordering, and retire that scratch with its rule. Do not substitute length proxies.
 - Function locals use one contiguous funded cell array for every arity. Keep indexed access
   direct; do not restore separate inline cells, arity-based storage paths or their counters.
   Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already

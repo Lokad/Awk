@@ -44,6 +44,8 @@ Return capture also covers ready/pending host mutation of fields, globals, local
 public failed diagnostic completion, and return field-demand termination before unreachable code.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
+Closed call-result ranges also cover external definitions, cross-rule/symbol-table observers,
+full-value scratch through pending output, later refusal and cancellation during callee retirement.
 Text producers also cover used assignment snapshots, plain-string origins and refusal or
 cancellation at publication after actual RHS production.
 Computed text retains local/global numeric reading modes. Raw untyped payload checks use their

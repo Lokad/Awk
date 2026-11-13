@@ -8,7 +8,8 @@ internal static class AwkBinder
     public static AwkBindingResult Bind(
         AwkParseResult parseResult,
         AwkCompatibilityProfile compatibilityProfile,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkRuntimeArgumentPlan? externalArguments = null)
     {
         checkpoint?.Invoke();
         var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, out var globalNames, compatibilityProfile.Mode, checkpoint);
@@ -36,7 +37,8 @@ internal static class AwkBinder
                 AwkProgramResult.None,
                 compatibilityParseFailed: true);
 
-        var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames, compatibilityProfile.Mode, checkpoint);
+        var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames, compatibilityProfile.Mode, checkpoint,
+            symbols, externalArguments);
         if (lowering.Diagnostics.Count > 0)
             return new AwkBindingResult(
                 lowering.PhaseResult.Phase,

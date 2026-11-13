@@ -41,6 +41,7 @@ internal sealed partial class AwkRegionCompiler
     private int _activeBuilders;
     private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
+    private Dictionary<AwkVariableName, int>? _scalarResults;
     private readonly Stack<ControlScope> _controls = [];
     private int _numbers;
     private int _lastNumberRead = -1;
@@ -73,12 +74,24 @@ internal sealed partial class AwkRegionCompiler
         return CreateRegion();
     }
 
-    internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic)
+    internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic,
+        IReadOnlyList<AwkVariableName>? scalarResults = null)
     {
         var before = StorageLayout() with { Targets = 0 };
+        if (scalarResults is { Count: > 0 })
+        {
+            _scalarResults = new(scalarResults.Count);
+            foreach (var name in scalarResults)
+            {
+                _scope.CheckCancellation();
+                // Outside statement-local retirement, inside the existing rule owner.
+                _scalarResults.Add(name, Operand(AwkRegionOperandKind.ValueTemporary, _values++));
+            }
+        }
         var firstUpdate = _updates.Count;
         var firstInstruction = _code.Count;
         var success = AppendMainRuleBody(rule, rangeIndex);
+        _scalarResults = null;
         if (success)
         {
             PrepareArrayOwners(firstInstruction);
@@ -442,7 +455,8 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             case AwkExpressionKind.Variable:
                 if (!Variable(syntax, out var variable)) return false;
-                result = variable;
+                result = _scalarResults is not null && _scalarResults.TryGetValue(_operands[variable].Name, out var retained)
+                    ? retained : variable;
                 return true;
             default: return false;
         }
@@ -707,6 +721,25 @@ internal sealed partial class AwkRegionCompiler
             return;
         }
         Emit(new(AwkRegionInstructionKind.AssignNumber, variable, NumericRegister(value)));
+    }
+
+    private bool AssignScratchResult(int variable, ref int value)
+    {
+        if (_scalarResults is null || !_scalarResults.TryGetValue(_operands[variable].Name, out var retained)) return false;
+        if (_operands[value] is { Kind: AwkRegionOperandKind.ValueTemporary } source &&
+            _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
+        {
+            _code[^1] = call with { Target = _operands[retained].Index };
+            if (source.Index == _values - 1) _values--;
+            if (value == _operands.Count - 1) _operands.RemoveAt(value);
+            value = retained;
+            // Callee retirement can invoke refund callbacks. Preserve the store's
+            // cancellation check, without preparing fields before its flush boundary.
+            Emit(new(AwkRegionInstructionKind.Poll, Detail: -1));
+            return true;
+        }
+        _scalarResults.Remove(_operands[variable].Name);
+        return false;
     }
 
     private bool Branch(AwkExpressionSyntax syntax, bool whenTrue, List<int> destinations) =>
