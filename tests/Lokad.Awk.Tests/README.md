@@ -76,6 +76,8 @@ Repeated captured updates cover changing keys, cells, values and array storage. 
 measure lookup reuse across field, literal, variable, alias, temporary and composite keys.
 Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,
 funded users and cancellation through key changes and array replacement.
+Composite components also retain separator growth/refusal before the next component and
+separator retirement before target admission, including interrupted and nested assembly.
 Loop updates also cover conditions/steps, distinct sites, multiple rules and overlap with
 live RHS captures. Admission tests check stopped mutation and retirement, and pending-host
 tests keep their actual frame funded through completion and cancellation.
@@ -109,8 +111,9 @@ Long owned-record capture checks cancellation after saving its immutable source.
 access uses surrounding computation/primitive checks; lazy materialization retains its checks.
 Stored-text consumers preserve scalar origins, scope hiding and earlier captures; exercise
 their restored frame after actual host suspension, including cancellation and final refunds.
-Immediate case-length counters retain actual casing preparation/conversion and byte-native
-consumption; goldens also observe assignments, nested producers, formatting and input origins.
+Immediate case-length counters verify no unused text construction; owning-result fixtures
+retain actual casing preparation/conversion. Goldens observe assignments, nested producers,
+formatting and input origins.
 
 `AwkRuntimeCounters` assertions measure actual byte conversion, field preparation, copies and
 transport. Retire counters when their mechanism disappears. Tests that force GC or measure

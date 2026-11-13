@@ -239,9 +239,7 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.KeyBegin:
-                case AwkRegionInstructionKind.KeySeparator:
                 case AwkRegionInstructionKind.KeyAppend:
-                case AwkRegionInstructionKind.KeyReady:
                     position = computationView.ExecuteKeyAssembly(position);
                     break;
                 case AwkRegionInstructionKind.KeyEnd:

@@ -57,14 +57,13 @@ internal sealed partial class AwkRegionCompiler
             {
                 var value = CompletedResult<int>(completed);
                 if (parts.Count - first == 1) return Complete(value);
-                compiler.Emit(new(AwkRegionInstructionKind.KeyAppend, _builder, value));
                 _position++;
+                compiler.Emit(new(AwkRegionInstructionKind.KeyAppend, _builder, value,
+                    Detail: _position == parts.Count ? 1 : 0));
                 if (_position == parts.Count)
                 {
-                    compiler.Emit(new(AwkRegionInstructionKind.KeyReady, _builder));
                     return Complete(compiler.Operand(AwkRegionOperandKind.KeyBuilder, _builder));
                 }
-                compiler.Emit(new(AwkRegionInstructionKind.KeySeparator, _builder));
             }
             next = compiler.CreateOperandWork(parts[_position]);
             return true;
@@ -191,7 +190,7 @@ internal sealed partial class AwkRegionCompiler
                         var builder = compiler._activeBuilders++;
                         compiler._builderCount = Math.Max(compiler._builderCount, compiler._activeBuilders);
                         compiler.Emit(new(AwkRegionInstructionKind.KeyEnd, builder));
-                        compiler.Emit(new(AwkRegionInstructionKind.KeyAppend, builder, _key));
+                        compiler.Emit(new(AwkRegionInstructionKind.KeyAppend, builder, _key, Detail: 1));
                         _key = compiler.Operand(AwkRegionOperandKind.KeyBuilder, builder);
                     }
                     _stage = 2;

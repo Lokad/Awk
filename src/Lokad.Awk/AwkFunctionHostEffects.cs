@@ -93,7 +93,7 @@ internal static class AwkFunctionHostEffects
         AwkRegionInstructionKind.ArrayTarget or
         AwkRegionInstructionKind.NestedContains or AwkRegionInstructionKind.PathDelete or AwkRegionInstructionKind.PathBegin or
         AwkRegionInstructionKind.PathKey or AwkRegionInstructionKind.PathEnd or AwkRegionInstructionKind.KeyBegin or
-        AwkRegionInstructionKind.KeySeparator or AwkRegionInstructionKind.KeyAppend or AwkRegionInstructionKind.KeyReady or
+        AwkRegionInstructionKind.KeyAppend or
         AwkRegionInstructionKind.KeyEnd or AwkRegionInstructionKind.ReleaseValue or AwkRegionInstructionKind.ReleaseValues or
         AwkRegionInstructionKind.BeginCall or AwkRegionInstructionKind.Arguments or AwkRegionInstructionKind.BuiltinArgument or
         AwkRegionInstructionKind.ConcatArgument or

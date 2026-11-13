@@ -154,6 +154,8 @@ or environment dependencies.
 - Reusable key scratch owns its captured separator directly. Retire that snapshot after
   assembly, before target admission; keep completed bytes until consumption. Nested or pending
   components retain their own scratch. Do not stage separators through general value slots.
+  Component instructions complete their own separator append or final separator retirement;
+  keep growth/refusal before the next component's effects without separate separator/completion dispatch.
   Consecutive key assembly runs through one synchronous computation kernel. Preserve its
   ordered primitives and return to the main driver for intervening computation, polls, calls
   and hosts. Interrupted segments resume without replaying earlier captures; consumers still

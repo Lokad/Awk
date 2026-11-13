@@ -48,10 +48,6 @@ internal partial struct AwkRegionMachine
                     case AwkRegionInstructionKind.KeyBegin:
                         storage.BeginKey(instruction.Target, state.ResolveSubscriptSeparatorText());
                         break;
-                    case AwkRegionInstructionKind.KeySeparator:
-                        storage.Builders[instruction.Target].Buffer.Append(
-                            storage.Builders[instruction.Target].Separator, state.CancellationCheckpoint);
-                        break;
                     case AwkRegionInstructionKind.KeyAppend:
                     {
                         ref readonly var component = ref operands[instruction.Left];
@@ -60,11 +56,17 @@ internal partial struct AwkRegionMachine
                         else
                             storage.Builders[instruction.Target].Buffer.Append(
                                 state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
+                        // Complete this component before evaluating the next one.
+                        // Separator growth/refusal stays before any later effects.
+                        if (instruction.Detail != 0)
+                        {
+                            storage.CompleteKey(instruction.Target);
+                            return position;
+                        }
+                        storage.Builders[instruction.Target].Buffer.Append(
+                            storage.Builders[instruction.Target].Separator, state.CancellationCheckpoint);
                         break;
                     }
-                    case AwkRegionInstructionKind.KeyReady:
-                        storage.CompleteKey(instruction.Target);
-                        return position;
                     default:
                         return position - 1;
                 }
