@@ -1,14 +1,16 @@
 # Benchmarks
 
 Release, quiet Linux x64, .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-All **78 managed/GNU comparisons and fourteen shared-admission measurements** were refreshed on
-**2026-11-13 UTC** at [9e0be622](https://github.com/Lokad/Awk/commit/9e0be6224cba96793c642dc7b80237ee08bfde2e).
+**¹** marks six managed comparison results and the conditional shared-admission pair refreshed
+on **2026-11-13 UTC** at [8f24fb9b](https://github.com/Lokad/Awk/commit/8f24fb9b9037f091fc20462db517bea4781adeb8).
+The other 72 managed results, twelve policy measurements and all GNU timings retain
+**2026-11-13 UTC** evidence at [9e0be622](https://github.com/Lokad/Awk/commit/9e0be6224cba96793c642dc7b80237ee08bfde2e).
 
-The independently installed native binary, fixtures, policies, contracts and equivalent outputs
-were verified. Times are BenchmarkDotNet medians; lower ratios are faster. Allocations include
-the managed host; no GNU allocation comparison is claimed. Single-launch medians do not establish
-process-to-process variation or the effect of a source change. Regex uses the source adapter with
-published Lokad.Utf8Regex 0.4.0. The in-memory host reuses completed append acceptance.
+The selected fixtures, policies, contracts, native binary and equivalent outputs were reverified;
+GNU timings were not rerun. Times are BenchmarkDotNet medians; lower ratios are faster.
+Allocations include the managed host; no GNU allocation comparison is claimed. Single-launch
+medians do not establish process-to-process variation or the effect of a source change. Regex
+uses the source adapter with published Lokad.Utf8Regex 0.4.0. The host reuses completed append acceptance.
 
 ## Representative processing
 
@@ -23,12 +25,11 @@ do not imply full conformance.
 | ERE field separator | 48.00 | 5.765 | 1.642 | 3.51× | 2.238 |
 | ERE boolean matching | 32.00 | 2.154 | 0.935 | 2.30× | 7.198 |
 | ERE capture arrays (GNU) | 28.00 | 10.847 | 7.323 | 1.48× | 32.294 |
-| Numeric array sort (GNU) | 18.92 | 2.398 | 1.994 | 1.20× | 0.888 |
 | Loop with two-argument calls and local temporary | 8.00 | 4.385 | 4.054 | 1.08× | 0.278 |
 | Nested-array calls, 16 keys (GNU) | 25.08 | 1.966 | 1.837 | 1.07× | 0.193 |
 | Loop with unary arithmetic calls | 8.00 | 3.587 | 3.472 | 1.03× | 0.267 |
-| Text function with branches and local temporary | 62.00 | 1.693 | 1.639 | 1.03× | 0.372 |
 | Loop with repeated field arguments | 25.08 | 3.857 | 3.795 | 1.02× | 0.151 |
+| Text function with branches and local temporary ¹ | 62.00 | 1.665 | 1.639 | 1.02× | 0.372 |
 | Branching function, one argument | 8.00 | 3.700 | 3.697 | 1.00× | 0.294 |
 | Loop with two-argument calls | 8.00 | 3.671 | 3.746 | 0.98× | 0.271 |
 | Five-part string concatenation | 20.00 | 1.288 | 1.342 | 0.96× | 0.498 |
@@ -36,12 +37,13 @@ do not imply full conformance.
 | Project three columns / output | 60.00 | 1.133 | 1.210 | 0.94× | 0.066 |
 | Nested-array calls, 1,024 keys (GNU) | 31.24 | 2.096 | 2.245 | 0.93× | 0.817 |
 | printf | 24.00 | 1.520 | 1.720 | 0.88× | 0.067 |
+| Numeric array sort (GNU) ¹ | 18.92 | 1.753 | 1.994 | 0.88× | 0.888 |
 | While loop and numeric arithmetic | 8.00 | 2.012 | 2.387 | 0.84× | 0.249 |
 | Loop with five-argument calls | 8.00 | 4.335 | 5.165 | 0.84× | 0.299 |
+| ASCII substr/index/length/casing ¹ | 52.00 | 1.033 | 1.241 | 0.83× | 0.242 |
 | Post-test arithmetic loop | 8.00 | 1.923 | 2.321 | 0.83× | 0.251 |
 | Loop with repeated numeric field reads | 25.08 | 2.132 | 2.590 | 0.82× | 0.127 |
 | Unicode length/substr / output | 60.00 | 1.357 | 1.677 | 0.81× | 0.077 |
-| ASCII substr/index/length/casing | 52.00 | 1.000 | 1.241 | 0.81× | 0.242 |
 | Two-file membership / join | 77.83 | 1.995 | 2.481 | 0.80× | 0.988 |
 | Labeled printf | 24.00 | 1.899 | 2.364 | 0.80× | 0.074 |
 | Keyed sum / sorted output (GNU) | 24.00 | 0.772 | 0.997 | 0.77× | 0.116 |
@@ -83,14 +85,14 @@ processing costs better than small inputs dominated by process startup.
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 26.233 | 4.688 | 5.60× | 112.199 |
-| Text function with branches and local temporary | 992.00 | 26.760 | 16.449 | 1.63× | 3.657 |
+| Text function with branches and local temporary ¹ | 992.00 | 26.093 | 16.449 | 1.59× | 3.657 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 11.463 | 8.411 | 1.36× | 0.145 |
 | Nested-array calls, 16 keys (GNU) | 100.35 | 7.248 | 5.339 | 1.36× | 0.193 |
-| ASCII substr/index/length/casing | 832.00 | 13.472 | 10.123 | 1.33× | 2.118 |
-| Numeric array sort (GNU) | 373.15 | 30.427 | 23.054 | 1.32× | 10.972 |
 | Unicode length/substr / output | 960.00 | 19.903 | 15.732 | 1.27× | 0.079 |
 | Loop with repeated field arguments | 401.40 | 63.012 | 50.675 | 1.24× | 0.152 |
+| ASCII substr/index/length/casing ¹ | 832.00 | 12.178 | 10.123 | 1.20× | 2.118 |
 | Nested-array calls, 1,024 keys (GNU) | 125.01 | 7.359 | 6.131 | 1.20× | 0.817 |
+| Numeric array sort (GNU) ¹ | 373.15 | 27.614 | 23.054 | 1.20× | 10.972 |
 | Project a column / output | 960.00 | 7.274 | 6.169 | 1.18× | 0.059 |
 | Two-file membership / join | 1386.30 | 35.908 | 31.073 | 1.16× | 10.120 |
 | Fixed-count numeric field loop (128 columns) | 1616.00 | 40.633 | 35.835 | 1.13× | 0.111 |
@@ -120,7 +122,7 @@ per invocation. Compare within each cohort. The host and output verification are
 | Composite-key sum / sorted output (GNU) | 11.298 | 11.374 | 1.01× | 0.145 | 0.146 |
 | Nested-array calls, 16 keys (GNU) | 7.682 | 7.782 | 1.01× | 0.193 | 0.194 |
 | Nested-array calls, 1,024 keys (GNU) | 7.199 | 8.353 | 1.16× | 0.817 | 0.818 |
-| Text function with branches and local temporary | 28.502 | 39.081 | 1.37× | 3.656 | 3.657 |
+| Text function with branches and local temporary ¹ | 25.488 | 38.618 | 1.52× | 3.656 | 3.657 |
 | Long Unicode field / bounded prefix | 1.880 | 2.017 | 1.07× | 8.335 | 8.336 |
 
 ## Method and refresh
