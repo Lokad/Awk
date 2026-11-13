@@ -24,15 +24,30 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
-    public async Task TextPublicationAdmissionFollowsProductionAndStopsBeforeMutation(bool substring, bool cancel)
+    public Task TextPublicationAdmissionFollowsProductionAndStopsBeforeMutation(bool substring, bool cancel) =>
+        AssertTextPublicationStopsBeforeMutation(substring ? "substr(\"ABCD\",2,2)" : "tolower(\"ABC\")", cancel);
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public Task ConcatenationPublicationAdmissionFollowsProductionAndStopsBeforeMutation(bool cancel) =>
+        AssertTextPublicationStopsBeforeMutation("\"AB\" \"CD\" \"EF\"", cancel);
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public Task PublishedConcatenationStaysFundedUntilPendingOutputCompletes(bool local, bool cancel) =>
+        VerifyPendingPublishedText(cancel, local
+            ? "function f(s,t){t=s \"07\";print \"held\";return t}BEGIN{print f(\"00\")}"
+            : "function f(s){saved=s \"07\";print \"held\";return saved}BEGIN{print f(\"00\")}", "0007\n");
+
+    private static async Task AssertTextPublicationStopsBeforeMutation(string expression, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var memory = new CooperativeTestMemory(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
-        var program = Bind("function f(){print \"before\";saved=" +
-            (substring ? "substr(\"ABCD\",2,2)" : "tolower(\"ABC\")") + ";print \"after\"}BEGIN{f()}");
+        var program = Bind("function f(){print \"before\";saved=" + expression + ";print \"after\"}BEGIN{f()}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

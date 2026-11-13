@@ -116,6 +116,15 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("short-concatenation-keeps-fields-across-getline",
             ["{print \"[\" $1 \":\" ((getline)>0 ? $1 : \"EOF\") \"]\"}"],
             [], "[café:δ]\n", "café\nδ\n");
+        yield return Passing("concatenation-consumers-preserve-plain-strings-and-used-snapshots",
+            ["""function id(x){return x}BEGIN{a="" "";b="" "007";c="00" "7";d="" "0" "" "07" "";print typeof(a),"["a"]",typeof(b),b,typeof(c),c,typeof(d),d;print(b==7),(c==7),(d==7),length("" "007"),length("00" "7");saved=(used="00" "7");print typeof(saved),saved,used;keys[b]=c;print(7 in keys),("007" in keys),keys["007"],id("00" "7")}{s="" $1;print typeof(s),(s==7),s}"""],
+            [], "string [] string 007 string 007 string 007\n0 0 0 3 3\nstring 007 007\n0 1 007 007\nstring 0 007\n", "007\n");
+        foreach (var (option, number) in new[] { ("", 0), ("--non-decimal-data", 16), ("--posix", 16), ("--traditional", 0) })
+        {
+            const string program = "function id(x){return x}BEGIN{v=\"0\" \"x10\";print v,v+0,id(\"0\" \"x10\")}";
+            yield return Passing("concatenation-consumer-numeric-mode-" + (option.Length == 0 ? "default" : option[2..]),
+                option.Length == 0 ? [program] : [option, program], [], $"0x10 {number} 0x10\n");
+        }
         yield return Passing("string-results-retain-string-typing-and-keys",
             ["BEGIN{s=substr(\"_008_\",2,3);a[s]=s;t=tolower(\"0\");u=toupper(\"0\");print typeof(s),s,s+0,(s==8),(s?1:0),(\"008\" in a),(8 in a),typeof(t),(t?1:0),typeof(u),(u?1:0)}"],
             [], "string 008 8 0 1 1 0 string 1 string 1\n");

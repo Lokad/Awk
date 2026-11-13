@@ -46,6 +46,8 @@ Scalar-publication tests exercise both canonical source kinds and actual local/g
 including tight admission, fallback failures and refund reentry after source retirement.
 Text producers also cover used assignment snapshots, plain-string origins and refusal or
 cancellation at publication after actual RHS production.
+Concatenation covers empty and multi-part values, used snapshots, numeric modes, and local/global
+results retained through genuinely pending output and cancellation.
 Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array
 writes; sort goldens also cover ordinary string keys and nondecimal input values.
 Text projection also preserves untyped origins and charges, and rejects array scalars.
