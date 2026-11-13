@@ -1603,9 +1603,9 @@ internal sealed class AwkRuntimeState : IDisposable
         in AwkArrayUpdateTarget previous = default) =>
         _arrayRuntime.PrepareUpdate(name, builder, binding, in previous);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, double index, AwkArrayBinding binding,
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(in AwkArrayName name, double index, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous = default) =>
-        _arrayRuntime.PrepareUpdate(name, index, binding, in previous);
+        _arrayRuntime.PrepareUpdate(in name, index, binding, in previous);
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous = default) =>

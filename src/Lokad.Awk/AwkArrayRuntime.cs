@@ -289,7 +289,7 @@ internal sealed partial class AwkArrayRuntime
     private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
         new(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint), _state.CancellationCheckpoint);
 
-    internal AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, double index, AwkArrayBinding binding,
+    internal AwkArrayUpdateTarget PrepareUpdate(in AwkArrayName name, double index, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous = default)
     {
         if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&

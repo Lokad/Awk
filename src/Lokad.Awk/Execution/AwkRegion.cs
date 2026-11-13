@@ -108,7 +108,13 @@ internal readonly struct AwkRegionLiteral
     internal AwkText Text { get; }
     internal AwkArrayKey Key { get; }
 }
-internal readonly record struct AwkRegionArrayAccess(AwkArrayName Name, AwkArrayBinding Binding, int Key, int Path = -1);
+internal readonly struct AwkRegionArrayAccess(AwkArrayName name, AwkArrayBinding binding, int key, int path = -1)
+{
+    internal readonly AwkArrayName Name = name;
+    internal readonly AwkArrayBinding Binding = binding;
+    internal readonly int Key = key;
+    internal readonly int Path = path;
+}
 // One prepared location, without another operand lookup for computed numbers.
 // Bound operands use nonnegative indices; complemented register indices are negative.
 internal readonly record struct AwkRegionNumberSource

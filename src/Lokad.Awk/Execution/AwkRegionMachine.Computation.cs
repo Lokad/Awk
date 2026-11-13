@@ -502,7 +502,7 @@ internal partial struct AwkRegionMachine
                     break;
                 default:
                     target = TryArrayNumberKey(access.Key, out var number)
-                        ? state.PrepareArrayUpdate(access.Name, number, access.Binding, in previous)
+                        ? state.PrepareArrayUpdate(in access.Name, number, access.Binding, in previous)
                         : state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
                     break;
             }
