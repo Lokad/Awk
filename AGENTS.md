@@ -82,6 +82,9 @@ or environment dependencies.
   printing share the range/output kernels. Preserve conversion order, source funding
   through admission, field-demand termination and the fused operation's host effects.
   Scalar consumers construct string values at use; never reclassify these as numeric strings.
+  Computed text already has this execution's fixed numeric reading mode. Actual local/global
+  publication consumes that canonical value; general captures retain ordinary normalization.
+  After local normalization, initialize the existing scalar payload without another scalar copy.
   Print-list consumption transfers between distinct slots of that same payload owner, retires
   the source and keeps funding through the existing print/output user. Preserve general-value
   observations, skipped substring-length conversion and actual call/host continuations.

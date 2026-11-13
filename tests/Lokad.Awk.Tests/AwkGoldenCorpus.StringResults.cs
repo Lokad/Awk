@@ -138,5 +138,12 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("string-results-snapshots-through-functions-and-arrays",
             ["function save(x,a){a[x]=x;return x} BEGIN{s=substr(\"_007_\",2);t=save(toupper(s),a);s=0;print t,a[t],t+0,(t==7),length(t)}"],
             [], "007_ 007_ 7 0 4\n");
+        foreach (var (option, number) in new[] { ("", 0), ("--non-decimal-data", 16), ("--posix", 16), ("--traditional", 0) })
+        {
+            const string program = "function clip(s,t,u){t=tolower(s);u=substr(t,1,4);return u}BEGIN{v=clip(\"0X10\");print v,v+0,clip(\"0X10\")+0;v=tolower(\"0X10\");print v,v+0}";
+            yield return Passing("computed-text-publication-keeps-local-and-global-number-mode-" + (option.Length == 0 ? "default" : option[2..]),
+                option.Length == 0 ? [program] : [option, program], [],
+                $"0x10 {number} {number}\n0x10 {number}\n");
+        }
     }
 }

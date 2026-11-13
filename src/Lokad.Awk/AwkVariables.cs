@@ -512,7 +512,11 @@ internal sealed partial class AwkVariables
         // Computed NF and bootstrap storage retain their ordinary assignment owner.
         if (!_governScalarMemory || _resolveFieldCountValue is not null &&
             string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal)) return false;
-        StoreScalarSlot(cell, AwkValue.ForVariableStorage(value, _numberParsingMode),
+        if (sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
+            value = AwkValue.ForVariableStorage(value, _numberParsingMode);
+        else System.Diagnostics.Debug.Assert(value.StoredKind ==
+            AwkValue.FromDeferredText(AwkText.Empty, _numberParsingMode).StoredKind);
+        StoreScalarSlot(cell, value,
             string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal), source, in sourceOperand);
         return true;
     }

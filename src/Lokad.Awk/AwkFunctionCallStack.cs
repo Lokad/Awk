@@ -723,7 +723,9 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value));
+        var assigned = default(AwkFunctionLocalSlot);
+        assigned.InitializeScalar(in value);
+        ReplaceLocalSlot(frame, slotId, slot, assigned);
         slot.Value.PromoteUntypedScalar();
         return true;
     }
@@ -731,7 +733,12 @@ internal sealed class AwkFunctionCallStack(
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value,
         AwkRegionStorage? source = null, in AwkRegionOperand sourceOperand = default)
     {
-        value = value.ForFunctionStorage(numberParsingMode, checkpoint);
+        // Computed text was constructed in this execution's immutable mode.
+        // Other captures keep their ordinary scalar/origin normalization.
+        if (source is null || sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
+            value = value.ForFunctionStorage(numberParsingMode, checkpoint);
+        else System.Diagnostics.Debug.Assert(value.StoredKind ==
+            AwkValue.FromDeferredText(AwkText.Empty, numberParsingMode).StoredKind);
         if (!TryPeekLocalFrame(out var frame))
             return false;
 
@@ -743,7 +750,9 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value), source, in sourceOperand);
+        var assigned = default(AwkFunctionLocalSlot);
+        assigned.InitializeScalar(in value);
+        ReplaceLocalSlot(frame, slotId, slot, assigned, source, in sourceOperand);
         slot.Value.PromoteUntypedScalar();
         return true;
     }

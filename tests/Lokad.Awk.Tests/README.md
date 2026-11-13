@@ -46,6 +46,9 @@ Scalar-publication tests exercise both canonical source kinds and actual local/g
 including tight admission, fallback failures and refund reentry after source retirement.
 Text producers also cover used assignment snapshots, plain-string origins and refusal or
 cancellation at publication after actual RHS production.
+Computed text retains local/global numeric reading modes. Raw untyped payload checks use their
+untyped cell role; reader-materialization callbacks mutate existing cells rather than invoking
+cleared-cell initialization. Preserve backing, pending snapshot and refund assertions in both.
 Concatenation covers empty and multi-part values, used snapshots, numeric modes, and local/global
 results retained through genuinely pending output and cancellation.
 Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array
