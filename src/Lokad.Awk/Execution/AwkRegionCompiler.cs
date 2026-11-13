@@ -55,6 +55,7 @@ internal sealed partial class AwkRegionCompiler
     private bool _usesOutputBuilder;
     private AwkDiagnostic? _diagnostic;
     private int _mainBodyStart = -1;
+    private bool _countStringReturn;
     internal bool HasMainRules { get; private set; }
 
     private AwkRegionCompiler(AwkLoweringScope scope, AwkRegionKind kind) => (_scope, _kind) = (scope, kind);
@@ -75,17 +76,19 @@ internal sealed partial class AwkRegionCompiler
     }
 
     internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic,
-        IReadOnlyList<AwkVariableName>? scalarResults = null)
+        IReadOnlyList<AwkScalarResult>? scalarResults = null)
     {
         var before = StorageLayout() with { Targets = 0 };
         if (scalarResults is { Count: > 0 })
         {
             _scalarResults = new(scalarResults.Count);
-            foreach (var name in scalarResults)
+            foreach (var result in scalarResults)
             {
                 _scope.CheckCancellation();
                 // Outside statement-local retirement, inside the existing rule owner.
-                _scalarResults.Add(name, Operand(AwkRegionOperandKind.ValueTemporary, _values++));
+                _scalarResults.Add(result.Name, result.Function.ReturnsStringLength
+                    ? Operand(AwkRegionOperandKind.NumberTemporary, _numbers++)
+                    : Operand(AwkRegionOperandKind.ValueTemporary, _values++));
             }
         }
         var firstUpdate = _updates.Count;
@@ -125,9 +128,11 @@ internal sealed partial class AwkRegionCompiler
         TryCompile(statements, scope, out region, out _);
 
     internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
-        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic)
+        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic,
+        AwkUserFunction? function = null)
     {
         var compiler = new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record);
+        compiler._countStringReturn = function?.ReturnsStringLength == true;
         var success = compiler.Compile(statements, null, defaultPrint: false, out region);
         diagnostic = compiler._diagnostic ?? default;
         return success;
@@ -309,8 +314,13 @@ internal sealed partial class AwkRegionCompiler
                 var returned = -1;
                 if (statement.Expression.TryGetValue(out var returning))
                 {
-                    if (!Expression(returning, out returned)) return false;
+                    if (_countStringReturn)
+                    {
+                        if (!PrepareOperandWork(new LengthWork(returning), out returned)) return false;
+                    }
+                    else if (!Expression(returning, out returned)) return false;
                 }
+                else if (_countStringReturn) returned = Constant(0);
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
                 {
                     if (_lastNumberRead == _code.Count - 1 && _code.Count > 0 &&
@@ -726,6 +736,25 @@ internal sealed partial class AwkRegionCompiler
     private bool AssignScratchResult(int variable, ref int value)
     {
         if (_scalarResults is null || !_scalarResults.TryGetValue(_operands[variable].Name, out var retained)) return false;
+        if (_operands[retained].Kind == AwkRegionOperandKind.NumberTemporary)
+        {
+            // This register is the proved length consumer, not a scalar value of
+            // the source variable. Keep the logical name out of runtime storage.
+            var countSource = _operands[value];
+            if (countSource.Kind != AwkRegionOperandKind.NumberTemporary)
+                throw new InvalidOperationException("A prepared string-length call requires a numeric result location.");
+            if (_code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.Call,
+                Detail: (int)AwkRegionReturnConsumer.Number } countedCall && countedCall.Target == countSource.Index)
+            {
+                _code[^1] = countedCall with { Target = _operands[retained].Index };
+                if (countSource.Index == _numbers - 1) _numbers--;
+                if (value == _operands.Count - 1) _operands.RemoveAt(value);
+            }
+            else Emit(new(AwkRegionInstructionKind.MoveNumber, _operands[retained].Index, countSource.Index));
+            value = retained;
+            Emit(new(AwkRegionInstructionKind.Poll, Detail: -1));
+            return true;
+        }
         if (_operands[value] is { Kind: AwkRegionOperandKind.ValueTemporary } source &&
             _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
         {
@@ -739,6 +768,24 @@ internal sealed partial class AwkRegionCompiler
             return true;
         }
         _scalarResults.Remove(_operands[variable].Name);
+        return false;
+    }
+
+    private bool IsPreparedStringLength(AwkExpressionSyntax expression, out bool call)
+    {
+        while (expression.Kind == AwkExpressionKind.Group && expression.Children.Count == 1)
+        {
+            _scope.CheckCancellation();
+            expression = expression.Children[0];
+        }
+        call = false;
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var name))
+            return _scalarResults is not null && _scalarResults.TryGetValue(new(name.Identifier), out var result) &&
+                _operands[result].Kind == AwkRegionOperandKind.NumberTemporary;
+        if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
+            !_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _) &&
+            _scope.Functions is { } functions && functions.TryGetValue(new(target.Identifier), out var function))
+            return call = function.ReturnsStringLength;
         return false;
     }
 

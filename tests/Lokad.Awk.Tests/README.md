@@ -46,6 +46,9 @@ Scalar-publication tests exercise both canonical source kinds and actual local/g
 including tight admission, fallback failures and refund reentry after source retirement.
 Closed call-result ranges also cover external definitions, cross-rule/symbol-table observers,
 full-value scratch through pending output, later refusal and cancellation during callee retirement.
+Counted returns cover direct/assigned/forwarding and recursive calls, all reaching local writes,
+numeric formatting at use, dynamic sort/traversal callbacks and callee funding through pending
+diagnostics. Their counters retain observed spellings while removing unused returned text.
 Text producers also cover used assignment snapshots, plain-string origins and refusal or
 cancellation at publication after actual RHS production.
 Computed text retains local/global numeric reading modes. Raw untyped payload checks use their

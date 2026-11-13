@@ -102,10 +102,12 @@ internal sealed partial class AwkRegionCompiler
                 compiler._straightLine--;
             }
             compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray(), fieldDemand, beginsFrame);
-            var returned = compiler._values++;
-            compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending));
+            var counted = function.ReturnsStringLength;
+            var returned = counted ? compiler._numbers++ : compiler._values++;
+            compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending,
+                counted ? (int)AwkRegionReturnConsumer.Number : 0));
             compiler._activeCalls--;
-            return Complete(compiler.Operand(AwkRegionOperandKind.ValueTemporary, returned));
+            return Complete(compiler.Operand(counted ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, returned));
         }
 
         private int FieldDemand(AwkRegionCompiler compiler, AwkRegionInstruction segment)

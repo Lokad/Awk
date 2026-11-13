@@ -410,6 +410,10 @@ or environment dependencies.
   existing rule-funded caller scratch. Prove external definitions and every observer first;
   standalone preparation remains conservative. Keep post-retirement cancellation and flush/
   field-demand ordering, and retire that scratch with its rule. Do not substitute length proxies.
+  Proved ready-text length observations may bind one counted-return body to existing numeric
+  continuations. Include forwarding and dynamic comparator callers; mixed/unknown/format-sensitive
+  returns stay full values. Keep actual callee locals and their preflights. Count before retiring
+  its source without moving materialization admission across the return's output boundary.
 - Function locals use one contiguous funded cell array for every arity. Keep indexed access
   direct; do not restore separate inline cells, arity-based storage paths or their counters.
   Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already

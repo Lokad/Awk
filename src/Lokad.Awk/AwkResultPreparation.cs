@@ -1,14 +1,15 @@
 namespace Lokad.Awk;
 
-// Prove closed definition/use ranges before choosing a result owner. This first
-// slice retains the complete scalar: length consumers do not receive a proxy value.
-internal static class AwkScalarResultUses
+// Prepare result observations and choose existing owners/locations. Counts denote
+// length operations, never numeric substitutes stored in logical string values.
+internal static partial class AwkResultPreparation
 {
-    internal static Dictionary<int, List<AwkVariableName>> Prepare(AwkSyntaxProgram syntax,
+    internal static Dictionary<int, List<AwkScalarResult>> Prepare(AwkSyntaxProgram syntax,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
-        IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
+        IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments,
+        AwkCompatibilityMode mode, Action? checkpoint)
     {
-        Dictionary<int, List<AwkVariableName>> result = [];
+        Dictionary<int, List<AwkScalarResult>> result = [];
         // Standalone/internal preparation can have callers that observe its globals.
         if (arguments is null || symbols is null || functions.Count == 0) return result;
         foreach (var symbol in symbols)
@@ -41,8 +42,8 @@ internal static class AwkScalarResultUses
                         AwkExpressionSyntaxFacts.TryGetIdentifier(assignment.Children[0], out var name) &&
                         !AwkSpecialVariables.TryGet(name.Name, out _) &&
                         AwkExpressionSyntaxFacts.TryGetCallableTarget(Ungroup(assignment.Children[1]), out var call) &&
-                        functions.ContainsKey(new(call.Identifier)))
-                        definitions.TryAdd(name.Name, new(ruleIndex, rule.Span, name.Span, assignment.Span.End));
+                        functions.TryGetValue(new(call.Identifier), out var function))
+                        definitions.TryAdd(name.Name, new(ruleIndex, rule.Span, name.Span, assignment.Span.End, function));
                 }
                 foreach (var expression in statement.EnumerateChildExpressions()) expressions.Push(expression);
                 while (expressions.TryPop(out var expression))
@@ -91,8 +92,9 @@ internal static class AwkScalarResultUses
             if (definition.Reads == 0) continue;
             if (!result.TryGetValue(definition.RuleIndex, out var values))
                 result.Add(definition.RuleIndex, values = []);
-            values.Add(AwkVariableName.FromText(name));
+            values.Add(new(AwkVariableName.FromText(name), definition.Function));
         }
+        PrepareFunctions(syntax, functions, definitions, symbols, mode, checkpoint);
         return result;
 
         AwkExpressionSyntax Ungroup(AwkExpressionSyntax expression)
@@ -106,12 +108,15 @@ internal static class AwkScalarResultUses
         }
     }
 
-    private sealed class Definition(int ruleIndex, AwkTextSpan rule, AwkTextSpan target, int end)
+    private sealed class Definition(int ruleIndex, AwkTextSpan rule, AwkTextSpan target, int end, AwkUserFunction function)
     {
         internal int RuleIndex { get; } = ruleIndex;
         internal AwkTextSpan Rule { get; } = rule;
         internal AwkTextSpan Target { get; } = target;
         internal int End { get; } = end;
+        internal AwkUserFunction Function { get; } = function;
         internal int Reads { get; set; }
     }
 }
+
+internal sealed record AwkScalarResult(AwkVariableName Name, AwkUserFunction Function);

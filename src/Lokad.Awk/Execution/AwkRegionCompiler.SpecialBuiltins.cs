@@ -18,6 +18,12 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var value = argument is null ? compiler.Operand(AwkRegionOperandKind.Field, 0) : CompletedResult<int>(completed);
+            if (argument is not null && compiler.IsPreparedStringLength(argument, out var call))
+            {
+                // Preserve the primitive's check after callee retirement/refunds.
+                if (call) compiler.Emit(new(AwkRegionInstructionKind.Poll, Detail: -1));
+                return Complete(value);
+            }
             var number = compiler._numbers++;
             var producer = default(AwkRegionInstruction);
             var consume = compiler._code.Count > 0 && compiler._code[^1].Kind is AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Substring &&

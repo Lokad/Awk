@@ -66,6 +66,8 @@ internal static partial class AwkProgramLowerer
 
         AwkParameterConsumption.Prepare(syntax, functions, mode, checkpoint);
 
+        var scratchResults = AwkResultPreparation.Prepare(syntax, functions, symbols, externalArguments, mode, checkpoint);
+
         // All named targets have one identity, including forward and recursive calls.
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
@@ -73,14 +75,12 @@ internal static partial class AwkProgramLowerer
             var functionSyntax = syntax.Functions[functionIndex];
             var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
             var scope = AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions);
-            if (!AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region, out var diagnostic))
+            if (!AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region, out var diagnostic, function))
                 return AwkLoweringResult.Failure([diagnostic]);
             function.PrepareRegion(region);
         }
 
         AwkFunctionHostEffects.Prepare(functions, checkpoint);
-
-        var scratchResults = AwkScalarResultUses.Prepare(syntax, functions, symbols, externalArguments, checkpoint);
 
         var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, functions);
         var main = AwkRegionCompiler.CreateMain(globalScope);
