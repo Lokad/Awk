@@ -235,9 +235,10 @@ internal partial struct AwkRegionMachine
             return instruction.Target < 0 ? AwkValue.Unassigned() : Value(instruction.Target);
         }
 
-        internal AwkValue Value(int index)
+        internal AwkValue Value(int index) => Value(in operands[index]);
+
+        private AwkValue Value(scoped in AwkRegionOperand operand)
         {
-            var operand = operands[index];
             switch (operand.Kind)
             {
                 case AwkRegionOperandKind.NumberTemporary: return AwkValue.FromNumber(numbers[operand.Index]);
@@ -531,31 +532,14 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
                     return state.GetFieldNumber(FieldOrdinal(operand));
-                case AwkRegionOperandKind.Literal:
-                    return state.CreateStringValue(region.Literals[operand.Index].Text).AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.ValueTemporary:
-                    return storage.Values[operand.Index].AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.TextTemporary:
-                    return state.CreateStringValue(storage.Texts[operand.Index]).AsNumber(state.CancellationCheckpoint);
                 case AwkRegionOperandKind.ArrayElement:
                     return ReadArrayNumber(region.Arrays[operand.Index]);
-                case AwkRegionOperandKind.GlobalVariable:
-                {
-                    return state.TryResolvePreparedGlobalNumber(operand.Index, out var number) ? number :
-                        state.ResolvePreparedGlobalValue(operand.Name, operand.Index).AsNumber(state.CancellationCheckpoint);
-                }
-                case AwkRegionOperandKind.LocalVariable:
-                {
-                    return frame is not null && TryLocalNumericScalar(operand.Index, out var number) ? number :
-                        state.ResolveFunctionLocalValue(frame, new(operand.Index), operand.Name).AsNumber(state.CancellationCheckpoint);
-                }
-                case AwkRegionOperandKind.SpecialVariable:
-                    return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index).AsNumber(state.CancellationCheckpoint);
-                case AwkRegionOperandKind.DynamicVariable:
-                    return state.ResolveVariableValue(operand.Name).AsNumber(state.CancellationCheckpoint);
-                default:
-                    throw new InvalidOperationException("A numeric source requires a value location.");
+                case AwkRegionOperandKind.GlobalVariable when state.TryResolvePreparedGlobalNumber(operand.Index, out var globalNumber):
+                    return globalNumber;
+                case AwkRegionOperandKind.LocalVariable when frame is not null && TryLocalNumericScalar(operand.Index, out var localNumber):
+                    return localNumber;
             }
+            return Value(in operand).AsNumber(state.CancellationCheckpoint);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
