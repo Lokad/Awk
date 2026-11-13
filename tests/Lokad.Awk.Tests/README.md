@@ -42,6 +42,10 @@ Terminal local returns also cover full-budget handoffs, original spelling/input 
 long-input cancellation before source retirement and current cells after frame reuse.
 Return capture also covers ready/pending host mutation of fields, globals, locals and arrays,
 public failed diagnostic completion, and return field-demand termination before unreachable code.
+Direct-call returns cover pure-number forwarding alongside mixed value/input origins and recursive
+calls. Keep every real frame and outer-owned array alias; refund-created output retains the outer
+frame through pending completion, and cancellation at either retirement stops caller mutation.
+The forwarding counter observes removed value transport, not an enforcing execution quota.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
 Closed call-result ranges also cover external definitions, cross-rule/symbol-table observers,

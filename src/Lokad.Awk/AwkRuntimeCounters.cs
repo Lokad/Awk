@@ -31,6 +31,12 @@ internal sealed class AwkRuntimeCounters
     public long CallAssignments => Volatile.Read(ref _callAssignments);
     private long _callNumericScratchBypasses;
     public long CallNumericScratchBypasses => Volatile.Read(ref _callNumericScratchBypasses);
+    private long _numericReturnForwards;
+    public long NumericReturnForwards => Volatile.Read(ref _numericReturnForwards);
+    internal void RecordNumericReturnForward()
+    {
+        if (_enabled) Interlocked.Increment(ref _numericReturnForwards);
+    }
     internal void RecordCallAssignment(bool bypassedNumericScratch)
     {
         if (!_enabled) return;

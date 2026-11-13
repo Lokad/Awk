@@ -237,12 +237,7 @@ internal partial struct AwkRegionMachine
     {
         // Explicit and pending returns retain an owning scalar capture;
         // fallthrough supplies Unassigned. Validation belongs to that capture.
-        System.Diagnostics.Debug.Assert(!value.IsArrayValue && !value.IsUntypedValue);
-        if (value.IsNumberValue)
-        {
-            ReturnNumber(value.AsNumber());
-            return;
-        }
+        System.Diagnostics.Debug.Assert(!value.IsArrayValue && !value.IsUntypedValue && !value.IsNumberValue);
         var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
         if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
@@ -268,25 +263,45 @@ internal partial struct AwkRegionMachine
 
     private void ReturnNumber(double number)
     {
-        var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
-        if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
-            throw new InvalidOperationException("A called function requires a caller.");
-        var destination = resumePoint.Destination;
-        // Keep ready numbers unboxed through the continuation; a value consumer
-        // still receives the ordinary scalar before the callee retires.
-        if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
-            storage.Numbers[destination] = number;
-        else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
-            storage.ReleaseValue(destination);
-        else
-            storage.StoreValue(destination, AwkValue.FromNumber(number));
-        _state.PopFunctionFrame();
-        RestoreCaller(region, storage, resumePoint.Position, callerFrame);
-        if (resumePoint.IsAssignment)
+        while (true)
         {
-            AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
-            _position++;
-            _state.Counters.RecordCallAssignment(resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded);
+            var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
+            if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
+                throw new InvalidOperationException("A called function requires a caller.");
+            if (resumePoint.Consumer == AwkRegionReturnConsumer.ReturnValue)
+            {
+                // This number is the caller's complete return value. Its actual
+                // frame still owns aliases and scratch until its own retirement.
+                _state.PopFunctionFrame();
+                RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+                _state.ThrowIfCancellationRequested();
+                _state.Counters.RecordNumericReturnForward();
+                if (_output is { HasPendingOutput: true } output && !TryFlush(output, _position + 1))
+                {
+                    _returningNumber = number;
+                    _pending = Pending.NumberReturn;
+                    return;
+                }
+                continue;
+            }
+            var destination = resumePoint.Destination;
+            // Keep ready numbers unboxed through the continuation; a value consumer
+            // still receives the ordinary scalar before the callee retires.
+            if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
+                storage.Numbers[destination] = number;
+            else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
+                storage.ReleaseValue(destination);
+            else
+                storage.StoreValue(destination, AwkValue.FromNumber(number));
+            _state.PopFunctionFrame();
+            RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+            if (resumePoint.IsAssignment)
+            {
+                AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
+                _position++;
+                _state.Counters.RecordCallAssignment(resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded);
+            }
+            return;
         }
     }
 

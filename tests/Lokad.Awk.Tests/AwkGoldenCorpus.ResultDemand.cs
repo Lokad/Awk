@@ -4,6 +4,21 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ResultDemandCases()
     {
+        yield return Passing("forward-return-keeps-mixed-value-origins",
+            ["""function leaf(k){if(k==0)return 1+2;if(k==1)return "0007";if(k==2)return;return $1}function relay(k){if(k<2)return leaf(k);return (leaf(k))}BEGIN{$0="0009";for(k=0;k<4;k++){v=relay(k);print "["v"]",typeof(v)}}"""],
+            [], "[3] number\n[0007] string\n[] unassigned\n[0009] strnum\n");
+        yield return Passing("forward-return-keeps-outer-owned-array-aliases",
+            ["""function leaf(a){a["v"]+=2;return a["v"]}function relay(owned){owned["v"]=5;return leaf(owned)}BEGIN{print relay(),relay()}"""],
+            [], "7 7\n");
+        yield return Passing("forward-return-keeps-mutual-recursion-and-real-frames",
+            ["""function f(n){if(n)return g(n-1);return 7}function g(n){return f(n)}BEGIN{print f(200),g(0)}"""],
+            [], "7 7\n");
+        yield return Passing("forward-return-keeps-number-formatting-at-use",
+            ["""function leaf(){return 1.2345}function relay(){return leaf()}BEGIN{CONVFMT="%.1f";v=relay();CONVFMT="%.3f";print length(v),typeof(v);printf "%.2f\n",v}"""],
+            [], "5 number\n1.23\n");
+        yield return Passing("forward-return-keeps-missing-and-unused-argument-effects",
+            ["""function leaf(x,unused){return x+0}function relay(x,y){return leaf(x,y)}function side(){effects++;return 99}BEGIN{print relay(3,side()),effects,relay()}"""],
+            [], "3 1 0\n");
         // GNU 5.3.2: truncate finite indices, clamp before narrowing, and
         // treat NaN like a nonpositive index. Exercise owning and count-only uses.
         (string Name, string Index, string Tail, string Prefix)[] indices =

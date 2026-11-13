@@ -9,6 +9,7 @@ internal partial struct AwkRegionMachine
         var output = _output;
         AwkRegionComputation computationView;
         var position = 0;
+        var returnedNumber = 0d;
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
@@ -577,6 +578,7 @@ internal partial struct AwkRegionMachine
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
                     var returnedValue = computationView.CaptureReturn(in instruction);
+                    if (returnedValue.TryGetNumberValue(out returnedNumber)) goto NumberReturn;
                     if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
                     {
                         _pendingValue = new(returnedValue);
@@ -587,8 +589,9 @@ internal partial struct AwkRegionMachine
                     goto Resume;
                 case AwkRegionInstructionKind.ReturnNumber:
                     var returnSource = new AwkRegionNumberSource(instruction.Left);
-                    var returnedNumber = computationView.CompleteNumberRead(in instruction, returnSource.IsRegister
+                    returnedNumber = computationView.CompleteNumberRead(in instruction, returnSource.IsRegister
                         ? computationView.Numbers[returnSource.RegisterIndex] : computationView.ReadBoundNumber(in computationView.Operands[returnSource.OperandIndex]));
+                NumberReturn:
                     if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
                     {
                         _returningNumber = returnedNumber;

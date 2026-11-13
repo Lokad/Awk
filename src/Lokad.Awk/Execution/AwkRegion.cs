@@ -242,7 +242,7 @@ internal readonly record struct AwkRegionArgument(AwkRegionArgumentKind Kind, in
             _ => new(AwkRegionArgumentKind.Value, index, Consumption: consumption)
         };
 }
-internal enum AwkRegionReturnConsumer : byte { Value, Number, AssignmentValue, AssignmentDiscarded }
+internal enum AwkRegionReturnConsumer : byte { Value, Number, AssignmentValue, AssignmentDiscarded, ReturnValue }
 // Assignment consumers use the adjacent prepared Assign descriptor in caller scope.
 // Escaping text and used expression results retain their ordinary funded scratch.
 internal readonly record struct AwkRegionResumePoint(int Position, int Destination, AwkRegionReturnConsumer Consumer)

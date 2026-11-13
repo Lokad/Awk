@@ -404,6 +404,11 @@ or environment dependencies.
   general operands or names. Adjacent bound-scalar assignment descriptors can be consumed
   after restoring caller scope. Used results and escaping text retain funded snapshots;
   discarded numeric results retire any old scratch payload without value transport.
+  A fresh direct Call/Return value continuation may forward actual pure numbers iteratively.
+  Keep every real frame and its aliases until ordinary retirement; this does not elide calls
+  or retire a caller before its callee. Preserve cancellation after refunds and the outer
+  return's output boundary, reusing pending numeric-return state if needed. Value/input origins
+  retain ordinary funded scratch and return capture; counted-return polls stay explicit.
   Discarded scalar returns keep their funded caller handoff through callee retirement,
   then use that shared scalar publication. Canonical text/value operands share retirement.
   Closed scalar definition/use ranges may instead retain the complete returned value in

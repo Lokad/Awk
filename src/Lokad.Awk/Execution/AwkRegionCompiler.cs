@@ -348,6 +348,11 @@ internal sealed partial class AwkRegionCompiler
                         source = returned;
                         returned = Operand(AwkRegionOperandKind.ValueTemporary, _values++);
                     }
+                    if (source < 0 && returned >= 0 && _operands[returned] is
+                        { Kind: AwkRegionOperandKind.ValueTemporary } directReturn && _code.Count > 0 &&
+                        _code[^1] is { Kind: AwkRegionInstructionKind.Call,
+                            Detail: (int)AwkRegionReturnConsumer.Value } call && call.Target == directReturn.Index)
+                        _code[^1] = call with { Detail = (int)AwkRegionReturnConsumer.ReturnValue };
                     Emit(new(AwkRegionInstructionKind.Return, Target: returned, Left: source));
                 }
                 break;
