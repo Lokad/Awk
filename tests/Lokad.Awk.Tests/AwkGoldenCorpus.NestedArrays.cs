@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // GNU awk 5.3.2, source 027ebff5. Exact native receipts are retained locally.
     private static IEnumerable<AwkGoldenCase> NestedArrayCases() =>
     [
+        AwkGoldenCaseBuilder.Create("nested-array-bound-owner-file-reentry",
+            ["function load(a,k,line){getline line;a[k][\"sum\"]+=2;return a[k][\"sum\"]}BEGIN{a[\"g\"][\"sum\"]=40;b[\"k\"][\"sum\"]=7;print load(b,\"k\"),a[\"g\"][\"sum\"]}BEGINFILE{a[\"g\"][\"sum\"]++;print a[\"g\"][\"sum\"]}END{print b[\"k\"][\"sum\"],a[\"g\"][\"sum\"]}"], [])
+            .WithStandardInput("payload\n").WithStdOut("41\n9 41\n9 41\n").Build(),
+        Passing("nested-array-bound-owner-live-shared-origin",
+            ["function use(p,q){p[\"r\"][\"v\"]=7;q[\"r\"][\"v\"]++;return p[\"r\"][\"v\"]}BEGIN{print use(a[1],a[1]),a[1][\"r\"][\"v\"]}"],
+            [], "8 8\n"),
         Passing("nested-array-alternating-function-roots-bindings-and-depths",
             ["function shallow(p,unused){p[\"r\"][\"c\"]++;return p[\"r\"][\"c\"]}function deep(unused,q){q[\"r\"][\"s\"][\"c\"]++;q[\"r\"][\"s\"][\"extra\"]=1;return q[\"r\"][\"s\"][\"c\"]}BEGIN{for(i=0;i<5;i++)total+=shallow(a,7)+deep(7,b);print total,a[\"r\"][\"c\"],b[\"r\"][\"s\"][\"c\"],b[\"r\"][\"s\"][\"extra\"]}"],
             [], "30 5 5 1\n"),

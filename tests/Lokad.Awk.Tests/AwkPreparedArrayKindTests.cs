@@ -151,7 +151,7 @@ public sealed class AwkPreparedArrayKindTests
 
     public static IEnumerable<object[]> PendingAccesses()
     {
-        foreach (var mode in new[] { 0, 1, 2, 3 })
+        foreach (var mode in new[] { 0, 1, 2, 3, 4 })
         foreach (var outcome in new[] { "success", "fault", "cancel" })
         foreach (var governed in new[] { false, true })
             yield return [mode, outcome, governed];
@@ -171,11 +171,17 @@ public sealed class AwkPreparedArrayKindTests
             0 => "a[selected()]=7",
             1 => "result=+a[selected()]",
             2 => "result=+a[$(selected())]",
-            _ => "result=lookup()"
+            3 => "result=lookup()",
+            _ => "result=lookup(a)"
         };
+        var lookup = mode == 4
+            ? "function lookup(p,v){effects++;getline v<\"/side\";return " +
+                (outcome == "fault" ? "1/0" : "0") + "+p[\"k\"][\"leaf\"]}"
+            : "function lookup(){return +a[selected()]}";
         var region = Bind(state, "function selected(v){effects++;getline v<\"/side\";return " +
-            (outcome == "fault" ? "1/0" : "v") + "}function lookup(){return +a[selected()]}BEGIN{" + body + "}");
-        if (mode != 0) state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7));
+            (outcome == "fault" ? "1/0" : "v") + "}" + lookup + "BEGIN{" + body + "}");
+        if (mode == 4) state.SetArrayAwkValue(state.GetSubarray(Array, Key, default), new("leaf"), AwkValue.FromNumber(7));
+        else if (mode != 0) state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("old"));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -205,7 +211,8 @@ public sealed class AwkPreparedArrayKindTests
             else
             {
                 state.ClearArray(Array);
-                state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(9));
+                if (mode == 4) state.SetArrayAwkValue(state.GetSubarray(Array, Key, default), new("leaf"), AwkValue.FromNumber(9));
+                else state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(9));
                 state.SetCurrentRecord(AwkText.FromSourceLiteralString("k"));
             }
             var held = memory.Budget.Reserved;
@@ -233,7 +240,9 @@ public sealed class AwkPreparedArrayKindTests
             }
             if (mode != 0)
             {
-                Assert.Equal(9, state.GetArrayAwkValue(Array, Key).AsNumber());
+                Assert.Equal(9, mode == 4
+                    ? state.GetArrayAwkValue(state.GetSubarray(Array, Key, default), new("leaf")).AsNumber()
+                    : state.GetArrayAwkValue(Array, Key).AsNumber());
                 Assert.False(state.ContainsArrayValue(Array, new("old")));
             }
             Assert.False(state.HasScalar(Variable));

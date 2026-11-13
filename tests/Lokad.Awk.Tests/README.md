@@ -88,6 +88,8 @@ Focused field/value/array tests preserve numeric-string origins and original spe
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
 key and prior value across RHS mutation, deletion, replacement and rehash. Never keep dictionary
 entry references across mutation or suspension. Membership must not insert missing elements.
+Nested owner reads also cover file-action reentry with a hidden caller, live shared untyped
+origins, and current arrays after genuinely pending input clears and repopulates their storage.
 Repeated captured updates cover changing keys, cells, values and array storage. Hash counters
 measure lookup reuse across field, literal, variable, alias, temporary and composite keys.
 Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,
