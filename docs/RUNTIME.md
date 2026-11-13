@@ -95,8 +95,8 @@ borrowed text keeps the host's existing charge. An owning copy requests admissio
 materialized and may fail then, before allocation or publication.
 Prepared function returns transfer existing scratch funding to the caller before retiring
 the callee. Numeric conversion uses the still-funded callee snapshot. Discarded assignments
-transfer funded return scratch into validated scalar cells; local text assignments use the
-same ownership transfer. Used results and unresolved or special targets retain ordinary
+transfer funded return scratch into validated scalar cells; fresh case/substring assignments
+use those same publication owners. Used results and unresolved or special targets retain ordinary
 captures and mutation preflights.
 Immediate substring output can borrow text until it is copied into the funded output
 buffer. Whole owned text keeps its backing; escaping values still own text. Output bytes

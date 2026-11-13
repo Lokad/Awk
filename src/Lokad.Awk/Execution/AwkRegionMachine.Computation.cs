@@ -110,13 +110,15 @@ internal partial struct AwkRegionMachine
             // this ordered formatting boundary onward, slicing consumes bytes.
             var source = first.Text(state);
             var field = first.TextField;
-            if (instruction.Right == 0)
+            var destination = new AwkRegionTextDestination(instruction.Target);
+            if (!destination.IsPrint)
             {
-                storage.StoreSubstringText(instruction.Target, source, field, second, third, instruction.Detail);
+                storage.StoreSubstringResult(in operands[destination.OperandIndex], instruction.Right,
+                    source, field, second, third, instruction.Detail);
                 return 0;
             }
             return storage.PrintSubstring(output ?? throw new InvalidOperationException("Print requires an output sink."),
-                region.Prints[instruction.Right - 1], source, field, second, third, instruction.Detail);
+                region.Prints[destination.PrintIndex], source, field, second, third, instruction.Detail);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -127,8 +129,7 @@ internal partial struct AwkRegionMachine
             ref readonly var operand = ref operands[instruction.Left];
             var field = IsField(operand) ? FieldOrdinal(operand) : -1;
             var text = TextOperand(instruction.Left);
-            storage.StoreCaseResult(instruction.Target, text, instruction.Detail != 0, field,
-                countLength: instruction.Right != 0);
+            storage.StoreCaseResult(in operands[instruction.Target], instruction.Right, text, instruction.Detail != 0, field);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

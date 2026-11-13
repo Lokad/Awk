@@ -49,11 +49,10 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.FieldNumber => Field(instruction.Left),
                 AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
-                AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend or
-                AwkRegionInstructionKind.Case => OperandDemand(instruction.Left),
+                AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend => OperandDemand(instruction.Left),
+                AwkRegionInstructionKind.Case => TextResult(instruction.Target, OperandDemand(instruction.Left)),
                 AwkRegionInstructionKind.Index => StringCall(instruction.Left),
-                AwkRegionInstructionKind.Substring => StringCall(instruction.Left) &&
-                    (instruction.Right == 0 || TerminalPrint(_prints[instruction.Right - 1])),
+                AwkRegionInstructionKind.Substring => TextResult(instruction.Target, StringCall(instruction.Left)),
                 AwkRegionInstructionKind.Compare =>
                     NumberSourceDemand(instruction.Left) && NumberSourceDemand(instruction.Right),
                 AwkRegionInstructionKind.CompareText =>
@@ -132,6 +131,15 @@ internal sealed partial class AwkRegionCompiler
         {
             readyThrough = 0;
             return false;
+        }
+
+        bool TextResult(int location, bool ready)
+        {
+            var destination = new AwkRegionTextDestination(location);
+            if (destination.IsPrint) return ready && TerminalPrint(_prints[destination.PrintIndex]);
+            // Scalar publication keeps its old assignment boundary, including
+            // special variables and admission/refund callbacks.
+            return _operands[destination.OperandIndex].IsVariable ? InvalidatingBoundary() : ready;
         }
 
         bool Access(int access)

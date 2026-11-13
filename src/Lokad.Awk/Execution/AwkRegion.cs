@@ -125,6 +125,17 @@ internal readonly record struct AwkRegionNumberSource
     internal int RegisterIndex => ~_location;
     internal int OperandIndex => _location;
 }
+
+// Text results name canonical operands; complemented print indices name output.
+// Scalar consumers keep their existing funded text slot in the instruction.
+internal readonly record struct AwkRegionTextDestination(int Location)
+{
+    internal static AwkRegionTextDestination Print(int index) => new(~index);
+    internal bool IsPrint => Location < 0;
+    internal int PrintIndex => ~Location;
+    internal int OperandIndex => Location;
+}
+
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,
     AwkRegionNumberSource Right = default, int PrepareAccess = -1, int Path = -1);
 internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, AwkRegionNumberSource Right,

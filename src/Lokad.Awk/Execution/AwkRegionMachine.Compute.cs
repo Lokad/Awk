@@ -112,9 +112,10 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Substring:
                 {
                     var payloadStart = computationView.ExecuteSubstring(in instruction, output);
-                    if (instruction.Right > 0)
+                    var destination = new AwkRegionTextDestination(instruction.Target);
+                    if (destination.IsPrint)
                     {
-                        var print = computationView.Region.Prints[instruction.Right - 1];
+                        var print = computationView.Region.Prints[destination.PrintIndex];
                         if (print.Output.IsRedirected)
                         {
                             _position = position + 1;

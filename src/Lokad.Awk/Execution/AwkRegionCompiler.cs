@@ -587,12 +587,14 @@ internal sealed partial class AwkRegionCompiler
     private AwkRegionPrint AllocatePrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
     {
         if (arguments[^1] is { Kind: AwkRegionPrintArgumentKind.Text } last && _operands.Count > 0 &&
-            _operands[^1].Index == last.Index &&
-            TryTakeFreshTextProducer(_operands.Count - 1, AwkRegionInstructionKind.Substring, out var producer))
+            _operands[^1].Index == last.Index && _code.Count > 0 &&
+            _code[^1].Kind == AwkRegionInstructionKind.Substring &&
+            TryTakeFreshTextProducer(_operands.Count - 1, _code.Count - 1, out var producer))
         {
             // One immediate consumer completes the print before the byte view
             // expires; no retained text result or fragment staging is needed.
-            _code[^1] = producer with { Target = 0, Right = _prints.Count + 1 };
+            _texts--;
+            _code[^1] = producer with { Target = AwkRegionTextDestination.Print(_prints.Count).Location };
             arguments[^1] = new(AwkRegionPrintArgumentKind.PreparedText, 0);
         }
         var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
@@ -842,7 +844,14 @@ internal sealed partial class AwkRegionCompiler
         {
             // The statement has no later consumer. Publish from its existing
             // owner; adjacent calls keep their already-prepared return handoff.
-            if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
+            if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&
+                TryTakeFreshTextProducer(operand, _code.Count - 2, out var producer))
+            {
+                _code.RemoveAt(_code.Count - 1);
+                _straightLine--;
+                _code[^1] = producer with { Target = assignment.Target, Right = source.Index };
+            }
+            else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
                 _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&
                 call.Target == source.Index)
                 _code[^2] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentDiscarded };

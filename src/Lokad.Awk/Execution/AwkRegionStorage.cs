@@ -238,19 +238,31 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
-    internal void StoreCaseResult(int index, in AwkByteTextOperand source, bool upper, int field, bool countLength)
+    internal void StoreCaseResult(in AwkRegionOperand destination, int scratch,
+        in AwkByteTextOperand source, bool upper, int field)
     {
         var before = _payload.Bytes;
         var text = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
-        var producedBytes = _payload.Bytes - before;
-        if (countLength)
+        ConsumeProducedText(in destination, scratch, text, _payload.Bytes - before);
+    }
+
+    private void ConsumeProducedText(in AwkRegionOperand destination, int scratch, AwkText text, long producedBytes)
+    {
+        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
         {
             // The producer made the bytes available. Counting needs no new owner;
             // the source or this payload lease remains funded through the scan.
-            _numbers[index] = _state.CountStringUnits(text);
+            _numbers[destination.Index] = _state.CountStringUnits(text);
             if (producedBytes > 0) _payload.Release(producedBytes);
+            return;
         }
-        else StoreProducedText(index, text, producedBytes);
+        var index = destination.Kind == AwkRegionOperandKind.TextTemporary ? destination.Index : scratch;
+        StoreProducedText(index, text, producedBytes);
+        if (destination.Kind != AwkRegionOperandKind.TextTemporary)
+        {
+            System.Diagnostics.Debug.Assert(destination.IsVariable);
+            _state.AssignConsumedScalar(in destination, this, new(AwkRegionOperandKind.TextTemporary, index));
+        }
     }
 
     internal bool TryTakeRetiringLocal(int index, AwkFunctionFrame frame, int local)
@@ -273,11 +285,12 @@ internal sealed class AwkRegionStorage : IDisposable
         return true;
     }
 
-    internal void StoreSubstringText(int index, in AwkByteTextOperand source, int field, in AwkValue start, in AwkValue length, int count)
+    internal void StoreSubstringResult(in AwkRegionOperand destination, int scratch,
+        in AwkByteTextOperand source, int field, in AwkValue start, in AwkValue length, int count)
     {
         var before = _payload.Bytes;
         var text = AwkBuiltins.EvaluateSubstrText(_state, source, field, start, length, count, _payload);
-        StoreProducedText(index, text, _payload.Bytes - before);
+        ConsumeProducedText(in destination, scratch, text, _payload.Bytes - before);
     }
 
     internal int PrintSubstring(AwkOutputSink output, AwkRegionPrint print, in AwkByteTextOperand source, int field,

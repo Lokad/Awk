@@ -71,7 +71,7 @@ internal static class AwkFunctionHostEffects
 
     private static bool DirectHost(in AwkRegionInstruction instruction) => instruction.Kind switch
     {
-        AwkRegionInstructionKind.Substring when instruction.Right > 0 => true,
+        AwkRegionInstructionKind.Substring when new AwkRegionTextDestination(instruction.Target).IsPrint => true,
         // General builtins and regex/provider operations may publish diagnostics,
         // even without an explicit host builtin. Keep their ordinary owned capture.
         AwkRegionInstructionKind.Builtin => true,

@@ -4,17 +4,18 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
-    private bool TryTakeFreshTextProducer(int operand, AwkRegionInstructionKind kind,
+    private bool TryTakeFreshTextProducer(int operand, int position,
         out AwkRegionInstruction producer)
     {
         producer = default;
-        if (operand < 0 || operand != _operands.Count - 1 || _code.Count == 0) return false;
+        if (operand < 0 || operand != _operands.Count - 1 || (uint)position >= (uint)_code.Count) return false;
         var result = _operands[operand];
-        var candidate = _code[^1];
+        var candidate = _code[position];
         if (result.Kind != AwkRegionOperandKind.TextTemporary || result.Index != _texts - 1 ||
-            candidate.Kind != kind || candidate.Target != result.Index) return false;
-        // Only the immediate consumer can replace this canonical result.
-        _texts--;
+            candidate.Kind is not (AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Substring) ||
+            candidate.Target != operand) return false;
+        // The immediate consumer retires this operand. It keeps the text slot
+        // only when actual scalar publication still needs that funded owner.
         _operands.RemoveAt(operand);
         producer = candidate;
         return true;
@@ -136,9 +137,11 @@ internal sealed partial class AwkRegionCompiler
                 compiler._strings.Add(new(_arguments[0], second, third,
                     definition.InputConsumption(1), definition.InputConsumption(2)));
             }
-            compiler.Emit(new(kind, target, site, Detail: kind == AwkRegionInstructionKind.Substring
+            var result = compiler.Operand(definition.Id == AwkBuiltinId.Index
+                ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.TextTemporary, target);
+            compiler.Emit(new(kind, definition.Id == AwkBuiltinId.Index ? target : result, site, Detail: kind == AwkRegionInstructionKind.Substring
                 ? syntax.Children.Count - 1 : definition.Id == AwkBuiltinId.ToUpper ? 1 : 0));
-            return Complete(compiler.Operand(definition.Id == AwkBuiltinId.Index ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.TextTemporary, target));
+            return Complete(result);
         }
     }
 

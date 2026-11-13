@@ -13,14 +13,16 @@ public sealed partial class AwkRegionTests
     {
         using var memory = State(CancellationToken.None, false);
         var region = Compile(body, memory.State);
-        var producers = region.Instructions.Where(instruction => instruction.Kind == AwkRegionInstructionKind.Substring && instruction.Right > 0).ToArray();
+        var producers = region.Instructions.Where(instruction => instruction.Kind == AwkRegionInstructionKind.Substring &&
+            new AwkRegionTextDestination(instruction.Target).IsPrint).ToArray();
         Assert.Equal(expected, producers.Length > 0);
         foreach (var producer in producers)
         {
-            var print = region.Prints[producer.Right - 1];
+            var destination = new AwkRegionTextDestination(producer.Target);
+            var print = region.Prints[destination.PrintIndex];
             Assert.True(print.HasPreparedText);
             Assert.DoesNotContain(region.Instructions, instruction =>
-                instruction.Kind == AwkRegionInstructionKind.PrintList && instruction.Left == producer.Right - 1);
+                instruction.Kind == AwkRegionInstructionKind.PrintList && instruction.Left == destination.PrintIndex);
             if (print.Count == 1 && !print.Output.IsRedirected)
                 Assert.Equal(0, region.Layout.Builders);
         }
