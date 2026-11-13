@@ -309,8 +309,9 @@ or environment dependencies.
   canonical payload, prepared once in the actual owner's fixed numeric mode while retaining
   its backing directly. Bulk factories receive that mode; clones copy canonical slots while
   preserving independent array/untyped construction. Runtime mode reads reuse the owner;
-  input text keeps classification at read. Ready values return without reconstruction. Preserve
-  original spelling, mutation preflights and the same 24-byte footprint.
+  input full-value reads keep classification at read. Arithmetic-only stored input consumes the
+  existing byte parser's prefix without changing spelling or origins. Ready values return without
+  reconstruction. Preserve original spelling, mutation preflights and the same 24-byte footprint.
   Prepared full-value reads use the actual execution frame; standalone/dynamic reads keep visible-scope
   resolution. The cell captures payload words before polling and materializes the value at return.
   Disabled observation counters need no value-kind classification.

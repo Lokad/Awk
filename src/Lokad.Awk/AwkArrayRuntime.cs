@@ -191,18 +191,7 @@ internal sealed partial class AwkArrayRuntime
         return found;
     }
 
-    public bool TryPrepareBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
-        out AwkArrayUpdateTarget target, AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
-    {
-        if (_state.TryGetBoundArray(name, binding, out var array))
-        {
-            target = _variables.PrepareArrayUpdate(array, index, in previous);
-            return true;
-        }
-        return TryPrepareUnboundBorrowedUpdate(name, index, out target, binding);
-    }
-
-    private bool TryPrepareUnboundBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
+    internal bool TryPrepareUnboundBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
         out AwkArrayUpdateTarget target, AwkArrayBinding binding)
     {
         var resolved = _variableRuntime.ResolveArrayReadName(name);
@@ -282,9 +271,14 @@ internal sealed partial class AwkArrayRuntime
         TryGetBorrowedNumber(name, builder.AsSpan(), out var number, binding) ? number : GetNumber(name, CopyKey(builder), binding);
 
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous = default) =>
-        TryPrepareBorrowedUpdate(name, builder.AsSpan(), out var target, binding, in previous)
+        in AwkArrayUpdateTarget previous = default)
+    {
+        var bytes = builder.AsSpan();
+        if (_state.TryGetBoundArray(name, binding, out var array))
+            return _variables.PrepareArrayUpdate(array, bytes, in previous);
+        return TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding)
             ? target : PrepareUpdate(name, CopyKey(builder), binding, in previous);
+    }
 
     private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
         new(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint), _state.CancellationCheckpoint);

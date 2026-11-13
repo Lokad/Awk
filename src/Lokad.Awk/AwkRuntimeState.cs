@@ -1569,11 +1569,19 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default,
         in AwkArrayUpdateTarget previous = default)
     {
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryPrepareBorrowedUpdate(name, bytes, out var target, binding, in previous))
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
         {
-            Counters.RecordBorrowedFieldTargetSnapshot();
-            return target;
+            if (TryGetBoundArray(name, binding, out var array))
+            {
+                var boundTarget = _variables.PrepareArrayUpdate(array, bytes, in previous);
+                Counters.RecordBorrowedFieldTargetSnapshot();
+                return boundTarget;
+            }
+            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding))
+            {
+                Counters.RecordBorrowedFieldTargetSnapshot();
+                return target;
+            }
         }
         return PrepareArrayFieldValueUpdate(name, index, binding, in previous);
     }
