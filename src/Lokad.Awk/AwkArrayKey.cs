@@ -51,6 +51,18 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public static AwkArrayKey FromOrdinal(int ordinal) =>
         new(ordinal);
 
+    // Indexed update captures need the coordinate, not decimal lookup bytes.
+    // Keep the existing owning ordinal form through RHS work; ordinary key
+    // projections still format it if the owner becomes a dictionary.
+    internal static AwkArrayKey FromIndexedOrdinal(int ordinal) =>
+        new(AwkText.Empty, ordinal, (int)AwkArrayKeyKind.Ordinal);
+
+    internal bool TryGetOrdinalValue(out int ordinal)
+    {
+        ordinal = _ordinal;
+        return _kind == AwkArrayKeyKind.Ordinal;
+    }
+
     private AwkArrayKey(int ordinal)
     {
         // Prepare bounded decimal spelling once at its owner. The low tag bit

@@ -501,7 +501,9 @@ internal partial struct AwkRegionMachine
                     target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);
                     break;
                 default:
-                    target = state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
+                    target = TryArrayNumberKey(access.Key, out var number)
+                        ? state.PrepareArrayUpdate(access.Name, number, access.Binding, in previous)
+                        : state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
                     break;
             }
             // The complete operation captured an owned key before retiring scratch,

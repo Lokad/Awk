@@ -6,6 +6,19 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("numeric-index-updates-share-bound-sources-and-aliases",
+            ["""function add(p,k){return p[k]+=2}BEGIN{for(i=1;i<=4;i++)a[i]=10*i;k=2;a[k]+=3;a[k+1]++;r=add(a,4);print a[1],a[2],a[3],a[4],r;print (5 in a),typeof(a[5]),(5 in a);a["02"]=70;a[k]+=4;print a[k],a["02"],length(a)}"""], [],
+            "10 23 31 42 42\n0 untyped 1\n27 70 6\n"),
+        AwkGoldenCaseBuilder.Create("numeric-index-update-captures-before-rhs-promotion",
+            ["""function change(p){CONVFMT="%.2f";delete p[1];p["01"]=11;return 3}BEGIN{split("007 8",a);k=1;r=(a[k]+=change(a));print r,a[1],a[2],a["01"],length(a)}"""], [])
+            .WithStdOut("10 10 8 11 3\n")
+            .WithNondeterminismNote("Lokad captures the target and prior number before the interfering RHS. GNU awk 5.3.2 produced 3 3 8 11 3\\n.")
+            .Build(),
+        AwkGoldenCaseBuilder.Create("numeric-index-update-inserts-missing-before-rhs",
+            ["""function change(p,k){print (k in p),typeof(p[k]);delete p[k];p["x"]=9;return 3}BEGIN{a[1]=7;k=2;print (k in a);a[k]+=change(a,k);print a[1],a[k],a["x"],length(a)}"""], [])
+            .WithStdOut("0\n1 untyped\n7 3 9 3\n")
+            .WithNondeterminismNote("Lokad completes the missing target read before the interfering RHS. GNU awk 5.3.2 produced 0\\n0 untyped\\n7 3 9 3\\n.")
+            .Build(),
         Passing("complete-and-crossed-updates-share-record-rule-lifetimes",
             ["""function one(x){return x}{for(i=0;i<2;i++)a[$1]++;first+=a[$1]}{a[$1]+=one(c[$1]+=one(1));middle+=a[$1]}{for(i=0;i<2;i++)b[$1]+=2;last+=b[$1];delete a;delete b;delete c}END{print first,middle,last}"""], [],
             "4 6 8\n", "k\nnext\n"),

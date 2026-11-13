@@ -2,8 +2,39 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkIndexedArrayStorageTests
 {
-    [Fact]
-    public void OrdinalGrowthAndPromotionFundTheirActualLiveStorage()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void IndexedUpdateCapturePreflightsMissingCoordinateBeforeInsertion(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+            static (_, _) => { }, checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        var owner = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
+        variables.SetArrayOrdinalValue(owner, 1, AwkValue.FromNumber(7));
+        var held = memory.Budget.Reserved;
+        var key = AwkArrayKey.FromIndexedOrdinal(2);
+        if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
+        else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        try
+        {
+            if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => variables.PrepareArrayUpdate(owner, key));
+            else Assert.Throws<AwkRuntimeException>(() => variables.PrepareArrayUpdate(owner, key));
+        }
+        finally { memory.Budget.OnGrowth = null; }
+        Assert.True(owner.IsIndexed);
+        Assert.Single(owner);
+        Assert.False(owner.ContainsKey(key));
+        Assert.Equal(7, owner[AwkArrayKey.FromOrdinal(1)].AsNumber());
+        Assert.Equal(held, memory.Budget.Reserved);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void OrdinalGrowthAndPromotionFundTheirActualLiveStorage(bool rawCoordinate)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
@@ -14,7 +45,8 @@ public sealed class AwkIndexedArrayStorageTests
             variables.SetArrayValue(owner, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         Assert.True(owner.IsIndexed);
         Assert.Equal(emptyBytes + AwkVariables.EstimateArrayBytes(owner), memory.Budget.Reserved);
-        var captured = variables.PrepareArrayUpdate(owner, AwkArrayKey.FromOrdinal(1));
+        var captured = variables.PrepareArrayUpdate(owner, rawCoordinate
+            ? AwkArrayKey.FromIndexedOrdinal(1) : AwkArrayKey.FromOrdinal(1));
         Assert.Null(captured.Cell);
         variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
         variables.SetArrayValue(owner, new("01"), AwkValue.FromNumber(11));
@@ -202,7 +234,7 @@ public sealed class AwkIndexedArrayStorageTests
         };
         var growth = last > 2 ? "for(j=3;j<=" + last + ";j++)p[j]=j;" : "";
         var command = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
-            "function change(p,j){print \"ready\";" + growth + "p[\"x\"]=11;return 3}BEGIN{split(\"007 8\",a);a[1]+=change(a);print a[1],a[2],a[\"x\"],length(a)}"));
+            "function change(p,j){print \"ready\";" + growth + "p[\"x\"]=11;return 3}BEGIN{split(\"007 8\",a);k=1;a[k]+=change(a);print a[1],a[2],a[\"x\"],length(a)}"));
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
         var pending = command.ExecuteAsync(host, policy, cancellation.Token);

@@ -289,6 +289,16 @@ internal sealed partial class AwkArrayRuntime
     private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
         new(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint), _state.CancellationCheckpoint);
 
+    internal AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, double index, AwkArrayBinding binding,
+        in AwkArrayUpdateTarget previous = default)
+    {
+        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
+            _state.TryGetBoundArray(name, binding, out var array))
+            return _variables.PrepareArrayUpdate(array, array.IsIndexed
+                ? AwkArrayKey.FromIndexedOrdinal(ordinal) : AwkArrayKey.FromOrdinal(ordinal), in previous);
+        return PrepareUpdate(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding, in previous);
+    }
+
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous = default)
     {

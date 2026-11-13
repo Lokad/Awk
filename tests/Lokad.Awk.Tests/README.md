@@ -84,6 +84,10 @@ Numeric-index reads and writes cover prepared source categories, spelling, scala
 aliases and missing insertion. Plain assignments retain RHS-before-destination effects;
 compound updates retain their captured prior value. Refusal/cancellation must precede insertion
 and later effects, including partial-page and table growth.
+Indexed compound updates retain numeric coordinates through capture and commit. Check their
+key identity after dictionary promotion, missing-entry admission before RHS work, aliases,
+current formatting and pending-output/cancellation lifetimes. Raw and compact ordinal keys
+must agree after packed storage, hashing and language projection.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.
 Key equality and hashes agree across inline, ordinal, owned and borrowed forms; long comparisons

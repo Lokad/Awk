@@ -5,6 +5,33 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayKeyTests
 {
     [Theory]
+    [InlineData(int.MinValue)] [InlineData(-1)] [InlineData(0)] [InlineData(1)]
+    [InlineData(16)] [InlineData(1024)] [InlineData(9999999)] [InlineData(int.MaxValue)]
+    public void IndexedCoordinatesRetainKeyIdentityThroughStorageAndDictionaryProjection(int ordinal)
+    {
+        var coordinate = AwkArrayKey.FromIndexedOrdinal(ordinal);
+        var compact = AwkArrayKey.FromOrdinal(ordinal);
+        var spelling = ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var owned = new AwkArrayKey(spelling);
+        var restored = AwkArrayKey.FromStorage(coordinate.StoredText, coordinate.StoredOrdinal, coordinate.StorageTag);
+        Assert.True(restored.TryGetOrdinalValue(out var restoredOrdinal));
+        Assert.Equal(ordinal, restoredOrdinal);
+        Assert.True(restored.IsOrdinal);
+        Assert.Equal(0, restored.RetainedTextMemoryBytes);
+        Assert.Equal(compact, restored);
+        Assert.Equal(restored, compact);
+        Assert.Equal(owned, restored);
+        Assert.Equal(restored.GetHashCode(), compact.GetHashCode());
+        var comparer = AwkArrayKeyComparer.Instance;
+        Assert.Equal(comparer.GetHashCode(owned), comparer.GetHashCode(restored));
+        var entries = new Dictionary<AwkArrayKey, int>(comparer) { [restored] = 7 };
+        Assert.Equal(7, entries[compact]);
+        Assert.Equal(7, entries.GetAlternateLookup<ReadOnlySpan<byte>>()[AwkUtf8Codec.Encode(spelling).Span]);
+        Assert.Equal(spelling, restored.AsString(AwkRuntimeCounters.Disabled));
+        Assert.Equal(spelling, restored.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("a")]
     [InlineData("ab")]

@@ -89,6 +89,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
 
     private bool TryGetIndexed(AwkArrayKey key, out int ordinal, out AwkValue value)
     {
+        if (key.TryGetOrdinalValue(out ordinal)) return TryGetIndexed(ordinal, out value);
         Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
         if (key.ByteLength <= 10) return TryGetIndexed(key.AsSpan(buffer), out ordinal, out value);
         ordinal = 0;
@@ -114,7 +115,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         cell = null;
         if (TryGetIndexed(key, out var ordinal, out value))
         {
-            retainedKey = AwkArrayKey.FromOrdinal(ordinal);
+            retainedKey = key.TryGetOrdinalValue(out _) ? key : AwkArrayKey.FromOrdinal(ordinal);
             return true;
         }
         retainedKey = default;
@@ -170,6 +171,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
     private bool PlanIndexedKeyInsertion(AwkArrayKey key, out int ordinal, out int capacity)
     {
         ordinal = capacity = 0;
+        if (key.TryGetOrdinalValue(out ordinal)) return PlanIndexedOrdinalInsertion(ordinal, out capacity);
         Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
         return key.ByteLength <= 10 && PlanIndexedByteInsertion(key.AsSpan(buffer), out ordinal, out capacity);
     }
