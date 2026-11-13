@@ -96,7 +96,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     public static IEnumerable<object[]> ReturnCaptureCases()
     {
-        foreach (var source in new[] { "local", "global", "field", "dynamic-field", "array", "literal", "text", "special", "void" })
+        foreach (var source in new[] { "local", "global", "field", "dynamic-field", "array", "nested-array", "literal", "text", "special", "void" })
             foreach (var governed in new[] { false, true })
                 foreach (var pending in new[] { false, true })
                     yield return [source, governed, pending];
@@ -109,7 +109,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var expression = source switch
         {
             "local" => "s", "global" => "g", "field" => "$1", "dynamic-field" => "$n",
-            "array" => "a[\"r\"]", "literal" => "\"0007\"", "text" => "substr(g,1)",
+            "array" => "a[\"r\"]", "nested-array" => "a[\"parent\"][\"r\"]",
+            "literal" => "\"0007\"", "text" => "substr(g,1)",
             "special" => "OFS", _ => ""
         };
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -129,6 +130,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariable(AwkVariableName.FromText("OFS"), "0007");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("0007"));
         state.SetArrayAwkValue(a, new("r"), AwkValue.FromNumericString("0007"));
+        if (source == "nested-array")
+            state.SetArrayAwkValue(state.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromNumericString("0007"));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var appends = 0;
@@ -144,6 +147,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 state.AssignVariable(AwkVariableName.FromText("OFS"), "changed");
                 state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed"));
                 state.SetArrayAwkValue(a, new("r"), AwkValue.FromText("changed"));
+                if (source == "nested-array")
+                {
+                    state.DeleteArrayValue(a, new("parent"));
+                    state.SetArrayAwkValue(state.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromText("changed"));
+                }
                 entered.SetResult();
                 if (pending) await release.Task.ConfigureAwait(false);
                 Assert.True(bytes.Span.SequenceEqual("before\n"u8));
@@ -169,7 +177,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var result = state.ResolveVariableValue(saved);
             Assert.Equal(source == "void" ? "" : "0007", result.ByteText.AsString());
             Assert.Equal(source == "void" ? AwkRuntimeValueKind.Unassigned :
-                source is "field" or "dynamic-field" or "array" ? AwkRuntimeValueKind.NumericString :
+                source is "field" or "dynamic-field" or "array" or "nested-array" ? AwkRuntimeValueKind.NumericString :
                 AwkRuntimeValueKind.String, result.RuntimeKind);
             Assert.Equal(1, appends);
             Assert.False(state.IsInsideFunction);

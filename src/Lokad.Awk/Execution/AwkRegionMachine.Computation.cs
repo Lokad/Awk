@@ -408,16 +408,17 @@ internal partial struct AwkRegionMachine
                 // A real flush cleared this binding before the host ran. Resolve
                 // the current prefix at use, without retaining the previous owner.
             }
-            key = CaptureKey(keys[0]);
-            owner = state.GetSubarray(path.Name, key, path.Binding);
+            var currentKey = CaptureKey(keys[0]);
+            var currentOwner = state.GetSubarray(path.Name, currentKey, path.Binding);
             for (var depth = 1; depth < keys.Length - 1; depth++)
             {
                 if ((depth & 63) == 63) state.ThrowIfCancellationRequested();
-                key = CaptureKey(keys[depth]);
-                owner = state.GetSubarray(owner, key);
+                currentKey = CaptureKey(keys[depth]);
+                currentOwner = state.GetSubarray(currentOwner, currentKey);
             }
             if (path.Owner.Role is AwkRegionPathOwnerRole.Initialize or AwkRegionPathOwnerRole.Read)
-                storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(owner), preserveOrigin: true);
+                storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(currentOwner), preserveOrigin: true);
+            owner = currentOwner;
             key = CaptureKey(keys[^1]);
         }
 
