@@ -249,7 +249,7 @@ internal sealed partial class AwkVariables
             _counters.RecordNumericArraySlotRead();
             return new(index, number, array, priorCell);
         }
-        if (!array.TryGetEntry(index, out _, out var slot, out var cell))
+        if (!array.TryGetEntry(index, out var slot, out var cell))
             slot = CreateMissingArraySlot(array, index, out cell);
         return new(index, ReadArraySlotNumber(slot), array, cell);
     }
@@ -342,7 +342,7 @@ internal sealed partial class AwkVariables
             StoreArraySlot(array, target.Key, cell.Slot, cell, AwkValue.FromNumber(number));
             return true;
         }
-        if (!array.TryGetEntry(target.Key, out _, out var prior, out var located)) return false;
+        if (!array.TryGetEntry(target.Key, out var prior, out var located)) return false;
         StoreArraySlot(array, target.Key, prior, located, AwkValue.FromNumber(number));
         return true;
     }
@@ -1169,7 +1169,7 @@ internal sealed partial class AwkVariables
 
     private void SetArraySlot(AwkArrayIdentity values, AwkArrayKey index, AwkValue slot)
     {
-        if (values.TryGetEntry(index, out _, out var prior, out var cell))
+        if (values.TryGetEntry(index, out var prior, out var cell))
             StoreArraySlot(values, index, prior, cell, slot);
         else InsertArraySlot(values, index, slot);
     }

@@ -312,7 +312,7 @@ internal sealed partial class AwkArrayRuntime
             _variables.TryGetOrdinaryArray(resolved, out array);
         }
         AwkArrayCell? cell = null;
-        if (array is not null) array.TryGetEntry(key, out _, out _, out cell);
+        if (array is not null) array.TryGetEntry(key, out _, out cell);
         return new(key, priorNumber, array, cell);
     }
 

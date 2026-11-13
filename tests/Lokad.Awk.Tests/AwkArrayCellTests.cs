@@ -51,6 +51,35 @@ public sealed class AwkArrayCellTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void DeletionRefundsStoredKeyOwnershipAcrossNumericAndTextLookups(bool storedOrdinal)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = Variables(memory);
+        var array = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
+        // Keep dictionary capacity stable while comparing the key's actual claim.
+        variables.SetArrayValue(array, new("kept"), AwkValue.FromNumber(5));
+        var before = memory.Budget.Reserved;
+        var ordinal = AwkArrayKey.FromOrdinal(int.MaxValue);
+        var spelling = new AwkArrayKey("2147483647");
+        variables.SetArrayValue(array, storedOrdinal ? ordinal : spelling, AwkValue.FromNumber(7));
+        Assert.Equal(2, array.Count);
+        Assert.True(array.TryGetEntry(ordinal, out _, out var cell));
+        Assert.NotNull(cell);
+
+        variables.DeleteArrayValue(array, storedOrdinal ? spelling : ordinal);
+
+        Assert.Single(array);
+        Assert.False(array.ContainsKey(ordinal));
+        Assert.False(cell.IsAttached);
+        Assert.Equal(5, variables.GetArrayNumber(array, new AwkArrayKey("kept")));
+        Assert.Equal(before, memory.Budget.Reserved);
+        variables.ClearArray(array);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void ReplacedOrDetachedOwnersDoNotRetainTheirPreviousTables(bool detach)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
@@ -92,13 +121,13 @@ public sealed class AwkArrayCellTests
         var name = AwkArrayName.FromText("a");
         var array = variables.ResolveOrdinaryArray(name);
         variables.SetArrayValue(array, new AwkArrayKey("0007"), AwkValue.FromNumber(5));
-        Assert.True(array.TryGetEntry(new("0007"), out _, out _, out var original));
+        Assert.True(array.TryGetEntry(new("0007"), out _, out var original));
         Assert.NotNull(original);
         for (var index = 0; index < 1024; index++)
             variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
 
         Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var retainedKey, out var grown));
-        Assert.True(array.TryGetEntry(retainedKey, out _, out _, out var grownCell));
+        Assert.True(array.TryGetEntry(retainedKey, out _, out var grownCell));
         Assert.Same(original, grownCell);
         Assert.Equal("0007", retainedKey.AsString(AwkRuntimeCounters.Disabled));
         Assert.Equal(5, variables.ReadArraySlotNumber(grown));
@@ -173,7 +202,7 @@ public sealed class AwkArrayCellTests
         AwkArrayName name, AwkArrayIdentity array, bool detach)
     {
         variables.SetArrayValue(array, new("cell"), AwkValue.FromNumber(7));
-        Assert.True(array.TryGetEntry(new("cell"), out _, out _, out var cell));
+        Assert.True(array.TryGetEntry(new("cell"), out _, out var cell));
         var reference = new WeakReference<AwkArrayCell>(Assert.IsType<AwkArrayCell>(cell));
         if (detach) variables.RemoveFunctionLocalArray(name);
         else variables.ClearArray(name);

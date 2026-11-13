@@ -116,7 +116,7 @@ public sealed class AwkArrayStorageCacheTests
 
     private static AwkArrayCell DictionaryCell(AwkArrayIdentity array, AwkArrayKey key)
     {
-        Assert.True(array.TryGetEntry(key, out _, out _, out var cell));
+        Assert.True(array.TryGetEntry(key, out _, out var cell));
         return Assert.IsType<AwkArrayCell>(cell);
     }
 

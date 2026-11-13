@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Lokad.Awk;
 
 internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
-    IAlternateEqualityComparer<AwkArrayKey, AwkArrayKey>, IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>
+    IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>
 {
     private readonly Action? _checkpoint;
     private readonly AwkRuntimeCounters _counters;
@@ -23,8 +23,6 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     public static AwkArrayKeyComparer Instance { get; } =
         new(null, AwkRuntimeCounters.Disabled);
-
-    AwkArrayKey IAlternateEqualityComparer<AwkArrayKey, AwkArrayKey>.Create(AwkArrayKey key) => key;
 
     // Insertion admits the key and value together at the array owner.
     AwkArrayKey IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>.Create(ReadOnlySpan<byte> bytes) =>

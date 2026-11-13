@@ -99,12 +99,11 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
 
     // Only mutation/capture consumers ask for dictionary cell identity. Ordinal
     // storage keeps values directly and is located again after RHS evaluation.
-    internal bool TryGetEntry(AwkArrayKey key, out AwkArrayKey retainedKey,
-        out AwkValue value, out AwkArrayCell? cell)
+    internal bool TryGetEntry(AwkArrayKey key, out AwkValue value, out AwkArrayCell? cell)
     {
         if (_indexed is null)
         {
-            if (_lookup.Dictionary.GetAlternateLookup<AwkArrayKey>().TryGetValue(key.PrepareByteLookup(), out retainedKey, out cell))
+            if (_lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out cell))
             {
                 value = cell.Slot;
                 return true;
@@ -113,13 +112,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
             return false;
         }
         cell = null;
-        if (TryGetIndexed(key, out var ordinal, out value))
-        {
-            retainedKey = AwkArrayKey.FromOrdinal(ordinal);
-            return true;
-        }
-        retainedKey = default;
-        return false;
+        return TryGetIndexed(key, out _, out value);
     }
 
     private bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal, out AwkValue value)

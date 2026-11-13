@@ -251,7 +251,10 @@ internal sealed partial class AwkVariables
     {
         ThrowIfDetached(array);
         var slots = array;
-        if (!slots.TryGetEntry(key, out var retainedKey, out var slot, out var cell)) return;
+        // Refund the actual retained key, which can have a different owning
+        // representation from this already-captured lookup key.
+        Span<byte> keyBuffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        if (!slots.ByteLookup.TryGetEntry(key.AsSpan(keyBuffer), out var retainedKey, out var slot, out var cell)) return;
         var oldBytes = slots.IsIndexed ? AwkRuntimeMemory.EstimateArrayPayloadBytes(retainedKey, slot)
             : AwkRuntimeMemory.EstimateArrayElementPayloadBytes(retainedKey, slot);
         if (slot.TryGetArrayBinding(out var child))
