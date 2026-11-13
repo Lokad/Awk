@@ -81,6 +81,36 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)] [InlineData(-0.0)] [InlineData(1.25)]
+    public void NumericUpdatesPreserveBinary64AtFullBudget(double number)
+    {
+        using var memory = State(true);
+        var state = memory.State;
+        var region = Bind(state, "value*=1");
+        state.AssignVariableValue(Value, AwkValue.FromNumber(number));
+        using var storage = new AwkRegionStorage(state);
+        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        var reads = state.Counters.NumericGlobalReads;
+        Assert.True(memory.Budget.TryReserve(Limit - memory.Budget.Reserved, out var pressure));
+        using (pressure)
+        {
+            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(BitConverter.DoubleToInt64Bits(number),
+                BitConverter.DoubleToInt64Bits(state.ResolveVariableValue(Value).AsNumber()));
+            Assert.Equal(BitConverter.DoubleToInt64Bits(number),
+                BitConverter.DoubleToInt64Bits(state.ResolveVariableValue(Result).AsNumber()));
+            Assert.Equal(reads + 1, state.Counters.NumericGlobalReads);
+            Assert.Equal(0, memory.Budget.Refusals);
+        }
+        Assert.Equal(0, state.Counters.StringDecodes);
+        Assert.Equal(0, state.Counters.Utf8Encodes);
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void LongInputCancellationPrecedesMutationAndRetainsItsFunding()
     {
