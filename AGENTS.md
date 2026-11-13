@@ -369,6 +369,8 @@ or environment dependencies.
   Return binds its source and owning destination together, without a separate value-capture
   dispatch. Actual pending completion retains the captured scalar in the existing pending-value
   field; never reread the source or replay return preparation after a host callback.
+  Owning return capture establishes the scalar invariant; return dispatch consumes it without
+  repeating scalar normalization. Keep validation at actual capture and mutation owners.
   Terminal scalar locals can transfer their existing claim into that owning capture. Read
   at the actual frame owner; only token polling may intervene before publication. Other
   local roles retain ordinary resolution and materialization.

@@ -235,6 +235,9 @@ internal partial struct AwkRegionMachine
 
     private void Return(AwkValue value)
     {
+        // Explicit and pending returns retain an owning scalar capture;
+        // fallthrough supplies Unassigned. Validation belongs to that capture.
+        System.Diagnostics.Debug.Assert(!value.IsArrayValue && !value.IsUntypedValue);
         if (value.IsNumberValue)
         {
             ReturnNumber(value.AsNumber());
@@ -243,7 +246,6 @@ internal partial struct AwkRegionMachine
         var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
         if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
-        value = value.AsScalarCopy();
         if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
             // Conversion consumes the actual funded callee snapshot before retirement.
             storage.Numbers[resumePoint.Destination] = value.AsNumber(_state.CancellationCheckpoint);

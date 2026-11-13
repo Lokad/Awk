@@ -316,7 +316,8 @@ Execution and binding-frame ownership remain distinct during reentry and cleanup
 Rule completion retires its reference scratch. Actual host suspension saves its continuation.
 Ready and pending flushes share statement visibility, post-host cancellation and field
 preparation. Pending operations and failures retain their existing awaited completion path.
-Returns keep their captured value and callee storage until required output actually completes.
+Returns capture and validate a scalar before flushing, retaining that snapshot and callee storage
+until required output actually completes.
 An adjacent bound-scalar assignment can be prepared as the return's consumer and completed
 after restoring caller scope. Used expression results and escaping text retain funded snapshots;
 discarded numeric results need no intermediate value transport. Runtime value kinds and
