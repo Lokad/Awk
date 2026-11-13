@@ -325,8 +325,7 @@ internal partial struct AwkRegionMachine
                 (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);
             var arguments = call.Arguments;
             state.Counters.RecordFunctionArgumentSegment();
-            var end = first + count;
-            for (var index = first; index < end; index++)
+            for (var index = first; index < first + count; index++)
             {
                 if ((index & 63) == 63) state.ThrowIfCancellationRequested();
                 ref readonly var argument = ref arguments[index];
@@ -336,7 +335,7 @@ internal partial struct AwkRegionMachine
                         incoming.StageNumber(index, numbers[argument.Index]);
                         break;
                     case AwkRegionArgumentKind.Local:
-                        index = state.StageFunctionLocalArguments(arguments, incoming, index, end) - 1;
+                        state.StageFunctionLocalArgument(in argument, incoming, index);
                         break;
                     case AwkRegionArgumentKind.Global:
                         state.StagePreparedGlobalArgument(in argument, incoming, index);

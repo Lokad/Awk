@@ -870,30 +870,18 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    internal int StageFunctionLocalArguments(ReadOnlySpan<AwkRegionArgument> arguments,
-        AwkFunctionFrame incoming, int index, int end)
+    internal void StageFunctionLocalArgument(in AwkRegionArgument argument, AwkFunctionFrame incoming, int index)
     {
-        do
+        var source = new AwkFunctionLocalSlotId(argument.Index);
+        if (_functions.TryStageLocalArgument(source, incoming, index, argument.AllowArray,
+            argument.Consumption == AwkParameterInput.Key)) return;
+        if (argument.AllowArray && !_functions.HasLocalSlot(source) && TryResolveArrayArgument(argument.Name, out var array))
+            _functions.StageArgument(incoming, index, in array);
+        else
         {
-            ref readonly var argument = ref arguments[index];
-            var source = new AwkFunctionLocalSlotId(argument.Index);
-            if (!_functions.TryStageLocalArgument(source, incoming, index, argument.AllowArray,
-                argument.Consumption == AwkParameterInput.Key))
-            {
-                if (argument.AllowArray && !_functions.HasLocalSlot(source) && TryResolveArrayArgument(argument.Name, out var array))
-                    _functions.StageArgument(incoming, index, in array);
-                else
-                {
-                    var value = ResolveFunctionLocalValue(source, argument.Name);
-                    _functions.StageValue(incoming, index, in value);
-                }
-            }
-            if (++index >= end || arguments[index].Kind != AwkRegionArgumentKind.Local) return index;
-            // The caller checked the first argument; retain its existing long-run
-            // boundaries for the additional arguments consumed here.
-            if ((index & 63) == 63) ThrowIfCancellationRequested();
+            var value = ResolveFunctionLocalValue(source, argument.Name);
+            _functions.StageValue(incoming, index, in value);
         }
-        while (true);
     }
 
     internal bool TryResolveFunctionLocalNumber(AwkFunctionLocalSlotId slotId, out double number)

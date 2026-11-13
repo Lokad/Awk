@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("local-call-arguments-capture-before-an-inline-assignment",
+            ["function join(a,b,c){return a \":\" b \":\" c}function relay(x,y){return join(x,(x=y),x)}BEGIN{print relay(\"before\",\"after\")}"],
+            [], "before:after:after\n");
         yield return Passing("local-call-arguments-keep-mixed-sources-and-interrupted-captures",
             ["function join(a,b,c,d,e){return a \"|\" b \"|\" c \"|\" d \"|\" e}function change(){g=\"after\";return \"middle\"}function relay(x,y,z){return join(x,y,g,z,x)}function interrupted(x,y,z){return join(x,change(),y,g,z)}BEGIN{g=\"before\";print relay(\"001\",\"two\",\"003\");print interrupted(\"001\",\"two\",\"003\")}"],
             [], "001|two|before|003|001\n001|middle|two|after|003\n");
