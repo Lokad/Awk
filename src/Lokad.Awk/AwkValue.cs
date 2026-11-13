@@ -91,6 +91,22 @@ internal readonly struct AwkValue
         return IsNumberValue;
     }
 
+    internal double ReadVariableNumber(AwkNumberParsingMode mode, AwkRuntimeCounters counters, Action? checkpoint)
+    {
+        if (_kind == AwkValueKind.StoredInputText)
+        {
+            // Arithmetic needs the prefix, not a string/strnum classification.
+            // Capture the owning spelling before parsing can poll or materialize.
+            var text = ByteText;
+            var span = text.AsSpan(text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? checkpoint : null);
+            AwkNumberParser.Parse(span, mode, out var parsed, checkpoint);
+            parsed.ThrowIfError();
+            return parsed.Number;
+        }
+        var captured = this;
+        return captured.ReadVariableStorage(mode, counters, checkpoint).AsNumber(checkpoint);
+    }
+
     internal bool HasSameTextStorage(AwkValue other) =>
         _kind is AwkValueKind.Text or AwkValueKind.DeferredDecimalText or
             AwkValueKind.DeferredHexadecimalText or AwkValueKind.DeferredNonDecimalText or AwkValueKind.Unassigned &&

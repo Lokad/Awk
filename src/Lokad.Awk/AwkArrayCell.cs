@@ -4,15 +4,14 @@ namespace Lokad.Awk;
 // retirement clears its payload before releasing the containing array's charge.
 internal sealed class AwkArrayCell(AwkValue slot)
 {
-    private AwkValue _slot = slot;
-    public ref readonly AwkValue Slot => ref _slot;
+    public AwkValue Slot { get; private set; } = slot;
     public bool IsAttached { get; private set; } = true;
     // The owner preflights storage changes before calling this method.
-    public void SetSlot(AwkValue value) => _slot = value;
+    public void SetSlot(AwkValue value) => Slot = value;
 
     public void Detach()
     {
-        _slot = default;
+        Slot = default;
         IsAttached = false;
     }
 }

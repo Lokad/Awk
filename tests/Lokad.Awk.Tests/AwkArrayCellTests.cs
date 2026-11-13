@@ -118,18 +118,32 @@ public sealed class AwkArrayCellTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void NumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey)
+    public void NumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+        AssertConversionSnapshot(borrowedKey, input: false);
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void InputNumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+        AssertConversionSnapshot(borrowedKey, input: true);
+
+    private static void AssertConversionSnapshot(bool borrowedKey, bool input)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         Action? onPoll = null;
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
             static (_, _) => { }, checkpoint: () => onPoll?.Invoke());
-        var array = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
+        var name = AwkArrayName.FromText("a");
+        var array = variables.ResolveOrdinaryArray(name);
         var key = new AwkArrayKey("kept");
         var text = AwkText.FromString(new string('0', 2 * AwkRuntimeLimits.CancellationCheckBytes) + "7");
+        if (input)
+            variables.InitializeArrayExternalStringValues(name,
+                new[] { new KeyValuePair<string, string>("kept", text.AsString()) },
+                static pair => pair.Key, static pair => pair.Value);
+        else variables.SetArrayValue(array, key, AwkValue.FromText(text));
+        Assert.True(array.ByteLookup.TryGetValue("kept"u8, out var stored));
         // The test retains its source while the callback replaces the array's claim.
-        using var sourceMemory = memory.Accounting.ReserveTransient(text.EstimatedRetainedMemoryBytes);
-        variables.SetArrayValue(array, key, AwkValue.FromText(text));
+        using var sourceMemory = memory.Accounting.ReserveTransient(stored.ByteText.EstimatedRetainedMemoryBytes);
         var replaced = false;
         onPoll = () =>
         {

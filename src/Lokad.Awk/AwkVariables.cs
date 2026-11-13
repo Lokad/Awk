@@ -231,15 +231,9 @@ internal sealed partial class AwkVariables
             _counters.RecordNumericArraySlotRead();
             return new(previous.Key, number, array, priorCell);
         }
-        if (!array.IsIndexed)
-        {
-            if (array.TryGetDictionaryCell(index, out var dictionaryKey, out var dictionaryCell))
-                return new(dictionaryKey, ReadArraySlotNumber(in dictionaryCell.Slot), array, dictionaryCell);
-        }
-        else if (array.ByteLookup.TryGetEntry(index, out var key, out var slot, out var cell))
-            return new(key, ReadArraySlotNumber(slot), array, cell);
-        var inserted = InsertByteSlot(array, index, default, missing: true, out var insertedKey, out var insertedCell);
-        return new(insertedKey, ReadArraySlotNumber(inserted), array, insertedCell);
+        if (!array.ByteLookup.TryGetEntry(index, out var key, out var slot, out var cell))
+            slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
+        return new(key, ReadArraySlotNumber(slot), array, cell);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,
@@ -255,26 +249,15 @@ internal sealed partial class AwkVariables
             _counters.RecordNumericArraySlotRead();
             return new(index, number, array, priorCell);
         }
-        if (!array.IsIndexed)
-        {
-            if (array.TryGetDictionaryCell(index, out var dictionaryCell))
-                return new(index, ReadArraySlotNumber(in dictionaryCell.Slot), array, dictionaryCell);
-        }
-        else if (array.TryGetEntry(index, out _, out var slot, out var cell))
-            return new(index, ReadArraySlotNumber(slot), array, cell);
-        var inserted = CreateMissingArraySlot(array, index, out var insertedCell);
-        return new(index, ReadArraySlotNumber(inserted), array, insertedCell);
+        if (!array.TryGetEntry(index, out _, out var slot, out var cell))
+            slot = CreateMissingArraySlot(array, index, out cell);
+        return new(index, ReadArraySlotNumber(slot), array, cell);
     }
 
     internal double ReadArraySlotNumber(scoped in AwkValue slot)
     {
         if (!slot.TryGetNumberValue(out var number))
-        {
-            // A stored cell can change during conversion callbacks. Own its
-            // scalar snapshot before polling, just as captured readers already do.
-            var captured = slot;
-            return CreateValue(captured).AsNumber(_checkpoint);
-        }
+            return slot.ReadVariableNumber(_numberParsingMode, _counters, _checkpoint);
         _counters.RecordNumericArraySlotRead();
         return number;
     }
