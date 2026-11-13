@@ -412,8 +412,14 @@ or environment dependencies.
   field-demand ordering, and retire that scratch with its rule. Do not substitute length proxies.
   Proved ready-text length observations may bind one counted-return body to existing numeric
   continuations. Include forwarding and dynamic comparator callers; mixed/unknown/format-sensitive
-  returns stay full values. Keep actual callee locals and their preflights. Count before retiring
-  its source without moving materialization admission across the return's output boundary.
+  returns stay full values. Scalar-unit locals with one dominating casing definition and only
+  proved length/slice consumers may keep counts in existing numeric scratch. Retire their former
+  physical cell through ordinary alias preflights, payload refunds and shared-origin promotion;
+  never publish a scalar placeholder or count as the logical string. Earlier reads retain the
+  original cell. Byte slices and observed spelling/kinds retain real text. Nested count slices
+  use explicit preparation continuations and shared index conversions, with memoized source proof.
+  Count before retiring its source without moving materialization admission across the return's
+  output boundary; preserve actual pending-host funding and post-refund cancellation.
 - Function locals use one contiguous funded cell array for every arity. Keep indexed access
   direct; do not restore separate inline cells, arity-based storage paths or their counters.
   Recycled frames retain sufficient funded capacity across arities. Cleared/new cells already

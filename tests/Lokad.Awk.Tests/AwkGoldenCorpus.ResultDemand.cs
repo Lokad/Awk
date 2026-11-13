@@ -4,6 +4,28 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ResultDemandCases()
     {
+        yield return Passing("counted-local-case-keeps-shared-untyped-origin-promotion",
+            ["""function f(s,t,q){t=tolower(s);print typeof(q);return t}BEGIN{print typeof(a[1]);print length(f("ABC",a[1],a[1]));print typeof(a[1])}"""],
+            [], "untyped\nunassigned\n3\nunassigned\n");
+        yield return Passing("counted-local-case-keeps-original-source-before-retirement",
+            ["""function f(t){before=length(t);t=tolower(t);return substr(t,2,2)}BEGIN{print length(f("Ä😀Z")),before}"""],
+            [], "2 3\n");
+        yield return Passing("counted-local-case-keeps-source-format-at-definition",
+            ["""function f(s,t){t=tolower(s);CONVFMT="%.1f";return substr(t,2,99)}BEGIN{CONVFMT="%.3f";print length(f(1.2345))}"""],
+            [], "4\n");
+        yield return Passing("counted-local-case-survives-record-replacement",
+            ["""function f(s,t){t=tolower(s);getline x;return substr(t,2,2)}{print length(f($1))}"""],
+            [], "2\n", "Ä😀Z\nlater\n");
+        yield return Passing("counted-local-case-keeps-nested-slice-lengths",
+            ["""function f(s,t){t=tolower(s);return substr(substr(t,2,99),2,2)}BEGIN{print length(f("É😀abcd"))}"""],
+            [], "2\n");
+        var nested = "t";
+        for (var index = 0; index < 80; index++) nested = "substr(" + nested + ",1,99)";
+        yield return Passing("counted-local-case-keeps-long-slice-continuations",
+            ["function f(s,t){t=tolower(s);return substr(" + nested + ",2,2)}BEGIN{print length(f(\"ABC\"))}"], [], "2\n");
+        yield return Passing("counted-local-case-keeps-observed-spelling-and-kind",
+            ["""function f(s,t){t=tolower(s);print t,typeof(t);return substr(t,2,99)}BEGIN{print length(f("0007")),length(f("CAFÉ"))}"""],
+            [], "0007 string\ncafé string\n3 3\n");
         foreach (var bytes in new[] { false, true })
         {
             const string source = "function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t}" +

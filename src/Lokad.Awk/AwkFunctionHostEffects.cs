@@ -82,6 +82,7 @@ internal static class AwkFunctionHostEffects
         AwkRegionInstructionKind.TextNumber or AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
         AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber or AwkRegionInstructionKind.Value or
         AwkRegionInstructionKind.Length or AwkRegionInstructionKind.InspectVariable or AwkRegionInstructionKind.InspectArray or
+        AwkRegionInstructionKind.SubstringLength or AwkRegionInstructionKind.RetireLocal or
         AwkRegionInstructionKind.InspectValue or AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring or
         AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Compound or
         AwkRegionInstructionKind.Compare or AwkRegionInstructionKind.CompareText or AwkRegionInstructionKind.Negate or

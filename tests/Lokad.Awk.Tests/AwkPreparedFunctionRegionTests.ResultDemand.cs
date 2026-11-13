@@ -4,10 +4,19 @@ public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task CountedReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel)
+    public Task CountedReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel) =>
+        VerifyCountedReturnDiagnostics(cancel, local: false);
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public Task CountedLocalReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel) =>
+        VerifyCountedReturnDiagnostics(cancel, local: true);
+
+    private static async Task VerifyCountedReturnDiagnostics(bool cancel, bool local)
     {
         const string warning = "awk: warning: sqrt: received negative argument -1\n";
-        const string source = "function part(s){return substr(s,1,sqrt(-1)?4:4)}" +
+        var source = (local ? "function part(s,t){t=tolower(s);return substr(t,1,sqrt(-1)?4:4)}" :
+            "function part(s){return substr(s,1,sqrt(-1)?4:4)}") +
             "BEGIN{total=0;print \"ready\"}{total+=length(part($1));print total}";
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(8 << 20);

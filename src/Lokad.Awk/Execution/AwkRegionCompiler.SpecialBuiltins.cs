@@ -7,17 +7,47 @@ internal sealed partial class AwkRegionCompiler
     private sealed class LengthWork(AwkExpressionSyntax? argument) : PreparationWork<int>
     {
         private bool _waiting;
+        private bool _countedSlice;
+        private bool _sliceSourcePending;
+        private AwkExpressionSyntax? _slice;
+        private AwkBuiltinDefinition? _sliceBuiltin;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
             if (argument is not null && !_waiting)
             {
+                if (compiler.TryLocalLength(argument, out var ready)) return Complete(ready);
                 _waiting = true;
+                var source = argument;
+                while (source.Kind == AwkExpressionKind.Group && source.Children.Count == 1)
+                {
+                    compiler._scope.CheckCancellation();
+                    source = source.Children[0];
+                }
+                if (source.Children.Count is 3 or 4 && AwkExpressionSyntaxFacts.TryGetCallableTarget(source, out var target) &&
+                    !compiler._scope.TryGetFunctionLocalSlot(new(target.Identifier), out _) &&
+                    AwkBuiltins.TryGetCallable(target.Name, out var builtin) && builtin.Id == AwkBuiltinId.Substr &&
+                    compiler.IsLocalLengthSlice(source.Children[1]))
+                {
+                    _countedSlice = true;
+                    _sliceSourcePending = true;
+                    _slice = source;
+                    _sliceBuiltin = builtin;
+                    next = new LengthWork(source.Children[1]);
+                    return true;
+                }
                 next = compiler.CreateOperandWork(argument, preserveOrigin: true);
                 return true;
             }
+            if (_sliceSourcePending && _slice is { } slice && _sliceBuiltin is { } sliceBuiltin)
+            {
+                _sliceSourcePending = false;
+                next = new StringCallWork(slice, sliceBuiltin, CompletedResult<int>(completed));
+                return true;
+            }
             var value = argument is null ? compiler.Operand(AwkRegionOperandKind.Field, 0) : CompletedResult<int>(completed);
+            if (_countedSlice) return Complete(value);
             if (argument is not null && compiler.IsPreparedStringLength(argument, out var call))
             {
                 // Preserve the primitive's check after callee retirement/refunds.

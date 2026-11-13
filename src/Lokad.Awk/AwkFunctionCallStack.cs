@@ -757,6 +757,18 @@ internal sealed class AwkFunctionCallStack(
         return true;
     }
 
+    internal bool TryRetireScalar(AwkFunctionLocalSlotId slotId)
+    {
+        if (!TryPeekLocalFrame(out var frame) || !TryGetLocalSlot(frame, slotId, out var slot) ||
+            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias || slot.Value.TryGetArrayBinding(out _) ||
+            slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName)) return false;
+        // The logical text has only prepared count consumers. Retire its former
+        // physical payload; no scalar placeholder or numeric proxy is published.
+        ReplaceLocalSlot(frame, slotId, slot, default);
+        slot.Value.PromoteUntypedScalar();
+        return true;
+    }
+
     private void ReplaceLocalSlot(
         AwkFunctionFrame frame,
         AwkFunctionLocalSlotId slotId,

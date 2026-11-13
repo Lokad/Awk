@@ -38,7 +38,7 @@ internal static class AwkBinder
                 compatibilityParseFailed: true);
 
         var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames, compatibilityProfile.Mode, checkpoint,
-            symbols, externalArguments);
+            symbols, externalArguments, compatibilityProfile.StringUnitMode);
         if (lowering.Diagnostics.Count > 0)
             return new AwkBindingResult(
                 lowering.PhaseResult.Phase,

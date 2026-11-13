@@ -7,7 +7,7 @@ internal static partial class AwkResultPreparation
     internal static Dictionary<int, List<AwkScalarResult>> Prepare(AwkSyntaxProgram syntax,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments,
-        AwkCompatibilityMode mode, Action? checkpoint)
+        AwkCompatibilityMode mode, AwkStringUnitMode stringUnits, Action? checkpoint)
     {
         Dictionary<int, List<AwkScalarResult>> result = [];
         // Standalone/internal preparation can have callers that observe its globals.
@@ -94,7 +94,7 @@ internal static partial class AwkResultPreparation
                 result.Add(definition.RuleIndex, values = []);
             values.Add(new(AwkVariableName.FromText(name), definition.Function));
         }
-        PrepareFunctions(syntax, functions, definitions, symbols, mode, checkpoint);
+        PrepareFunctions(syntax, functions, definitions, symbols, mode, stringUnits, checkpoint);
         return result;
 
         AwkExpressionSyntax Ungroup(AwkExpressionSyntax expression)

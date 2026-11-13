@@ -38,16 +38,13 @@ internal static partial class AwkBuiltins
     {
         slice = default;
         whole = false;
-        var start = (int)(startValue.TryGetNumberValue(out var startNumber) ? startNumber : startValue.AsNumber(state.CancellationCheckpoint));
-        if (start < 1) start = 1;
-        var zeroBasedStart = start - 1;
+        var zeroBasedStart = SubstringStart(state, in startValue);
         state.PrepareStringRangeSource(field, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
         var byteMode = state.StringUnitMode == AwkStringUnitMode.Byte;
         if (!source.HasUnitAt(zeroBasedStart, byteMode, state.CancellationCheckpoint)) return;
-        var length = argumentCount == 2 ? int.MaxValue :
-            (int)(lengthValue.TryGetNumberValue(out var lengthNumber) ? lengthNumber : lengthValue.AsNumber(state.CancellationCheckpoint));
+        var length = SubstringLength(state, in lengthValue, argumentCount);
         if (length <= 0) return;
         state.PrepareStringRangeSource(field, ref source, zeroBasedStart, length);
         state.CancellationCheckpoint();
@@ -55,6 +52,25 @@ internal static partial class AwkBuiltins
             state.CancellationCheckpoint, destination, borrowOwned);
         whole = slice.ByteLength == source.ByteLength;
     }
+
+    internal static int CountSubstring(AwkRuntimeState state, int sourceLength,
+        in AwkValue start, in AwkValue length, int argumentCount)
+    {
+        var offset = SubstringStart(state, in start);
+        if (offset >= sourceLength) return 0;
+        var count = SubstringLength(state, in length, argumentCount);
+        return count <= 0 ? 0 : Math.Min(sourceLength - offset, count);
+    }
+
+    private static int SubstringStart(AwkRuntimeState state, in AwkValue value)
+    {
+        var start = (int)(value.TryGetNumberValue(out var number) ? number : value.AsNumber(state.CancellationCheckpoint));
+        return start < 1 ? 0 : start - 1;
+    }
+
+    private static int SubstringLength(AwkRuntimeState state, in AwkValue value, int argumentCount) =>
+        argumentCount == 2 ? int.MaxValue :
+            (int)(value.TryGetNumberValue(out var number) ? number : value.AsNumber(state.CancellationCheckpoint));
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)
     {

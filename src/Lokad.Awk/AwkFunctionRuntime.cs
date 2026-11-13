@@ -117,4 +117,6 @@ internal sealed class AwkFunctionRuntime
         AwkRegionStorage? source = null, in AwkRegionOperand sourceOperand = default) =>
         _calls.TryAssignLocal(slotId, value, source, in sourceOperand);
 
+    internal bool TryRetireScalar(AwkFunctionLocalSlotId slotId) => _calls.TryRetireScalar(slotId);
+
 }

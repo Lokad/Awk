@@ -9,6 +9,9 @@ internal sealed class AwkUserFunction
     internal bool MayInvokeHost { get; private set; } = true;
     internal bool ReturnsStringLength { get; private set; }
     internal void PrepareStringLengthReturn() => ReturnsStringLength = true;
+    private AwkVariableName[] _countedLocals = [];
+    internal ReadOnlySpan<AwkVariableName> CountedLocals => _countedLocals;
+    internal void PrepareLocalLengths(AwkVariableName[] names) => _countedLocals = names;
     internal void PrepareHostEffects(bool mayInvokeHost) => MayInvokeHost = mayInvokeHost;
 
     internal void PrepareRegion(AwkRegion region)

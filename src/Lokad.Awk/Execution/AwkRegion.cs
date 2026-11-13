@@ -155,7 +155,7 @@ internal enum AwkRegionInstructionKind : byte
     MainRead, RuleEnd,
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, TextNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Add, Subtract, Multiply, Divide, Modulo, Power, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
-    AssignNumber, AssignConsumedScalar, ScalarUpdate, AssignField, CopyField,
+    AssignNumber, AssignConsumedScalar, RetireLocal, SubstringLength, ScalarUpdate, AssignField, CopyField,
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,

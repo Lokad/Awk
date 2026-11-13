@@ -49,6 +49,11 @@ full-value scratch through pending output, later refusal and cancellation during
 Counted returns cover direct/assigned/forwarding and recursive calls, all reaching local writes,
 numeric formatting at use, dynamic sort/traversal callbacks and callee funding through pending
 diagnostics. Their counters retain observed spellings while removing unused returned text.
+Count-only locals also cover earlier/source-self reads, formatting at definition, shared untyped
+origin promotion and array-argument rejection. Retirement tests observe refunds and cancellation
+without publishing a scalar proxy. Nested scalar-unit slices use the same conversion order as
+owning slices; byte mode and observed kinds/spelling retain ordinary text. Pending diagnostics
+keep the callee funded through actual completion.
 Text producers also cover used assignment snapshots, plain-string origins and refusal or
 cancellation at publication after actual RHS production.
 Computed text retains local/global numeric reading modes. Raw untyped payload checks use their

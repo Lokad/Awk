@@ -15,7 +15,8 @@ internal static partial class AwkProgramLowerer
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
         IReadOnlyList<AwkSymbolReference>? symbols = null,
-        AwkRuntimeArgumentPlan? externalArguments = null)
+        AwkRuntimeArgumentPlan? externalArguments = null,
+        AwkStringUnitMode stringUnits = AwkStringUnitMode.Utf8Rune)
     {
         checkpoint?.Invoke();
         List<AwkDiagnostic>? syntaxErrors = null;
@@ -66,7 +67,7 @@ internal static partial class AwkProgramLowerer
 
         AwkParameterConsumption.Prepare(syntax, functions, mode, checkpoint);
 
-        var scratchResults = AwkResultPreparation.Prepare(syntax, functions, symbols, externalArguments, mode, checkpoint);
+        var scratchResults = AwkResultPreparation.Prepare(syntax, functions, symbols, externalArguments, mode, stringUnits, checkpoint);
 
         // All named targets have one identity, including forward and recursive calls.
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)

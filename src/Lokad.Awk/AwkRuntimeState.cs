@@ -1104,6 +1104,15 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
+    internal void RetireFunctionLocalScalar(in AwkRegionOperand variable)
+    {
+        ThrowIfCancellationRequested();
+        if (!_functions.TryRetireScalar(new(variable.Index)))
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(variable.Name.Text));
+        // Retirement can refund the incoming payload through the host budget.
+        ThrowIfCancellationRequested();
+    }
+
     internal void AssignConsumedScalar(in AwkRegionOperand variable, AwkRegionStorage source,
         in AwkRegionOperand operand)
     {

@@ -118,7 +118,8 @@ internal sealed partial class AwkRegionCompiler
                     _value = compiler.CaptureValue(CompletedResult<int>(completed));
                     if (_scalar >= 0)
                     {
-                        if (!compiler.AssignScratchResult(_scalar, ref _value)) compiler.Assign(_scalar, _value);
+                        if (!compiler.AssignLocalLength(_scalar, ref _value) &&
+                            !compiler.AssignScratchResult(_scalar, ref _value)) compiler.Assign(_scalar, _value);
                         return Complete(_value);
                     }
                     _stage = 2;

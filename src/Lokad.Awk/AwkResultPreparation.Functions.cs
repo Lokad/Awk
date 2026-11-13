@@ -10,7 +10,7 @@ internal static partial class AwkResultPreparation
     private static void PrepareFunctions(AwkSyntaxProgram syntax,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         Dictionary<string, Definition> definitions, IReadOnlyList<AwkSymbolReference> symbols,
-        AwkCompatibilityMode mode, Action? checkpoint)
+        AwkCompatibilityMode mode, AwkStringUnitMode stringUnits, Action? checkpoint)
     {
         // Comparator names can come from runtime strings. Their numeric observations
         // are not represented by ordinary call symbols; retain full returns here.
@@ -26,6 +26,8 @@ internal static partial class AwkResultPreparation
         var unsafeText = new bool[items.Count];
         var textCallers = new List<int>?[items.Count];
         var forwarding = new List<int>?[items.Count];
+        var localWrites = new int[items.Count][];
+        var localDefinitions = new LocalTextDefinition?[items.Count][];
         var expressions = new Stack<(AwkExpressionSyntax Expression, int Use)>();
         for (var index = 0; index < items.Count; index++)
         {
@@ -34,6 +36,8 @@ internal static partial class AwkResultPreparation
             var layout = function.LocalLayout;
             var writes = new int[function.Parameters.Count];
             var locals = new LocalTextDefinition?[writes.Length];
+            localWrites[index] = writes;
+            localDefinitions[index] = locals;
             var inspectedLocals = new bool[writes.Length];
             var returns = new List<AwkExpressionSyntax>();
             foreach (var (statement, unconditional) in Statements(items[index].BodyStatements, checkpoint))
@@ -48,7 +52,7 @@ internal static partial class AwkResultPreparation
                         expression.OperatorTokens.Count == 1 && expression.OperatorTokens[0].Kind == AwkTokenKind.Equal &&
                         AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var name) &&
                         layout.TryGetSlot(new(name.Identifier), out var slot))
-                        locals[slot.Index] ??= new(expression.Children[1], expression.Span.End);
+                        locals[slot.Index] ??= new(expression.Children[1], expression.Span.End, name.Span);
                 }
                 if (statement.Payload is AwkGetlineStatementSyntaxPayload getline &&
                     AwkGetlineSyntaxFacts.TryResolveStatementParts(getline.Getline, out var parts) &&
@@ -164,7 +168,14 @@ internal static partial class AwkResultPreparation
         {
             checkpoint?.Invoke();
             if (observations[i] == LengthObservation)
-                functions[AwkFunctionName.FromText(items[i].Name)].PrepareStringLengthReturn();
+            {
+                var function = functions[AwkFunctionName.FromText(items[i].Name)];
+                function.PrepareStringLengthReturn();
+                // Byte slices still need their UTF-8 boundary bytes. Keep their
+                // ordinary owning text instead of adding another representation.
+                if (stringUnits == AwkStringUnitMode.Utf8Rune)
+                    PrepareLocalLengths(items[i], function, localWrites[i], localDefinitions[i], mode, checkpoint);
+            }
         }
 
         void Propagate()
@@ -270,5 +281,5 @@ internal static partial class AwkResultPreparation
         }
     }
 
-    private sealed record LocalTextDefinition(AwkExpressionSyntax Value, int End);
+    private sealed record LocalTextDefinition(AwkExpressionSyntax Value, int End, AwkTextSpan Target);
 }

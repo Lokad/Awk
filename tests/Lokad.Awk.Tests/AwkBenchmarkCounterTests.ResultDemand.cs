@@ -3,6 +3,33 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task CountedLocalCaseAvoidsUnobservedTextPublication(bool governed)
+    {
+        const int records = 128;
+        const string source = "function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t}" +
+            "{v=clip($1,$2);total+=length(v)}END{print total}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Range(0, records)
+            .Select(index => index % 2 == 0 ? "ID:beta:tail 4\n" : "ID:beta:tail 32\n")));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(counters.AwkTextAllocations, 0, 32);
+        Assert.Equal(0, counters.AsciiCaseConversionBytes);
+        Assert.Equal(0, counters.AsciiCasePreparationBytes);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
     [InlineData("direct", false)] [InlineData("direct", true)]
     [InlineData("assigned", false)] [InlineData("assigned", true)]
     [InlineData("forwarded", false)] [InlineData("forwarded", true)]

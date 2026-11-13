@@ -42,6 +42,8 @@ internal sealed partial class AwkRegionCompiler
     private readonly Dictionary<long, int> _constantRegisters = [];
     private readonly Dictionary<AwkVariableName, int> _variableIndices = [];
     private Dictionary<AwkVariableName, int>? _scalarResults;
+    private Dictionary<AwkVariableName, int>? _localLengths;
+    private HashSet<AwkExpressionSyntax>? _localLengthSlices;
     private readonly Stack<ControlScope> _controls = [];
     private int _numbers;
     private int _lastNumberRead = -1;
@@ -133,6 +135,11 @@ internal sealed partial class AwkRegionCompiler
     {
         var compiler = new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record);
         compiler._countStringReturn = function?.ReturnsStringLength == true;
+        if (function is not null && !function.CountedLocals.IsEmpty)
+        {
+            compiler._localLengths = new(function.CountedLocals.Length);
+            foreach (var name in function.CountedLocals) compiler._localLengths.Add(name, -1);
+        }
         var success = compiler.Compile(statements, null, defaultPrint: false, out region);
         diagnostic = compiler._diagnostic ?? default;
         return success;
@@ -769,6 +776,69 @@ internal sealed partial class AwkRegionCompiler
         }
         _scalarResults.Remove(_operands[variable].Name);
         return false;
+    }
+
+    private bool AssignLocalLength(int variable, ref int value)
+    {
+        var destination = _operands[variable];
+        if (_localLengths is null || !_localLengths.ContainsKey(destination.Name)) return false;
+        if (destination.Kind != AwkRegionOperandKind.LocalVariable ||
+            !TryTakeFreshTextProducer(value, _code.Count - 1, out var producer) || producer.Kind != AwkRegionInstructionKind.Case)
+            throw new InvalidOperationException("A counted local definition requires its prepared case producer.");
+        _texts--;
+        value = Operand(AwkRegionOperandKind.NumberTemporary, _numbers++);
+        _code[^1] = producer with { Target = value };
+        _localLengths[destination.Name] = value;
+        Emit(new(AwkRegionInstructionKind.RetireLocal, variable));
+        return true;
+    }
+
+    private bool TryLocalLength(AwkExpressionSyntax expression, out int result)
+    {
+        while (expression.Kind == AwkExpressionKind.Group && expression.Children.Count == 1)
+        {
+            _scope.CheckCancellation();
+            expression = expression.Children[0];
+        }
+        result = -1;
+        return _localLengths is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var name) &&
+            _localLengths.TryGetValue(new(name.Identifier), out result) && result >= 0;
+    }
+
+    private bool IsLocalLengthSlice(AwkExpressionSyntax expression)
+    {
+        if (_localLengths is null) return false;
+        List<AwkExpressionSyntax>? walked = null;
+        while (true)
+        {
+            _scope.CheckCancellation();
+            while (expression.Kind == AwkExpressionKind.Group && expression.Children.Count == 1)
+            {
+                _scope.CheckCancellation();
+                expression = expression.Children[0];
+            }
+            if (TryLocalLength(expression, out _) || _localLengthSlices?.Contains(expression) == true)
+            {
+                if (walked is not null)
+                {
+                    _localLengthSlices ??= [];
+                    foreach (var slice in walked)
+                    {
+                        _scope.CheckCancellation();
+                        _localLengthSlices.Add(slice);
+                    }
+                }
+                return true;
+            }
+            if (expression.Children.Count is not (3 or 4) ||
+                !AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var call) ||
+                _scope.TryGetFunctionLocalSlot(new(call.Identifier), out _) ||
+                !AwkBuiltins.TryGetCallable(call.Name, out var builtin) || builtin.Id != AwkBuiltinId.Substr) return false;
+            // A nested chain is proved once, then its continuations borrow that
+            // preparation fact instead of repeatedly walking the remaining suffix.
+            (walked ??= []).Add(expression);
+            expression = expression.Children[1];
+        }
     }
 
     private bool IsPreparedStringLength(AwkExpressionSyntax expression, out bool call)
