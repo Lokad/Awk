@@ -115,7 +115,7 @@ public sealed partial class AwkFunctionStorageTests
                 stack.DiscardIncomingFrame(frame);
                 Assert.Same(frame, stack.PrepareFrame(layout));
             }
-            frame.StageNumber(0, 9);
+            frame.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9));
         };
         var value = stack.ReadFrameValue(frame, new(0));
         Assert.Equal("0007é", value.ByteText.AsString());

@@ -122,7 +122,11 @@ public sealed class AwkFunctionLocalSlotTests
                 Assert.True(text.HasSameStorage(actual.ByteText));
             var initialized = AwkFunctionLocalSlot.MissingScalar();
             var prior = initialized;
-            initialized.InitializeScalar(in value);
+            if (value.StoredKind == AwkValueKind.Untyped)
+                initialized = AwkFunctionLocalSlot.UntypedScalar(value);
+            else initialized.InitializeScalar(in value);
+            Assert.Equal(value.StoredKind == AwkValueKind.Untyped
+                ? AwkFunctionLocalSlotKind.UntypedScalar : AwkFunctionLocalSlotKind.Scalar, initialized.Kind);
             Assert.Equal(value.StoredKind, initialized.Value.StoredKind);
             Assert.Same(value.StoredReference, initialized.Value.StoredReference);
             Assert.Equal(BitConverter.DoubleToInt64Bits(value.StoredNumber),
@@ -147,6 +151,8 @@ public sealed class AwkFunctionLocalSlotTests
 
         static AwkValue RoundTripStorage(AwkValue value)
         {
+            if (value.StoredKind == AwkValueKind.Untyped)
+                return AwkFunctionLocalSlot.UntypedScalar(value).Value;
             var cell = AwkFunctionLocalSlot.MissingScalar();
             cell.InitializeScalar(in value);
             return cell.Value;
