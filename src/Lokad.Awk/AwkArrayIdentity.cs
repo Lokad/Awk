@@ -68,17 +68,17 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         set
         {
             if (_indexed is not null) throw new InvalidOperationException("Indexed insertion requires admitted storage preparation.");
-            WritableDictionary()[key] = new(value);
+            WritableDictionary()[key.PrepareByteLookup()] = new(value);
         }
     }
 
     public bool ContainsKey(AwkArrayKey key) => _indexed is null
-        ? _lookup.Dictionary.ContainsKey(key) : TryGetIndexed(key, out _, out _);
+        ? _lookup.Dictionary.ContainsKey(key.PrepareByteLookup()) : TryGetIndexed(key, out _, out _);
 
     public bool TryGetValue(AwkArrayKey key, out AwkValue value)
     {
         if (_indexed is not null) return TryGetIndexed(key, out _, out value);
-        if (_lookup.Dictionary.TryGetValue(key, out var cell))
+        if (_lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out var cell))
         {
             value = cell.Slot;
             return true;
@@ -104,7 +104,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
     {
         if (_indexed is null)
         {
-            if (_lookup.Dictionary.GetAlternateLookup<AwkArrayKey>().TryGetValue(key, out retainedKey, out cell))
+            if (_lookup.Dictionary.GetAlternateLookup<AwkArrayKey>().TryGetValue(key.PrepareByteLookup(), out retainedKey, out cell))
             {
                 value = cell.Slot;
                 return true;
@@ -115,7 +115,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         cell = null;
         if (TryGetIndexed(key, out var ordinal, out value))
         {
-            retainedKey = key.TryGetOrdinalValue(out _) ? key : AwkArrayKey.FromOrdinal(ordinal);
+            retainedKey = AwkArrayKey.FromOrdinal(ordinal);
             return true;
         }
         retainedKey = default;
@@ -203,22 +203,22 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         {
             // Unpublished clones fill admitted slots. Language insertion prepares storage separately.
             Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
-            var bytes = key.AsSpan(buffer);
-            if (!TryParseOrdinal(bytes, out var ordinal) || ordinal > _indexedCapacity ||
+            if ((!key.TryGetOrdinalValue(out var ordinal) && !TryParseOrdinal(key.AsSpan(buffer), out ordinal)) ||
+                ordinal <= 0 || ordinal > _indexedCapacity ||
                 indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] is not null)
                 throw new InvalidOperationException("Invalid indexed clone position.");
             indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] = value;
             _indexedCount++;
             return;
         }
-        WritableDictionary().Add(key, new(value));
+        WritableDictionary().Add(key.PrepareByteLookup(), new(value));
     }
 
     internal AwkArrayCell AddDictionarySlot(AwkArrayKey key, AwkValue value)
     {
         if (_indexed is not null) throw new InvalidOperationException("A dictionary insertion requires dictionary storage.");
         var cell = new AwkArrayCell(value);
-        WritableDictionary().Add(key, cell);
+        WritableDictionary().Add(key.PrepareByteLookup(), cell);
         return cell;
     }
 
@@ -232,9 +232,8 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
 
     internal bool Remove(AwkArrayKey key)
     {
-        if (_indexed is not { } indexed) return _lookup.Dictionary.Remove(key);
-        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
-        if (key.ByteLength > 10 || !TryGetIndexed(key.AsSpan(buffer), out var ordinal, out _)) return false;
+        if (_indexed is not { } indexed) return _lookup.Dictionary.Remove(key.PrepareByteLookup());
+        if (!TryGetIndexed(key, out var ordinal, out _)) return false;
         indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] = null;
         _indexedCount--;
         return true;
@@ -248,7 +247,8 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         for (var index = 0; index < _indexedCapacity; index++)
         {
             if ((index & 63) == 0) checkpoint?.Invoke();
-            if (indexed[index >> IndexedPageShift][index & IndexedPageMask] is { } value) result.Add(AwkArrayKey.FromOrdinal(index + 1), new(value));
+            if (indexed[index >> IndexedPageShift][index & IndexedPageMask] is { } value)
+                result.Add(AwkArrayKey.FromOrdinal(index + 1).PrepareByteLookup(), new(value));
         }
         return result;
     }

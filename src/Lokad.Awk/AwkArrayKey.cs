@@ -49,35 +49,24 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     }
 
     public static AwkArrayKey FromOrdinal(int ordinal) =>
-        new(ordinal);
-
-    // Indexed update captures need the coordinate, not decimal lookup bytes.
-    // Keep the existing owning ordinal form through RHS work; ordinary key
-    // projections still format it if the owner becomes a dictionary.
-    internal static AwkArrayKey FromIndexedOrdinal(int ordinal) =>
         new(AwkText.Empty, ordinal, (int)AwkArrayKeyKind.Ordinal);
+
+    // Dictionaries consume bytes; indexed owners consume the ordinal itself.
+    // Prepare the bounded spelling only at the byte lookup or retention boundary.
+    internal AwkArrayKey PrepareByteLookup()
+    {
+        if (_kind != AwkArrayKeyKind.Ordinal || _ordinal is < -999999 or > 9999999)
+            return this;
+        Span<byte> buffer = stackalloc byte[InlineByteCapacity];
+        var prepared = FromInlineBytes(FormatOrdinalBytes(_ordinal, buffer));
+        return new(prepared._text, prepared._ordinal,
+            (int)prepared._kind | (int)AwkArrayKeyKind.Ordinal);
+    }
 
     internal bool TryGetOrdinalValue(out int ordinal)
     {
         ordinal = _ordinal;
         return _kind == AwkArrayKeyKind.Ordinal;
-    }
-
-    private AwkArrayKey(int ordinal)
-    {
-        // Prepare bounded decimal spelling once at its owner. The low tag bit
-        // preserves ordinal origin; hashing/equality consume the same compact
-        // words as byte keys without reformatting or parsing lookup bytes.
-        if (ordinal is >= -999999 and <= 9999999)
-        {
-            Span<byte> buffer = stackalloc byte[InlineByteCapacity];
-            this = FromInlineBytes(FormatOrdinalBytes(ordinal, buffer));
-            _kind = (AwkArrayKeyKind)((uint)_kind | (uint)AwkArrayKeyKind.Ordinal);
-            return;
-        }
-        _kind = AwkArrayKeyKind.Ordinal;
-        _text = AwkText.Empty;
-        _ordinal = ordinal;
     }
 
     private AwkArrayKey(int lowBytes, uint highBytes, int length)

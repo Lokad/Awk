@@ -127,11 +127,12 @@ or environment dependencies.
   absent and special arrays keep their promotion/policy boundary. Cold name binding still
   publishes only after success.
   Short byte keys own their bytes in the existing 16-byte key words; keep numeric ordinals
-  distinct. Ordinary ordinal keys whose decimal spelling fits those words prepare it once;
-  the origin flag survives packed storage while hashing/equality ignore it. Indexed update
-  coordinates retain the existing raw ordinal form through RHS work and re-location; a
-  dictionary or language projection prepares bytes at actual use. Larger ordinary ordinals
-  also keep their numeric payload. Language/sort projections admit owned text when required.
+  distinct. Numeric key creation retains ordinal coordinates; indexed owners consume them
+  directly. Dictionary lookup/retention prepares bounded decimal spelling in those same words;
+  its origin flag survives packed storage while hashing/equality ignore it. Captured coordinates
+  remain owning through RHS work and re-location. Larger ordinals keep their numeric payload;
+  language/sort projections admit owned text when required. Do not restore a separate indexed
+  numeric factory or prepare decimal bytes for an operation that consumes a coordinate.
   Runtime comparers share randomized hashing for owned/borrowed bytes. Compact equality
   does not prepare mixed-representation buffers; raw key views stay synchronous. Short-byte
   runtime hashing shares the compact word encoding across owned, borrowed and ordinal projections.

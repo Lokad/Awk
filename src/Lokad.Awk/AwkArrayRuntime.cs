@@ -294,8 +294,7 @@ internal sealed partial class AwkArrayRuntime
     {
         if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
             _state.TryGetBoundArray(name, binding, out var array))
-            return _variables.PrepareArrayUpdate(array, array.IsIndexed
-                ? AwkArrayKey.FromIndexedOrdinal(ordinal) : AwkArrayKey.FromOrdinal(ordinal), in previous);
+            return _variables.PrepareArrayUpdate(array, AwkArrayKey.FromOrdinal(ordinal), in previous);
         return PrepareUpdate(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding, in previous);
     }
 

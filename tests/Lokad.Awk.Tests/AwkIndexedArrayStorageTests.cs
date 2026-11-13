@@ -13,7 +13,7 @@ public sealed class AwkIndexedArrayStorageTests
         var owner = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
         variables.SetArrayOrdinalValue(owner, 1, AwkValue.FromNumber(7));
         var held = memory.Budget.Reserved;
-        var key = AwkArrayKey.FromIndexedOrdinal(2);
+        var key = AwkArrayKey.FromOrdinal(2);
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         try
@@ -32,9 +32,8 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void OrdinalGrowthAndPromotionFundTheirActualLiveStorage(bool rawCoordinate)
+    [Fact]
+    public void OrdinalGrowthAndPromotionFundTheirActualLiveStorage()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
@@ -45,8 +44,7 @@ public sealed class AwkIndexedArrayStorageTests
             variables.SetArrayValue(owner, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         Assert.True(owner.IsIndexed);
         Assert.Equal(emptyBytes + AwkVariables.EstimateArrayBytes(owner), memory.Budget.Reserved);
-        var captured = variables.PrepareArrayUpdate(owner, rawCoordinate
-            ? AwkArrayKey.FromIndexedOrdinal(1) : AwkArrayKey.FromOrdinal(1));
+        var captured = variables.PrepareArrayUpdate(owner, AwkArrayKey.FromOrdinal(1));
         Assert.Null(captured.Cell);
         variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
         variables.SetArrayValue(owner, new("01"), AwkValue.FromNumber(11));

@@ -86,7 +86,7 @@ compound updates retain their captured prior value. Refusal/cancellation must pr
 and later effects, including partial-page and table growth.
 Indexed compound updates retain numeric coordinates through capture and commit. Check their
 key identity after dictionary promotion, missing-entry admission before RHS work, aliases,
-current formatting and pending-output/cancellation lifetimes. Raw and compact ordinal keys
+current formatting and pending-output/cancellation lifetimes. Raw coordinates and prepared dictionary words
 must agree after packed storage, hashing and language projection.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.

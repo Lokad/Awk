@@ -1225,7 +1225,7 @@ internal sealed partial class AwkVariables
             AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot)), oldBacking);
         _checkpoint?.Invoke();
         var cell = new AwkArrayCell(slot);
-        dictionary.Add(index, cell);
+        dictionary.Add(index.PrepareByteLookup(), cell);
         values.PublishDictionary(dictionary);
         mutation.Commit();
         return cell;
