@@ -263,6 +263,16 @@ internal struct AwkFunctionLocalSlot
         ? AwkValue.Unassigned()
         : AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_payloadTag);
 
+    internal readonly bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array)
+    {
+        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.ReaderText)
+        {
+            array = null;
+            return false;
+        }
+        return AwkValue.TryGetArrayBinding(_reference, (AwkValueKind)_payloadTag, out array);
+    }
+
     internal readonly AwkValue ReadValue(Action? checkpoint)
     {
         if (Kind == AwkFunctionLocalSlotKind.ReaderText)

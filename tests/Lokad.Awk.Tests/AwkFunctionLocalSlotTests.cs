@@ -228,15 +228,20 @@ public sealed class AwkFunctionLocalSlotTests
         var potential = AwkFunctionLocalSlot.PotentialArrayAlias(name, value);
         var untyped = AwkFunctionLocalSlot.UntypedScalar(value);
         var scalar = AwkFunctionLocalSlot.Scalar(value);
+        using var reader = AwkReadBuffer.EndOfFile;
+        var readerCell = AwkFunctionLocalSlot.MissingScalar();
+        readerCell.InitializeReaderText(reader, 0, 0);
         AwkFunctionLocalSlot[] unbound = [AwkFunctionLocalSlot.MissingScalar(),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromText("a")), scalar,
             AwkFunctionLocalSlot.PreparedKey(AwkArrayKey.FromOrdinal(7)),
-            AwkFunctionLocalSlot.ArrayAlias(name), potential, untyped];
+            AwkFunctionLocalSlot.ArrayAlias(name), potential, untyped, readerCell];
         foreach (var cell in unbound)
         {
             Assert.False(cell.Value.TryGetArrayBinding(out var missing));
             Assert.Null(missing);
+            Assert.False(cell.TryGetArrayBinding(out var binding));
+            Assert.Null(binding);
         }
         Assert.False(origin.IsScalar);
         origin.PromoteArray(array);
@@ -245,12 +250,61 @@ public sealed class AwkFunctionLocalSlotTests
         {
             Assert.True(cell.Value.TryGetArrayBinding(out var bound));
             Assert.Same(array, bound);
+            Assert.True(cell.TryGetArrayBinding(out var binding));
+            Assert.Same(array, binding);
         }
         Assert.False(scalar.Value.TryGetArrayBinding(out _));
+        Assert.False(scalar.TryGetArrayBinding(out _));
         Assert.Equal(name, potential.ArrayName);
         origin.Detach();
         Assert.False(potential.Value.TryGetArrayBinding(out _));
         Assert.False(untyped.Value.TryGetArrayBinding(out _));
+        Assert.False(potential.TryGetArrayBinding(out _));
+        Assert.False(untyped.TryGetArrayBinding(out _));
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void ArrayBindingCapturesItsNameBeforeResolutionCanReplaceTheSourceCell(bool indexed, bool resolved)
+    {
+        var name = AwkVariableName.FromText("arg");
+        var original = AwkArrayName.FromText("original");
+        var owner = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
+        var origin = new AwkUntypedScalar(owner);
+        AwkFunctionFrame? active = null;
+        var observed = false;
+        var stack = new AwkFunctionCallStack(8, AwkMemoryAccounting.Disabled, AwkNumberParsingMode.Decimal,
+            findArray: requested =>
+            {
+                if (active is not { } frame) return null;
+                Assert.Equal(original, requested);
+                observed = true;
+                frame.GetSlot(0) = AwkFunctionLocalSlot.UntypedScalar(AwkValue.FromUntypedScalar(origin));
+                return resolved ? owner : null;
+            },
+            promoteArrayOrigin: _ => throw new XunitException("An unresolved alias must not promote its replacement cell."));
+        stack.PushFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(original)]);
+        try
+        {
+            active = stack.CurrentFrame;
+            var found = indexed ? stack.TryGetBoundArray(new AwkFunctionLocalSlotId(0), out var array, promote: true)
+                : stack.TryGetBoundArray(name, out array, promote: true);
+            Assert.Equal(resolved, found);
+            Assert.True(observed);
+            Assert.Same(resolved ? owner : null, array);
+            Assert.Equal(resolved ? original : default, active.GetSlot(0).ArrayName);
+            Assert.Equal(resolved, active.GetSlot(0).TryGetArrayBinding(out var published));
+            Assert.Same(resolved ? owner : null, published);
+            if (!resolved)
+            {
+                Assert.True(active.GetSlot(0).Value.TryGetUntypedScalar(out var replacement));
+                Assert.Same(origin, replacement);
+                Assert.False(origin.IsScalar);
+                Assert.Null(origin.Array);
+            }
+        }
+        finally { stack.PopFrame(static _ => { }); }
     }
 
     [Fact]

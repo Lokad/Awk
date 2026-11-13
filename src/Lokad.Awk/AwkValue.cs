@@ -283,10 +283,14 @@ internal readonly struct AwkValue
     public bool IsArrayValue => _kind == AwkValueKind.ArrayReference ||
         _kind == AwkValueKind.Untyped && _text is AwkUntypedScalar { Array: not null };
 
-    public bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array)
+    public bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array) =>
+        TryGetArrayBinding(_text, _kind, out array);
+
+    internal static bool TryGetArrayBinding(object? reference, AwkValueKind kind,
+        [NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        array = _kind == AwkValueKind.ArrayReference ? _text as AwkArrayIdentity :
-            _kind == AwkValueKind.Untyped ? (_text as AwkUntypedScalar)?.Array : null;
+        array = kind == AwkValueKind.ArrayReference ? reference as AwkArrayIdentity :
+            kind == AwkValueKind.Untyped ? (reference as AwkUntypedScalar)?.Array : null;
         return array is not null;
     }
 

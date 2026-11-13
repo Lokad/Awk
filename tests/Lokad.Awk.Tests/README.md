@@ -120,6 +120,9 @@ ownership. Preserve input versus recomposed-value factories and owner-specific r
 Call and sort/traversal tests exercise aliases, snapshots and captured payloads through actual
 pending calls. Cancellation tests establish bounded responsiveness, effect order and cleanup,
 not historical checkpoint counts. Public host tests retain capability/path/pipe/append contracts.
+Cell array bindings preserve live promoted/detached origins and reject missing, key and reader
+roles. Name/index lookup captures identity before resolution can replace its source cell;
+an unresolved alias must not promote that replacement.
 Reader-backed text arguments also use poisoned buffers and custom memory to verify original
 spelling, retirement and admission before an actual owning copy. Borrow forwarding needs no
 future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.

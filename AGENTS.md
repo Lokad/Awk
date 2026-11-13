@@ -301,6 +301,10 @@ or environment dependencies.
   Arithmetic field arguments stage cached numbers directly; deferred errors and owned values
   keep ordinary capture. Builtin scratch retains its value consumer.
   Function cells share mutually exclusive scalar/key payload words and retain full array names.
+  Array-only consumers project the existing role/reference directly through the shared value
+  semantics. Synchronous binding borrows the actual cell; capture names and origins before
+  callbacks and do not reread a replaced cell. Missing, key and reader roles are not arrays.
+  Preserve live untyped origins, scope hiding, alias reconciliation and actual scalar projections.
   Storage views preserve owned references, raw bits and origins without classification or callbacks;
   only the cell role selects their interpretation. Fund slot arrays at their actual element width.
   Function scalars retain canonical values in those words, without a variable-slot projection
