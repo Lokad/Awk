@@ -71,6 +71,8 @@ or environment dependencies.
   Prepared string results use canonical text operands when an owning value is needed.
   Case/substring results bind canonical consumers in the existing instruction/operand storage;
   complemented print indices name output. Numeric text-result destinations count string units.
+  Count-only casing uses its formatted source; count-only substring consumes the semantic
+  slice without an unused owning result. Observed assignments and escapes keep ordinary text.
   Fresh scalar consumers retain their actual text slot through existing owner publication;
   used results keep their snapshots. Share the fresh-result proof with length/print and retire
   only unused storage. Scalar writes end field-demand preparation; print remains a host effect.

@@ -7,7 +7,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [InlineData("global", false)] [InlineData("global", true)]
     [InlineData("field", false)] [InlineData("field", true)]
     [InlineData("local", false)] [InlineData("local", true)]
-    public async Task ImmediateCaseLengthsKeepTheSemanticProducerAndNativeText(string source, bool governed)
+    public async Task ImmediateCaseLengthsCountFormattedInputsWithoutProducingText(string source, bool governed)
     {
         const int records = 32;
         foreach (var upper in new[] { false, true })
@@ -27,8 +27,8 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("128\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(records * 4, counters.AsciiCasePreparationBytes);
-            Assert.Equal(upper ? records * 4 : 0, counters.AsciiCaseConversionBytes);
+            Assert.Equal(0, counters.AsciiCasePreparationBytes);
+            Assert.Equal(0, counters.AsciiCaseConversionBytes);
             Assert.Equal(0, counters.StringDecodes);
             Assert.Equal(0, counters.Utf8Encodes);
             Assert.Equal(0, host.OpenFileCount);

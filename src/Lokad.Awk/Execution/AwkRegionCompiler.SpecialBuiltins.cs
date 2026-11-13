@@ -20,7 +20,7 @@ internal sealed partial class AwkRegionCompiler
             var value = argument is null ? compiler.Operand(AwkRegionOperandKind.Field, 0) : CompletedResult<int>(completed);
             var number = compiler._numbers++;
             var producer = default(AwkRegionInstruction);
-            var consume = compiler._code.Count > 0 && compiler._code[^1].Kind == AwkRegionInstructionKind.Case &&
+            var consume = compiler._code.Count > 0 && compiler._code[^1].Kind is AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Substring &&
                 compiler.TryTakeFreshTextProducer(value, compiler._code.Count - 1, out producer);
             if (consume) compiler._texts--;
             var result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);

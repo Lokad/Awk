@@ -12,7 +12,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task WholeStringResultsReuseTheExistingFieldOwner(bool governed, string expression, string input, int length)
     {
         const int records = 32, repetitions = 8;
-        var source = "{for(i=0;i<8;i++)total+=length(" + expression + ")}END{print total}";
+        var source = "{for(i=0;i<8;i++){kept=" + expression + ";total+=length(kept)}}END{print total}";
         var host = new MockFileSystem();
         host.SetStandardInput(string.Concat(Enumerable.Repeat("key " + input + "\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -62,7 +62,7 @@ public sealed partial class AwkBenchmarkCounterTests
         host.SetStandardInput(string.Concat(Enumerable.Repeat("key AbCdEfghij\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
-        var source = "{total+=length(" + (upper ? "toupper" : "tolower") + "($2))}END{print total}";
+        var source = "{kept=" + (upper ? "toupper" : "tolower") + "($2);total+=length(kept)}END{print total}";
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
@@ -83,8 +83,8 @@ public sealed partial class AwkBenchmarkCounterTests
     public async Task ImmediateSubstringOwnsOnlyTheEscapingSlice(bool governed, bool dynamic)
     {
         const int records = 128;
-        var source = "BEGIN{column=2}{total+=length(substr(" + (dynamic ? "$(column)" : "$2") +
-            ",1,2))}END{print total}";
+        var source = "BEGIN{column=2}{kept=substr(" + (dynamic ? "$(column)" : "$2") +
+            ",1,2);total+=length(kept)}END{print total}";
         var host = new MockFileSystem();
         host.SetStandardInput(string.Concat(Enumerable.Repeat("key résumé\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();

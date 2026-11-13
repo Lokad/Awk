@@ -4,6 +4,30 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCaseMemoryTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task CountOnlyCasingKeepsItsPostCaptureCancellationBoundary(bool bytes)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, cancellation.Token))
+        {
+            var state = State(owner, bytes, cancellation.Token);
+            using var storage = new AwkRegionStorage(state);
+            storage.Prepare(new(1, Texts: 1));
+            storage.StoreText(0, AwkText.FromString("ABé😀cd"));
+            storage.Numbers[0] = -7;
+            // A source capture or custom-memory access may request cancellation
+            // after the instruction entry check, before this primitive consumes it.
+            cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() => storage.StoreCaseResult(
+                new(AwkRegionOperandKind.NumberTemporary, 0), -1,
+                new(storage.Texts[0]), upper: false, field: -1));
+            Assert.Equal(-7, storage.Numbers[0]);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task UnchangedBorrowedCaseResultStaysFundedUntilConsumption(bool upper, bool bytes)

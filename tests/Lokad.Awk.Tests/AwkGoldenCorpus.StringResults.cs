@@ -4,6 +4,23 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("counted-text-producers-preserve-units-formatting-and-input-origins",
+            ["""function sizes(s){return length(tolower(s)) ":" length(toupper(s)) ":" length(substr(s,2,2))}BEGIN{CONVFMT="%.2f";print sizes("İıKſßﬃΣ𐐀😀");print sizes(12.5);s="0007";print sizes(s),s,typeof(s)}{print sizes($1),$1,typeof($1)}"""],
+            [], "9:9:2\n5:5:2\n4:4:2 0007 string\n4:4:2 0007 strnum\n", "0007\n");
+        yield return Passing("substring-length-keeps-ordered-captures-and-observed-assignments",
+            ["""function later(){start=3;$0="new uvw";return 2}BEGIN{start=2;$0="old café";print length(substr($2,start,later())),start,$0;print length(t=substr("é😀z",2,1)),typeof(t),t}"""],
+            [], "2 3 new uvw\n1 string 😀\n");
+        yield return Passing("counted-text-keeps-byte-unit-semantics",
+            ["--characters-as-bytes", """BEGIN{s="é😀z";print length(tolower(s)),length(toupper(s)),length(substr(s,1,2))}"""],
+            [], "7 7 2\n");
+        yield return Passing("counted-substring-still-skips-unused-length-conversion",
+            ["--non-decimal-data", """{print length(substr("abcd",99,$1))}"""],
+            [], "0\n", "0x1.8\n");
+        yield return AwkGoldenCaseBuilder.Create("counted-substring-still-validates-byte-boundaries",
+                ["--characters-as-bytes", """BEGIN{print "before";print length(substr("é😀z",2,1));print "later"}"""], [])
+            .WithStdOut("before\n").WithStdErr("awk: invalid UTF-8 input\n").ExitsWith(2)
+            .WithNondeterminismNote("Lokad keeps every text result valid UTF-8; GNU byte mode permits a partial scalar.")
+            .Build();
         yield return Passing("numeric-builtin-arguments-keep-arity-captures-and-format-at-use",
             ["""function change(){CONVFMT="%.2f";return "done"}BEGIN{print substr("abcdef","2",3);print substr("abcdef",2);CONVFMT="%.1f";print sprintf("%s:%s",1.25+0,change());print sprintf("%d",sqrt(16)+1)}"""],
             [], "bcd\nbcdef\n1.25:done\n5\n", "");

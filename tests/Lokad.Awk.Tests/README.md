@@ -58,6 +58,9 @@ Final-string print tests cover direct copying into actual output, numeric-buffer
 refusal before publication and pending stdout/redirected payloads through cancellation.
 Substring kernel fixtures consume already-formatted byte views; public/prepared cases retain
 the source-formatting, index-capture and deferred length-conversion contracts.
+Count-only case/substring consumers preserve unit counts without unused text construction;
+owning-result fixtures assign their text explicitly. Unicode casing's scalar-count law covers
+all valid scalars on the actual platform, and counted byte slices retain strict UTF-8 checks.
 Check source/output ownership and visible effects rather than retired fragment-cache mechanics.
 
 Memory tests distinguish ordinary execution from a supplied shared budget. Refusal fails the

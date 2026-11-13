@@ -241,6 +241,14 @@ internal sealed class AwkRegionStorage : IDisposable
     internal void StoreCaseResult(in AwkRegionOperand destination, int scratch,
         in AwkByteTextOperand source, bool upper, int field)
     {
+        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
+        {
+            // Byte casing preserves bytes; invariant Unicode casing maps each
+            // scalar to one scalar. A length consumer needs no produced text.
+            _state.ThrowIfCancellationRequested();
+            _numbers[destination.Index] = _state.CountStringUnits(in source);
+            return;
+        }
         var before = _payload.Bytes;
         var text = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
         ConsumeProducedText(in destination, scratch, text, _payload.Bytes - before);
@@ -248,14 +256,6 @@ internal sealed class AwkRegionStorage : IDisposable
 
     private void ConsumeProducedText(in AwkRegionOperand destination, int scratch, AwkText text, long producedBytes)
     {
-        if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
-        {
-            // The producer made the bytes available. Counting needs no new owner;
-            // the source or this payload lease remains funded through the scan.
-            _numbers[destination.Index] = _state.CountStringUnits(text);
-            if (producedBytes > 0) _payload.Release(producedBytes);
-            return;
-        }
         var index = destination.Kind == AwkRegionOperandKind.TextTemporary ? destination.Index : scratch;
         StoreProducedText(index, text, producedBytes);
         if (destination.Kind != AwkRegionOperandKind.TextTemporary)
@@ -288,8 +288,16 @@ internal sealed class AwkRegionStorage : IDisposable
     internal void StoreSubstringResult(in AwkRegionOperand destination, int scratch,
         in AwkByteTextOperand source, int field, in AwkValue start, in AwkValue length, int count)
     {
+        var countOnly = destination.Kind == AwkRegionOperandKind.NumberTemporary;
         var before = _payload.Bytes;
-        var text = AwkBuiltins.EvaluateSubstrText(_state, source, field, start, length, count, _payload);
+        AwkBuiltins.EvaluateSubstrSlice(_state, source, field, start, length, count, _payload,
+            borrowOwned: countOnly, out var slice, out var whole);
+        if (countOnly)
+        {
+            _numbers[destination.Index] = _state.CountStringUnits(in slice);
+            return;
+        }
+        var text = _state.OwnStringResult(slice, field, whole, _payload);
         ConsumeProducedText(in destination, scratch, text, _payload.Bytes - before);
     }
 
