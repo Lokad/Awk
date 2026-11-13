@@ -1,5 +1,6 @@
 using System.Buffers.Text;
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -99,6 +100,19 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
 
     // Only mutation/capture consumers ask for dictionary cell identity. Ordinal
     // storage keeps values directly and is located again after RHS evaluation.
+    internal bool TryGetDictionaryCell(AwkArrayKey key, [NotNullWhen(true)] out AwkArrayCell? cell)
+    {
+        System.Diagnostics.Debug.Assert(_indexed is null);
+        return _lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out cell);
+    }
+
+    internal bool TryGetDictionaryCell(ReadOnlySpan<byte> key, out AwkArrayKey retainedKey,
+        [NotNullWhen(true)] out AwkArrayCell? cell)
+    {
+        System.Diagnostics.Debug.Assert(_indexed is null);
+        return _lookup.TryGetValue(key, out retainedKey, out cell);
+    }
+
     internal bool TryGetEntry(AwkArrayKey key, out AwkArrayKey retainedKey,
         out AwkValue value, out AwkArrayCell? cell)
     {
@@ -395,7 +409,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         {
             if (owner._indexed is null)
             {
-                if (owner._lookup.TryGetValue(key, out retainedKey, out cell))
+                if (owner.TryGetDictionaryCell(key, out retainedKey, out cell))
                 {
                     value = cell.Slot;
                     return true;

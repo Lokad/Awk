@@ -116,6 +116,44 @@ public sealed class AwkArrayCellTests
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void NumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        Action? onPoll = null;
+        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
+            static (_, _) => { }, checkpoint: () => onPoll?.Invoke());
+        var array = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
+        var key = new AwkArrayKey("kept");
+        var text = AwkText.FromString(new string('0', 2 * AwkRuntimeLimits.CancellationCheckBytes) + "7");
+        // The test retains its source while the callback replaces the array's claim.
+        using var sourceMemory = memory.Accounting.ReserveTransient(text.EstimatedRetainedMemoryBytes);
+        variables.SetArrayValue(array, key, AwkValue.FromText(text));
+        var replaced = false;
+        onPoll = () =>
+        {
+            onPoll = null;
+            replaced = true;
+            variables.SetArrayValue(array, key, AwkValue.FromNumber(99));
+        };
+
+        var target = borrowedKey
+            ? variables.PrepareArrayUpdate(array, "kept"u8)
+            : variables.PrepareArrayUpdate(array, key);
+
+        Assert.True(replaced);
+        Assert.Equal(7, target.Previous);
+        Assert.Equal(key, target.Key);
+        Assert.Equal(99, variables.GetArrayNumber(array, key));
+        Assert.True(variables.TrySetCapturedArrayNumber(array, in target, target.Previous + 3));
+        Assert.Equal(10, variables.GetArrayNumber(array, key));
+        variables.ClearArray(array);
+        sourceMemory.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference<AwkArrayCell> RetireTable(AwkVariables variables,
         AwkArrayName name, AwkArrayIdentity array, bool detach)
