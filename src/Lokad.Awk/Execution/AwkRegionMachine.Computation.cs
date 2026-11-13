@@ -644,8 +644,7 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var operand = ref operands[index];
             if (IsField(operand)) state.CaptureFieldTextInput(FieldOrdinal(operand), out result);
-            else if (TryText(operand, out var text)) result = text;
-            else result = new(Value(index));
+            else if (!TryText(operand, out result)) result = new(Value(index));
         }
 
         internal static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;
