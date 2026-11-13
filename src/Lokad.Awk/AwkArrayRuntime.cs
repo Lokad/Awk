@@ -367,6 +367,17 @@ internal sealed partial class AwkArrayRuntime
         _state.BindGlobalArray(binding, resolved);
     }
 
+    internal void SetNumericValue(AwkArrayName name, double index, AwkValue value, AwkArrayBinding binding)
+    {
+        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
+            _state.TryGetBoundArray(name, binding, out var array))
+        {
+            _variables.SetArrayOrdinalValue(array, ordinal, value);
+            return;
+        }
+        SetAwkValue(name, _state.ToArrayKey(AwkValue.FromNumber(index)), value, binding);
+    }
+
     public void DeleteValue(AwkArrayName name, AwkArrayKey index)
     {
         if (_state.TryGetBoundArray(name, default, out var array))

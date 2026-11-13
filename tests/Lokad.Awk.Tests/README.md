@@ -77,8 +77,10 @@ Ordinal entries hold owning values directly; captured updates re-locate after RH
 while dictionary captures may retain real cells. Promotion admits new cells plus overlapping
 backing. Cover partial-page and table growth, logical values and payload retirement
 rather than ordinal object identity. Pending-host updates also cross page boundaries.
-Numeric-index reads cover prepared source categories, spelling, scalar reading mode and missing
-insertion; refusal/cancellation must precede insertion and later effects.
+Numeric-index reads and writes cover prepared source categories, spelling, scalar reading mode,
+aliases and missing insertion. Plain assignments retain RHS-before-destination effects;
+compound updates retain their captured prior value. Refusal/cancellation must precede insertion
+and later effects, including partial-page and table growth.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.
 Key equality and hashes agree across inline, ordinal, owned and borrowed forms; long comparisons

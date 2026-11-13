@@ -104,7 +104,10 @@ or environment dependencies.
   partial pages and reference tables are copied privately under admission before publication.
   Keep staged replacements out of the live table through post-admission checks, and fund
   actual page/table overlap and owner headers. Reads/enumeration project owning values.
-  Ordinal reads carry pure numeric operands into the actual owner without decimal-key transport.
+  Ordinal reads and complete numeric writes carry pure numbers into the actual indexed owner
+  without decimal-key transport. Dictionary, sparse, string and special-array cases retain their
+  ordinary key/policy boundaries. Share actual growth and payload mutation; re-locate indexed
+  slots after callbacks instead of retaining page references.
   Visible local bindings, string/strnum spelling, ordinary missing-read admission and scalar
   reading mode remain at their existing boundaries; never retain page references across callbacks.
   Ordinal targets keep owner/key/prior number and re-locate at commit; dictionary targets may keep their

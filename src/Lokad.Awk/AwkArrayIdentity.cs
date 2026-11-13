@@ -144,6 +144,13 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] = value;
     }
 
+    internal void SetIndexedValue(int ordinal, AwkValue value)
+    {
+        if (_indexed is not { } indexed || !TryGetIndexed(ordinal, out _))
+            throw new InvalidOperationException("An indexed update requires an existing ordinal.");
+        indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] = value;
+    }
+
     private static bool TryParseOrdinal(ReadOnlySpan<byte> bytes, out int ordinal)
     {
         ordinal = 0;
@@ -172,6 +179,13 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         ordinal = capacity = 0;
         return (_indexed is not null || ReferenceEquals(_lookup.Dictionary, DetachedSlots)) &&
             PlanIndexedByteInsertion(bytes, out ordinal, out capacity);
+    }
+
+    internal bool TryPlanIndexedInsertion(int ordinal, out int capacity)
+    {
+        capacity = 0;
+        return (_indexed is not null || ReferenceEquals(_lookup.Dictionary, DetachedSlots)) &&
+            PlanIndexedOrdinalInsertion(ordinal, out capacity);
     }
 
     internal int EnsureCapacity(int capacity)

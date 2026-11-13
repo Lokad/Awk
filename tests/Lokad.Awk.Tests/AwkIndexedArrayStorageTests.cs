@@ -57,13 +57,31 @@ public sealed class AwkIndexedArrayStorageTests
     }
 
     [Theory]
-    [InlineData("start", false)] [InlineData("start", true)]
-    [InlineData("append", false)] [InlineData("append", true)]
-    [InlineData("hole", false)] [InlineData("hole", true)]
-    [InlineData("new-page", false)] [InlineData("new-page", true)]
-    [InlineData("partial-page", false)] [InlineData("partial-page", true)]
-    [InlineData("table", false)] [InlineData("table", true)]
-    public void IndexedInsertionRefusalOrCancellationPreservesTheActualOwner(string shape, bool cancel)
+    [InlineData("start", false, false)]
+    [InlineData("start", true, false)]
+    [InlineData("start", false, true)]
+    [InlineData("start", true, true)]
+    [InlineData("append", false, false)]
+    [InlineData("append", true, false)]
+    [InlineData("append", false, true)]
+    [InlineData("append", true, true)]
+    [InlineData("hole", false, false)]
+    [InlineData("hole", true, false)]
+    [InlineData("hole", false, true)]
+    [InlineData("hole", true, true)]
+    [InlineData("new-page", false, false)]
+    [InlineData("new-page", true, false)]
+    [InlineData("new-page", false, true)]
+    [InlineData("new-page", true, true)]
+    [InlineData("partial-page", false, false)]
+    [InlineData("partial-page", true, false)]
+    [InlineData("partial-page", false, true)]
+    [InlineData("partial-page", true, true)]
+    [InlineData("table", false, false)]
+    [InlineData("table", true, false)]
+    [InlineData("table", false, true)]
+    [InlineData("table", true, true)]
+    public void IndexedInsertionRefusalOrCancellationPreservesTheActualOwner(string shape, bool cancel, bool numeric)
     {
         using var cancellation = new CancellationTokenSource();
         using var memory = new CooperativeTestMemory(8 << 20);
@@ -84,16 +102,22 @@ public sealed class AwkIndexedArrayStorageTests
         var count = owner.Count;
         var indexed = owner.IsIndexed;
         var held = memory.Budget.Reserved;
-        var key = AwkArrayKey.FromOrdinal(shape == "start" ? 1 : shape == "hole" ? 2 : count + 1);
+        var ordinal = shape == "start" ? 1 : shape == "hole" ? 2 : count + 1;
+        var key = AwkArrayKey.FromOrdinal(ordinal);
         var value = shape == "hole" ? AwkValue.FromText(AwkText.FromString("new payload")) : AwkValue.FromNumber(11);
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         try
         {
-            if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => variables.SetArrayValue(owner, key, value));
-            else Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(owner, key, value));
+            if (cancel) Assert.ThrowsAny<OperationCanceledException>(Write);
+            else Assert.Throws<AwkRuntimeException>(Write);
         }
         finally { memory.Budget.OnGrowth = null; }
+        void Write()
+        {
+            if (numeric) variables.SetArrayOrdinalValue(owner, ordinal, value);
+            else variables.SetArrayValue(owner, key, value);
+        }
         Assert.Equal(indexed, owner.IsIndexed);
         Assert.Equal(count, owner.Count);
         Assert.Equal(capacity, owner.EnsureCapacity(0));

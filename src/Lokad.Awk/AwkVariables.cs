@@ -283,6 +283,24 @@ internal sealed partial class AwkVariables
         SetArraySlot(array, index, AwkValue.ForVariableStorage(value, _numberParsingMode));
     }
 
+    internal void SetArrayOrdinalValue(AwkArrayIdentity array, int ordinal, AwkValue value)
+    {
+        ThrowIfDetached(array);
+        var slot = AwkValue.ForVariableStorage(value, _numberParsingMode);
+        if (array.TryGetIndexed(ordinal, out var prior))
+            StoreArraySlot(array, default, prior, null, slot, ordinal);
+        else if (array.TryPlanIndexedInsertion(ordinal, out var capacity))
+        {
+            var payload = _memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(default, slot) : 0;
+            var peak = _memoryAccounting.IsEnabled
+                ? AwkRuntimeMemory.CheckedAdd(payload - AwkRuntimeMemory.ArrayCellBytes,
+                    array.EstimateIndexedInsertionBackingBytes(capacity)) : 0;
+            using var admission = peak > payload ? _memoryAccounting.AdmitMutation(peak) : default;
+            InsertIndexedArraySlot(array, ordinal, capacity, 0, slot);
+        }
+        else SetArraySlot(array, AwkArrayKey.FromOrdinal(ordinal), slot);
+    }
+
     internal void InsertArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, AwkValue value) =>
         InsertByteSlot(array, index, AwkValue.ForVariableStorage(value, _numberParsingMode), missing: false, out _, out _);
 
@@ -1163,7 +1181,7 @@ internal sealed partial class AwkVariables
     {
         if (values.TryPlanIndexedInsertion(index, out var ordinal, out var capacity))
         {
-            InsertIndexedArraySlot(values, ordinal, capacity, index, slot);
+            InsertIndexedArraySlot(values, ordinal, capacity, index.RetainedTextMemoryBytes, slot);
             return null;
         }
         if (values.IsIndexed) return PromoteAndInsertArraySlot(values, index, slot);
@@ -1181,12 +1199,12 @@ internal sealed partial class AwkVariables
     }
 
     private void InsertIndexedArraySlot(AwkArrayIdentity values, int ordinal, int capacity,
-        AwkArrayKey index, AwkValue slot)
+        long keyBytes, AwkValue slot)
     {
         var oldBacking = values.BackingBytes;
         var newBacking = values.EstimateIndexedBackingBytes(capacity);
         using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(
-            newBacking, AwkRuntimeMemory.EstimateArrayPayloadBytes(index, slot)), oldBacking);
+            newBacking, AwkRuntimeMemory.CheckedAdd(keyBytes, slot.RetainedTextMemoryBytes)), oldBacking);
         var slots = values.PrepareIndexedCapacity(capacity, _checkpoint);
         if (_memoryAccounting.IsEnabled || oldBacking != newBacking) _checkpoint?.Invoke();
         values.PublishIndexedInsertion(in slots, ordinal, slot, _checkpoint);
@@ -1210,7 +1228,7 @@ internal sealed partial class AwkVariables
     }
 
     private void StoreArraySlot(AwkArrayIdentity array, AwkArrayKey key, AwkValue prior,
-        AwkArrayCell? cell, AwkValue slot)
+        AwkArrayCell? cell, AwkValue slot, int ordinal = 0)
     {
         if (prior.TryGetArrayBinding(out _))
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar("array element"));
@@ -1232,6 +1250,7 @@ internal sealed partial class AwkVariables
         void Publish(AwkValue value)
         {
             if (cell is not null) cell.SetSlot(value);
+            else if (ordinal > 0) array.SetIndexedValue(ordinal, value);
             else array.SetIndexedValue(key, value);
         }
     }

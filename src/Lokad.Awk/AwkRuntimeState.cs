@@ -1676,6 +1676,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public void SetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, AwkArrayBinding binding = default) =>
         _arrayRuntime.SetAwkValue(name, index, value, binding);
 
+    internal void SetArrayNumericValue(AwkArrayName name, double index, AwkValue value, AwkArrayBinding binding) =>
+        _arrayRuntime.SetNumericValue(name, index, value, binding);
+
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.DeleteValue(name, index);
 

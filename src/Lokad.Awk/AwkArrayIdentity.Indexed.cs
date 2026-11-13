@@ -28,6 +28,13 @@ internal sealed partial class AwkArrayIdentity
     {
         capacity = 0;
         if (!TryParseOrdinal(bytes, out ordinal)) return false;
+        return PlanIndexedOrdinalInsertion(ordinal, out capacity);
+    }
+
+    private bool PlanIndexedOrdinalInsertion(int ordinal, out int capacity)
+    {
+        capacity = 0;
+        if (ordinal <= 0) return false;
         if (_indexed is null)
         {
             if (ordinal != 1) return false;

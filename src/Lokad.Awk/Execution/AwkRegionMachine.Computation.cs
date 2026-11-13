@@ -419,7 +419,7 @@ internal partial struct AwkRegionMachine
             key = CaptureKey(keys[^1]);
         }
 
-        private bool TryReadArrayNumberKey(int index, out double number)
+        internal bool TryArrayNumberKey(int index, out double number)
         {
             ref readonly var operand = ref operands[index];
             switch (operand.Kind)
@@ -431,6 +431,8 @@ internal partial struct AwkRegionMachine
                     return state.TryResolvePreparedGlobalNumber(operand.Index, out number);
                 case AwkRegionOperandKind.LocalVariable:
                     return state.TryResolveFunctionLocalNumber(new(operand.Index), out number);
+                case AwkRegionOperandKind.SpecialVariable:
+                    return state.TryResolvePreparedSpecialNumber((AwkSpecialVariableId)operand.Index, out number);
                 case AwkRegionOperandKind.ValueTemporary:
                     return storage.Values[operand.Index].TryGetNumberValue(out number);
                 default:
@@ -446,7 +448,7 @@ internal partial struct AwkRegionMachine
                 ResolvePath(access.Path, out var owner, out var key);
                 return state.GetArrayAwkValue(owner, key);
             }
-            if (TryReadArrayNumberKey(access.Key, out var number))
+            if (TryArrayNumberKey(access.Key, out var number))
                 return state.GetArrayAwkValue(access.Name, number, access.Binding);
             return operands[access.Key] switch
             {
@@ -463,7 +465,7 @@ internal partial struct AwkRegionMachine
                 ResolvePath(access.Path, out var owner, out var key);
                 return state.GetArrayNumber(owner, key);
             }
-            if (TryReadArrayNumberKey(access.Key, out var number))
+            if (TryArrayNumberKey(access.Key, out var number))
                 return state.GetArrayNumber(access.Name, number, access.Binding);
             return operands[access.Key] switch
             {

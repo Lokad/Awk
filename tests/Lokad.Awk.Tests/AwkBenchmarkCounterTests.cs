@@ -9,6 +9,40 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData("special", false)] [InlineData("special", true)]
+    [InlineData("global", false)] [InlineData("global", true)]
+    [InlineData("local", false)] [InlineData("local", true)]
+    [InlineData("temporary", false)] [InlineData("temporary", true)]
+    public async Task NumericArrayWritesKeepByteNativeValuesAndFundedOwners(string keySource, bool governed)
+    {
+        const int records = 128;
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Range(1, records).Select(index => $"{index:D4}\n")));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var write = keySource switch
+        {
+            "global" => "{key=NR;a[key]=$1}",
+            "local" => "function put(p,k,v){p[k]=v}{put(a,NR,$1)}",
+            "temporary" => "{a[NR+0]=$1}",
+            _ => "{a[NR]=$1}"
+        };
+        var source = write + "END{for(i=1;i<=NR;i++)total+=a[i];print a[1],a[NR],typeof(a[1]),total,length(a)}";
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("0001 0128 strnum 8256 128\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        Assert.InRange(counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls, 0, records);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
     [InlineData("field", false)] [InlineData("field", true)]
     [InlineData("literal", false)] [InlineData("literal", true)]
     [InlineData("global", false)] [InlineData("global", true)]

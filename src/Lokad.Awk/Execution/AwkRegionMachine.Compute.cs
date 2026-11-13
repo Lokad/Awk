@@ -451,7 +451,12 @@ internal partial struct AwkRegionMachine
                         // located cell directly; only misses need an owned key.
                         var assignedValue = computationView.Value(instruction.Left);
                         var assignedOperand = computationView.Operands[assigned.Key];
-                        if (AwkRegionComputation.IsField(assignedOperand))
+                        if (computationView.TryArrayNumberKey(assigned.Key, out var assignedNumber))
+                        {
+                            computationView.State.ThrowIfCancellationRequested();
+                            computationView.State.SetArrayNumericValue(assigned.Name, assignedNumber, assignedValue, assigned.Binding);
+                        }
+                        else if (AwkRegionComputation.IsField(assignedOperand))
                             computationView.State.SetArrayFieldValue(assigned.Name, computationView.FieldOrdinal(assignedOperand), assignedValue, assigned.Binding);
                         else if (assignedOperand.Kind == AwkRegionOperandKind.KeyBuilder)
                             computationView.State.SetArrayBuilderValue(assigned.Name, computationView.Storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
