@@ -4,6 +4,40 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ResultDemandCases()
     {
+        // GNU 5.3.2: truncate finite indices, clamp before narrowing, and
+        // treat NaN like a nonpositive index. Exercise owning and count-only uses.
+        (string Name, string Index, string Tail, string Prefix)[] indices =
+        [
+            ("huge-positive", "1e100", "", "abcd"),
+            ("huge-negative", "-1e100", "abcd", ""),
+            ("overflow-positive", "1e309", "", "abcd"),
+            ("overflow-negative", "-1e309", "abcd", ""),
+            ("positive-nan", "(\"+nan\"+0)", "abcd", ""),
+            ("negative-nan", "(\"-nan\"+0)", "abcd", ""),
+            ("positive-infinity", "(\"+inf\"+0)", "", "abcd"),
+            ("negative-infinity", "(\"-inf\"+0)", "abcd", ""),
+            ("int32-max", "2147483647", "", "abcd"),
+            ("past-int32", "2147483648", "", "abcd"),
+            ("fractional-int32-max", "2147483647.9", "", "abcd"),
+            ("past-negative-int32", "-2147483649", "abcd", ""),
+            ("zero", "0", "abcd", ""),
+            ("positive-fraction", "0.9", "abcd", ""),
+            ("fractional-one", "1.9", "abcd", "a"),
+            ("fractional-last", "4.9", "d", "abcd"),
+            ("past-end", "5", "", "abcd"),
+            ("negative-fraction", "-0.9", "abcd", "")
+        ];
+        foreach (var (name, index, tail, prefix) in indices)
+        foreach (var bytes in new[] { false, true })
+        {
+            var source = "function from(s,i,t){t=tolower(s);return substr(t,i)}" +
+                "function take(s,n,t){t=tolower(s);return substr(t,1,n)}" +
+                "BEGIN{printf \"<%s> %d <%s> %d\\n\",substr(\"abcd\"," + index +
+                "),length(from(\"ABCD\"," + index + ")),substr(\"abcd\",1," + index +
+                "),length(take(\"ABCD\"," + index + "))}";
+            yield return Passing("substring-extreme-index-" + name + (bytes ? "-byte" : "-scalar"),
+                bytes ? ["-b", source] : [source], [], $"<{tail}> {tail.Length} <{prefix}> {prefix.Length}\n");
+        }
         yield return Passing("counted-local-case-keeps-shared-untyped-origin-promotion",
             ["""function f(s,t,q){t=tolower(s);print typeof(q);return t}BEGIN{print typeof(a[1]);print length(f("ABC",a[1],a[1]));print typeof(a[1])}"""],
             [], "untyped\nunassigned\n3\nunassigned\n");
