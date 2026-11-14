@@ -103,6 +103,10 @@ or environment dependencies.
   location publication. Cold/long field keys keep ordinary evaluation without replay.
   Fresh preparation uses the owner without a previous target;
   actual captures snapshot their prior coordinates before key/admission callbacks.
+  Prepared complete nested numeric updates own lookup through result publication.
+  Only actual pure numeric locals/registers bypass target transport; other RHS values
+  use shared captured completion without replaying owner/key work. Preserve postfix,
+  retained-location and new-result publication order, with the command poll before mutation.
   Reuse misses share ordinary admitted lookup. Fund ordinary key/cell holding with target capacity and larger live captures
   through the existing payload lease. Preserve admitted owners and useful dictionary cells across mutation/calls/suspension;
   completed captures may keep attached inline/ordinal locations in that funded capacity.

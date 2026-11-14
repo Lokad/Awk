@@ -60,7 +60,8 @@ internal sealed partial class AwkRegionCompiler
                     NumberSourceDemand(instruction.Left) && NumberSourceDemand(instruction.Right),
                 AwkRegionInstructionKind.CompareText =>
                     OperandDemand(instruction.Left) && OperandDemand(instruction.Right),
-                AwkRegionInstructionKind.ArrayUpdate => CompleteUpdate(_updates[instruction.Left]),
+                AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.CompleteArrayNumberUpdate =>
+                    CompleteUpdate(_updates[instruction.Left]),
                 AwkRegionInstructionKind.ScalarUpdate => TerminalNumberSource(_scalarUpdates[instruction.Left].Right),
                 AwkRegionInstructionKind.ReturnNumber => NumericReturn(instruction.Left),
                 AwkRegionInstructionKind.Return => ValueReturn(instruction.Left),

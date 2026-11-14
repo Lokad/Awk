@@ -428,32 +428,17 @@ internal partial struct AwkRegionMachine
                     computationView.Storage.StoreTarget(instruction.Target, in preparedTarget);
                     break;
                 }
+                case AwkRegionInstructionKind.CompleteArrayNumberUpdate:
+                    computationView.CompleteNumericArrayUpdate(in instruction);
+                    break;
                 case AwkRegionInstructionKind.ArrayUpdate:
                 {
-                    // Capture survives RHS admission/mutation. No dictionary reference
-                    // or borrowed key outlives its synchronous lookup.
-                    ref readonly var updateSite = ref computationView.Region.Updates[instruction.Left];
-                    // A complete synchronous operation keeps its target locally. Its
-                    // array/key owners remain live throughout RHS conversion and commit.
-                    // Captures spanning script instructions retain funded scratch storage.
-                    AwkArrayUpdateTarget capturedUpdate;
-                    if (updateSite.PrepareAccess < 0) capturedUpdate = computationView.Storage.Targets[updateSite.Slot];
-                    else if (updateSite.Path >= 0) capturedUpdate = computationView.PreparePathUpdate(updateSite.Path, updateSite.Slot);
-                    else computationView.PrepareCompleteArrayUpdate(updateSite.PrepareAccess, out capturedUpdate, updateSite.Slot);
-                    var rightNumber = updateSite.Right.IsRegister
-                        ? computationView.Numbers[updateSite.Right.RegisterIndex]
-                        : computationView.ReadBoundNumber(in computationView.Operands[updateSite.Right.OperandIndex]);
-                    var updated = AwkNumericOperations.ApplyCompoundAssignment(capturedUpdate.Previous,
-                        rightNumber,
-                        (AwkCompoundAssignmentOperation)instruction.Detail);
-                    computationView.State.ThrowIfCancellationRequested();
-                    if (updateSite.Path >= 0 && computationView.Region.Paths[updateSite.Path].ImmediateKeys is null)
-                        computationView.State.CommitArrayUpdate(computationView.CapturedPath(updateSite.Path), in capturedUpdate, updated);
-                    else computationView.State.CommitArrayUpdate(updateSite.Name, in capturedUpdate, updated);
-                    if (instruction.Right >= 0) computationView.Numbers[instruction.Right] = capturedUpdate.Previous;
-                    if (updateSite.PrepareAccess < 0) computationView.Storage.CompleteTarget(updateSite.Slot);
-                    else if (updateSite.Slot >= 0) computationView.Storage.StoreLocation(updateSite.Slot, in capturedUpdate);
-                    computationView.Numbers[instruction.Target] = updated;
+                    ref readonly var update = ref computationView.Region.Updates[instruction.Left];
+                    AwkArrayUpdateTarget target;
+                    if (update.PrepareAccess < 0) target = computationView.Storage.Targets[update.Slot];
+                    else if (update.Path >= 0) target = computationView.PreparePathUpdate(update.Path, update.Slot);
+                    else computationView.PrepareCompleteArrayUpdate(update.PrepareAccess, out target, update.Slot);
+                    computationView.CompleteCapturedArrayUpdate(in instruction, in update, in target);
                     break;
                 }
                 case AwkRegionInstructionKind.ArrayAssign:

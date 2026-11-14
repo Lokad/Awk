@@ -336,6 +336,81 @@ internal partial struct AwkRegionMachine
             return location >= 0 ? state.PrepareArrayUpdate(owner, key, in previous) : state.PrepareArrayUpdate(owner, key);
         }
 
+        // One complete semantic operation owns lookup through result publication.
+        // Actual RHS work still uses the shared captured completion below.
+        internal void CompleteNumericArrayUpdate(in AwkRegionInstruction instruction)
+        {
+            ref readonly var update = ref region.Updates[instruction.Left];
+            var previousLocation = update.Slot >= 0 ? storage.Targets[update.Slot] : default;
+            ResolvePath(update.Path, out var owner, out var key);
+            if (!owner.IsDetached && !owner.IsIndexed && key.RequiresTextMaterialization &&
+                (previousLocation.TryGetCurrentCell(owner, key, out var cell) ||
+                    owner.TryGetDictionaryCell(key, out cell)) &&
+                cell.Slot.TryGetNumberValue(out var prior))
+            {
+                state.Counters.RecordNumericArraySlotRead();
+                if (TryReadPureUpdateNumber(update.Right, out var right))
+                {
+                    var complete = AwkNumericOperations.ApplyCompoundAssignment(prior, right,
+                        (AwkCompoundAssignmentOperation)instruction.Detail);
+                    // The known command poll invokes no admission or host callbacks.
+                    state.ThrowIfCancellationRequested();
+                    cell.SetSlot(AwkValue.FromNumber(complete));
+                    state.Counters.RecordArrayTargetCommit();
+                    state.Counters.RecordBoundArrayUpdate();
+                    if (instruction.Right >= 0) numbers[instruction.Right] = prior;
+                    if (update.Slot >= 0) storage.StoreLocation(update.Slot, new(key, prior, owner, cell));
+                    numbers[instruction.Target] = complete;
+                    return;
+                }
+                // The non-observing RHS probe failed. The already-read old number
+                // is the real capture; do not look up or convert the LHS again.
+                var captured = new AwkArrayUpdateTarget(key, prior, owner, cell);
+                CompleteCapturedArrayUpdate(in instruction, in update, in captured);
+                return;
+            }
+            var target = update.Slot >= 0 ? state.PrepareArrayUpdate(owner, key, in previousLocation)
+                : state.PrepareArrayUpdate(owner, key);
+            CompleteCapturedArrayUpdate(in instruction, in update, in target);
+        }
+
+        internal void CompleteCapturedArrayUpdate(in AwkRegionInstruction instruction,
+            in AwkRegionArrayUpdate update, in AwkArrayUpdateTarget target)
+        {
+            var right = update.Right.IsRegister ? numbers[update.Right.RegisterIndex]
+                : ReadBoundNumber(in operands[update.Right.OperandIndex]);
+            var result = AwkNumericOperations.ApplyCompoundAssignment(target.Previous, right,
+                (AwkCompoundAssignmentOperation)instruction.Detail);
+            state.ThrowIfCancellationRequested();
+            if (update.Path >= 0 && region.Paths[update.Path].ImmediateKeys is null)
+                state.CommitArrayUpdate(CapturedPath(update.Path), in target, result);
+            else state.CommitArrayUpdate(update.Name, in target, result);
+            if (instruction.Right >= 0) numbers[instruction.Right] = target.Previous;
+            if (update.PrepareAccess < 0) storage.CompleteTarget(update.Slot);
+            else if (update.Slot >= 0) storage.StoreLocation(update.Slot, in target);
+            numbers[instruction.Target] = result;
+        }
+
+        // A failed probe cannot classify, split, admit, poll or diagnose. The ordinary
+        // update must capture its old number before any of those RHS operations.
+        internal bool TryReadPureUpdateNumber(AwkRegionNumberSource source, out double number)
+        {
+            if (source.IsRegister)
+            {
+                number = numbers[source.RegisterIndex];
+                return true;
+            }
+            var operand = operands[source.OperandIndex];
+            if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
+                frame.TryReadNumber(operand.Index, out number))
+            {
+                state.Counters.RecordNumericLocalRead();
+                return true;
+            }
+            number = 0;
+            return false;
+        }
+
         internal AwkFunctionFrame StageArguments(in AwkRegionCall call, int first, int count, int fieldDemand)
         {
             var incoming = storage.IncomingFrame(call.Slot);

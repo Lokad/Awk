@@ -161,7 +161,7 @@ internal enum AwkRegionInstructionKind : byte
     SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow,
-    FieldIndexNumber
+    FieldIndexNumber, CompleteArrayNumberUpdate
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)

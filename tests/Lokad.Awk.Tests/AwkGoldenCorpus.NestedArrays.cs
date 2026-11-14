@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // GNU awk 5.3.2, source 027ebff5. Exact native receipts are retained locally.
     private static IEnumerable<AwkGoldenCase> NestedArrayCases() =>
     [
+        Passing("nested-complete-numeric-local-and-string-fallback",
+            ["function step(a,k,v){a[k][\"n\"]+=v;return a[k][\"n\"]}BEGIN{print step(a,\"r\",2),step(a,\"r\",\"0007\"),step(a,\"r\",1)}"],
+            [], "2 9 10\n"),
+        Passing("nested-complete-postfix-missing-and-string-transition",
+            ["function step(a,k){return a[k][\"n\"]++}BEGIN{print step(a,\"r\"),step(a,\"r\");a[\"r\"][\"n\"]=\"0007\";print step(a,\"r\"),step(a,\"r\")}"],
+            [], "0 1\n7 8\n"),
+        Passing("nested-complete-constant-compound-through-alias",
+            ["function up(a,k){a[k][\"n\"]+=3;return 0}BEGIN{a[\"r\"][\"n\"]=2;up(a,\"r\");up(a,\"r\");key=\"n\";print a[\"r\"][key]}"],
+            [], "8\n"),
         Passing("nested-entry-interleaved-key-updates-and-reads",
             ["function step(p,k){p[k][\"x\"]+=2;p[k][\"y\"]+=3;return p[k][\"x\"]+p[k][\"y\"]}BEGIN{for(i=0;i<3;i++)total+=step(a,\"k\");print total,a[\"k\"][\"x\"],a[\"k\"][\"y\"]}"],
             [], "30 6 9\n"),

@@ -90,7 +90,8 @@ internal static class AwkFunctionHostEffects
         AwkRegionInstructionKind.Assign or AwkRegionInstructionKind.AssignNumber or AwkRegionInstructionKind.AssignConsumedScalar or
         AwkRegionInstructionKind.ScalarUpdate or
         AwkRegionInstructionKind.AssignField or AwkRegionInstructionKind.CopyField or AwkRegionInstructionKind.ArrayPrepare or
-        AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.ArrayAssign or AwkRegionInstructionKind.ArrayRead or
+        AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.CompleteArrayNumberUpdate or
+        AwkRegionInstructionKind.ArrayAssign or AwkRegionInstructionKind.ArrayRead or
         AwkRegionInstructionKind.ArrayContains or AwkRegionInstructionKind.ArrayDelete or AwkRegionInstructionKind.ArrayClear or
         AwkRegionInstructionKind.ArrayTarget or
         AwkRegionInstructionKind.NestedContains or AwkRegionInstructionKind.PathDelete or AwkRegionInstructionKind.PathBegin or
