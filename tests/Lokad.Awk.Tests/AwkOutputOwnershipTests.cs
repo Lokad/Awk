@@ -6,6 +6,46 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkOutputOwnershipTests
 {
     [Theory]
+    [InlineData("FS", false, false)] [InlineData("FS", true, false)]
+    [InlineData("FIELDWIDTHS", false, false)] [InlineData("FIELDWIDTHS", true, false)]
+    [InlineData("FPAT", false, false)] [InlineData("FPAT", true, false)]
+    [InlineData("RS", false, false)] [InlineData("RS", true, false)]
+    [InlineData("FS", false, true)] [InlineData("FS", true, true)]
+    [InlineData("FIELDWIDTHS", false, true)] [InlineData("FIELDWIDTHS", true, true)]
+    [InlineData("FPAT", false, true)] [InlineData("FPAT", true, true)]
+    [InlineData("RS", false, true)] [InlineData("RS", true, true)]
+    public async Task CsvAssignmentWarningPrecedesFollowingStdout(string name, bool governed, bool numeric)
+    {
+        var budget = new CooperativeTestBudget(4 << 20);
+        var appends = new List<(AwkFileDescriptor Descriptor, string Text)>();
+        var host = new TestOperationVisitor([])
+        {
+            AppendOverride = (descriptor, bytes, _) =>
+            {
+                appends.Add((descriptor, AwkUtf8Codec.Decode(bytes.Span)));
+                return Task.FromResult(AwkAppendResult.Accepted());
+            }
+        };
+        var value = numeric ? "1" : "\"1\"";
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["--csv", "BEGIN{guard=1;" + name + "=" + value + ";print \"after\"}"], []);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(0, (await AwkTestHarness.ParseAwk(command).ExecuteAsync(host, policy, CancellationToken.None)).Value);
+
+        var warning = name == "RS"
+            ? "awk: warning: assignment to RS has no effect when using --csv\n"
+            : "awk: warning: assignment to FS/FIELDWIDTHS/FPAT has no effect when using --csv\n";
+        Assert.Equal(new[]
+        {
+            (AwkFileDescriptor.StdErr, warning),
+            (AwkFileDescriptor.StdOut, "after\n")
+        }, appends);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task ComputationBetweenPrintsKeepsPendingOutputAndStopsCanceledEffects(bool governed, bool cancel)

@@ -292,9 +292,9 @@ or environment dependencies.
   Flush boundaries share completion and field-demand handling. Successful ready completion needs
   no saved continuation; preserve pending/faulted/canceled completion through the existing awaited
   route. Qualify host-call view boundaries on complete workloads.
-  Statement preparation shares the conservative instruction host-effect fact. Proven-empty
-  leaf completions can omit dispatch; retain inherited output at entry and unknown/control
-  boundaries. This does not batch output or remove actual pending-host continuations.
+  Statement completion checks actual pending output, including warnings and ownership callbacks.
+  No direct host operation does not prove empty output. Preserve field demand, cached-owner
+  retirement, inherited output and actual host continuations at their existing boundaries.
 - Reads return bounded byte borrows (`AwkReadBuffer`). Advance an absolute consumed prefix and
   dispose before another operation on that descriptor. Preserve unread suffixes, terminal errors,
   UTF-8 chunk boundaries and funding through actual users; the host does not split lines.

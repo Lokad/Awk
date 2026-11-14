@@ -69,7 +69,7 @@ internal static class AwkFunctionHostEffects
         }
     }
 
-    internal static bool DirectHost(in AwkRegionInstruction instruction) => instruction.Kind switch
+    private static bool DirectHost(in AwkRegionInstruction instruction) => instruction.Kind switch
     {
         _ when instruction.IsArithmetic => false,
         AwkRegionInstructionKind.Substring when new AwkRegionTextDestination(instruction.Target).IsPrint => true,
