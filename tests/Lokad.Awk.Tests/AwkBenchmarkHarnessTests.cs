@@ -31,6 +31,64 @@ public sealed class AwkBenchmarkHarnessTests
         Assert.Equal("abc"u8.ToArray(), result.Bytes);
     }
 
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 17)]
+    [InlineData(false, 257)]
+    [InlineData(false, 1024)]
+    [InlineData(true, 1)]
+    [InlineData(true, 17)]
+    [InlineData(true, 257)]
+    [InlineData(true, 1024)]
+    public void OutputDigestPreservesEmptyCrossingAndLargeChunks(bool capture, int chunkSize)
+    {
+        foreach (var length in new[] { 0, 1, 255, 256, 257, 4097 })
+        {
+            var input = Enumerable.Range(0, length).Select(index => (byte)(index * 31)).ToArray();
+            using var output = new ReferenceOutput(capture, length);
+            output.Append([]);
+            for (var offset = 0; offset < length; offset += chunkSize)
+                output.Append(input.AsSpan(offset, Math.Min(chunkSize, length - offset)));
+            output.Append([]);
+            var result = output.Finish();
+            Assert.Equal(OutputDigest.FromBytes(input), result.Digest);
+            Assert.Equal(capture ? input : [], result.Bytes);
+            Assert.Throws<InvalidOperationException>(() => output.Finish());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OutputDoesNotRetainBorrowedBytesOrAcceptAnOversizedSuffix(bool capture)
+    {
+        using var output = new ReferenceOutput(capture, 600);
+        var source = new byte[300];
+        Array.Fill(source, (byte)'a');
+        output.Append(source.AsSpan(0, 17));
+        Array.Fill(source, (byte)'b');
+        output.Append(source);
+        Array.Fill(source, (byte)'c');
+        output.Append(source.AsSpan(0, 283));
+        Array.Fill(source, (byte)'d');
+        Assert.Throws<IOException>(() => output.Append(source));
+        var expected = Encoding.ASCII.GetBytes(new string('a', 17) + new string('b', 300) + new string('c', 283));
+        var result = output.Finish();
+        Assert.Equal(OutputDigest.FromBytes(expected), result.Digest);
+        Assert.Equal(capture ? expected : [], result.Bytes);
+    }
+
+    [Fact]
+    public void DisposedOutputRejectsBufferedAppendsAndFinalization()
+    {
+        var output = new ReferenceOutput(false, 1000);
+        output.Append("prefix"u8);
+        output.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => output.Append("suffix"u8));
+        Assert.Throws<ObjectDisposedException>(() => output.Finish());
+        output.Dispose();
+    }
+
     [Fact]
     public void PairedStatisticsNormalizeBatchesAndHaveReproducibleBounds()
     {
