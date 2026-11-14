@@ -3,6 +3,43 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkFieldTargetAllocationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatedFieldCopiesUseAlreadyFundedStorage(bool governed)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var separator = AwkText.FromSourceLiteralString(" ");
+        using (var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting,
+            resolveOutputFieldSeparator: () => separator))
+        {
+            var frame = context.Frame;
+            frame.SetRecordText(AwkText.FromSourceLiteralString("left right"));
+            for (var warm = 0; warm < 64; warm++) Copy();
+            var peak = budget.Peak;
+            var before = GC.GetAllocatedBytesForCurrentThread();
+
+            for (var iteration = 0; iteration < 4096; iteration++) Copy();
+
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.InRange(allocated, 0, 1024);
+            Assert.Equal(peak, budget.Peak);
+            Assert.Equal(2, frame.GetFieldCount());
+            Assert.Equal("left left", frame.RecordAwkText.AsString());
+            Assert.Equal(0, accounting.CurrentReservedBytes);
+
+            void Copy()
+            {
+                if (!frame.TryCopyInputField(new(1), new(2)))
+                    throw new InvalidOperationException("The existing field slices should remain available.");
+            }
+        }
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public void ExistingFieldTargetUpdatesAvoidPerRecordAllocation()
     {

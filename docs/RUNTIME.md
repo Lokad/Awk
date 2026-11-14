@@ -207,6 +207,8 @@ the active shared budget; it does not copy those snapshots again.
 Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.
 Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
 before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
+Compound field and record mutations admit their construction overlap before publication;
+their component storage consumes that same admitted allowance.
 Record splitting reuses funded descriptors and admits capacity growth. Whitespace and single-byte
 fields extend on demand at every record size. Completion reuses the admitted prefix where it fits;
 field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
