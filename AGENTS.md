@@ -205,7 +205,9 @@ or environment dependencies.
   Preserve regex resolution, pinning, admission and subject-materialization order. Hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Persistent record cells contain slices, numeric/scalar-length caches and frame-cache indices without managed
-  references. Owned spelling and scalar values live in the frame cache; detached byte views carry
+  references. Owned spelling and scalar values live in the frame cache. Numeric/rune cache words update at
+  the owning buffer; coordinates/observations stay readonly and captured cells keep value semantics.
+  No cell reference crosses parsing, custom-memory access or cancellation callbacks. Detached byte views carry
   no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
   Text-only decoded CSV entries must not invoke the input-value factory early.
   The same cache owns raw spelling snapshots for repeated text captures and later full-value

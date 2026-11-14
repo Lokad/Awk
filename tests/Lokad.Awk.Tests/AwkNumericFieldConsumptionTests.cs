@@ -245,12 +245,40 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(AwkFieldTextKind.Empty, AwkRecordField.Empty.Kind);
         Assert.Equal(AwkFieldTextKind.Empty, AwkRecordField.FromOwned(1, 0).Kind);
         Assert.Equal(AwkFieldTextKind.Owned, AwkRecordField.FromOwned(1, 4).Kind);
-        var field = AwkRecordField.FromRecordSlice(1, 5).WithRuneLength(4).WithNumericValue(7).WithCacheSlot(2);
+        var field = AwkRecordField.FromRecordSlice(1, 5);
+        field.CacheRuneLength(4);
+        field.CacheNumber(7);
+        field = field.WithCacheSlot(2);
         Assert.Equal(AwkFieldTextKind.RecordSlice, field.Kind);
         Assert.Equal("café"u8.ToArray(), field.BytesInRecord(" café!"u8).ToArray());
         Assert.Equal(4, field.RuneLength);
         Assert.Equal(AwkRuntimeMemory.CachedFieldValueBytes,
             System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldFrame.CachedFieldValue>());
+    }
+
+    [Fact]
+    public void RecordCachePublicationPreservesCapturedCellsAndSliceCoordinates()
+    {
+        var fields = new AwkRecordFieldBuffer(1);
+        fields.Add(AwkRecordField.FromRecordSlice(1, 5));
+        var original = fields[0];
+        fields.CacheNumber(0, 7);
+        fields.CacheRuneLength(0, 4);
+        var captured = fields[0];
+        fields.CacheNumber(0, 8);
+
+        Assert.False(original.TryGetNumericValue(out _));
+        Assert.Equal(-1, original.RuneLength);
+        Assert.True(captured.TryGetNumericValue(out var earlier));
+        Assert.Equal(7, earlier);
+        Assert.Equal(4, captured.RuneLength);
+        Assert.True(fields[0].TryGetNumericValue(out var current));
+        Assert.Equal(8, current);
+        Assert.False(fields[0].HasInputClassification);
+        Assert.Equal(4, fields[0].RuneLength);
+        Assert.Equal("café"u8.ToArray(), fields[0].BytesInRecord(" café!"u8).ToArray());
+        Assert.Equal(original.RecordStart, fields[0].RecordStart);
+        Assert.Equal(original.ByteLength(), fields[0].ByteLength());
     }
 
     [Fact]

@@ -8,6 +8,8 @@ internal sealed class AwkRecordFieldBuffer(int capacity = 0)
 
     internal int Count { get; private set; }
     internal int Capacity => _cells.Length;
+    internal void CacheNumber(int index, double number) => _cells[index].CacheNumber(number);
+    internal void CacheRuneLength(int index, int length) => _cells[index].CacheRuneLength(length);
     internal AwkRecordField this[int index]
     {
         get => _cells[index];
