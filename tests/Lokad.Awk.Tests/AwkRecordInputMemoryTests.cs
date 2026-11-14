@@ -488,6 +488,56 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("0007")]
+    [InlineData("café 😀")]
+    public void OwnedAndEndOfFileHandoffsPreserveTheirRolesAndTextOwner(string spelling)
+    {
+        var text = AwkText.FromString(spelling);
+        var terminator = AwkRecordTerminator.FromText(AwkText.FromString("\r\n"));
+        foreach (var mode in new[] { AwkRecordFieldSplittingMode.Ordinary, AwkRecordFieldSplittingMode.Paragraph })
+        {
+            var record = AwkInputRecordResult.Record(text, terminator, mode);
+            Assert.True(record.HasRecord);
+            Assert.False(record.ClearsRecordTerminator);
+            Assert.False(record.TryGetStorage(out _));
+            Assert.True(text.HasSameStorage(record.RecordText));
+            Assert.Equal(spelling, record.RecordText.AsString());
+            Assert.Equal(mode, record.FieldSplittingMode);
+            Assert.Equal("\r\n", record.Terminator.ByteText.AsString());
+        }
+        foreach (var end in new[] { default(AwkInputRecordResult), AwkInputRecordResult.EndOfFile,
+                     AwkInputRecordResult.EndOfFileClearingTerminator })
+        {
+            Assert.False(end.HasRecord);
+            Assert.False(end.TryGetStorage(out _));
+            Assert.Equal(0, end.RecordText.ByteLength);
+            Assert.Equal(0, end.Terminator.ByteText.ByteLength);
+        }
+        Assert.False(AwkInputRecordResult.EndOfFile.ClearsRecordTerminator);
+        Assert.True(AwkInputRecordResult.EndOfFileClearingTerminator.ClearsRecordTerminator);
+    }
+
+    [Fact]
+    public void BufferedHandoffRetainsItsSlotAndRejectsOwnedTextAccess()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
+        storage.StageValidated("first 0007"u8);
+        var slot = storage.CurrentSlot;
+        var record = AwkInputRecordResult.Buffered(storage, AwkRecordTerminator.NewLine);
+        storage.StageValidated("second"u8);
+        Assert.True(record.HasRecord);
+        Assert.True(record.TryGetStorage(out var owner));
+        Assert.Same(storage, owner);
+        Assert.Equal(slot, record.StorageSlot);
+        Assert.Equal("\n", record.Terminator.ByteText.AsString());
+        Assert.Throws<InvalidOperationException>(() => record.RecordText);
+        storage.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void InactiveBufferGrowthFailurePreservesTheCurrentRecord(bool cancel)
     {

@@ -193,7 +193,7 @@ or environment dependencies.
   Ready span access is constant-time and uses the surrounding computation/primitive polls.
   Long owned-record captures poll explicitly after saving their immutable source coordinates;
   concatenation materialization retains its own entry, waiting, copying and publication checks.
-  It is an unboxed owning view. Scalar/slot object payloads retain its backing directly;
+  It is an unboxed owning view. Scalar/slot and owned-record handoffs retain its backing directly;
   restore that backing only after its value/cell role proves text. Non-text empty/charge
   projections stay at value boundaries; byte consumers retain their checked casts.
   shared mutable caches belong to that backing, and storage identity compares backing references.

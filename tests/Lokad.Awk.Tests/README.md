@@ -31,6 +31,8 @@ consumption, nested calls, file-phase reentry, nonlocal flow, failure and ignore
 Check the visible prefix, stopped suffix, frame restoration, descriptor cleanup and final refunds.
 Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests use the production
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
+Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks
+distinguish captured storage slots, owned spelling, EOF and record-terminator clearing.
 Structured read failures are recoverable `getline`; faulted host operations are redacted failures.
 Mock file truncation occurs at open and appended data becomes visible after close.
 Append tests cover completed faults, synchronous throws and cancellation during callbacks,

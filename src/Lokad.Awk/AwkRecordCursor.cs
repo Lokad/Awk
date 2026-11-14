@@ -865,7 +865,7 @@ internal readonly record struct AwkInputRecordResult
 
     private AwkInputRecordResult(
         AwkInputRecordResultKind kind,
-        object recordContent,
+        object? recordContent,
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode,
         bool clearsRecordTerminator = false)
@@ -883,12 +883,9 @@ internal readonly record struct AwkInputRecordResult
 
     // Buffered results are private to the main-input handoff until the next staged read.
     // Getline uses the owned read entry; ordinary scalar values never carry this owner.
-    public AwkText RecordText => _recordContent switch
-    {
-        AwkText text => text,
-        null => AwkText.Empty,
-        _ => throw new InvalidOperationException("A buffered record must be admitted into its frame.")
-    };
+    public AwkText RecordText => _kind is AwkInputRecordResultKind.Record or AwkInputRecordResultKind.EndOfFile
+        ? AwkText.FromBacking(_recordContent)
+        : throw new InvalidOperationException("A buffered record must be admitted into its frame.");
 
     internal bool TryGetStorage([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkRecordStorage? storage)
     {
@@ -909,19 +906,19 @@ internal readonly record struct AwkInputRecordResult
     public static AwkInputRecordResult EndOfFile { get; } =
         new(
             AwkInputRecordResultKind.EndOfFile,
-            AwkText.Empty,
+            null,
             AwkRecordTerminator.Empty,
             AwkRecordFieldSplittingMode.Ordinary);
 
     public static AwkInputRecordResult EndOfFileClearingTerminator { get; } =
-        new(AwkInputRecordResultKind.EndOfFile, AwkText.Empty, AwkRecordTerminator.Empty,
+        new(AwkInputRecordResultKind.EndOfFile, null, AwkRecordTerminator.Empty,
             AwkRecordFieldSplittingMode.Ordinary, clearsRecordTerminator: true);
 
     public static AwkInputRecordResult Record(
         AwkText record,
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode) =>
-        new(AwkInputRecordResultKind.Record, record, terminator, fieldSplittingMode);
+        new(AwkInputRecordResultKind.Record, record.Backing, terminator, fieldSplittingMode);
 
     private enum AwkInputRecordResultKind
     {

@@ -6,6 +6,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
 {
     [Fact]
+    public void OwnedRecordHandoffsRetainTextWithoutWrapperAllocations()
+    {
+        var text = AwkText.FromTrustedOwnedBytes("row 0007"u8.ToArray());
+        var records = new AwkInputRecordResult[4096];
+        for (var index = 0; index < records.Length; index++)
+            records[index] = AwkInputRecordResult.Record(text, AwkRecordTerminator.NewLine,
+                AwkRecordFieldSplittingMode.Ordinary);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < records.Length; index++)
+            records[index] = AwkInputRecordResult.Record(text, AwkRecordTerminator.NewLine,
+                AwkRecordFieldSplittingMode.Ordinary);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(0, allocated);
+        foreach (var record in records)
+        {
+            Assert.True(text.HasSameStorage(record.RecordText));
+            Assert.Equal("row 0007", record.RecordText.AsString());
+        }
+    }
+
+    [Fact]
     public void OrdinarySmallRecordsReuseDescriptorStorageWithinBoundedAllocation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
