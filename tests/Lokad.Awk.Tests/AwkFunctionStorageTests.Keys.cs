@@ -21,7 +21,7 @@ public sealed partial class AwkFunctionStorageTests
             stack.ActivateFrame(caller);
             var incoming = stack.PrepareFrame(layout);
             incoming.StageNumber(1, 42);
-            Assert.True(stack.TryStageLocalArgument(new(0), incoming, 0, allowArray: false, prepareKey: true));
+            Assert.True(stack.TryStageLocalArgument(null, new(0), incoming, 0, allowArray: false, prepareKey: true));
             var actual = incoming.GetSlot(0).Key;
             Assert.Equal(AwkFunctionLocalSlotKind.Key, incoming.GetSlot(0).Kind);
             Assert.Equal(default, incoming.GetSlot(0).ArrayName);
@@ -52,7 +52,7 @@ public sealed partial class AwkFunctionStorageTests
         Assert.True(memory.Budget.TryReserve(memory.Budget.Limit - memory.Budget.Reserved, out var pressure));
         using (pressure)
         {
-            Assert.True(stack.TryStageLocalArgument(new(0), incoming, 0, allowArray: false, prepareKey: true));
+            Assert.True(stack.TryStageLocalArgument(null, new(0), incoming, 0, allowArray: false, prepareKey: true));
             Assert.Equal("é😀", incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
             Assert.Equal(0, incoming.RetainedMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
@@ -79,7 +79,7 @@ public sealed partial class AwkFunctionStorageTests
             memory.Budget.OnGrowth = null;
             caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9));
         };
-        Assert.True(stack.TryStageLocalArgument(new(0), incoming, 0, allowArray: false, prepareKey: true));
+        Assert.True(stack.TryStageLocalArgument(null, new(0), incoming, 0, allowArray: false, prepareKey: true));
         Assert.Equal(9, caller.GetSlot(0).Value.AsNumber());
         Assert.Equal(key, incoming.GetSlot(0).Key);
         Assert.True(key.StoredText.HasSameStorage(incoming.GetSlot(0).Key.StoredText));
@@ -108,13 +108,13 @@ public sealed partial class AwkFunctionStorageTests
         {
             memory.Budget.OnGrowth = _ => cancellation.Cancel();
             Assert.ThrowsAny<OperationCanceledException>(() =>
-                stack.TryStageLocalArgument(new(0), incoming, 0, allowArray: false, prepareKey: true));
+                stack.TryStageLocalArgument(null, new(0), incoming, 0, allowArray: false, prepareKey: true));
         }
         else
         {
             memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
             Assert.Throws<AwkRuntimeException>(() =>
-                stack.TryStageLocalArgument(new(0), incoming, 0, allowArray: false, prepareKey: true));
+                stack.TryStageLocalArgument(null, new(0), incoming, 0, allowArray: false, prepareKey: true));
             Assert.Equal(1, memory.Budget.Refusals);
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         }

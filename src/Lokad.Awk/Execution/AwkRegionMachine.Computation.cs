@@ -350,7 +350,7 @@ internal partial struct AwkRegionMachine
                         incoming.StageNumber(index, numbers[argument.Index]);
                         break;
                     case AwkRegionArgumentKind.Local:
-                        state.StageFunctionLocalArgument(in argument, incoming, index);
+                        state.StageFunctionLocalArgument(frame, in argument, incoming, index);
                         break;
                     case AwkRegionArgumentKind.Global:
                         state.StagePreparedGlobalArgument(in argument, incoming, index);

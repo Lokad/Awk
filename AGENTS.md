@@ -383,6 +383,10 @@ or environment dependencies.
   Prepare field demand once per segment and consume it at the first static field after earlier
   arguments stage. Keep cold admission, unknown-effect boundaries and current-record revalidation.
   Activate the actual staged frame directly; sort callbacks also forward their prepared frame.
+  Runtime state owns the call stack directly, borrows immutable function definitions and
+  retains its cleanup callback. Prepared argument staging supplies its actual execution
+  frame; null-frame helpers keep visible-scope resolution. Re-read cells at each argument,
+  preserving capture before callbacks; never retain a slot-array view across admission.
 - Prepared function parameters bind locally and known globals bind directly. Root/file phases
   hide caller locals at phase entry; dynamic name APIs retain their own current-scope behavior.
   Bound-local length shares the visible value projection with scalar reads. Missing, potential and hidden

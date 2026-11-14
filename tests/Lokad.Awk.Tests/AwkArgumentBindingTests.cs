@@ -4,6 +4,78 @@ public sealed class AwkArgumentBindingTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void PreparedArgumentsUseTheirExecutionOwnerAndStandaloneUsesVisibleBindings(bool key)
+    {
+        using var fixture = State();
+        var state = fixture.State;
+        var name = AwkVariableName.FromText("p");
+        var layout = new AwkFunctionLocalLayout([name]);
+        state.PushFunctionFrame(layout, [key ? AwkFunctionLocalSlot.PreparedKey(new("0007")) :
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
+        var owner = state.CurrentFunctionFrame;
+        state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9))]);
+        var incoming = state.PrepareFunctionFrame(layout);
+        var argument = new AwkRegionArgument(AwkRegionArgumentKind.Local, 0, name,
+            Consumption: key ? AwkParameterInput.Key : AwkParameterInput.Value);
+        try
+        {
+            state.StageFunctionLocalArgument(owner, in argument, incoming, 0);
+            if (key)
+                Assert.Equal("0007", incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
+            else Assert.Equal(7, incoming.GetSlot(0).Value.AsNumber());
+            state.DiscardIncomingFunctionFrame(incoming);
+            incoming = state.PrepareFunctionFrame(layout);
+            state.StageFunctionLocalArgument(null, in argument, incoming, 0);
+            Assert.Equal(9, incoming.GetSlot(0).Value.AsNumber());
+            Assert.Equal(9, state.CurrentFunctionFrame.GetSlot(0).Value.AsNumber());
+        }
+        finally
+        {
+            state.DiscardIncomingFunctionFrame(incoming);
+            state.PopFunctionFrame();
+            state.PopFunctionFrame();
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Fact]
+    public void PreparedArgumentReadsLaterCellsAfterEarlierAdmissionChangesThem()
+    {
+        using var fixture = State();
+        var state = fixture.State;
+        var textName = AwkVariableName.FromText("text");
+        var numberName = AwkVariableName.FromText("number");
+        var layout = new AwkFunctionLocalLayout([textName, numberName]);
+        var spelling = new string('x', 4096);
+        state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling)),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
+        var owner = state.CurrentFunctionFrame;
+        var incoming = state.PrepareFunctionFrame(layout);
+        fixture.Budget.OnGrowth = _ =>
+        {
+            fixture.Budget.OnGrowth = null;
+            owner.GetSlot(1) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
+        };
+        try
+        {
+            state.StageFunctionLocalArgument(owner, new(AwkRegionArgumentKind.Local, 0, textName), incoming, 0);
+            state.StageFunctionLocalArgument(owner, new(AwkRegionArgumentKind.Local, 1, numberName), incoming, 1);
+            Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());
+            Assert.Equal(17, incoming.GetSlot(1).Value.AsNumber());
+        }
+        finally
+        {
+            fixture.Budget.OnGrowth = null;
+            state.DiscardIncomingFunctionFrame(incoming);
+            state.PopFunctionFrame();
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void ForwardedChildKeepsItsCaptureUntilDetachedActivation(bool governed)
     {
         using var fixture = State(governed);
@@ -19,7 +91,7 @@ public sealed class AwkArgumentBindingTests
         var incoming = state.PrepareFunctionFrame(new([q]));
         try
         {
-            state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, p, AllowArray: true), incoming, 0);
+            state.StageFunctionLocalArgument(null, new(AwkRegionArgumentKind.Local, 0, p, AllowArray: true), incoming, 0);
             state.DeleteArrayValue(parent, row);
             state.ActivateFunctionFrame(incoming);
             try
@@ -114,7 +186,7 @@ public sealed class AwkArgumentBindingTests
         var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("argument")]));
         try
         {
-            state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, source.Index, name, AllowArray: true), incoming, 0);
+            state.StageFunctionLocalArgument(null, new(AwkRegionArgumentKind.Local, source.Index, name, AllowArray: true), incoming, 0);
             return incoming.GetSlot(0);
         }
         finally { state.DiscardIncomingFunctionFrame(incoming); }
@@ -151,7 +223,7 @@ public sealed class AwkArgumentBindingTests
                 callbacks++;
                 caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
             };
-            state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, name, Consumption: AwkParameterInput.Key), incoming, 0);
+            state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 0, name, Consumption: AwkParameterInput.Key), incoming, 0);
             Assert.Equal(1, callbacks);
             Assert.Equal(AwkFunctionLocalSlotKind.Key, incoming.GetSlot(0).Kind);
             Assert.Equal(spelling, incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
@@ -188,7 +260,7 @@ public sealed class AwkArgumentBindingTests
                 caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
             };
             ref var source = ref state.CurrentFunctionFrame.GetSlot(0);
-            if (preparedLocal) state.StageFunctionLocalArgument(new(AwkRegionArgumentKind.Local, 0, name, AllowArray: true), incoming, 0);
+            if (preparedLocal) state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 0, name, AllowArray: true), incoming, 0);
             else state.StageFunctionArgument(incoming, 0, in source);
             Assert.Equal(1, callbacks);
             Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());

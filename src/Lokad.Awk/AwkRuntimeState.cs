@@ -41,7 +41,9 @@ internal sealed class AwkRuntimeState : IDisposable
     private readonly AwkFieldFrame _recordFields;
     private readonly AwkSpecialVariableDispatcher _specialVariables;
     private readonly AwkVariableRuntime _variableRuntime;
-    private readonly AwkFunctionRuntime _functions;
+    private readonly AwkFunctionCallStack _functions;
+    private readonly Action<AwkArrayName> _removeFunctionLocalArray;
+    private IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> _functionDefinitions = AwkProgram.Empty.Functions;
     private AwkGlobalBinding[]? _globalReadSlots;
     private readonly AwkExecutionContextStack _executionContexts = new();
     private bool[] _rangePatterns = [];
@@ -87,12 +89,12 @@ internal sealed class AwkRuntimeState : IDisposable
             MemoryAccounting, Counters, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint, numberParsingMode);
-        _functions = new AwkFunctionRuntime(
+        _removeFunctionLocalArray = _variables.RemoveFunctionLocalArray;
+        _functions = new AwkFunctionCallStack(
             Limits.MaxFunctionCallDepth,
             MemoryAccounting,
             numberParsingMode,
             _variables.ContainsArray,
-            _variables.RemoveFunctionLocalArray,
             CancellationCheckpoint,
             name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null,
             _variables.PromoteArrayOrigin,
@@ -405,7 +407,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 yield return function.Name;
         }
 
-        _functions.InitializeFunctions(functions);
+        _functionDefinitions = functions;
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.FunctionTable, CompatibilityMode))
             return;
         _variables.InitializeArrayStringNames(
@@ -417,7 +419,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function)
     {
         Counters.RecordFunctionNameLookup();
-        return _functions.TryGetUserFunction(name, out function);
+        return _functionDefinitions.TryGetValue(name, out function);
     }
 
     public void PushFunctionFrame(
@@ -429,7 +431,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void PopFunctionFrame()
     {
-        _functions.PopFrame();
+        _functions.PopFrame(_removeFunctionLocalArray);
     }
 
     internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout) => _functions.PrepareFrame(layout);
@@ -870,10 +872,11 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    internal void StageFunctionLocalArgument(in AwkRegionArgument argument, AwkFunctionFrame incoming, int index)
+    internal void StageFunctionLocalArgument(AwkFunctionFrame? frame,
+        in AwkRegionArgument argument, AwkFunctionFrame incoming, int index)
     {
         var source = new AwkFunctionLocalSlotId(argument.Index);
-        if (_functions.TryStageLocalArgument(source, incoming, index, argument.AllowArray,
+        if (_functions.TryStageLocalArgument(frame, source, incoming, index, argument.AllowArray,
             argument.Consumption == AwkParameterInput.Key)) return;
         if (argument.AllowArray && !_functions.HasLocalSlot(source) && TryResolveArrayArgument(argument.Name, out var array))
             _functions.StageArgument(incoming, index, in array);

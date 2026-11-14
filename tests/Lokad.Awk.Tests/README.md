@@ -130,6 +130,8 @@ not historical checkpoint counts. Public host tests retain capability/path/pipe/
 Cell array bindings preserve live promoted/detached origins and reject missing, key and reader
 roles. Name/index lookup captures identity before resolution can replace its source cell;
 an unresolved alias must not promote that replacement.
+Prepared argument staging also distinguishes its execution owner from visible-stack
+resolution, and reads later cells after earlier admission callbacks change them.
 Reader-backed text arguments also use poisoned buffers and custom memory to verify original
 spelling, retirement and admission before an actual owning copy. Borrow forwarding needs no
 future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.

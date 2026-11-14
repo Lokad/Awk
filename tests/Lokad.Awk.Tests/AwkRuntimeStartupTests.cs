@@ -167,8 +167,12 @@ public sealed class AwkRuntimeStartupTests
         }
         var program = new AwkProgram([], null, [], [], [], functions);
         functions.Clear();
-        for (var index = 0; index < 2; index++) Create().InitializeFunctions(program.Functions);
-        var runtime = Create();
+        for (var index = 0; index < 2; index++)
+        {
+            using var warm = Create();
+            warm.InitializeFunctions(program.Functions);
+        }
+        using var runtime = Create();
         var before = GC.GetAllocatedBytesForCurrentThread();
 
         runtime.InitializeFunctions(program.Functions);
@@ -182,8 +186,13 @@ public sealed class AwkRuntimeStartupTests
         }
         Assert.False(runtime.TryGetUserFunction(AwkFunctionName.FromText("missing"), out _));
 
-        static AwkFunctionRuntime Create() => new(1000, AwkMemoryAccounting.Disabled,
-            AwkNumberParsingMode.Decimal, static _ => false, static _ => { });
+        static AwkRuntimeState Create()
+        {
+            var options = AwkTestHarness.CreateRuntimeOptions();
+            return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
+                new AwkRuntimeResourceMonitor(options.Limits, options.Counters, CancellationToken.None),
+                AwkCompatibilityProfile.Default.WithMode(AwkCompatibilityMode.Traditional));
+        }
     }
 
     [Fact]

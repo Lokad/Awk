@@ -239,11 +239,14 @@ internal sealed class AwkFunctionCallStack(
         frame.GetSlot(index).InitializeKey(key);
     }
 
-    internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index,
+    internal bool TryStageLocalArgument(AwkFunctionFrame? frame,
+        AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index,
         bool allowArray, bool prepareKey)
     {
-        if (!TryPeekLocalFrame(out var frame) || (uint)source.Index >= (uint)frame.Layout.SlotCount)
-            return false;
+        // Prepared execution has its actual owner; root/file and standalone helpers
+        // retain visible-stack resolution. No source-cell reference crosses staging.
+        if (frame is null && !TryPeekLocalFrame(out frame)) return false;
+        if ((uint)source.Index >= (uint)frame.Layout.SlotCount) return false;
         ref readonly var sourceSlot = ref frame.GetSlot(source.Index);
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Key)
         {

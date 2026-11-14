@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 internal sealed class AwkVariableRuntime(
     AwkVariables variables,
-    AwkFunctionRuntime functions,
+    AwkFunctionCallStack functions,
     AwkSpecialVariableDispatcher specialVariables,
     Action? checkpoint = null,
     AwkRuntimeCounters? counters = null)
