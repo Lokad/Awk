@@ -450,12 +450,27 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private void FinishStatement(int firstTemporary)
+    private void FinishStatement(int firstTemporary, int knownEmptyFrom = -1)
     {
         // Child statements retire their captures before their enclosing block does.
         // Calls and pending users complete before this boundary; nonlocal flow unwinds.
         if (_values > firstTemporary)
             Emit(new(AwkRegionInstructionKind.ReleaseValues, firstTemporary, Right: _values - firstTemporary));
+        // A prior completion in this statement list already drained inherited
+        // output. Only fully prepared leaf work is inspected: control joins keep
+        // their ordinary boundary, and calls/unknown operations are conservative.
+        if (knownEmptyFrom >= 0)
+        {
+            var mayInvokeHost = false;
+            for (var index = knownEmptyFrom; index < _code.Count; index++)
+            {
+                if ((index & 127) == 127) _scope.CheckCancellation();
+                if (!AwkFunctionHostEffects.DirectHost(_code[index])) continue;
+                mayInvokeHost = true;
+                break;
+            }
+            if (!mayInvokeHost) return;
+        }
         Emit(new(AwkRegionInstructionKind.StatementBoundary));
     }
 

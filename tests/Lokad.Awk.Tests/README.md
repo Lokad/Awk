@@ -31,6 +31,8 @@ consumption, nested calls, file-phase reentry, nonlocal flow, failure and ignore
 Check the visible prefix, stopped suffix, frame restoration, descriptor cleanup and final refunds.
 Phase tests keep main-record permission through actual pending output/cancellation, then restore
 the enclosing phase before input progression or cleanup; sort callbacks retain their restrictions.
+Statement-completion tests preserve inherited output before later callee effects and retain public
+print buffers through actual completion/cancellation while computation-only completions disappear.
 Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests use the production
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks

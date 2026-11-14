@@ -9,6 +9,7 @@ internal sealed partial class AwkRegionCompiler
         private int _position;
         private int _firstTemporary;
         private bool _waiting;
+        private bool _outputIsKnownEmpty;
         internal AwkStatementSyntax? CurrentStatement => _position < statements.Count ? statements[_position] : null;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
@@ -17,6 +18,7 @@ internal sealed partial class AwkRegionCompiler
             if (_waiting)
             {
                 compiler.FinishStatement(_firstTemporary);
+                _outputIsKnownEmpty = true;
                 _position++;
                 _waiting = false;
             }
@@ -34,12 +36,15 @@ internal sealed partial class AwkRegionCompiler
                 else if (statement.Kind == AwkStatementKind.Switch) next = new SwitchWork(statement);
                 else
                 {
+                    var firstInstruction = compiler._code.Count;
                     if (!compiler.PrepareStatement(statement)) return false;
                     // Return owns output completion and callee retirement. Its
                     // fallthrough cleanup would be unreachable, but later source
                     // still needs preparation/validation.
                     if (statement.Kind != AwkStatementKind.Return)
-                        compiler.FinishStatement(_firstTemporary);
+                        compiler.FinishStatement(_firstTemporary,
+                            _outputIsKnownEmpty ? firstInstruction : -1);
+                    _outputIsKnownEmpty = true;
                     _position++;
                     continue;
                 }

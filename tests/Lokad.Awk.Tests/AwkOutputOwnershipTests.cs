@@ -6,6 +6,61 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkOutputOwnershipTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task ComputationBetweenPrintsKeepsPendingOutputAndStopsCanceledEffects(bool governed, bool cancel)
+    {
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stdout = "";
+        var stderr = "";
+        var host = new TestOperationVisitor([])
+        {
+            AppendOverride = async (descriptor, bytes, _) =>
+            {
+                if (descriptor == AwkFileDescriptor.StdErr) stderr += AwkUtf8Codec.Decode(bytes.Span);
+                else
+                {
+                    stdout += AwkUtf8Codec.Decode(bytes.Span);
+                    if (bytes.Span.SequenceEqual("first\n"u8))
+                    {
+                        entered.TrySetResult();
+                        await release.Task.ConfigureAwait(false);
+                        Assert.True(bytes.Span.SequenceEqual("first\n"u8));
+                    }
+                }
+                return AwkAppendResult.Accepted();
+            }
+        };
+        var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["BEGIN{a=1;b=2;print \"first\";a+=3;b*=4;print a,b}"], []));
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var execution = awk.ExecuteAsync(host, policy, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("first\n", stdout);
+            if (governed) Assert.True(budget.Reserved > 0);
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+            else Assert.Equal(0, (await execution).Value);
+            Assert.Equal(cancel ? "first\n" : "first\n4 8\n", stdout);
+            Assert.Empty(stderr);
+        }
+        finally
+        {
+            release.TrySetResult();
+            try { await execution; } catch (OperationCanceledException) when (cancel) { }
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, 16)] [InlineData(true, 16)]
     [InlineData(false, 128)] [InlineData(true, 128)]
     public async Task NestedOutputCannotHideCapturedArguments(bool printf, int megabytes)
