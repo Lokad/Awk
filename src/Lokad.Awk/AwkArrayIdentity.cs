@@ -1,5 +1,6 @@
 using System.Buffers.Text;
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -78,7 +79,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
     public bool TryGetValue(AwkArrayKey key, out AwkValue value)
     {
         if (_indexed is not null) return TryGetIndexed(key, out _, out value);
-        if (_lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out var cell))
+        if (TryGetDictionaryCell(key, out var cell))
         {
             value = cell.Slot;
             return true;
@@ -87,7 +88,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         return false;
     }
 
-    private bool TryGetIndexed(AwkArrayKey key, out int ordinal, out AwkValue value)
+    internal bool TryGetIndexed(AwkArrayKey key, out int ordinal, out AwkValue value)
     {
         if (key.TryGetOrdinalValue(out ordinal)) return TryGetIndexed(ordinal, out value);
         Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
@@ -97,13 +98,21 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         return false;
     }
 
-    // Only mutation/capture consumers ask for dictionary cell identity. Ordinal
-    // storage keeps values directly and is located again after RHS evaluation.
+    // Synchronous semantic consumers borrow the actual dictionary cell. No backing
+    // reference crosses admission; ordinal storage retains its owning value path.
+    internal bool TryGetDictionaryCell(AwkArrayKey key, [NotNullWhen(true)] out AwkArrayCell? cell)
+    {
+        System.Diagnostics.Debug.Assert(_indexed is null);
+        return _lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out cell);
+    }
+
+    // Mutation/capture consumers also need an owning value. Ordinal storage keeps
+    // values directly and is located again after RHS evaluation.
     internal bool TryGetEntry(AwkArrayKey key, out AwkValue value, out AwkArrayCell? cell)
     {
         if (_indexed is null)
         {
-            if (_lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out cell))
+            if (TryGetDictionaryCell(key, out cell))
             {
                 value = cell.Slot;
                 return true;

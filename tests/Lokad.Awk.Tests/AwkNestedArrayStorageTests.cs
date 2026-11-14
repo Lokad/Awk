@@ -216,6 +216,37 @@ public sealed class AwkNestedArrayStorageTests
         Assert.Equal(retained, memory.Budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ChildQueriesKeepUntypedOriginsAndDoNotInsertMissingEntries(bool ordinal)
+    {
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var variables = Variables(memory);
+        var parent = Parent(variables);
+        var key = ordinal ? AwkArrayKey.FromOrdinal(1) : new AwkArrayKey("row");
+        var scalar = ordinal ? AwkArrayKey.FromOrdinal(2) : new AwkArrayKey("scalar");
+        var missing = ordinal ? AwkArrayKey.FromOrdinal(3) : new AwkArrayKey("missing");
+        Assert.Null(variables.FindSubarray(parent, key));
+        Assert.Empty(parent);
+        var pending = variables.GetArrayValue(parent, key);
+        Assert.Null(variables.FindSubarray(parent, key));
+        var child = variables.GetSubarray(parent, key);
+        Assert.Same(child, variables.FindSubarray(parent, key));
+        Assert.Same(child, variables.GetSubarray(parent, key));
+        Assert.True(pending.TryGetArrayBinding(out var promoted));
+        Assert.Same(child, promoted);
+        variables.SetArrayValue(parent, scalar, AwkValue.FromText("007"));
+        var count = parent.Count;
+        var reserved = memory.Budget.Reserved;
+        Assert.Null(variables.FindSubarray(parent, missing));
+        Assert.Throws<AwkRuntimeException>(() => variables.FindSubarray(parent, scalar));
+        Assert.Equal(count, parent.Count);
+        Assert.Equal(reserved, memory.Budget.Reserved);
+        Assert.Equal("007", variables.GetArrayValue(parent, scalar).AsString());
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void PromotionCountersDistinguishNewOwnersFromReuseAndRefusal()
     {

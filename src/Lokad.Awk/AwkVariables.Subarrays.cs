@@ -202,20 +202,27 @@ internal sealed partial class AwkVariables
     internal AwkArrayIdentity GetSubarray(AwkArrayIdentity parent, AwkArrayKey key)
     {
         ThrowIfDetached(parent);
-        var slots = parent;
-        var found = slots.TryGetValue(key, out var value);
+        if (!parent.IsIndexed)
+        {
+            if (!parent.TryGetDictionaryCell(key, out var cell))
+                return CreateSubarray(parent, key, false, default);
+            if (cell.ArrayBinding is { } child) return child;
+            // Capture the owning value before cold admission can change the cell.
+            return CreateSubarray(parent, key, true, cell.Slot);
+        }
+        var found = parent.TryGetIndexed(key, out _, out var value);
         if (found && value.TryGetArrayBinding(out var existing)) return existing;
-        return CreateSubarray(parent, key, slots, found, value);
+        return CreateSubarray(parent, key, found, value);
     }
 
     private AwkArrayIdentity CreateSubarray(AwkArrayIdentity parent, AwkArrayKey key,
-        AwkArrayIdentity slots, bool found, AwkValue slot)
+        bool found, AwkValue slot)
     {
         if (found && !slot.IsUntypedValue)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
 
         var growth = AwkRuntimeMemory.ArrayIdentityBytes;
-        var estimatedGrowth = found ? growth : EstimateArrayInsertionGrowth(slots, key,
+        var estimatedGrowth = found ? growth : EstimateArrayInsertionGrowth(parent, key,
             AwkRuntimeMemory.CheckedAdd(growth, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, default(AwkValue))));
         using var admission = _memoryAccounting.AdmitMutation(estimatedGrowth);
         using var creation = ReserveMemoryMutation(growth, 0);
@@ -223,7 +230,7 @@ internal sealed partial class AwkVariables
         if (found && slot.TryGetUntypedScalar(out var origin))
             origin.PromoteArray(child);
         else
-            SetArraySlot(slots, key, AwkValue.FromArrayReference(child));
+            SetArraySlot(parent, key, AwkValue.FromArrayReference(child));
         creation.Commit();
         _counters.RecordSubarrayPromotion();
         return child;
@@ -232,7 +239,14 @@ internal sealed partial class AwkVariables
     internal AwkArrayIdentity? FindSubarray(AwkArrayIdentity parent, AwkArrayKey key)
     {
         ThrowIfDetached(parent);
-        if (!parent.TryGetValue(key, out var slot) || slot.IsUntypedValue) return null;
+        if (!parent.IsIndexed)
+        {
+            if (!parent.TryGetDictionaryCell(key, out var cell)) return null;
+            if (cell.ArrayBinding is { } existing) return existing;
+            if (cell.Slot.IsUntypedValue) return null;
+            throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
+        }
+        if (!parent.TryGetIndexed(key, out _, out var slot) || slot.IsUntypedValue) return null;
         if (slot.TryGetArrayBinding(out var child)) return child;
         throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
     }
