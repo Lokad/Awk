@@ -155,7 +155,17 @@ public sealed class AwkArrayCellTests
     public void InputNumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
         AssertConversionSnapshot(borrowedKey, input: true);
 
-    private static void AssertConversionSnapshot(bool borrowedKey, bool input)
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void NumericReadKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+        AssertConversionSnapshot(borrowedKey, input: false, update: false);
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void InputNumericReadKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+        AssertConversionSnapshot(borrowedKey, input: true, update: false);
+
+    private static void AssertConversionSnapshot(bool borrowedKey, bool input, bool update = true)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         Action? onPoll = null;
@@ -181,16 +191,25 @@ public sealed class AwkArrayCellTests
             variables.SetArrayValue(array, key, AwkValue.FromNumber(99));
         };
 
-        var target = borrowedKey
-            ? variables.PrepareArrayUpdate(array, "kept"u8)
-            : variables.PrepareArrayUpdate(array, key);
-
-        Assert.True(replaced);
-        Assert.Equal(7, target.Previous);
-        Assert.Equal(key, target.Key);
-        Assert.Equal(99, variables.GetArrayNumber(array, key));
-        Assert.True(variables.TrySetCapturedArrayNumber(array, in target, target.Previous + 3));
-        Assert.Equal(10, variables.GetArrayNumber(array, key));
+        if (update)
+        {
+            var target = borrowedKey
+                ? variables.PrepareArrayUpdate(array, "kept"u8)
+                : variables.PrepareArrayUpdate(array, key);
+            Assert.True(replaced);
+            Assert.Equal(7, target.Previous);
+            Assert.Equal(key, target.Key);
+            Assert.Equal(99, variables.GetArrayNumber(array, key));
+            Assert.True(variables.TrySetCapturedArrayNumber(array, in target, target.Previous + 3));
+            Assert.Equal(10, variables.GetArrayNumber(array, key));
+        }
+        else
+        {
+            var number = borrowedKey ? variables.GetArrayNumber(array, "kept"u8) : variables.GetArrayNumber(array, key);
+            Assert.True(replaced);
+            Assert.Equal(7, number);
+            Assert.Equal(99, variables.GetArrayNumber(array, key));
+        }
         variables.ClearArray(array);
         sourceMemory.Dispose();
         memory.Dispose();

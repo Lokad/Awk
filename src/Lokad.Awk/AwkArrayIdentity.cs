@@ -124,7 +124,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         return TryGetIndexed(key, out _, out value);
     }
 
-    private bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal, out AwkValue value)
+    internal bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal, out AwkValue value)
     {
         if (TryParseOrdinal(bytes, out ordinal)) return TryGetIndexed(ordinal, out value);
         value = default;
@@ -378,10 +378,21 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
     {
         public bool ContainsKey(ReadOnlySpan<byte> key) => owner._indexed is null
             ? owner._lookup.ContainsKey(key) : owner.TryGetIndexed(key, out _, out _);
+        internal bool TryGetDictionaryCell(ReadOnlySpan<byte> key, [NotNullWhen(true)] out AwkArrayCell? cell)
+        {
+            System.Diagnostics.Debug.Assert(owner._indexed is null);
+            return owner._lookup.TryGetValue(key, out cell);
+        }
+        internal bool TryGetDictionaryCell(ReadOnlySpan<byte> key, out AwkArrayKey retainedKey,
+            [NotNullWhen(true)] out AwkArrayCell? cell)
+        {
+            System.Diagnostics.Debug.Assert(owner._indexed is null);
+            return owner._lookup.TryGetValue(key, out retainedKey, out cell);
+        }
         public bool TryGetValue(ReadOnlySpan<byte> key, out AwkValue value)
         {
             if (owner._indexed is not null) return owner.TryGetIndexed(key, out _, out value);
-            if (owner._lookup.TryGetValue(key, out var cell))
+            if (TryGetDictionaryCell(key, out var cell))
             {
                 value = cell.Slot;
                 return true;
@@ -397,7 +408,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         {
             if (owner._indexed is null)
             {
-                if (owner._lookup.TryGetValue(key, out retainedKey, out cell))
+                if (TryGetDictionaryCell(key, out retainedKey, out cell))
                 {
                     value = cell.Slot;
                     return true;

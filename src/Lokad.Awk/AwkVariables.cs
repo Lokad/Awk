@@ -186,9 +186,12 @@ internal sealed partial class AwkVariables
     internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey index)
     {
         ThrowIfDetached(array);
-        return array.TryGetValue(index, out var slot)
-            ? ReadArraySlotNumber(slot)
-            : CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
+        if (array.IsIndexed)
+        {
+            if (array.TryGetIndexed(index, out _, out var slot)) return ReadArraySlotNumber(slot);
+        }
+        else if (array.TryGetDictionaryCell(index, out var cell)) return ReadArraySlotNumber(in cell.BorrowedSlot);
+        return CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
     }
 
     internal AwkValue GetArrayValue(AwkArrayIdentity array, int ordinal) =>
@@ -208,8 +211,16 @@ internal sealed partial class AwkVariables
     internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index) =>
         CreateValue(GetArraySlot(array, index));
 
-    internal double GetArrayNumber(AwkArrayIdentity array, ReadOnlySpan<byte> index) =>
-        ReadArraySlotNumber(GetArraySlot(array, index));
+    internal double GetArrayNumber(AwkArrayIdentity array, ReadOnlySpan<byte> index)
+    {
+        ThrowIfDetached(array);
+        if (array.IsIndexed)
+        {
+            if (array.TryGetIndexed(index, out _, out var slot)) return ReadArraySlotNumber(slot);
+        }
+        else if (array.ByteLookup.TryGetDictionaryCell(index, out var cell)) return ReadArraySlotNumber(in cell.BorrowedSlot);
+        return ReadArraySlotNumber(InsertByteSlot(array, index, default, missing: true, out _, out _));
+    }
 
     private AwkValue GetArraySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index)
     {
@@ -221,9 +232,22 @@ internal sealed partial class AwkVariables
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index)
     {
         ThrowIfDetached(array);
-        if (!array.ByteLookup.TryGetEntry(index, out var key, out var slot, out var cell))
-            slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
-        return new(key, ReadArraySlotNumber(slot), array, cell);
+        AwkArrayKey key;
+        AwkValue slot = default;
+        ref readonly var numberSource = ref slot;
+        AwkArrayCell? cell;
+        if (array.IsIndexed)
+        {
+            cell = null;
+            if (array.TryGetIndexed(index, out var ordinal, out slot)) key = AwkArrayKey.FromOrdinal(ordinal);
+            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
+        }
+        else
+        {
+            if (array.ByteLookup.TryGetDictionaryCell(index, out key, out cell)) numberSource = ref cell.BorrowedSlot;
+            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
+        }
+        return new(key, ReadArraySlotNumber(in numberSource), array, cell);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
@@ -244,9 +268,20 @@ internal sealed partial class AwkVariables
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
     {
         ThrowIfDetached(array);
-        if (!array.TryGetEntry(index, out var slot, out var cell))
-            slot = CreateMissingArraySlot(array, index, out cell);
-        return new(index, ReadArraySlotNumber(slot), array, cell);
+        AwkValue slot = default;
+        ref readonly var numberSource = ref slot;
+        AwkArrayCell? cell;
+        if (array.IsIndexed)
+        {
+            cell = null;
+            if (!array.TryGetIndexed(index, out _, out slot)) slot = CreateMissingArraySlot(array, index, out cell);
+        }
+        else
+        {
+            if (array.TryGetDictionaryCell(index, out cell)) numberSource = ref cell.BorrowedSlot;
+            else slot = CreateMissingArraySlot(array, index, out cell);
+        }
+        return new(index, ReadArraySlotNumber(in numberSource), array, cell);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,

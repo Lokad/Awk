@@ -4,16 +4,19 @@ namespace Lokad.Awk;
 // retirement clears its payload before releasing the containing array's charge.
 internal sealed class AwkArrayCell(AwkValue slot)
 {
-    public AwkValue Slot { get; private set; } = slot;
+    private AwkValue _slot = slot;
+    public AwkValue Slot => _slot;
     public bool IsAttached { get; private set; } = true;
     // Synchronous owner consumers need only the role/reference, not a value copy.
-    internal AwkArrayIdentity? ArrayBinding => Slot.TryGetArrayBinding(out var array) ? array : null;
+    internal AwkArrayIdentity? ArrayBinding => _slot.TryGetArrayBinding(out var array) ? array : null;
+    // The scoped numeric kernel captures its value before conversion can poll.
+    internal ref readonly AwkValue BorrowedSlot => ref _slot;
     // The owner preflights storage changes before calling this method.
-    public void SetSlot(AwkValue value) => Slot = value;
+    public void SetSlot(AwkValue value) => _slot = value;
 
     public void Detach()
     {
-        Slot = default;
+        _slot = default;
         IsAttached = false;
     }
 }
