@@ -26,7 +26,9 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(0, counters.Utf8Encodes);
             Assert.Equal(0, budget.Reserved);
             Assert.Equal(0, host.OpenFileCount);
-            lookups.Add(counters.ArrayOwnedHashCalls);
+            // Owner reuse avoids comparisons in both hashed and bounded-scan
+            // lookup. A hash count alone would freeze the table algorithm.
+            lookups.Add(counters.ArrayEqualityCalls);
         }
         Assert.True(lookups[0] < lookups[1]);
     }
@@ -145,7 +147,7 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(0, counters.Utf8Encodes);
             Assert.Equal(0, budget.Reserved);
             Assert.Equal(0, host.OpenFileCount);
-            lookups.Add(counters.ArrayOwnedHashCalls);
+            lookups.Add(counters.ArrayEqualityCalls);
         }
         Assert.True(lookups[0] < lookups[1]);
     }

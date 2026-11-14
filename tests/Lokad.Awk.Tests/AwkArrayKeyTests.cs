@@ -130,7 +130,7 @@ public sealed class AwkArrayKeyTests
     }
 
     [Fact]
-    public void DictionaryLookupCapturesKeyBeforeLongHashCallback()
+    public void DictionaryLookupCapturesKeyBeforeLongTextCallback()
     {
         var lookupKey = new AwkArrayKey(new string('a', 4097));
         var original = lookupKey;

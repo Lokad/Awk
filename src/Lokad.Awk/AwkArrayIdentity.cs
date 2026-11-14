@@ -103,7 +103,24 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
     internal bool TryGetDictionaryCell(AwkArrayKey key, [NotNullWhen(true)] out AwkArrayCell? cell)
     {
         System.Diagnostics.Debug.Assert(_indexed is null);
-        return _lookup.Dictionary.TryGetValue(key.PrepareByteLookup(), out cell);
+        var dictionary = _lookup.Dictionary;
+        key = key.PrepareByteLookup();
+        if (dictionary.EnsureCapacity(0) == 3)
+        {
+            cell = FindSmallDictionaryCell(dictionary, key);
+            return cell is not null;
+        }
+        return dictionary.TryGetValue(key, out cell);
+    }
+
+    // Bound by backing capacity, not live Count: a large sparse table can retain
+    // many deleted positions. This read keeps the actual dictionary and cells.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private AwkArrayCell? FindSmallDictionaryCell(Dictionary<AwkArrayKey, AwkArrayCell> dictionary, AwkArrayKey key)
+    {
+        foreach (var entry in dictionary)
+            if (_comparer.Equals(entry.Key, key)) return entry.Value;
+        return null;
     }
 
     // Mutation/capture consumers also need an owning value. Ordinal storage keeps
