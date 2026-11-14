@@ -206,7 +206,7 @@ internal sealed partial class AwkRegionCompiler
                 var removed = _code.Count - captureIndex;
                 _code.RemoveRange(captureIndex, removed);
                 _straightLine -= removed;
-                site = site with { PrepareAccess = capture.Left };
+                site = site with { PrepareAccess = capture.Left, Slot = -1 };
             }
             // Only captures crossing instructions need storage and rule retirement.
             if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);

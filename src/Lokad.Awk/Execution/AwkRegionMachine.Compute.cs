@@ -434,8 +434,8 @@ internal partial struct AwkRegionMachine
                     // Captures spanning script instructions retain funded scratch storage.
                     AwkArrayUpdateTarget capturedUpdate;
                     if (updateSite.PrepareAccess < 0) capturedUpdate = computationView.Storage.Targets[updateSite.Slot];
-                    else if (updateSite.Path >= 0) capturedUpdate = computationView.PreparePathUpdate(updateSite.Path);
-                    else computationView.PrepareCompleteArrayUpdate(updateSite.PrepareAccess, out capturedUpdate);
+                    else if (updateSite.Path >= 0) capturedUpdate = computationView.PreparePathUpdate(updateSite.Path, updateSite.Slot);
+                    else computationView.PrepareCompleteArrayUpdate(updateSite.PrepareAccess, out capturedUpdate, updateSite.Slot);
                     var rightNumber = updateSite.Right.IsRegister
                         ? computationView.Numbers[updateSite.Right.RegisterIndex]
                         : computationView.ReadBoundNumber(in computationView.Operands[updateSite.Right.OperandIndex]);
@@ -448,6 +448,7 @@ internal partial struct AwkRegionMachine
                     else computationView.State.CommitArrayUpdate(updateSite.Name, in capturedUpdate, updated);
                     if (instruction.Right >= 0) computationView.Numbers[instruction.Right] = capturedUpdate.Previous;
                     if (updateSite.PrepareAccess < 0) computationView.Storage.CompleteTarget(updateSite.Slot);
+                    else if (updateSite.Slot >= 0) computationView.Storage.StoreLocation(updateSite.Slot, in capturedUpdate);
                     computationView.Numbers[instruction.Target] = updated;
                     break;
                 }

@@ -150,6 +150,7 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var access = CompletedResult<int>(completed);
+            compiler._arrayReads.Add(access);
             if (compiler._arrays[access].Path < 0 && compiler._operands[compiler._arrays[access].Key].Kind != AwkRegionOperandKind.KeyBuilder)
                 return Complete(compiler.Operand(AwkRegionOperandKind.ArrayElement, access));
             var captured = compiler._values++;

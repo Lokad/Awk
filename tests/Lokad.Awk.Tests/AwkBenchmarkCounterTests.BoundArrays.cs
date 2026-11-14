@@ -6,6 +6,34 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    [InlineData(3)] [InlineData(4)] [InlineData(5)]
+    public async Task CompleteUpdatesAndReadsReuseValidatedCurrentLocations(int shape)
+    {
+        var (prefix, update, read) = shape switch
+        {
+            1 => ("BEGIN{k=\"k\"}", "a[k]++", "a[k]"),
+            2 => ("", "a[$1]++", "a[$1]"),
+            3 => ("BEGIN{SUBSEP=\":\"}", "a[$1,$2]++", "a[$1,$2]"),
+            4 => ("", "a[$1][\"sum\"]++", "a[$1][\"sum\"]"),
+            5 => ("BEGIN{a[\"x\"]=0;i=1}", "a[i]++", "a[i]"),
+            _ => ("", "a[\"k\"]++", "a[\"k\"]")
+        };
+        const int count = 256;
+        var result = await RunAsync([prefix + "{" + update + ";total+=" + read + "}END{print total}"],
+            string.Concat(Enumerable.Repeat("k x 1\n", count)));
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("32896\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        // The update still locates its target. A following current-value read
+        // removes a dictionary lookup; nested access retains its prefix lookup.
+        Assert.InRange(result.Counters.ArrayOwnedHashCalls + result.Counters.ArrayBorrowedHashCalls,
+            0, count * (shape == 4 ? 2 : 1) + 64);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task NumericIndexReadsKeepStoredNumbersAndSpellingWithoutTextTransport(bool governed)
     {

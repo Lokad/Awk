@@ -92,6 +92,8 @@ Nested owner reads also cover file-action reentry with a hidden caller, live sha
 origins, and current arrays after genuinely pending input clears and repopulates their storage.
 GNU-derived cases preserve overlapping and sequential updates/reads, postfix values, the latest
 repeated update and key mutation between an update and its following read.
+Complete operation/read bindings also cover current spelling and missing insertion after
+deletion, genuinely pending host mutation/cancellation, and lookup reduction across key forms.
 Repeated captured updates cover changing keys, cells, values and array storage. Hash counters
 measure lookup reuse across field, literal, variable, alias, temporary and composite keys.
 Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,

@@ -620,6 +620,19 @@ internal sealed class AwkFieldFrame(
         return false;
     }
 
+    internal bool TryGetReadyShortFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
+    {
+        bytes = default;
+        if (!_recordTextIsCurrent || !index.IsNamedField || index.Value > _fieldTexts.Count) return false;
+        var field = _fieldTexts[index.Value - 1];
+        if (HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned || field.ByteLength() is < 1 or > 7)
+            return false;
+        // Do not split, classify or admit speculatively. All eligibility checks
+        // precede custom-memory access; the returned bytes are consumed once.
+        bytes = field.BytesInRecord(RecordBytes());
+        return true;
+    }
+
     public bool TryGetUnmaterializedFieldText(
         AwkFieldIndex index,
         out AwkFieldText field, out ReadOnlySpan<byte> record)

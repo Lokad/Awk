@@ -1519,6 +1519,23 @@ internal sealed class AwkRuntimeState : IDisposable
     internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey key) =>
         _variables.GetArrayNumber(array, key);
 
+    internal AwkValue GetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, in AwkArrayUpdateTarget location) =>
+        _variables.GetArrayValue(array, key, in location);
+
+    internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey key, in AwkArrayUpdateTarget location) =>
+        _variables.GetArrayNumber(array, key, in location);
+
+    internal bool TryCaptureReadyShortFieldKey(int index, out AwkArrayKey key)
+    {
+        if (index > 0 && _recordFields.TryGetReadyShortFieldBytes(new(index), out var bytes))
+        {
+            key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, checkpoint: null);
+            return true;
+        }
+        key = default;
+        return false;
+    }
+
     internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
         _variables.SetArrayValue(array, key, value);
 
@@ -1660,6 +1677,9 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key) =>
         _variables.PrepareArrayUpdate(array, key);
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key,
+        in AwkArrayUpdateTarget previous) => _variables.PrepareArrayUpdate(array, key, in previous);
 
     internal void CommitArrayUpdate(AwkCapturedArrayPath path, in AwkArrayUpdateTarget target, double number)
     {

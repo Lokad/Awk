@@ -194,6 +194,13 @@ internal sealed partial class AwkVariables
         return CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
     }
 
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, AwkArrayKey index, in AwkArrayUpdateTarget location) =>
+        location.TryGetCurrentCell(array, index, out var cell) ? CreateValue(cell.Slot) : GetArrayValue(array, index);
+
+    internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey index, in AwkArrayUpdateTarget location) =>
+        location.TryGetCurrentCell(array, index, out var cell)
+            ? ReadArraySlotNumber(in cell.BorrowedSlot) : GetArrayNumber(array, index);
+
     internal AwkValue GetArrayValue(AwkArrayIdentity array, int ordinal) =>
         CreateValue(GetArrayOrdinalSlot(array, ordinal));
 

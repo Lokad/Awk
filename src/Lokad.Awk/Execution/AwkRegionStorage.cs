@@ -188,6 +188,23 @@ internal sealed class AwkRegionStorage : IDisposable
         ReleaseTarget(index);
     }
 
+    internal void StoreLocation(int index, in AwkArrayUpdateTarget target)
+    {
+        // This slot is disjoint from live captures. Its existing capacity funds
+        // bounded key/cell holding; long payloads keep ordinary lookup.
+        if (!target.CanRetainLocation)
+        {
+            _targets[index] = default;
+            return;
+        }
+        ref readonly var prior = ref _targets[index];
+        // An attached cell has one key at one owner. This slot retains only
+        // that location; every capture reads the cell's current number rather
+        // than Previous. No callback or mutation occurs during this check.
+        if (ReferenceEquals(prior.Array, target.Array) && ReferenceEquals(prior.Cell, target.Cell)) return;
+        _targets[index] = target;
+    }
+
     internal void ReleaseTarget(int index)
     {
         var bytes = _state.MemoryAccounting.IsEnabled ? ExcessTargetBytes(_targets[index]) : 0;

@@ -13,6 +13,7 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkRegionLiteral> _literals = [];
     private readonly List<AwkRegionArrayAccess> _arrays = [];
+    private readonly List<int> _arrayReads = [];
     private readonly List<AwkRegionArrayUpdate> _updates = [];
     private readonly List<AwkRegionScalarUpdate> _scalarUpdates = [];
     private int _activeUpdates;
@@ -94,17 +95,19 @@ internal sealed partial class AwkRegionCompiler
             }
         }
         var firstUpdate = _updates.Count;
+        var firstRead = _arrayReads.Count;
         var firstInstruction = _code.Count;
         var success = AppendMainRuleBody(rule, rangeIndex);
         _scalarResults = null;
         if (success)
         {
             PrepareArrayOwners(firstInstruction);
+            PrepareArrayLocations(firstUpdate, firstRead);
             var after = StorageLayout() with { Targets = 0 };
             for (var index = firstUpdate; index < _updates.Count; index++)
             {
                 if ((index & 127) == 127) _scope.CheckCancellation();
-                if (_updates[index].PrepareAccess < 0)
+                if (_updates[index].Slot >= 0)
                     after = after with { Targets = Math.Max(after.Targets, _updates[index].Slot + 1) };
             }
             // Number registers and immutable program operands retain no execution-owned payload.
@@ -247,7 +250,11 @@ internal sealed partial class AwkRegionCompiler
 
     private AwkRegion CreateRegion()
     {
-        if (_mainBodyStart < 0) PrepareArrayOwners(0);
+        if (_mainBodyStart < 0)
+        {
+            PrepareArrayOwners(0);
+            PrepareArrayLocations(0, 0);
+        }
         var entryFieldDemand = PrepareFieldDemands();
         var region = new AwkRegion(_code.ToArray(), _operands.ToArray(),
             _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),

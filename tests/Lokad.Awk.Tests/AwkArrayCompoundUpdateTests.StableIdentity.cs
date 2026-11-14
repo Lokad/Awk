@@ -3,6 +3,38 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkArrayCompoundUpdateTests
 {
     [Theory]
+    [InlineData(0, false)] [InlineData(0, true)]
+    [InlineData(1, false)] [InlineData(1, true)]
+    [InlineData(2, false)] [InlineData(2, true)]
+    public async Task CompletedLocationsReadCurrentCellsAfterPendingHostMutation(int mutation, bool cancel)
+    {
+        const string source = "BEGIN{values[\"k\"]++;getline x<\"/rhs\";result=values[\"k\"]+0}";
+        await using var execution = new NativeArrayExecution(source, true, new InputGate("/rhs", "ready\n", true));
+        var state = execution.State;
+        var name = AwkArrayName.FromText("values");
+        var pending = execution.Start();
+        await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(pending.IsCompleted);
+        if (mutation != 0) state.ClearArray(name);
+        if (mutation != 1) state.SetArrayAwkValue(name, Key, AwkValue.FromText("0017"));
+        if (cancel) execution.Cancel();
+        execution.Inputs[0].Release.TrySetResult();
+        if (cancel)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
+        }
+        else
+        {
+            Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(mutation == 1 ? 0 : 17, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+            Assert.True(state.ContainsArrayValue(name, Key));
+        }
+        Assert.Equal(1, execution.Reads);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData(0, false, false)] [InlineData(0, false, true)]
     [InlineData(0, true, false)] [InlineData(0, true, true)]
     [InlineData(1, false, false)] [InlineData(1, false, true)]

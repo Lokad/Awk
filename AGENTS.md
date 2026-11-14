@@ -94,7 +94,12 @@ or environment dependencies.
   switches; preserve published pending-host locations and rule-scratch retirement.
 - Complete synchronous array updates keep targets local and capture owned keys before retiring
   key scratch and evaluating the RHS. Only cross-instruction captures need retained target slots
-  and rule cleanup. Fresh preparation uses the owner without a previous target;
+  for pending updates. Matching complete producers and reads may share distinct funded
+  location slots; preparation groups actual operands, and rule/frame cleanup clears references.
+  Reuse resolves the current logical owner/key and validates the attached cell; every read
+  and capture consumes its current value. An unchanged attached owner/cell needs no repeated
+  location publication. Cold/long field keys keep ordinary evaluation without replay.
+  Fresh preparation uses the owner without a previous target;
   actual captures snapshot their prior coordinates before key/admission callbacks.
   Reuse misses share ordinary admitted lookup. Fund ordinary key/cell holding with target capacity and larger live captures
   through the existing payload lease. Preserve admitted owners and useful dictionary cells across mutation/calls/suspension;
