@@ -54,6 +54,10 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.FieldIndex:
                     computationView.Numbers[instruction.Target] = AwkFieldIndex.FromNumber(computationView.Numbers[instruction.Left]).Value;
                     break;
+                case AwkRegionInstructionKind.FieldIndexNumber:
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.State.GetFieldNumber(AwkFieldIndex.FromNumber(computationView.Numbers[instruction.Left]).Value));
+                    break;
                 case AwkRegionInstructionKind.DynamicFieldNumber:
                     computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.State.GetFieldNumber((int)computationView.Numbers[instruction.Left]));
                     break;

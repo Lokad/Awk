@@ -35,7 +35,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
                 AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
                 AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
-                AwkRegionInstructionKind.FieldIndex) continue;
+                AwkRegionInstructionKind.FieldIndex or AwkRegionInstructionKind.FieldIndexNumber) continue;
             Finish();
         }
         Finish();

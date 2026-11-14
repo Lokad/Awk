@@ -963,10 +963,25 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private int CaptureNumber(int operand)
+    private readonly record struct PreparedNumber(int Operand, int ReadInstruction = -1);
+
+    private PreparedNumber CaptureNumber(int operand, bool preserveLocation = false)
     {
         var source = _operands[operand];
-        if (source.Kind == AwkRegionOperandKind.NumberTemporary) return operand;
+        if (source.Kind == AwkRegionOperandKind.NumberTemporary) return new(operand);
+        if (!preserveLocation && source.Kind == AwkRegionOperandKind.DynamicField &&
+            _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.FieldIndex } index &&
+            index.Target == source.Index)
+        {
+            // This rvalue consumes the index immediately. Keep validation at its
+            // original position and reuse the coordinate slot for the field number.
+            _code[^1] = new(AwkRegionInstructionKind.FieldIndexNumber, source.Index, index.Left);
+            _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, source.Index);
+            // No bound field location remains for a return to reread. Its actual
+            // numeric register still captures before flushing/retiring the callee.
+            _lastNumberRead = -1;
+            return new(operand, _code.Count - 1);
+        }
         var target = _numbers++;
         if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count > 0 &&
             _code[^1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
@@ -976,7 +991,7 @@ internal sealed partial class AwkRegionCompiler
             _code[^1] = call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number };
             if (source.Index == _values - 1) _values--;
             _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
-            return operand;
+            return new(operand);
         }
         var kind = source.Kind switch
         {
@@ -993,7 +1008,7 @@ internal sealed partial class AwkRegionCompiler
         };
         _lastNumberRead = Emit(new(kind, target, source.IsVariable ? operand : source.Index));
         _lastNumberOperand = operand;
-        return Operand(AwkRegionOperandKind.NumberTemporary, target);
+        return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
     }
 
     private int CaptureValue(int operand, bool preserveOrigin = false)
@@ -1042,7 +1057,7 @@ internal sealed partial class AwkRegionCompiler
         return Operand(AwkRegionOperandKind.NumberTemporary, register);
     }
 
-    private int NumericRegister(int operand) => _operands[CaptureNumber(operand)].Index;
+    private int NumericRegister(int operand) => _operands[CaptureNumber(operand).Operand].Index;
 
     private int Operand(AwkRegionOperandKind kind, int index)
     {

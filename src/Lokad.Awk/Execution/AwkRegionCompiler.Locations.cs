@@ -78,7 +78,7 @@ internal sealed partial class AwkRegionCompiler
             }
             var location = CompletedResult<PreparedLocation>(completed);
             if (location.Access < 0)
-                return Complete(new(new(location.Operand, -1), compiler.CaptureNumber(location.Operand)));
+                return Complete(new(new(location.Operand, -1), compiler.CaptureNumber(location.Operand, preserveLocation: true).Operand));
             var access = compiler._arrays[location.Access];
             var captured = compiler._updates.Count;
             var slot = compiler._activeUpdates++;
@@ -176,7 +176,7 @@ internal sealed partial class AwkRegionCompiler
             var oldNumber = syntax.Kind == AwkExpressionKind.Postfix && update.Target.Capture >= 0
                 ? compiler._numbers++ : -1;
             var previous = oldNumber >= 0 ? compiler.Operand(AwkRegionOperandKind.NumberTemporary, oldNumber)
-                : syntax.Kind == AwkExpressionKind.Postfix ? compiler.CaptureNumber(update.Prior) : -1;
+                : syntax.Kind == AwkExpressionKind.Postfix ? compiler.CaptureNumber(update.Prior).Operand : -1;
             var result = compiler.Update(update, compiler.Constant(decrement ? -1 : 1),
                 AwkCompoundAssignmentOperation.Add, oldNumber);
             return Complete(previous >= 0 ? previous : result);
@@ -191,7 +191,7 @@ internal sealed partial class AwkRegionCompiler
         {
             // Owned results keep immediate conversion (including funded call returns).
             // Other sources are already bound and belong to this complete operation.
-            if (_operands[right].Kind is AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary) right = CaptureNumber(right);
+            if (_operands[right].Kind is AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary) right = CaptureNumber(right).Operand;
             var site = _updates[update.Target.Capture] with
             {
                 Right = AwkRegionNumberSource.Bind(right, _operands[right])
@@ -227,7 +227,7 @@ internal sealed partial class AwkRegionCompiler
             // Captures crossing RHS instructions stay where they were evaluated.
             // An adjacent load can belong to this same complete operation; its
             // register still publishes the old number for postfix consumers.
-            if (_operands[right].Kind is AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary) right = CaptureNumber(right);
+            if (_operands[right].Kind is AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary) right = CaptureNumber(right).Operand;
             var previous = NumericRegister(update.Prior);
             var capturePrevious = _code.Count != 0 && _code[^1] is var capture &&
                 capture.Target == previous && capture.Left == update.Target.Operand &&

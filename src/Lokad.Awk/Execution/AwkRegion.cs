@@ -160,7 +160,8 @@ internal enum AwkRegionInstructionKind : byte
     ArrayPrepare, ArrayUpdate, ArrayAssign, ArrayRead, ArrayContains, ArrayDelete, ArrayClear, ArrayTarget, Split, Match, NestedContains, PathDelete, PathBegin, PathKey, PathEnd, KeyBegin, KeyAppend, KeyEnd, ReleaseValue, ReleaseValues,
     SortBegin, SortAdvance, BeginCall, Arguments, Call, BuiltinArgument, BuiltinBoundary, Builtin, Substitute, Gensub, ConcatArgument, ConcatValue, PrintField, PrintList, Printf, UnsupportedCoprocess, Return, ReturnNumber,
     GetlineBoundary, PrepareString, PrepareByteText, GetlineTarget, Getline, IteratorBegin, IteratorSortAdvance, IteratorNext, IteratorEnd, RegexMatch,
-    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow
+    Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow,
+    FieldIndexNumber
 }
 internal readonly record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)
@@ -181,7 +182,7 @@ internal readonly record struct AwkRegionInstruction(
         AwkRegionInstructionKind.Multiply or AwkRegionInstructionKind.Divide or
         AwkRegionInstructionKind.Modulo or AwkRegionInstructionKind.Power;
 
-    internal bool IsNumberRead => Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
+    internal bool IsNumberRead => Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or AwkRegionInstructionKind.FieldIndexNumber or
         AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
         AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
         AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber;

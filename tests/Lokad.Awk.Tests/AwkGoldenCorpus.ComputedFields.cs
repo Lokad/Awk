@@ -4,6 +4,21 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ComputedFieldCases()
     {
+        yield return Passing("computed-field-numeric-rvalues-evaluate-indices-once",
+            ["BEGIN{$0=\"10 20 30\";i=1;print +$(i++),-$(i++),$i+0,i}"],
+            [], "10 -20 30 3\n");
+        yield return Passing("computed-field-numeric-returns-and-nested-index",
+            ["function number(i){return +$i}function add(i){return $i+2}BEGIN{$0=\"3 0007 2\";i=2;print number(i),add(i),+$(number(1)),+$(-0.9)}"],
+            [], "7 9 2 3\n");
+        yield return Passing("computed-field-numeric-source-before-later-effects",
+            ["function change(){i=3;$0=\"40 50 60\";return 5}BEGIN{i=2;$0=\"10 20 30\";print +$i+change(),$0,i}"],
+            [], "25 40 50 60 3\n");
+        yield return Passing("computed-field-numeric-dynamic-finite-extremes",
+            ["BEGIN{$0=\"10 20\";i=-0.9;print +$i;i=2.9;print +$i;i=2147483648;print +$i}"],
+            [], "10\n20\n0\n");
+        yield return AwkGoldenCaseBuilder.Create("computed-field-numeric-validation-before-later-effects",
+                ["function later(){print \"later\";return 1}BEGIN{$0=\"kept\";n=\"+nan\"+0;print \"before\";print +$n+later()}"], [])
+            .WithStdOut("before\n").WithStdErr("awk: non-finite field index\n").ExitsWith(2).Build();
         yield return Passing("regex-numeric-input-formats-after-pattern-effects",
             ["function pattern(){CONVFMT=\"%.1f\";$0=\"changed tail\";return \"^0[.]125$\"}BEGIN{CONVFMT=\"%.3f\";print(0.125~pattern()),$0,CONVFMT}"],
             [], "0 changed tail %.1f\n");

@@ -122,7 +122,7 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var operand = CompletedResult<int>(completed);
-            if (token == AwkTokenKind.Plus) return Complete(compiler.CaptureNumber(operand));
+            if (token == AwkTokenKind.Plus) return Complete(compiler.CaptureNumber(operand).Operand);
             var destination = compiler._numbers++;
             if (token == AwkTokenKind.Minus)
                 compiler.Emit(new(AwkRegionInstructionKind.Negate, destination, compiler.NumericRegister(operand)));
@@ -191,9 +191,9 @@ internal sealed partial class AwkRegionCompiler
                     _stringComparison = compiler._operands[_left].Kind == AwkRegionOperandKind.Literal;
                     if ((int)_arithmetic >= 0)
                     {
-                        var before = compiler._code.Count;
-                        _left = compiler.CaptureNumber(_left);
-                        if (compiler._code.Count > before) _leftCapture = compiler._code.Count - 1;
+                        var captured = compiler.CaptureNumber(_left);
+                        _left = captured.Operand;
+                        _leftCapture = captured.ReadInstruction;
                     }
                     else if (!compiler.IsImmediateRead(syntax.Children[1])) _left = compiler.CaptureValue(_left);
                 }
@@ -220,11 +220,12 @@ internal sealed partial class AwkRegionCompiler
                 if ((int)_arithmetic >= 0)
                 {
                     var leftNumber = compiler.NumericRegister(_left);
-                    var beforeRight = compiler._code.Count;
-                    var rightNumber = compiler.NumericRegister(right);
-                    var readIsLeft = compiler._code.Count == beforeRight &&
+                    var rightCapture = compiler.CaptureNumber(right);
+                    var rightNumber = compiler._operands[rightCapture.Operand].Index;
+                    var readIsLeft = rightCapture.ReadInstruction < 0 &&
                         _leftCapture >= 0 && compiler._code.Count == _leftCapture + 1;
-                    if ((compiler._code.Count > beforeRight || readIsLeft) &&
+                    var readPosition = readIsLeft ? _leftCapture : rightCapture.ReadInstruction;
+                    if (readPosition >= 0 && readPosition == compiler._code.Count - 1 &&
                         compiler._code[^1] is { Detail: 0 } read &&
                         read.Target == (readIsLeft ? leftNumber : rightNumber) &&
                         read.IsNumberRead)

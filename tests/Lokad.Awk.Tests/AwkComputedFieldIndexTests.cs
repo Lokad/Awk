@@ -2,6 +2,48 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkComputedFieldIndexTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompoundTargetSurvivesAPendingRightHandSide(bool governed)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/side", "5\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = async (descriptor, maximum, token) =>
+        {
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
+        };
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["function rhs(v){getline v<\"/side\";i=3;$1=100;return v}BEGIN{$0=\"10 20 30\";i=2;print($i+=rhs()),i,$0}"], []);
+        Assert.True(Awk.TryParse(command, out var awk));
+        var run = awk.ExecuteAsync(host, policy, CancellationToken.None);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+            release.TrySetResult();
+            Assert.Equal(0, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+            Assert.Equal("25 3 100 25 30\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await run;
+        }
+    }
+
     public static IEnumerable<object[]> PublicCases()
     {
         foreach (var test in AwkGoldenCorpus.DirectCases.Where(c => c.Name.StartsWith("computed-field-", StringComparison.Ordinal)))
