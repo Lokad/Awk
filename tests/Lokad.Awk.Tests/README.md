@@ -29,6 +29,7 @@ facilities, not a public compilation API.
 Use real immediate and genuinely pending host operations to cover continuation order, single
 consumption, nested calls, file-phase reentry, nonlocal flow, failure and ignored cancellation.
 Check the visible prefix, stopped suffix, frame restoration, descriptor cleanup and final refunds.
+Loop cancellation covers empty bodies and continue paths, including for loops without a step.
 Phase tests keep main-record permission through actual pending output/cancellation, then restore
 the enclosing phase before input progression or cleanup; sort callbacks retain their restrictions.
 Statement-completion tests preserve inherited output before later callee effects, CSV warning order

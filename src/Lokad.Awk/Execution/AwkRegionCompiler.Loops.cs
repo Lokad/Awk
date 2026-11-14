@@ -60,9 +60,14 @@ internal sealed partial class AwkRegionCompiler
                         return true;
                     case 4:
                         compiler._controls.Pop();
-                        var continuation = compiler.Label();
+                        AwkExpressionSyntax? step = null;
+                        if (_header is not null) _header.Parts[2].Expression.TryGetValue(out step);
+                        // Without tail computation, the head already polls after
+                        // body/continue cleanup and before the next condition.
+                        var continuation = step is not null || statement.Kind == AwkStatementKind.DoWhile
+                            ? compiler.Label() : _start;
                         foreach (var position in Loop.Continues) compiler.Patch(position, continuation);
-                        if (_header is not null && _header.Parts[2].Expression.TryGetValue(out var step))
+                        if (step is not null)
                         {
                             _stage = 5;
                             next = compiler.CreateOperandWork(step);
