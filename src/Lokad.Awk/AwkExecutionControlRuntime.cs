@@ -8,12 +8,14 @@ internal sealed class AwkExecutionControlRuntime
 
     internal AwkActionPhase CurrentPhase { get; private set; } = AwkActionPhase.None;
 
-    internal AwkActionPhaseScope EnterPhase(AwkActionPhase phase)
+    internal AwkActionPhase SwitchPhase(AwkActionPhase phase)
     {
         var previous = CurrentPhase;
         CurrentPhase = phase;
-        return new(this, previous);
+        return previous;
     }
+
+    internal AwkActionPhaseScope EnterPhase(AwkActionPhase phase) => new(this, SwitchPhase(phase));
 
     internal void RestorePhase(AwkActionPhase phase) => CurrentPhase = phase;
 
@@ -44,6 +46,5 @@ internal sealed class AwkExecutionControlRuntime
 internal readonly struct AwkActionPhaseScope(
     AwkExecutionControlRuntime? control, AwkActionPhase previous) : System.IDisposable
 {
-    internal bool IsActive => control is not null;
     public void Dispose() => control?.RestorePhase(previous);
 }

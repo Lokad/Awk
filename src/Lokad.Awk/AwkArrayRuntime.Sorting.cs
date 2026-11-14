@@ -10,12 +10,13 @@ internal sealed partial class AwkArrayRuntime
     internal sealed class AwkArraySortOperation : IDisposable
     {
         private readonly AwkArrayRuntime _runtime;
+        private readonly AwkExecutionControlRuntime _phaseControl;
         private readonly AwkArrayTarget _source;
         private readonly AwkArrayReservation _reservation;
         private AwkArraySortEntry[] _entries;
         private AwkArrayMergeProgress? _merge;
         private readonly AwkUserFunction? _function;
-        private AwkActionPhaseScope _phase;
+        private AwkActionPhase _previousPhase;
         private bool _comparing;
         private bool _transferred;
 
@@ -65,6 +66,7 @@ internal sealed partial class AwkArrayRuntime
             AwkArrayReservation reservation, AwkArraySortEntry[] entries, AwkUserFunction? function)
         {
             _runtime = runtime;
+            _phaseControl = runtime._state.ExecutionControl;
             _source = source;
             _reservation = reservation;
             _entries = entries;
@@ -80,7 +82,7 @@ internal sealed partial class AwkArrayRuntime
         {
             if (_merge is null || !_merge.TryNextComparison()) return false;
             _runtime._state.ThrowIfCancellationRequested();
-            _phase = _runtime._state.EnterActionPhase(AwkActionPhase.SortComparison);
+            _previousPhase = _phaseControl.SwitchPhase(AwkActionPhase.SortComparison);
             _comparing = true;
             return true;
         }
@@ -106,8 +108,7 @@ internal sealed partial class AwkArrayRuntime
         {
             if (!_comparing) return;
             _comparing = false;
-            _phase.Dispose();
-            _phase = default;
+            _phaseControl.RestorePhase(_previousPhase);
         }
 
         public void Dispose()

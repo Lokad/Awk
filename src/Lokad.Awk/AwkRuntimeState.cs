@@ -648,6 +648,8 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkActionPhaseScope EnterActionPhase(AwkActionPhase phase) =>
         _executionControl.EnterPhase(phase);
 
+    internal AwkExecutionControlRuntime ExecutionControl => _executionControl;
+
     internal void ValidateFunctionFlow(AwkStatementFlow flow) =>
         _executionControl.ValidateFunctionFlow(flow);
 

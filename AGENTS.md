@@ -36,7 +36,9 @@ or environment dependencies.
   Available-record progression reports completion directly. Cursor and scheduler share their
   synchronous algorithm with thin awaitable adapters; only pending work populates the existing
   machine continuation. Preserve awaited failure behavior and prepare immediate newline eligibility once.
-  Execution location uses direct code/storage/position fields. Saved caller frames describe
+  Execution location uses direct code/storage/position fields. Main-record and sort
+  continuations keep their bound phase owner through pending work; entry captures the
+  previous phase and retirement restores it before input/cleanup. Saved caller frames describe
   execution ownership, which can differ from the binding stack during retirement and root reentry.
   Publish the activated frame before preparing callee scratch; its saved caller owns failed-entry
   unwinding. Synchronous computation uses one stack-only view binding the actual state,

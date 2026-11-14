@@ -5,6 +5,79 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionFlowTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task PendingRecordOutputKeepsAndRestoresTheEnclosingPhase(bool governed, bool cancel)
+    {
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, cancellation.Token))
+        {
+            var binding = AwkBinder.Bind(AwkParser.Parse("function f(){print \"body\";next}{f();print \"bad\"}"));
+            Assert.True(binding.Success);
+            var program = binding.Program.Program;
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var limits = AwkRuntimeLimits.CreateDefault();
+            var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0),
+                TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits) { MemoryOwner = owner };
+            using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
+            state.InitializeGlobalNames(program.GlobalNames);
+            state.InitializeGlobalReadSlots(program.GlobalReadCount);
+            state.InitializeFunctions(program.Functions);
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var host = new TestOperationVisitor([])
+            {
+                AppendOverride = async (descriptor, bytes, _) =>
+                {
+                    Assert.Equal(AwkFileDescriptor.StdOut, descriptor);
+                    Assert.True(bytes.Span.SequenceEqual("body\n"u8));
+                    state.ValidateFunctionFlow(AwkStatementFlow.NextRecord);
+                    entered.TrySetResult();
+                    await release.Task.ConfigureAwait(false);
+                    Assert.True(bytes.Span.SequenceEqual("body\n"u8));
+                    return AwkAppendResult.Accepted();
+                }
+            };
+            var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+                AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
+            using var executor = new AwkRecordTestExecution(program, state);
+            using (state.EnterActionPhase(AwkActionPhase.BeginFile))
+            {
+                Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
+                var record = AwkInputRecordResult.Record(AwkText.FromString("row"),
+                    AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
+                var pending = executor.ProcessRecordAsync(state, io, record).AsTask();
+                try
+                {
+                    await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                    Assert.False(pending.IsCompleted);
+                    state.ValidateFunctionFlow(AwkStatementFlow.NextRecord);
+                    if (governed) Assert.True(budget.Reserved > 0);
+                    if (cancel) cancellation.Cancel();
+                    Assert.False(pending.IsCompleted);
+                    state.ValidateFunctionFlow(AwkStatementFlow.NextRecord);
+                    release.TrySetResult();
+                    if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+                    else Assert.Equal(AwkStatementFlow.Continue, await pending);
+                    Assert.False(state.IsInsideFunction);
+                    Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
+                    state.ValidateFunctionFlow(AwkStatementFlow.NextFile);
+                }
+                finally
+                {
+                    release.TrySetResult();
+                    try { await pending; }
+                    catch (OperationCanceledException) when (cancel) { }
+                    await io.CloseForCleanupAsync();
+                }
+            }
+            Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextFile));
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task RepeatedFlowUnwindsFunctionLeases(bool skipFile)

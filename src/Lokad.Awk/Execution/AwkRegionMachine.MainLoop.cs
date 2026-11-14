@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private bool IsProcessingMainRecord => _recordPhase.IsActive;
+    private bool IsProcessingMainRecord => _hasRecordPhase;
 
     internal bool Run()
     {
@@ -53,16 +53,17 @@ internal partial struct AwkRegionMachine
 
     internal void BeginMainRecord(in AwkInputRecordResult input)
     {
-        _recordPhase = _state.EnterActionPhase(AwkActionPhase.Main);
+        _previousRecordPhase = _phaseControl.SwitchPhase(AwkActionPhase.Main);
+        _hasRecordPhase = true;
         _state.PublishInputRecord(in input, readsMainInput: true);
         _state.Counters.RecordRecordRead();
     }
 
     private void EndMainRecord()
     {
-        var phase = _recordPhase;
-        _recordPhase = default;
-        phase.Dispose();
+        if (!_hasRecordPhase) return;
+        _hasRecordPhase = false;
+        _phaseControl.RestorePhase(_previousRecordPhase);
     }
 
     private void CompleteMainClose(AwkStatementFlow flow)
