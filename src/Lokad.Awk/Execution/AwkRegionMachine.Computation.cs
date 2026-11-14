@@ -238,12 +238,15 @@ internal partial struct AwkRegionMachine
             if (instruction.Left >= 0)
             {
                 ref readonly var source = ref operands[instruction.Left];
-                var target = operands[instruction.Target].Index;
+                var target = instruction.Target;
                 if (source.Kind != AwkRegionOperandKind.LocalVariable || frame is null ||
                     !storage.TryTakeRetiringLocal(target, frame, source.Index))
                     storage.StoreValue(target, Value(instruction.Left));
             }
-            return instruction.Target < 0 ? AwkValue.Unassigned() : Value(instruction.Target);
+            if (instruction.Target < 0) return AwkValue.Unassigned();
+            // Reload the actual value owner after publication/refund callbacks.
+            // Prepared text returns are consumed at the same driver boundary.
+            return storage.Values[instruction.Target];
         }
 
         internal AwkValue Value(int index) => Value(in operands[index]);

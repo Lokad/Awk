@@ -13,7 +13,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var region = Assert.IsType<AwkRegion>(program.Functions[AwkFunctionName.FromText("f")].Region);
         var returned = Assert.Single(region.Instructions, instruction => instruction.Kind == AwkRegionInstructionKind.Return);
         Assert.Equal(sourceKind, region.Operands[returned.Left].Kind.ToString());
-        Assert.Equal(AwkRegionOperandKind.ValueTemporary, region.Operands[returned.Target].Kind);
+        Assert.Equal((int)AwkRegionOperandKind.ValueTemporary, returned.Detail);
+        Assert.InRange(returned.Target, 0, region.Layout.Values - 1);
+        Assert.DoesNotContain(region.Operands, operand =>
+            operand.Kind == AwkRegionOperandKind.ValueTemporary && operand.Index == returned.Target);
         Assert.DoesNotContain(region.Instructions, instruction => instruction.Kind == AwkRegionInstructionKind.Value);
     }
 

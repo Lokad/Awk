@@ -349,18 +349,25 @@ internal sealed partial class AwkRegionCompiler
                     // value/text results already have owning scratch; other sources
                     // use the same funded value slot without a separate dispatch.
                     var source = -1;
-                    if (returned >= 0 && _operands[returned].Kind is not
+                    var destination = returned < 0
+                        ? new AwkRegionOperand(AwkRegionOperandKind.ValueTemporary, -1)
+                        : _operands[returned];
+                    if (returned >= 0 && destination.Kind is not
                         (AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary))
                     {
                         source = returned;
-                        returned = Operand(AwkRegionOperandKind.ValueTemporary, _values++);
+                        destination = new(AwkRegionOperandKind.ValueTemporary, _values++);
                     }
                     if (source < 0 && returned >= 0 && _operands[returned] is
                         { Kind: AwkRegionOperandKind.ValueTemporary } directReturn && _code.Count > 0 &&
                         _code[^1] is { Kind: AwkRegionInstructionKind.Call,
                             Detail: (int)AwkRegionReturnConsumer.Value } call && call.Target == directReturn.Index)
                         _code[^1] = call with { Detail = (int)AwkRegionReturnConsumer.ReturnValue };
-                    Emit(new(AwkRegionInstructionKind.Return, Target: returned, Left: source));
+                    // The return consumer already knows its owning storage role.
+                    // Keep the source operand for capture, but bind the actual
+                    // destination slot rather than redispatching it as a source.
+                    Emit(new(AwkRegionInstructionKind.Return, Target: destination.Index,
+                        Left: source, Detail: (int)destination.Kind));
                 }
                 break;
             case AwkStatementKind.Print:

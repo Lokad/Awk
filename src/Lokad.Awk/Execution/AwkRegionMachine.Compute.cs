@@ -578,7 +578,9 @@ internal partial struct AwkRegionMachine
                     BeginRead(computationView.Region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
-                    var returnedValue = computationView.CaptureReturn(in instruction);
+                    var returnedValue = instruction.Detail == (int)AwkRegionOperandKind.TextTemporary
+                        ? computationView.State.CreateStringValue(computationView.Storage.Texts[instruction.Target])
+                        : computationView.CaptureReturn(in instruction);
                     if (returnedValue.TryGetNumberValue(out returnedNumber)) goto NumberReturn;
                     if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
                     {

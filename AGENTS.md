@@ -406,7 +406,10 @@ or environment dependencies.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
   Return binds its source and owning destination together, without a separate value-capture
-  dispatch. Actual pending completion retains the captured scalar in the existing pending-value
+  dispatch. Prepare its physical value/text slot and existing storage category directly;
+  do not allocate a return-only operand or redispatch that destination as an arbitrary source.
+  Value capture reloads its actual owner after publication/refund callbacks; text construction
+  stays at the return boundary. Actual pending completion retains the captured scalar in the existing pending-value
   field; never reread the source or replay return preparation after a host callback.
   Owning return capture establishes the scalar invariant; return dispatch consumes it without
   repeating scalar normalization. Keep validation at actual capture and mutation owners.
