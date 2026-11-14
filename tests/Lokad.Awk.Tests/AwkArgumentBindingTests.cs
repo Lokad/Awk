@@ -3,6 +3,54 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentBindingTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task LaterPendingArgumentKeepsEarlierValuesAndDoesNotReadFollowingArrayEntries(bool governed, bool cancel)
+    {
+        var budget = new CooperativeTestBudget(4 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem();
+        host.AddFile("/side", "7\n");
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
+        {
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
+        var command = AwkTestHarness.BuildInvocation("awk",
+            "function pause(){a[\"first\"]=\"changed\";print (\"later\" in a);getline x<\"/side\";return x}" +
+            "function pick(x,y,z){print x,y,z}" +
+            "BEGIN{a[\"first\"]=\"one\";a[\"7\"]=\"two\";pick(a[\"first\"],a[pause()],a[\"later\"])}");
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var execution = AwkTestHarness.ParseAwk(command).ExecuteAsync(host, policy, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("0\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.False(execution.IsCompleted);
+            if (governed) Assert.True(budget.Reserved > 0);
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+            else Assert.Equal(AwkExitCode.Success, await execution);
+            Assert.Equal(cancel ? "0\n" : "0\none two \n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        finally
+        {
+            release.TrySetResult();
+            try { await execution; } catch (OperationCanceledException) when (cancel) { }
+        }
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void PreparedArgumentsUseTheirExecutionOwnerAndStandaloneUsesVisibleBindings(bool key)
     {

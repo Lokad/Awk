@@ -303,6 +303,15 @@ internal static partial class AwkGoldenCorpus
             ["function identity(a,b,c,d,e){return a}{v=identity($1,1,2,3,4)} END{print \"[\"v\"]\",v==7,length(v)}"], [], "[0007] 1 4\n", "0007\n");
         yield return Passing("prepared-general-arity-keeps-local-prefix-and-missing-values",
             ["function score(a,b,c,d,e,t,u){t=a+b+c+d+e;return t+u}{n+=score(1,2,3,4,5)} END{print n}"], [], "30\n", "one\ntwo\n");
+        var largeCallParameters = string.Join(',', Enumerable.Range(0, 513).Select(index => "p" + index));
+        var largeCallForwardingSource = "function take(" + largeCallParameters + "){return p0+p255+p256+p512}" +
+            "function forward(" + largeCallParameters + "){return take(" + largeCallParameters + ")}";
+        yield return Passing("large-call-preserves-numeric-arguments-through-forwarding",
+            [largeCallForwardingSource + "BEGIN{print forward(" +
+                string.Join(',', Enumerable.Range(1, 513)) + ")}"], [], "1027\n");
+        yield return Passing("large-call-preserves-global-arguments-through-forwarding",
+            [largeCallForwardingSource + "BEGIN{g=7;print forward(" +
+                string.Join(',', Enumerable.Repeat("g", 513)) + ")}"], [], "28\n");
         yield return Passing("output-captures-values-and-format-before-later-mutation",
             ["""
                 function wipe(){x="";print "held";return 0}
