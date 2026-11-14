@@ -9,6 +9,8 @@ public sealed class AwkScanCancellationTests
     [InlineData("fraction")]
     [InlineData("exponent")]
     [InlineData("leading")]
+    [InlineData("leading-prefix-crossing")]
+    [InlineData("leading-prefix-boundary")]
     [InlineData("special")]
     [InlineData("payload")]
     [InlineData("hexadecimal")]
@@ -22,6 +24,8 @@ public sealed class AwkScanCancellationTests
             "fraction" => ("0." + zeros + "1", AwkNumberParsingMode.Decimal),
             "exponent" => ("1e" + zeros + "1", AwkNumberParsingMode.Decimal),
             "leading" => (new string(' ', LongScan) + "1", AwkNumberParsingMode.Decimal),
+            "leading-prefix-crossing" => (new string(' ', LongScan - 7) + "123456789012345", AwkNumberParsingMode.Decimal),
+            "leading-prefix-boundary" => (new string(' ', LongScan) + "123456789012345", AwkNumberParsingMode.Decimal),
             "special" => ("+inf" + new string(' ', LongScan), AwkNumberParsingMode.Decimal),
             "payload" => ("-nan(" + new string('_', LongScan) + ")", AwkNumberParsingMode.HexadecimalInput),
             "hexadecimal" => ("0x1." + zeros + "1p-1075", AwkNumberParsingMode.HexadecimalInput),

@@ -146,11 +146,12 @@ internal static class AwkNumberParser
         out AwkNumberParseResult result, Action? checkpoint)
     {
         var index = digitStart;
+        // This accumulator performs at most fifteen pure arithmetic steps. Unbounded
+        // recognition and the final long-input check below retain cancellation coverage.
         var integerLimit = index + Math.Min(15, text.Length - index);
         ulong integer = 0;
         while (index < integerLimit && IsDigit(text[index]))
         {
-            CheckScanProgress(index, checkpoint);
             integer = integer * 10 + (uint)(text[index] - (byte)'0');
             index++;
         }
