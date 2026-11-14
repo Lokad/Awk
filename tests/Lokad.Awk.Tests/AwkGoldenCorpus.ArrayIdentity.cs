@@ -6,6 +6,18 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("array-publication-discarded-and-used-results",
+            ["BEGIN{s=\"0007\";a[\"a\"]=s;r=(a[\"b\"]=s);a[\"c\"]=a[\"d\"]=s;print a[\"a\"],r,a[\"b\"],a[\"c\"],a[\"d\"],typeof(r)}"], [],
+            "0007 0007 0007 0007 0007 string\n"),
+        AwkGoldenCaseBuilder.Create("array-publication-field-capture-before-key-effects",
+            ["function key(){$0=\"changed\";return \"k\"}{a[key()]=$1;print a[\"k\"],typeof(a[\"k\"]),$0}"], [])
+            .WithStandardInput("0007\n").WithStdOut("0007 strnum changed\n").Build(),
+        Passing("array-publication-composite-nested-and-indexed-owners",
+            ["function put(p,v){p[\"r\"][\"x\"]=v;return p[\"r\"][\"x\"]}BEGIN{SUBSEP=\":\";a[1,2]=\"001\";a[1,2]=\"002\";split(\"old old\",b);b[1]=\"0007\";b[3]=\"new\";print a[1,2],b[1],b[3],put(c,\"0008\"),typeof(c[\"r\"][\"x\"])}"], [],
+            "002 0007 new 0008 string\n"),
+        Passing("array-publication-text-results-keep-string-origin",
+            ["BEGIN{a[\"k\"]=tolower(\"0007\");b[\"k\"]=substr(\"x0008\",2);print a[\"k\"],typeof(a[\"k\"]),b[\"k\"],typeof(b[\"k\"])}"], [],
+            "0007 string 0008 string\n"),
         AwkGoldenCaseBuilder.Create("field-complete-key-spelling-and-empty-key",
             ["{seen[$1]++}END{print seen[\"01\"],seen[\"1\"],seen[\"\"],length(seen)}"], [])
             .WithStandardInput("01\n1\n01\n\n").WithStdOut("2 1 1 3\n").Build(),
