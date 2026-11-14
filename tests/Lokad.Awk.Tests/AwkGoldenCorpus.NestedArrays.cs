@@ -5,6 +5,18 @@ internal static partial class AwkGoldenCorpus
     // GNU awk 5.3.2, source 027ebff5. Exact native receipts are retained locally.
     private static IEnumerable<AwkGoldenCase> NestedArrayCases() =>
     [
+        Passing("nested-entry-interleaved-key-updates-and-reads",
+            ["function step(p,k){p[k][\"x\"]+=2;p[k][\"y\"]+=3;return p[k][\"x\"]+p[k][\"y\"]}BEGIN{for(i=0;i<3;i++)total+=step(a,\"k\");print total,a[\"k\"][\"x\"],a[\"k\"][\"y\"]}"],
+            [], "30 6 9\n"),
+        Passing("nested-entry-postfix-values-and-following-reads",
+            ["function step(p,k){return p[k][\"x\"]++ + p[k][\"x\"] + p[k][\"y\"]++ + p[k][\"y\"]}BEGIN{a[\"k\"][\"x\"]=1;a[\"k\"][\"y\"]=4;print step(a,\"k\"),a[\"k\"][\"x\"],a[\"k\"][\"y\"]}"],
+            [], "12 2 5\n"),
+        Passing("nested-entry-latest-repeated-update",
+            ["function step(p,k){p[k][\"x\"]+=2;p[k][\"x\"]+=3;return p[k][\"x\"]}BEGIN{print step(a,\"k\"),step(a,\"k\"),step(a,\"k\")}"],
+            [], "5 10 15\n"),
+        Passing("nested-entry-key-reassignment-before-read",
+            ["function step(p,k){p[k][\"x\"]++;k=\"other\";return +p[k][\"x\"]}BEGIN{print step(a,\"first\"),a[\"first\"][\"x\"],length(a)}"],
+            [], "0 1 2\n"),
         AwkGoldenCaseBuilder.Create("nested-array-bound-owner-file-reentry",
             ["function load(a,k,line){getline line;a[k][\"sum\"]+=2;return a[k][\"sum\"]}BEGIN{a[\"g\"][\"sum\"]=40;b[\"k\"][\"sum\"]=7;print load(b,\"k\"),a[\"g\"][\"sum\"]}BEGINFILE{a[\"g\"][\"sum\"]++;print a[\"g\"][\"sum\"]}END{print b[\"k\"][\"sum\"],a[\"g\"][\"sum\"]}"], [])
             .WithStandardInput("payload\n").WithStdOut("41\n9 41\n9 41\n").Build(),

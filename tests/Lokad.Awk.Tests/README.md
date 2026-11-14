@@ -90,6 +90,8 @@ key and prior value across RHS mutation, deletion, replacement and rehash. Never
 entry references across mutation or suspension. Membership must not insert missing elements.
 Nested owner reads also cover file-action reentry with a hidden caller, live shared untyped
 origins, and current arrays after genuinely pending input clears and repopulates their storage.
+GNU-derived cases preserve overlapping and sequential updates/reads, postfix values, the latest
+repeated update and key mutation between an update and its following read.
 Repeated captured updates cover changing keys, cells, values and array storage. Hash counters
 measure lookup reuse across field, literal, variable, alias, temporary and composite keys.
 Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,
