@@ -204,10 +204,11 @@ internal sealed class AwkFunctionFrame
 
 internal struct AwkFunctionLocalSlot
 {
-    // Scalar and key payloads are mutually exclusive. The role selects the meaning
-    // of these owning words; array names retain their full independent identity.
+    // The role selects scalar bits, a key, reader coordinates or an alias frame ID.
+    // Alias values carry only a reference/kind, leaving this word for their full ID.
     private object? _reference;
     private long _word;
+    private AwkIdentifier _arrayIdentifier;
     private int _payloadTag;
 
     private AwkFunctionLocalSlot(
@@ -217,9 +218,10 @@ internal struct AwkFunctionLocalSlot
     {
         Kind = kind;
         _reference = value.StoredReference;
-        _word = BitConverter.DoubleToInt64Bits(value.StoredNumber);
+        _word = kind is AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias
+            ? arrayName.FunctionFrameId : BitConverter.DoubleToInt64Bits(value.StoredNumber);
         _payloadTag = (int)value.StoredKind;
-        ArrayName = arrayName;
+        _arrayIdentifier = arrayName.Identifier;
     }
 
     private AwkFunctionLocalSlot(AwkArrayKey key)
@@ -228,7 +230,7 @@ internal struct AwkFunctionLocalSlot
         _reference = key.StoredText.Backing;
         _word = key.StoredOrdinal;
         _payloadTag = key.StorageTag;
-        ArrayName = default;
+        _arrayIdentifier = default;
     }
 
     internal readonly bool TryGetReaderText(out ReadOnlyMemory<byte> bytes)
@@ -271,9 +273,14 @@ internal struct AwkFunctionLocalSlot
 
     // Cleared cells are missing locals. Their language value is unassigned,
     // independently of the scalar value's text-valued default.
-    public readonly AwkValue Value => Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.ReaderText
-        ? AwkValue.Unassigned()
-        : AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_payloadTag);
+    public readonly AwkValue Value => Kind switch
+    {
+        AwkFunctionLocalSlotKind.Scalar or AwkFunctionLocalSlotKind.UntypedScalar =>
+            AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_payloadTag),
+        AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias =>
+            AwkValue.FromStorage(_reference, 0, (AwkValueKind)_payloadTag),
+        _ => AwkValue.Unassigned()
+    };
 
     internal readonly bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array)
     {
@@ -290,18 +297,16 @@ internal struct AwkFunctionLocalSlot
         if (Kind == AwkFunctionLocalSlotKind.ReaderText)
             throw new InvalidOperationException("Reader text requires its funded frame consumer.");
         // Capture before the callback; the cell can retire while it runs.
-        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key)
-            return AwkValue.Unassigned();
-        var reference = _reference;
-        var word = _word;
-        var kind = (AwkValueKind)_payloadTag;
-        if (AwkValue.HasInputClassification(kind) &&
-            AwkText.FromBacking(reference).ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+        var value = Value;
+        if (AwkValue.HasInputClassification(value.StoredKind) &&
+            AwkText.FromBacking(value.StoredReference).ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
             checkpoint?.Invoke();
-        return AwkValue.FromStorage(reference, BitConverter.Int64BitsToDouble(word), kind);
+        return value;
     }
 
-    public AwkArrayName ArrayName { get; }
+    public readonly AwkArrayName ArrayName =>
+        Kind is AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias
+            ? new(_arrayIdentifier, _word) : default;
 
     // Only prepared key consumers read this owning value. It never borrows a record.
     public readonly AwkArrayKey Key => Kind == AwkFunctionLocalSlotKind.Key
@@ -405,8 +410,11 @@ internal struct AwkFunctionLocalSlot
     public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName) =>
         PotentialArrayAlias(arrayName, AwkValue.FromUntypedScalar(new AwkUntypedScalar()));
 
-    public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName, AwkValue value) =>
-        new(AwkFunctionLocalSlotKind.PotentialArrayAlias, value, arrayName);
+    public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName, AwkValue value)
+    {
+        System.Diagnostics.Debug.Assert(value.StoredKind == AwkValueKind.Untyped);
+        return new(AwkFunctionLocalSlotKind.PotentialArrayAlias, value, arrayName);
+    }
 
     public static AwkFunctionLocalSlot UntypedScalar(AwkValue value) =>
         new(AwkFunctionLocalSlotKind.UntypedScalar, value, default);

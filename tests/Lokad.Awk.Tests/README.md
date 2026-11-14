@@ -92,6 +92,8 @@ Memory tests distinguish ordinary execution from a supplied shared budget. Refus
 command without retry or fallback. Check admission before mutation and keep storage funded through
 actual pending users; cancellation alone does not end their lifetime. Assert owner retirement and
 final refunds, not exact aggregate bookkeeping deltas when other live owners can grow.
+Function-cell checks preserve full-width alias identities, live origins and independent scalar,
+key and reader snapshots. Frame capacity admission follows the actual element layout.
 
 Focused field/value/array tests preserve numeric-string origins and original spelling, lazy
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their

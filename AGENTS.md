@@ -325,7 +325,9 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
   Arithmetic field arguments stage cached numbers directly; deferred errors and owned values
   keep ordinary capture. Builtin scratch retains its value consumer.
-  Function cells share mutually exclusive scalar/key payload words and retain full array names.
+  Function cells share mutually exclusive scalar/key/reader/alias-ID payload words.
+  Alias roles retain the full identifier and 64-bit frame ID, projecting a zero numeric
+  payload without changing their live origin/reference. Scalar copies retain their raw bits.
   Array-only consumers project the existing role/reference directly through the shared value
   semantics. Synchronous binding borrows the actual cell; capture names and origins before
   callbacks and do not reread a replaced cell. Missing, key and reader roles are not arrays.

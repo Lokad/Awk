@@ -20,13 +20,15 @@ internal readonly record struct AwkArrayName
         _functionFrameId = 0;
     }
 
-    private AwkArrayName(AwkIdentifier identifier, long functionFrameId)
+    internal AwkArrayName(AwkIdentifier identifier, long functionFrameId)
     {
         Identifier = identifier;
         _functionFrameId = functionFrameId;
     }
 
     public AwkIdentifier Identifier { get; }
+
+    internal long FunctionFrameId => _functionFrameId;
 
     public string Text => Identifier.Text;
 

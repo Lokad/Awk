@@ -203,15 +203,29 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.True(alias.ArrayName.IsOwnedByFunctionFrame(frameId));
         Assert.True(alias.Value.TryGetArrayBinding(out var capturedArray));
         Assert.Same(array, capturedArray);
+        Assert.Equal(0L, BitConverter.DoubleToInt64Bits(alias.Value.StoredNumber));
+        Assert.Equal(0L, BitConverter.DoubleToInt64Bits(alias.ReadValue(null).StoredNumber));
+        var nameOnly = AwkFunctionLocalSlot.ArrayAlias(name);
+        Assert.Equal(name, nameOnly.ArrayName);
+        Assert.Equal(AwkValueKind.Unassigned, nameOnly.Value.StoredKind);
+        Assert.Equal(0L, BitConverter.DoubleToInt64Bits(nameOnly.Value.StoredNumber));
         var origin = new AwkUntypedScalar();
         var potential = AwkFunctionLocalSlot.PotentialArrayAlias(name, AwkValue.FromUntypedScalar(origin));
+        var snapshot = potential;
         Assert.Equal(name, potential.ArrayName);
+        Assert.Equal(0L, BitConverter.DoubleToInt64Bits(potential.Value.StoredNumber));
         Assert.True(potential.Value.IsUntypedValue);
         origin.Promote();
         Assert.False(potential.Value.IsUntypedValue);
         Assert.True(potential.Value.TryGetUntypedScalar(out var capturedOrigin));
         Assert.Same(origin, capturedOrigin);
         Assert.Equal(name, potential.ArrayName);
+        potential = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(-7));
+        Assert.Equal(default, potential.ArrayName);
+        Assert.Equal(name, snapshot.ArrayName);
+        Assert.True(snapshot.ReadValue(null).TryGetUntypedScalar(out var snapshotOrigin));
+        Assert.Same(origin, snapshotOrigin);
+        Assert.Equal(0L, BitConverter.DoubleToInt64Bits(snapshot.ReadValue(null).StoredNumber));
         var unnamed = AwkFunctionLocalSlot.ArrayAlias(array);
         Assert.Equal(default, unnamed.ArrayName);
         Assert.True(unnamed.Value.TryGetArrayBinding(out var unnamedArray));
@@ -332,7 +346,7 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkText>());
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
-        Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFunctionLocalSlot>());
+        Assert.Equal(32, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFunctionLocalSlot>());
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
 

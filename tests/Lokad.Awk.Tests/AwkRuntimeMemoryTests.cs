@@ -4,6 +4,15 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRuntimeMemoryTests
 {
+    [Theory]
+    [InlineData(1)] [InlineData(17)] [InlineData(int.MaxValue)]
+    public void FunctionSlotCapacityFundsItsActualLayoutWithoutInt32Overflow(int capacity)
+    {
+        var elementBytes = System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFunctionLocalSlot>();
+        Assert.Equal(24L + (long)capacity * elementBytes,
+            AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(capacity));
+    }
+
     [Fact]
     public void ArrayTargetCapacityCoversTheActualValueLayout()
     {
