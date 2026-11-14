@@ -109,6 +109,12 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("argument-binding-global-actions-hide-scalar-caller",
             ["function leaf(a){switch(0){default:break}return a[\"k\"]}function scan(x,line){getline line;return x}BEGINFILE{print leaf(x)}BEGIN{x[\"k\"]=\"global\";print scan(\"local\"),x[\"k\"]}"],
             [], "global\nlocal global\n", "payload\n");
+        yield return Passing("local-key-binding-restores-caller-after-file-phase",
+            ["function lookup(p,k){return p[k]}function scan(k,line){getline line;return values[k]}BEGINFILE{k=\"global\";print lookup(values,k)}BEGIN{values[\"global\"]=\"phase\";values[\"007\"]=\"held\";print scan(\"007\"),k}"],
+            [], "phase\nheld global\n", "payload\n");
+        yield return Passing("local-key-binding-keeps-reassigned-roles-and-current-formatting",
+            ["function read(p,k,first,second){first=p[k];k=1.25;CONVFMT=\"%.3f\";second=p[k];k=\"0007\";return first \":\" second \":\" p[k]}BEGIN{a[\"007\"]=\"old\";a[\"1.250\"]=\"num\";a[\"0007\"]=\"kept\";print read(a,\"007\")}"],
+            [], "old:num:kept\n");
         yield return Passing("argument-binding-ordinary-calls-see-symbol-table-assignment",
             ["function leaf(x){switch(0){default:break}return x+0}BEGIN{x=7;print leaf(x);SYMTAB[\"x\"]=\"0009\";print leaf(x),x}"],
             [], "7\n9 0009\n");

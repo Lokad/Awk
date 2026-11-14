@@ -103,8 +103,9 @@ GNU-derived cases preserve overlapping and sequential updates/reads, postfix val
 repeated update and key mutation between an update and its following read.
 Complete operation/read bindings also cover current spelling and missing insertion after
 deletion, genuinely pending host mutation/cancellation, and lookup reduction across key forms.
-Repeated captured updates cover changing keys, cells, values and array storage. Hash counters
-measure lookup reuse across field, literal, variable, alias, temporary and composite keys.
+Repeated captured updates cover changing keys, cells, values and array storage. Hash and
+key-comparison observations distinguish table work from lookup reuse across field, literal,
+variable, alias, temporary and composite keys, including bounded scans of small tables.
 Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,
 funded users and cancellation through key changes and array replacement.
 Composite components also retain separator growth/refusal before the next component and
