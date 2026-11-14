@@ -205,9 +205,8 @@ or environment dependencies.
   Preserve regex resolution, pinning, admission and subject-materialization order. Hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Persistent record cells contain slices, numeric/scalar-length caches and frame-cache indices without managed
-  references. Owned spelling and scalar values live in the frame cache. Numeric/rune cache words update at
-  the owning buffer; coordinates/observations stay readonly and captured cells keep value semantics.
-  No cell reference crosses parsing, custom-memory access or cancellation callbacks. Detached byte views carry
+  references. Owned spelling and scalar values live in the frame cache; immutable cell snapshots preserve
+  coordinates and cache facts across parsing and cancellation callbacks. Detached byte views carry
   no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
   Text-only decoded CSV entries must not invoke the input-value factory early.
   The same cache owns raw spelling snapshots for repeated text captures and later full-value
@@ -501,7 +500,10 @@ or environment dependencies.
   Register arithmetic binds its operator during preparation. Keep operator binding independent
   of operand source categories; source-read continuations retain their shared semantic kernels.
   Typed numeric reads can finish fresh adjacent arithmetic through their existing Right/Detail
-  metadata. Preserve single-consumer proof, operand order, earlier captures across RHS work and
+  metadata. Capture preparation records the actual producer position, including consumed field-index
+  producers. Immediate numeric field reads may consume their exclusive index operand; retained update
+  targets keep the original coordinate across RHS work and suspension. Preserve single-consumer proof,
+  operand order, earlier captures across RHS work and
   Call's funded conversion. Plain register arithmetic and field-demand classification stay direct.
   Numeric returns consume a bound source or number register. Fold only a fresh adjacent producer;
   preparation retains its canonical source and verifies its instruction position. Returns terminate

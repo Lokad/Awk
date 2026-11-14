@@ -471,24 +471,23 @@ internal sealed class AwkFieldFrame(
         cachedValue = -1;
         if (!index.IsNamedField || index.Value > _fieldTexts.Count) return true;
         var fieldIndex = index.Value - 1;
-        var cacheSlot = _fieldTexts[fieldIndex].CacheSlot;
-        if (cacheSlot < 0)
+        var field = _fieldTexts[fieldIndex];
+        if (field.CacheSlot < 0)
         {
-            if (_fieldTexts[fieldIndex].TryGetNumericValue(out number)) return true;
+            if (field.TryGetNumericValue(out number)) return true;
             if (deferError) return false;
             throw new AwkRuntimeException(AwkMessages.ErrorHexadecimalFloatExponent);
         }
-        if (cacheSlot > 0)
-            return TryReadCachedFieldNumber(fieldIndex, _fieldTexts[fieldIndex], mode, deferError, out number, out cachedValue);
+        if (field.CacheSlot > 0)
+            return TryReadCachedFieldNumber(fieldIndex, field, mode, deferError, out number, out cachedValue);
 
-        var field = _fieldTexts[fieldIndex];
         counters.RecordNumericFieldByteParse();
         AwkNumberParser.Parse(field.BytesInRecord(RecordBytes()), mode, out var parsed, checkpoint);
         // Capturing an argument must not diagnose an untaken numeric conversion.
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
         parsed.ThrowIfError();
         number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
-        _fieldTexts.CacheNumber(fieldIndex, number);
+        _fieldTexts[fieldIndex] = field.WithNumericValue(number);
         return true;
     }
 
@@ -593,7 +592,7 @@ internal sealed class AwkFieldFrame(
         length = AwkText.CountRunes(bytes, checkpoint);
         checkpoint?.Invoke();
         counters.RecordFieldRuneBytesScanned(bytes.Length);
-        _fieldTexts.CacheRuneLength(fieldIndex, length);
+        _fieldTexts[fieldIndex] = field.WithRuneLength(length);
         return true;
     }
 
@@ -1297,7 +1296,7 @@ internal sealed class AwkFieldFrame(
                 if (_fieldTexts[index].CacheSlot < 0)
                     fieldTexts[index] = fieldTexts[index].WithCacheFrom(_fieldTexts[index]);
                 if (_fieldTexts[index].RuneLength >= 0)
-                    fieldTexts.CacheRuneLength(index, _fieldTexts[index].RuneLength);
+                    fieldTexts[index] = fieldTexts[index].WithRuneLength(_fieldTexts[index].RuneLength);
             }
             // Writer-owned escaped text already has its final cell mapping.
             for (var index = 0; index < previousCacheCount; index++)
