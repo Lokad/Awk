@@ -420,7 +420,7 @@ internal partial struct AwkRegionMachine
                     var path = computationView.Region.Arrays[instruction.Left].Path;
                     AwkArrayUpdateTarget preparedTarget;
                     if (path >= 0) preparedTarget = computationView.PreparePathUpdate(path);
-                    else computationView.PrepareArrayUpdate(instruction.Left, complete: false, out preparedTarget, instruction.Target);
+                    else computationView.PrepareArrayUpdate(instruction.Left, out preparedTarget, instruction.Target);
                     computationView.Storage.StoreTarget(instruction.Target, in preparedTarget);
                     break;
                 }
@@ -435,7 +435,7 @@ internal partial struct AwkRegionMachine
                     AwkArrayUpdateTarget capturedUpdate;
                     if (updateSite.PrepareAccess < 0) capturedUpdate = computationView.Storage.Targets[updateSite.Slot];
                     else if (updateSite.Path >= 0) capturedUpdate = computationView.PreparePathUpdate(updateSite.Path);
-                    else computationView.PrepareArrayUpdate(updateSite.PrepareAccess, complete: true, out capturedUpdate);
+                    else computationView.PrepareCompleteArrayUpdate(updateSite.PrepareAccess, out capturedUpdate);
                     var rightNumber = updateSite.Right.IsRegister
                         ? computationView.Numbers[updateSite.Right.RegisterIndex]
                         : computationView.ReadBoundNumber(in computationView.Operands[updateSite.Right.OperandIndex]);

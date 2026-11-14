@@ -218,11 +218,18 @@ internal sealed partial class AwkVariables
             ? slot : InsertByteSlot(array, index, default, missing: true, out _, out _);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
-        in AwkArrayUpdateTarget previous = default)
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index)
     {
         ThrowIfDetached(array);
-        if (ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
+        if (!array.ByteLookup.TryGetEntry(index, out var key, out var slot, out var cell))
+            slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
+        return new(key, ReadArraySlotNumber(slot), array, cell);
+    }
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
+        in AwkArrayUpdateTarget previous)
+    {
+        if (!array.IsDetached && ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
             previous.Key.RequiresTextMaterialization && previous.Key.Equals(index, checkpoint: null) &&
             priorCell.Slot.TryGetNumberValue(out var number))
         {
@@ -231,9 +238,7 @@ internal sealed partial class AwkVariables
             _counters.RecordNumericArraySlotRead();
             return new(previous.Key, number, array, priorCell);
         }
-        if (!array.ByteLookup.TryGetEntry(index, out var key, out var slot, out var cell))
-            slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
-        return new(key, ReadArraySlotNumber(slot), array, cell);
+        return PrepareArrayUpdate(array, index);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)

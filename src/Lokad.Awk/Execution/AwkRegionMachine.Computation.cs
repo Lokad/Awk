@@ -499,13 +499,13 @@ internal partial struct AwkRegionMachine
         };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        internal void PrepareArrayUpdate(int accessIndex, bool complete, out AwkArrayUpdateTarget target, int captureSlot = -1)
+        internal void PrepareArrayUpdate(int accessIndex, out AwkArrayUpdateTarget target, int captureSlot)
         {
             ref readonly var access = ref region.Arrays[accessIndex];
             ref readonly var key = ref operands[access.Key];
             // Key evaluation can enter admission callbacks. Keep an owning snapshot,
             // not a reference into scratch that a callback may retire or reuse.
-            var previous = captureSlot < 0 ? default : storage.Targets[captureSlot];
+            var previous = storage.Targets[captureSlot];
             switch (key.Kind)
             {
                 case AwkRegionOperandKind.Field:
@@ -521,9 +521,31 @@ internal partial struct AwkRegionMachine
                         : state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
                     break;
             }
-            // The complete operation captured an owned key before retiring scratch,
-            // in the same order as the separate ArrayPrepare/KeyEnd instructions.
-            if (complete && key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        internal void PrepareCompleteArrayUpdate(int accessIndex, out AwkArrayUpdateTarget target)
+        {
+            ref readonly var access = ref region.Arrays[accessIndex];
+            ref readonly var key = ref operands[access.Key];
+            switch (key.Kind)
+            {
+                case AwkRegionOperandKind.Field:
+                case AwkRegionOperandKind.DynamicField:
+                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding);
+                    break;
+                case AwkRegionOperandKind.KeyBuilder:
+                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
+                    break;
+                default:
+                    target = TryArrayNumberKey(access.Key, out var number)
+                        ? state.PrepareArrayUpdate(in access.Name, number, access.Binding)
+                        : state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding);
+                    break;
+            }
+            // Retire key scratch only after the complete operation owns its key,
+            // in the order of the separate ArrayPrepare/KeyEnd instructions.
+            if (key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
