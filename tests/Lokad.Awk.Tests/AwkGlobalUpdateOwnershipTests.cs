@@ -5,8 +5,15 @@ public sealed class AwkGlobalUpdateOwnershipTests
     private const int Limit = 1 << 20;
 
     [Fact]
-    public void ResolvedTargetDoesNotGrowItsManagedFootprint() =>
-        Assert.InRange(System.Runtime.CompilerServices.Unsafe.SizeOf<AwkResolvedReference>(), 1, 72);
+    public void ResolvedReadTargetsFitTheirAdmittedBacking()
+    {
+        GC.KeepAlive(new AwkResolvedGetlineTarget[1]);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var targets = new AwkResolvedGetlineTarget[257];
+        var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(bytes, 0, AwkRuntimeMemory.EstimateGetlineTargetArrayBytes(targets.Length));
+        GC.KeepAlive(targets);
+    }
 
     [Theory]
     [InlineData(false)]

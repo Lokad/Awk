@@ -213,7 +213,7 @@ internal static class AwkRuntimeMemory
             CheckedMultiply(ArrayUpdateTargetHoldingBytes, count));
 
     internal static long EstimateGetlineTargetArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, 80);
+        EstimateArrayBufferBytes(count, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkResolvedGetlineTarget>());
 
     public static long EstimateArraySortEntryArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkArrayRuntime.SortEntryElementBytes);

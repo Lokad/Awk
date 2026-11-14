@@ -128,6 +128,60 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(AwkUtf8Codec.Encode(text).ToArray(), builder.AsSpan().ToArray());
     }
 
+    [Fact]
+    public void DictionaryLookupCapturesKeyBeforeLongHashCallback()
+    {
+        var lookupKey = new AwkArrayKey(new string('a', 4097));
+        var original = lookupKey;
+        var replacement = new AwkArrayKey("changed");
+        var replace = false;
+        var comparer = AwkArrayKeyComparer.ForRuntime(() =>
+        {
+            if (!replace) return;
+            replace = false;
+            lookupKey = replacement;
+        });
+        var owner = new AwkArrayIdentity(3, comparer) { [original] = AwkValue.FromNumber(7) };
+        replace = true;
+        Assert.True(owner.TryGetDictionaryCell(lookupKey, out var cell));
+        Assert.Equal(7, cell.Slot.AsNumber());
+        Assert.Equal(replacement, lookupKey);
+    }
+
+    [Fact]
+    public void KeyAndTargetBackingArraysFitTheirAdmission()
+    {
+        const int count = 257;
+        _ = AllocatedArrayBytes<AwkArrayKey>(1);
+        _ = AllocatedArrayBytes<AwkArrayUpdateTarget>(1);
+        Assert.InRange(AllocatedArrayBytes<AwkArrayKey>(count), 0,
+            AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count));
+        Assert.InRange(AllocatedArrayBytes<AwkArrayUpdateTarget>(count), 0,
+            AwkRuntimeMemory.EstimateArrayUpdateTargetArrayBytes(count) -
+                (long)AwkRuntimeMemory.ArrayUpdateTargetHoldingBytes * count);
+
+        static long AllocatedArrayBytes<T>(int count)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var values = new T[count];
+            var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            GC.KeepAlive(values);
+            return bytes;
+        }
+    }
+
+    [Fact]
+    public void DictionaryBackingFitsItsOwnerAdmission()
+    {
+        var comparer = AwkArrayKeyComparer.Instance;
+        GC.KeepAlive(new AwkArrayIdentity(257, comparer));
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var owner = new AwkArrayIdentity(257, comparer);
+        var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(bytes, 0, AwkRuntimeMemory.ArrayIdentityBytes + owner.BackingBytes);
+        GC.KeepAlive(owner);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
