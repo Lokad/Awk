@@ -45,26 +45,28 @@ internal static class AwkNumberParser
         if (text.Length >= AwkRuntimeLimits.CancellationCheckBytes)
             checkpoint?.Invoke();
         var start = SkipWhitespace(text, 0, checkpoint);
-        if (TryParseSpecial(text, start, mode, out result, checkpoint))
+        var digits = SkipSign(text, start);
+        // Special tokens share this prefix; ordinary numbers need no inf/nan scan.
+        if (digits < text.Length && (text[digits] | 0x20) is 'i' or 'n' &&
+            TryParseSpecial(text, start, digits, mode, out result, checkpoint))
             return;
-
-        var digits = start;
-        if (digits < text.Length && text[digits] is (byte)'+' or (byte)'-')
-            digits++;
         if (IsHexPrefix(text, digits))
         {
             if (mode == AwkNumberParsingMode.Decimal)
+            {
+                result = default;
                 return;
+            }
             if (mode == AwkNumberParsingMode.NonDecimalData && digits == start)
                 ParseNonDecimal(text, start, 16, out result, checkpoint);
             else
-                ParseHexFloat(text, start, out result, checkpoint);
+                ParseHexFloat(text, start, digits, out result, checkpoint);
             return;
         }
         if (mode == AwkNumberParsingMode.NonDecimalData && GetBase(text[start..], checkpoint) == 8)
             ParseNonDecimal(text, start, 8, out result, checkpoint);
         else
-            ParseDecimal(text, start, out result, checkpoint);
+            ParseDecimal(text, start, digits, out result, checkpoint);
     }
 
     // strtonum chooses a base from the original bytes, before sign/whitespace trimming.
@@ -107,14 +109,14 @@ internal static class AwkNumberParser
                 if (!ContainsExponentMarker(text[start..], checkpoint))
                     result = new(AwkNumberParseStatus.MissingHexExponent, 0, start);
                 else
-                    ParseHexFloat(text, start, out result, checkpoint);
+                    ParseHexFloat(text, start, SkipSign(text, start), out result, checkpoint);
                 return;
             }
             if (digit < 0 || digit >= numberBase)
             {
                 if (numberBase == 8 && text[index] is (byte)'8' or (byte)'9')
                 {
-                    ParseDecimal(text, start, out result, checkpoint);
+                    ParseDecimal(text, start, SkipSign(text, start), out result, checkpoint);
                     return;
                 }
                 break;
@@ -140,13 +142,10 @@ internal static class AwkNumberParser
         }
     }
 
-    private static void ParseDecimal(ReadOnlySpan<byte> text, int start,
+    private static void ParseDecimal(ReadOnlySpan<byte> text, int start, int digitStart,
         out AwkNumberParseResult result, Action? checkpoint)
     {
-        var index = start;
-        if (index < text.Length && text[index] is (byte)'+' or (byte)'-')
-            index++;
-        var digitStart = index;
+        var index = digitStart;
         var integerLimit = index + Math.Min(15, text.Length - index);
         ulong integer = 0;
         while (index < integerLimit && IsDigit(text[index]))
@@ -211,14 +210,11 @@ internal static class AwkNumberParser
             : default;
     }
 
-    private static void ParseHexFloat(ReadOnlySpan<byte> text, int start,
+    private static void ParseHexFloat(ReadOnlySpan<byte> text, int start, int digits,
         out AwkNumberParseResult result, Action? checkpoint)
     {
-        var index = start;
-        var negative = index < text.Length && text[index] == (byte)'-';
-        if (index < text.Length && text[index] is (byte)'+' or (byte)'-')
-            index++;
-        index += 2;
+        var negative = digits != start && text[start] == (byte)'-';
+        var index = digits + 2;
         ulong leading = 0;
         var keptBits = 0;
         long significantBits = 0;
@@ -264,7 +260,7 @@ internal static class AwkNumberParser
         }
         if (!hasDigits)
         {
-            ParseDecimal(text, start, out result, checkpoint);
+            ParseDecimal(text, start, digits, out result, checkpoint);
             return;
         }
         long exponent = 0;
@@ -322,15 +318,13 @@ internal static class AwkNumberParser
         return BitConverter.UInt64BitsToDouble(sign | ((ulong)(exponent + 1023) << 52) | (rounded & 0xfffffffffffff));
     }
 
-    private static bool TryParseSpecial(ReadOnlySpan<byte> text, int start, AwkNumberParsingMode mode,
+    private static bool TryParseSpecial(ReadOnlySpan<byte> text, int start, int digits, AwkNumberParsingMode mode,
         out AwkNumberParseResult result, Action? checkpoint)
     {
         result = default;
-        var index = start;
-        var signed = index < text.Length && text[index] is (byte)'+' or (byte)'-';
-        var negative = signed && text[index] == (byte)'-';
-        if (signed)
-            index++;
+        var index = digits;
+        var signed = digits != start;
+        var negative = signed && text[start] == (byte)'-';
         var infinity = MatchesAsciiIgnoreCase(text[index..], "inf"u8);
         if (!infinity && !MatchesAsciiIgnoreCase(text[index..], "nan"u8))
             return false;
@@ -380,6 +374,9 @@ internal static class AwkNumberParser
         if (offset > 0 && (offset & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
             checkpoint?.Invoke();
     }
+
+    private static int SkipSign(ReadOnlySpan<byte> text, int start) =>
+        start < text.Length && text[start] is (byte)'+' or (byte)'-' ? start + 1 : start;
 
     private static bool IsHexPrefix(ReadOnlySpan<byte> text, int start) =>
         start + 1 < text.Length && text[start] == (byte)'0' && text[start + 1] is (byte)'x' or (byte)'X';
