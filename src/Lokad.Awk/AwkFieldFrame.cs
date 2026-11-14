@@ -1394,14 +1394,17 @@ internal sealed class AwkFieldFrame(
         _retainedMemoryBytes = newBytes;
     }
 
-    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan) =>
-        !governor.IsEnabled ? 0 : AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.CheckedAdd(
-                AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes),
-            AwkRuntimeMemory.CheckedAdd(
-                ReuseFieldBuffer()
-                    ? AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity) : 0,
-                ReuseCacheBuffer() ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0));
+    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan)
+    {
+        if (!governor.IsEnabled) return 0;
+        // Each reusable buffer retains at most 4 KiB of payload plus its headers.
+        // Only the variable text/configuration payload needs general checked sums.
+        var buffers = (ReuseFieldBuffer()
+            ? AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity) : 0) +
+            (ReuseCacheBuffer() ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0);
+        return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes), buffers);
+    }
 
     private long EstimateRetainedBytes(
         AwkText recordText,

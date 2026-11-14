@@ -259,16 +259,17 @@ internal static class AwkRuntimeMemory
         count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
             EstimateArrayBufferBytes(Math.Max(4, count), FieldTextBytes));
 
+    // These fixed layouts have Int32 capacities: even the largest cache is below
+    // 81 GiB. Widen before multiplying; general Int64 overflow checks add no safety.
     internal static long EstimateRecordFieldListBytes(int count) =>
-        count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
-            EstimateArrayBufferBytes(Math.Max(4, count), RecordFieldBytes));
+        count <= 0 ? 0 : ListBufferOverheadBytes + (long)Math.Max(4, count) * RecordFieldBytes;
 
     internal static long EstimateFieldTextArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, FieldTextBytes);
 
     // A compact cached scalar includes its field backlink; presence lives in the descriptor.
     public static long EstimateFieldValueListBytes(int capacity) =>
-        capacity <= 0 ? 0 : CheckedAdd(ListObjectBytes, EstimateArrayBufferBytes(capacity, CachedFieldValueBytes));
+        capacity <= 0 ? 0 : ListBufferOverheadBytes + (long)capacity * CachedFieldValueBytes;
 
     public static long EstimateSplitBufferBytes(
         int inputByteLength,

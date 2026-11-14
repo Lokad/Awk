@@ -52,6 +52,28 @@ public sealed class AwkRuntimeMemoryTests
         AssertMemoryLimit(() => AwkRuntimeMemory.CheckedMultiply(long.MaxValue, 2));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(171)]
+    [InlineData(int.MaxValue)]
+    public void RecordStorageEstimatesCoverTheirPhysicalCapacityWithoutInt32Overflow(int capacity)
+    {
+        var fields = AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity);
+        var cache = AwkRuntimeMemory.EstimateFieldValueListBytes(capacity);
+        if (capacity == 0)
+        {
+            Assert.Equal(0, fields);
+            Assert.Equal(0, cache);
+            return;
+        }
+        Assert.True(fields >= (long)capacity *
+            System.Runtime.CompilerServices.Unsafe.SizeOf<AwkRecordField>());
+        Assert.True(cache >= (long)capacity *
+            System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFieldFrame.CachedFieldValue>());
+    }
+
     [Fact]
     public void AwkRuntimeMemory_UsesOneSplitBufferEstimateForFieldsAndSeparatorBoundaries()
     {
