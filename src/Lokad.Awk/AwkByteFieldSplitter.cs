@@ -648,7 +648,9 @@ internal sealed class AwkByteFieldSplitter(
             }
 
             var fieldStart = _position;
-            while (_position < _content.Length && !IsDefaultFieldWhitespace(_content[_position]))
+            // Skipping the preceding separator already proved a nonempty field.
+            // The bounded search decides whether it ends here or in the next region.
+            do
             {
                 CheckProgress();
                 // Never search beyond the next existing cancellation boundary.
@@ -661,7 +663,7 @@ internal sealed class AwkByteFieldSplitter(
                     break;
                 }
                 _position = end;
-            }
+            } while (_position < _content.Length);
 
             field = new AwkFieldRange(fieldStart, _position - fieldStart);
             return true;
