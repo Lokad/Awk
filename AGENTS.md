@@ -339,6 +339,10 @@ or environment dependencies.
   Retirement clears active cells; inactive capacity was cleared at its previous retirement.
   Known owned keys arrive as keys and construct their immutable local cell at that owner;
   retained text keeps admission and post-admission cancellation before publication.
+  Existing key cells forward their canonical payload directly into cleared incoming cells.
+  Zero-payload staging borrows synchronously; positive admission first captures an owning cell.
+  The frame publishes key payload words without unused alias copies, and retained non-scalar
+  arguments share one admission/publication boundary. Preserve ordinary alias indexing.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
   One parameter-consumption graph uses the builtin's positional arithmetic/text contract.
   Prepared string and general builtin arguments use that same contract at early captures and

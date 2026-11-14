@@ -119,6 +119,9 @@ Key equality and hashes agree across inline, ordinal, owned and borrowed forms; 
 and hashes retain cancellation coverage.
 Deletion crosses numeric/text lookup representations and refunds the actual stored key,
 while ordinary owned-key entry access needs only its value and stable cell.
+Key forwarding preserves spelling, ordinal origins and adjacent arguments at full budget.
+Admission callbacks may replace its caller cell; refusal/cancellation leaves incoming storage
+unpublished and cleanup refunds its actual owners.
 Direct record/cache tests use `AwkFieldTestContext` with real splitting services and provider
 ownership. Preserve input versus recomposed-value factories and owner-specific refunds.
 Call and sort/traversal tests exercise aliases, snapshots and captured payloads through actual

@@ -191,17 +191,28 @@ internal sealed class AwkFunctionCallStack(
             return;
         }
         if ((uint)index >= (uint)frame.Layout.SlotCount) return; // Extra operands still evaluate in the caller.
-        // Admission can invoke a callback. Capture before it, even if the caller
-        // supplied a view of a live local slot.
-        var captured = argument;
-        var bytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(captured) : 0;
+        var bytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(argument) : 0;
+        if (bytes > 0)
+        {
+            // Capture before admission can replace a live source cell.
+            var captured = argument;
+            StageRetainedArgument(frame, index, in captured, bytes);
+            return;
+        }
+        frame.StageCell(index, in argument);
+    }
+
+    private void StageRetainedArgument(AwkFunctionFrame frame, int index,
+        in AwkFunctionLocalSlot captured, long bytes)
+    {
+        // The caller captured the actual owning cell before this admission.
         memoryAccounting.ReserveAndCommit(bytes);
         try
         {
-            if (bytes > 0) checkpoint?.Invoke();
-            frame.GetSlot(index) = captured;
-            frame.RecordArgument(index, captured.Kind);
-            frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
+            checkpoint?.Invoke();
+            var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
+            frame.StageCell(index, in captured);
+            frame.RetainedMemoryBytes = retained;
         }
         catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
     }
@@ -221,24 +232,11 @@ internal sealed class AwkFunctionCallStack(
         var bytes = memoryAccounting.IsEnabled ? key.RetainedTextMemoryBytes : 0;
         if (bytes > 0)
         {
-            StageRetainedKey(frame, index, key, bytes);
+            var captured = AwkFunctionLocalSlot.PreparedKey(key);
+            StageRetainedArgument(frame, index, in captured, bytes);
             return;
         }
-        frame.GetSlot(index) = AwkFunctionLocalSlot.PreparedKey(key);
-    }
-
-    private void StageRetainedKey(AwkFunctionFrame frame, int index, AwkArrayKey key, long bytes)
-    {
-        // The owning key is captured by value before admission can change its source.
-        memoryAccounting.ReserveAndCommit(bytes);
-        try
-        {
-            checkpoint?.Invoke();
-            var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
-            frame.GetSlot(index) = AwkFunctionLocalSlot.PreparedKey(key);
-            frame.RetainedMemoryBytes = retained;
-        }
-        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
+        frame.GetSlot(index).InitializeKey(key);
     }
 
     internal bool TryStageLocalArgument(AwkFunctionLocalSlotId source, AwkFunctionFrame incoming, int index,
@@ -250,7 +248,7 @@ internal sealed class AwkFunctionCallStack(
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Key)
         {
             if (!prepareKey) throw new InvalidOperationException("A prepared key requires a key consumer.");
-            StageKey(incoming, index, sourceSlot.Key);
+            StageArgument(incoming, index, in sourceSlot);
             return true;
         }
         if (sourceSlot.TryReadNumber(out var number))

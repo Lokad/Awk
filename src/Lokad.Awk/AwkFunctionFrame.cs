@@ -98,6 +98,18 @@ internal sealed class AwkFunctionFrame
         GetSlot(index).InitializeReaderText(borrow, offset, length);
     }
 
+    internal void StageCell(int index, in AwkFunctionLocalSlot argument)
+    {
+        System.Diagnostics.Debug.Assert(IsIncoming);
+        if (argument.Kind == AwkFunctionLocalSlotKind.Key)
+            GetSlot(index).InitializeKey(in argument);
+        else
+        {
+            GetSlot(index) = argument;
+            RecordArgument(index, argument.Kind);
+        }
+    }
+
     internal bool TryWriteNumber(int index, double number)
     {
         ref var slot = ref GetSlot(index);
@@ -348,6 +360,25 @@ internal struct AwkFunctionLocalSlot
         _reference = borrow;
         _word = ((long)offset << 32) | (uint)length;
         Kind = AwkFunctionLocalSlotKind.ReaderText;
+    }
+
+    internal void InitializeKey(AwkArrayKey key)
+    {
+        System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        _reference = key.StoredText.Backing;
+        _word = key.StoredOrdinal;
+        _payloadTag = key.StorageTag;
+        Kind = AwkFunctionLocalSlotKind.Key;
+    }
+
+    internal void InitializeKey(in AwkFunctionLocalSlot source)
+    {
+        System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        System.Diagnostics.Debug.Assert(source.Kind == AwkFunctionLocalSlotKind.Key);
+        _reference = source._reference;
+        _word = source._word;
+        _payloadTag = source._payloadTag;
+        Kind = AwkFunctionLocalSlotKind.Key;
     }
 
     public static AwkFunctionLocalSlot PreparedKey(AwkArrayKey key) =>
