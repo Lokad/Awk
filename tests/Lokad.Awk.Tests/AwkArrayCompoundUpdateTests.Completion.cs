@@ -3,6 +3,30 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkArrayCompoundUpdateTests
 {
     [Fact]
+    public async Task FieldUpdateReadsItsNumericRegisterAfterAdmission()
+    {
+        await using var execution = new NativeArrayExecution("BEGIN{a[$1]+=1}", true);
+        execution.State.SetCurrentRecord(AwkText.FromString("key"));
+        _ = execution.State.FieldCount;
+        using var storage = new AwkRegionStorage(execution.State);
+        storage.Initialize(execution.Region);
+        var update = Assert.Single(execution.Region.Updates);
+        Assert.True(update.Right.IsRegister);
+        var changed = false;
+        execution.Memory.Budget.OnGrowth = _ =>
+        {
+            storage.Numbers[update.Right.RegisterIndex] = 5;
+            changed = true;
+        };
+
+        Assert.Equal(AwkStatementFlow.Continue, execution.Region.Execute(execution.State, storage));
+
+        Assert.True(changed);
+        Assert.Equal(5, execution.State.GetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("key")).AsNumber());
+        Assert.Equal(0, execution.State.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Fact]
     public async Task NestedNumericUpdatesReuseTheirFundedOwner()
     {
         await using var execution = new NativeArrayExecution("BEGIN{a[\"r\"][\"n\"]++}", true);

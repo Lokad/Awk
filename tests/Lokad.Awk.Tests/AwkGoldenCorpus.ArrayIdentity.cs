@@ -6,6 +6,18 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        AwkGoldenCaseBuilder.Create("field-complete-key-spelling-and-empty-key",
+            ["{seen[$1]++}END{print seen[\"01\"],seen[\"1\"],seen[\"\"],length(seen)}"], [])
+            .WithStandardInput("01\n1\n01\n\n").WithStdOut("2 1 1 3\n").Build(),
+        AwkGoldenCaseBuilder.Create("field-complete-postfix-old-values",
+            ["{old=seen[$1]++;total+=old}END{print total,seen[\"a\"],seen[\"b\"]}"], [])
+            .WithStandardInput("a\na\nb\na\n").WithStdOut("3 3 1\n").Build(),
+        AwkGoldenCaseBuilder.Create("field-complete-dynamic-index-captured-fs",
+            ["BEGIN{FS=\":\"}{FS=\" \";i=2;seen[$i]++;FS=\":\"}END{print seen[\"0007\"],seen[\"x\"],length(seen)}"], [])
+            .WithStandardInput("a:0007\na:x\n").WithStdOut("1 1 2\n").Build(),
+        AwkGoldenCaseBuilder.Create("field-complete-owned-field-and-record-fallback",
+            ["{$1=\"001\";seen[$1]++;seen[$0]++}END{print seen[\"001\"],seen[\"001 z\"],length(seen)}"], [])
+            .WithStandardInput("k z\nk z\n").WithStdOut("2 2 2\n").Build(),
         Passing("completed-update-reads-observe-current-spelling-and-missing-insertion",
             ["""BEGIN{k="k";a[k]++;a[k]="0017";print a[k],typeof(a[k]);delete a[k];print (k in a),"["a[k]"]",(k in a);a[k]=9;k="q";print "["a[k]"]",length(a)}"""], [],
             "0017 string\n0 [] 1\n[] 2\n"),
