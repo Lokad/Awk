@@ -209,7 +209,8 @@ or environment dependencies.
   until a record or field-count transition resets it.
 - The record frame owns its splitting and value-construction services. Keep input and recomposed
   value origins separate, captured plans immutable, and mutation separators evaluated at the
-  language boundary. Conditional field copies resolve their separator only after validating slices.
+  language boundary. Prepare retained-size facts with immutable splitting configuration;
+  published width collections stay immutable. Conditional field copies resolve their separator only after validating slices.
   All record producers write into the frame's single funded record-cell buffer. Keep staging in frame
   cleanup through failure/cancellation; admit descriptor growth and escaped CSV text before allocation.
   The scoped producer carries its current staging lease; frame cleanup disposes it and rolls back

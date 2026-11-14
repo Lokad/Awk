@@ -67,6 +67,15 @@ internal readonly record struct AwkRecordSplitPlan
                 separates && separatorLength == 1 ? AwkIncrementalFieldKind.SingleByte : AwkIncrementalFieldKind.None;
             RequiresRegexSubject = mode == AwkFieldSplittingMode.FieldPattern ||
                 (separates && !whitespace && separatorLength > 1);
+            // These owners are immutable for the lifetime of the captured plan.
+            // Prepare their charge with the configuration, rather than per record.
+            RetainedMemoryBytes = mode switch
+            {
+                AwkFieldSplittingMode.FieldPattern => AwkRuntimeMemory.EstimateTextBytes(fieldPattern),
+                AwkFieldSplittingMode.FieldWidths => AwkRuntimeMemory.EstimateFieldWidthListBytes(
+                    fieldWidths is List<AwkFieldWidth> list ? list.Capacity : fieldWidths.Count),
+                _ => separator.UsesWhitespaceSemantics ? 0 : AwkRuntimeMemory.EstimateTextBytes(separator.ByteText)
+            };
         }
 
         public AwkFieldSplittingMode Mode { get; }
@@ -76,13 +85,7 @@ internal readonly record struct AwkRecordSplitPlan
         public bool RequiresRegexSubject { get; }
         public AwkIncrementalFieldKind IncrementalKind { get; }
 
-        public long RetainedMemoryBytes => Mode switch
-        {
-            AwkFieldSplittingMode.FieldPattern => AwkRuntimeMemory.EstimateTextBytes(FieldPattern),
-            AwkFieldSplittingMode.FieldWidths => AwkRuntimeMemory.EstimateFieldWidthListBytes(
-                FieldWidths is List<AwkFieldWidth> list ? list.Capacity : FieldWidths.Count),
-            _ => Separator.UsesWhitespaceSemantics ? 0 : AwkRuntimeMemory.EstimateTextBytes(Separator.ByteText)
-        };
+        public long RetainedMemoryBytes { get; }
     }
 }
 
