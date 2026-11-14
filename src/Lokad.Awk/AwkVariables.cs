@@ -236,11 +236,18 @@ internal sealed partial class AwkVariables
         return new(key, ReadArraySlotNumber(slot), array, cell);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,
-        in AwkArrayUpdateTarget previous = default)
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
     {
         ThrowIfDetached(array);
-        if (ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
+        if (!array.TryGetEntry(index, out var slot, out var cell))
+            slot = CreateMissingArraySlot(array, index, out cell);
+        return new(index, ReadArraySlotNumber(slot), array, cell);
+    }
+
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,
+        in AwkArrayUpdateTarget previous)
+    {
+        if (!array.IsDetached && ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
             previous.Key.RequiresTextMaterialization && previous.Key.Equals(index, checkpoint: null) &&
             priorCell.Slot.TryGetNumberValue(out var number))
         {
@@ -249,9 +256,9 @@ internal sealed partial class AwkVariables
             _counters.RecordNumericArraySlotRead();
             return new(index, number, array, priorCell);
         }
-        if (!array.TryGetEntry(index, out var slot, out var cell))
-            slot = CreateMissingArraySlot(array, index, out cell);
-        return new(index, ReadArraySlotNumber(slot), array, cell);
+        // Fresh complete operations need no prior-target transport. Actual reuse
+        // misses share their ordinary lookup, admission and conversion.
+        return PrepareArrayUpdate(array, index);
     }
 
     internal double ReadArraySlotNumber(scoped in AwkValue slot)
