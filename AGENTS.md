@@ -116,7 +116,9 @@ or environment dependencies.
   never retain a dictionary entry reference across RHS evaluation.
   Array identities own either indexed storage or one prepared dictionary byte-lookup
   handle. Ready child-owner and numeric lookups consume the actual dictionary cell;
-  cold or escaping consumers retain owning values. Borrow numeric payloads only through
+  cold or escaping consumers retain owning values. Numeric reads and location-key
+  preparation borrow immutable program descriptors synchronously; mutable array backing
+  retains its ordinary capture/publication rules. Borrow numeric payloads only through
   the scoped number kernel: conversion captures spelling/value before callbacks, and
   update targets retain numbers and owning keys/cells. After selecting indexed storage, use its existing key
   lookup directly. Owning-value and capture APIs share dictionary lookup preparation.

@@ -4,6 +4,17 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> NumericSemanticsCases()
     {
+        yield return Passing("comparison-branches-preserve-unordered-and-string-origins",
+            ["""
+             function bits(x,y,s){
+                 if(x<y)s=s "1";else s=s "0";if(x<=y)s=s "1";else s=s "0"
+                 if(x==y)s=s "1";else s=s "0";if(x!=y)s=s "1";else s=s "0"
+                 if(x>=y)s=s "1";else s=s "0";if(x>y)s=s "1";else s=s "0";return s
+             }
+             function choose(x,y,s){s=0;if(x<y || ((s=1)>0))s+=2;return s}
+             BEGIN{n="+nan"+0;p="+inf"+0;print bits(n,0),bits(0,n),bits(n,n),bits(-0,0),bits(-p,p),bits(2,1);print choose(n,0),choose(0,1)}
+             {print bits($1,2),bits("002",2),$1}
+             """], [], "000100 000100 000100 011010 110100 000111\n3 2\n011010 110100 002\n", "002\n");
         yield return Passing("compound-arithmetic-agrees-across-value-locations",
             ["""
              function steps(x){x+=3;x-=1;x*=2;x/=4;x%=5;x^=3;return x}

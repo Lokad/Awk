@@ -599,7 +599,7 @@ internal partial struct AwkRegionMachine
             };
         }
 
-        internal double ReadArrayNumber(AwkRegionArrayAccess access)
+        internal double ReadArrayNumber(scoped in AwkRegionArrayAccess access)
         {
             if (access.Path >= 0)
             {
@@ -627,7 +627,7 @@ internal partial struct AwkRegionMachine
             };
         }
 
-        private bool TryReadLocationKey(AwkRegionArrayAccess access, out AwkArrayKey key)
+        private bool TryReadLocationKey(scoped in AwkRegionArrayAccess access, out AwkArrayKey key)
         {
             ref readonly var operand = ref operands[access.Key];
             if (IsField(operand)) return state.TryCaptureReadyShortFieldKey(FieldOrdinal(in operand), out key);
@@ -750,7 +750,7 @@ internal partial struct AwkRegionMachine
         // diagnostic effects; the ordinary operand path owns those.
         private bool TryStoredNumericScalar(int index, out double number)
         {
-            var operand = operands[index];
+            ref readonly var operand = ref operands[index];
             if (operand.Kind == AwkRegionOperandKind.ValueTemporary)
                 return storage.Values[operand.Index].TryGetStoredComparisonNumber(out number, state.CancellationCheckpoint);
             if (operand.Kind == AwkRegionOperandKind.GlobalVariable)
