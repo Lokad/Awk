@@ -523,6 +523,9 @@ or environment dependencies.
   preparation retains its canonical source and verifies its instruction position. Returns terminate
   field-demand preparation. Capture before flushing and keep the callee/storage alive through actual
   completion; never reread after a host callback. Value returns retain their owned snapshots.
+  Fresh exclusive numeric array reads consume the existing array owner without a general value
+  capture. Keep key/path retirement and observed values at their boundaries; numeric reads and
+  terminal array-number returns participate in the existing owner windows.
   Known numeric comparison inputs bind to existing number locations; stored values keep their
   runtime kind checks and literal text comparisons retain their formatting/parsing semantics.
   Fresh adjacent comparison branches consume the original boolean through their existing branch

@@ -5,6 +5,22 @@ internal static partial class AwkGoldenCorpus
     // GNU awk 5.3.2, source 027ebff5. Exact native receipts are retained locally.
     private static IEnumerable<AwkGoldenCase> NestedArrayCases() =>
     [
+        Passing("nested-numeric-preserves-origins",
+            ["function plus(a,k){return a[k][\"v\"]+1}{a[\"input\"][\"v\"]=$1;a[\"text\"][\"v\"]=\"0007x\";a[\"num\"][\"v\"]=7;print plus(a,\"input\"),plus(a,\"text\"),plus(a,\"num\");print typeof(a[\"input\"][\"v\"]),a[\"input\"][\"v\"],typeof(a[\"text\"][\"v\"]),a[\"text\"][\"v\"],typeof(a[\"num\"][\"v\"]),a[\"num\"][\"v\"]}"], [], "8 8 8\nstrnum 0007 string 0007x number 7\n1 8 8\nstrnum 0000 string 0007x number 7\n1 8 8\nstrnum -0000 string 0007x number 7\n", "0007\n0000\n-0000\n"),
+        Passing("nested-numeric-missing-membership",
+            ["function number(a,k){return a[k][\"v\"]+0}BEGIN{print number(a,\"k\"),(\"v\" in a[\"k\"]),typeof(a[\"k\"][\"v\"]),length(a[\"k\"]);print (\"absent\" in a[\"k\"]),length(a[\"k\"])}"], [], "0 1 untyped 1\n0 1\n"),
+        Passing("nested-numeric-conditional-and-observed-values",
+            ["BEGIN{a[\"k\"][\"v\"]=7;a[\"other\"][\"v\"]=11;for(c=0;c<2;c++){x=(c?a[\"k\"][\"v\"]:\"0003\")+1;y=(c?\"0003\":a[\"k\"][\"v\"])+1;z=((keep=a[\"k\"][\"v\"])+1);u=(c?a[\"k\"][\"v\"]:a[\"other\"][\"v\"])+0;print x,y,z,u,typeof(keep)}}"], [], "4 8 8 11 number\n8 4 8 7 number\n"),
+        Passing("nested-numeric-left-before-rhs-detachment",
+            ["function replace(a){delete a[\"k\"];a[\"k\"][\"v\"]=40;return 1}BEGIN{a[\"k\"][\"v\"]=\"0007\";result=a[\"k\"][\"v\"]+replace(a);print result,a[\"k\"][\"v\"],typeof(a[\"k\"][\"v\"])}"], [], "8 40 number\n"),
+        Passing("nested-numeric-key-effects-before-rhs",
+            ["function first(){trace=trace \"A\";return \"k\"}function last(){trace=trace \"B\";return \"v\"}function rhs(){trace=trace \"R\";delete a[\"k\"];return 2}BEGIN{a[\"k\"][\"v\"]=7;n=a[first()][last()]+rhs();print n,trace,length(a)}"], [], "9 ABR 0\n"),
+        Passing("nested-numeric-return-with-retained-locations",
+            ["function step(a,k,v){a[k][\"n\"]+=v;a[k][\"c\"]++;return a[k][\"n\"]+a[k][\"c\"]}BEGIN{for(i=0;i<3;i++)total+=step(a,\"k\",2);print total,a[\"k\"][\"n\"],a[\"k\"][\"c\"]}"], [], "18 6 3\n"),
+        Passing("nested-numeric-decimal-input",
+            ["function number(a,k){return a[k][\"v\"]+0}{a[\"k\"][\"v\"]=$1;print number(a,\"k\"),typeof(a[\"k\"][\"v\"]),a[\"k\"][\"v\"]}"], [], "10 strnum 010\n0 string 0x10\n7 strnum +007\n", "010\n0x10\n+007\n"),
+        Passing("nested-numeric-nondecimal-input",
+            ["--non-decimal-data","function number(a,k){return a[k][\"v\"]+0}{a[\"k\"][\"v\"]=$1;print number(a,\"k\"),typeof(a[\"k\"][\"v\"]),a[\"k\"][\"v\"]}"], [], "8 strnum 010\n16 strnum 0x10\n7 strnum +007\n", "010\n0x10\n+007\n"),
         Passing("nested-complete-numeric-local-and-string-fallback",
             ["function step(a,k,v){a[k][\"n\"]+=v;return a[k][\"n\"]}BEGIN{print step(a,\"r\",2),step(a,\"r\",\"0007\"),step(a,\"r\",1)}"],
             [], "2 9 10\n"),

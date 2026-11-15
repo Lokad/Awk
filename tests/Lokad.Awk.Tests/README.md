@@ -56,6 +56,9 @@ Direct-call returns cover pure-number forwarding alongside mixed value/input ori
 calls. Keep every real frame and outer-owned array alias; refund-created output retains the outer
 frame through pending completion, and cancellation at either retirement stops caller mutation.
 The forwarding counter observes removed value transport, not an enforcing execution quota.
+Numeric-array tests compare flat and nested reads at a full budget, preserving original spelling
+and input kind while real owning consumers still refuse before destination mutation. Goldens cover
+conditional observers, key/RHS effects, missing entries and numeric returns using retained locations.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
 Closed call-result ranges also cover external definitions, cross-rule/symbol-table observers,

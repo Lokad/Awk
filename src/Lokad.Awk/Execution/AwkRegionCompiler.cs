@@ -999,6 +999,21 @@ internal sealed partial class AwkRegionCompiler
             return new(operand, _code.Count - 1);
         }
         var target = _numbers++;
+        if (source.Kind == AwkRegionOperandKind.ValueTemporary && operand == _operands.Count - 1 &&
+            source.Index == _values - 1 && _code.Count > 0 &&
+            _code[^1] is { Kind: AwkRegionInstructionKind.ArrayRead, Detail: 0 } arrayRead &&
+            arrayRead.Target == source.Index)
+        {
+            // A fresh scalar read has no observer or intervening key retirement.
+            // Joins emit their own Value/Poll, so their shared result cannot match.
+            // Consume the array at its owner instead of funding a value capture.
+            _values--;
+            _operands[operand] = new(AwkRegionOperandKind.ArrayElement, arrayRead.Left);
+            _code[^1] = new(AwkRegionInstructionKind.ArrayNumber, target, arrayRead.Left);
+            _lastNumberRead = _code.Count - 1;
+            _lastNumberOperand = operand;
+            return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
+        }
         if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count > 0 &&
             _code[^1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
         {
