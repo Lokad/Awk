@@ -80,7 +80,10 @@ public sealed class AwkIncomingFrameTests
         var local = AwkArrayName.FromText("p");
         Assert.Equal(0, state.GetArrayAwkValue(local, AwkArrayKey.FromOrdinal(1)).AsNumber());
         state.SetArrayAwkValue(local, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(9));
+        var owned = AwkArrayName.FunctionLocal(AwkVariableName.FromText("p").Identifier, frame.Id);
+        Assert.True(state.ContainsArrayValue(owned, AwkArrayKey.FromOrdinal(2)));
         state.PopFunctionFrame();
+        Assert.False(state.ContainsArrayValue(owned, AwkArrayKey.FromOrdinal(2)));
         Assert.False(state.ContainsArrayValue(name, parent));
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
@@ -103,6 +106,42 @@ public sealed class AwkIncomingFrameTests
         Assert.False(state.IsInsideFunction);
         Assert.Equal(before, fixture.Budget.Reserved);
         state.DiscardIncomingFunctionFrame(frame);
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void PromotedLocalArraysRetireBeforeFrameReuseWithoutRemovingCallerArrays(bool governed)
+    {
+        using var fixture = State(CancellationToken.None, governed);
+        var state = fixture.State;
+        var callerName = AwkArrayName.FromText("caller");
+        var key = AwkArrayKey.FromOrdinal(1);
+        state.SetArrayAwkValue(callerName, key, AwkValue.FromNumber(7));
+        var caller = state.GetArrayAwkValue(callerName, key);
+        var parameter = AwkVariableName.FromText("p");
+        var local = AwkVariableName.FromText("temporary");
+        var layout = new AwkFunctionLocalLayout([parameter, local]);
+        for (var iteration = 0; iteration < 2; iteration++)
+        {
+            var frame = state.PrepareFunctionFrame(layout);
+            state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(callerName));
+            state.ActivateFunctionFrame(frame);
+            var owned = AwkArrayName.FunctionLocal(local.Identifier, frame.Id);
+            state.SetArrayAwkValue(new AwkArrayName(local.Identifier), key, AwkValue.FromNumber(9));
+            Assert.True(state.ContainsArrayValue(owned, key));
+            Assert.Equal(7, state.GetArrayAwkValue(new AwkArrayName(parameter.Identifier), key).AsNumber());
+            var inner = state.PrepareFunctionFrame(new([parameter]));
+            state.StageFunctionArgument(inner, 0, AwkFunctionLocalSlot.ArrayAlias(owned));
+            state.ActivateFunctionFrame(inner);
+            Assert.Equal(9, state.GetArrayAwkValue(new AwkArrayName(parameter.Identifier), key).AsNumber());
+            state.PopFunctionFrame();
+            Assert.True(state.ContainsArrayValue(owned, key));
+            state.PopFunctionFrame();
+            Assert.False(state.ContainsArrayValue(owned, key));
+            Assert.Equal(caller.AsNumber(), state.GetArrayAwkValue(callerName, key).AsNumber());
+        }
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }

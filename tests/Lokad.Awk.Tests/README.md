@@ -97,6 +97,8 @@ Function-cell checks preserve full-width alias identities, live origins and inde
 key and reader snapshots. Frame capacity admission follows the actual element layout.
 Arithmetic-only incoming parameters reuse normalized numeric facts at full budget; observable
 spelling still needs admission. Cover reading modes and unchanged caller/key/text observations.
+Array cleanup checks preserve caller-owned arrays through nested frames and retire promoted
+locals or detached-entry replacements before frame reuse, under ordinary and shared admission.
 
 Focused field/value/array tests preserve numeric-string origins and original spelling, lazy
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
