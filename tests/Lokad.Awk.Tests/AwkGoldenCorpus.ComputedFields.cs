@@ -19,6 +19,23 @@ internal static partial class AwkGoldenCorpus
         yield return AwkGoldenCaseBuilder.Create("computed-field-numeric-validation-before-later-effects",
                 ["function later(){print \"later\";return 1}BEGIN{$0=\"kept\";n=\"+nan\"+0;print \"before\";print +$n+later()}"], [])
             .WithStdOut("before\n").WithStdErr("awk: non-finite field index\n").ExitsWith(2).Build();
+        yield return AwkGoldenCaseBuilder.Create("computed-field-scalar-compound-captures-before-index-effects",
+                ["function choose(){sum=100;$0=\"003 9\";return 1}BEGIN{sum=7;$0=\"001 2\";r=(sum+=$(choose()));print sum,r,$0,$1,typeof($1)}"], [])
+            .WithStdOut("10 10 003 9 003 strnum\n")
+            .WithNondeterminismNote("Capture the old compound target before RHS index effects, as with array compound updates.")
+            .Build();
+        yield return Passing("computed-field-scalar-compound-used-results-and-spelling",
+            ["BEGIN{$0=\"0007 5tail\";i=1;sum=\"003\";r=(sum+=$(i++));before=sum++;print r,before,sum,i,$1,typeof($1);sum-=$i;print sum,$2,typeof($2)}"],
+            [], "10 10 11 2 0007 strnum\n6 5tail string\n");
+        yield return Passing("computed-field-scalar-compound-finite-indices",
+            ["BEGIN{$0=\"10 20\";sum=1;i=-0.9;sum+=$i;i=2.9;sum+=$i;i=2147483648;sum+=$i;print sum,$0}"],
+            [], "31 10 20\n");
+        yield return Passing("computed-field-compound-field-rhs-after-index-effects",
+            ["function choose(){i=2;$1=100;return 2}BEGIN{$0=\"10 0003\";i=1;r=($i+=$(choose()));print r,i,$0,$2,typeof($2)}"],
+            [], "13 2 13 0003 0003 strnum\n");
+        yield return AwkGoldenCaseBuilder.Create("computed-field-scalar-compound-index-failure",
+                ["function choose(){print \"index\";return \"+nan\"+0}BEGIN{sum=7;$0=\"kept\";print \"before\";sum+=$(choose());print \"after\"}"], [])
+            .WithStdOut("before\nindex\n").WithStdErr("awk: non-finite field index\n").ExitsWith(2).Build();
         yield return Passing("regex-numeric-input-formats-after-pattern-effects",
             ["function pattern(){CONVFMT=\"%.1f\";$0=\"changed tail\";return \"^0[.]125$\"}BEGIN{CONVFMT=\"%.3f\";print(0.125~pattern()),$0,CONVFMT}"],
             [], "0 changed tail %.1f\n");

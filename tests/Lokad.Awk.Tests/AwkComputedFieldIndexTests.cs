@@ -3,6 +3,47 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkComputedFieldIndexTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task ScalarCompoundTargetSurvivesAPendingIndex(bool governed)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/side", "1\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.ReadAsyncOverride = async (descriptor, maximum, token) =>
+        {
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false);
+        };
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["function choose(v){getline v<\"/side\";sum=100;$0=\"0003 tail\";return v}BEGIN{sum=7;$0=\"old\";r=(sum+=$(choose()));print sum,r,$1}"], []);
+        Assert.True(Awk.TryParse(command, out var awk));
+        var run = awk.ExecuteAsync(host, policy, CancellationToken.None);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+            release.TrySetResult();
+            Assert.Equal(0, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+            Assert.Equal("10 10 0003\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await run;
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task CompoundTargetSurvivesAPendingRightHandSide(bool governed)

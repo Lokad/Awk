@@ -314,6 +314,8 @@ name-based fallback still resolve at execution time.
 Length reads visible local scalars and arrays through their ordinal bindings; missing, potential
 and hidden locals retain ordinary promotion and name fallback.
 Numeric updates, readers and variable stores reference the same canonical operand locations.
+Complete updates share numeric RHS preparation. Immediate dynamic-field reads validate their
+index and produce the number directly, preserving old-target capture before RHS effects.
 Known numeric builtin results stay in numeric scratch; formatting occurs at their actual text use.
 Numeric-string arguments used in proved-number comparisons can use established field numbers when the opposite
 operand is proved numeric. Ordinary strings retain lexical comparison, and observers retain spelling.
