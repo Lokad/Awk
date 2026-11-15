@@ -12,6 +12,7 @@ internal static partial class AwkGoldenCorpus
 
     private static readonly RangeParagraphRow[] ParagraphEofRows =
     [
+        new("paragraph-eof-after-newline-switch", ["{print $0;RS=\"\";RT=\"marker\"}ENDFILE{print \"closed\",\"[\"RT\"]\",NR}END{print \"ended\",\"[\"RT\"]\",NR}"], [], "one\n\n\n", "one\nclosed [] 1\nended [] 1\n"),
         new("paragraph-eof-main-0", ["BEGIN{RS=\"\";$0=\"seed fields\";v=\"kept\";RT=\"marker\";}{print NR,FNR,NF,\"[\"$0\"]\",\"[\"RT\"]\"}END{print \"end\",NR,FNR,NF,\"[\"$0\"]\",\"[\"RT\"]\"}"], [], "", "end 0 0 2 [seed fields] [marker]\n"),
         new("paragraph-eof-plain-variable-1", ["BEGIN{RS=\"\";$0=\"seed fields\";v=\"kept\";RT=\"marker\";code=(getline v);print code,NR,FNR,NF,\"[\"$0\"]\",\"[\"v\"]\",\"[\"RT\"]\";RT=\"second\";code=(getline v);print code,NR,FNR,NF,\"[\"$0\"]\",\"[\"v\"]\",\"[\"RT\"]\";RT=\"third\";code=(getline v);print code,NR,FNR,NF,\"[\"$0\"]\",\"[\"v\"]\",\"[\"RT\"]\"}"], [], "", "0 0 0 2 [seed fields] [kept] [marker]\n0 0 0 2 [seed fields] [kept] [second]\n0 0 0 2 [seed fields] [kept] [third]\n"),
         new("paragraph-eof-plain-record-2", ["BEGIN{RS=\"\";$0=\"seed fields\";v=\"kept\";RT=\"marker\";code=(getline);print code,NR,FNR,NF,\"[\"$0\"]\",\"[\"v\"]\",\"[\"RT\"]\";RT=\"second\";code=(getline);print code,NR,FNR,NF,\"[\"$0\"]\",\"[\"v\"]\",\"[\"RT\"]\";RT=\"third\";code=(getline);print code,NR,FNR,NF,\"[\"$0\"]\",\"[\"v\"]\",\"[\"RT\"]\"}"], [], "", "0 0 0 2 [seed fields] [kept] [marker]\n0 0 0 2 [seed fields] [kept] [second]\n0 0 0 2 [seed fields] [kept] [third]\n"),

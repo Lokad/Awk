@@ -484,7 +484,7 @@ public sealed class AwkRecordInputMemoryTests
     [Fact]
     public void MainInputResultKeepsItsCompactTransport()
     {
-        Assert.Equal(32, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkInputRecordResult>());
+        Assert.InRange(System.Runtime.CompilerServices.Unsafe.SizeOf<AwkInputRecordResult>(), 1, 3 * IntPtr.Size);
     }
 
     [Theory]
@@ -495,7 +495,7 @@ public sealed class AwkRecordInputMemoryTests
     {
         var text = AwkText.FromString(spelling);
         var terminator = AwkRecordTerminator.FromText(AwkText.FromString("\r\n"));
-        foreach (var mode in new[] { AwkRecordFieldSplittingMode.Ordinary, AwkRecordFieldSplittingMode.Paragraph })
+        foreach (var mode in Enum.GetValues<AwkRecordFieldSplittingMode>())
         {
             var record = AwkInputRecordResult.Record(text, terminator, mode);
             Assert.True(record.HasRecord);

@@ -858,32 +858,30 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     private sealed record RegexSeparator(AwkRegex Value, AwkRegex Continuing) : RecordSeparator;
 }
 
+// Compact immutable metadata; the tag contains only valid record and EOF variants.
 internal readonly record struct AwkInputRecordResult
 {
     private readonly AwkInputRecordResultKind _kind;
     private readonly object? _recordContent;
 
-    private AwkInputRecordResult(
-        AwkInputRecordResultKind kind,
-        object? recordContent,
-        AwkRecordTerminator terminator,
-        AwkRecordFieldSplittingMode fieldSplittingMode,
-        bool clearsRecordTerminator = false)
+    private AwkInputRecordResult(AwkInputRecordResultKind kind, object? recordContent,
+        AwkRecordTerminator terminator)
     {
         _kind = kind;
         _recordContent = recordContent;
         Terminator = terminator;
-        FieldSplittingMode = fieldSplittingMode;
-        ClearsRecordTerminator = clearsRecordTerminator;
     }
 
-    public bool HasRecord => _kind != AwkInputRecordResultKind.EndOfFile;
+    public bool HasRecord => _kind is AwkInputRecordResultKind.Record or
+        AwkInputRecordResultKind.FirstBuffer or AwkInputRecordResultKind.SecondBuffer or
+        AwkInputRecordResultKind.ParagraphRecord;
 
-    public bool ClearsRecordTerminator { get; }
+    public bool ClearsRecordTerminator => _kind == AwkInputRecordResultKind.EndOfFileClearingTerminator;
 
-    // Buffered results are private to the main-input handoff until the next staged read.
-    // Getline uses the owned read entry; ordinary scalar values never carry this owner.
-    public AwkText RecordText => _kind is AwkInputRecordResultKind.Record or AwkInputRecordResultKind.EndOfFile
+    // Buffered results stay private to main-input publication; scalar values own text.
+    public AwkText RecordText => _kind is AwkInputRecordResultKind.Record or
+        AwkInputRecordResultKind.ParagraphRecord or AwkInputRecordResultKind.EndOfFile or
+        AwkInputRecordResultKind.EndOfFileClearingTerminator
         ? AwkText.FromBacking(_recordContent)
         : throw new InvalidOperationException("A buffered record must be admitted into its frame.");
 
@@ -895,36 +893,34 @@ internal readonly record struct AwkInputRecordResult
 
     internal static AwkInputRecordResult Buffered(AwkRecordStorage storage, AwkRecordTerminator terminator) =>
         new(storage.CurrentSlot == 0 ? AwkInputRecordResultKind.FirstBuffer : AwkInputRecordResultKind.SecondBuffer,
-            storage, terminator, AwkRecordFieldSplittingMode.Ordinary);
+            storage, terminator);
 
     internal int StorageSlot => _kind == AwkInputRecordResultKind.FirstBuffer ? 0 : 1;
 
     public AwkRecordTerminator Terminator { get; }
 
-    public AwkRecordFieldSplittingMode FieldSplittingMode { get; }
+    public AwkRecordFieldSplittingMode FieldSplittingMode =>
+        _kind == AwkInputRecordResultKind.ParagraphRecord
+            ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary;
 
-    public static AwkInputRecordResult EndOfFile { get; } =
-        new(
-            AwkInputRecordResultKind.EndOfFile,
-            null,
-            AwkRecordTerminator.Empty,
-            AwkRecordFieldSplittingMode.Ordinary);
+    public static AwkInputRecordResult EndOfFile => default;
 
-    public static AwkInputRecordResult EndOfFileClearingTerminator { get; } =
-        new(AwkInputRecordResultKind.EndOfFile, null, AwkRecordTerminator.Empty,
-            AwkRecordFieldSplittingMode.Ordinary, clearsRecordTerminator: true);
+    public static AwkInputRecordResult EndOfFileClearingTerminator =>
+        new(AwkInputRecordResultKind.EndOfFileClearingTerminator, null, AwkRecordTerminator.Empty);
 
-    public static AwkInputRecordResult Record(
-        AwkText record,
-        AwkRecordTerminator terminator,
+    public static AwkInputRecordResult Record(AwkText record, AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode) =>
-        new(AwkInputRecordResultKind.Record, record.Backing, terminator, fieldSplittingMode);
+        new(fieldSplittingMode == AwkRecordFieldSplittingMode.Paragraph
+            ? AwkInputRecordResultKind.ParagraphRecord : AwkInputRecordResultKind.Record,
+            record.Backing, terminator);
 
     private enum AwkInputRecordResultKind
     {
         EndOfFile,
         Record,
         FirstBuffer,
-        SecondBuffer
+        SecondBuffer,
+        ParagraphRecord,
+        EndOfFileClearingTerminator
     }
 }

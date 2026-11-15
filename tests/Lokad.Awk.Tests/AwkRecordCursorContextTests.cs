@@ -6,6 +6,48 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordCursorContextTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task ParagraphTerminatorClearsBeforeEndFileAfterReadyRecord(bool pending, bool governed)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disposed = 0;
+        var consumed = 0;
+        var host = new MockFileSystem { ReadAsyncOverride = ReadAsync };
+        async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            entered.TrySetResult();
+            if (pending) await release.Task.ConfigureAwait(false);
+            return AwkReadBuffer.FromContent("one\n\n\n"u8.ToArray(), AwkReadCompletion.EndOfFile,
+                count => { disposed++; consumed = count; });
+        }
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        const string source = """{print $0;RS="";RT="marker"}ENDFILE{print "closed","["RT"]",NR}END{print "ended","["RT"]",NR}""";
+        var run = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+        try
+        {
+            if (pending)
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(run.IsCompleted);
+                if (governed) Assert.True(budget.Reserved > 0);
+            }
+        }
+        finally { release.TrySetResult(); }
+        Assert.Equal(0, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal("one\nclosed [] 1\nended [] 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, disposed);
+        Assert.Equal(6, consumed);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
+    [Theory]
     [InlineData("invalid-same", false)] [InlineData("invalid-same", true)]
     [InlineData("invalid-refill", false)] [InlineData("invalid-refill", true)]
     [InlineData("invalid-exit-same", false)] [InlineData("invalid-exit-same", true)]
