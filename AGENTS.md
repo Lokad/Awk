@@ -346,8 +346,11 @@ or environment dependencies.
   input full-value reads keep classification at read. Arithmetic-only stored input consumes the
   existing byte parser's prefix without changing spelling or origins. Ready values return without
   reconstruction. Preserve original spelling, mutation preflights and the same 24-byte footprint.
-  Prepared full-value reads use the actual execution frame; standalone/dynamic reads keep visible-scope
-  resolution. The cell captures payload words before polling and materializes the value at return.
+  Prepared full-value and key reads use the actual execution frame; standalone/dynamic reads keep
+  visible-scope resolution. Key reads share one conversion body; standalone key cells must still
+  reach the key consumer. Complete path resolution returns its canonical key directly and captures
+  the owning array before final-key/RHS effects. Keep both snapshots through their actual users.
+  The cell captures payload words before polling and materializes the value at return.
   Disabled observation counters need no value-kind classification.
   Pure numbers use funded scalar storage.
   Arithmetic and complete comparisons may consume existing scalar numeric facts without changing

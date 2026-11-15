@@ -447,7 +447,7 @@ internal partial struct AwkRegionMachine
                     {
                         if (computationView.Region.Paths[assigned.Path].ImmediateKeys is not null)
                         {
-                            computationView.ResolvePath(assigned.Path, out var assignedOwner, out var assignedKey);
+                            var assignedKey = computationView.ResolvePath(assigned.Path, out var assignedOwner);
                             var assignedValue = computationView.Value(instruction.Left);
                             computationView.State.ThrowIfCancellationRequested();
                             computationView.State.SetArrayAwkValue(assignedOwner, assignedKey, assignedValue);

@@ -61,6 +61,8 @@ The forwarding counter observes removed value transport, not an enforcing execut
 Numeric-array tests compare flat and nested reads at a full budget, preserving original spelling
 and input kind while real owning consumers still refuse before destination mutation. Goldens cover
 conditional observers, key/RHS effects, missing entries and numeric returns using retained locations.
+Prepared-key cases cover file-phase scopes, scalar/key transitions and observed input spelling.
+Standalone reads retain visible/hidden bindings at a full budget in ordinary/governed execution.
 Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
 including tight admission, fallback failures and refund reentry after source retirement.
 Closed call-result ranges also cover external definitions, cross-rule/symbol-table observers,

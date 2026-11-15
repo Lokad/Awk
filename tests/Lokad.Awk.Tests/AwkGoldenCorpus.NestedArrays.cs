@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // GNU awk 5.3.2, source 027ebff5. Exact native receipts are retained locally.
     private static IEnumerable<AwkGoldenCase> NestedArrayCases() =>
     [
+        Passing("nested-prepared-key-file-phase-scopes",
+            ["function count(a,k,line){a[k][\"n\"]++;getline line;return a[k][\"n\"]}function own(b,q){b[q][\"x\"]=3;return b[q][\"x\"]}BEGIN{k=\"global\";a[\"local\"][\"n\"]=7;print count(a,\"local\"),k}BEGINFILE{print k;k=\"changed\";print own(b,\"other\")}END{print a[\"local\"][\"n\"],(\"changed\" in a),k}"],
+            [], "global\n3\n8 changed\n8 0 changed\n", "payload\n"),
+        Passing("nested-prepared-key-scalar-transitions",
+            ["function step(a,k){a[k][\"n\"]++;k=0.125;CONVFMT=\"%.3f\";a[k][\"n\"]+=2;k=\"0007\";a[k][\"n\"]+=3;return a[k][\"n\"]}BEGIN{CONVFMT=\"%.1f\";print step(a,\"first\");print a[\"first\"][\"n\"],a[\"0.125\"][\"n\"],a[\"0007\"][\"n\"];print (\"0.1\" in a),(\"7\" in a)}"],
+            [], "3\n1 2 3\n0 0\n"),
+        Passing("nested-prepared-key-observed-input-spelling",
+            ["function use(a,k){a[k][\"n\"]++;print typeof(k),k;return a[k][\"n\"]}{print use(a,$1);print $1}"],
+            [], "strnum 0007\n1\n0007\nstrnum 0000\n1\n0000\nstrnum -0000\n1\n-0000\nstring word\n1\nword\n", "0007\n0000\n-0000\nword\n"),
         Passing("nested-numeric-preserves-origins",
             ["function plus(a,k){return a[k][\"v\"]+1}{a[\"input\"][\"v\"]=$1;a[\"text\"][\"v\"]=\"0007x\";a[\"num\"][\"v\"]=7;print plus(a,\"input\"),plus(a,\"text\"),plus(a,\"num\");print typeof(a[\"input\"][\"v\"]),a[\"input\"][\"v\"],typeof(a[\"text\"][\"v\"]),a[\"text\"][\"v\"],typeof(a[\"num\"][\"v\"]),a[\"num\"][\"v\"]}"], [], "8 8 8\nstrnum 0007 string 0007x number 7\n1 8 8\nstrnum 0000 string 0007x number 7\n1 8 8\nstrnum -0000 string 0007x number 7\n", "0007\n0000\n-0000\n"),
         Passing("nested-numeric-missing-membership",

@@ -306,7 +306,7 @@ internal partial struct AwkRegionMachine
                     if (state.TryResolvePreparedGlobalKey(operand.Index, out var globalKey)) return globalKey;
                     break;
                 case AwkRegionOperandKind.LocalVariable:
-                    if (state.TryResolveFunctionLocalKey(new(operand.Index), out var localKey)) return localKey;
+                    if (state.TryResolveFunctionLocalKey(frame, new(operand.Index), out var localKey)) return localKey;
                     break;
                 case AwkRegionOperandKind.NumberTemporary:
                     return state.ToArrayKey(AwkValue.FromNumber(numbers[operand.Index]));
@@ -343,7 +343,7 @@ internal partial struct AwkRegionMachine
         internal AwkArrayUpdateTarget PreparePathUpdate(int index, int location = -1)
         {
             var previous = location >= 0 ? storage.Targets[location] : default;
-            ResolvePath(index, out var owner, out var key);
+            var key = ResolvePath(index, out var owner);
             return location >= 0 ? state.PrepareArrayUpdate(owner, key, in previous) : state.PrepareArrayUpdate(owner, key);
         }
 
@@ -353,7 +353,7 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var update = ref region.Updates[instruction.Left];
             var previousLocation = update.Slot >= 0 ? storage.Targets[update.Slot] : default;
-            ResolvePath(update.Path, out var owner, out var key);
+            var key = ResolvePath(update.Path, out var owner);
             if (!owner.IsDetached && !owner.IsIndexed && key.RequiresTextMaterialization &&
                 (previousLocation.TryGetCurrentCell(owner, key, out var cell) ||
                     owner.TryGetDictionaryCell(key, out cell)) &&
@@ -488,15 +488,14 @@ internal partial struct AwkRegionMachine
             return incoming;
         }
 
-        internal void ResolvePath(int index, out AwkArrayIdentity owner, out AwkArrayKey key)
+        internal AwkArrayKey ResolvePath(int index, out AwkArrayIdentity owner)
         {
             ref readonly var path = ref region.Paths[index];
             if (path.ImmediateKeys is not { } keys)
             {
                 var captured = CapturedPath(index);
                 owner = captured.ResolveOwner(state);
-                key = captured.Key;
-                return;
+                return captured.Key;
             }
             if (path.Owner.Role is AwkRegionPathOwnerRole.Read or AwkRegionPathOwnerRole.Take)
             {
@@ -504,8 +503,7 @@ internal partial struct AwkRegionMachine
                 {
                     owner = boundOwner;
                     if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.ReleaseValue(path.Owner.Value);
-                    key = CaptureKey(keys[^1]);
-                    return;
+                    return CaptureKey(keys[^1]);
                 }
                 // A real flush cleared this binding before the host ran. Resolve
                 // the current prefix at use, without retaining the previous owner.
@@ -521,7 +519,7 @@ internal partial struct AwkRegionMachine
             if (path.Owner.Role is AwkRegionPathOwnerRole.Initialize or AwkRegionPathOwnerRole.Read)
                 storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(currentOwner), preserveOrigin: true);
             owner = currentOwner;
-            key = CaptureKey(keys[^1]);
+            return CaptureKey(keys[^1]);
         }
 
         internal bool TryArrayNumberKey(int index, out double number)
@@ -550,7 +548,7 @@ internal partial struct AwkRegionMachine
         {
             if (access.Path >= 0)
             {
-                ResolvePath(access.Path, out var owner, out var key);
+                var key = ResolvePath(access.Path, out var owner);
                 return access.Location >= 0
                     ? state.GetArrayAwkValue(owner, key, in storage.Targets[access.Location])
                     : state.GetArrayAwkValue(owner, key);
@@ -578,7 +576,7 @@ internal partial struct AwkRegionMachine
         {
             if (access.Path >= 0)
             {
-                ResolvePath(access.Path, out var owner, out var key);
+                var key = ResolvePath(access.Path, out var owner);
                 return access.Location >= 0
                     ? state.GetArrayNumber(owner, key, in storage.Targets[access.Location])
                     : state.GetArrayNumber(owner, key);

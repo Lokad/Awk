@@ -900,9 +900,12 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal bool TryResolveFunctionLocalKey(AwkFunctionLocalSlotId slotId, out AwkArrayKey key)
+    internal bool TryResolveFunctionLocalKey(AwkFunctionFrame? frame,
+        AwkFunctionLocalSlotId slotId, out AwkArrayKey key)
     {
-        if (_functions.TryGetLocalFrame(slotId, out var frame))
+        // Bound execution supplies its owner; standalone regions use visible bindings.
+        if ((frame is not null || _functions.TryGetLocalFrame(slotId, out frame)) &&
+            (uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
             ref readonly var local = ref frame.GetSlot(slotId.Index);
             if (local.Kind == AwkFunctionLocalSlotKind.Key)
