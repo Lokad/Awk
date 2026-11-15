@@ -39,7 +39,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.StatementBoundary:
                     if (output is { HasPendingOutput: true })
                     {
-                        if (instruction.Right > 0) computationView.Storage.ReleaseValue(instruction.Right - 1);
+                        if (instruction.Right > 0) computationView.Storage.StoreArrayOwner(instruction.Right - 1, null);
                         TryFlush(output, position + 1, instruction.Detail);
                         goto Resume;
                     }

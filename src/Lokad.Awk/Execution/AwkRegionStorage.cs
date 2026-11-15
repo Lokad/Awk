@@ -39,6 +39,12 @@ internal sealed class AwkRegionStorage : IDisposable
     internal AwkFieldText[] PrintSegments => _printSegments;
     internal bool[] BorrowedPrintFields => _borrowedPrintFields;
 
+    // Preparation reserves these slots exclusively for an array owner or empty.
+    // Capacity is funded here; the actual array retains its ordinary admission.
+    internal AwkArrayIdentity? ArrayOwner(int index) => _values[index].StoredReference as AwkArrayIdentity;
+    internal void StoreArrayOwner(int index, AwkArrayIdentity? owner) =>
+        _values[index] = owner is null ? default : AwkValue.FromArrayReference(owner);
+
     internal void Initialize(AwkRegion region)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

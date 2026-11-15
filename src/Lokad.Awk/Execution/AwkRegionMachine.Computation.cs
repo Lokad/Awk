@@ -499,15 +499,21 @@ internal partial struct AwkRegionMachine
             }
             if (path.Owner.Role is AwkRegionPathOwnerRole.Read or AwkRegionPathOwnerRole.Take)
             {
-                if (storage.Values[path.Owner.Value].TryGetArrayBinding(out var boundOwner))
+                if (storage.ArrayOwner(path.Owner.Value) is { } boundOwner)
                 {
                     owner = boundOwner;
-                    if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.ReleaseValue(path.Owner.Value);
+                    if (path.Owner.Role == AwkRegionPathOwnerRole.Take) storage.StoreArrayOwner(path.Owner.Value, null);
                     return CaptureKey(keys[^1]);
                 }
                 // A real flush cleared this binding before the host ran. Resolve
                 // the current prefix at use, without retaining the previous owner.
             }
+            owner = ResolveImmediatePathOwner(in path, keys);
+            return CaptureKey(keys[^1]);
+        }
+
+        private AwkArrayIdentity ResolveImmediatePathOwner(in AwkRegionPath path, int[] keys)
+        {
             var currentKey = CaptureKey(keys[0]);
             var currentOwner = state.GetSubarray(path.Name, currentKey, path.Binding);
             for (var depth = 1; depth < keys.Length - 1; depth++)
@@ -517,9 +523,8 @@ internal partial struct AwkRegionMachine
                 currentOwner = state.GetSubarray(currentOwner, currentKey);
             }
             if (path.Owner.Role is AwkRegionPathOwnerRole.Initialize or AwkRegionPathOwnerRole.Read)
-                storage.StoreValue(path.Owner.Value, AwkValue.FromArrayReference(currentOwner), preserveOrigin: true);
-            owner = currentOwner;
-            return CaptureKey(keys[^1]);
+                storage.StoreArrayOwner(path.Owner.Value, currentOwner);
+            return currentOwner;
         }
 
         internal bool TryArrayNumberKey(int index, out double number)

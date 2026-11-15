@@ -163,6 +163,9 @@ or environment dependencies.
   its dense scratch slot stays funded through actual users. Complete path metadata owns no scratch.
   Re-resolve detached logical owners before using a captured cell; keep old-value/key capture before RHS.
   Repeated nested owners share funded value scratch only within proven computation windows.
+  Those compiler-exclusive slots hold only an array reference or empty. Access and publish
+  that owner role directly; its capacity and actual array remain funded without general
+  scalar payload accounting. Keep prefix construction separate from ready owner/leaf access.
   Resolve at first use and clear at last use; calls, writes and control flow end the window.
   Empty statement boundaries retain the reference. Before an actual flush, retire it before
   any host callback; later consumers resolve the current prefix at use. Keep field-demand and
