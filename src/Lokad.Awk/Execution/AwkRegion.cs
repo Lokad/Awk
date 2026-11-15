@@ -145,8 +145,8 @@ internal readonly record struct AwkRegionTextDestination(int Location)
 
 internal readonly record struct AwkRegionArrayUpdate(AwkArrayName Name, int Slot,
     AwkRegionNumberSource Right = default, int PrepareAccess = -1, int Path = -1);
-internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, AwkRegionNumberSource Right,
-    bool CapturePrevious);
+internal readonly record struct AwkRegionScalarUpdate(int Variable, int Previous, int Right,
+    AwkCompoundAssignmentOperation Operation);
 internal readonly record struct AwkRegionPath(AwkArrayName Name, AwkArrayBinding Binding, int Count,
     int Slot = 0, int[]? ImmediateKeys = null, AwkRegionPathOwner Owner = default);
 internal enum AwkRegionPathOwnerRole : byte { None, Initialize, Read, Take }
@@ -186,16 +186,21 @@ internal readonly record struct AwkRegionInstruction(
         AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
         AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
         AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber;
+
+    internal bool CompletesScalarUpdate => Kind == AwkRegionInstructionKind.ScalarUpdate ||
+        IsNumberRead && new AwkRegionNumberContinuation(Detail).IsScalarUpdate;
 }
 
-// Typed numeric reads can finish their immediate arithmetic consumer. Zero keeps
-// an ordinary read; the low bits hold operation+1 and bit three reverses operands.
+// Typed reads finish their prepared consumer. Positive values bind arithmetic;
+// negative values bind scalar updates, with Right naming the update descriptor.
 internal readonly record struct AwkRegionNumberContinuation(int Detail)
 {
     internal static AwkRegionNumberContinuation Arithmetic(AwkNumericOperation operation, bool readIsLeft) =>
         new((int)operation + 1 | (readIsLeft ? 0 : 8));
+    internal static AwkRegionNumberContinuation ScalarUpdate(bool readIsLeft) => new(readIsLeft ? -1 : -2);
     internal bool HasOperation => Detail != 0;
-    internal bool ReadIsLeft => (Detail & 8) == 0;
+    internal bool IsScalarUpdate => Detail < 0;
+    internal bool ReadIsLeft => IsScalarUpdate ? Detail == -1 : (Detail & 8) == 0;
     internal AwkNumericOperation Operation => (AwkNumericOperation)((Detail & 7) - 1);
 }
 

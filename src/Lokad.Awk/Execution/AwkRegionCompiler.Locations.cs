@@ -227,23 +227,31 @@ internal sealed partial class AwkRegionCompiler
         }
         else if (_operands[update.Target.Operand].IsVariable)
         {
-            // Captures crossing RHS instructions stay where they were evaluated.
-            // An adjacent load can belong to this same complete operation; its
-            // register still publishes the old number for postfix consumers.
             var previous = NumericRegister(update.Prior);
-            var capturePrevious = _code.Count != 0 && _code[^1] is var capture &&
-                capture.Target == previous && capture.Left == update.Target.Operand &&
-                capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
-                    AwkRegionInstructionKind.VariableNumber;
-            if (capturePrevious)
-            {
-                _code.RemoveAt(_code.Count - 1);
-                _straightLine--;
-            }
+            var rightIsRegister = _operands[right].Kind == AwkRegionOperandKind.NumberTemporary;
             var site = _scalarUpdates.Count;
             _scalarUpdates.Add(new(update.Target.Operand, previous,
-                AwkRegionNumberSource.Bind(right, _operands[right]), capturePrevious));
-            Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site, Detail: (int)operation));
+                rightIsRegister ? _operands[right].Index : -1, operation));
+            // Keep earlier captures before RHS effects. An adjacent left read can
+            // finish a register RHS; a bound RHS uses the same typed read producer.
+            var completesLeft = rightIsRegister && _code.Count != 0 && _code[^1] is var capture &&
+                capture.Target == previous && capture.Left == update.Target.Operand && capture.Detail == 0 &&
+                capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
+                    AwkRegionInstructionKind.VariableNumber;
+            if (completesLeft)
+                _code[^1] = _code[^1] with { Target = number, Right = site,
+                    Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: true).Detail };
+            else if (!rightIsRegister)
+            {
+                var read = EmitNumberRead(right, number);
+                _code[read] = _code[read] with { Right = site,
+                    Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: false).Detail };
+            }
+            else Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site));
+            // This producer also writes a scalar; later return/arithmetic folding
+            // must not turn it back into an ordinary numeric source read.
+            _lastNumberRead = -1;
+
         }
         else
         {

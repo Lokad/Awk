@@ -13,6 +13,7 @@ internal sealed partial class AwkRegionCompiler
         {
             if ((index & 127) == 127) _scope.CheckCancellation();
             var instruction = _code[index];
+            var scalarWrite = instruction.CompletesScalarUpdate;
             var path = instruction.Kind switch
             {
                 AwkRegionInstructionKind.ArrayRead or AwkRegionInstructionKind.ArrayNumber => _arrays[instruction.Left].Path,
@@ -29,9 +30,10 @@ internal sealed partial class AwkRegionCompiler
                 if (paths.Count == 0) firstUse = index;
                 lastUse = index;
                 paths.Add(path);
-                if (instruction.Kind == AwkRegionInstructionKind.ReturnNumber) Finish();
+                if (instruction.Kind == AwkRegionInstructionKind.ReturnNumber || scalarWrite) Finish();
                 continue;
             }
+            if (scalarWrite) { Finish(); continue; }
             if (instruction.Kind == AwkRegionInstructionKind.StatementBoundary)
                 continue;
             if (instruction.IsArithmetic || instruction.Kind is AwkRegionInstructionKind.MoveNumber or

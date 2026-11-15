@@ -63,7 +63,7 @@ internal sealed partial class AwkRegionCompiler
                     OperandDemand(instruction.Left) && OperandDemand(instruction.Right),
                 AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.CompleteArrayNumberUpdate =>
                     CompleteUpdate(_updates[instruction.Left]),
-                AwkRegionInstructionKind.ScalarUpdate => TerminalNumberSource(_scalarUpdates[instruction.Left].Right),
+                AwkRegionInstructionKind.ScalarUpdate => false,
                 AwkRegionInstructionKind.ReturnNumber => NumericReturn(instruction.Left),
                 AwkRegionInstructionKind.Return => ValueReturn(instruction.Left),
                 AwkRegionInstructionKind.ArrayPrepare or AwkRegionInstructionKind.ArrayRead or
@@ -73,6 +73,8 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.Printf => TerminalFields(_printfs[instruction.Left].Fields),
                 _ => InvalidatingBoundary()
             };
+            if (instruction.CompletesScalarUpdate)
+                continues = false;
             if (!continues) Finish();
         }
         Finish();

@@ -1025,6 +1025,14 @@ internal sealed partial class AwkRegionCompiler
             _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
             return new(operand);
         }
+        _lastNumberRead = EmitNumberRead(operand, target);
+        _lastNumberOperand = operand;
+        return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
+    }
+
+    private int EmitNumberRead(int operand, int target)
+    {
+        var source = _operands[operand];
         var kind = source.Kind switch
         {
             AwkRegionOperandKind.Field => AwkRegionInstructionKind.FieldNumber,
@@ -1038,9 +1046,7 @@ internal sealed partial class AwkRegionCompiler
             AwkRegionOperandKind.SpecialVariable or AwkRegionOperandKind.DynamicVariable => AwkRegionInstructionKind.VariableNumber,
             _ => throw new InvalidOperationException("A numeric operand requires a value location.")
         };
-        _lastNumberRead = Emit(new(kind, target, source.IsVariable ? operand : source.Index));
-        _lastNumberOperand = operand;
-        return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
+        return Emit(new(kind, target, source.IsVariable ? operand : source.Index));
     }
 
     private int CaptureValue(int operand, bool preserveOrigin = false)

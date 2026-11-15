@@ -347,6 +347,28 @@ internal partial struct AwkRegionMachine
             return location >= 0 ? state.PrepareArrayUpdate(owner, key, in previous) : state.PrepareArrayUpdate(owner, key);
         }
 
+        internal void CompleteScalarUpdate(in AwkRegionInstruction instruction)
+        {
+            ref readonly var update = ref region.ScalarUpdates[instruction.Left];
+            numbers[instruction.Target] = ApplyScalarUpdate(in update,
+                numbers[update.Previous], numbers[update.Right]);
+        }
+
+        private double CompleteScalarRead(int site, double value, bool readIsLeft)
+        {
+            ref readonly var update = ref region.ScalarUpdates[site];
+            if (!readIsLeft) return ApplyScalarUpdate(in update, numbers[update.Previous], value);
+            numbers[update.Previous] = value;
+            return ApplyScalarUpdate(in update, value, numbers[update.Right]);
+        }
+
+        private double ApplyScalarUpdate(in AwkRegionScalarUpdate update, double previous, double right)
+        {
+            var result = AwkNumericOperations.ApplyCompoundAssignment(previous, right, update.Operation);
+            state.AssignVariableNumber(in operands[update.Variable], frame, result);
+            return result;
+        }
+
         // One complete semantic operation owns lookup through result publication.
         // Actual RHS work still uses the shared captured completion below.
         internal void CompleteNumericArrayUpdate(in AwkRegionInstruction instruction)
@@ -688,6 +710,8 @@ internal partial struct AwkRegionMachine
         {
             var continuation = new AwkRegionNumberContinuation(instruction.Detail);
             if (!continuation.HasOperation) return value;
+            if (continuation.IsScalarUpdate)
+                return CompleteScalarRead(instruction.Right, value, continuation.ReadIsLeft);
             var other = numbers[instruction.Right];
             if (!continuation.ReadIsLeft) (value, other) = (other, value);
             return AwkNumericOperations.Apply(value, other, continuation.Operation);

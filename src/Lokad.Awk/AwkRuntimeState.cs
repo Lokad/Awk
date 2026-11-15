@@ -1047,6 +1047,23 @@ internal sealed class AwkRuntimeState : IDisposable
         slots[index] = new(_variables.GetScalarCell(slot), null);
     }
 
+    internal void AssignVariableNumber(in AwkRegionOperand variable, AwkFunctionFrame? frame, double number)
+    {
+        ThrowIfCancellationRequested();
+        if (variable.Kind == AwkRegionOperandKind.LocalVariable)
+        {
+            if (frame is not null && frame.TryWriteNumber(variable.Index, number))
+                Counters.RecordBoundFrameNumberWrite();
+            else AssignFunctionLocalValue(new(variable.Index), variable.Name, AwkValue.FromNumber(number));
+        }
+        else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
+        {
+            if (!TryAssignPreparedGlobalNumber(variable.Index, number))
+                AssignPreparedGlobalValue(variable.Name, variable.Index, AwkValue.FromNumber(number));
+        }
+        else AssignVariableValue(variable.Name, AwkValue.FromNumber(number));
+    }
+
     internal bool TryAssignPreparedGlobalNumber(int index, double number)
     {
         if (_globalReadSlots is not { } slots || slots[index].Scalar is not { } cell) return false;

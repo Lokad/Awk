@@ -391,24 +391,11 @@ internal partial struct AwkRegionMachine
                         computationView.Storage, in computationView.Operands[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.AssignNumber:
-                    AssignVariableNumber(in computationView.Operands[instruction.Target], computationView.Frame, computationView.Numbers[instruction.Left]);
+                    computationView.State.AssignVariableNumber(in computationView.Operands[instruction.Target], computationView.Frame, computationView.Numbers[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.ScalarUpdate:
-                {
-                    var update = computationView.Region.ScalarUpdates[instruction.Left];
-                    var previous = update.CapturePrevious
-                        ? computationView.ReadBoundNumber(in computationView.Operands[update.Variable])
-                        : computationView.Numbers[update.Previous];
-                    if (update.CapturePrevious) computationView.Numbers[update.Previous] = previous;
-                    var rightNumber = update.Right.IsRegister
-                        ? computationView.Numbers[update.Right.RegisterIndex]
-                        : computationView.ReadBoundNumber(in computationView.Operands[update.Right.OperandIndex]);
-                    var updated = AwkNumericOperations.ApplyCompoundAssignment(previous,
-                        rightNumber, (AwkCompoundAssignmentOperation)instruction.Detail);
-                    AssignVariableNumber(in computationView.Operands[update.Variable], computationView.Frame, updated);
-                    computationView.Numbers[instruction.Target] = updated;
+                    computationView.CompleteScalarUpdate(in instruction);
                     break;
-                }
                 case AwkRegionInstructionKind.AssignField:
                     var fieldValue = computationView.Value(instruction.Left);
                     computationView.State.ThrowIfCancellationRequested();

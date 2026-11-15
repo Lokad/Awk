@@ -51,20 +51,5 @@ internal partial struct AwkRegionMachine
             _state.AssignVariableValue(variable.Name, value);
     }
 
-    private void AssignVariableNumber(in AwkRegionOperand variable, AwkFunctionFrame? frame, double number)
-    {
-        _state.ThrowIfCancellationRequested();
-        if (variable.Kind == AwkRegionOperandKind.LocalVariable)
-        {
-            if (frame is not null && frame.TryWriteNumber(variable.Index, number))
-                _state.Counters.RecordBoundFrameNumberWrite();
-            else _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, AwkValue.FromNumber(number));
-        }
-        else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
-        {
-            if (!_state.TryAssignPreparedGlobalNumber(variable.Index, number))
-                _state.AssignPreparedGlobalValue(variable.Name, variable.Index, AwkValue.FromNumber(number));
-        }
-        else _state.AssignVariableValue(variable.Name, AwkValue.FromNumber(number));
-    }
+
 }

@@ -6,6 +6,12 @@ internal static partial class AwkGoldenCorpus
     // intentionally retains the qualified Lokad contract; differences are explicit.
     private static IEnumerable<AwkGoldenCase> ArrayIdentityCases() =>
     [
+        Passing("nested-owner-windows-end-at-numeric-increment",
+            ["BEGIN{k=1;a[k][\"v\"]++;k++;a[k][\"v\"]++;print a[1][\"v\"],a[2][\"v\"],k}"], [],
+            "1 1 2\n"),
+        Passing("nested-owner-windows-end-at-field-numeric-update",
+            ["BEGIN{$0=\"1\";k=1;a[k][\"v\"]++;k+=$1;a[k][\"v\"]++;print a[1][\"v\"],a[2][\"v\"],k}"], [],
+            "1 1 2\n"),
         Passing("array-publication-discarded-and-used-results",
             ["BEGIN{s=\"0007\";a[\"a\"]=s;r=(a[\"b\"]=s);a[\"c\"]=a[\"d\"]=s;print a[\"a\"],r,a[\"b\"],a[\"c\"],a[\"d\"],typeof(r)}"], [],
             "0007 0007 0007 0007 0007 string\n"),

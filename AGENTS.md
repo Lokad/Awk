@@ -524,8 +524,13 @@ or environment dependencies.
   indices. Instruction/operand references stay synchronous in immutable program storage.
   Register arithmetic binds its operator during preparation. Keep operator binding independent
   of operand source categories; source-read continuations retain their shared semantic kernels.
-  Typed numeric reads can finish fresh adjacent arithmetic through their existing Right/Detail
-  metadata. Capture preparation records the actual producer position, including consumed field-index
+  Typed numeric reads can finish fresh adjacent arithmetic or scalar updates through their
+  existing Right/Detail metadata. Scalar sites bind the operator once and use captured numeric
+  registers; keep old-value capture before RHS effects and publish postfix results at that capture.
+  A numeric reader that commits a scalar write ends field-demand and array-owner sharing windows.
+  Numeric writes belong to runtime state and retain the explicit execution frame, including saved
+  caller returns after retirement. Do not fold a write-producing read into an ordinary return.
+  Capture preparation records its source independently of its consumer. Capture preparation records the actual producer position, including consumed field-index
   producers. Immediate numeric field reads may consume their exclusive index operand; retained update
   targets keep the original coordinate across RHS work and suspension. Preserve single-consumer proof,
   operand order, earlier captures across RHS work and

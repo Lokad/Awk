@@ -301,7 +301,7 @@ internal partial struct AwkRegionMachine
             RestoreCaller(region, storage, resumePoint.Position, callerFrame);
             if (resumePoint.IsAssignment)
             {
-                AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
+                _state.AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
                 _position++;
                 _state.Counters.RecordCallAssignment(resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded);
             }
