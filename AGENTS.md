@@ -325,6 +325,9 @@ or environment dependencies.
   when local bindings are hidden or unavailable. Refusal fails the command without retry.
   Arithmetic field arguments stage cached numbers directly; deferred errors and owned values
   keep ordinary capture. Builtin scratch retains its value consumer.
+  Stored numeric-string arguments normalize the frame's reading mode before arithmetic-only
+  parameters consume their cached number in the admitted cell. Other parameter contracts
+  retain spelling and ordinary payload admission; caller values keep their original origins.
   Function cells share mutually exclusive scalar/key/reader/alias-ID payload words.
   Alias roles retain the full identifier and 64-bit frame ID, projecting a zero numeric
   payload without changing their live origin/reference. Scalar copies retain their raw bits.

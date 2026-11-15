@@ -95,6 +95,8 @@ actual pending users; cancellation alone does not end their lifetime. Assert own
 final refunds, not exact aggregate bookkeeping deltas when other live owners can grow.
 Function-cell checks preserve full-width alias identities, live origins and independent scalar,
 key and reader snapshots. Frame capacity admission follows the actual element layout.
+Arithmetic-only incoming parameters reuse normalized numeric facts at full budget; observable
+spelling still needs admission. Cover reading modes and unchanged caller/key/text observations.
 
 Focused field/value/array tests preserve numeric-string origins and original spelling, lazy
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their

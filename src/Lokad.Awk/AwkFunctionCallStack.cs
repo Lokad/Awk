@@ -164,6 +164,14 @@ internal sealed class AwkFunctionCallStack(
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
         var captured = value.ForFunctionStorage(numberParsingMode, checkpoint);
+        // Arithmetic-only consumers need the normalized numeric fact, rather than
+        // another owner of its spelling. Other contracts retain the full scalar.
+        if (captured.StoredKind == AwkValueKind.NumericString &&
+            frame.Layout.InputConsumption(index) == AwkParameterInput.Arithmetic)
+        {
+            frame.StageNumber(index, captured.StoredNumber);
+            return;
+        }
         var bytes = memoryAccounting.IsEnabled ? captured.RetainedTextMemoryBytes : 0;
         memoryAccounting.ReserveAndCommit(bytes);
         try

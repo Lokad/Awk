@@ -4,6 +4,15 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("arithmetic-arguments-keep-caller-observer-and-key-spelling",
+            ["function plus(x){return x+1}function observe(x){return typeof(x) \":\" x}function key(x){a[x]=1;return(x in a)}{v=$1;print plus(v),observe(v),v;print key(v),length(a)}"],
+            [], "8 strnum:0007 0007\n1 1\n101 strnum:1e2 1e2\n1 2\n8 string:7tail 7tail\n1 3\n", "0007\n1e2\n7tail\n");
+        yield return Passing("arithmetic-arguments-normalize-decimal-input",
+            ["function plus(x){return x+1}function observe(x){return typeof(x) \":\" x}{v=$1;print plus(v),observe(v),v}"],
+            [], "11 strnum:010 010\n1 string:0x10 0x10\n8 strnum:+007 +007\n", "010\n0x10\n+007\n");
+        yield return Passing("arithmetic-arguments-normalize-nondecimal-input",
+            ["--non-decimal-data", "function plus(x){return x+1}function observe(x){return typeof(x) \":\" x}{v=$1;print plus(v),observe(v),v}"],
+            [], "9 strnum:010 010\n17 strnum:0x10 0x10\n8 strnum:+007 +007\n", "010\n0x10\n+007\n");
         yield return Passing("local-return-frame-reuse-keeps-number-string-and-input-origins",
             ["function keep(x,t){t=x;return t}BEGIN{CONVFMT=\"%.2f\";a=keep(7);b=keep(\"0007\");print a,b,typeof(a),typeof(b)}{c=keep($1);print c,typeof(c);d=keep(1.25);print d,typeof(d)}"],
             [], "7 0007 number string\n0007 strnum\n1.25 number\n", "0007\n");
