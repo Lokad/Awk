@@ -99,7 +99,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     public static IEnumerable<object[]> ReturnCaptureCases()
     {
-        foreach (var source in new[] { "local", "global", "field", "dynamic-field", "array", "nested-array", "literal", "text", "special", "void" })
+        foreach (var source in new[] { "local", "global", "field", "dynamic-field", "array", "array-number", "nested-array", "nested-number", "nested-missing", "literal", "text", "special", "void" })
             foreach (var governed in new[] { false, true })
                 foreach (var pending in new[] { false, true })
                     yield return [source, governed, pending];
@@ -112,7 +112,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var expression = source switch
         {
             "local" => "s", "global" => "g", "field" => "$1", "dynamic-field" => "$n",
-            "array" => "a[\"r\"]", "nested-array" => "a[\"parent\"][\"r\"]",
+            "array" or "array-number" => "a[\"r\"]",
+            "nested-array" or "nested-number" or "nested-missing" => "a[\"parent\"][\"r\"]",
             "literal" => "\"0007\"", "text" => "substr(g,1)",
             "special" => "OFS", _ => ""
         };
@@ -127,14 +128,21 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var g = AwkVariableName.FromText("g");
         var saved = AwkVariableName.FromText("saved");
         var a = AwkArrayName.FromText("a");
+        var nested = source.StartsWith("nested-", StringComparison.Ordinal);
+        var numeric = source is "array-number" or "nested-number";
+        var empty = source is "void" or "nested-missing";
         state.AssignVariableValue(g, AwkValue.FromText("0007"));
         state.AssignVariableValue(saved, AwkValue.FromText("previous"));
         state.AssignVariableValue(AwkVariableName.FromText("n"), AwkValue.FromNumber(1));
         state.AssignVariable(AwkVariableName.FromText("OFS"), "0007");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("0007"));
-        state.SetArrayAwkValue(a, new("r"), AwkValue.FromNumericString("0007"));
-        if (source == "nested-array")
-            state.SetArrayAwkValue(state.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromNumericString("0007"));
+        var arrayValue = numeric ? AwkValue.FromNumber(7) : AwkValue.FromNumericString("0007");
+        state.SetArrayAwkValue(a, new("r"), arrayValue);
+        if (nested)
+        {
+            var parent = state.GetSubarray(a, new("parent"), default);
+            if (!empty) state.SetArrayAwkValue(parent, new("r"), arrayValue);
+        }
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var appends = 0;
@@ -150,7 +158,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 state.AssignVariable(AwkVariableName.FromText("OFS"), "changed");
                 state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed"));
                 state.SetArrayAwkValue(a, new("r"), AwkValue.FromText("changed"));
-                if (source == "nested-array")
+                if (nested)
                 {
                     state.DeleteArrayValue(a, new("parent"));
                     state.SetArrayAwkValue(state.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromText("changed"));
@@ -178,10 +186,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
             }
             Assert.Equal(AwkStatementFlow.Continue, await run);
             var result = state.ResolveVariableValue(saved);
-            Assert.Equal(source == "void" ? "" : "0007", result.ByteText.AsString());
-            Assert.Equal(source == "void" ? AwkRuntimeValueKind.Unassigned :
+            Assert.Equal(empty ? AwkRuntimeValueKind.Unassigned : numeric ? AwkRuntimeValueKind.Number :
                 source is "field" or "dynamic-field" or "array" or "nested-array" ? AwkRuntimeValueKind.NumericString :
                 AwkRuntimeValueKind.String, result.RuntimeKind);
+            Assert.Equal(empty ? "" : numeric ? "7" : "0007", result.AsString());
             Assert.Equal(1, appends);
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, memory.Budget.Refusals);

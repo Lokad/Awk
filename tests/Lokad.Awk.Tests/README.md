@@ -51,6 +51,8 @@ long-input cancellation before source retirement and current cells after frame r
 Mixed numeric, string and input returns preserve their origins across reuse of the same frame.
 Return capture also covers ready/pending host mutation of fields, globals, locals and arrays,
 public failed diagnostic completion, and return field-demand termination before unreachable code.
+Array-return captures include pure numbers and missing nested entries before a host callback
+replaces their source, with both immediate and pending completion.
 Preparation binds physical owning return slots without an unused source-operand descriptor.
 Direct-call returns cover pure-number forwarding alongside mixed value/input origins and recursive
 calls. Keep every real frame and outer-owned array alias; refund-created output retains the outer
