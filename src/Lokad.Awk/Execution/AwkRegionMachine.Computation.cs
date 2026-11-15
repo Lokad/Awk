@@ -407,21 +407,15 @@ internal partial struct AwkRegionMachine
             CompleteCapturedArrayUpdate(in instruction, in update, in target);
         }
 
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         internal void CompleteCapturedArrayUpdate(in AwkRegionInstruction instruction,
             in AwkRegionArrayUpdate update, in AwkArrayUpdateTarget target)
         {
             var right = update.Right.IsRegister ? numbers[update.Right.RegisterIndex]
                 : ReadBoundNumber(in operands[update.Right.OperandIndex]);
-            var result = AwkNumericOperations.ApplyCompoundAssignment(target.Previous, right,
-                (AwkCompoundAssignmentOperation)instruction.Detail);
-            state.ThrowIfCancellationRequested();
-            if (update.Path >= 0 && region.Paths[update.Path].ImmediateKeys is null)
-                state.CommitArrayUpdate(CapturedPath(update.Path), in target, result);
-            else state.CommitArrayUpdate(update.Name, in target, result);
-            if (instruction.Right >= 0) numbers[instruction.Right] = target.Previous;
-            if (update.PrepareAccess < 0) storage.CompleteTarget(update.Slot);
-            else if (update.Slot >= 0) storage.StoreLocation(update.Slot, in target);
-            numbers[instruction.Target] = result;
+            var pathSlot = update.Path >= 0 && region.Paths[update.Path].ImmediateKeys is null
+                ? region.Paths[update.Path].Slot : -1;
+            storage.CompleteCapturedArrayUpdate(in instruction, in update, in target, right, pathSlot);
         }
 
         // A failed probe cannot classify, split, admit, poll or diagnose. The ordinary

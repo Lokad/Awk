@@ -245,7 +245,7 @@ internal partial struct AwkRegionMachine
         var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
         if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
             throw new InvalidOperationException("A called function requires a caller.");
-        if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
+        if (resumePoint.Consumer is AwkRegionReturnConsumer.Number or AwkRegionReturnConsumer.ArrayUpdate)
             // Conversion consumes the actual funded callee snapshot before retirement.
             storage.Numbers[resumePoint.Destination] = value.AsNumber(_state.CancellationCheckpoint);
         else _storage.MoveRetiringReturnValueTo(storage, resumePoint.Destination, in value);
@@ -295,11 +295,16 @@ internal partial struct AwkRegionMachine
                 storage.Numbers[destination] = number;
             else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
                 storage.ReleaseValue(destination);
-            else
+            else if (resumePoint.Consumer != AwkRegionReturnConsumer.ArrayUpdate)
                 storage.StoreValue(destination, AwkValue.FromNumber(number));
             _state.PopFunctionFrame();
             RestoreCaller(region, storage, resumePoint.Position, callerFrame);
-            if (resumePoint.IsAssignment)
+            if (resumePoint.Consumer == AwkRegionReturnConsumer.ArrayUpdate)
+            {
+                CompleteReturnedArrayUpdate(region, storage, number);
+                _position++;
+            }
+            else if (resumePoint.IsAssignment)
             {
                 _state.AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
                 _position++;
@@ -307,6 +312,16 @@ internal partial struct AwkRegionMachine
             }
             return;
         }
+    }
+
+    private void CompleteReturnedArrayUpdate(AwkRegion region, AwkRegionStorage storage, double number)
+    {
+        ref readonly var instruction = ref region.Instructions[_position];
+        ref readonly var update = ref region.Updates[instruction.Left];
+        var target = storage.Targets[update.Slot];
+        var pathSlot = update.Path >= 0 && region.Paths[update.Path].ImmediateKeys is null
+            ? region.Paths[update.Path].Slot : -1;
+        storage.CompleteCapturedArrayUpdate(in instruction, in update, in target, number, pathSlot);
     }
 
     private void RestoreCaller(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame)

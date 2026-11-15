@@ -172,6 +172,11 @@ or environment dependencies.
   Empty statement boundaries retain the reference. Before an actual flush, retire it before
   any host callback; later consumers resolve the current prefix at use. Keep field-demand and
   actual completion ordering. Unbound keys retain their ordinary captured path.
+  Captured updates share one complete mutation/retirement kernel at the actual scratch owner.
+  Ordinary consumers capture RHS before that boundary; adjacent numeric-call consumers reach
+  the same owner only after callee retirement, without another computation view. Preserve
+  refund cancellation and converted-value/nonadjacent continuations. Qualify small capture
+  and substantial owner boundaries together on complete ordinary/governed programs.
   Complete updates publish postfix old-number results directly; adjacent result reads need no retained target.
   Prepared path slots retain funded owner/key capacity while retirement clears active keys and payload.
   Rebind root/binding/depth on reuse and preserve cached owners during slot-array growth. TakePath

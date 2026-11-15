@@ -186,6 +186,25 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
+    // The actual scratch owner completes one captured operation for ordinary
+    // computation and saved call consumers. Keys/numbers are captured before RHS;
+    // no computation view or mutable dictionary/page reference reaches this boundary.
+    // Keep the substantial mutation kernel shared in generated callers as well.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    internal void CompleteCapturedArrayUpdate(in AwkRegionInstruction instruction,
+        in AwkRegionArrayUpdate update, in AwkArrayUpdateTarget target, double right, int pathSlot)
+    {
+        var result = AwkNumericOperations.ApplyCompoundAssignment(target.Previous, right,
+            (AwkCompoundAssignmentOperation)instruction.Detail);
+        _state.ThrowIfCancellationRequested();
+        if (pathSlot >= 0) _state.CommitArrayUpdate(Path(pathSlot), in target, result);
+        else _state.CommitArrayUpdate(update.Name, in target, result);
+        if (instruction.Right >= 0) _numbers[instruction.Right] = target.Previous;
+        if (update.PrepareAccess < 0) CompleteTarget(update.Slot);
+        else if (update.Slot >= 0) StoreLocation(update.Slot, in target);
+        _numbers[instruction.Target] = result;
+    }
+
     internal void CompleteTarget(int index)
     {
         // The slot already funds bounded key/cell/owner holding. Keep only a
