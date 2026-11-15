@@ -259,7 +259,7 @@ internal sealed class AwkFunctionCallStack(
         if (sourceSlot.Kind == AwkFunctionLocalSlotKind.Key)
         {
             if (!prepareKey) throw new InvalidOperationException("A prepared key requires a key consumer.");
-            StageArgument(incoming, index, in sourceSlot);
+            StageKey(incoming, index, sourceSlot.Key);
             return true;
         }
         if (sourceSlot.TryReadNumber(out var number))
