@@ -239,6 +239,17 @@ internal partial struct AwkRegionMachine
             {
                 ref readonly var source = ref operands[instruction.Left];
                 var target = instruction.Target;
+                if (source.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
+                    (uint)source.Index < (uint)frame.Layout.SlotCount &&
+                    frame.TryReadNumber(source.Index, out var number))
+                {
+                    // This return's private capture slot is fresh. A canonical
+                    // number owns no payload to move through it. Retire the local
+                    // before flushing, as the owning scalar capture does below.
+                    state.Counters.RecordNumericLocalRead();
+                    frame.GetSlot(source.Index) = default;
+                    return AwkValue.FromNumber(number);
+                }
                 if (source.Kind != AwkRegionOperandKind.LocalVariable || frame is null ||
                     !storage.TryTakeRetiringLocal(target, frame, source.Index))
                     storage.StoreValue(target, Value(instruction.Left));

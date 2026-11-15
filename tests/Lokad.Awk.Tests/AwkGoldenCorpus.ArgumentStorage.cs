@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ArgumentStorageCases()
     {
+        yield return Passing("local-return-frame-reuse-keeps-number-string-and-input-origins",
+            ["function keep(x,t){t=x;return t}BEGIN{CONVFMT=\"%.2f\";a=keep(7);b=keep(\"0007\");print a,b,typeof(a),typeof(b)}{c=keep($1);print c,typeof(c);d=keep(1.25);print d,typeof(d)}"],
+            [], "7 0007 number string\n0007 strnum\n1.25 number\n", "0007\n");
         yield return Passing("local-call-arguments-capture-before-an-inline-assignment",
             ["function join(a,b,c){return a \":\" b \":\" c}function relay(x,y){return join(x,(x=y),x)}BEGIN{print relay(\"before\",\"after\")}"],
             [], "before:after:after\n");

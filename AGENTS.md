@@ -430,6 +430,9 @@ or environment dependencies.
   Terminal scalar locals can transfer their existing claim into that owning capture. Read
   at the actual frame owner; only token polling may intervene before publication. Other
   local roles retain ordinary resolution and materialization.
+  A canonical numeric local has no payload claim: capture its number and retire its
+  source before flushing, without an owning scratch roundtrip. External-source returns
+  keep their fresh capture slot private; nonnumeric users retain its ordinary funding.
   Non-number return operands name canonical owning value/text scratch. Move their existing
   payload claim to caller scratch before retiring the callee. Existing retirement clears
   the source; keep the handoff adjacent to that retirement rather than clearing slots twice.

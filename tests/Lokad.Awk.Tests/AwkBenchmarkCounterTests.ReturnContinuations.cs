@@ -4,6 +4,32 @@ public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task NumericLocalReturnsKeepCanonicalReadsAndFundedFrameReuse(bool governed)
+    {
+        const int records = 128;
+        const string source = "function step(x,a,t){t=(x*3+a)%101;return t}" +
+            "BEGIN{for(i=0;i<128;i++)total+=step(i,7);print total}";
+        var host = new MockFileSystem();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, exit);
+        var total = Enumerable.Range(0, records).Sum(index => (index * 3 + 7) % 101);
+        Assert.Equal(total + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.FunctionFramesPrepared);
+        Assert.Equal(records, counters.BoundFrameNumberWrites);
+        Assert.Equal(3 * records, counters.NumericLocalReads);
+        Assert.Equal(0, counters.ScalarLocalValueReads);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task DirectNumericReturnsAvoidIntermediateValueTransport(bool governed)
     {
         const int records = 128;

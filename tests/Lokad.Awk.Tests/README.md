@@ -48,6 +48,7 @@ Return-owner tests retain the funded callee through both ready and pending host 
 including numeric/text captures and cancellation before caller mutation.
 Terminal local returns also cover full-budget handoffs, original spelling/input origins,
 long-input cancellation before source retirement and current cells after frame reuse.
+Mixed numeric, string and input returns preserve their origins across reuse of the same frame.
 Return capture also covers ready/pending host mutation of fields, globals, locals and arrays,
 public failed diagnostic completion, and return field-demand termination before unreachable code.
 Preparation binds physical owning return slots without an unused source-operand descriptor.
