@@ -41,6 +41,8 @@ Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests 
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks
 distinguish captured storage slots, owned spelling, EOF and record-terminator clearing.
+Entry checks preserve cancellation in empty and standalone programs, including refunds during
+record publication. Observe stopped effects and cleanup, without asserting entry opcodes.
 Structured read failures are recoverable `getline`; faulted host operations are redacted failures.
 Mock file truncation occurs at open and appended data becomes visible after close.
 Append tests cover completed faults, synchronous throws and cancellation during callbacks,

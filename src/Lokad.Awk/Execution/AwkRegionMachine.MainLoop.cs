@@ -57,6 +57,10 @@ internal partial struct AwkRegionMachine
         _hasRecordPhase = true;
         _state.PublishInputRecord(in input, readsMainInput: true);
         _state.Counters.RecordRecordRead();
+        // Publication can refund retired owners through the supplied governor.
+        // Keep the computational-entry check after those callbacks.
+        _state.ThrowIfCancellationRequested();
+        if (_region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(_region.EntryFieldDemand);
     }
 
     private void EndMainRecord()

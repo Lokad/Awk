@@ -52,8 +52,9 @@ internal partial struct AwkRegionMachine
     internal void Initialize()
     {
         _storage.Initialize(_region);
-        // Standalone function execution has not crossed frame activation.
-        if (_region.Kind == AwkRegionKind.Function)
+        // Standalone execution has not crossed activation or record publication.
+        if (_region.Kind == AwkRegionKind.Function ||
+            _mainInput is null && _region.MainBodyStart >= 0)
         {
             _state.ThrowIfCancellationRequested();
             if (_region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(_region.EntryFieldDemand);

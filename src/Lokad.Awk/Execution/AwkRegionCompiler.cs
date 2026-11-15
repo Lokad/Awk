@@ -66,9 +66,10 @@ internal sealed partial class AwkRegionCompiler
     internal static AwkRegionCompiler CreateMain(AwkLoweringScope scope)
     {
         var compiler = new AwkRegionCompiler(scope, AwkRegionKind.Record);
-        // Reading already polls at the input boundary; body labels poll computation.
+        // Publication owns computational entry; later labels retain their polls.
         compiler.Emit(new(AwkRegionInstructionKind.MainRead));
         compiler._mainBodyStart = compiler._code.Count;
+        compiler._straightLine = 0;
         return compiler;
     }
 
@@ -204,9 +205,9 @@ internal sealed partial class AwkRegionCompiler
     private bool CompileBody(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
         bool defaultPrint, AwkExpressionSyntax? rangeEnd = null, int rangeIndex = -1)
     {
-        // Called functions cross the activation checkpoint before entering code.
-        // Their initial field demand belongs to entry, without another dispatch.
-        if (_kind != AwkRegionKind.Function) Label();
+        // Function activation and main record publication own their initial
+        // checkpoint/field demand. Other computation labels retain their polls.
+        if (_kind != AwkRegionKind.Function && _code.Count != _mainBodyStart) Label();
         List<int>? skipped = null;
         if (condition is not null)
         {

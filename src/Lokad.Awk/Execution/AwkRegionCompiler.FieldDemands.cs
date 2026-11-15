@@ -15,6 +15,7 @@ internal sealed partial class AwkRegionCompiler
         for (var index = 0; index < _code.Count; index++)
         {
             if ((index & 127) == 127) _scope.CheckCancellation();
+            if (index == _mainBodyStart) entry = true;
             var instruction = _code[index];
             if (instruction.Kind is AwkRegionInstructionKind.Poll or AwkRegionInstructionKind.StatementBoundary or
                 AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue or

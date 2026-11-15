@@ -420,9 +420,10 @@ or environment dependencies.
   name and actual root owner. Missing/potential and special arrays keep their resolution paths.
   Forward actual alias names/owners into incoming cells without dropping a known owner. Keep
   activation's detached-child check and potential-origin promotion after later argument effects.
-  Frame activation owns the call-entry cancellation poll. Functions carry initial admitted-field
-  demand as immutable metadata, consumed after scratch initialization; keep cold admission and
-  long initialization polls. Standalone internal function execution establishes its own entry poll.
+  Frame activation and main-record completion own computational entry. Keep the main entry
+  check after publication/refund callbacks. Both consume immutable initial field demand at
+  their existing boundaries; keep cold admission and long initialization polls. Standalone
+  internal function/main-program execution establishes its own entry check.
   Return operands are captured before flushing; the return operation keeps its callee and
   storage until actual output completion. Pending flushes carry their prepared field demand.
   Return binds its source and owning destination together, without a separate value-capture
