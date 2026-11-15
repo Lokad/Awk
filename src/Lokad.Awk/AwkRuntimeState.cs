@@ -1268,7 +1268,8 @@ internal sealed class AwkRuntimeState : IDisposable
         var terminator = hasTerminator ? PrepareRecordTerminatorSlot(record.Terminator) : default;
         var splitPlan = _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode);
         var text = record.TryGetStorage(out var storage) ? AwkText.Empty : record.RecordText;
-        var publication = _recordFields.PrepareRecordPublication(text, splitPlan);
+        var recordByteLength = storage is not null ? storage.ContentAt(record.StorageSlot).Length : text.ByteLength;
+        var publication = _recordFields.PrepareRecordPublication(text, splitPlan, recordByteLength);
         using var admission = MemoryAccounting.IsEnabled
             ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
                 publication.GrowthBytes, EstimateRecordTerminatorMemoryGrowth(terminator)))

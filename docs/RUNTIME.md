@@ -211,7 +211,10 @@ Compound field and record mutations admit their construction overlap before publ
 their component storage consumes that same admitted allowance.
 Record splitting reuses funded descriptors and admits capacity growth. Whitespace and single-byte
 fields extend on demand at every record size. Completion reuses the admitted prefix where it fits;
-field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
+wide records can reuse their existing descriptor and value-cache capacity. Incoming record size
+bounds larger retained buffers; narrow records release oversized storage, and replacement clears
+cached values. The shared budget funds retained capacity as well as growth.
+Field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
 appends while retaining the prior prefix and numeric caches. Long scans check cancellation in
 4 KiB byte regions; owners also check admission and publication. Escaped CSV text is
 admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps

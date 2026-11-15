@@ -193,4 +193,73 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         Assert.True(budget.TryReserve(4_096, out var reusable));
         reusable.Dispose();
     }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void RepeatedWideRecordsReuseFundedDescriptorsAndReleaseThemForNarrowInput(bool governed)
+    {
+        const int width = 512;
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, memory.Accounting);
+        var frame = context.Frame;
+        var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("1", width)));
+        for (var row = 0; row < 100; row++) _ = ReadRecord();
+        var retained = memory.Accounting.CurrentCommittedBytes;
+        var total = 0;
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var row = 0; row < 200; row++) total += ReadRecord();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        output.WriteLine("200 wide-record splits: {0} bytes; governed: {1}.", allocated, governed);
+        Assert.Equal(width * 200, total);
+        Assert.InRange(allocated, 0, 64_000);
+        Assert.Equal(retained, memory.Accounting.CurrentCommittedBytes);
+        if (governed)
+        {
+            Assert.True(retained >= AwkRuntimeMemory.EstimateRecordFieldListBytes(width));
+            memory.Budget.SetAvailableBytes(0);
+        }
+        Assert.Equal(width, ReadRecord());
+        frame.SetRecordText(AwkText.FromSourceLiteralString("7"));
+        Assert.Equal(1, frame.GetFieldCount());
+        if (governed) Assert.True(memory.Accounting.CurrentCommittedBytes < retained);
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+
+        int ReadRecord()
+        {
+            frame.SetRecordText(record);
+            return frame.GetFieldCount();
+        }
+    }
+
+    [Fact]
+    public void WideCacheRetainsOnlyItsFundedCapacityAcrossReplacement()
+    {
+        const int width = 256;
+        using var memory = new CooperativeTestMemory(8 << 20);
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, memory.Accounting);
+        var frame = context.Frame;
+        var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("0007", width)));
+        frame.SetRecordText(record);
+        for (var field = 1; field <= width; field++) Assert.Equal("0007", frame.GetFieldValue(new(field)).AsString());
+        var captured = frame.GetFieldValue(new(width));
+        var full = memory.Accounting.CurrentCommittedBytes;
+
+        frame.SetRecordText(record);
+        var empty = memory.Accounting.CurrentCommittedBytes;
+        Assert.InRange(empty, AwkRuntimeMemory.EstimateRecordFieldListBytes(width) +
+            AwkRuntimeMemory.EstimateFieldValueListBytes(width), full);
+        Assert.Equal("0007", captured.AsString());
+        Assert.Equal("0007", frame.GetFieldValue(new(1)).AsString());
+        frame.SetRecordText(AwkText.Empty);
+        Assert.True(memory.Accounting.CurrentCommittedBytes < empty);
+        Assert.Equal("0007", captured.AsString());
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
 }

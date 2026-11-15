@@ -16,13 +16,13 @@ internal sealed class AwkFieldFrame(
     Action? checkpoint = null)
 {
     private const int MutationCheckpointFields = 1024;
-    // Bound reusable descriptor/cache storage; their headers are admitted separately.
-    private const int MaxReusableBufferBytes = 4096;
-    // Bound descriptor payload; its list/array headers are admitted separately.
-    private const int MaxReusableFieldListCapacity =
-        MaxReusableBufferBytes / AwkRuntimeMemory.RecordFieldBytes;
-    private const int MaxReusableFieldCacheCapacity =
-        (MaxReusableBufferBytes - AwkRuntimeMemory.ListBufferOverheadBytes) / AwkRuntimeMemory.CachedFieldValueBytes;
+    // Keep small buffers through empty/narrow records. Larger funded capacity is
+    // useful only while it fits the incoming record's conservative field bound.
+    private const int SmallReusableBufferBytes = 4096;
+    private const int SmallFieldBufferCapacity =
+        SmallReusableBufferBytes / AwkRuntimeMemory.RecordFieldBytes;
+    private const int SmallFieldCacheCapacity =
+        (SmallReusableBufferBytes - AwkRuntimeMemory.ListBufferOverheadBytes) / AwkRuntimeMemory.CachedFieldValueBytes;
     // Private empty view while a reusable buffer is staged; never mutated.
     private static readonly AwkRecordFieldBuffer EmptyFieldTexts = new();
 
@@ -648,7 +648,7 @@ internal sealed class AwkFieldFrame(
     public void SetRecordText(AwkText text) => SetRecordText(text, fieldSplitter.CaptureRecordPlan());
 
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan) =>
-        PublishRecordText(text, PrepareRecordPublication(text, splitPlan));
+        PublishRecordText(text, PrepareRecordPublication(text, splitPlan, text.ByteLength));
 
     internal void PublishRecordText(AwkText text, AwkRecordPublication publication)
     {
@@ -663,9 +663,10 @@ internal sealed class AwkFieldFrame(
         ClearSplitFields();
     }
 
-    internal AwkRecordPublication PrepareRecordPublication(AwkText text, AwkRecordSplitPlan splitPlan)
+    internal AwkRecordPublication PrepareRecordPublication(AwkText text, AwkRecordSplitPlan splitPlan,
+        int recordByteLength)
     {
-        var retained = EstimateEmptyRecordBytes(text, splitPlan);
+        var retained = EstimateEmptyRecordBytes(text, splitPlan, recordByteLength);
         return new(splitPlan, retained, Math.Max(0, retained - _retainedMemoryBytes));
     }
 
@@ -674,7 +675,7 @@ internal sealed class AwkFieldFrame(
         AwkRecordSplitPlan splitPlan)
     {
         var text = formatStringByteText(value);
-        ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan));
+        ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan, text.ByteLength));
         _splitPlan = splitPlan;
         ClearBufferedRecord();
         _recordText = text;
@@ -1271,8 +1272,7 @@ internal sealed class AwkFieldFrame(
 
         if (_fieldTexts.Count == 0)
             counters.RecordFieldSplit();
-        var reusable = _fieldTexts.Count == 0 && _fieldTexts.Capacity > 0 &&
-            ReuseFieldBuffer() ? _fieldTexts : null;
+        var reusable = _fieldTexts.Count == 0 && _fieldTexts.Capacity > 0 ? _fieldTexts : null;
         var reusableCapacity = reusable?.Capacity ?? 0;
         var previousCount = _fieldTexts.Count;
         var initialValues = _fieldValueCache;
@@ -1336,12 +1336,13 @@ internal sealed class AwkFieldFrame(
     private void ClearSplitFields(bool releaseCache = false)
     {
         _fieldCountValue = AwkValue.FromNumber(0);
+        var recordByteLength = RecordByteLength;
         // Producers only write unpublished frame-owned destinations.
-        if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer())
+        if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer(recordByteLength))
             _fieldTexts.Clear();
         else if (_fieldTexts.Capacity != 0)
             _fieldTexts = new();
-        if (!releaseCache && ReuseCacheBuffer())
+        if (!releaseCache && ReuseCacheBuffer(recordByteLength))
             _fieldValueCache.Clear();
         else
             _fieldValueCache = [];
@@ -1395,14 +1396,14 @@ internal sealed class AwkFieldFrame(
         _retainedMemoryBytes = newBytes;
     }
 
-    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan)
+    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan, int recordByteLength)
     {
         if (!governor.IsEnabled) return 0;
-        // Each reusable buffer retains at most 4 KiB of payload plus its headers.
-        // Only the variable text/configuration payload needs general checked sums.
-        var buffers = (ReuseFieldBuffer()
+        // Retain already-funded capacity, never allocate speculatively. The same
+        // incoming length selects storage here and when the owner clears its cells.
+        var buffers = (ReuseFieldBuffer(recordByteLength)
             ? AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity) : 0) +
-            (ReuseCacheBuffer() ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0);
+            (ReuseCacheBuffer(recordByteLength) ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0);
         return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes), buffers);
     }
@@ -1435,11 +1436,15 @@ internal sealed class AwkFieldFrame(
     private long EstimateFieldCacheBufferBytes(int capacity) =>
         governor.IsEnabled ? AwkRuntimeMemory.EstimateFieldValueListBytes(capacity) : 0;
 
-    private bool ReuseFieldBuffer() =>
-        _fieldTexts.Capacity <= MaxReusableFieldListCapacity;
+    // At most one field per byte plus an empty tail; allow ordinary doubling.
+    // Long calculations avoid overflow for the largest representable records.
+    private bool ReuseFieldBuffer(int recordByteLength) =>
+        _fieldTexts.Capacity <= SmallFieldBufferCapacity ||
+        _fieldTexts.Capacity <= 2L * (recordByteLength + 1L);
 
-    private bool ReuseCacheBuffer() =>
-        _fieldValueCache.Capacity <= MaxReusableFieldCacheCapacity;
+    private bool ReuseCacheBuffer(int recordByteLength) =>
+        _fieldValueCache.Capacity <= SmallFieldCacheCapacity ||
+        _fieldValueCache.Capacity <= 2L * (recordByteLength + 1L);
 
     private long AdjustEstimate(long currentBytes, long removedBytes, long addedBytes)
     {
