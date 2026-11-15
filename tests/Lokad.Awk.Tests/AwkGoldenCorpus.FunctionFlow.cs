@@ -10,6 +10,12 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("returned-numbers-complete-captured-array-updates",
+            ["""function text(p,k){p[k ":other"]=100;return "003"}function number(p,k){p[k ":other"]=200;return 4}function empty(){}BEGIN{a["x"]=7;print (a["x"]+=text(a,"x")),a["x"];a["x"]=9;print (a["x"]-=number(a,"x")),a["x"];b["r"]["x"]=5;print (b["r"]["x"]*=text(b["r"],"x")),b["r"]["x"];print (c["missing"]+=empty()),("missing" in c),c["missing"]}"""], [],
+            "10 10\n5 5\n15 15\n0 1 0\n");
+        yield return Passing("numeric-return-sources-preserve-conversion-and-spelling",
+            ["""function argn(x){return x+0}function globaln(){return g+0}function fieldn(i){return $i+0}function staticn(){return $2+0}function arrayn(p,k){return p[k]+0}function countn(){return NF+0}function literaln(){return "009"+0}function recordn(){return $0+0}function formattedn(){return sprintf("%02d",9)+0}BEGIN{g="007";$0="11 22";a["key"]="003";print argn("008"),globaln(),fieldn(2),staticn(),arrayn(a,"key"),countn(),literaln(),recordn(),formattedn();print g,typeof(g),a["key"],typeof(a["key"])}"""], [],
+            "8 7 22 22 3 2 9 11 9\n007 string 003 string\n");
         yield return Passing("text-argument-preserves-spelling-through-later-argument-and-callee-record-writes",
             ["function width(){$2=\"other\";return 4}function view(s,n){$1=\"changed\";return toupper(substr(s,1,n))}{print view($1,width()),$0}"], [],
             "CAFÉ changed other\n", "café 3\n");

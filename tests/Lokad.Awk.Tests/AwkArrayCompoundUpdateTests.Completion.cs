@@ -2,6 +2,38 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkArrayCompoundUpdateTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task ReturnedUpdateChecksCancellationAfterCalleeRefund(bool numeric)
+    {
+        var source = "function rhs(v){getline v<\"/rhs\";return " + (numeric ? "v+0" : "v") +
+            "}BEGIN{result=(values[\"k\"]+=rhs())}";
+        await using var execution = new NativeArrayExecution(source, true, new InputGate("/rhs", "0003\n", true));
+        var state = execution.State;
+        var array = AwkArrayName.FromText("values");
+        state.SetArrayAwkValue(array, Key, AwkValue.FromText("007"));
+        var run = execution.Start();
+        await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(run.IsCompleted);
+        var retired = false;
+        execution.Memory.Budget.OnRefund = () =>
+        {
+            if (state.IsInsideFunction) return;
+            retired = true;
+            execution.Cancel();
+        };
+        execution.Inputs[0].Release.TrySetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+
+        Assert.True(retired);
+        Assert.Equal("007", state.GetArrayAwkValue(array, Key).AsString());
+        Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
+        Assert.False(state.IsInsideFunction);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        execution.Memory.Budget.OnRefund = null;
+    }
+
     [Fact]
     public async Task FieldUpdateReadsItsNumericRegisterAfterAdmission()
     {
