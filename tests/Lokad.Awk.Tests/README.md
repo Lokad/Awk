@@ -29,6 +29,8 @@ facilities, not a public compilation API.
 Use real immediate and genuinely pending host operations to cover continuation order, single
 consumption, nested calls, file-phase reentry, nonlocal flow, failure and ignored cancellation.
 Check the visible prefix, stopped suffix, frame restoration, descriptor cleanup and final refunds.
+Public input/getline checks cover ready and pending hosts that ignore cancellation, preserving
+pending descriptor/funding lifetime and preventing subsequent output or END effects.
 Loop cancellation covers empty bodies and continue paths, including for loops without a step.
 Phase tests keep main-record permission through actual pending output/cancellation, then restore
 the enclosing phase before input progression or cleanup; sort callbacks retain their restrictions.
@@ -113,6 +115,8 @@ key and prior value across RHS mutation, deletion, replacement and rehash. Never
 entry references across mutation or suspension. Membership must not insert missing elements.
 Nested owner reads also cover file-action reentry with a hidden caller, live shared untyped
 origins, and current arrays after genuinely pending input clears and repopulates their storage.
+Standalone key and array-root reads keep visible bindings, including hidden caller scopes,
+without fresh admission when existing storage is fully funded.
 GNU-derived cases preserve overlapping and sequential updates/reads, postfix values, the latest
 repeated update and key mutation between an update and its following read.
 Complete operation/read bindings also cover current spelling and missing insertion after

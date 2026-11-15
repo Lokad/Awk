@@ -70,11 +70,9 @@ internal sealed class AwkInputScheduler(
 
         if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
         var status = input.Cursor.MoveNext(storage, ref pending);
-        if (status == AwkRecordReadStatus.Record)
-        {
-            state.Checkpoint();
-            return status;
-        }
+        // The cursor checks host/admission completion; language publication owns
+        // its post-admission, pre-effect check. This handoff adds no new boundary.
+        if (status == AwkRecordReadStatus.Record) return status;
         if (status == AwkRecordReadStatus.EndOfFile) pending = ValueTask.FromResult(false);
         pending = AdvanceInputAsync(storage, pending, hasRead: true);
         return AwkRecordReadStatus.Pending;
@@ -95,10 +93,7 @@ internal sealed class AwkInputScheduler(
                 pending = input.Cursor.MoveNextAsync(storage);
             }
             if (await pending.ConfigureAwait(false))
-            {
-                state.Checkpoint();
                 return true;
-            }
 
             var completedInput = _currentInput ??
                 throw new InvalidOperationException("A completed read requires an input cursor.");

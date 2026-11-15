@@ -551,6 +551,8 @@ or environment dependencies.
 - Cancellation tests should establish bounded responsiveness, effect ordering and cleanup.
   Region/backedge/call/host/long-primitive polls may replace redundant expression polls;
   preserve checks after admission callbacks and before observable effects. Do not add fuel.
+  Input cursors/host completion and language publication own cancellation; successful
+  scheduler handoff adds no poll. Keep publication's post-admission, pre-effect check.
   Loops without tail computation continue at their already-polled head. Actual for-steps
   and do/while conditions retain their tail boundary; cleanup precedes the next head check.
 - Avoid unnecessary allocations in record, field, regex, formatting and array paths. If a change
