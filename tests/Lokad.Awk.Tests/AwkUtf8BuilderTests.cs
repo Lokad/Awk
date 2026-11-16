@@ -4,6 +4,63 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkUtf8BuilderTests
 {
+    [Theory]
+    [InlineData(4)]
+    [InlineData(16)]
+    public void SpanAppendCopiesItsBorrowedPrefixWithOrWithoutGrowth(int capacity)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var builder = new AwkUtf8Builder(memory.Accounting, capacity);
+        builder.Append("abcd"u8);
+        var source = builder.AsMemory()[1..];
+
+        builder.Append(source.Span);
+
+        Assert.Equal("abcdbcd"u8.ToArray(), builder.AsSpan().ToArray());
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SpanAppendCancellationKeepsPublishedContent(bool grow)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var builder = new AwkUtf8Builder(memory.Accounting, grow ? 4 : 16);
+        builder.Append("abcd"u8);
+        if (grow) memory.Budget.OnGrowth = _ => cancellation.Cancel();
+        else cancellation.Cancel();
+
+        var error = Assert.ThrowsAny<OperationCanceledException>(() =>
+            builder.Append("efgh"u8, cancellation.Token.ThrowIfCancellationRequested));
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal("abcd"u8.ToArray(), builder.AsSpan().ToArray());
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void SpanAppendRefusalKeepsPublishedContent()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var builder = new AwkUtf8Builder(memory.Accounting, capacity: 4);
+        builder.Append("abcd"u8);
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        var error = Assert.Throws<AwkRuntimeException>(() => builder.Append("efgh"u8));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("abcd"u8.ToArray(), builder.AsSpan().ToArray());
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void AwkUtf8Builder_AppendsAndMaterializesExactAwkText()
     {

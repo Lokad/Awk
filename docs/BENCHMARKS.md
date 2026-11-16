@@ -2,7 +2,7 @@
 
 Release source build at [f6ea2a86](https://github.com/Lokad/Awk/commit/f6ea2a86c43fb8750dd7cb3b2e6e81751cd8616d), measured **2026-11-16 UTC**
 on quiet Linux x64: .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-All **82 managed and 81 available GNU timings**, plus **20 ordinary/shared cells**, are current.
+The snapshot covers **82 managed and 81 available GNU timings**, plus **20 ordinary/shared cells**.
 One medium long-field GNU invocation timed out; its time/ratio is unavailable. No retry was made.
 
 Times are BenchmarkDotNet medians; lower ratios are faster. Managed allocations

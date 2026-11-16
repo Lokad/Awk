@@ -174,10 +174,13 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (bytes.IsEmpty)
             return this;
 
-        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, bytes.Length);
-        EnsureCapacity(nextLength);
+        var length = Length;
+        // Available capacity proves the nonnegative sum fits. Actual growth
+        // retains its overflow check and admission before any copy/publication.
+        if (bytes.Length > _buffer.Length - length)
+            EnsureCapacity(AwkRuntimeMemory.CheckedAdd(length, bytes.Length));
         AwkText.CopyBytes(bytes, _buffer.AsSpan(Length), checkpoint);
-        Length = nextLength;
+        Length = length + bytes.Length;
         return this;
     }
 
