@@ -47,6 +47,8 @@ or environment dependencies.
   binding locals. Field-demand preparation, whole string/length/type operations, general builtin
   evaluation and main-record scheduling retain their deliberate call boundaries; qualify changes
   to these boundaries on complete workloads.
+  Ready field consumers keep their short readiness guard. Missing-field preparation owns
+  cold splitting and growth separately from the existing hot prepared-demand boundary.
   The view owns no storage and cannot survive an actual host suspension.
   Successful synchronous call entry binds that actual context directly. Edges that
   can finish execution or retain pending host work keep their completion handling.

@@ -1184,6 +1184,14 @@ internal sealed class AwkFieldFrame(
     {
         if (_fieldsAreSplit || (index.IsNamedField && index.Value <= _fieldTexts.Count))
             return;
+        EnsureMissingField(index);
+    }
+
+    // Ready readers keep their short guard; cold production owns scanning,
+    // allocation and publication without expanding each field consumer's stack.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void EnsureMissingField(AwkFieldIndex index)
+    {
         var upperBound = (long)RecordByteLength + 1;
         if (!index.IsNamedField ||
             index.Value >= upperBound || !_splitPlan.SupportsIncrementalFields)
