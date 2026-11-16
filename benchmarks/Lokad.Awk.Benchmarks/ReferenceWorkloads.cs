@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "scalar-sum-decimal", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-decimal", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "numeric-output", "sorting", "unicode", "unicode-prefix",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -72,8 +72,9 @@ internal static class ReferenceWorkloads
                 Bytes(nestedInput.ToString()), [], Bytes(total.ToString(CultureInfo.InvariantCulture) + " " + Math.Min(keys, count) + "\n"));
         }
 
-        if (name is "scalar-sum" or "field-call-loop" or "field-number-loop")
+        if (name is "scalar-sum" or "scalar-sum-decimal" or "field-call-loop" or "field-number-loop")
         {
+            var decimalValues = name == "scalar-sum-decimal";
             var scalarRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
             var scalarInput = new StringBuilder();
             long scalarTotal = 0;
@@ -81,9 +82,13 @@ internal static class ReferenceWorkloads
             {
                 var scalarNumber = scalarRow % 97;
                 scalarInput.Append('k').Append((scalarRow % 16).ToString(CultureInfo.InvariantCulture)).Append(' ')
-                    .Append(scalarNumber.ToString(CultureInfo.InvariantCulture)).Append('\n');
+                    .Append(scalarNumber.ToString(CultureInfo.InvariantCulture))
+                    .Append(decimalValues ? ".25\n" : "\n");
                 scalarTotal += scalarNumber;
             }
+            // All scales contain a multiple of four records. Quarter values and
+            // their final integral sum are exact, independently of runtime parsing.
+            if (decimalValues) scalarTotal += scalarRows / 4;
             var fieldCalls = name == "field-call-loop";
             var fieldNumbers = name == "field-number-loop";
             var scalarProgram = fieldCalls
@@ -282,17 +287,19 @@ internal static class ReferenceWorkloads
                 }
                 break;
             case "aggregate":
+            case "aggregate-decimal":
                 program = "{sum[$1]+=$2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\";for(k in sum)print k,sum[k]}";
                 fields = 2;
                 var totals = new SortedDictionary<string, int>(StringComparer.Ordinal);
                 for (var i = 0; i < rows; i++)
                 {
                     var key = "k" + (i % 16).ToString("D2", CultureInfo.InvariantCulture);
-                    input.Append(key).Append("\t1\n");
+                    input.Append(key).Append(name == "aggregate-decimal" ? "\t1.25\n" : "\t1\n");
                     totals[key] = totals.GetValueOrDefault(key) + 1;
                 }
                 foreach (var entry in totals)
-                    expected.Append(entry.Key).Append(' ').Append(entry.Value).Append('\n');
+                    expected.Append(entry.Key).Append(' ').Append(
+                        (entry.Value * (name == "aggregate-decimal" ? 1.25 : 1)).ToString(CultureInfo.InvariantCulture)).Append('\n');
                 break;
             case "profile-narrow":
             case "profile-wide":

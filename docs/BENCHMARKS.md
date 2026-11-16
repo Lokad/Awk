@@ -12,7 +12,8 @@ array hashing also samples a natural process seed.
 
 ## Representative processing
 
-All 54 catalog families. Most process 4,096 records; all-field, numeric-wide, fixed-count,
+The 54 measured catalog families. Decimal scalar-sum and keyed-aggregation counterparts
+await their dedicated quiet-machine measurements. Most process 4,096 records; all-field, numeric-wide, fixed-count,
 prefix-to-NF, wide-rebuilding and long-field cases use 256. Join uses 4,096 records per file;
 long Unicode prefixes use 64. Default execution has no shared admission. GNU-marked extensions
 do not imply full conformance.
