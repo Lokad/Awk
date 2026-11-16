@@ -2,6 +2,81 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFieldCancellationTests
 {
+    [Theory]
+    [InlineData(false, false)] [InlineData(true, false)] [InlineData(false, true)]
+    public void IncrementalSplitChecksCancellationAfterRetiringSeparator(bool reuseBuffer, bool existingPrefix)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var cancellation = new CancellationTokenSource();
+        using var context = new AwkFieldTestContext(counters, memory.Accounting,
+            checkpoint: cancellation.Token.ThrowIfCancellationRequested, separator: ":");
+        var frame = context.Frame;
+        if (reuseBuffer)
+        {
+            frame.SetRecordText(AwkText.FromSourceLiteralString("1:2:3"));
+            Assert.Equal(3, frame.GetFieldCount());
+        }
+        frame.SetRecordText(AwkText.FromSourceLiteralString("4:5"));
+        if (existingPrefix) Assert.Equal(4, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        var refunded = false;
+        var publishedAtRefund = false;
+        var countAtRefund = 0d;
+        memory.Budget.OnRefund = () =>
+        {
+            memory.Budget.OnRefund = null;
+            refunded = true;
+            publishedAtRefund = frame.TryGetFieldCountNumber(out countAtRefund);
+            cancellation.Cancel();
+        };
+
+        var error = Assert.Throws<OperationCanceledException>(() =>
+            frame.GetFieldNumber(new(2), AwkNumberParsingMode.Decimal));
+        Assert.True(refunded);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.True(publishedAtRefund);
+        Assert.Equal(2, countAtRefund);
+        Assert.True(frame.TryGetFieldCountNumber(out var count));
+        Assert.Equal(2, count);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
+    public void FullSplitChecksCancellationAfterRetiringPrefixStorage()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var cancellation = new CancellationTokenSource();
+        using var context = new AwkFieldTestContext(counters, memory.Accounting,
+            checkpoint: cancellation.Token.ThrowIfCancellationRequested, separator: ":");
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("4:5:6"));
+        Assert.Equal(4, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        var refunded = false;
+        var publishedAtRefund = false;
+        var countAtRefund = 0d;
+        memory.Budget.OnRefund = () =>
+        {
+            memory.Budget.OnRefund = null;
+            refunded = true;
+            publishedAtRefund = frame.TryGetFieldCountNumber(out countAtRefund);
+            cancellation.Cancel();
+        };
+
+        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldCountValue());
+        Assert.True(refunded);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.True(publishedAtRefund);
+        Assert.Equal(3, countAtRefund);
+        Assert.True(frame.TryGetFieldCountNumber(out var count));
+        Assert.Equal(3, count);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     private const int LongScan = 16_384;
 
     [Theory]

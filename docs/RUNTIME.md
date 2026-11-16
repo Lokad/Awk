@@ -219,6 +219,8 @@ appends while retaining the prior prefix and numeric caches. Long scans check ca
 4 KiB byte regions; owners also check admission and publication. Escaped CSV text is
 admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps
 an immutable owned subject. Unpublished scan storage stays owned until publication or cleanup.
+Completed fields publish before unused plan/staging funding is returned; cancellation
+from a refund stops the next consumer.
 Prepared computation and argument segments can extend known field prefixes within admitted capacity.
 This keeps cold admission and lazy byte materialization at their ordinary demand points, respects
 unknown effects and branches, and waits for pending output completion before preparing later work.

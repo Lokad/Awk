@@ -48,6 +48,9 @@ Mock file truncation occurs at open and appended data becomes visible after clos
 Append tests cover completed faults, synchronous throws and cancellation during callbacks,
 as well as pending stdout/warning borrows. Check stopped effects, cleanup and funding until
 actual completion, including hosts that ignore cancellation.
+Field-split refund tests cover reused buffers, new storage, prefix growth and full completion.
+Governor callbacks see the completed owner; cancellation there stops numeric/NF consumption
+and cleanup returns all funding.
 Return-owner tests retain the funded callee through both ready and pending host completion,
 including numeric/text captures and cancellation before caller mutation.
 Terminal local returns also cover full-budget handoffs, original spelling/input origins,

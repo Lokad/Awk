@@ -241,7 +241,10 @@ or environment dependencies.
   unpublished cache entries. Do not duplicate that lease through an external byref handle.
   Incremental raw-slice scans write an admitted tail with local result counters, then publish
   the logical count after existing checks. Failed scans leave the earlier count intact;
-  reference-free unpublished cells need no rollback. Keep the scoped growth lease. General
+  reference-free unpublished cells need no rollback. Keep the scoped growth lease.
+  Complete producer publication before retiring old plan/backing funding. Use the existing
+  staging lease for the ownership handoff, then observe refund-triggered cancellation
+  before a numeric/NF consumer resumes; failure cleanup remains noncancellable. General
   writers share this buffer for producers that actually grow or retain text.
   Extend prefixes within admitted capacity and complete splitting before taking field-mutation views.
   Prepared field demand requires already-available record/separator bytes and respects unknown
