@@ -5,6 +5,13 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("decimal-processing-keeps-input-spelling-and-numeric-string-origin",
+            ["{total+=$2;sum[$1]+=$2;saved=$2}END{print total,sum[\"a\"],sum[\"b\"],saved,typeof(saved)}"],
+            [], "3.5 1 2.5 -0.25 strnum\n", "a 1.25\nb 02.5\na -0.25\n");
+        yield return Passing("decimal-prefix-conversion-does-not-change-strict-input-classification",
+            ["{print $1+0,($1<3),$1,typeof($1)}"], [],
+            "10 0 10e0 strnum\n10 1 10e+ string\n10.25 1 10.25tail string\n0.25 1 .25 strnum\n",
+            "10e0\n10e+\n10.25tail\n.25\n");
         yield return Passing("long-unicode-record-prefix-processing",
             ["{total+=length(substr($2,1,2))}END{print total}"], [], "2\n",
             "key " + new string('é', 4096) + "\n");
