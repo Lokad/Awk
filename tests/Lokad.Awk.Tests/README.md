@@ -215,6 +215,9 @@ use isolated threads and bounded no-GC regions; semantics and lifetime coverage 
 
 ## Regex provider qualification
 
+Cache checks preserve replacement visibility during retirement, exactly-once release and clear/reinsert
+behavior. The collision/case golden keeps equal hashes distinct from pattern and sensitivity identity.
+
 Tests compile the example adapter against published Lokad.Utf8Regex 0.4.0. It lacks required
 POSIX longest/subcapture selection: `AwkRegexProviderGaps` explicitly defers 22 golden cases in
 both execution entries and three focused cases, 47 results total. Their original expectations

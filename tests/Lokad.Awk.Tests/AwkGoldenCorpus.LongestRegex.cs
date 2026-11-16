@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> LongestRegexCompatibilityRepairs() =>
     [
+        Passing("regex-cache-colliding-patterns-and-case-sensitivity",
+            ["function show(r){print (\"k32728\"~r),(\"k261234\"~r)} BEGIN{show(\"k32728\");show(\"k261234\");show(\"k261234\");show(\"k32728\");IGNORECASE=1;show(\"K32728\");IGNORECASE=0;show(\"K32728\");show(\"k32728\")}"],
+            [], "1 0\n0 1\n0 1\n1 0\n1 0\n0 0\n1 0\n"),
         Posix(Passing("regex-longest-alternation-and-earliest-start",
             ["BEGIN{print match(\"aaa\",/a|aa/),RSTART,RLENGTH;print match(\"aaa\",/aa|a/),RSTART,RLENGTH;print match(\"ab\",/b|ab/),RSTART,RLENGTH;print match(\"ab\",/a|b+/),RSTART,RLENGTH}"],
             [], "1 1 2\n1 1 2\n1 1 2\n1 1 1\n")),

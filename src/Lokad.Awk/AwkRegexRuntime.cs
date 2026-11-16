@@ -397,6 +397,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         bool fixedSensitivity, bool suppressInputStart) : IEquatable<AwkRegexCacheKey>
     {
         private readonly AwkText _pattern = pattern;
+        private int PatternHashCode { get; } = patternHashCode;
         private AwkText Pattern => _pattern;
         private AwkRegexCaseSensitivity Sensitivity { get; } = sensitivity;
         private AwkRegexSourceKind Kind { get; } = kind;
@@ -404,12 +405,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         private bool FixedSensitivity { get; } = fixedSensitivity;
         private bool SuppressInputStart { get; } = suppressInputStart;
 
-        public bool Equals(AwkRegexCacheKey other) => Sensitivity == other.Sensitivity &&
+        // MRU probes reuse the prepared hash before inspecting a different spelling.
+        public bool Equals(AwkRegexCacheKey other) => PatternHashCode == other.PatternHashCode && Sensitivity == other.Sensitivity &&
             Kind == other.Kind && Mode == other.Mode && FixedSensitivity == other.FixedSensitivity &&
             SuppressInputStart == other.SuppressInputStart && Pattern.Equals(other.Pattern);
         public override bool Equals(object? obj) => obj is AwkRegexCacheKey other && Equals(other);
         public override int GetHashCode() =>
-            HashCode.Combine(patternHashCode, Sensitivity, Kind, Mode, FixedSensitivity, SuppressInputStart);
+            HashCode.Combine(PatternHashCode, Sensitivity, Kind, Mode, FixedSensitivity, SuppressInputStart);
     }
 
 }

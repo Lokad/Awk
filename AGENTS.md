@@ -333,7 +333,12 @@ or environment dependencies.
   before effects and return a resolved identity with successful opens. Do not restore core lexical
   authorization or path collapsing; preserve exact stream/display names independently of source identity.
 - Regex providers own engine allocation admission and engine-specific protection. Keep the
-  existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
+  compiled-pattern LRU's key/value in its recency node; dictionary entries name that node.
+  MRU hits reuse the prepared pattern hash and full key equality, including spelling and
+  case/source/mode facts. Preserve replacement publication before old-handle retirement.
+  Do not add a parallel hot-pattern cache; existing pins retain active calls/searches.
+  Keep the existing budget/token contract; do not reintroduce core regex quotas or parallel
+  engine selectors.
   Providers own match selection and scalar matching; Awk owns AWK translation, validated capture
   publication, replacements and their ordinary storage. Do not add a core matching engine or fallback.
 - Regex searches borrow one complete immutable UTF-8 subject until disposal and use byte-only
