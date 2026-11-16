@@ -179,8 +179,9 @@ current formatting and pending-output/cancellation lifetimes. Raw coordinates an
 must agree after packed storage, hashing and language projection.
 Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
 preflights cover both key and value before copying or publishing either.
-Key equality and hashes agree across inline, ordinal, owned and borrowed forms; long comparisons
-and hashes retain cancellation coverage.
+Key equality and hashes agree across inline, ordinal, owned and borrowed forms. Long comparisons
+and hash scans retain cancellation coverage; canceled insertion/lookup preserves the dictionary.
+Hash-window cases also cover UTF-8 scalar crossings and the ordinary randomized hash domain.
 Deletion crosses numeric/text lookup representations and refunds the actual stored key,
 while ordinary owned-key entry access needs only its value and stable cell.
 Key forwarding preserves spelling, ordinal origins and adjacent arguments at full budget.

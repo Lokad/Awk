@@ -5,6 +5,58 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkArrayKeyTests
 {
+    [Theory]
+    [InlineData(8)] [InlineData(9)] [InlineData(15)] [InlineData(16)] [InlineData(17)]
+    [InlineData(4095)] [InlineData(4096)] [InlineData(4097)]
+    [InlineData(8191)] [InlineData(8192)] [InlineData(8193)] [InlineData(16387)]
+    public void LongRuntimeKeyHashesAgreeAcrossOwnedBorrowedAndCheckpointedViews(int byteLength)
+    {
+        var spelling = new string('x', byteLength - 6) + "é😀";
+        var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
+        var key = new AwkArrayKey(spelling);
+        var reference = new HashCode();
+        reference.AddBytes(bytes);
+        var expected = reference.ToHashCode();
+        var checkpointed = AwkArrayKeyComparer.ForRuntime(static () => { });
+
+        Assert.Equal(expected, AwkArrayKeyComparer.Instance.GetHashCode(key));
+        Assert.Equal(expected, AwkArrayKeyComparer.Instance.GetHashCode(bytes));
+        Assert.Equal(expected, checkpointed.GetHashCode(key));
+        Assert.Equal(expected, checkpointed.GetHashCode(bytes));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LongRuntimeKeyHashObservesCancellationDuringScan(bool borrowed)
+    {
+        var spelling = new string('x', 4 * AwkRuntimeLimits.CancellationCheckBytes) + "é😀";
+        var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
+        var key = new AwkArrayKey(spelling);
+        using var cancellation = new CancellationTokenSource();
+        var precedingBoundaries = 2;
+        void Checkpoint()
+        {
+            // Let entry and another boundary pass, then cancel during continued
+            // work. Assert the stopped operation, not an exact total poll count.
+            if (precedingBoundaries-- == 0) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        var comparer = AwkArrayKeyComparer.ForRuntime(Checkpoint);
+        var seed = new AwkArrayKey("seed");
+        var entries = new Dictionary<AwkArrayKey, int>(comparer) { [seed] = 7 };
+
+        var error = Assert.Throws<OperationCanceledException>(() =>
+        {
+            if (borrowed) _ = entries.GetAlternateLookup<ReadOnlySpan<byte>>().ContainsKey(bytes);
+            else entries.Add(key, 99);
+        });
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Single(entries);
+        Assert.Equal(7, entries[seed]);
+    }
+
     [Fact]
     public void ShortRuntimeByteKeysKeepAlternateLookupAcrossLengthsAndZeroBytes()
     {

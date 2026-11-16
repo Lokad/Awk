@@ -161,7 +161,8 @@ or environment dependencies.
   numeric factory or prepare decimal bytes for an operation that consumes a coordinate.
   Small-table scans must bound physical backing, not live Count, which can hide deleted
   positions. Reuse the actual comparer and stable cells without a parallel key/value cache.
-  Runtime comparers share randomized hashing for owned/borrowed bytes. Compact equality
+  Runtime comparers share randomized hashing for owned/borrowed bytes. Long hash scans
+  retain bounded cancellation; stable metadata hashing remains separate. Compact equality
   does not prepare mixed-representation buffers; raw key views stay synchronous. Short-byte
   runtime hashing shares the compact word encoding across owned, borrowed and ordinal projections.
   Complete nested reads/assignments/updates consume bound path components synchronously, preserving

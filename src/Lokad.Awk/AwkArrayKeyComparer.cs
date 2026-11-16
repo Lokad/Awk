@@ -47,9 +47,27 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     private int HashLongBytes(ReadOnlySpan<byte> bytes)
     {
-        var checkpoint = bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null;
+        if (bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes)
+            return HashLargeBytes(bytes);
+        var hash = new System.HashCode();
+        hash.AddBytes(bytes);
+        return hash.ToHashCode();
+    }
+
+    // Keep bounded progress and its callback out of ordinary key hashing. Full
+    // windows are aligned; the final tail preserves the one-shot byte sequence.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private int HashLargeBytes(ReadOnlySpan<byte> bytes)
+    {
+        var checkpoint = _checkpoint;
         checkpoint?.Invoke();
         var hash = new System.HashCode();
+        while (bytes.Length > AwkRuntimeLimits.CancellationCheckBytes)
+        {
+            hash.AddBytes(bytes[..AwkRuntimeLimits.CancellationCheckBytes]);
+            bytes = bytes[AwkRuntimeLimits.CancellationCheckBytes..];
+            checkpoint?.Invoke();
+        }
         hash.AddBytes(bytes);
         checkpoint?.Invoke();
         return hash.ToHashCode();
