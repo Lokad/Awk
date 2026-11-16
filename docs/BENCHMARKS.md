@@ -1,18 +1,36 @@
 # Benchmarks
 
-Release source build at [f6ea2a86](https://github.com/Lokad/Awk/commit/f6ea2a86c43fb8750dd7cb3b2e6e81751cd8616d), measured **2026-11-16 UTC**
-on quiet Linux x64: .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-The snapshot covers **82 managed and 81 available GNU timings**, plus **20 ordinary/shared cells**.
-One medium long-field GNU invocation timed out; its time/ratio is unavailable. No retry was made.
+Quiet Linux x64: .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2. Lower elapsed-time
+ratios are faster. Managed allocations include the host; GNU allocations are not compared.
+The measured source and method are explicit for each group below.
 
-Times are BenchmarkDotNet medians; lower ratios are faster. Managed allocations
-include the host; no GNU allocation comparison is claimed. Single-launch snapshots
-do not establish process-to-process variation or the effect of a source change;
-array hashing also samples a natural process seed.
+## Million-record processing
 
-## Representative processing
+Actual qualified Release-package runtime [7610e6be](https://github.com/Lokad/Awk/commit/7610e6bea90c6a8eab015a2b15b641be84ee247e), measured **2026-11-16 UTC**.
+Each script processes **1,048,576 records**. Default execution has no shared admission;
+shared execution supplies a 512 MiB budget. Both reuse a policy and live caller token,
+consume/hash complete output and finish with all execution reservations refunded.
 
-The 56 catalog families. Most process 4,096 records; all-field, numeric-wide, fixed-count,
+These are mean full-invocation times over five seconds after twelve seconds of warmup,
+including source parsing/compilation. They are separate from the BenchmarkDotNet medians
+below. Each cell uses one process; the keyed cells and other three families were measured
+in separate quiet cohorts at the same runtime revision. They do not establish variation between processes, a gain caused by a code change
+or an isolated governor cost.
+
+| Script | Lokad ms, default/shared | GNU ms | Lokad.Awk/awk, default/shared | Allocated MiB, default/shared |
+| --- | ---: | ---: | ---: | ---: |
+| Sum one numeric column | 76.646 / 89.218 | 85.208 | 0.90× / 1.05× | 0.084 / 0.085 |
+| Keyed sum / sorted output (GNU) | 99.171 / 114.642 | 90.673 | 1.09× / 1.26× | 0.128 / 0.129 |
+| Nested-array calls, 16 keys (GNU) | 338.302 / 411.104 | 300.898 | 1.12× / 1.37× | 0.215 / 0.216 |
+| Nested-array calls, 1,024 keys (GNU) | 331.476 / 375.766 | 317.397 | 1.04× / 1.18× | 0.842 / 0.843 |
+
+## Catalog processing
+
+Retained BenchmarkDotNet snapshot at [f6ea2a86](https://github.com/Lokad/Awk/commit/f6ea2a86c43fb8750dd7cb3b2e6e81751cd8616d), measured 2026-11-16 UTC.
+These 56 catalog families and the large-input table below were measured at that revision;
+they have not been rerun at 7610e6be.
+
+Most process 4,096 records; all-field, numeric-wide, fixed-count,
 prefix-to-NF, wide-rebuilding and long-field cases use 256. Join uses 4,096 records per file;
 long Unicode prefixes use 64. Default execution has no shared admission. GNU-marked
 extensions do not imply full conformance.
@@ -111,33 +129,13 @@ processing costs better than small inputs dominated by process startup.
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 5.563 | 21.764 | 0.26× | 0.106 |
 | Long Unicode field / bounded prefix | 8197.00 | 1.858 | 43.083 | 0.04× | 8.219 |
 
-## Shared memory admission
-
-Paired large-input runs with and without a supplied 512 MiB shared budget. These reuse
-execution options with no caller deadline; the public GNU comparison uses a 15 s deadline
-per invocation. Compare within each cohort. The host and output verification are shared.
-Single-cohort ratios include ordinary launch, hashing and JIT variation; they do not
-isolate the governor's cost.
-
-| Large-input script | Default ms | Shared ms | Shared/default | Default allocated MiB | Shared allocated MiB |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Sum one numeric column | 4.686 | 5.079 | 1.08× | 0.073 | 0.074 |
-| Sum one decimal column | 6.003 | 6.452 | 1.07× | 0.073 | 0.074 |
-| Keyed sum / sorted output (GNU) | 6.108 | 7.047 | 1.15× | 0.116 | 0.118 |
-| Decimal keyed sum / sorted output (GNU) | 7.210 | 7.859 | 1.09× | 0.117 | 0.118 |
-| Composite-key sum / sorted output (GNU) | 9.053 | 12.054 | 1.33× | 0.145 | 0.148 |
-| Nested-array calls, 16 keys (GNU) | 5.445 | 6.158 | 1.13× | 0.198 | 0.200 |
-| Nested-array calls, 1,024 keys (GNU) | 6.064 | 6.016 | 0.99× | 0.823 | 0.823 |
-| Text function with branches and local temporary | 13.665 | 15.353 | 1.12× | 0.164 | 0.165 |
-| Unicode length/substr / output | 15.940 | 18.415 | 1.16× | 0.079 | 0.080 |
-| Long Unicode field / bounded prefix | 1.877 | 1.963 | 1.05× | 8.218 | 8.219 |
-
 ## Method and refresh
 
-Quiet checks bracket all three batches; the native post-check followed about one
-minute after its batch. They verify sampled machine state, not continuous isolation.
-Source, binary and workload/output identities are verified. All 82 fixture/output
-checks and the existing counter contracts pass.
+Quiet checks bracket each measurement batch. They sample machine state, not continuous
+isolation. Source, binary, workload and expected-output identities are verified.
+The catalog retains 82 managed and 81 available GNU timings; one medium long-field
+GNU invocation timed out and remains unavailable, without a retry. All 82 catalog
+fixture/output checks pass. The current million-record fixtures also match GNU output.
 
 Regex uses the source adapter with pinned published Lokad.Utf8Regex 0.4.0.
 The in-memory host reuses completed append acceptance. Output verification batches
@@ -150,13 +148,14 @@ pipes and native file access; Lokad runs in process with an in-memory host. Ther
 startup subtraction or aggregate speedup. Locale is C/UTC, except Unicode workloads use C.UTF-8.
 Small-input ratios do not establish steady-processing parity.
 
-BenchmarkDotNet uses one launch, four warmups and five 500 ms measurement iterations.
+The catalog uses BenchmarkDotNet: one launch, four warmups and five 500 ms measurement iterations.
 Standard outlier handling applies. These snapshots
 do not isolate the effect of a source change. GNU elapsed comes from
 `ReferenceAwkBenchmarks.GnuAwkCli`; managed elapsed and allocations come from
 `WorkloadAllocationBenchmarks.LokadFullInvocation`. Reusing the allocation run avoids
-duplicate managed timing. Shared-admission rows use the same public invocation/output
-hashing boundary. Source, assembly/native hashes, equivalent output and quiet gates
+duplicate managed timing. The million-record default/shared cells use the same public invocation/output
+hashing boundary. The catalog uses a 15 s per-invocation deadline; compare within
+each cohort and method. Source, assembly/native hashes, equivalent output and quiet gates
 are checked. Raw results and historical experiments stay local.
 
 Use the stable SDK in `global.json`:
