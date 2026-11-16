@@ -1259,6 +1259,7 @@ internal sealed class AwkFieldFrame(
         if (!governor.IsEnabled) return false;
         if (ReferenceEquals(staging, AwkMemoryLease.Disabled))
         {
+            if (retainedBytes == _retainedMemoryBytes) return false;
             var retired = retainedBytes < _retainedMemoryBytes;
             ReplaceRetainedMemory(retainedBytes);
             return retired;
