@@ -279,7 +279,8 @@ or environment dependencies.
   record cells; only complete successful arithmetic parses establish numeric-string facts.
   Partial prefixes retain ordinary classification at comparison use. Already-owned decoded spelling keeps its
   cache slot and classification through reconstruction and copying. Full value reads still own
-  original spelling. Comparison views require a proven record-preserving RHS;
+  original spelling. Input construction consumes established classification captured before
+  materialization/admission; keep its creation service, long-text poll and cache preflight. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.
   Comparisons and multiargument text calls share a stack-local scalar operand. Unary text
   consumers use byte views directly; earlier captures still own their spelling. Whole results

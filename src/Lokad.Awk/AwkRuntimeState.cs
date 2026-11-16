@@ -287,9 +287,10 @@ internal sealed class AwkRuntimeState : IDisposable
             NumberParsingMode, CancellationCheckpoint);
     }
 
-    public AwkValue CreateNumericStringValue(AwkText text)
+    public AwkValue CreateNumericStringValue(AwkText text, AwkValue? classification = null)
     {
         Counters.RecordValueCreated();
+        if (classification is { } known) return known.WithByteText(text);
         Counters.RecordTextValueClassification();
         return AwkValue.FromNumericString(text, NumberParsingMode, CancellationCheckpoint);
     }

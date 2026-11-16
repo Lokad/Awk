@@ -22,7 +22,9 @@ internal sealed class AwkFieldTestContext : IDisposable
             _regex.CreateLiteral, _regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, check, accounting, counters);
         Frame = new AwkFieldFrame(counters, accounting, format ?? (static value => value.ByteText),
-            Splitter, createInputValue ?? (text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal, check)),
+            Splitter, (text, classification) => createInputValue is { } create ? create(text) :
+                classification is { } known ? known.WithByteText(text) :
+                AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal, check),
             text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
             resolveOutputFieldSeparator ?? (static () => AwkText.FromSourceLiteralString(" ")), check);
     }

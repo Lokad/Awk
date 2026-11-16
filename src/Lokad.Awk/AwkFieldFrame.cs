@@ -10,7 +10,7 @@ internal sealed class AwkFieldFrame(
     AwkMemoryAccounting governor,
     Func<AwkValue, AwkText> formatStringByteText,
     AwkFieldSplitter fieldSplitter,
-    Func<AwkText, AwkValue> createFieldValue,
+    Func<AwkText, AwkValue?, AwkValue> createFieldValue,
     Func<AwkText, AwkValue> createTextValue,
     Func<AwkText> resolveOutputFieldSeparator,
     Action? checkpoint = null)
@@ -215,7 +215,7 @@ internal sealed class AwkFieldFrame(
         _ = OwnedRecordText();
         if (!_recordValueIsCurrent)
         {
-            _recordValue = (_recordWasRecomposed ? createTextValue : createFieldValue)(_recordText);
+            _recordValue = _recordWasRecomposed ? createTextValue(_recordText) : createFieldValue(_recordText, null);
             _recordValueIsCurrent = true;
         }
 
@@ -264,7 +264,16 @@ internal sealed class AwkFieldFrame(
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private AwkValue MaterializeFieldValue(int fieldIndex)
     {
-        var value = createFieldValue(MaterializeField(_fieldTexts[fieldIndex]));
+        var field = _fieldTexts[fieldIndex];
+        AwkValue? classification = field.HasInputClassification ? field.InputClassification :
+            field.CacheSlot > 0 && _fieldValueCache[field.CacheSlot - 1].HasInputClassification
+                ? _fieldValueCache[field.CacheSlot - 1].Value : null;
+        var text = MaterializeField(field);
+        // Capture facts before admission can replace owner storage. Reusing them
+        // avoids a scan, but long owning reads retain their cancellation boundary.
+        if (classification.HasValue && text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
+            checkpoint?.Invoke();
+        var value = createFieldValue(text, classification);
         CacheFieldValue(fieldIndex, value);
         return value;
     }

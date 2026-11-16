@@ -3,6 +3,57 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkNumericFieldConsumptionTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public void ScalarEscapesReuseClassificationAndOwnTheOriginalSpelling(bool captureText, bool governed)
+    {
+        foreach (var spelling in new[] { "0007", "7tail", "7e+", "word" })
+        {
+            using var memory = State(governed);
+            var state = memory.State;
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("k " + spelling));
+            var expected = AwkValue.FromNumericString(AwkText.FromSourceLiteralString(spelling));
+            Assert.Equal(expected.AsNumber(), state.GetFieldNumber(2));
+            Assert.Equal(spelling == "0007", state.TryGetFieldComparisonNumber(2, out _));
+            var captured = captureText ? state.CaptureFieldStringText(2) : AwkText.Empty;
+            var classifications = state.Counters.TextValueClassifications;
+            var value = state.GetFieldValue(2);
+            Assert.Equal(classifications, state.Counters.TextValueClassifications);
+            Assert.Equal(expected.RuntimeKind, value.RuntimeKind);
+            Assert.Equal(expected.AsNumber(), value.AsNumber());
+            Assert.Equal(spelling, value.AsString());
+            if (captureText) Assert.True(captured.HasSameStorage(value.ByteText));
+            state.AssignFieldValue(2, AwkValue.FromText("0007"));
+            Assert.Equal(AwkRuntimeValueKind.String, state.GetFieldValue(2).RuntimeKind);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("next"));
+            Assert.Equal(spelling, value.AsString());
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void CanceledClassifiedEscapeKeepsOwnedSpellingAndRefundsStorage(bool governed)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = State(governed, cancellation.Token);
+        var state = memory.State;
+        var spelling = new string('0', 8192) + "7";
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("k " + spelling));
+        Assert.True(state.TryGetFieldComparisonNumber(2, out var number));
+        Assert.Equal(7, number);
+        var captured = state.CaptureFieldStringText(2);
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => state.GetFieldValue(2));
+        Assert.Equal(spelling, captured.AsString());
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void CompleteArithmeticFactsServeComparisonsWithoutChangingSpelling(bool governed)
     {

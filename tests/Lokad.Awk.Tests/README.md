@@ -120,7 +120,9 @@ locals or detached-entry replacements before frame reuse, under ordinary and sha
 Numeric-cache publication preserves captured cell snapshots, coordinates and rune caches
 through backing replacement. Complete successful raw-field parses also supply strict numeric-string
 facts to comparisons; partial prefixes retain classification at use. Spelling and assigned-string
-origins remain unchanged, including captures before a mutating RHS.
+origins remain unchanged, including captures before a mutating RHS. Full-value construction
+reuses established input classification captured before materialization/admission, while retaining
+the creation callback, long-text cancellation and owned-cache publication checks.
 
 Focused field/value/array tests preserve numeric-string origins and original spelling, lazy
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
