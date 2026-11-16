@@ -290,12 +290,12 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
         if (!allowArray) return false;
-        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.ArrayAlias && sourceSlot.TryGetArrayBinding(out var array))
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.ArrayAlias && sourceSlot.TryGetArrayBinding(out _))
         {
             // Capture the actual name/owner into the incoming frame. Activation
             // still repairs a child detached by a later argument.
             _counters.RecordIndexedLocalArrayArgument();
-            StageArrayAlias(incoming, index, sourceSlot.ArrayName, array);
+            if ((uint)index < (uint)incoming.Layout.SlotCount) incoming.StageCell(index, in sourceSlot);
             return true;
         }
         // Alias resolution can admit a potential origin. Capture before that

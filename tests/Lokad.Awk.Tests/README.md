@@ -37,6 +37,9 @@ the enclosing phase before input progression or cleanup; sort callbacks retain t
 Statement-completion tests preserve inherited output before later callee effects, CSV warning order
 and public print buffers through actual completion/cancellation. Retain the actual flush check and
 the ordering of admission/refund callbacks; host-effect classification alone cannot prove empty output.
+Captured field-key updates retain the old number through RHS admission, refusal and cancellation.
+Input-memory callbacks cover cell deletion/retyping with funded cleanup. Alias forwarding checks
+preserve full frame identities and evaluation of extra arguments before discarding them.
 Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests use the production
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks

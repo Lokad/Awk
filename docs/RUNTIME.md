@@ -483,7 +483,8 @@ local and temporary cleanup uses the activation's bounds, while retained capacit
 Cleared local cells already represent omitted arguments with an unassigned value; supplied
 arguments replace those cells in caller evaluation order.
 Scalar arguments capture their payload before admission and initialize those incoming cells directly;
-later callbacks cannot change the captured value. Array aliases and untyped origins retain reconciliation.
+later callbacks cannot change the captured value. Bound local array aliases forward their canonical
+cells; array aliases and untyped origins retain entry reconciliation.
 Function cells retain canonical scalar payloads, preserving spelling and input origins without a
 variable-slot conversion. Prepared reads use their execution frame; dynamic name resolution and
 standalone helpers retain visible-scope lookup. Payloads are captured before cancellation callbacks.

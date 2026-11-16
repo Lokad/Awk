@@ -193,6 +193,39 @@ public sealed class AwkFunctionLocalSlotTests
     }
 
     [Theory]
+    [InlineData(1L, false)] [InlineData(1L, true)]
+    [InlineData(9007199254740993L, false)] [InlineData(9007199254740993L, true)]
+    [InlineData(long.MaxValue, false)] [InlineData(long.MaxValue, true)]
+    public void ForwardedAliasesKeepFullIdentityAndDiscardExtraArguments(long frameId, bool extra)
+    {
+        var stack = CreateCallStack();
+        var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("parameter")]);
+        var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), frameId);
+        var array = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
+        stack.PushFrame(layout, [AwkFunctionLocalSlot.ArrayAlias(name, array)]);
+        var incoming = stack.PrepareFrame(extra ? AwkFunctionLocalLayout.Empty : layout);
+        try
+        {
+            Assert.True(stack.TryStageLocalArgument(stack.CurrentFrame, new(0), incoming, 0,
+                allowArray: true, prepareKey: false));
+            if (!extra)
+            {
+                var forwarded = incoming.GetSlot(0);
+                Assert.Equal(name, forwarded.ArrayName);
+                Assert.True(forwarded.Value.TryGetArrayBinding(out var owner));
+                Assert.Same(array, owner);
+                Assert.Equal(0L, BitConverter.DoubleToInt64Bits(forwarded.Value.StoredNumber));
+            }
+            Assert.Equal(name, stack.CurrentFrame.GetSlot(0).ArrayName);
+        }
+        finally
+        {
+            stack.DiscardIncomingFrame(incoming);
+            stack.PopFrame(static _ => { });
+        }
+    }
+
+    [Theory]
     [InlineData(1L)] [InlineData(9007199254740993L)] [InlineData(long.MaxValue)]
     public void AliasCellsKeepFullIdentityAndMutableOrigin(long frameId)
     {

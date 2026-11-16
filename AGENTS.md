@@ -388,7 +388,8 @@ or environment dependencies.
   Retirement clears active cells; inactive capacity was cleared at its previous retirement.
   Known owned keys arrive as keys and construct their immutable local cell at that owner;
   retained text keeps admission and post-admission cancellation before publication.
-  Existing key cells forward their canonical payload directly into cleared incoming cells.
+  Existing key and bound array-alias cells forward their canonical payload directly
+  into cleared incoming cells, preserving full alias names and ordinary alias indexing.
   Zero-payload staging borrows synchronously; positive admission first captures an owning cell.
   The frame publishes key payload words without unused alias copies, and retained non-scalar
   arguments share one admission/publication boundary. Preserve ordinary alias indexing.
