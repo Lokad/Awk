@@ -50,6 +50,9 @@ Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests 
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks
 distinguish captured storage slots, owned spelling, EOF and record-terminator clearing.
+Reusable owned records cover width/chunk boundaries, bounded retained capacity, refused/canceled
+staging and escaped spelling through slot reuse, getline and actual pending output. Small host
+borrows keep their separate bound; oversized records retain ordinary owning text.
 Entry checks preserve cancellation in empty and standalone programs, including refunds during
 record publication. Observe stopped effects and cleanup, without asserting entry opcodes.
 Record-header goldens cover computed SYMTAB observations, mutable ARGV and deferred NR

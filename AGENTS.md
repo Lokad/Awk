@@ -298,6 +298,9 @@ or environment dependencies.
   cached view. Main-input staging uses the inactive slot; getline keeps owned input. Escaping
   values own text and raw spans stay synchronous. Preserve publication preflights and funding
   through actual users and cleanup.
+  Keep small-borrow eligibility separate from reusable owned staging. Borrow retirement stays
+  bounded; larger staged records use the cancellable writer. Outliers retain ordinary owning
+  text without growing the two-slot cache past its retention ceiling.
   Record slots retain the reader's positive ASCII proof with their bytes through promotion;
   unproved replacements and disposal clear it. Field lengths consume that canonical proof without
   another whole-record scan or a duplicate frame flag.

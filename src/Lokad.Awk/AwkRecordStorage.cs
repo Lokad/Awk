@@ -7,7 +7,8 @@ namespace Lokad.Awk;
 internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
     AwkRuntimeCounters counters, Action checkpoint, AwkFieldFrame? frame = null) : IDisposable
 {
-    private const int MaxReusableRecordBytes = 4096;
+    private const int MaxBorrowedRecordBytes = 4096;
+    private const int MaxReusableRecordBytes = 65536;
     private RecordBuffer _first;
     private RecordBuffer _second;
     private int _currentSlot;
@@ -27,6 +28,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
     }
 
     internal static bool CanStage(int length) => length is > 0 and <= MaxReusableRecordBytes;
+    internal static bool CanBorrow(int length) => length is > 0 and <= MaxBorrowedRecordBytes;
 
     private ref RecordBuffer BufferAt(int slot)
     {

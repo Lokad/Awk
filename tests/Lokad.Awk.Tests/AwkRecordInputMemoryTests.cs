@@ -623,21 +623,57 @@ public sealed class AwkRecordInputMemoryTests
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
-        foreach (var count in new[] { 1, 32, 4096, 128, 2048, 1, 4096, 16 })
+        foreach (var count in new[] { 1, 32, 4096, 8192, 65536, 128, 32768, 1, 65536, 16 })
         {
             var bytes = Encoding.UTF8.GetBytes(new string('x', count));
             Assert.True(AwkRecordStorage.CanStage(bytes.Length));
             storage.StageValidated(bytes);
             Assert.True(storage.Content.Span.SequenceEqual(bytes));
-            Assert.InRange(memory.Budget.Reserved, 1, 8192);
+            Assert.Equal(count <= 4096, AwkRecordStorage.CanBorrow(count));
+            Assert.InRange(memory.Budget.Reserved, 1, 131072);
         }
         var held = memory.Budget.Reserved;
         var last = storage.Content;
-        Assert.False(AwkRecordStorage.CanStage(8192));
+        Assert.False(AwkRecordStorage.CanStage(65537));
         Assert.Equal(last, storage.Content);
         Assert.Equal(held, memory.Budget.Reserved);
         storage.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(4097, false)] [InlineData(4097, true)]
+    [InlineData(8193, false)] [InlineData(8193, true)]
+    [InlineData(65536, false)] [InlineData(65536, true)]
+    [InlineData(65537, false)] [InlineData(65537, true)]
+    public async Task OwnedInputEscapesSurviveSlotReuseGetlineAndPendingOutput(int width, bool pending)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var record = "0007 " + new string('x', width - 7) + "é";
+        var host = new InputHost(budget, record + "\n", "next 1\nthird 2\nfourth 3\n")
+        {
+            PoisonConsumedBytes = true,
+            PendingOutput = pending ? () => { entered.TrySetResult(); return release.Task; } : null
+        };
+        const string source = "NR==1{whole=$0;part=$1;getline;$1=\"changed\";next}" +
+            "END{print length(whole),substr(whole,length(whole),1),part,part+0,NR}";
+        var run = Execute(source, host, budget);
+        try
+        {
+            if (pending)
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(run.IsCompleted);
+                Assert.True(budget.Reserved >= width);
+            }
+        }
+        finally { release.TrySetResult(); }
+        Assert.Equal(0, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal($"{width - 1} é 0007 7 4\n", host.Output);
+        Assert.Equal("", host.Error);
+        AssertRefunded(budget);
     }
 
     private static Task<AwkExitCode> Execute(string script, InputHost host, CooperativeTestBudget budget,

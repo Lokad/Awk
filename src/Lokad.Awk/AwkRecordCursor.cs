@@ -157,7 +157,9 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 {
                     if (!_reader.ContentIsAscii)
                         AwkText.ThrowIfInvalidUtf8(line.RecordBytes.Span, _state.CancellationCheckpoint);
-                    storage.StageBorrowed(_reader, line.RecordBytes);
+                    if (AwkRecordStorage.CanBorrow(line.RecordBytes.Length))
+                        storage.StageBorrowed(_reader, line.RecordBytes);
+                    else storage.StageValidated(line.RecordBytes.Span);
                     record = AwkInputRecordResult.Buffered(storage, line.Terminator);
                 }
                 else
@@ -167,7 +169,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                         line.Terminator, AwkRecordFieldSplittingMode.Ordinary);
                     _state.ThrowIfCancellationRequested();
                 }
-                // StageBorrowed already polls after admission and before publication.
+                // Both storage writers poll after admission and before publication.
                 // No callback separates that owner check from prefix bookkeeping.
                 _reader.Advance(length);
                 _hasConsumedDescriptorBytes = true;
