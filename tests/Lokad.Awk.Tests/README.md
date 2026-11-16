@@ -40,6 +40,8 @@ the ordering of admission/refund callbacks; host-effect classification alone can
 Captured field-key updates retain the old number through RHS admission, refusal and cancellation.
 Input-memory callbacks cover cell deletion/retyping with funded cleanup. Alias forwarding checks
 preserve full frame identities and evaluation of extra arguments before discarding them.
+Argument captures cover admission changing visible scope or later cells, explicit execution owners,
+and name fallback without replaying earlier captures.
 Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests use the production
 `MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
 Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks

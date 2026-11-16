@@ -124,6 +124,94 @@ public sealed class AwkArgumentBindingTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void LaterArgumentsUseCurrentVisibleScopeOrTheirExplicitOwnerAfterAdmission(bool explicitOwner)
+    {
+        using var fixture = State();
+        var state = fixture.State;
+        var text = AwkVariableName.FromText("text");
+        var number = AwkVariableName.FromText("number");
+        var layout = new AwkFunctionLocalLayout([text, number]);
+        var spelling = new string('x', 4096);
+        state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling)),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
+        var caller = state.CurrentFunctionFrame;
+        var replacement = state.PrepareFunctionFrame(layout);
+        replacement.StageNumber(0, 9);
+        replacement.StageNumber(1, 17);
+        var incoming = state.PrepareFunctionFrame(layout);
+        var activated = false;
+        fixture.Budget.OnGrowth = _ =>
+        {
+            fixture.Budget.OnGrowth = null;
+            state.ActivateFunctionFrame(replacement);
+            activated = true;
+        };
+        try
+        {
+            state.StageFunctionLocalArgument(explicitOwner ? caller : null,
+                new(AwkRegionArgumentKind.Local, 0, text), incoming, 0);
+            state.StageFunctionLocalArgument(explicitOwner ? caller : null,
+                new(AwkRegionArgumentKind.Local, 1, number), incoming, 1);
+            Assert.True(activated);
+            Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());
+            Assert.Equal(explicitOwner ? 7 : 17, incoming.GetSlot(1).Value.AsNumber());
+            Assert.Same(replacement, state.CurrentFunctionFrame);
+        }
+        finally
+        {
+            fixture.Budget.OnGrowth = null;
+            state.DiscardIncomingFunctionFrame(incoming);
+            if (activated) state.PopFunctionFrame();
+            else state.DiscardIncomingFunctionFrame(replacement);
+            state.PopFunctionFrame();
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Fact]
+    public void NameFallbackKeepsEarlierCapturesAndLaterSourceReads()
+    {
+        using var fixture = State();
+        var state = fixture.State;
+        var text = AwkVariableName.FromText("text");
+        var number = AwkVariableName.FromText("number");
+        var global = AwkVariableName.FromText("global");
+        var spelling = new string('x', 4096);
+        state.AssignVariableValue(global, AwkValue.FromNumber(23));
+        state.PushFunctionFrame(new([text, number]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling)),
+            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
+        var caller = state.CurrentFunctionFrame;
+        var incoming = state.PrepareFunctionFrame(new([text, global, number, AwkVariableName.FromText("last")]));
+        incoming.StageNumber(3, 42);
+        fixture.Budget.OnGrowth = _ =>
+        {
+            fixture.Budget.OnGrowth = null;
+            caller.GetSlot(0) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9));
+            caller.GetSlot(1) = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(17));
+        };
+        try
+        {
+            state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 0, text), incoming, 0);
+            state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 99, global), incoming, 1);
+            state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 1, number), incoming, 2);
+            Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());
+            Assert.Equal(23, incoming.GetSlot(1).Value.AsNumber());
+            Assert.Equal(17, incoming.GetSlot(2).Value.AsNumber());
+            Assert.Equal(42, incoming.GetSlot(3).Value.AsNumber());
+        }
+        finally
+        {
+            fixture.Budget.OnGrowth = null;
+            state.DiscardIncomingFunctionFrame(incoming);
+            state.PopFunctionFrame();
+        }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void ForwardedChildKeepsItsCaptureUntilDetachedActivation(bool governed)
     {
         using var fixture = State(governed);
