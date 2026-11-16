@@ -7,6 +7,58 @@ public sealed class AwkPreparedNumericUpdateTests
     private static readonly AwkVariableName Result = AwkVariableName.FromText("result");
 
     [Theory]
+    [InlineData("k", "number")] [InlineData("é", "number")]
+    [InlineData("k", "cancel")] [InlineData("é", "cancel")]
+    [InlineData("k", "refuse")] [InlineData("é", "refuse")]
+    public void CompleteFieldUpdatesPreserveCapturedNumberAcrossAdmission(string spelling, string outcome)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = State(true, cancellation.Token);
+        var state = memory.State;
+        var array = AwkArrayName.FromText("values");
+        var key = new AwkArrayKey(spelling);
+        var region = Bind(state, "values[$1]+=$300", "values[\"warm\"]+=0;");
+        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(spelling + " " +
+            string.Join(' ', Enumerable.Repeat("3", 299))));
+        state.GetFieldNumber(1);
+        using var storage = new AwkRegionStorage(state);
+        storage.Initialize(region);
+        var captures = state.Counters.BorrowedFieldTargetSnapshots;
+        var attempted = false;
+        if (outcome == "refuse") memory.Budget.RefuseNextAdmissionMinimumGrowth = 4096;
+        memory.Budget.OnGrowth = bytes =>
+        {
+            if (bytes < 4096) return;
+            memory.Budget.OnGrowth = null;
+            attempted = true;
+            Assert.True(state.Counters.BorrowedFieldTargetSnapshots > captures);
+            if (outcome == "number") state.SetArrayAwkValue(array, key, AwkValue.FromNumber(100));
+            else if (outcome == "cancel") cancellation.Cancel();
+        };
+        if (outcome == "cancel")
+            Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        else if (outcome == "refuse")
+        {
+            var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+            Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
+        }
+        else
+        {
+            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(10, state.ResolveVariableValue(Result).AsNumber());
+        }
+        Assert.True(attempted);
+        Assert.True(state.TryPeekArrayAwkValue(array, key, out var value));
+        Assert.Equal(outcome is "cancel" or "refuse" ? 7 : 10, value.AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void CompleteUpdatesKeepThePriorNumberAcrossRightAdmission(bool arrayTarget)
     {
@@ -131,9 +183,9 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRegion Bind(AwkRuntimeState state, string expression)
+    private static AwkRegion Bind(AwkRuntimeState state, string expression, string prefix = "")
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{result=(" + expression + ")}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + prefix + "result=(" + expression + ")}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

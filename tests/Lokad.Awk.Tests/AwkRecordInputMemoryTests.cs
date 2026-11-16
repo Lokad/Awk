@@ -6,6 +6,65 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordInputMemoryTests
 {
     [Theory]
+    [InlineData("k", false, false)] [InlineData("k", false, true)]
+    [InlineData("k", true, false)] [InlineData("k", true, true)]
+    [InlineData("é", false, false)] [InlineData("é", false, true)]
+    [InlineData("é", true, false)] [InlineData("é", true, true)]
+    public async Task CompleteFieldUpdatesRevalidateAfterInputMemoryCallbacks(string spelling, bool delete, bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()))));
+        var state = memory.State;
+        var source = Encoding.UTF8.GetBytes(spelling + " " + string.Join(' ', Enumerable.Repeat("3", 299)));
+        using var manager = new TestMemoryManager(source);
+        ReadOnlyMemory<byte> bytes = manager.Memory;
+        Assert.True(memory.Budget.TryReserve(bytes.Length, out var funding));
+        var host = new MockFileSystem
+        {
+            ReadAsyncOverride = (_, _, _) => ValueTask.FromResult(AwkReadBuffer.FromContent(bytes,
+                AwkReadCompletion.EndOfFile, _ => funding.Dispose()))
+        };
+        using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
+            state.Resources, false, 4096);
+        Assert.True(await reader.TryBufferAsync());
+        var records = state.InputRecordStorage;
+        records.StageBorrowed(reader, reader.Content);
+        state.PublishInputRecord(AwkInputRecordResult.Buffered(records, AwkRecordTerminator.Empty), readsMainInput: false);
+        state.GetFieldNumber(1);
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{values[\"warm\"]+=0;result=(values[$1]+=$300)}"));
+        Assert.True(binding.Success);
+        var program = binding.Program.Program;
+        state.InitializeGlobalNames(program.GlobalNames);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        var array = AwkArrayName.FromText("values");
+        var key = new AwkArrayKey(spelling);
+        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        var captures = counters.BorrowedFieldTargetSnapshots;
+        var changed = false;
+        manager.OnGetSpan = () =>
+        {
+            if (counters.BorrowedFieldTargetSnapshots <= captures) return;
+            manager.OnGetSpan = null;
+            changed = true;
+            if (delete) state.DeleteArrayValue(array, key);
+            else state.SetArrayAwkValue(array, key, AwkValue.FromText("100"));
+        };
+        using var storage = new AwkRegionStorage(state);
+        Assert.Equal(AwkStatementFlow.Continue, Assert.Single(program.BeginActions).Execute(state, storage));
+        Assert.True(changed);
+        Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
+        Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        storage.Dispose();
+        reader.Dispose();
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task CapturedReaderRangeKeepsSpellingAfterRecordSlotsAreReplaced(bool governed, bool customMemory)
@@ -95,7 +154,8 @@ public sealed class AwkRecordInputMemoryTests
 
     private sealed class TestMemoryManager(byte[] bytes) : MemoryManager<byte>
     {
-        public override Span<byte> GetSpan() => bytes;
+        public Action? OnGetSpan { get; set; }
+        public override Span<byte> GetSpan() { OnGetSpan?.Invoke(); return bytes; }
         public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
         public override void Unpin() { }
         protected override void Dispose(bool disposing) { }
