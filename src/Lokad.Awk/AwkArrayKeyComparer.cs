@@ -6,12 +6,12 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
     IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey>
 {
     private readonly Action? _checkpoint;
-    private readonly AwkRuntimeCounters _counters;
+    private readonly AwkRuntimeCounters? _counters;
 
     private AwkArrayKeyComparer(Action? checkpoint, AwkRuntimeCounters counters)
     {
         _checkpoint = checkpoint;
-        _counters = counters;
+        _counters = counters.IsEnabled ? counters : null;
     }
 
     // The shared comparer is callback-free. Only runtime-owned tables
@@ -30,7 +30,7 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     public bool Equals(ReadOnlySpan<byte> bytes, AwkArrayKey key)
     {
-        if (_counters.IsEnabled) _counters.RecordArrayEquality();
+        if (_counters is { } counters) counters.RecordArrayEquality();
         return key.Equals(bytes, bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ||
             key.NeedsCancellationCheckpoint ? _checkpoint : null);
     }
@@ -41,7 +41,7 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
     {
         var hash = bytes.Length <= AwkArrayKey.InlineByteCapacity
             ? AwkArrayKey.HashShortRuntimeBytes(bytes) : HashLongBytes(bytes);
-        if (_counters.IsEnabled) _counters.RecordArrayHash(bytes.Length, borrowed);
+        if (_counters is { } counters) counters.RecordArrayHash(bytes.Length, borrowed);
         return hash;
     }
 
@@ -57,7 +57,7 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
 
     public bool Equals(AwkArrayKey left, AwkArrayKey right)
     {
-        if (_counters.IsEnabled) _counters.RecordArrayEquality();
+        if (_counters is { } counters) counters.RecordArrayEquality();
         return left.Equals(right, left.NeedsCancellationCheckpoint ||
             right.NeedsCancellationCheckpoint ? _checkpoint : null);
     }
@@ -66,7 +66,7 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
     {
         if (key.TryGetInlineRuntimeHash(out var hash, out var length))
         {
-            if (_counters.IsEnabled) _counters.RecordArrayHash(length, borrowed: false);
+            if (_counters is { } counters) counters.RecordArrayHash(length, borrowed: false);
             return hash;
         }
         return HashProjectedKey(key);

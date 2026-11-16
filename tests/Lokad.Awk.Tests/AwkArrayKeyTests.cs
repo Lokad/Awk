@@ -5,6 +5,34 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkArrayKeyTests
 {
+    [Fact]
+    public void ShortRuntimeByteKeysKeepAlternateLookupAcrossLengthsAndZeroBytes()
+    {
+        var comparer = AwkArrayKeyComparer.Instance;
+        var expected = new Dictionary<string, int>(StringComparer.Ordinal);
+        var entries = new Dictionary<AwkArrayKey, int>(comparer);
+        for (var value = 0; value < 128; value++)
+        foreach (var spelling in new[] { "", ((char)value).ToString(), new string([(char)value, '\0']),
+            new string(['\0', (char)value]), new string([(char)value, '\0', '\0']),
+            new string(['\0', (char)value, '\0']), new string(['\0', '\0', (char)value]),
+            new string([(char)value, '\0', '\0', '\0']) })
+        {
+            if (!expected.TryAdd(spelling, expected.Count)) continue;
+            var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
+            var key = new AwkArrayKey(spelling);
+            var restored = AwkArrayKey.FromStorage(key.StoredText, key.StoredOrdinal, key.StorageTag);
+            Assert.Equal(comparer.GetHashCode(bytes), comparer.GetHashCode(restored));
+            entries.Add(restored, expected[spelling]);
+        }
+        var alternate = entries.GetAlternateLookup<ReadOnlySpan<byte>>();
+        Assert.Equal(expected.Count, entries.Count);
+        foreach (var (spelling, value) in expected)
+        {
+            Assert.Equal(value, alternate[AwkUtf8Codec.Encode(spelling).Span]);
+            Assert.Equal(value, entries[new AwkArrayKey(spelling)]);
+        }
+    }
+
     [Theory]
     [InlineData(int.MinValue)] [InlineData(-1)] [InlineData(0)] [InlineData(1)]
     [InlineData(16)] [InlineData(1024)] [InlineData(9999999)] [InlineData(int.MaxValue)]

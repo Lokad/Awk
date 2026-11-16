@@ -191,7 +191,9 @@ retain actual casing preparation/conversion. Goldens observe assignments, nested
 formatting and input origins.
 
 `AwkRuntimeCounters` assertions measure actual byte conversion, field preparation, copies and
-transport. Retire counters when their mechanism disappears. Tests that force GC or measure
+transport. Key comparer diagnostics select immutable enablement at construction; default
+lookups retain no disabled observer. Key projection tests cover byte-length boundaries,
+embedded zero bytes and agreement between retained and borrowed lookup. Retire counters when their mechanism disappears. Tests that force GC or measure
 thread-local allocation use `[Collection(AwkAllocationMeasurementCollection.Name)]`.
 Keep warm allocation ceilings unchanged when isolating tests. A few exact BCL allocation guards
 use isolated threads and bounded no-GC regions; semantics and lifetime coverage run separately.
