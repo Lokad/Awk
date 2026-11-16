@@ -10,6 +10,12 @@ internal static partial class AwkGoldenCorpus
 
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("function-nested-arguments-preserve-capture-and-effect-order",
+            ["""function take(x){trace=trace x;return x}function join(x,y){return x ":" y}BEGIN{print take("B");print join(take("L"),take("R"));print take("A");print trace}"""], [],
+            "B\nL:R\nA\nBLRA\n");
+        yield return Passing("function-sort-comparator-nests-inside-argument-preparation",
+            ["""function same(x){return x}function difference(x,y){return x-y}function cmp(k1,v1,k2,v2){return difference(v1,v2)}BEGIN{a["late"]=2;a["early"]=1;print same(asorti(a,b,"cmp")),b[1],b[2]}"""], [],
+            "2 early late\n");
         yield return Passing("returned-numbers-complete-captured-array-updates",
             ["""function text(p,k){p[k ":other"]=100;return "003"}function number(p,k){p[k ":other"]=200;return 4}function empty(){}BEGIN{a["x"]=7;print (a["x"]+=text(a,"x")),a["x"];a["x"]=9;print (a["x"]-=number(a,"x")),a["x"];b["r"]["x"]=5;print (b["r"]["x"]*=text(b["r"],"x")),b["r"]["x"];print (c["missing"]+=empty()),("missing" in c),c["missing"]}"""], [],
             "10 10\n5 5\n15 15\n0 1 0\n");

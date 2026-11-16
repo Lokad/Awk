@@ -432,12 +432,13 @@ or environment dependencies.
   Source category, callee consumption and array eligibility stay independent prepared data;
   do not recombine them into cross-product execution tags.
   Preserve actual dynamic kind/name resolution; capture caller cells before admission callbacks.
-  Adjacent staging uses one ordered segment
-  and one incoming-frame lookup; earlier segments remain before intervening effects, and the
-  final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
-  Adjacent frame preparation belongs to the final Call's shared synchronous preparation/staging
-  boundary, which returns its actual incoming frame. Keep initial cancellation/admission before
-  final captures; earlier argument segments retain registered ownership at the original boundary.
+  Adjacent staging uses one ordered segment; retained segments retrieve their actual incoming
+  frame once, and the final segment belongs to Call. Keep long-segment cancellation polls.
+  Complete adjacent calls own incoming frames locally through preparation and activation,
+  without scratch registration. Keep initial cancellation/admission before ordered captures.
+  Failed local entry discards only an incoming frame; activated frames use saved-caller unwinding.
+  Earlier argument segments and sort callbacks retain registered ownership at their original
+  boundaries. Prepare physical slots only for retained calls; slot ownership needs no entry flag.
   Borrow immutable call and argument descriptors during synchronous preparation;
   local/global staging reads their source, name and consumption data at the actual consumer.
   Prepare field demand once per segment and consume it at the first static field after earlier

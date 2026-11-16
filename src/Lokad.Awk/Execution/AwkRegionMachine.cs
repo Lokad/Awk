@@ -70,6 +70,30 @@ internal partial struct AwkRegionMachine
         }
     }
 
+    private void PrepareCall(in AwkRegionCall call, in AwkRegionInstruction instruction,
+        in AwkRegionComputation computation, int resumePosition)
+    {
+        AwkFunctionFrame frame;
+        if (call.Slot < 0)
+        {
+            _state.ThrowIfCancellationRequested();
+            frame = _state.PrepareFunctionFrame(call.Function.LocalLayout);
+        }
+        else frame = _storage.IncomingFrame(call.Slot);
+        try
+        {
+            computation.StageCallArguments(in call, frame, instruction.Right,
+                call.Arguments.Length - instruction.Right, call.FinalFieldDemand);
+            _position = resumePosition;
+            EnterCall(in call, frame, instruction.Target, (AwkRegionReturnConsumer)instruction.Detail);
+        }
+        catch
+        {
+            if (call.Slot < 0 && frame.IsIncoming) _state.DiscardIncomingFunctionFrame(frame);
+            throw;
+        }
+    }
+
     private void EnterCall(in AwkRegionCall call, AwkFunctionFrame frame, int destination, AwkRegionReturnConsumer consumer)
     {
         frame.SetCaller(_region, _storage, _position, _frame, destination, consumer);
@@ -77,7 +101,7 @@ internal partial struct AwkRegionMachine
         // The activated frame already has its saved caller. It owns unwinding
         // even if obtaining or preparing callee scratch fails below.
         _frame = frame;
-        _storage.ActivatedCall(call.Slot);
+        if (call.Slot >= 0) _storage.ActivatedCall(call.Slot);
         var region = call.Function.Region ?? throw new InvalidOperationException("A called function has not been prepared.");
         var storage = frame.GetRegionStorage(_state);
         _region = region;

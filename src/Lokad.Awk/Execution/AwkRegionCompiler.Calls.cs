@@ -51,7 +51,6 @@ internal sealed partial class AwkRegionCompiler
             {
                 _started = true;
                 var slot = compiler._activeCalls++;
-                compiler._incomingCalls = Math.Max(compiler._incomingCalls, compiler._activeCalls);
                 _call = compiler._calls.Count;
                 compiler._calls.Add(new(function, slot));
                 compiler.Emit(new(AwkRegionInstructionKind.BeginCall, Left: _call));
@@ -101,7 +100,10 @@ internal sealed partial class AwkRegionCompiler
                 compiler._code.RemoveAt(compiler._code.Count - 1);
                 compiler._straightLine--;
             }
-            compiler._calls[_call] = new(function, compiler._calls[_call].Slot, _arguments.ToArray(), fieldDemand, beginsFrame);
+            var incomingSlot = beginsFrame ? -1 : compiler._calls[_call].Slot;
+            if (incomingSlot >= 0)
+                compiler._incomingCalls = Math.Max(compiler._incomingCalls, incomingSlot + 1);
+            compiler._calls[_call] = new(function, incomingSlot, _arguments.ToArray(), fieldDemand);
             var counted = function.ReturnsStringLength;
             var returned = counted ? compiler._numbers++ : compiler._values++;
             compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending,

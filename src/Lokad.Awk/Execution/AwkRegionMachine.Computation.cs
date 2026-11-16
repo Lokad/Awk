@@ -445,18 +445,10 @@ internal partial struct AwkRegionMachine
             return false;
         }
 
-        internal AwkFunctionFrame PrepareCallArguments(in AwkRegionCall call, int first, int count, int fieldDemand)
+        internal void StageCallArguments(in AwkRegionCall call, AwkFunctionFrame incoming,
+            int first, int count, int fieldDemand)
         {
-            // Merged preparation and staging share this owner. Earlier argument
-            // segments retain their explicit BeginCall and registered frame.
-            AwkFunctionFrame incoming;
-            if (call.BeginsFrame)
-            {
-                state.ThrowIfCancellationRequested();
-                incoming = storage.BeginCall(in call);
-            }
-            else incoming = storage.IncomingFrame(call.Slot);
-            if (count == 0) return incoming;
+            if (count == 0) return;
             var borrowReader = call.CanBorrowReaderText &&
                 (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);
             var arguments = call.Arguments;
@@ -516,7 +508,6 @@ internal partial struct AwkRegionMachine
                         break;
                 }
             }
-            return incoming;
         }
 
         internal AwkArrayKey ResolvePath(int index, out AwkArrayIdentity owner)

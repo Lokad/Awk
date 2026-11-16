@@ -476,17 +476,17 @@ internal partial struct AwkRegionMachine
                     computationView.Storage.BeginCall(in computationView.Region.Calls[instruction.Left]);
                     break;
                 case AwkRegionInstructionKind.Arguments:
+                {
                     // Only the final Call can own merged frame preparation.
-                    System.Diagnostics.Debug.Assert(!computationView.Region.Calls[instruction.Target].BeginsFrame);
-                    computationView.PrepareCallArguments(in computationView.Region.Calls[instruction.Target], instruction.Left, instruction.Right, instruction.Detail);
+                    ref readonly var call = ref computationView.Region.Calls[instruction.Target];
+                    var incomingFrame = computationView.Storage.IncomingFrame(call.Slot);
+                    computationView.StageCallArguments(in call, incomingFrame, instruction.Left, instruction.Right, instruction.Detail);
                     break;
+                }
                 case AwkRegionInstructionKind.Call:
                 {
                     ref readonly var call = ref computationView.Region.Calls[instruction.Left];
-                    var incomingFrame = computationView.PrepareCallArguments(in call, instruction.Right, call.Arguments.Length - instruction.Right,
-                        call.FinalFieldDemand);
-                    _position = position + 1;
-                    EnterCall(in call, incomingFrame, instruction.Target, (AwkRegionReturnConsumer)instruction.Detail);
+                    PrepareCall(in call, in instruction, in computationView, position + 1);
                     // Successful entry is synchronous; only the context needs rebinding.
                     goto BindExecution;
                 }
