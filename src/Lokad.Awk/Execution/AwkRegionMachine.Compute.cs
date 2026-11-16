@@ -13,6 +13,7 @@ internal partial struct AwkRegionMachine
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;
         if (_finished) return true;
+    BindExecution:
         computationView = new(_state, _region, _storage, _frame);
         position = _position;
     Execute:
@@ -489,7 +490,8 @@ internal partial struct AwkRegionMachine
                         call.FinalFieldDemand);
                     _position = position + 1;
                     EnterCall(in call, incomingFrame, instruction.Target, (AwkRegionReturnConsumer)instruction.Detail);
-                    goto Resume;
+                    // Successful entry is synchronous; only the context needs rebinding.
+                    goto BindExecution;
                 }
                 case AwkRegionInstructionKind.BuiltinArgument:
                     computationView.Storage.StoreValue(instruction.Target,

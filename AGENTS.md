@@ -48,6 +48,8 @@ or environment dependencies.
   evaluation and main-record scheduling retain their deliberate call boundaries; qualify changes
   to these boundaries on complete workloads.
   The view owns no storage and cannot survive an actual host suspension.
+  Successful synchronous call entry binds that actual context directly. Edges that
+  can finish execution or retain pending host work keep their completion handling.
   Known string primitives bind to their semantic interpreter operations during preparation.
   Unary casing names its canonical operand directly; only multiargument string operations
   need call descriptors. Field-demand preparation uses the same operand location.
