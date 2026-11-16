@@ -422,6 +422,9 @@ misses do not insert elements. Earlier key components remain owned across suspen
 All accepted programs use this interpreter; there is no retained tree evaluator or alternative
 execution backend. Diagnostic acceptance still precedes later effects. Cancellation is checked during preparation, bounded computation,
 calls and host interactions, including after admission callbacks and before mutation.
+Preparation may omit unobserved `NR`/`FNR` updates in a closed program. Dynamic symbol or
+argument access, counter assignments and unknown preparation retain the normal updates
+and conversion errors; this adds no runtime policy or host setting.
 Ordinary newline main input uses two frame-owned slots with admitted fallback buffers.
 An immutable host slice can remain borrowed until the reader retires it, then the owner
 promotes its live users into funded storage before releasing the borrow.

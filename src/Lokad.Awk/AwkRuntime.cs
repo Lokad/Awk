@@ -38,13 +38,14 @@ internal static class AwkRuntime
         var executionOptions = invocation.ExecutionOptions;
         var runtimeArguments = invocation.RuntimeArgumentsPlan;
         var stdio = invocation.Stdio;
+        var unobservedCounters = program.ResolveUnobservedRecordCounters(runtimeArguments, cancellationToken);
         using var state = new AwkRuntimeState(
             AwkFieldSeparatorSpec.Default,
             cancellationToken,
             runtimeOptions,
             resources,
             executionOptions.CompatibilityProfile,
-            stringEscapeWarnings, regexEscapeWarnings, executionOptions.Csv);
+            stringEscapeWarnings, regexEscapeWarnings, executionOptions.Csv, unobservedCounters);
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeRangePatterns(program.RangeCount);

@@ -5,6 +5,23 @@ namespace Lokad.Awk;
 
 internal static partial class AwkProgramLowerer
 {
+    private static AwkUnobservedRecordCounters PrepareUnobservedRecordCounters(
+        IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
+    {
+        // Standalone preparation can have observers outside the source program.
+        if (symbols is null || arguments is null) return AwkUnobservedRecordCounters.None;
+        var unobserved = AwkUnobservedRecordCounters.All;
+        foreach (var symbol in symbols)
+        {
+            checkpoint?.Invoke();
+            if (symbol.Name is "SYMTAB" or "ARGV") return AwkUnobservedRecordCounters.None;
+            if (symbol.Name == "NR") unobserved &= ~AwkUnobservedRecordCounters.NR;
+            if (symbol.Name == "FNR") unobserved &= ~AwkUnobservedRecordCounters.FNR;
+            if (unobserved == AwkUnobservedRecordCounters.None) return unobserved;
+        }
+        return unobserved;
+    }
+
     public static AwkLoweringResult Lower(AwkSyntaxProgram syntax)
     {
         AwkSymbolCollector.Collect(syntax, out var globalNames);
@@ -124,7 +141,8 @@ internal static partial class AwkProgramLowerer
 
         checkpoint?.Invoke();
         var program = new AwkProgram(beginActions, main.BuildMain(), endActions, beginFileActions, endFileActions, functions,
-            globalNames, globalReads.Count, rangeCount, main.HasMainRules);
+            globalNames, globalReads.Count, rangeCount, main.HasMainRules,
+            PrepareUnobservedRecordCounters(symbols, externalArguments, checkpoint));
         checkpoint?.Invoke();
         return AwkLoweringResult.SuccessResult(program);
 

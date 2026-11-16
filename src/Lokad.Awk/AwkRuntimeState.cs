@@ -29,6 +29,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariables.VariableName(AwkSpecialVariableId.Errno);
 
     private readonly CancellationToken _cancellationToken;
+    private readonly AwkUnobservedRecordCounters _unobservedRecordCounters;
     private readonly AwkRandomRuntime _randomRuntime;
     private readonly AwkTimeRuntime _timeRuntime;
     private readonly AwkVariables _variables;
@@ -60,8 +61,10 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkCompatibilityProfile compatibilityProfile,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null,
-        bool csvInput = false)
+        bool csvInput = false,
+        AwkUnobservedRecordCounters unobservedRecordCounters = AwkUnobservedRecordCounters.None)
     {
+        _unobservedRecordCounters = unobservedRecordCounters;
         CsvInput = csvInput;
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
@@ -1302,8 +1305,11 @@ internal sealed class AwkRuntimeState : IDisposable
 
     private void AdvanceInputCounters()
     {
-        _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.RecordNumber));
-        _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.FileRecordNumber));
+        var unobserved = _unobservedRecordCounters;
+        if ((unobserved & AwkUnobservedRecordCounters.NR) == 0)
+            _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.RecordNumber));
+        if ((unobserved & AwkUnobservedRecordCounters.FNR) == 0)
+            _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.FileRecordNumber));
     }
 
     private long EstimateRecordTerminatorMemoryGrowth(AwkValue slot)

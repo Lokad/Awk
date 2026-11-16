@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Frozen;
+using System.Threading;
 
 namespace Lokad.Awk;
 
@@ -28,7 +29,8 @@ internal readonly struct AwkProgram
         IReadOnlyList<AwkRegion> endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         IReadOnlySet<AwkVariableName>? globalNames = null,
-        int globalReadCount = 0, int rangeCount = 0, bool hasMainRules = false)
+        int globalReadCount = 0, int rangeCount = 0, bool hasMainRules = false,
+        AwkUnobservedRecordCounters unobservedRecordCounters = AwkUnobservedRecordCounters.None)
     {
         static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
@@ -50,6 +52,7 @@ internal readonly struct AwkProgram
         _globalNames = globalNames?.ToFrozenSet();
         GlobalReadCount = globalReadCount;
         RangeCount = rangeCount;
+        UnobservedRecordCounters = unobservedRecordCounters;
     }
 
     public AwkRegion[] BeginActions => _beginActions ?? [];
@@ -72,4 +75,36 @@ internal readonly struct AwkProgram
 
     public int RangeCount { get; }
 
+    internal AwkUnobservedRecordCounters UnobservedRecordCounters { get; }
+
+    internal AwkUnobservedRecordCounters ResolveUnobservedRecordCounters(
+        AwkRuntimeArgumentPlan arguments, CancellationToken cancellationToken)
+    {
+        var unobserved = UnobservedRecordCounters;
+        // An external assignment can defer a conversion error until input advances.
+        if (unobserved == AwkUnobservedRecordCounters.None) return unobserved;
+        foreach (var variable in arguments.Variables)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (variable.Identifier.Text == "NR") unobserved &= ~AwkUnobservedRecordCounters.NR;
+            if (variable.Identifier.Text == "FNR") unobserved &= ~AwkUnobservedRecordCounters.FNR;
+        }
+        foreach (var argument in arguments.RuntimeArguments)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (argument.StartsWith("NR=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordCounters.NR;
+            if (argument.StartsWith("FNR=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordCounters.FNR;
+        }
+        return unobserved;
+    }
+
+}
+
+[Flags]
+internal enum AwkUnobservedRecordCounters : byte
+{
+    None = 0,
+    NR = 1,
+    FNR = 2,
+    All = NR | FNR
 }
