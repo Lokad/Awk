@@ -712,7 +712,7 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal bool TryGetBoundArray(AwkArrayName name, AwkArrayBinding binding,
+    internal bool TryGetBoundArray(in AwkArrayName name, AwkArrayBinding binding,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayIdentity? array)
     {
         if (binding.TryGetGlobalIndex(out var index) && TryGetBoundGlobalArray(index, out array)) return true;
@@ -1618,11 +1618,11 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetElementRuntimeKind(name, index, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding = default)
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, int index, AwkArrayBinding binding = default)
     {
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
         {
-            if (TryGetBoundArray(name, binding, out var array))
+            if (TryGetBoundArray(in name, binding, out var array))
             {
                 var boundTarget = _variables.PrepareArrayUpdate(array, bytes);
                 Counters.RecordBorrowedFieldTargetSnapshot();
@@ -1637,12 +1637,12 @@ internal sealed class AwkRuntimeState : IDisposable
         return PrepareArrayUpdate(name, CaptureArrayFieldKey(index), binding);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(AwkArrayName name, int index, AwkArrayBinding binding,
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, int index, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous)
     {
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
         {
-            if (TryGetBoundArray(name, binding, out var array))
+            if (TryGetBoundArray(in name, binding, out var array))
             {
                 var boundTarget = _variables.PrepareArrayUpdate(array, bytes, in previous);
                 Counters.RecordBorrowedFieldTargetSnapshot();

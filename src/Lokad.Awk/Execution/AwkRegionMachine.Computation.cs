@@ -660,7 +660,7 @@ internal partial struct AwkRegionMachine
             {
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
-                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding, in previous);
+                    target = state.PrepareArrayFieldUpdate(in access.Name, FieldOrdinal(in key), access.Binding, in previous);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
                     target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);
@@ -683,7 +683,7 @@ internal partial struct AwkRegionMachine
             {
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
-                    target = state.PrepareArrayFieldUpdate(access.Name, FieldOrdinal(in key), access.Binding);
+                    target = state.PrepareArrayFieldUpdate(in access.Name, FieldOrdinal(in key), access.Binding);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
                     target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
