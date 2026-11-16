@@ -216,7 +216,8 @@ bounds larger retained buffers; narrow records release oversized storage, and re
 cached values. The shared budget funds retained capacity as well as growth.
 Field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
 appends while retaining the prior prefix and numeric caches. Long scans check cancellation in
-4 KiB byte regions; owners also check admission and publication. Escaped CSV text is
+4 KiB byte regions and before publication. Capacity growth checks before and after
+admission; reused capacity needs no separate scan-entry check. Escaped CSV text is
 admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps
 an immutable owned subject. Unpublished scan storage stays owned until publication or cleanup.
 Completed fields publish before unused plan/staging funding is returned; cancellation

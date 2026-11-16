@@ -51,6 +51,9 @@ actual completion, including hosts that ignore cancellation.
 Field-split refund tests cover reused buffers, new storage, prefix growth and full completion.
 Governor callbacks see the completed owner; cancellation there stops numeric/NF consumption
 and cleanup returns all funding.
+Warm-prefix cancellation covers short/long whitespace and literal fields without publishing
+fields or numeric caches. Growth checks cancellation before and after admission, including
+an existing prefix; assertions cover stopped effects and funding, not fixed checkpoint counts.
 Return-owner tests retain the funded callee through both ready and pending host completion,
 including numeric/text captures and cancellation before caller mutation.
 Terminal local returns also cover full-budget handoffs, original spelling/input origins,

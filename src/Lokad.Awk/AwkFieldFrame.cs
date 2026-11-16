@@ -1202,10 +1202,7 @@ internal sealed class AwkFieldFrame(
         counters.RecordFieldPrefixExtension();
         var previousCount = _fieldTexts.Count;
         if (previousCount == 0)
-        {
             counters.RecordFieldSplit();
-            checkpoint?.Invoke();
-        }
         var grows = _fieldTexts.Capacity < targetCount;
         var (fields, staging) = grows ? StageFieldPrefix(targetCount) : (_fieldTexts, AwkMemoryLease.Disabled);
         bool complete;
@@ -1267,6 +1264,9 @@ internal sealed class AwkFieldFrame(
 
     private (AwkRecordFieldBuffer Fields, AwkMemoryLease Staging) StageFieldPrefix(int targetCount)
     {
+        // Reused storage needs only bounded scan and publication checks. Actual
+        // growth checks cancellation before admission and again after its callback.
+        checkpoint?.Invoke();
         var capacity = (int)Math.Max(targetCount, Math.Min(Array.MaxLength, (long)_fieldTexts.Capacity * 2));
         var staging = governor.ReserveTransient(governor.IsEnabled
             ? AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity) : 0);

@@ -82,6 +82,93 @@ public sealed class AwkFieldCancellationTests
     [Theory]
     [InlineData(false, false)] [InlineData(true, false)]
     [InlineData(false, true)] [InlineData(true, true)]
+    public void PrefixGrowthChecksCancellationBeforeAndAfterAdmission(bool existingPrefix, bool cancelAtAdmission)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var cancellation = new CancellationTokenSource();
+        var token = CancellationToken.None;
+        using var context = new AwkFieldTestContext(counters, memory.Accounting,
+            checkpoint: () => token.ThrowIfCancellationRequested(), separator: ":");
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("1:2:3:4:5"));
+        if (existingPrefix) Assert.Equal(1, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var fields = counters.FieldsMaterialized;
+        var admitted = false;
+        memory.Budget.OnGrowth = _ =>
+        {
+            admitted = true;
+            if (cancelAtAdmission) cancellation.Cancel();
+        };
+        token = cancellation.Token;
+        if (!cancelAtAdmission) cancellation.Cancel();
+
+        var error = Assert.Throws<OperationCanceledException>(() =>
+            frame.GetFieldNumber(new(5), AwkNumberParsingMode.Decimal));
+
+        token = CancellationToken.None;
+        memory.Budget.OnGrowth = null;
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(cancelAtAdmission, admitted);
+        Assert.Equal(fields, counters.FieldsMaterialized);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, memory.Budget.Reserved);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal("5", frame.GetFieldValue(new(5)).AsString());
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, " ", false)] [InlineData(true, " ", false)]
+    [InlineData(false, ":", false)] [InlineData(true, ":", false)]
+    [InlineData(false, " ", true)] [InlineData(true, " ", true)]
+    [InlineData(false, ":", true)] [InlineData(true, ":", true)]
+    public void CanceledWarmPrefixDoesNotPublishFieldsOrNumericCache(bool governed, string separator, bool longField)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var cancellation = new CancellationTokenSource();
+        var token = CancellationToken.None;
+        using var context = new AwkFieldTestContext(counters, memory.Accounting,
+            checkpoint: () => token.ThrowIfCancellationRequested(), separator: separator);
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("1" + separator + "2"));
+        Assert.Equal(2, frame.GetFieldCount());
+        var spelling = longField ? "7" + new string('a', 3 * AwkRuntimeLimits.CancellationCheckBytes + 17) : "007";
+        var source = AwkText.FromSourceLiteralString(spelling + separator + "tail");
+        frame.SetRecordText(source);
+        var plan = frame.SplitPlan;
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var fields = counters.FieldsMaterialized;
+        var parses = counters.NumericFieldByteParses;
+        var scanned = counters.WhitespaceFieldSearchBytes;
+        token = cancellation.Token;
+        cancellation.Cancel();
+
+        var error = Assert.Throws<OperationCanceledException>(() =>
+            frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+
+        token = CancellationToken.None;
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(fields, counters.FieldsMaterialized);
+        Assert.Equal(parses, counters.NumericFieldByteParses);
+        Assert.InRange(counters.WhitespaceFieldSearchBytes - scanned, 0, AwkRuntimeLimits.CancellationCheckBytes);
+        Assert.False(frame.TryGetFieldCountNumber(out _));
+        Assert.Equal(plan, frame.SplitPlan);
+        Assert.True(source.HasSameStorage(frame.RecordAwkText));
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(spelling, frame.GetFieldValue(new(1)).AsString());
+        Assert.Equal("tail", frame.GetFieldValue(new(2)).AsString());
+        frame.ResetRecord();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
     public void WhitespaceSearchCancellationStopsWithinOneByteRegion(bool governed, bool prefix)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
