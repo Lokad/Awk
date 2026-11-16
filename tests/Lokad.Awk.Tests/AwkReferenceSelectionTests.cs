@@ -14,6 +14,8 @@ public sealed class AwkReferenceSelectionTests
     [InlineData("nested-array-calls-16", "all", false, 3)]
     [InlineData("nested-array-calls-1024", "all", false, 3)]
     [InlineData("scalar-sum", "all", false, 3)]
+    [InlineData("scalar-sum-decimal", "all", false, 3)]
+    [InlineData("aggregate-decimal", "all", false, 3)]
     [InlineData("field-call-loop", "all", false, 3)]
     [InlineData("field-number-loop", "all", false, 3)]
     [InlineData("numeric-wide", "all", false, 3)]
@@ -29,7 +31,6 @@ public sealed class AwkReferenceSelectionTests
     [InlineData("startup-empty", "small", true, 1)]
     [InlineData("unknown", "all", true, 0)]
     [InlineData("projection", "unknown", true, 0)]
-    [InlineData("*", "small", true, 56)]
     public void FiltersPreserveSelectedCasesAndControlOrdering(string name, string scale, bool smoke, int count)
     {
         var workloads = ReferenceWorkloads.CreateAll(name, scale, smoke).ToArray();
@@ -48,6 +49,17 @@ public sealed class AwkReferenceSelectionTests
         });
         if (name == "*" && smoke)
             Assert.Equal(new[] { "startup-empty", "startup-tiny" }, workloads.TakeLast(2).Select(w => w.Name));
+    }
+
+    [Fact]
+    public void SmallSmokeSelectsEveryRegisteredFamilyBeforeStartupControls()
+    {
+        var selected = ReferenceWorkloads.CreateAll("*", "small", includeControls: true).ToArray();
+        var processing = selected[..^2];
+        Assert.Equal(ReferenceWorkloads.Families, processing.Select(workload => workload.Name));
+        Assert.All(processing, workload => Assert.Equal("small", workload.Scale));
+        Assert.Equal(new[] { "startup-empty", "startup-tiny" }, selected.TakeLast(2).Select(workload => workload.Name));
+        Assert.All(selected.TakeLast(2), workload => Assert.Equal("control", workload.Scale));
     }
 
     [Fact]
