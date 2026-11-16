@@ -43,8 +43,9 @@ internal readonly struct AwkRecordField
         new(-1, length, cacheSlot);
 
     internal AwkRecordField WithCacheSlot(int slot) => new(_start, _length, slot, _number, _runeLength);
-    internal void WriteNumericValue(out AwkRecordField destination, double number) =>
-        destination = new(_start, _length, -1, number, _runeLength);
+    internal void WriteNumericValue(out AwkRecordField destination, double number, bool completeInput) =>
+        destination = new(_start, _length,
+            completeInput ? -(int)AwkValueKind.NumericString - 2 : -1, number, _runeLength);
     // Negative slots describe facts in these existing words; positive slots own
     // spelling/scalars in the frame cache. Arithmetic prefixes are not classifications.
     internal bool HasInputClassification => CacheSlot < -1;

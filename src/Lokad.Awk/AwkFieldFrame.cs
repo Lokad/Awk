@@ -487,7 +487,10 @@ internal sealed class AwkFieldFrame(
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
         parsed.ThrowIfError();
         number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
-        _fieldTexts.PublishNumericValue(fieldIndex, in field, number);
+        // A complete successful parse already proves strict input classification.
+        // Partial arithmetic prefixes retain their ordinary comparison fallback.
+        _fieldTexts.PublishNumericValue(fieldIndex, in field, number,
+            parsed.Status == AwkNumberParseStatus.Number && parsed.End == field.ByteLength());
         return true;
     }
 

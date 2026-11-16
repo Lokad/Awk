@@ -16,8 +16,8 @@ internal sealed class AwkRecordFieldBuffer(int capacity = 0)
 
     // The source is a snapshot captured before parsing. Locate the actual
     // admitted destination only after that work has completed.
-    internal void PublishNumericValue(int index, in AwkRecordField source, double number) =>
-        source.WriteNumericValue(out _cells[index], number);
+    internal void PublishNumericValue(int index, in AwkRecordField source, double number, bool completeInput) =>
+        source.WriteNumericValue(out _cells[index], number, completeInput);
 
     internal ReadOnlySpan<AwkRecordField> AsSpan() => _cells.AsSpan(0, Count);
     internal Span<AwkRecordField> UnpublishedTail(int targetCount) =>

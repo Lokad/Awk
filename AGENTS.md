@@ -276,7 +276,8 @@ or environment dependencies.
   Earlier arguments keep their captures, and actual host suspension keeps the output owner.
   Only complete fixed-field lists may defer field reads into the synchronous print primitive.
 - Arithmetic prefixes and strict input-classification facts share their funded, reference-free
-  record cells; a prefix is not a comparison fact. Already-owned decoded spelling keeps its
+  record cells; only complete successful arithmetic parses establish numeric-string facts.
+  Partial prefixes retain ordinary classification at comparison use. Already-owned decoded spelling keeps its
   cache slot and classification through reconstruction and copying. Full value reads still own
   original spelling. Comparison views require a proven record-preserving RHS;
   dirty reconstruction and potentially invalidating operands retain owned capture.

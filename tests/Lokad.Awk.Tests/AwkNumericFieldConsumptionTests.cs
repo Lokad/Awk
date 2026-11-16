@@ -4,6 +4,58 @@ public sealed class AwkNumericFieldConsumptionTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public void CompleteArithmeticFactsServeComparisonsWithoutChangingSpelling(bool governed)
+    {
+        foreach (var mode in Enum.GetValues<AwkNumberParsingMode>())
+        foreach (var spelling in new[] { "0007", " 7", "1.25", "-0.0", "1e309", "1e-9999", "nan", "0x1p2", "077" })
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+            using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|");
+            var frame = context.Frame;
+            var text = AwkText.FromSourceLiteralString(spelling);
+            frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
+            var expected = AwkValue.FromNumericString(text, mode);
+            var number = frame.GetFieldNumber(new(1), mode);
+            Assert.Equal(BitConverter.DoubleToUInt64Bits(expected.AsNumber()), BitConverter.DoubleToUInt64Bits(number));
+            var strict = expected.TryGetStoredComparisonNumber(out var expectedNumber, null);
+            Assert.Equal(strict, frame.TryGetStoredFieldComparisonNumber(new(1), out var actualNumber));
+            if (strict)
+                Assert.Equal(BitConverter.DoubleToUInt64Bits(expectedNumber), BitConverter.DoubleToUInt64Bits(actualNumber));
+            Assert.Equal(strict, frame.TryGetFieldComparisonNumber(new(1), mode, out _));
+            Assert.Equal(strict ? 1 : 2, counters.NumericFieldByteParses);
+            Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
+            Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var captured));
+            Assert.Equal(spelling, captured.AsString());
+            frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
+            Assert.Equal(spelling, captured.AsString());
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        }
+    }
+
+    [Theory]
+    [InlineData("7tail", false)] [InlineData("7tail", true)]
+    [InlineData("7e+", false)] [InlineData("7e+", true)]
+    [InlineData("7\u00e9", false)] [InlineData("7\u00e9", true)]
+    [InlineData("7 ", false)] [InlineData("7 ", true)]
+    [InlineData("", false)] [InlineData("", true)]
+    public void IncompleteArithmeticFactsRetainStrictClassificationAtUse(string spelling, bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|");
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
+        Assert.Equal(spelling.Length == 0 ? 0 : 7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+        Assert.False(frame.TryGetStoredFieldComparisonNumber(new(1), out _));
+        Assert.Equal(spelling == "7 ", frame.TryGetFieldComparisonNumber(new(1), AwkNumberParsingMode.Decimal, out _));
+        Assert.Equal(2, counters.NumericFieldByteParses);
+        Assert.Equal(spelling, frame.GetFieldValue(new(1)).AsString());
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public void NumericCacheFollowsSlicesThroughCompletionAndReconstruction(bool governed)
     {
         using var memory = State(governed);
@@ -172,6 +224,9 @@ public sealed class AwkNumericFieldConsumptionTests
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.True(state.TryGetFieldComparisonNumber(2, out var comparison));
+        Assert.Equal(7, comparison);
+        Assert.Equal(1, state.Counters.NumericFieldByteParses);
         Assert.Equal(0, state.Counters.FieldValueCacheBufferAllocations);
         Assert.Throws<AwkRuntimeException>(() => state.GetFieldValue(2));
         Assert.Equal(7, state.GetFieldNumber(2));
@@ -198,7 +253,7 @@ public sealed class AwkNumericFieldConsumptionTests
         memory.Budget.RefuseNextAdmissionMinimumGrowth = null;
         Assert.Equal(3, state.FieldCount);
         Assert.Equal(7, state.GetFieldNumber(2));
-        Assert.False(state.TryGetStoredFieldComparisonNumber(2, out _));
+        Assert.True(state.TryGetStoredFieldComparisonNumber(2, out _));
         Assert.True(state.TryGetFieldComparisonNumber(2, out _));
         Assert.True(state.TryGetStoredFieldComparisonNumber(2, out var number));
         Assert.Equal(7, number);
@@ -247,7 +302,7 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(AwkFieldTextKind.Owned, AwkRecordField.FromOwned(1, 4).Kind);
         var field = AwkRecordField.FromRecordSlice(1, 5);
         field = field.WithRuneLength(4);
-        field.WriteNumericValue(out var numeric, 7);
+        field.WriteNumericValue(out var numeric, 7, completeInput: false);
         field = numeric.WithCacheSlot(2);
         Assert.Equal(AwkFieldTextKind.RecordSlice, field.Kind);
         Assert.Equal("café"u8.ToArray(), field.BytesInRecord(" café!"u8).ToArray());
@@ -262,11 +317,11 @@ public sealed class AwkNumericFieldConsumptionTests
         var fields = new AwkRecordFieldBuffer(1);
         fields.Add(AwkRecordField.FromRecordSlice(1, 5));
         var original = fields[0];
-        fields.PublishNumericValue(0, in original, 7);
+        fields.PublishNumericValue(0, in original, 7, completeInput: false);
         fields[0] = fields[0].WithRuneLength(4);
         var captured = fields[0];
         fields.EnsureCapacity(4);
-        fields.PublishNumericValue(0, in captured, 8);
+        fields.PublishNumericValue(0, in captured, 8, completeInput: true);
 
         Assert.False(original.TryGetNumericValue(out _));
         Assert.Equal(-1, original.RuneLength);
@@ -275,7 +330,9 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(4, captured.RuneLength);
         Assert.True(fields[0].TryGetNumericValue(out var current));
         Assert.Equal(8, current);
-        Assert.False(fields[0].HasInputClassification);
+        Assert.True(fields[0].HasInputClassification);
+        Assert.True(fields[0].TryGetComparisonNumber(out var comparison));
+        Assert.Equal(8, comparison);
         Assert.Equal(4, fields[0].RuneLength);
         Assert.Equal("café"u8.ToArray(), fields[0].BytesInRecord(" café!"u8).ToArray());
         Assert.Equal(original.RecordStart, fields[0].RecordStart);
