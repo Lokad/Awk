@@ -226,6 +226,9 @@ or environment dependencies.
   references. Owned spelling and scalar values live in the frame cache; immutable cell snapshots preserve
   coordinates and cache facts across parsing and cancellation callbacks. Detached byte views carry
   no record-cache state. Preserve mappings during split completion, mutation and reconstruction.
+  Numeric-fact publication writes the immutable pre-parse snapshot into the buffer's current
+  backing directly; do not transport a returned cell through a separate value setter.
+  Locate the destination after parsing and preserve coordinates, rune caches and error ordering.
   Text-only decoded CSV entries must not invoke the input-value factory early.
   The same cache owns raw spelling snapshots for repeated text captures and later full-value
   promotion. TextOnly may retain an arithmetic prefix without becoming a scalar or strict

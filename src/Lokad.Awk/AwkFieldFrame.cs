@@ -487,7 +487,7 @@ internal sealed class AwkFieldFrame(
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
         parsed.ThrowIfError();
         number = parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
-        _fieldTexts[fieldIndex] = field.WithNumericValue(number);
+        _fieldTexts.PublishNumericValue(fieldIndex, in field, number);
         return true;
     }
 

@@ -117,6 +117,9 @@ spelling still needs admission. Cover reading modes and unchanged caller/key/tex
 Array cleanup checks preserve caller-owned arrays through nested frames and retire promoted
 locals or detached-entry replacements before frame reuse, under ordinary and shared admission.
 
+Numeric-cache publication preserves captured cell snapshots, coordinates and rune caches
+through backing replacement; arithmetic prefixes remain distinct from input classification.
+
 Focused field/value/array tests preserve numeric-string origins and original spelling, lazy
 splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
 key and prior value across RHS mutation, deletion, replacement and rehash. Never keep dictionary

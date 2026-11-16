@@ -246,7 +246,9 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(AwkFieldTextKind.Empty, AwkRecordField.FromOwned(1, 0).Kind);
         Assert.Equal(AwkFieldTextKind.Owned, AwkRecordField.FromOwned(1, 4).Kind);
         var field = AwkRecordField.FromRecordSlice(1, 5);
-        field = field.WithRuneLength(4).WithNumericValue(7).WithCacheSlot(2);
+        field = field.WithRuneLength(4);
+        field.WriteNumericValue(out var numeric, 7);
+        field = numeric.WithCacheSlot(2);
         Assert.Equal(AwkFieldTextKind.RecordSlice, field.Kind);
         Assert.Equal("café"u8.ToArray(), field.BytesInRecord(" café!"u8).ToArray());
         Assert.Equal(4, field.RuneLength);
@@ -260,10 +262,11 @@ public sealed class AwkNumericFieldConsumptionTests
         var fields = new AwkRecordFieldBuffer(1);
         fields.Add(AwkRecordField.FromRecordSlice(1, 5));
         var original = fields[0];
-        fields[0] = fields[0].WithNumericValue(7);
+        fields.PublishNumericValue(0, in original, 7);
         fields[0] = fields[0].WithRuneLength(4);
         var captured = fields[0];
-        fields[0] = fields[0].WithNumericValue(8);
+        fields.EnsureCapacity(4);
+        fields.PublishNumericValue(0, in captured, 8);
 
         Assert.False(original.TryGetNumericValue(out _));
         Assert.Equal(-1, original.RuneLength);
