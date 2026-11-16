@@ -445,9 +445,17 @@ internal partial struct AwkRegionMachine
             return false;
         }
 
-        internal AwkFunctionFrame StageArguments(in AwkRegionCall call, int first, int count, int fieldDemand)
+        internal AwkFunctionFrame PrepareCallArguments(in AwkRegionCall call, int first, int count, int fieldDemand)
         {
-            var incoming = storage.IncomingFrame(call.Slot);
+            // Merged preparation and staging share this owner. Earlier argument
+            // segments retain their explicit BeginCall and registered frame.
+            AwkFunctionFrame incoming;
+            if (call.BeginsFrame)
+            {
+                state.ThrowIfCancellationRequested();
+                incoming = storage.BeginCall(in call);
+            }
+            else incoming = storage.IncomingFrame(call.Slot);
             if (count == 0) return incoming;
             var borrowReader = call.CanBorrowReaderText &&
                 (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);

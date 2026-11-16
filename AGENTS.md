@@ -431,9 +431,10 @@ or environment dependencies.
   Adjacent staging uses one ordered segment
   and one incoming-frame lookup; earlier segments remain before intervening effects, and the
   final segment belongs to Call. Keep long-segment cancellation polls without per-argument dispatch.
-  Adjacent frame preparation also belongs to Call,keeping initial cancellation/admission before
-  final staging. Intervening argument work retains its registered incoming owner at the original
-  boundary. Borrow immutable call and argument descriptors during synchronous preparation;
+  Adjacent frame preparation belongs to the final Call's shared synchronous preparation/staging
+  boundary, which returns its actual incoming frame. Keep initial cancellation/admission before
+  final captures; earlier argument segments retain registered ownership at the original boundary.
+  Borrow immutable call and argument descriptors during synchronous preparation;
   local/global staging reads their source, name and consumption data at the actual consumer.
   Prepare field demand once per segment and consume it at the first static field after earlier
   arguments stage. Keep cold admission, unknown-effect boundaries and current-record revalidation.
