@@ -181,7 +181,7 @@ internal sealed partial class AwkRegionCompiler
         }
         bool ValueReturn(int source)
         {
-            if (source >= 0) OperandDemand(source);
+            if (source >= 0) TerminalNumberSource(new(source));
             return InvalidatingBoundary();
         }
         bool TerminalOperand(int operand) { OperandDemand(operand); return false; }

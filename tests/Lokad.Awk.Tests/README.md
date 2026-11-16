@@ -61,6 +61,9 @@ public failed diagnostic completion, and return field-demand termination before 
 Array-return captures include pure numbers and missing nested entries before a host callback
 replaces their source, with both immediate and pending completion.
 Preparation binds physical owning return slots without an unused source-operand descriptor.
+Fresh array-return producers reuse their canonical access. Return tests retain actual
+numbers, original string/input origins and missing-read effects through both ready and
+pending host mutation; nonnumeric captures keep their funded private destination.
 Direct-call returns cover pure-number forwarding alongside mixed value/input origins and recursive
 calls. Keep every real frame and outer-owned array alias; refund-created output retains the outer
 frame through pending completion, and cancellation at either retirement stops caller mutation.

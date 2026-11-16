@@ -352,6 +352,8 @@ internal sealed partial class AwkRegionCompiler
                     else if (!Expression(returning, out returned)) return false;
                 }
                 else if (_countStringReturn) returned = Constant(0);
+                // Keep an inserted poll after the read at its original boundary.
+                if (returned >= 0 && _straightLine < 128) TryTakeFreshArrayRead(returned);
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
                 {
                     if (_lastNumberRead == _code.Count - 1 && _code.Count > 0 &&
@@ -982,6 +984,22 @@ internal sealed partial class AwkRegionCompiler
 
     private readonly record struct PreparedNumber(int Operand, int ReadInstruction = -1);
 
+    private bool TryTakeFreshArrayRead(int operand)
+    {
+        var source = _operands[operand];
+        if (source.Kind != AwkRegionOperandKind.ValueTemporary || operand != _operands.Count - 1 ||
+            source.Index != _values - 1 || _code.Count == 0 ||
+            _code[^1] is not { Kind: AwkRegionInstructionKind.ArrayRead, Detail: 0 } read ||
+            read.Target != source.Index) return false;
+        // Joins and key retirement leave intervening instructions. This private
+        // producer can give its canonical operand to the immediate consumer.
+        _values--;
+        _operands[operand] = new(AwkRegionOperandKind.ArrayElement, read.Left);
+        _code.RemoveAt(_code.Count - 1);
+        _straightLine--;
+        return true;
+    }
+
     private PreparedNumber CaptureNumber(int operand, bool preserveLocation = false)
     {
         var source = _operands[operand];
@@ -1000,18 +1018,9 @@ internal sealed partial class AwkRegionCompiler
             return new(operand, _code.Count - 1);
         }
         var target = _numbers++;
-        if (source.Kind == AwkRegionOperandKind.ValueTemporary && operand == _operands.Count - 1 &&
-            source.Index == _values - 1 && _code.Count > 0 &&
-            _code[^1] is { Kind: AwkRegionInstructionKind.ArrayRead, Detail: 0 } arrayRead &&
-            arrayRead.Target == source.Index)
+        if (TryTakeFreshArrayRead(operand))
         {
-            // A fresh scalar read has no observer or intervening key retirement.
-            // Joins emit their own Value/Poll, so their shared result cannot match.
-            // Consume the array at its owner instead of funding a value capture.
-            _values--;
-            _operands[operand] = new(AwkRegionOperandKind.ArrayElement, arrayRead.Left);
-            _code[^1] = new(AwkRegionInstructionKind.ArrayNumber, target, arrayRead.Left);
-            _lastNumberRead = _code.Count - 1;
+            _lastNumberRead = Emit(new(AwkRegionInstructionKind.ArrayNumber, target, _operands[operand].Index));
             _lastNumberOperand = operand;
             return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
         }

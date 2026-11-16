@@ -19,7 +19,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.ArrayRead or AwkRegionInstructionKind.ArrayNumber => _arrays[instruction.Left].Path,
                 AwkRegionInstructionKind.ArrayUpdate when _updates[instruction.Left].PrepareAccess >= 0 =>
                     _updates[instruction.Left].Path,
-                AwkRegionInstructionKind.ReturnNumber when instruction.Left >= 0 &&
+                AwkRegionInstructionKind.Return or AwkRegionInstructionKind.ReturnNumber when instruction.Left >= 0 &&
                     _operands[instruction.Left].Kind == AwkRegionOperandKind.ArrayElement =>
                     _arrays[_operands[instruction.Left].Index].Path,
                 _ => -1
@@ -30,7 +30,7 @@ internal sealed partial class AwkRegionCompiler
                 if (paths.Count == 0) firstUse = index;
                 lastUse = index;
                 paths.Add(path);
-                if (instruction.Kind == AwkRegionInstructionKind.ReturnNumber || scalarWrite) Finish();
+                if (instruction.Kind is AwkRegionInstructionKind.Return or AwkRegionInstructionKind.ReturnNumber || scalarWrite) Finish();
                 continue;
             }
             if (scalarWrite) { Finish(); continue; }

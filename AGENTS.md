@@ -454,9 +454,9 @@ or environment dependencies.
   Terminal scalar locals can transfer their existing claim into that owning capture. Read
   at the actual frame owner; only token polling may intervene before publication. Other
   local roles retain ordinary resolution and materialization.
-  A canonical numeric local has no payload claim: capture its number and retire its
-  source before flushing, without an owning scratch roundtrip. External-source returns
-  keep their fresh capture slot private; nonnumeric users retain its ordinary funding.
+  Canonical numbers own no payload: capture them without a scratch roundtrip and
+  keep local-source retirement before flushing. External full-value destinations
+  stay private; nonnumeric captures retain their ordinary funding and owner reload.
   Non-number return operands name canonical owning value/text scratch. Move their existing
   payload claim to caller scratch before retiring the callee. Existing retirement clears
   the source; keep the handoff adjacent to that retirement rather than clearing slots twice.
@@ -551,9 +551,11 @@ or environment dependencies.
   preparation retains its canonical source and verifies its instruction position. Returns terminate
   field-demand preparation. Capture before flushing and keep the callee/storage alive through actual
   completion; never reread after a host callback. Value returns retain their owned snapshots.
-  Fresh exclusive numeric array reads consume the existing array owner without a general value
-  capture. Keep key/path retirement and observed values at their boundaries; numeric reads and
-  terminal array-number returns participate in the existing owner windows.
+  Fresh exclusive array reads share one producer proof for numeric and full-return
+  consumers, reusing the canonical operand. Preserve joins, key retirement and inserted
+  polls; actual numbers avoid capture publication while other origins keep the funded
+  full-value destination. Full and numeric returns share existing nested-owner windows
+  and field-demand termination. Keep the known array producer at its semantic reader.
   Known numeric comparison inputs bind to existing number locations; stored values keep their
   runtime kind checks and literal text comparisons retain their formatting/parsing semantics.
   Fresh adjacent comparison branches consume the original boolean through their existing branch

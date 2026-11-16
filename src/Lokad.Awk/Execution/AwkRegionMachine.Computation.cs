@@ -252,7 +252,14 @@ internal partial struct AwkRegionMachine
                 }
                 if (source.Kind != AwkRegionOperandKind.LocalVariable || frame is null ||
                     !storage.TryTakeRetiringLocal(target, frame, source.Index))
-                    storage.StoreValue(target, Value(instruction.Left));
+                {
+                    var value = source.Kind == AwkRegionOperandKind.ArrayElement
+                        ? ReadArray(region.Arrays[source.Index]) : Value(instruction.Left);
+                    // The private capture is fresh; a number owns no payload.
+                    // Other origins keep scalar publication and its funded owner.
+                    if (value.IsNumberValue) return value;
+                    storage.StoreValue(target, value);
+                }
             }
             if (instruction.Target < 0) return AwkValue.Unassigned();
             // Reload the actual value owner after publication/refund callbacks.
