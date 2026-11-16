@@ -13,6 +13,18 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("record-header-counter-read-only-in-function-at-end",
             ["function count(){return NR} {sum+=$1}END{print sum,count()}"],
             [], "5 2\n", "2\n3\n");
+        yield return Passing("record-header-computed-terminator-retained-at-eof",
+            ["BEGIN{RS=\",\";k=\"R\" \"T\"}{print \"[\" SYMTAB[k] \"]\"}END{print \"[\" SYMTAB[k] \"]\"}"],
+            [], "[,]\n[,]\n[,]\n", "a,b,");
+        yield return Passing("record-header-computed-terminator-paragraph-eof-clear",
+            ["BEGIN{RS=\"\";k=\"R\" \"T\";SYMTAB[k]=\"marker\"}END{print \"[\"SYMTAB[k]\"]\"}"],
+            [], "[]\n", "\n\n");
+        yield return Passing("record-header-terminator-read-only-in-function-after-exit",
+            ["function term(){return RT}BEGIN{RS=\",\"}{n++;if(n==2)exit}END{print n,\"[\"term()\"]\"}"],
+            [], "2 [,]\n", "a,b,c");
+        yield return Passing("record-header-computed-terminator-redirected-getline",
+            ["BEGIN{k=\"R\" \"T\";RS=\",\";getline x <\"/extra\";print x,\"[\"SYMTAB[k]\"]\";SYMTAB[k]=\"marker\";getline x <\"/extra\";print x,\"[\"SYMTAB[k]\"]\";close(\"/extra\")}"],
+            [File("/extra", "a,b")], "a [,]\nb []\n");
         yield return Passing("record-header-unobserved-option-conversion-is-deferred",
             ["--non-decimal-data", "-v", "NR=0x1.8", "BEGIN{print \"before\"}"],
             [], "before\n");

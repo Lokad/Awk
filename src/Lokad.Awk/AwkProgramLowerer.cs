@@ -5,19 +5,20 @@ namespace Lokad.Awk;
 
 internal static partial class AwkProgramLowerer
 {
-    private static AwkUnobservedRecordCounters PrepareUnobservedRecordCounters(
+    private static AwkUnobservedRecordHeaders PrepareUnobservedRecordHeaders(
         IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
     {
         // Standalone preparation can have observers outside the source program.
-        if (symbols is null || arguments is null) return AwkUnobservedRecordCounters.None;
-        var unobserved = AwkUnobservedRecordCounters.All;
+        if (symbols is null || arguments is null) return AwkUnobservedRecordHeaders.None;
+        var unobserved = AwkUnobservedRecordHeaders.All;
         foreach (var symbol in symbols)
         {
             checkpoint?.Invoke();
-            if (symbol.Name is "SYMTAB" or "ARGV") return AwkUnobservedRecordCounters.None;
-            if (symbol.Name == "NR") unobserved &= ~AwkUnobservedRecordCounters.NR;
-            if (symbol.Name == "FNR") unobserved &= ~AwkUnobservedRecordCounters.FNR;
-            if (unobserved == AwkUnobservedRecordCounters.None) return unobserved;
+            if (symbol.Name is "SYMTAB" or "ARGV") return AwkUnobservedRecordHeaders.None;
+            if (symbol.Name == "NR") unobserved &= ~AwkUnobservedRecordHeaders.NR;
+            if (symbol.Name == "FNR") unobserved &= ~AwkUnobservedRecordHeaders.FNR;
+            if (symbol.Name == "RT") unobserved &= ~AwkUnobservedRecordHeaders.RT;
+            if (unobserved == AwkUnobservedRecordHeaders.None) return unobserved;
         }
         return unobserved;
     }
@@ -142,7 +143,7 @@ internal static partial class AwkProgramLowerer
         checkpoint?.Invoke();
         var program = new AwkProgram(beginActions, main.BuildMain(), endActions, beginFileActions, endFileActions, functions,
             globalNames, globalReads.Count, rangeCount, main.HasMainRules,
-            PrepareUnobservedRecordCounters(symbols, externalArguments, checkpoint));
+            PrepareUnobservedRecordHeaders(symbols, externalArguments, checkpoint));
         checkpoint?.Invoke();
         return AwkLoweringResult.SuccessResult(program);
 

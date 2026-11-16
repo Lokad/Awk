@@ -3,6 +3,51 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData("unobserved", false)] [InlineData("unobserved", true)]
+    [InlineData("direct", false)] [InlineData("direct", true)]
+    [InlineData("computed", false)] [InlineData("computed", true)]
+    [InlineData("argv", false)] [InlineData("argv", true)]
+    [InlineData("option", false)] [InlineData("option", true)]
+    [InlineData("operand", false)] [InlineData("operand", true)]
+    public async Task ClosedRecordPreparationKeepsObservableTerminatorOwners(string observation, bool governed)
+    {
+        const int records = 32;
+        var source = observation switch
+        {
+            "direct" => "{sum+=$1;kept=RT}END{print sum}",
+            "computed" => "{sum+=$1;kept=SYMTAB[\"R\" \"T\"]}END{print sum}",
+            "argv" => "BEGIN{kept=ARGV[0]}{sum+=$1}END{print sum}",
+            _ => "{sum+=$1}END{print sum}"
+        };
+        string[] arguments = observation switch
+        {
+            "option" => ["-v", "RT=marker", source],
+            "operand" => [source, "RT=marker"],
+            _ => [source]
+        };
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("0007\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", arguments)), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("224\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(records, counters.RecordsRead);
+        if (observation == "unobserved")
+        {
+            Assert.Equal(0, counters.PreparedRecordTerminatorSlots);
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.Utf8Encodes);
+        }
+        else Assert.True(counters.PreparedRecordTerminatorSlots > 0);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
     [InlineData(2, false)] [InlineData(2, true)]
     [InlineData(5, false)] [InlineData(5, true)]
     [InlineData(16, false)] [InlineData(16, true)]

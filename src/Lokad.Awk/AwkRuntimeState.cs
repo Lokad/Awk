@@ -29,7 +29,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariables.VariableName(AwkSpecialVariableId.Errno);
 
     private readonly CancellationToken _cancellationToken;
-    private readonly AwkUnobservedRecordCounters _unobservedRecordCounters;
+    private readonly AwkUnobservedRecordHeaders _unobservedRecordHeaders;
     private readonly AwkRandomRuntime _randomRuntime;
     private readonly AwkTimeRuntime _timeRuntime;
     private readonly AwkVariables _variables;
@@ -62,9 +62,11 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null,
         bool csvInput = false,
-        AwkUnobservedRecordCounters unobservedRecordCounters = AwkUnobservedRecordCounters.None)
+        AwkUnobservedRecordHeaders unobservedRecordHeaders = AwkUnobservedRecordHeaders.None)
     {
-        _unobservedRecordCounters = unobservedRecordCounters;
+        _unobservedRecordHeaders = AwkCompatibilityNames.EnablesSpecial(
+            AwkSpecialVariableId.RecordTerminator, compatibilityProfile.Mode)
+            ? unobservedRecordHeaders : unobservedRecordHeaders | AwkUnobservedRecordHeaders.RT;
         CsvInput = csvInput;
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
@@ -1255,9 +1257,11 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public long RecordSeparatorVersion => _recordSeparatorVersion;
 
+    private bool PublishesRecordTerminator => (_unobservedRecordHeaders & AwkUnobservedRecordHeaders.RT) == 0;
+
     public void SetRecordTerminator(AwkRecordTerminator terminator)
     {
-        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
+        if (!PublishesRecordTerminator)
             return;
 
         _variables.SetRecordTerminatorSlot(PrepareRecordTerminatorSlot(terminator));
@@ -1272,9 +1276,9 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
-        var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
+        var hasTerminator = PublishesRecordTerminator;
         var slot = hasTerminator ? PrepareRecordTerminatorSlot(terminator) : default;
-        using var admission = MemoryAccounting.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(slot));
+        using var admission = MemoryAccounting.AdmitMutation(hasTerminator ? EstimateRecordTerminatorMemoryGrowth(slot) : 0);
         ThrowIfCancellationRequested();
         AdvanceInputCounters();
         if (hasTerminator) _variables.SetRecordTerminatorSlot(slot);
@@ -1285,7 +1289,7 @@ internal sealed class AwkRuntimeState : IDisposable
     // it before actions so relinquished payload can fund later users.
     internal void PublishInputRecord(in AwkInputRecordResult record, bool readsMainInput)
     {
-        var hasTerminator = AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode);
+        var hasTerminator = PublishesRecordTerminator;
         var terminator = hasTerminator ? PrepareRecordTerminatorSlot(record.Terminator) : default;
         var splitPlan = _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode);
         var text = record.TryGetStorage(out var storage) ? AwkText.Empty : record.RecordText;
@@ -1293,7 +1297,7 @@ internal sealed class AwkRuntimeState : IDisposable
         var publication = _recordFields.PrepareRecordPublication(text, splitPlan, recordByteLength);
         using var admission = MemoryAccounting.IsEnabled
             ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
-                publication.GrowthBytes, EstimateRecordTerminatorMemoryGrowth(terminator)))
+                publication.GrowthBytes, hasTerminator ? EstimateRecordTerminatorMemoryGrowth(terminator) : 0))
             : default;
         ThrowIfCancellationRequested();
         if (readsMainInput) AdvanceInputCounters();
@@ -1305,17 +1309,16 @@ internal sealed class AwkRuntimeState : IDisposable
 
     private void AdvanceInputCounters()
     {
-        var unobserved = _unobservedRecordCounters;
-        if ((unobserved & AwkUnobservedRecordCounters.NR) == 0)
+        var unobserved = _unobservedRecordHeaders;
+        if ((unobserved & AwkUnobservedRecordHeaders.NR) == 0)
             _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.RecordNumber));
-        if ((unobserved & AwkUnobservedRecordCounters.FNR) == 0)
+        if ((unobserved & AwkUnobservedRecordHeaders.FNR) == 0)
             _variables.IncrementRecordCounter(GetInitializedSpecialScalarCell(AwkSpecialVariableId.FileRecordNumber));
     }
 
     private long EstimateRecordTerminatorMemoryGrowth(AwkValue slot)
     {
-        if (!MemoryAccounting.IsEnabled ||
-            !AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode)) return 0;
+        if (!MemoryAccounting.IsEnabled) return 0;
         return _variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is { } cell
             ? _variables.EstimateScalarSlotMemoryGrowth(cell, slot)
             : _variables.EstimateScalarSlotMemoryGrowth(RecordTerminatorVariableName, slot);

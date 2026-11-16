@@ -30,7 +30,7 @@ internal readonly struct AwkProgram
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         IReadOnlySet<AwkVariableName>? globalNames = null,
         int globalReadCount = 0, int rangeCount = 0, bool hasMainRules = false,
-        AwkUnobservedRecordCounters unobservedRecordCounters = AwkUnobservedRecordCounters.None)
+        AwkUnobservedRecordHeaders unobservedRecordHeaders = AwkUnobservedRecordHeaders.None)
     {
         static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
@@ -52,7 +52,7 @@ internal readonly struct AwkProgram
         _globalNames = globalNames?.ToFrozenSet();
         GlobalReadCount = globalReadCount;
         RangeCount = rangeCount;
-        UnobservedRecordCounters = unobservedRecordCounters;
+        UnobservedRecordHeaders = unobservedRecordHeaders;
     }
 
     public AwkRegion[] BeginActions => _beginActions ?? [];
@@ -75,25 +75,27 @@ internal readonly struct AwkProgram
 
     public int RangeCount { get; }
 
-    internal AwkUnobservedRecordCounters UnobservedRecordCounters { get; }
+    internal AwkUnobservedRecordHeaders UnobservedRecordHeaders { get; }
 
-    internal AwkUnobservedRecordCounters ResolveUnobservedRecordCounters(
+    internal AwkUnobservedRecordHeaders ResolveUnobservedRecordHeaders(
         AwkRuntimeArgumentPlan arguments, CancellationToken cancellationToken)
     {
-        var unobserved = UnobservedRecordCounters;
-        // An external assignment can defer a conversion error until input advances.
-        if (unobserved == AwkUnobservedRecordCounters.None) return unobserved;
+        var unobserved = UnobservedRecordHeaders;
+        // External assignments retain implicit overwrite and deferred counter errors.
+        if (unobserved == AwkUnobservedRecordHeaders.None) return unobserved;
         foreach (var variable in arguments.Variables)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (variable.Identifier.Text == "NR") unobserved &= ~AwkUnobservedRecordCounters.NR;
-            if (variable.Identifier.Text == "FNR") unobserved &= ~AwkUnobservedRecordCounters.FNR;
+            if (variable.Identifier.Text == "NR") unobserved &= ~AwkUnobservedRecordHeaders.NR;
+            if (variable.Identifier.Text == "FNR") unobserved &= ~AwkUnobservedRecordHeaders.FNR;
+            if (variable.Identifier.Text == "RT") unobserved &= ~AwkUnobservedRecordHeaders.RT;
         }
         foreach (var argument in arguments.RuntimeArguments)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (argument.StartsWith("NR=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordCounters.NR;
-            if (argument.StartsWith("FNR=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordCounters.FNR;
+            if (argument.StartsWith("NR=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordHeaders.NR;
+            if (argument.StartsWith("FNR=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordHeaders.FNR;
+            if (argument.StartsWith("RT=", StringComparison.Ordinal)) unobserved &= ~AwkUnobservedRecordHeaders.RT;
         }
         return unobserved;
     }
@@ -101,10 +103,11 @@ internal readonly struct AwkProgram
 }
 
 [Flags]
-internal enum AwkUnobservedRecordCounters : byte
+internal enum AwkUnobservedRecordHeaders : byte
 {
     None = 0,
     NR = 1,
     FNR = 2,
-    All = NR | FNR
+    RT = 4,
+    All = NR | FNR | RT
 }

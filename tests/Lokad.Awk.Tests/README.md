@@ -46,6 +46,10 @@ record publication. Observe stopped effects and cleanup, without asserting entry
 Record-header goldens cover computed SYMTAB observations, mutable ARGV and deferred NR
 conversion failures from option/operand assignments even when source does not read NR.
 Unknown standalone preparation retains normal counter semantics.
+Terminator goldens distinguish ordinary EOF retention from paragraph EOF clearing,
+including computed symbol access and redirected getline. Observation diagnostics retain
+RT publication for source/dynamic/argument access and external assignments; unused RT
+does not create a scalar owner. Input validation and actual owner admission still apply.
 Structured read failures are recoverable `getline`; faulted host operations are redacted failures.
 Mock file truncation occurs at open and appended data becomes visible after close.
 Append tests cover completed faults, synchronous throws and cancellation during callbacks,
