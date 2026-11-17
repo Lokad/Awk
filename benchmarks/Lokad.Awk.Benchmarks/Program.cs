@@ -23,7 +23,7 @@ if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-bench
 }
 
 Environment.ExitCode = ReferenceComparison.RunBenchmarks(
-    [typeof(InterpreterLayerBenchmarks), typeof(FrontendLayerBenchmarks),
+    [typeof(FrontendLayerBenchmarks),
      typeof(FrontendScalingBenchmarks), typeof(WorkloadAllocationBenchmarks),
      typeof(FunctionSchedulingBenchmarks)], args);
 
@@ -282,13 +282,9 @@ internal static class BenchmarkCounterReport
                 counters,
                 AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(CounterExecutionMemoryLimitBytes) };
             using var host = new ReferenceBenchmarkHost(scenario.Files, [], capture: false);
-            await using var compiled = await AwkExecutor
-                .CompileAsync(
-                    host,
-                    AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
-                    cancellationToken, regexEngine: AwkUtf8RegexEngine.Instance)
+            var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []);
+            var exitCode = await AwkExecutor.ExecuteAsync(host, command, cancellationToken, options)
                 .ConfigureAwait(false);
-            var exitCode = await compiled.ExecuteAsync(host, cancellationToken, options).ConfigureAwait(false);
             if (exitCode.Failed)
                 throw new InvalidOperationException("Counter report scenario failed: " + scenario.Name);
 

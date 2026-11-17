@@ -5,60 +5,6 @@ using Lokad.Awk;
 namespace Lokad.Awk.Benchmarking;
 
 [MemoryDiagnoser, MedianColumn]
-public class InterpreterLayerBenchmarks
-{
-    private ReferenceWorkload? _workload;
-    private AwkCompiledProgram? _compiled;
-
-    private ReferenceWorkload Workload => _workload ?? throw new InvalidOperationException("Missing fixture.");
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _workload = ReferenceWorkloads.Create("projection", "large");
-        _compiled = PrepareAsync().GetAwaiter().GetResult();
-        ExecutePreparedProgram().GetAwaiter().GetResult();
-    }
-
-    [GlobalCleanup]
-    public async Task Cleanup()
-    {
-        if (_compiled is { } compiled)
-            await compiled.DisposeAsync().ConfigureAwait(false);
-    }
-
-    [Benchmark(Baseline = true)]
-    public async Task FullCommandLineInvocation()
-    {
-        var result = await ReferenceExecution.RunLibraryAsync(Workload, false, CancellationToken.None).ConfigureAwait(false);
-        ReferenceExecution.Verify(result, Workload.ExpectedDigest);
-    }
-
-    [Benchmark]
-    public async Task PrepareProgram()
-    {
-        await using var prepared = await PrepareAsync().ConfigureAwait(false);
-    }
-
-    [Benchmark]
-    public async Task ExecutePreparedProgram()
-    {
-        var compiled = _compiled ?? throw new InvalidOperationException("Missing prepared program.");
-        using var host = new ReferenceBenchmarkHost(Workload, false);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, AwkRuntimeOptions.CreateSystemDefault() with { RegexEngine = AwkUtf8RegexEngine.Instance }).ConfigureAwait(false);
-        ReferenceExecution.Verify(host.Finish(exit.Value), Workload.ExpectedDigest);
-    }
-
-    private async Task<AwkCompiledProgram> PrepareAsync()
-    {
-        using var host = new ReferenceBenchmarkHost(Workload, false);
-        return await AwkExecutor.CompileAsync(host,
-            AwkCommandInvocation.CreateWithStandardDescriptors("awk", Workload.Arguments, []),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance).ConfigureAwait(false);
-    }
-}
-
-[MemoryDiagnoser, MedianColumn]
 public class FrontendLayerBenchmarks
 {
     private string _source = string.Empty;
