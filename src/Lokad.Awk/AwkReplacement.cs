@@ -6,17 +6,19 @@ internal static class AwkReplacement
         ReadOnlySpan<byte> match,
         AwkText replacement,
         AwkUtf8Builder builder,
+        AwkCompatibilityMode compatibilityMode,
         Action? checkpoint = null)
     {
         if (replacement.ByteLength == 0)
             return;
 
-        AppendSubstitution(match, replacement.AsSpan(checkpoint), builder, checkpoint);
+        AppendSubstitution(match, replacement.AsSpan(checkpoint), builder, compatibilityMode, checkpoint);
 
         static void AppendSubstitution(
             ReadOnlySpan<byte> match,
             ReadOnlySpan<byte> replacement,
             AwkUtf8Builder builder,
+            AwkCompatibilityMode compatibilityMode,
             Action? checkpoint)
         {
             long nextCheckpoint = 0;
@@ -63,7 +65,12 @@ internal static class AwkReplacement
                     continue;
                 }
 
-                builder.Append((byte)'\\', slashCount, checkpoint);
+                // POSIX reduces pairs; GNU/traditional reduce groups of four
+                // before ordinary text or the end of the replacement.
+                var literalSlashes = compatibilityMode == AwkCompatibilityMode.Posix
+                    ? slashCount - slashCount / 2
+                    : slashCount - 2 * (slashCount / 4);
+                builder.Append((byte)'\\', literalSlashes, checkpoint);
                 index--;
             }
             checkpoint?.Invoke();

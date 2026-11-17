@@ -250,8 +250,10 @@ matching `b` reports RSTART 3 normally and 6 in byte mode. Whole matches and
 observable captures must be scalar-aligned before slicing, allocation or publication;
 otherwise execution fails with `awk: regular expression splits a Unicode character`.
 
-`sub`/`gsub` use awk whole-match `&` and backslash rules; `gensub` additionally supports
-numbered references. Only observable capture text is materialized. Replacement/capture
+`sub`/`gsub` interpret `&` as the whole match. Before ordinary replacement text or its
+end, POSIX reduces backslash pairs; default/traditional modes reduce groups of four.
+`gensub` supports numbered references and its own escape rules. Only observable
+capture text is materialized. Replacement/capture
 output preflights memory and publication; backend replacement syntax does not apply.
 
 Regex FS/RS ignores empty matches without discarding skipped input. Global gsub/gensub

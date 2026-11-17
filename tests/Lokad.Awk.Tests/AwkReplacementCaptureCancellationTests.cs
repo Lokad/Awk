@@ -8,6 +8,36 @@ public sealed class AwkReplacementCaptureCancellationTests
     private const int LongText = 16_384;
 
     [Theory]
+    [InlineData("gnu")]
+    [InlineData("posix")]
+    [InlineData("traditional")]
+    public void RefusedReplacementRunKeepsPublishedBuilderPrefix(string mode)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = Governor(counters);
+        var budget = memory.Budget;
+        var accounting = memory.Accounting;
+        using var builder = new AwkUtf8Builder(accounting, 0);
+        builder.Append("seed"u8);
+        var committed = accounting.CurrentCommittedBytes;
+        var replacement = AwkText.FromString(new string('\\', LongText));
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        var error = Assert.Throws<AwkRuntimeException>(() => AwkReplacement.AppendSubstitution(
+            "H"u8, replacement, builder, ReplacementCompatibility(mode)));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("seed", AwkUtf8Codec.Decode(builder.AsSpan()));
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.True(budget.Refusals > 0);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        builder.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("substitution")]
     [InlineData("gensub")]
     [InlineData("search")]
@@ -26,7 +56,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         {
             switch (operation)
             {
-                case "substitution": AwkReplacement.AppendSubstitution("x"u8, text, builder, cancellation.Token.ThrowIfCancellationRequested); break;
+                case "substitution": AwkReplacement.AppendSubstitution("x"u8, text, builder, AwkCompatibilityMode.GnuDefault, cancellation.Token.ThrowIfCancellationRequested); break;
                 case "gensub": using (AwkGensubReplacementPlan.Rent(text, cancellation.Token.ThrowIfCancellationRequested)) { } break;
                 case "search":
                     using (var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
@@ -46,14 +76,17 @@ public sealed class AwkReplacementCaptureCancellationTests
     }
 
     [Theory]
-    [InlineData(false, "literal")]
-    [InlineData(false, "slashes")]
-    [InlineData(false, "ampersands")]
-    [InlineData(true, "literal")]
-    [InlineData(true, "pairs")]
-    [InlineData(true, "ampersands")]
-    public void LongReplacementScansCancelAndAllowASeparateRetry(bool gensub, string shape)
+    [InlineData(false, "literal", "gnu")]
+    [InlineData(false, "slashes", "gnu")]
+    [InlineData(false, "ampersands", "gnu")]
+    [InlineData(false, "slashes", "posix")]
+    [InlineData(false, "slashes", "traditional")]
+    [InlineData(true, "literal", "gnu")]
+    [InlineData(true, "pairs", "gnu")]
+    [InlineData(true, "ampersands", "gnu")]
+    public void LongReplacementScansCancelAndAllowASeparateRetry(bool gensub, string shape, string mode)
     {
+        var compatibility = ReplacementCompatibility(mode);
         var replacement = shape switch
         {
             "literal" => new string('a', LongText),
@@ -83,7 +116,7 @@ public sealed class AwkReplacementCaptureCancellationTests
                 using var plan = AwkGensubReplacementPlan.Rent(text, checkpoint);
             }
             else
-                AwkReplacement.AppendSubstitution("H"u8, text, builder, checkpoint);
+                AwkReplacement.AppendSubstitution("H"u8, text, builder, compatibility, checkpoint);
         });
 
         Assert.Equal("seed", AwkUtf8Codec.Decode(builder.AsSpan()));
@@ -95,10 +128,11 @@ public sealed class AwkReplacementCaptureCancellationTests
             plan.Append(Match(), builder, retry.Token.ThrowIfCancellationRequested);
         }
         else
-            AwkReplacement.AppendSubstitution("H"u8, text, builder, retry.Token.ThrowIfCancellationRequested);
+            AwkReplacement.AppendSubstitution("H"u8, text, builder, compatibility, retry.Token.ThrowIfCancellationRequested);
         var expected = shape switch
         {
             "ampersands" => new string('H', LongText),
+            "slashes" => new string('\\', LongText / 2),
             "pairs" => new string('G', LongText / 2),
             _ => replacement
         };
@@ -339,4 +373,11 @@ public sealed class AwkReplacementCaptureCancellationTests
 
     private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
         new CooperativeTestMemory(8 << 20, counters);
+
+    private static AwkCompatibilityMode ReplacementCompatibility(string mode) => mode switch
+    {
+        "posix" => AwkCompatibilityMode.Posix,
+        "traditional" => AwkCompatibilityMode.Traditional,
+        _ => AwkCompatibilityMode.GnuDefault
+    };
 }

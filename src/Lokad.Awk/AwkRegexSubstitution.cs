@@ -109,7 +109,7 @@ internal static class AwkRegexSubstitution
                 targetOccurrence,
                 maxReplacements,
                 matches,
-                new SpanMatchReplacement(replacementKind),
+                new SpanMatchReplacement(replacementKind, state.CompatibilityMode),
                 out replacementCount);
 
         static AwkText ReplaceGensubMatches<TMatchSource>(
@@ -248,7 +248,7 @@ internal static class AwkRegexSubstitution
         void Append(AwkText input, in TMatch match, AwkText replacement, AwkUtf8Builder builder, Action checkpoint);
     }
 
-    private readonly record struct SpanMatchReplacement(SpanReplacementKind Kind)
+    private readonly record struct SpanMatchReplacement(SpanReplacementKind Kind, AwkCompatibilityMode CompatibilityMode)
         : IMatchReplacement<AwkRegexMatchSpan>
     {
         public int GetByteIndex(in AwkRegexMatchSpan match) => match.ByteIndex;
@@ -272,6 +272,7 @@ internal static class AwkRegexSubstitution
                 input.AsSpan(checkpoint).Slice(match.ByteIndex, match.ByteLength),
                 replacement,
                 builder,
+                CompatibilityMode,
                 checkpoint);
         }
     }
