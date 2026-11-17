@@ -72,7 +72,7 @@ public sealed class AwkSortingResourceTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task NumericSortCancellationStopsPublicationAndFollowingEffects(bool governed)
+    public async Task CancellationAtReadyOutputStopsSortAndFollowingEffects(bool governed)
     {
         const string source = "BEGIN{for(i=262144;i>=1;i--)data[i]=i;print \"ready\";" +
             "asort(data,result,\"@val_num_asc\");print \"tail\"}END{print \"end\"}";
@@ -82,7 +82,7 @@ public sealed class AwkSortingResourceTests
         host.AfterAppend = () =>
         {
             host.AfterAppend = null;
-            cancellation.CancelAfter(TimeSpan.FromMilliseconds(1));
+            cancellation.Cancel();
         };
         var policy = AwkExecutionPolicy.CreateDefault();
         if (governed) policy = policy.WithMemoryBudget(budget);
