@@ -100,6 +100,13 @@ POSIX strings retain plain `u`/`x` for `\u`/`\x`.
 Warning histories and locations are execution-local, including
 unreachable lexical warnings; reusing a prepared program does not share history.
 
+## Syntax depth
+
+The syntax-depth backstop defaults to 128, or 64 in the restricted preset. It counts
+nested delimiters and structural nesting such as unary chains, right-nested expressions,
+calls and control bodies. Flat left-associated binary/concatenation chains and unbraced
+else-if chains do not accumulate depth. Memory admission and cancellation still apply.
+
 ## Values, numbers and formatting
 
 Numbers are invariant-culture binary64. Whole-string numeric classification differs from

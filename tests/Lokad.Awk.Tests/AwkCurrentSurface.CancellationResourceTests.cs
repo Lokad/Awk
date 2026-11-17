@@ -1107,24 +1107,60 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
-    [Fact]
-    public async Task Awk_DefaultSyntaxLimitRejectsDeepFlatExpressionTreeBeforeExecution()
+    [Theory]
+    [InlineData("sum", false)] [InlineData("sum", true)]
+    [InlineData("concatenation", false)] [InlineData("concatenation", true)]
+    [InlineData("else-if", false)] [InlineData("else-if", true)]
+    [InlineData("fields", false)] [InlineData("fields", true)]
+    public async Task Awk_SyntaxLimitsAllowFlatPrograms(string shape, bool restricted)
     {
-        var program = new StringBuilder("BEGIN{x=0");
-        for (var index = 0; index <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth; index++)
-            program.Append("+0");
+        var source = shape switch
+        {
+            "sum" => "BEGIN{print " + string.Join('+', Enumerable.Repeat("1", 10_000)) + "}",
+            "concatenation" => "BEGIN{print length(" + string.Concat(Enumerable.Repeat("\"a\" ", 10_000)) + ")}",
+            "fields" => "BEGIN{$0=\"" + string.Join(' ', Enumerable.Range(1, 32)) + "\";print (" +
+                string.Join(' ', Enumerable.Range(1, 32).Select(index => "$" + index)) + ")}",
+            _ => "BEGIN{x=999;" + string.Concat(Enumerable.Range(0, 1_000).Select(index =>
+                (index == 0 ? "if(x==" : "else if(x==") + index + ")print " + index + ";")) + "else print -1}"
+        };
+        var expected = shape == "else-if" ? "999\n" : shape == "fields"
+            ? string.Concat(Enumerable.Range(1, 32)) + "\n" : "10000\n";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(128 << 20);
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+            .WithMemoryBudget(budget);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, cancellation.Token));
+        Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
 
-        program.Append('}');
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program.ToString()));
-        var fileSystem = new MockFileSystem();
-
-        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(
-            "awk: program nesting limit exceeded.\n",
-            fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    [Theory]
+    [InlineData("unary", false)] [InlineData("unary", true)]
+    [InlineData("power", false)] [InlineData("power", true)]
+    [InlineData("ternary", false)] [InlineData("ternary", true)]
+    public async Task Awk_SyntaxLimitsStillRejectStructuralExpressionNestingBeforeEffects(string shape, bool restricted)
+    {
+        const int count = 140;
+        var expression = shape switch
+        {
+            "unary" => new string('!', count) + "1",
+            "power" => string.Join('^', Enumerable.Repeat("1", count)),
+            _ => string.Concat(Enumerable.Repeat("0?0:", count)) + "1"
+        };
+        var source = "BEGIN{print \"before\";print " + expression + "}";
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+            .WithMemoryBudget(budget);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: program nesting limit exceeded.\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
     }
 
     [Fact]

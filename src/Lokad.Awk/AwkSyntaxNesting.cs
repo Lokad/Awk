@@ -76,7 +76,8 @@ internal static class AwkSyntaxNesting
                 expressions.Push(new ExpressionFrame(expression, frame.Depth + 1));
 
             PushStatements(frame.Statement.BodyStatements, frame.Depth + 1);
-            PushStatements(frame.Statement.ElseStatements, frame.Depth + 1);
+            PushStatements(frame.Statement.ElseStatements, frame.Depth + 1,
+                flattenElseIf: frame.Statement.Payload is AwkControlStatementSyntaxPayload { HasUnbracedElseBody: true });
             for (var caseIndex = 0; caseIndex < frame.Statement.SwitchCases.Count; caseIndex++)
             {
                 checkpoint?.Invoke();
@@ -103,19 +104,21 @@ internal static class AwkSyntaxNesting
                 checkpoint?.Invoke();
                 expressions.Push(new ExpressionFrame(
                     frame.Expression.Children[childIndex],
-                    frame.Depth + 1));
+                    frame.Depth + (childIndex == 0 &&
+                        frame.Expression.Kind is AwkExpressionKind.Binary or AwkExpressionKind.Concatenation ? 0 : 1)));
             }
         }
 
         span = default;
         return false;
 
-        void PushStatements(IReadOnlyList<AwkStatementSyntax> source, int depth)
+        void PushStatements(IReadOnlyList<AwkStatementSyntax> source, int depth, bool flattenElseIf = false)
         {
             for (var index = 0; index < source.Count; index++)
             {
                 checkpoint?.Invoke();
-                statements.Push(new StatementFrame(source[index], depth));
+                statements.Push(new StatementFrame(source[index],
+                    depth - (flattenElseIf && source[index].Kind == AwkStatementKind.If ? 1 : 0)));
             }
         }
     }

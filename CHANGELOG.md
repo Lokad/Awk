@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Count structural syntax nesting without rejecting long left-associated expressions or unbraced else-if chains; retain delimiter and nested-expression backstops.
+
 - Start significant-token lookahead at its requested index, avoiding repeated prefix scans in identifier expressions.
 
 - Assemble else-if continuations without repeatedly rebuilding earlier branches; preserve dangling-else binding and source spans.
