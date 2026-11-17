@@ -91,7 +91,8 @@ public sealed class AwkBuiltinsTests
             Assert.Equal(AwkCallableKind.SpecialForm, specialForm.Kind);
         }
 
-        Assert.DoesNotContain("sub", AwkBuiltins.Names);
+        Assert.Contains("sub", AwkBuiltins.Names);
+        Assert.DoesNotContain("getline", AwkBuiltins.Names);
         Assert.False(AwkBuiltins.TryGetCallable("getline", out _));
     }
 

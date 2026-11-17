@@ -595,7 +595,7 @@ internal sealed partial class AwkArrayRuntime
                     continue;
 
                 var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                slots[ordinalKey] = _state.CreateStringValue(group.Value);
+                slots[ordinalKey] = _state.CreateNumericStringValue(group.Value);
                 slots[MetadataKey(ordinalKey, MatchStartCaptureKeyPart)] =
                     AwkValue.FromNumber(group.Index + 1);
                 slots[MetadataKey(ordinalKey, MatchLengthCaptureKeyPart)] =

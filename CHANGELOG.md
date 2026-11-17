@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Include special-form functions in FUNCTAB, preserve numeric-string origins in match captures,
+  and validate calls inside computed field indices before execution.
+
 - Apply getline redirection precedence consistently, completing reads before concatenated
   suffix effects while preserving recoverable read failures and explicit source grouping.
 

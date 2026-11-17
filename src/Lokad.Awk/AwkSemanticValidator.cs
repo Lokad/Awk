@@ -683,7 +683,7 @@ internal static class AwkSemanticValidator
             ValidateSpecialArrayElementMutation(expression.Children[0], context, diagnostics);
         }
 
-        if (expression.Kind == AwkExpressionKind.Field || IsMalformedArrayElement(expression))
+        if (IsMalformedArrayElement(expression))
             return -1;
 
         return expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;

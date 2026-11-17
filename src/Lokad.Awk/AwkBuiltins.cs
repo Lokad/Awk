@@ -553,9 +553,16 @@ internal static partial class AwkBuiltins
     public static bool IsName(string name, AwkBuiltinId id) =>
         string.Equals(name, Name(id), StringComparison.Ordinal);
 
-    public static int Count => Definitions.Count;
+    public static int Count => Definitions.Count + SpecialFormDefinitions.Count;
 
-    public static IEnumerable<string> Names => Definitions.Keys;
+    public static IEnumerable<string> Names
+    {
+        get
+        {
+            foreach (var name in Definitions.Keys) yield return name;
+            foreach (var name in SpecialFormDefinitions.Keys) yield return name;
+        }
+    }
 
     public static bool TryGetCallable(string name, [NotNullWhen(true)] out AwkBuiltinDefinition? definition)
     {
