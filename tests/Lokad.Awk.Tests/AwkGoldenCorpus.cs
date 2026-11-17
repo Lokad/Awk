@@ -68,6 +68,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(EverydayReportIdiomCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Statement),
         .. Tagged(EverydayTextIdiomCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Statement),
         .. Tagged(EverydayCsvControlIdiomCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Statement),
+        .. Tagged(FileIdiomCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Io),
         .. Tagged(ElseAttachmentCases(), AwkGoldenTag.Statement),
         .. Tagged(NonlocalFunctionFlowCases(), AwkGoldenTag.Function, AwkGoldenTag.Statement),
         .. Tagged(IncrementConcatenationCases(), AwkGoldenTag.Expression, AwkGoldenTag.Field),

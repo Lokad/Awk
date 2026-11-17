@@ -37,18 +37,17 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
     {
         var identity = await Identity.Value;
         var golden = test.Golden;
-        Assert.Empty(golden.InputFiles);
-        Assert.Empty(golden.InputDirectories);
         Assert.Empty(golden.ReadOpenErrors);
-        Assert.Empty(golden.ExpectedFiles);
         Assert.Empty(golden.Environment);
         Assert.False(AwkRegexProviderGaps.AffectsExecution(golden),
             "Provider selection deferrals need their own declared differential profile.");
 
+        using var fixture = new AwkDifferentialFiles(golden);
         var native = await ReferenceProcess.RunAsync(identity.Executable, golden.Arguments,
             Encoding.UTF8.GetBytes(golden.StandardInput), capture: true, Deadline,
-            CancellationToken.None, locale: "C.UTF-8");
-        var reference = new AwkDifferentialObservation(native.ExitCode, native.Output, native.Error);
+            CancellationToken.None, locale: "C.UTF-8", workingDirectory: fixture.WorkingDirectory);
+        var reference = new AwkDifferentialObservation(native.ExitCode, native.Output, native.Error)
+        { Files = fixture.Capture(golden) };
         foreach (var governed in new[] { false, true })
         {
             var files = AwkTestHarness.BuildFileSystem(golden);
@@ -61,14 +60,20 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
             Assert.True(Awk.TryParse(invocation, out var awk));
             var exit = await awk.ExecuteAsync(files, policy, cancellation.Token);
             var actual = new AwkDifferentialObservation(exit.Value,
-                Encoding.UTF8.GetBytes(files.GetOutput(AwkFileDescriptor.StdOut)),
-                Encoding.UTF8.GetBytes(files.GetOutput(AwkFileDescriptor.StdErr)));
+                files.GetOutputBytes(AwkFileDescriptor.StdOut), files.GetOutputBytes(AwkFileDescriptor.StdErr))
+            {
+                Files = golden.ExpectedFiles.ToDictionary(file => file.Path,
+                    file => files.FileExists(file.Path) ? files.ReadFileBytes(file.Path) : null, StringComparer.Ordinal)
+            };
             Assert.Equal(0, files.OpenFileCount);
             Assert.Equal(0, budget.Reserved);
             var differences = Compare(test, actual, reference);
             output.WriteLine(JsonSerializer.Serialize(new
             {
                 golden.Name, golden.Arguments, Input = golden.StandardInput,
+                InputFiles = golden.InputFiles.Select(file => new { file.Path, file.Content }),
+                InputDirectories = golden.InputDirectories.Select(directory => directory.Path),
+                ExpectedFiles = golden.ExpectedFiles.Select(file => file.Path),
                 Native = identity, Locale = "C.UTF-8", TimeZone = "UTC",
                 Core = typeof(Awk).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
                 Governed = governed, Actual = actual, Reference = reference,
@@ -90,6 +95,15 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
             differences.Add("stdout differs");
         if (actual.DiagnosticClass != reference.DiagnosticClass)
             differences.Add($"stderr class differs: Awk {actual.DiagnosticClass}, GNU {reference.DiagnosticClass}");
+        foreach (var file in test.Golden.ExpectedFiles)
+        {
+            var haveActual = actual.Files.TryGetValue(file.Path, out var actualBytes) && actualBytes is not null;
+            var haveReference = reference.Files.TryGetValue(file.Path, out var referenceBytes) && referenceBytes is not null;
+            if (!haveActual) differences.Add("Awk missing expected file: " + file.Path);
+            if (!haveReference) differences.Add("GNU missing expected file: " + file.Path);
+            if (haveActual && haveReference && !actualBytes.AsSpan().SequenceEqual(referenceBytes))
+                differences.Add("file bytes differ: " + file.Path);
+        }
         return differences;
     }
 
@@ -142,5 +156,6 @@ public sealed class AwkDifferentialCase
 
 internal sealed record AwkDifferentialObservation(int ExitCode, byte[] Output, byte[] Error)
 {
+    public IReadOnlyDictionary<string, byte[]?> Files { get; init; } = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
     public string DiagnosticClass => Error.Length == 0 ? "empty" : ExitCode == 0 ? "warning" : "error";
 }

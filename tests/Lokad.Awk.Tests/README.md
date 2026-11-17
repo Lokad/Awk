@@ -259,9 +259,14 @@ Native output is compared with live Awk output, not just stored expectations. Th
 the benchmark process runner: argument lists, streamed stdin, bounded capture, cancellation and
 process-tree cleanup. It records executable version/hash, arguments/input, core revision, locale
 (`C.UTF-8`), timezone (`UTC`), both results and any declared native exit-status difference in test
-output. It compares stdout bytes, stderr class and exit status; goldens keep exact diagnostic text.
-The corpus includes 200 curated script/stdin idioms covering reports, fields, arrays, strings,
-CSV, functions and control flow. File-suite imports remain separate follow-up work.
+output. It compares stdout and declared output-file bytes, stderr class and exit status; goldens
+keep exact diagnostic text. Missing expected files fail even when both implementations omit them.
+Each native invocation owns an isolated working directory containing its input/source fixtures.
+Arguments and source text stay unchanged; file idioms use relative names against virtual-root fixtures.
+The corpus includes 200 curated script/stdin idioms, 14 file-based idioms and focused parsing
+controls. File cases cover joins, per-file phases/counters, getline, redirection, flush/close,
+source files/includes, operand assignments and CSV. Custom environment, injected read failures and
+permission differences require separate profiles. External-suite triage/imports remain follow-up work.
 Provider selection gaps remain explicit and must not silently expand with new idioms.
 
 Benchmark native comparisons use the same executable variable or explicit `--awk`.

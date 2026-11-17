@@ -58,7 +58,7 @@ internal static partial class AwkGoldenCorpus
         yield return AwkGoldenCaseBuilder.Create("getline-bare-length-explicit-source",
             ["BEGIN{print (getline < \"data\") length,NR,NF,$0}"], [File("/data", "longer record\n")])
             .WithStandardInput("abc\n").WithStdOut("113 0 2 longer record\n")
-            .WithTags([AwkGoldenTag.Io]).Build();
+            .WithTags([AwkGoldenTag.Idiom, AwkGoldenTag.Io]).Build();
         yield return AwkGoldenCaseBuilder.Create("getline-bare-length-missing",
             ["BEGIN{print (getline < \"absent\") length,(ERRNO!=\"\")}"], [])
             .WithStandardInput("abc\n").WithStdOut("-10 1\n")
