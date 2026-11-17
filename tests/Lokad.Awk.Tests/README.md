@@ -245,8 +245,20 @@ Benchmarks are not another correctness suite. Reference canonical scenarios or d
 workloads. `AwkBenchmarkCounterTests` holds deterministic runtime invariants. Harness and input
 tests cover byte consumption, quiet gates, claims, statistics and expected-output contracts.
 
-Native comparisons remain opt-in through `LOKAD_AWK_ORACLE_EXE` or explicit `--awk`.
-`AwkOracleCapture` records command/version/environment and accepted differences;
-`--reference-contracts` requalifies native signatures separately. `--driver-smoke` checks the
-external process boundary. Known reference bugs must not become equivalent performance cases.
+The differential idiom tests run through `Awk.ExecuteAsync` under ordinary and shared-memory
+policies. Opt in by setting `LOKAD_AWK_ORACLE_EXE` to an absolute GNU awk 5.3+ executable, then run
+`dotnet test Lokad.Awk.slnx -c Release --filter FullyQualifiedName~AwkDifferential`.
+Without the variable, the native theory is visibly skipped; comparison-unit and golden tests run.
+
+Native output is compared with live Awk output, not just stored expectations. The harness shares
+the benchmark process runner: argument lists, streamed stdin, bounded capture, cancellation and
+process-tree cleanup. It records executable version/hash, arguments/input, core revision, locale
+(`C.UTF-8`), timezone (`UTC`), both results and any declared native exit-status difference in test
+output. It compares stdout bytes, stderr class and exit status; goldens keep exact diagnostic text.
+The initial corpus uses script/stdin fixtures. File-suite imports remain separate follow-up work.
+Provider selection gaps remain explicit and must not silently expand with new idioms.
+
+Benchmark native comparisons use the same executable variable or explicit `--awk`.
+`--reference-contracts` qualifies equivalent native work; `--driver-smoke` checks the process
+boundary. Known reference bugs must not become equivalent performance cases.
 See [benchmark workflow](../../docs/BENCHMARKS.md) for focused development and milestone refreshes.
