@@ -553,10 +553,15 @@ internal partial struct AwkRegionMachine
                     BeginRead(computationView.Region.Getlines[instruction.Left]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
-                    var returnedValue = instruction.Detail == (int)AwkRegionOperandKind.TextTemporary
-                        ? computationView.State.CreateStringValue(computationView.Storage.Texts[instruction.Target])
-                        : computationView.CaptureReturn(in instruction);
-                    if (returnedValue.TryGetNumberValue(out returnedNumber)) goto NumberReturn;
+                    AwkValue returnedValue;
+                    if (instruction.Detail == (int)AwkRegionOperandKind.TextTemporary)
+                        returnedValue = computationView.State.CreateStringValue(computationView.Storage.Texts[instruction.Target]);
+                    else
+                    {
+                        if (computationView.CaptureReturn(in instruction, out returnedNumber)) goto NumberReturn;
+                        returnedValue = instruction.Target >= 0
+                            ? computationView.Storage.Values[instruction.Target] : AwkValue.Unassigned();
+                    }
                     if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
                     {
                         _pendingValue = new(returnedValue);

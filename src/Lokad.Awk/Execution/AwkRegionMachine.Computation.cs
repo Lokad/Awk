@@ -233,22 +233,25 @@ internal partial struct AwkRegionMachine
             throw new InvalidOperationException("Unknown mutable location.");
         }
 
-        internal AwkValue CaptureReturn(in AwkRegionInstruction instruction)
+        // Numbers need no owning payload. Other results remain in the actual funded
+        // capture slot; the driver reads it after any publication/refund callbacks.
+        internal bool CaptureReturn(in AwkRegionInstruction instruction, out double number)
         {
+            number = 0;
             if (instruction.Left >= 0)
             {
                 ref readonly var source = ref operands[instruction.Left];
                 var target = instruction.Target;
                 if (source.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
                     (uint)source.Index < (uint)frame.Layout.SlotCount &&
-                    frame.TryReadNumber(source.Index, out var number))
+                    frame.TryReadNumber(source.Index, out number))
                 {
                     // This return's private capture slot is fresh. A canonical
                     // number owns no payload to move through it. Retire the local
                     // before flushing, as the owning scalar capture does below.
                     state.Counters.RecordNumericLocalRead();
                     frame.GetSlot(source.Index) = default;
-                    return AwkValue.FromNumber(number);
+                    return true;
                 }
                 if (source.Kind != AwkRegionOperandKind.LocalVariable || frame is null ||
                     !storage.TryTakeRetiringLocal(target, frame, source.Index))
@@ -257,14 +260,11 @@ internal partial struct AwkRegionMachine
                         ? ReadArray(region.Arrays[source.Index]) : Value(instruction.Left);
                     // The private capture is fresh; a number owns no payload.
                     // Other origins keep scalar publication and its funded owner.
-                    if (value.IsNumberValue) return value;
+                    if (value.TryGetNumberValue(out number)) return true;
                     storage.StoreValue(target, value);
                 }
             }
-            if (instruction.Target < 0) return AwkValue.Unassigned();
-            // Reload the actual value owner after publication/refund callbacks.
-            // Prepared text returns are consumed at the same driver boundary.
-            return storage.Values[instruction.Target];
+            return instruction.Target >= 0 && storage.Values[instruction.Target].TryGetNumberValue(out number);
         }
 
         internal AwkValue Value(int index) => Value(in operands[index]);

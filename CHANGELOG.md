@@ -11,7 +11,8 @@
 - Keep cancellation checks with record owners and long consumers, avoiding a duplicate poll
   when inspecting already-admitted record bytes.
 - Stage already-numeric field arguments directly into prepared function frames.
-- Prepare numeric function returns without intermediate scalar-value conversion.
+- Prepare and capture numeric function returns directly, keeping owning return values
+  funded through host completion.
 - Reuse recognized short-integer digits during numeric conversion; preserve the floating-point
   fallback, input spelling and cooperative cancellation.
 - Prepare admitted record splitting once and defer RT numeric conversion until use. An absent
