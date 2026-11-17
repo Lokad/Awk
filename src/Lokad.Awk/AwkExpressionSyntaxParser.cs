@@ -225,6 +225,17 @@ internal sealed class AwkExpressionSyntaxParser
                 AwkTokenKind.Regex or AwkTokenKind.StrongRegex or
                 AwkTokenKind.RightBracket or AwkTokenKind.RightParen)
             {
+                if (tokens[previous].Kind is not (AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier or
+                    AwkTokenKind.RightBracket))
+                {
+                    // A literal or call can precede ++x in a concatenation, while
+                    // a dollar-prefixed primary still takes postfix mutation.
+                    var following = AwkTokenNavigation.SkipNonSignificant(tokens, index + 1, tokens.Count, checkpoint);
+                    if (following < tokens.Count && tokens[following].Kind is
+                        (AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier or AwkTokenKind.Dollar) &&
+                        !HasFieldIndexPrefix(tokens, previous, checkpoint))
+                        return token.Kind;
+                }
                 return token.Kind is AwkTokenKind.PlusPlus
                     ? AwkTokenKind.PostfixPlusPlus
                     : AwkTokenKind.PostfixMinusMinus;
@@ -243,6 +254,38 @@ internal sealed class AwkExpressionSyntaxParser
         }
 
         return token.Kind;
+    }
+
+    private static bool HasFieldIndexPrefix(IReadOnlyList<AwkToken> tokens, int end, Action? checkpoint)
+    {
+        var start = end;
+        if (tokens[end].Kind == AwkTokenKind.RightParen)
+        {
+            var depth = 1;
+            while (--start >= 0)
+            {
+                if (((end - start) & 1023) == 0) checkpoint?.Invoke();
+                if (tokens[start].Kind == AwkTokenKind.RightParen) depth++;
+                else if (tokens[start].Kind == AwkTokenKind.LeftParen && --depth == 0) break;
+            }
+            if (start < 0) return false;
+            var name = Previous(start);
+            if (name >= 0 && tokens[name].Kind is (AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier) &&
+                (tokens[name].Span.End == tokens[start].Span.Start ||
+                    AwkBuiltins.IsKnownFunctionOrSpecialForm(tokens[name].Text)))
+                start = name;
+        }
+        var prefix = Previous(start);
+        while (prefix >= 0 && tokens[prefix].Kind is AwkTokenKind.Plus or AwkTokenKind.Minus or AwkTokenKind.Bang)
+            prefix = Previous(prefix);
+        return prefix >= 0 && tokens[prefix].Kind == AwkTokenKind.Dollar;
+
+        int Previous(int position)
+        {
+            while (--position >= 0 && !AwkTokenNavigation.IsSignificant(tokens[position].Kind))
+                checkpoint?.Invoke();
+            return position;
+        }
     }
 
     private static AwkExpressionSyntax? SingleExpressionOrNull(AwkExpressionParseResult result) =>

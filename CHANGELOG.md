@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Parse prefix increment/decrement in concatenations without changing field postfix mutation.
+
 - Accept equals-prefixed regex literals, trailing comments after control statements, and
   membership expressions in C-style for headers. Preserve ordinary for-in and division assignment.
 
