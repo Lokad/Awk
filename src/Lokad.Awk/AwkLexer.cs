@@ -155,7 +155,7 @@ internal static class AwkLexer
                     continue;
                 }
 
-                if (lexeme.Kind == AwkTokenKind.Slash && _canStartRegex)
+                if (Current == '/' && _canStartRegex)
                 {
                     ReadRegex();
                     continue;

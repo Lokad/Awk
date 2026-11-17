@@ -403,7 +403,6 @@ internal static class AwkSemanticValidator
             if (frame.Position + 1 < frame.Statements.Count)
                 pending.Push((frame.Statements, frame.Position + 1, context, default, false));
             ValidateControlStatementShape(statement, diagnostics);
-            ValidateArgumentlessStatementShape(statement, diagnostics);
             ValidateControlFlowUsage(statement, context, diagnostics);
             var getlineTarget = statement.Payload switch
             {
@@ -472,9 +471,6 @@ internal static class AwkSemanticValidator
             AwkStatementValidationContext context,
             List<AwkDiagnostic> diagnostics)
         {
-            if (HasUnexpectedArgument(statement))
-                return;
-
             if (AwkStatementValidationFacts.TryGetControlFlowRequirement(
                     statement.Kind,
                     out var requirement,
@@ -486,19 +482,6 @@ internal static class AwkSemanticValidator
                     diagnostic,
                     AwkDiagnosticId.BindInvalidProgram));
             }
-        }
-
-        static void ValidateArgumentlessStatementShape(
-            AwkStatementSyntax statement,
-            List<AwkDiagnostic> diagnostics)
-        {
-            if (!HasUnexpectedArgument(statement))
-                return;
-
-            diagnostics.Add(new AwkDiagnostic(
-                statement.Span,
-                AwkStatementValidationFacts.ArgumentlessDiagnostic(statement.Kind),
-                AwkDiagnosticId.BindInvalidProgram));
         }
 
         static void ValidateControlStatementShape(
@@ -524,10 +507,6 @@ internal static class AwkSemanticValidator
                 ValidateExpressionSemanticsCore(syntax, context, diagnostics);
         }
     }
-
-    private static bool HasUnexpectedArgument(AwkStatementSyntax statement) =>
-        AwkStatementValidationFacts.IsArgumentless(statement.Kind) &&
-        statement.Tokens.Count > 1;
 
     private static void ValidateExpressionSemanticsCore(AwkExpressionSyntax expression,
         AwkStatementValidationContext context, List<AwkDiagnostic> diagnostics)

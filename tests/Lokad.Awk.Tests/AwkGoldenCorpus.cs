@@ -63,6 +63,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(StreamIdentityCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
         .. Tagged(ControlHeaderRegexCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex),
+        .. Tagged(CommonParsingIdiomCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex, AwkGoldenTag.Array),
 
         .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 

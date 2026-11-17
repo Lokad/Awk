@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accept equals-prefixed regex literals, trailing comments after control statements, and
+  membership expressions in C-style for headers. Preserve ordinary for-in and division assignment.
+
 - Fix numeric CONVFMT/OFMT assignment, preserving the captured format and numeric origin
   without recursive formatting. Honor memory admission and cancellation for retained formats.
 - Fix call-result array updates at inserted cancellation boundaries.

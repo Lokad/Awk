@@ -342,7 +342,10 @@ internal sealed class AwkStatementSyntaxParser
 
         AwkForHeaderSyntax ParseForHeader(IReadOnlyList<AwkToken> tokens)
         {
-            var inIndex = AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.In, 0, tokens.Count, checkpoint: _checkpoint);
+            var parts = AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Semicolon, checkpoint: _checkpoint);
+            var inIndex = parts.Count == 1
+                ? AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.In, 0, tokens.Count, checkpoint: _checkpoint)
+                : -1;
             if (inIndex >= 0)
             {
                 return new AwkForHeaderSyntax(
@@ -356,7 +359,7 @@ internal sealed class AwkStatementSyntaxParser
 
             return new AwkForHeaderSyntax(
                 isForIn: false,
-                ParseExpressionSlots(AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Semicolon, checkpoint: _checkpoint), allowLeadingNewlines: true));
+                ParseExpressionSlots(parts, allowLeadingNewlines: true));
 
             AwkExpressionSlotSyntax[] ParseExpressionSlots(
                 IReadOnlyList<IReadOnlyList<AwkToken>> segments,
