@@ -84,14 +84,13 @@ internal static class AwkTokenNavigation
 
     public static AwkToken? FindNextSignificant(IReadOnlyList<AwkToken> tokens, int startIndex, Action? checkpoint = null)
     {
-        var index = 0;
-        foreach (var token in Enumerate(tokens, checkpoint))
+        tokens = ForIndexedAccess(tokens, checkpoint);
+        for (var index = Math.Max(0, startIndex); index < tokens.Count; index++)
         {
             checkpoint?.Invoke();
-            if (index >= startIndex && IsSignificant(token.Kind))
+            var token = tokens[index];
+            if (IsSignificant(token.Kind))
                 return token;
-
-            index++;
         }
 
         return null;

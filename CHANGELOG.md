@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Start significant-token lookahead at its requested index, avoiding repeated prefix scans in identifier expressions.
+
 - Assemble else-if continuations without repeatedly rebuilding earlier branches; preserve dangling-else binding and source spans.
 
 - Honor CONVFMT for numeric string conversions inside OFMT and keep recursive conversion bounded.

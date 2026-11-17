@@ -132,6 +132,19 @@ public sealed class AwkSyntaxParserTests
         }
     }
 
+    [Theory]
+    [InlineData(-1, "a")] [InlineData(0, "a")]
+    [InlineData(1, "b")] [InlineData(2, "b")] [InlineData(3, "b")] [InlineData(4, "b")]
+    [InlineData(5, null)] [InlineData(int.MaxValue, null)]
+    public void AwkTokenNavigation_NextSignificantStartsAtRequestedPosition(int start, string? expected)
+    {
+        var tokens = AwkLexer.Tokenize("a # note\n;b")
+            .Where(token => token.Kind != AwkTokenKind.EndOfFile).ToArray();
+        Assert.Equal(expected, AwkTokenNavigation.FindNextSignificant(tokens, start)?.Text);
+        var composite = AwkTokenNavigation.Flatten(tokens.Select(token => (IReadOnlyList<AwkToken>)new[] { token }));
+        Assert.Equal(expected, AwkTokenNavigation.FindNextSignificant(composite, start)?.Text);
+    }
+
     [Fact]
     public void AwkSyntaxParser_DeepBlockDiagnosticsDoNotUseTheManagedCallStack()
     {
