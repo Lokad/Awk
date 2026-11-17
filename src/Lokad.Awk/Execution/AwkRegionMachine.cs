@@ -341,6 +341,8 @@ internal partial struct AwkRegionMachine
     private void CompleteReturnedArrayUpdate(AwkRegion region, AwkRegionStorage storage, double number)
     {
         ref readonly var instruction = ref region.Instructions[_position];
+        if (instruction.Kind != AwkRegionInstructionKind.ArrayUpdate)
+            throw new InvalidOperationException("A returned array update requires its adjacent consumer.");
         ref readonly var update = ref region.Updates[instruction.Left];
         var target = storage.Targets[update.Slot];
         var pathSlot = update.Path >= 0 && region.Paths[update.Path].ImmediateKeys is null

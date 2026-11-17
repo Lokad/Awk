@@ -214,19 +214,6 @@ internal sealed partial class AwkRegionCompiler
             // Only captures crossing instructions need storage and rule retirement.
             if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);
             _updates[update.Target.Capture] = site;
-            if (site.PrepareAccess < 0 && site.Right.IsRegister && _code.Count > 0 &&
-                _code[^1] is { Kind: AwkRegionInstructionKind.Call,
-                    Detail: (int)AwkRegionReturnConsumer.Number } call && call.Target == site.Right.RegisterIndex)
-            {
-                // The saved caller consumes this adjacent update descriptor.
-                // Its target stays funded across the call, without transporting
-                // the returned number through another register and dispatch.
-                _code[^1] = call with { Target = number, Detail = (int)AwkRegionReturnConsumer.ArrayUpdate };
-                if (call.Target == _numbers - 1) _numbers--;
-                _operands[right] = new(AwkRegionOperandKind.NumberTemporary, number);
-                site = site with { Right = AwkRegionNumberSource.Bind(result, _operands[result]) };
-                _updates[update.Target.Capture] = site;
-            }
             if (site.PrepareAccess >= 0 && (site.Right.IsRegister ||
                 _operands[site.Right.OperandIndex].Kind is AwkRegionOperandKind.LocalVariable or
                     AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
@@ -234,6 +221,18 @@ internal sealed partial class AwkRegionCompiler
                 PrepareImmediatePath(site.PrepareAccess);
             Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture, oldNumber,
                 Detail: (int)operation));
+            // Emit may insert a cancellation poll. Fuse only after emission proves
+            // the call and its consumer are still adjacent.
+            if (site.PrepareAccess < 0 && site.Right.IsRegister && _code.Count > 1 &&
+                _code[^2] is { Kind: AwkRegionInstructionKind.Call,
+                    Detail: (int)AwkRegionReturnConsumer.Number } call && call.Target == site.Right.RegisterIndex)
+            {
+                _code[^2] = call with { Target = number, Detail = (int)AwkRegionReturnConsumer.ArrayUpdate };
+                if (call.Target == _numbers - 1) _numbers--;
+                _operands[right] = new(AwkRegionOperandKind.NumberTemporary, number);
+                site = site with { Right = AwkRegionNumberSource.Bind(result, _operands[result]) };
+                _updates[update.Target.Capture] = site;
+            }
             if (site.Path >= 0 && _paths[site.Path].ImmediateKeys is null)
                 Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
             _activeUpdates--;
