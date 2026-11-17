@@ -346,7 +346,8 @@ public enum AwkGoldenTag
     SourceLoading,
     Statement,
     UserFunction,
-    Variable
+    Variable,
+    Idiom
 }
 
 internal static class AwkMessages
