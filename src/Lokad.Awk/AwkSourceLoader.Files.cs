@@ -14,6 +14,18 @@ internal static partial class AwkSourceLoader
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
+        var source = await TryReadIncludeSourceAsync(host, plan, includePath, includeDepth, resources,
+            cancellationToken).ConfigureAwait(false);
+        return source is SourceExpansionResult.Unexpanded unexpanded
+            ? await ExpandIncludesAsync(host, plan, unexpanded.Script.Text, unexpanded.Script.SourceName,
+                AwkSourceSegmentKind.Include, includeDepth, resources, cancellationToken).ConfigureAwait(false)
+            : source;
+    }
+
+    private static async Task<SourceExpansionResult> TryReadIncludeSourceAsync(
+        IAwkHost host, AwkSourceLoadPlan plan, string includePath, int includeDepth,
+        AwkRuntimeResourceMonitor resources, CancellationToken cancellationToken)
+    {
         resources.RecordInclude(includeDepth);
         AwkFileOperand resolved;
         try
@@ -62,16 +74,7 @@ internal static partial class AwkSourceLoader
         if (registration == AwkSourceRegistration.Repeated)
             return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
 
-        return await ExpandIncludesAsync(
-                host,
-                plan,
-                found.Script.Text,
-                found.Script.SourceName,
-                AwkSourceSegmentKind.Include,
-                includeDepth,
-                resources,
-                cancellationToken)
-            .ConfigureAwait(false);
+        return new SourceExpansionResult.Unexpanded(found.Script);
     }
 
     private abstract record SourceExpansionResult
@@ -81,6 +84,8 @@ internal static partial class AwkSourceLoader
 
         public static Failed Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
             new Failed(errorMessage, id);
+
+        internal sealed record Unexpanded(AwkScriptFile Script) : SourceExpansionResult;
 
         internal sealed record Loaded(AwkExpandedSource Source) : SourceExpansionResult;
 

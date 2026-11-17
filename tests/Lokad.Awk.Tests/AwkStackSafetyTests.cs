@@ -7,6 +7,20 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkStackSafetyTests(ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData("first")]
+    [InlineData("last")]
+    public async Task CompositeTokenEndpointsKeepTheStackBounded(string endpoint)
+    {
+        var executable = Path.ChangeExtension(typeof(AwkStackSafetyTests).Assembly.Location,
+            OperatingSystem.IsWindows() ? ".exe" : null);
+        var child = await ReferenceProcess.RunAsync(executable, ["--token-endpoint", endpoint], [], capture: true,
+            TimeSpan.FromSeconds(30), CancellationToken.None);
+        Assert.True(child.ExitCode == 0, Encoding.UTF8.GetString(child.Error));
+        Assert.Empty(child.Error);
+        Assert.Equal("7", Encoding.UTF8.GetString(child.Output).Trim());
+    }
+
     public static IEnumerable<object[]> Cases()
     {
         foreach (var shape in AwkStackSafetyScenario.Shapes)
@@ -53,19 +67,66 @@ public sealed class AwkStackSafetyTests(ITestOutputHelper output)
 
 internal sealed record AwkStackSafetyScenario(string Source, string Output,
     string Error = "", int ExitCode = 0, bool PendingReads = false, bool CancelOnRead = false,
-    bool FunctionCase = false, int FunctionDepth = 1_000)
+    bool FunctionCase = false, int FunctionDepth = 1_000, string Input = "")
 {
+    internal IReadOnlyList<AwkGoldenFile> Files { get; init; } = [];
     internal static readonly string[] Shapes =
     [
         "flat-sum", "flat-concatenation", "parentheses", "unary-not", "unary-minus",
         "field-chain", "conditional-chain", "nested-arguments", "nested-if", "nested-while", "else-if",
         "return", "arguments", "mutual", "pending-read", "depth-limit", "runtime-error", "cancellation",
         "raised-syntax", "four-argument-chain", "field-call-chain", "control-call-chain",
-        "four-argument-pending", "field-call-pending", "control-call-pending"
+        "four-argument-pending", "field-call-pending", "control-call-pending",
+        "nested-array-keys", "nested-path-keys", "incoming-error", "incoming-cancellation",
+        "numeric-formats", "beginfile-read", "endfile-read", "repeated-file-phases",
+        "include-boundary", "include-limit", "date-composites"
     ];
 
     internal static AwkStackSafetyScenario Create(string shape)
     {
+        if (shape is "include-boundary" or "include-limit")
+        {
+            var exceeds = shape == "include-limit";
+            var depth = AwkExecutionPolicy.CreateDefault().MaxIncludeDepth + (exceeds ? 1 : 0);
+            return new("@include \"/inc1.awk\"\n", exceeds ? "" : "7\n",
+                exceeds ? "awk: include depth limit exceeded\n" : "", exceeds ? 2 : 0)
+            {
+                Files = Enumerable.Range(1, depth).Select(index => new AwkGoldenFile("/inc" + index + ".awk",
+                    index == depth ? "BEGIN{print 7}\n" : "@include \"/inc" + (index + 1) + ".awk\"\n")).ToArray()
+            };
+        }
+        if (shape == "date-composites")
+            return new("BEGIN{for(i=0;i<1000;i++)print strftime(\"%c|%r|%F\",0,1)}",
+                string.Concat(Enumerable.Repeat("Thu Jan  1 00:00:00 1970|12:00:00 AM|1970-01-01\n", 1_000)));
+        if (shape is "nested-array-keys" or "nested-path-keys")
+        {
+            var key = string.Concat(Enumerable.Repeat("a[", 3_000)) + "1" + new string(']', 3_000);
+            return new("BEGIN{a[1]=1;b[1][1]=7;print " +
+                (shape == "nested-array-keys" ? key : "b[" + key + "][" + key + "]") + "}",
+                shape == "nested-array-keys" ? "1\n" : "7\n");
+        }
+        if (shape is "incoming-error" or "incoming-cancellation")
+        {
+            var cancel = shape == "incoming-cancellation";
+            return new("function add(a,b){return a+b}function stop(v){while((getline v)>0);return 0}" +
+                "BEGIN{print \"before\">\"/out\";print " + string.Concat(Enumerable.Repeat("add(1,", 3_000)) +
+                (cancel ? "stop()" : "(1/0)") + new string(')', 3_000) + "}", "",
+                cancel ? "" : "awk: division by zero attempted\n", cancel ? 0 : 2,
+                PendingReads: cancel, CancelOnRead: cancel, FunctionCase: true);
+        }
+        if (shape == "numeric-formats")
+            return new("BEGIN{CONVFMT=0.5;x=0.25;for(i=0;i<1000;i++){y=x \"\";OFMT=0.5;print x;OFMT=\"%.6g\"}print y,typeof(CONVFMT)}",
+                string.Concat(Enumerable.Repeat("0.5\n", 1_000)) + "0.5 number\n");
+        if (shape is "beginfile-read" or "endfile-read")
+        {
+            var phase = shape == "beginfile-read" ? "BEGINFILE" : "ENDFILE";
+            return new("function read(){return getline value}" + phase + "{read()}{print}",
+                shape == "beginfile-read" ? "" : "line\n",
+                "awk: non-redirected `getline' invalid inside `" + phase + "' rule\n", 2, Input: "line\n");
+        }
+        if (shape == "repeated-file-phases")
+            return new("BEGIN{for(i=1;i<=2000;i++)ARGV[i]=\"-\";ARGC=2001}BEGINFILE{n++;nextfile}ENDFILE{done++}END{print n,done}",
+                "2000 2000\n");
         var pendingChain = shape.EndsWith("-pending", StringComparison.Ordinal);
         var computationShape = pendingChain ? shape[..^"-pending".Length] + "-chain" : shape;
         var source = shape switch

@@ -6,15 +6,22 @@ internal static class StackSafetyEntryPoint
 {
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--token-endpoint" && args[1] is "first" or "last")
+            return RunOnSmallStack(() => TokenEndpoint(args[1]));
         if (args.Length != 3 || args[0] != "--stack-safety" || !bool.TryParse(args[2], out var governed))
             return 64;
+        var scenario = AwkStackSafetyScenario.Create(args[1]);
+        return RunOnSmallStack(() => Execute(args[1], governed, scenario));
+    }
+
+    private static int RunOnSmallStack<T>(Func<T> execute)
+    {
         try
         {
-            var scenario = AwkStackSafetyScenario.Create(args[1]);
-            var completion = new TaskCompletionSource<AwkStackSafetyObservation>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() =>
             {
-                try { completion.SetResult(Execute(args[1], governed, scenario)); }
+                try { completion.SetResult(execute()); }
                 catch (Exception error) { completion.SetException(error); }
             }, 256 << 10) { IsBackground = true };
             thread.Start();
@@ -30,9 +37,23 @@ internal static class StackSafetyEntryPoint
         }
     }
 
+    private static int TokenEndpoint(string endpoint)
+    {
+        AwkToken[] trivia = [new(AwkTokenKind.Comment, "# padding", new(0, 9))];
+        IReadOnlyList<AwkToken> tokens = [new AwkToken(AwkTokenKind.Identifier, "value", new(7, 5))];
+        for (var index = 0; index < 30_000; index++)
+            tokens = AwkTokenNavigation.Flatten([trivia, tokens, trivia]);
+        var token = endpoint == "first" ? AwkTokenNavigation.FindFirstSignificant(tokens)
+            : AwkTokenNavigation.FindLastSignificant(tokens);
+        return token?.Span.Start ?? -1;
+    }
+
     private static AwkStackSafetyObservation Execute(string shape, bool governed, AwkStackSafetyScenario scenario)
     {
         var host = new MockFileSystem();
+        host.SetStandardInput(scenario.Input);
+        foreach (var file in scenario.Files)
+            host.AddFile(file.Path, file.Content, file.Permission);
         var budget = new CooperativeTestBudget(512L << 20);
         var policy = AwkTestHarness.CreatePolicy()
             .WithMaxSyntaxNestingDepth(1_000_000).WithMaxFunctionCallDepth(scenario.FunctionDepth);

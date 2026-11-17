@@ -24,7 +24,8 @@ and races. Supported `/dev/*` aliases name supplied descriptors. Main input acce
 
 Main-input operands remain text until the scheduler selects them. Unused or discarded operands
 are not validated as paths; selected paths receive shared admission before host traversal.
-Source/include requests are prepared while loading the program. Virtual filenames
+Source/include requests are prepared while loading the program. Include expansion is iterative
+and retains its configured depth bound. Virtual filenames
 accept literal `:`, `*` and `\`; only `/` separates segments. There is no glob expansion or drive
 syntax. Hosts determine whether their backing store supports these names.
 

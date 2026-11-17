@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Expand nested source includes without recursive async calls, preserving source maps, admission and cleanup.
+- Walk composed token endpoints iteratively, avoiding stack overflow on deeply composed input.
+
 - Carry next, nextfile and exit through explicit interpreter frames, removing internal control-flow exceptions while preserving phase validation and cleanup.
 
 - Count structural syntax nesting without rejecting long left-associated expressions or unbraced else-if chains; retain delimiter and nested-expression backstops.

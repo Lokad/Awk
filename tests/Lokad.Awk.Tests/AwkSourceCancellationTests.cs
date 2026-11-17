@@ -124,6 +124,78 @@ public sealed class AwkSourceCancellationTests
         }
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task NestedIncludeContinuationStaysFundedUntilThePendingReadCompletes(bool governed)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem();
+        host.AddFile("/outer", "@include \"/inner\"\n");
+        host.AddFile("/inner", "placeholder");
+        host.ReadAsyncOverride = (_, _, _) => host.ReadOpenCount == 1
+            ? ValueTask.FromResult(AwkReadBuffer.FromContent("@include \"/inner\"\n"u8.ToArray(),
+                AwkReadCompletion.EndOfFile, static _ => { })) : WaitForInner();
+        ValueTask<AwkReadBuffer> WaitForInner() { entered.TrySetResult(); return new(pending.Task); }
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "@include \"/outer\"\nBEGIN{print \"unreached\"}"));
+        var run = awk.ExecuteAsync(host, policy, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
+            Assert.False(run.IsCompleted);
+            Assert.Equal(1, host.OpenFileCount);
+            Assert.Equal(governed, budget.Reserved > 0);
+            pending.SetResult(AwkReadBuffer.FromContent("BEGIN{print \"inner\"}"u8.ToArray(),
+                AwkReadCompletion.EndOfFile, static _ => { }));
+            var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(cancellation.Token, failure.CancellationToken);
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            pending.TrySetResult(AwkReadBuffer.EndOfFile);
+            try { await run; } catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task NestedIncludeAdmissionStopsBeforeOpeningTheChild(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(1 << 20);
+        var host = new MockFileSystem();
+        host.AddFile("/outer", "@include \"/inner\"\n");
+        host.AddFile("/inner", "BEGIN{print \"unreached\"}");
+        host.AfterCloseDescriptor = () =>
+        {
+            if (cancel) budget.OnGrowth = _ => cancellation.Cancel();
+            else budget.RefuseNextAdmissionMinimumGrowth = 1;
+        };
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "@include \"/outer\"\n"));
+        var policy = AwkTestHarness.CreatePolicy().WithMemoryBudget(budget);
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => awk.ExecuteAsync(host, policy, cancellation.Token));
+        else
+        {
+            Assert.Equal(AwkExitCode.FatalError, await awk.ExecuteAsync(host, policy, cancellation.Token));
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        }
+        Assert.Equal(1, host.ReadOpenCount);
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(cancel ? "" : "awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     private static Awk Tool(bool include)
     {
         string[] arguments = include ? ["@include \"source\"\nBEGIN{print \"unreached\"}"] : ["-f", "/source"];

@@ -19,131 +19,135 @@ internal static partial class AwkSourceLoader
         CancellationToken cancellationToken)
     {
         Action checkpoint = cancellationToken.ThrowIfCancellationRequested;
+        var current = BeginExpansion(plan, source, sourceName, sourceKind, includeDepth,
+            parent: null, checkpoint, out var ready);
+        if (current is null) return SourceExpansionResult.FromSource(ready);
+        while (true)
+        {
+            checkpoint();
+            if (!current.HasNextInclude)
+            {
+                var completed = current.Complete();
+                if (current.Parent is not { } parent) return SourceExpansionResult.FromSource(completed);
+                parent.CompleteInclude(completed);
+                current = parent;
+                continue;
+            }
+            if (!plan.AllowSourceIncludes)
+                return SourceExpansionResult.Failure(AwkMessages.ErrorSourceIncludesDisabled,
+                    AwkDiagnosticId.SourceLoadFailure);
+            var directive = current.BeginInclude();
+            var depth = checked(current.Depth + 1);
+            var include = await TryReadIncludeSourceAsync(host, plan, directive.Path.Text, depth,
+                resources, cancellationToken).ConfigureAwait(false);
+            if (include is SourceExpansionResult.Failed) return include;
+            if (include is SourceExpansionResult.Loaded loaded)
+            {
+                current.CompleteInclude(loaded.Source);
+                continue;
+            }
+            if (include is not SourceExpansionResult.Unexpanded unexpanded)
+                throw new InvalidOperationException("Unexpected include source result.");
+            var script = unexpanded.Script;
+            var child = BeginExpansion(plan, script.Text, script.SourceName, AwkSourceSegmentKind.Include,
+                depth, current, checkpoint, out ready);
+            if (child is null) current.CompleteInclude(ready);
+            else current = child;
+        }
+    }
+
+    private static IncludeExpansionFrame? BeginExpansion(AwkSourceLoadPlan plan, string source,
+        AwkSourceName sourceName, AwkSourceSegmentKind sourceKind, int depth,
+        IncludeExpansionFrame? parent, Action checkpoint, out AwkExpandedSource ready)
+    {
         checkpoint();
-        var normalization = AwkLineContinuations.Normalize(source, cancellationToken, plan.Memory, plan.CompatibilityMode);
+        var normalization = AwkLineContinuations.NormalizeWithCheckpoint(source, checkpoint, plan.Memory, plan.CompatibilityMode);
         var normalizedSource = normalization.Text;
         IReadOnlyList<IncludeDirective> includes = plan.CompatibilityMode == AwkCompatibilityMode.GnuDefault &&
             normalizedSource.Contains("@include", StringComparison.Ordinal)
             ? FindIncludes(normalizedSource, plan.Memory, checkpoint) : [];
+        checkpoint();
         if (includes.Count == 0)
         {
-            checkpoint();
-            if (normalizedSource.Length == 0)
-                return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
-
-            return SourceExpansionResult.FromSource(AwkExpandedSource.Create(
+            ready = normalizedSource.Length == 0 ? AwkExpandedSource.Empty : AwkExpandedSource.Create(
                 normalizedSource,
-                [new AwkSourceSegment(
-                    sourceName,
-                    sourceKind,
-                    new AwkTextSpan(0, normalizedSource.Length),
-                    new AwkLineOffset(0),
-                    new AwkColumnOffset(0),
-                    normalization.LineContinuations)]));
+                [new AwkSourceSegment(sourceName, sourceKind, new(0, normalizedSource.Length),
+                    new(0), new(0), normalization.LineContinuations)]);
+            return null;
         }
-
-        checkpoint();
+        // The existing frontend owner funds the continuation, builder/list headers
+        // and parent link before allocation; no per-node reservation is introduced.
+        plan.Memory.AdmitSourceUnits(4);
         plan.Memory.AdmitTextCopy(normalizedSource.Length);
-        var builder = new StringBuilder(normalizedSource.Length);
-        var segments = new List<AwkSourceSegment>();
-        var sourceChunkStart = 0;
-        var sourceChunkLine = 0;
-        var sourceChunkColumn = 0;
-        foreach (var directive in includes)
+        checkpoint();
+        ready = AwkExpandedSource.Empty;
+        return new(plan, sourceName, sourceKind, normalization, includes, depth, parent, checkpoint);
+    }
+
+    private sealed class IncludeExpansionFrame(AwkSourceLoadPlan plan, AwkSourceName sourceName,
+        AwkSourceSegmentKind sourceKind, AwkLineContinuationNormalization normalization,
+        IReadOnlyList<IncludeDirective> includes, int depth, IncludeExpansionFrame? parent, Action checkpoint)
+    {
+        private string Source => normalization.Text;
+        private readonly StringBuilder _builder = new(normalization.Text.Length);
+        private readonly List<AwkSourceSegment> _segments = [];
+        private int _sourceChunkStart;
+        private int _sourceChunkLine;
+        private int _sourceChunkColumn;
+        private int _includePosition;
+
+        internal IncludeExpansionFrame? Parent { get; } = parent;
+        internal int Depth { get; } = depth;
+        internal bool HasNextInclude => _includePosition < includes.Count;
+
+        internal IncludeDirective BeginInclude()
         {
-            checkpoint();
-            if (!plan.AllowSourceIncludes)
-            {
-                return SourceExpansionResult.Failure(
-                    AwkMessages.ErrorSourceIncludesDisabled,
-                    AwkDiagnosticId.SourceLoadFailure);
-            }
-
-            AppendSourceSegment(
-                builder,
-                segments,
-                sourceName,
-                sourceKind,
-                normalizedSource,
-                sourceChunkStart,
-                directive.Span.Start - sourceChunkStart,
-                sourceChunkLine,
-                sourceChunkColumn,
-                normalization.LineContinuations.Slice(
-                    sourceChunkStart,
-                    directive.Span.Start - sourceChunkStart, checkpoint));
-            var include = await TryReadIncludeAsync(
-                    host,
-                    plan,
-                    directive.Path.Text,
-                    checked(includeDepth + 1),
-                    resources,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (include is SourceExpansionResult.Failed)
-                return include;
-
-            if (include is not SourceExpansionResult.Loaded loadedInclude)
-                throw new InvalidOperationException("Unexpected source expansion result.");
-
-            AppendExpandedSource(builder, segments, loadedInclude.Source);
-            if (loadedInclude.Source.Text.Length > 0 && loadedInclude.Source.Text[^1] != '\n')
-            {
-                AwkSourceSegment? last = loadedInclude.Source.Segments.Count == 0
-                    ? null
-                    : loadedInclude.Source.Segments[^1];
-                AppendSyntheticNewLine(builder, segments, last);
-            }
-
-            AdvanceSourcePosition(directive.Span.End);
+            var directive = includes[_includePosition];
+            AppendSourceSegment(_sourceChunkStart, directive.Span.Start - _sourceChunkStart, _sourceChunkLine, _sourceChunkColumn,
+                normalization.LineContinuations.Slice(_sourceChunkStart, directive.Span.Start - _sourceChunkStart, checkpoint));
+            return directive;
         }
 
-        AppendSourceSegment(
-            builder,
-            segments,
-            sourceName,
-            sourceKind,
-            normalizedSource,
-            sourceChunkStart,
-            normalizedSource.Length - sourceChunkStart,
-            sourceChunkLine,
-            sourceChunkColumn,
-            normalization.LineContinuations.Slice(
-                sourceChunkStart,
-                normalizedSource.Length - sourceChunkStart, checkpoint));
-
-        checkpoint();
-        var expandedText = builder.ToString();
-        checkpoint();
-        return SourceExpansionResult.FromSource(AwkExpandedSource.Create(expandedText, segments));
-
-        void AdvanceSourcePosition(int end)
+        internal void CompleteInclude(AwkExpandedSource source)
         {
-            var lastLineStart = sourceChunkStart - sourceChunkColumn;
-            for (var position = sourceChunkStart; position < end; position++)
+            AppendExpandedSource(source);
+            if (source.Text.Length > 0 && source.Text[^1] != '\n')
+                AppendSyntheticNewLine(source.Segments.Count == 0 ? null : source.Segments[^1]);
+            AdvanceSourcePosition(includes[_includePosition++].Span.End);
+        }
+
+        internal AwkExpandedSource Complete()
+        {
+            AppendSourceSegment(_sourceChunkStart, Source.Length - _sourceChunkStart, _sourceChunkLine, _sourceChunkColumn,
+                normalization.LineContinuations.Slice(_sourceChunkStart, Source.Length - _sourceChunkStart, checkpoint));
+            checkpoint();
+            var expandedText = _builder.ToString();
+            checkpoint();
+            return AwkExpandedSource.Create(expandedText, _segments);
+        }
+
+        private void AdvanceSourcePosition(int end)
+        {
+            var lastLineStart = _sourceChunkStart - _sourceChunkColumn;
+            for (var position = _sourceChunkStart; position < end; position++)
             {
                 if ((position & 1023) == 0) checkpoint();
-                if (normalizedSource[position] is not '\r' and not '\n') continue;
-                if (normalizedSource[position] == '\r' && position + 1 < end && normalizedSource[position + 1] == '\n')
+                if (Source[position] is not '\r' and not '\n') continue;
+                if (Source[position] == '\r' && position + 1 < end && Source[position + 1] == '\n')
                     position++;
-                sourceChunkLine++;
+                _sourceChunkLine++;
                 lastLineStart = position + 1;
             }
-            var before = normalization.LineContinuations.CountAtOrBefore(sourceChunkStart - 1, checkpoint);
+            var before = normalization.LineContinuations.CountAtOrBefore(_sourceChunkStart - 1, checkpoint);
             var after = normalization.LineContinuations.CountAtOrBefore(end - 1, checkpoint);
-            sourceChunkLine += after - before;
+            _sourceChunkLine += after - before;
             if (after > before)
                 lastLineStart = Math.Max(lastLineStart, normalization.LineContinuations.GetPoint(after - 1, checkpoint).NormalizedOffset);
-            sourceChunkStart = end;
-            sourceChunkColumn = end - lastLineStart;
+            _sourceChunkStart = end;
+            _sourceChunkColumn = end - lastLineStart;
         }
 
-        void AppendSourceSegment(
-            StringBuilder builder,
-            List<AwkSourceSegment> segments,
-            AwkSourceName sourceName,
-            AwkSourceSegmentKind sourceKind,
-            string sourceText,
+        private void AppendSourceSegment(
             int sourceStart,
             int sourceLength,
             int lineOffset,
@@ -153,12 +157,12 @@ internal static partial class AwkSourceLoader
             if (sourceLength == 0)
                 return;
 
-            var span = new AwkTextSpan(builder.Length, sourceLength);
+            var span = new AwkTextSpan(_builder.Length, sourceLength);
             plan.Memory.AdmitTextCopy(sourceLength);
-            AwkParsingSupport.AppendText(builder, sourceText.AsSpan(sourceStart, sourceLength), checkpoint);
+            AwkParsingSupport.AppendText(_builder, Source.AsSpan(sourceStart, sourceLength), checkpoint);
             // Adjacent output can cross removed directives in the original source.
             // Keep the following chunk's original line/column instead of merging the gap.
-            segments.Add(new AwkSourceSegment(
+            _segments.Add(new AwkSourceSegment(
                 sourceName,
                 sourceKind,
                 span,
@@ -167,22 +171,20 @@ internal static partial class AwkSourceLoader
                 lineContinuations));
         }
 
-        void AppendExpandedSource(
-            StringBuilder builder,
-            List<AwkSourceSegment> segments,
+        private void AppendExpandedSource(
             AwkExpandedSource source)
         {
             if (source.Text.Length == 0)
                 return;
 
-            var offset = builder.Length;
+            var offset = _builder.Length;
             plan.Memory.AdmitTextCopy(source.Text.Length);
-            AwkParsingSupport.AppendText(builder, source.Text, checkpoint);
+            AwkParsingSupport.AppendText(_builder, source.Text, checkpoint);
             for (var index = 0; index < source.Segments.Count; index++)
             {
                 checkpoint();
                 var segment = source.Segments[index];
-                segments.Add(new AwkSourceSegment(
+                _segments.Add(new AwkSourceSegment(
                     segment.SourceName,
                     segment.Kind,
                     new AwkTextSpan(segment.Span.Start + offset, segment.Span.Length),
@@ -192,17 +194,15 @@ internal static partial class AwkSourceLoader
             }
         }
 
-        void AppendSyntheticNewLine(
-            StringBuilder builder,
-            List<AwkSourceSegment> segments,
+        private void AppendSyntheticNewLine(
             AwkSourceSegment? sourceSegment)
         {
-            var start = builder.Length;
+            var start = _builder.Length;
             plan.Memory.AdmitTextCopy(1);
-            builder.Append('\n');
+            _builder.Append('\n');
             if (sourceSegment is { } segment)
             {
-                segments.Add(new AwkSourceSegment(
+                _segments.Add(new AwkSourceSegment(
                     segment.SourceName,
                     segment.Kind,
                     new AwkTextSpan(start, 1),
@@ -214,7 +214,7 @@ internal static partial class AwkSourceLoader
     }
 
     // Keep only admitted source spans/paths across host awaits. Lexer buffers must not
-    // survive into recursive include preparation, which reuses the frontend scratch estimate.
+    // survive into child include preparation, which reuses the frontend scratch estimate.
     private static List<IncludeDirective> FindIncludes(string source, AwkFrontendMemory memory, Action checkpoint)
     {
         var tokens = AwkLexer.Tokenize(source, checkpoint, memory: memory);

@@ -27,7 +27,7 @@ internal static class AwkTokenNavigation
     public static AwkToken? FindFirstSignificant(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null)
     {
         if (tokens is CompositeTokenList composite)
-            return FindInComposite(composite, checkpoint);
+            return FindInComposite(composite, last: false, checkpoint);
 
         for (var index = 0; index < tokens.Count; index++)
         {
@@ -38,25 +38,12 @@ internal static class AwkTokenNavigation
         }
 
         return null;
-
-        static AwkToken? FindInComposite(CompositeTokenList composite, Action? checkpoint)
-        {
-            for (var index = 0; index < composite.Groups.Count; index++)
-            {
-                checkpoint?.Invoke();
-                var token = FindFirstSignificant(composite.Groups[index], checkpoint);
-                if (token != null)
-                    return token;
-            }
-
-            return null;
-        }
     }
 
     public static AwkToken? FindLastSignificant(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null)
     {
         if (tokens is CompositeTokenList composite)
-            return FindInComposite(composite, checkpoint);
+            return FindInComposite(composite, last: true, checkpoint);
 
         for (var index = tokens.Count - 1; index >= 0; index--)
         {
@@ -67,18 +54,40 @@ internal static class AwkTokenNavigation
         }
 
         return null;
+    }
 
-        static AwkToken? FindInComposite(CompositeTokenList composite, Action? checkpoint)
+    private static AwkToken? FindInComposite(CompositeTokenList current, bool last, Action? checkpoint)
+    {
+        Stack<(CompositeTokenList List, int Index)>? parents = null;
+        var step = last ? -1 : 1;
+        var index = last ? current.Groups.Count - 1 : 0;
+        while (true)
         {
-            for (var index = composite.Groups.Count - 1; index >= 0; index--)
+            checkpoint?.Invoke();
+            if ((uint)index >= (uint)current.Groups.Count)
+            {
+                if (parents is null || !parents.TryPop(out var parent)) return null;
+                (current, index) = parent;
+                continue;
+            }
+            var group = current.Groups[index];
+            if (group is CompositeTokenList nested)
+            {
+                parents ??= new();
+                parents.Push((current, index + step));
+                current = nested;
+                index = last ? current.Groups.Count - 1 : 0;
+                continue;
+            }
+            for (var tokenIndex = last ? group.Count - 1 : 0;
+                (uint)tokenIndex < (uint)group.Count; tokenIndex += step)
             {
                 checkpoint?.Invoke();
-                var token = FindLastSignificant(composite.Groups[index], checkpoint);
-                if (token != null)
+                var token = group[tokenIndex];
+                if (IsSignificant(token.Kind))
                     return token;
             }
-
-            return null;
+            index += step;
         }
     }
 
