@@ -434,8 +434,14 @@ internal sealed partial class AwkRegionCompiler
                     Emit(new(AwkRegionInstructionKind.UnsupportedCoprocess));
                     break;
                 }
-                if (!OutputTarget(formatted.Redirection, out var printfTarget) ||
-                    !formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
+                if (!OutputTarget(formatted.Redirection, out var printfTarget)) return false;
+                if (formatted.Output.IsEmpty)
+                {
+                    var emptyPrintf = _printfs.Count;
+                    _printfs.Add(new(-1, 0, 0, [], printfTarget));
+                    Emit(new(AwkRegionInstructionKind.Printf, Left: emptyPrintf));
+                }
+                else if (!formatted.Output.Expression.TryGetValue(out var printfOutput) || !Printf(printfOutput, printfTarget)) return false;
                 break;
             case AwkStatementKind.Delete:
                 if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var deleted) || !Delete(deleted)) return false;

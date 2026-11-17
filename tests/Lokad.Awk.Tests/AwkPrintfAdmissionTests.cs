@@ -5,6 +5,30 @@ public sealed class AwkPrintfAdmissionTests
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
+    public async Task MissingFormatFailsAfterTargetEffectsWithoutOpeningOutput(bool governed, bool existingFile)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        if (existingFile) host.AddFile("/out", "keep");
+        var script = "function path(){print \"target\";return \"/out\"}" +
+            "BEGIN{print \"before\";printf > path();print \"after\"}END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("before\ntarget\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: printf: no arguments\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        if (existingFile) Assert.Equal("keep", host.ReadFile("/out"));
+        else Assert.False(host.FileExists("/out"));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
     public async Task RedirectedFormattingFailureDoesNotCreateOrTruncateOutput(bool refusal, bool existingFile)
     {
         var budget = new CooperativeTestBudget(refusal ? 128 << 10 : 8 << 20);

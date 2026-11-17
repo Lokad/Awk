@@ -37,6 +37,8 @@ internal static class AwkMessages
         "awk: regular expression is unsupported by the supplied provider\n"u8.ToArray();
     internal static readonly ReadOnlyMemory<byte> ErrorNotEnoughPrintfArguments =
         AwkUtf8Codec.Encode("awk: not enough arguments to satisfy format string\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPrintfNoArguments =
+        "awk: printf: no arguments\n"u8.ToArray();
     internal static readonly ReadOnlyMemory<byte> ErrorPrintfMixedArguments =
         AwkUtf8Codec.Encode("awk: positional and sequential printf arguments cannot be mixed\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPrintfArgumentPosition =

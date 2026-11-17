@@ -4,6 +4,16 @@ internal static class AwkRegionPrinting
 {
     internal static void Printf(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrintf print)
     {
+        if (print.Format < 0)
+        {
+            if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
+            if (state.CompatibilityMode is not (AwkCompatibilityMode.Posix or AwkCompatibilityMode.Traditional))
+                throw new AwkRuntimeException(AwkMessages.ErrorPrintfNoArguments);
+            // An empty redirected printf still opens/truncates its destination.
+            // The ordinary write continuation owns that effect and any suspension.
+            if (print.Output.IsRedirected) storage.Builders[0].Buffer.Clear();
+            return;
+        }
         var formatBytes = 0L;
         try
         {

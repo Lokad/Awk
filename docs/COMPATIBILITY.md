@@ -147,6 +147,8 @@ without reproducing native reference crashes.
 Formatting preflights publication. Bitwise, calendar and nonfinite/range behavior follow
 the golden contract, not every libc quirk. Time comes from the policy's clock/zone, with
 system/local defaults and epoch/UTC in the restricted preset.
+Bare `printf` fails when executed in default mode; POSIX/traditional modes emit nothing
+but still open an output redirection. Empty parentheses remain a syntax error.
 Large `%g`/`%G` precision without `#` does not require precision-sized padding storage;
 alternate-form and other conversions still admit storage for their actual large results.
 `strftime` widths use ASCII digits. Unknown directives retain their literal spelling with
