@@ -5,7 +5,7 @@ host-controlled I/O and predictable resource admission. This is not full POSIX/G
 conformance. The interpreter is the only execution engine; regex matching requires an
 application-supplied provider.
 
-This guide covers 0.5.0. Published 0.4.0 lacks CSV input and nested arrays.
+This guide covers the development checkout. Published 0.4.0 lacks CSV input and nested arrays.
 
 **Supported** means golden coverage within the stated boundary. **Partial** means
 implemented with remaining differences. **Deferred** means unsupported, without a delivery
