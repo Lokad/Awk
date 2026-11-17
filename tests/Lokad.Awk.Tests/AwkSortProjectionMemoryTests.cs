@@ -202,12 +202,15 @@ public sealed class AwkSortProjectionMemoryTests
         state.SetArrayString(Source, new AwkArrayKey("b"), new string('y', 16_000));
         var containers = SnapshotStorage(state, [new AwkArrayKey("a"), new AwkArrayKey("b")]);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers);
+        // Leave room for small comparison metadata, but not a copy of either
+        // 16 KiB value. The contract is text reuse, not an exact closure layout.
+        const int metadataHeadroom = 256;
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers - metadataHeadroom);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state,Source))
         {
             Assert.Equal(new[] { new AwkArrayKey("a"), new AwkArrayKey("b") }, snapshot.ToArray());
-            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, before + containers, Limit);
         }
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
     }
