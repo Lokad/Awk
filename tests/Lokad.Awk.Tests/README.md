@@ -16,6 +16,11 @@ be a second language corpus. Deep-source tests distinguish linear size from nest
 preserve untaken-branch and effect/error order. Small deterministic property tests cover
 malformed input, generated arithmetic and parser/runtime consistency.
 
+`AwkStackSafetyTests` executes the public API on 256 KiB threads in isolated child
+processes. It covers adversarial source shapes, deep calls, actual host suspension,
+cancellation, diagnostics and cleanup under ordinary/shared memory. Its test-only entry
+point protects the runner from a process-fatal stack overflow; no benchmark mode is needed.
+
 Source-loading tests cover includes, AWKPATH, source identity, mapped coordinates and failures.
 Compiled executions emit their own warnings: the harness must not append them independently.
 Governed compiled artifacts retain their admission owner until their users finish.

@@ -195,7 +195,7 @@ Native comparisons need an independently installed GNU binary outside `external/
 `--check-machine` checks quietness; `--driver-smoke` checks process cancellation,
 early exits, drains and cleanup; `--smoke` checks library fixtures without GNU.
 Catalog filters select family/scale before constructing input. `--governed-profile`
-uses existing budget controls; `--function-stack-probe` checks small-stack unwinding.
+uses existing budget controls. Small-stack safety is covered by the CI test suite.
 
 During development measure affected workloads and contrasting controls. Repeat samples
 or revise designs to resolve concrete uncertainty; retain invalid, inconclusive and
