@@ -155,9 +155,9 @@ internal static class AwkRegionPrinting
             payloadByteLength += fields[index].ByteLength();
         }
         state.ThrowIfCancellationRequested();
-        var recordByteLength = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
-            payloadByteLength, AwkRuntimeMemory.CheckedMultiply(
-                separator.ByteLength, Math.Max(0, print.Count - 1))));
+        // Nonnegative int counts and lengths bound payload plus separators below long.MaxValue.
+        var recordByteLength = AwkRuntimeMemory.CheckedToInt32(
+            payloadByteLength + (long)separator.ByteLength * Math.Max(0, print.Count - 1));
         var payloadStart = 0;
         var parts = print.HasPreparedText ? new AwkRecordFields(fields, finalText) : new AwkRecordFields(fields);
         if (print.Output.IsRedirected)
