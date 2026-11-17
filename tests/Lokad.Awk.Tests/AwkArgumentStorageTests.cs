@@ -3,6 +3,30 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentStorageTests
 {
     [Theory]
+    [InlineData(1)] [InlineData(7)] [InlineData(8)] [InlineData(8192)]
+    public void CanceledFieldKeyCaptureLeavesIncomingCellUnpublished(int width)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = State(cancellation.Token);
+        var state = fixture.State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(new string('k', width) + " 1"));
+        _ = state.GetFieldNumber(2);
+        var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("key")]));
+        var before = fixture.Budget.Reserved;
+        cancellation.Cancel();
+        try
+        {
+            Assert.ThrowsAny<OperationCanceledException>(() => state.TryStageFunctionFieldKey(1, incoming, 0));
+            Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, incoming.GetSlot(0).Kind);
+            Assert.Equal(0, incoming.RetainedMemoryBytes);
+            Assert.Equal(before, fixture.Budget.Reserved);
+        }
+        finally { state.DiscardIncomingFunctionFrame(incoming); }
+        fixture.Dispose();
+        Assert.Equal(0, fixture.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData("success")] [InlineData("fault")] [InlineData("cancel")]
     public async Task NestedUserArgumentsStayFundedThroughActualHostCompletion(string outcome)
     {
