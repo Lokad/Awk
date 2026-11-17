@@ -2,14 +2,27 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkGetlineExpressionTests
 {
-    [Fact]
-    public void DeepPipeStatusArithmeticReachesTheFrontendDepthDiagnostic()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task LongPipeStatusArithmeticExecutesAndClosesThePipe(bool governed)
     {
         var arithmetic = string.Concat(Enumerable.Repeat("+1", 10_000));
-        var program = AwkSyntaxParser.Parse("BEGIN{print (\"cat data\"|getline v" + arithmetic + ")}", new AwkFrontendBudget(128) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
-
-        Assert.Contains(program.Diagnostics, diagnostic =>
-            diagnostic.Message == "Program nesting limit exceeded.");
+        var files = new MockFileSystem();
+        files.AddFile("/data", "row\n");
+        var host = new AwkGetlinePipeTestHost(files);
+        var budget = new CooperativeTestBudget(128 << 20);
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{print (\"cat data\"|getline v" + arithmetic + ")}"));
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, cancellation.Token));
+        Assert.Equal("10001\n", files.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", files.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Single(host.Commands);
+        Assert.Equal(0, host.OpenPipeCount);
+        Assert.Equal(0, files.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
     }
 
     public static IEnumerable<object[]> PipeCases()
