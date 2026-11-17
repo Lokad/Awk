@@ -1,43 +1,45 @@
 # Benchmarks
 
-Current snapshot at [72589eb5](https://github.com/Lokad/Awk/commit/72589eb58e5a6d060f18f9611a1cc86ac6b50562), measured **2026-11-17 UTC**
+Current package results at [6ac50cf9](https://github.com/Lokad/Awk/commit/6ac50cf965521ce31feee6feddc3a15ad03ca375), measured **2026-11-17 UTC**
 on quiet Linux x64: .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
 Lower elapsed-time ratios are faster. Managed allocations include the host; GNU
-allocations are not compared. The runtime revision is the same throughout, with
-the actual-package and source-build boundaries identified below.
+allocations are not compared. The catalog retains a separately identified source
+revision; its timings have not been refreshed for the current package.
 
 ## Representative processing
 
 The actual qualified Linux Release package processes **1,048,576 records** in four
-core scripts and **65,536** in the arithmetic/control-flow probes.
+core scripts and **65,536** in the arithmetic, sorting and regex probes.
 Default execution has no shared admission; shared execution supplies a 512 MiB budget.
 Both reuse a policy and live caller token, consume/hash complete output and finish
 with all execution reservations refunded.
 
 Times are full-invocation means over five seconds after twelve seconds of warmup,
-including parsing/compilation. All eighteen processing cells are from one quiet cohort,
+including parsing/compilation. All twenty-one processing cells are from one quiet cohort,
 one process per cell. They do not establish process-to-process variation, the effect
 of a source change or an isolated governor cost.
 
 | Script / records | Lokad ms, default/shared | GNU ms | Lokad.Awk/awk, default/shared | Allocated MiB, default/shared |
 | --- | ---: | ---: | ---: | ---: |
-| Sum one numeric column / 1,048,576 | 76.411 / 88.985 | 84.697 | 0.90× / 1.05× | 0.084 / 0.085 |
-| Keyed sum / sorted output (GNU) / 1,048,576 | 100.557 / 114.899 | 90.391 | 1.11× / 1.27× | 0.128 / 0.129 |
-| Nested-array calls, 16 keys (GNU) / 1,048,576 | 309.636 / 388.653 | 301.268 | 1.03× / 1.29× | 0.215 / 0.216 |
-| Nested-array calls, 1,024 keys (GNU) / 1,048,576 | 322.569 / 366.386 | 319.649 | 1.01× / 1.15× | 0.842 / 0.843 |
-| For loop and numeric arithmetic / 65,536 | 26.880 / 36.336 | 27.966 | 0.96× / 1.30× | 2.123 / 2.124 |
-| Function with locals, loop and early return / 65,536 | 21.981 / 22.953 | 30.552 | 0.72× / 0.75× | 0.202 / 0.203 |
+| Sum one numeric column / 1,048,576 | 76.268 / 87.571 | 84.719 | 0.90× / 1.03× | 0.085 / 0.086 |
+| Keyed sum / sorted output (GNU) / 1,048,576 | 97.646 / 115.814 | 89.515 | 1.09× / 1.29× | 0.128 / 0.130 |
+| Nested-array calls, 16 keys (GNU) / 1,048,576 | 328.691 / 368.829 | 298.180 | 1.10× / 1.24× | 0.215 / 0.217 |
+| Nested-array calls, 1,024 keys (GNU) / 1,048,576 | 324.907 / 352.161 | 317.462 | 1.02× / 1.11× | 0.842 / 0.843 |
+| For loop and numeric arithmetic / 65,536 | 21.894 / 22.207 | 28.130 | 0.78× / 0.79× | 0.124 / 0.125 |
+| Numeric array sort (GNU) / 65,536 | 24.068 / 35.560 | 22.994 | 1.05× / 1.55× | 10.980 / 10.981 |
+| ERE boolean matching / 65,536 | 23.445 / 38.567 | 4.720 | 4.97× / 8.17× | 112.198 / 117.202 |
 
 An additional **2,048-record function-print** diagnostic exercises ready and genuinely
-pending appends. Default ready/pending means are **0.681/2.166 ms**, allocating **0.168/1.513 MiB**.
-Shared ready/pending means are **0.914/2.508 ms**, allocating **0.169/1.515 MiB**.
+pending appends. Default ready/pending means are **0.507/2.155 ms**, allocating **0.168/1.514 MiB**.
+Shared ready/pending means are **0.896/2.566 ms**, allocating **0.169/1.515 MiB**.
 The first pending append is held until public execution returns incomplete. These
 figures include the diagnostic host, gate/controller and scheduler; they do not
 isolate interpreter suspension overhead. Output and final refunds match.
 
 ## Catalog processing
 
-Current **Release source build** using BenchmarkDotNet. Its out-of-process toolchain
+Retained **Release source build** at [72589eb5](https://github.com/Lokad/Awk/commit/72589eb58e5a6d060f18f9611a1cc86ac6b50562),
+measured **2026-11-17 UTC** using BenchmarkDotNet. Its out-of-process toolchain
 rebuilds project references, so these are not timings of the CI-package DLL above.
 Times are medians. The 56 families below mostly process 4,096 records; all-field,
 numeric-wide, fixed-count, prefix-to-NF, wide-rebuilding and long-field cases use 256.
@@ -105,7 +107,7 @@ has no shared admission. GNU-marked extensions do not imply full conformance.
 
 ## Large-input processing
 
-The same source-build method: 65,536 records, or 4,096 for the 128-column cases;
+The same retained 72589eb5 source-build method: 65,536 records, or 4,096 for the 128-column cases;
 nested-array calls use 16,384. Join uses 65,536 records per file; long Unicode prefixes
 use 1,024. Larger inputs expose processing costs better than small inputs dominated
 by process startup.
@@ -139,7 +141,7 @@ by process startup.
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 5.566 | 23.207 | 0.24× | 0.106 |
 | Long Unicode field / bounded prefix | 8197.00 | 1.491 | 40.738 | 0.04× | 0.156 |
 
-A separate **20-cell** paired BenchmarkDotNet cohort compares default/shared admission
+A separate retained **20-cell** paired BenchmarkDotNet cohort at **72589eb5** compares default/shared admission
 on ten large-input scripts with a 512 MiB budget. Shared/default time ratios span
 **1.03–1.18×**: scalar 1.06×, keyed 1.04×, composite-key 1.08×, nested calls with 16
 keys 1.14×, nested calls with 1,024 keys 1.11×.
@@ -148,8 +150,10 @@ uses a 15 s caller deadline per invocation. Compare within each method/cohort.
 
 ## Method and refresh
 
-All **82 managed and 82 available GNU catalog timings**, the 20 policy cells
-and the actual-package processing/host figures above are current at the stated revision/date.
+The **21 package-processing and four host cells** are current at 6ac50cf9.
+The **82 managed/82 GNU catalog timings and 20 policy cells** retain 72589eb5;
+they are not fresh results of the current package. Each section states its revision
+and method; compare within that boundary.
 All GNU timings are available. All 82 catalog fixture/output checks pass.
 
 Quiet checks bracket measurement batches and sample machine state rather than
