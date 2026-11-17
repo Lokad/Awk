@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkLexerTests
 {
     [Theory]
+    [InlineData("$+x^2/=2")]
+    [InlineData("$$+x^2/=2")]
+    [InlineData("$!x^2/=2")]
+    [InlineData("$-++x^2/=2")]
+    [InlineData("$++$-x^2/=2")]
+    [InlineData("$f(x y)/=2")]
+    public void FieldIndexPowerKeepsDivisionAssignment(string source)
+    {
+        var tokens = AwkLexer.Tokenize(source);
+        var assignment = Assert.Single(tokens, token => token.Kind == AwkTokenKind.SlashEqual);
+        Assert.Equal(new AwkTextSpan(source.IndexOf("/=", StringComparison.Ordinal), 2), assignment.Span);
+        Assert.DoesNotContain(tokens, token => token.Kind == AwkTokenKind.Regex);
+    }
+
+    [Theory]
     [InlineData("x y /=b/", "/=b/")]
     [InlineData("a[x y] z /=[};#\"]/", "/=[};#\"]/")]
     [InlineData("x f(y z) /=b/", "/=b/")]

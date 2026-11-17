@@ -156,7 +156,7 @@ internal static class AwkLexer
                 }
 
                 if (Current == '/' && (_canStartRegex ||
-                    lexeme.Kind == AwkTokenKind.SlashEqual && FollowsConcatenation()))
+                    lexeme.Kind == AwkTokenKind.SlashEqual && FollowsNonAssignableExpression()))
                 {
                     ReadRegex();
                     continue;
@@ -306,13 +306,20 @@ internal static class AwkLexer
             }
         }
 
-        private bool FollowsConcatenation()
+        private bool FollowsNonAssignableExpression()
         {
-            // /= cannot assign to a concatenation. In this context its slash
-            // starts a regex whose first pattern character is '='. Ordinary /
-            // still denotes division. Inspect only the current simple expression;
-            // nested argument/index expressions are already complete operands.
+            // /= can assign only after a variable. Other simple expressions
+            // concatenate a regex beginning with '='. Classify that boundary
+            // without entering the parser before delimiter-depth validation.
+            // Nested argument/index expressions are complete operands here.
             var hasRightOperand = false;
+            var hasOperand = false;
+            var assignable = false;
+            var mutated = false;
+            var arithmetic = false;
+            var power = false;
+            var fieldIndexPower = false;
+            var unaryIndex = false;
             for (var index = _tokens.Count - 1; index >= 0; index--)
             {
                 _checkpoint?.Invoke();
@@ -342,7 +349,7 @@ internal static class AwkLexer
                     }
                     if (before >= 0 && _tokens[before].Kind is AwkTokenKind.If or
                         AwkTokenKind.While or AwkTokenKind.For or AwkTokenKind.Switch)
-                        return false;
+                        break;
                     if (before >= 0 && _tokens[before].Kind == AwkTokenKind.Identifier &&
                         (_tokens[before].Span.End == _tokens[index].Span.Start ||
                          AwkBuiltins.IsKnownFunctionOrSpecialForm(_tokens[before].Text)))
@@ -355,15 +362,54 @@ internal static class AwkLexer
                 {
                     if (hasRightOperand) return true;
                     hasRightOperand = true;
+                    hasOperand = true;
+                    assignable = kind == AwkTokenKind.Identifier && !mutated &&
+                        !_tokens[index].TextSpan.SequenceEqual(AwkBuiltins.Name(AwkBuiltinId.Length));
+                    mutated = false;
+                    unaryIndex = false;
+                    fieldIndexPower = false;
+                }
+                else if (kind == AwkTokenKind.Dollar)
+                {
+                    assignable = true;
+                    // A signed/not field index consumes powers; $x^2 instead
+                    // raises the field value and is not an assignment operand.
+                    fieldIndexPower |= unaryIndex;
+                    unaryIndex = false;
+                }
+                else if (kind == AwkTokenKind.Bang ||
+                    kind is AwkTokenKind.Plus or AwkTokenKind.Minus && IsUnarySign(index))
+                {
+                    assignable = false;
+                    unaryIndex = true;
                 }
                 else if (kind is AwkTokenKind.Plus or AwkTokenKind.Minus or AwkTokenKind.Star or
                     AwkTokenKind.Slash or AwkTokenKind.Percent or AwkTokenKind.Caret)
+                {
+                    if (kind == AwkTokenKind.Caret) power = true;
+                    else arithmetic = true;
                     hasRightOperand = false;
-                else if (kind is not (AwkTokenKind.Dollar or AwkTokenKind.Bang or
-                    AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus))
-                    return false;
+                    assignable = false;
+                    mutated = false;
+                    unaryIndex = false;
+                    fieldIndexPower = false;
+                }
+                else if (kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
+                {
+                    assignable = false;
+                    mutated = true;
+                    unaryIndex = false;
+                }
+                else break;
             }
-            return false;
+            return hasOperand && (!assignable || arithmetic || power && !fieldIndexPower);
+
+            bool IsUnarySign(int index)
+            {
+                while (--index >= 0 && _tokens[index].Kind == AwkTokenKind.Comment)
+                    _checkpoint?.Invoke();
+                return index < 0 || AwkRegexStart.CanStartAfter(_tokens[index].Kind);
+            }
         }
 
         private void AddToken(AwkTokenKind kind, int start, int length)
