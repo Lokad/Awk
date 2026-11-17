@@ -35,7 +35,7 @@ internal sealed class AwkFormattingRuntime(
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
-        return FormatNumberByteText(value, number, AwkFormattingVariable.OutputFormat, retainedTextLease);
+        return FormatNumberByteText(number, AwkFormattingVariable.OutputFormat, retainedTextLease);
     }
 
     public AwkText FormatStringByteText(AwkValue value) => FormatStringByteText(value, null);
@@ -45,11 +45,11 @@ internal sealed class AwkFormattingRuntime(
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
-        return FormatNumberByteText(value, number, AwkFormattingVariable.ConversionFormat, retainedTextLease);
+        return FormatNumberByteText(number, AwkFormattingVariable.ConversionFormat, retainedTextLease);
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private AwkText FormatNumberByteText(AwkValue value, double number, AwkFormattingVariable variable,
+    private AwkText FormatNumberByteText(double number, AwkFormattingVariable variable,
         AwkMemoryLease? retainedTextLease)
     {
         if (double.IsInteger(number))
@@ -59,8 +59,35 @@ internal sealed class AwkFormattingRuntime(
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
 
         counters.RecordFormattingFallback();
+        using var argumentText = governor.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
-            resolveVariable(variable).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+            resolveVariable(variable).AsString(counters, checkpoint), new NumericFormatArguments(number, variable, this, argumentText),
+            PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+    }
+
+    private AwkText FormatNumberArgumentText(double number, AwkFormattingVariable variable, AwkMemoryLease lease) =>
+        variable == AwkFormattingVariable.OutputFormat
+            ? FormatStringByteText(AwkValue.FromNumber(number), lease)
+            // A string conversion within CONVFMT cannot apply CONVFMT again.
+            // Keep the existing round-trip spelling at this nonrecursive boundary.
+            : AwkNumberFormatter.ToAwkText(number, counters, governor, lease);
+
+    private readonly struct NumericFormatArguments(double number, AwkFormattingVariable variable,
+        AwkFormattingRuntime runtime, AwkMemoryLease textLease) : IPrintfArguments
+    {
+        public int Count => 1;
+
+        public AwkText GetByteText(int index)
+        {
+            ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
+            return runtime.FormatNumberArgumentText(number, variable, textLease);
+        }
+
+        public double GetNumber(int index) =>
+            index == 0 ? number : throw new ArgumentOutOfRangeException(nameof(index));
+
+        public bool IsNumeric(int index) =>
+            index == 0 ? true : throw new ArgumentOutOfRangeException(nameof(index));
     }
 
     internal static string PrepareStringValue(AwkValue value, AwkRuntimeState state, AwkMemoryLease lease, out long retainedBytes)

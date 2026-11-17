@@ -320,9 +320,7 @@ internal static class PrintfEvaluation
             PrintfFlags flags, Action? checkpoint)
         {
             checkpoint?.Invoke();
-            var digits = precision.HasValue ? precision.Value : 6;
-            if (conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper && digits == 0)
-                digits = 1;
+            var digits = FloatPrecision(conversion, precision, flags.AlternateForm);
             var formatSpecifier = conversion switch
             {
                 PrintfConversion.FixedLower or PrintfConversion.FixedUpper => "F" + digits.ToString(CultureInfo.InvariantCulture),
@@ -485,6 +483,21 @@ internal static class PrintfEvaluation
             }
         }
 
+        static int FloatPrecision(PrintfConversion conversion, PrintfPrecisionValue precision, bool alternateForm)
+        {
+            var digits = precision.HasValue ? precision.Value : 6;
+            if (conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper)
+            {
+                digits = Math.Max(1, digits);
+                // Binary64 has at most 309 integral and 1074 fractional decimal
+                // places. Beyond that, non-alternate general formatting cannot
+                // change rounding, notation or output. Use the same bound for
+                // admission and BCL emission; # still retains requested zeroes.
+                if (!alternateForm) digits = Math.Min(digits, 309 + 1074);
+            }
+            return digits;
+        }
+
         static int EstimateFloatByteCount(
             double value,
             PrintfConversion conversion,
@@ -494,12 +507,7 @@ internal static class PrintfEvaluation
             if (!double.IsFinite(value))
                 return 4;
 
-            var digits = precision.HasValue ? precision.Value : 6;
-            // Without #, general precision does not pad trailing zeroes. A binary64
-            // value has at most 309 integral and 1074 fractional decimal places;
-            // this simple bound also leaves room for signs/point/exponent below.
-            if (!alternateForm && conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper)
-                digits = Math.Min(digits, 309 + 1074);
+            var digits = FloatPrecision(conversion, precision, alternateForm);
             var overhead = 16;
             if (conversion is PrintfConversion.FixedLower or PrintfConversion.FixedUpper)
             {
@@ -761,34 +769,6 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
         var value = context.GetValue(index + startIndex);
         return value.IsNumberValue || value.IsNumericStringValue;
     }
-}
-
-internal readonly struct AwkSingleValuePrintfArguments(
-    AwkValue value,
-    AwkRuntimeCounters counters,
-    Action? checkpoint = null) : IPrintfArguments
-{
-    public int Count => 1;
-
-    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
-
-    public AwkText GetByteText(int index)
-    {
-        ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
-
-        // Custom scalar formats retain their existing full-precision string conversion.
-        return value.IsNumberValue
-            ? AwkText.FromString(value.AsString(counters, checkpoint), counters, checkpoint)
-            : value.ByteText;
-    }
-
-    public double GetNumber(int index) =>
-        index == 0 ? value.AsNumber(checkpoint) : throw new ArgumentOutOfRangeException(nameof(index));
-
-    public bool IsNumeric(int index) =>
-        index == 0
-            ? value.IsNumberValue || value.IsNumericStringValue
-            : throw new ArgumentOutOfRangeException(nameof(index));
 }
 
 internal readonly record struct PrintfDirective(

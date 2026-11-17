@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Honor CONVFMT for numeric string conversions inside OFMT and keep recursive conversion bounded.
+- Format excessive general precision within binary64 bounds without losing alternate-form zeroes.
+
 - Execute print, printf and delete in for initializers and steps, including redirected output
   and continuation after continue. Validate their operands before execution.
 

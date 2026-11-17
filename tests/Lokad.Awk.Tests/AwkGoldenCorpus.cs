@@ -70,6 +70,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(ValueValidationRepairCases(), AwkGoldenTag.Array, AwkGoldenTag.Expression, AwkGoldenTag.Regex),
         .. Tagged(CompoundBuiltinStatementCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Array),
         .. Tagged(ForSimpleStatementCases(), AwkGoldenTag.Statement, AwkGoldenTag.Io, AwkGoldenTag.Array),
+        .. Tagged(NumericFormatRepairCases(), AwkGoldenTag.Expression, AwkGoldenTag.Output),
 
         .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 

@@ -69,6 +69,26 @@ public sealed class AwkPrintfAdmissionTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task OutputStringConversionAdmitsItsConversionFormatBeforeOpeningOutput(bool existingFile)
+    {
+        var budget = new CooperativeTestBudget(128 << 10);
+        var host = new MockFileSystem();
+        if (existingFile) host.AddFile("/out", "keep");
+        var script = "BEGIN{CONVFMT=\"%1000000s\";OFMT=\"%s\";print \"before\";" +
+            "print 0.25>\"/out\";print \"after\"}END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        if (existingFile) Assert.Equal("keep", host.ReadFile("/out"));
+        else Assert.False(host.FileExists("/out"));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> GeneralPrecisionValues()
     {
         foreach (var upper in new[] { false, true })
@@ -84,7 +104,7 @@ public sealed class AwkPrintfAdmissionTests
         using var memory = new CooperativeTestMemory(64 << 10);
         using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 0))
         {
-            PrintfEvaluation.FormatToBuilder(builder, upper ? "%.1000000G" : "%.1000000g",
+            PrintfEvaluation.FormatToBuilder(builder, upper ? "%.2000000000G" : "%.2000000000g",
                 new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), AwkRuntimeCounters.Disabled),
                 PrintfMissingArgumentPolicy.Throw, AwkRuntimeCounters.Disabled, memory.Accounting);
             Assert.InRange(builder.Length, 1, 2_000);
