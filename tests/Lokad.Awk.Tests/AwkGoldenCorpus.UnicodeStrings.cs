@@ -4,6 +4,23 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> UnicodeStringCases()
     {
+        const string scalarBoundaries = "\u007f\u0080\u07ff\u0800\ud7ff\ue000\uffff\U00010000\U0010ffffQ";
+        yield return AwkGoldenCaseBuilder.Create("unicode-traversal-scalar-width-boundaries",
+            ["{s=$0;print length($0),length(s),index($0,\"Q\"),index(s,\"Q\");" +
+             "print \"[\"substr($0,2,7)\"]\",\"[\"substr(s,9,9)\"]\";print \"[\"substr(s,11,1)\"]\"}"], [])
+            .WithStandardInput(scalarBoundaries + "\n")
+            .WithStdOut("10 10 10 10\n[\u0080\u07ff\u0800\ud7ff\ue000\uffff\U00010000] [\U0010ffffQ]\n[]\n")
+            .WithStdErr("").ExitsWith(0).Build();
+        yield return AwkGoldenCaseBuilder.Create("unicode-field-widths-scalar-width-boundaries",
+            ["BEGIN{FIELDWIDTHS=\"1 2 3 4\"}{print NF,length($1),length($2),length($3),length($4);print \"[\"$1$2$3$4\"]\"}"], [])
+            .WithStandardInput(scalarBoundaries + "\n")
+            .WithStdOut("4 1 2 3 4\n[" + scalarBoundaries + "]\n")
+            .WithStdErr("").ExitsWith(0).Build();
+        yield return AwkGoldenCaseBuilder.Create("unicode-character-fields-scalar-width-boundaries",
+            ["BEGIN{FS=\"\"}{print NF;for(i=1;i<=NF;i++)if(length($i)!=1)exit 1;print $2$8$9}"], [])
+            .WithStandardInput(scalarBoundaries + "\n")
+            .WithStdOut("10\n\u0080\U00010000\U0010ffff\n")
+            .WithStdErr("").ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-string-value-0000",
             ["BEGIN{v=\"\\u\";print length(v),\"[\"v\"]\";exit}"], [])
             .WithStdOut("1 [u]\n").WithStdErr("awk: warning: no hex digits in `\\u' escape sequence\n").ExitsWith(0).Build();

@@ -1,10 +1,42 @@
 using System;
+using System.Text;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkTextTests
 {
+    [Theory]
+    [InlineData(1)] [InlineData(5)] [InlineData(500)]
+    public void ScalarTraversalPreservesBoundariesForOwnedAndBorrowedText(int repetitions)
+    {
+        const string boundaries = "\u007f\u0080\u07ff\u0800\ud7ff\ue000\uffff\U00010000\U0010ffff";
+        var input = string.Concat(Enumerable.Repeat(boundaries, repetitions));
+        var scalars = new List<string>();
+        foreach (var scalar in input.EnumerateRunes()) scalars.Add(scalar.ToString());
+        var text = AwkText.FromString(input);
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+
+        Assert.Equal(scalars.Count, text.RuneLength);
+        Assert.Equal(scalars.Count, AwkText.CountRunes(bytes, checkpoint: null));
+        foreach (var (start, length) in new[]
+        {
+            (0, 0), (1, 1), (scalars.Count / 2, 3),
+            (scalars.Count - 1, int.MaxValue), (scalars.Count + 1, 1)
+        })
+        {
+            var expected = Encoding.UTF8.GetBytes(string.Concat(scalars.Skip(start).Take(length)));
+            var owned = text.CopyRuneSlice(start, length, counters, AwkMemoryAccounting.Disabled);
+            AwkText.ResolveRuneByteRange(bytes, start, length, counters, checkpoint: null,
+                out var first, out var last);
+
+            Assert.Equal(expected, owned.AsSpan().ToArray());
+            Assert.Equal(expected, bytes.AsSpan(first, last - first).ToArray());
+            Assert.Equal(start < scalars.Count, AwkText.HasRuneAt(bytes, start, checkpoint: null));
+        }
+    }
+
     [Theory]
     [InlineData(1, true)] [InlineData(32, true)] [InlineData(33, false)]
     public void OwnedAsciiByteViewsKeepIndependentBytesAndOptionalCacheOwnership(int length, bool compact)
