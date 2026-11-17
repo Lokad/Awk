@@ -187,6 +187,8 @@ internal sealed class AwkVariableRuntime(
         if (name.IsFunctionLocal)
             return name;
 
+        if (functions.TryGetArrayReadName(new AwkVariableName(name.Identifier), out var alias))
+            EnsureGlobalArrayAlias(name, alias);
         if (functions.TryResolveOrPromoteArrayName(new AwkVariableName(name.Identifier), out var localArrayName))
             return localArrayName;
 
@@ -232,10 +234,21 @@ internal sealed class AwkVariableRuntime(
         if (name.IsFunctionLocal)
             return name;
         if (functions.TryGetArrayReadName(new AwkVariableName(name.Identifier), out var local))
+        {
+            EnsureGlobalArrayAlias(name, local);
             return local;
+        }
         if (!variables.IsSymbolTable(name.Text))
             EnsureArrayName(name);
         return name;
+    }
+
+    private void EnsureGlobalArrayAlias(AwkArrayName parameter, AwkArrayName alias)
+    {
+        // The captured untyped scalar can outlive a replacement of its global.
+        // Array context still follows that binding; validate before promoting aliases.
+        if (!alias.IsFunctionLocal && variables.ContainsScalar(new AwkVariableName(alias.Identifier)))
+            throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(parameter.Text));
     }
 
     private AwkVariableNameResolution ResolveGlobalName(AwkVariableName name)

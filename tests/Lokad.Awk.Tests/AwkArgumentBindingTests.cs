@@ -3,6 +3,54 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentBindingTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task PotentialGlobalAliasRevalidatesAfterPendingRead(bool governed, bool cancel)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem();
+        host.AddFile("/side", "7\n");
+        host.ReadAsyncOverride = async (descriptor, maximum, _) =>
+        {
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            host.ReadAsyncOverride = null;
+            return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
+        };
+        var command = AwkTestHarness.BuildInvocation("awk",
+            "function fill(p){print \"entered\";getline data<\"/side\";x=\"changed\";p[1]=3;print \"after\"}" +
+            "BEGIN{fill(x)}END{print \"end\"}");
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var execution = AwkTestHarness.ParseAwk(command).ExecuteAsync(host, policy, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("entered\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.False(execution.IsCompleted);
+            if (governed) Assert.True(budget.Reserved > 0);
+            if (cancel) cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            release.TrySetResult();
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+            else Assert.Equal(AwkExitCode.FatalError, await execution);
+            Assert.Equal("entered\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(cancel ? "" : "awk: attempt to use scalar `p' as an array\n",
+                host.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        finally
+        {
+            release.TrySetResult();
+            try { await execution; } catch (OperationCanceledException) when (cancel) { }
+        }
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)] [InlineData(false, true, false)]
     [InlineData(true, false, false)] [InlineData(true, true, false)]
     [InlineData(false, false, true)] [InlineData(false, true, true)]

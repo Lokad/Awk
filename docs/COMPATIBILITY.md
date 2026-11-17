@@ -124,7 +124,8 @@ Grouped arguments impose scalar context and reject arrays. Function parameters s
 globals, including for `length` and forwarded array aliases.
 
 Plain assignment evaluates the RHS before resolving its target/key. Compound assignment
-reads the target and old value before the RHS. Concatenation formats each operand before
+reads the target and old value before the RHS, including scalar-alias validation.
+Concatenation formats each operand before
 evaluating the next. Side effects on targets, SUBSEP or CONVFMT
 can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
 This includes capturing a field's spelling before a later operand changes the record.
