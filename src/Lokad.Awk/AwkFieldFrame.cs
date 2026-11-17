@@ -78,7 +78,7 @@ internal sealed class AwkFieldFrame(
             return _fieldValueCache[field.CacheSlot - 1].Spelling;
         if (!HasBufferedRecord || field.Kind != AwkFieldTextKind.RecordSlice)
             return FieldText(field).Materialize(_recordText, counters, governor, checkpoint);
-        return field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
+        return _recordTextIsCurrent && field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
             AwkText.CopyTrustedBytes(field.BytesInRecord(RecordBytes()), counters, governor, checkpoint);
     }
 
