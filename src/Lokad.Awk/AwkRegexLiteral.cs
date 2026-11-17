@@ -27,7 +27,8 @@ internal static class AwkRegexLiteral
         ArgumentOutOfRangeException.ThrowIfGreaterThan(patternStart, text.Length);
 
         var escaped = false;
-        var inBracketExpression = false;
+        var bracket = BracketPosition.Outside;
+        var bracketTerminator = '\0';
         long nextCheckpoint = patternStart;
         for (var index = patternStart; index < text.Length; index++)
         {
@@ -40,6 +41,7 @@ internal static class AwkRegexLiteral
             if (escaped)
             {
                 escaped = false;
+                if (bracket != BracketPosition.Outside) bracket = BracketPosition.Contents;
                 continue;
             }
 
@@ -55,27 +57,52 @@ internal static class AwkRegexLiteral
                 continue;
             }
 
-            if (current == '[')
-            {
-                inBracketExpression = true;
-                continue;
-            }
-
-            if (current == ']' && inBracketExpression)
-            {
-                inBracketExpression = false;
-                continue;
-            }
-
-            if (current == '/' && !inBracketExpression)
-                return new AwkRegexLiteralScanResult(AwkRegexLiteralTermination.Delimiter, index);
-
             if (current is '\r' or '\n')
                 return new AwkRegexLiteralScanResult(AwkRegexLiteralTermination.NewLine, index);
+
+            if (bracket != BracketPosition.Outside)
+            {
+                if (bracketTerminator != '\0')
+                {
+                    if (current == bracketTerminator && index + 1 < text.Length && text[index + 1] == ']')
+                    {
+                        bracketTerminator = '\0';
+                        index++;
+                    }
+                    continue;
+                }
+                if (current == '^' && bracket == BracketPosition.First)
+                {
+                    bracket = BracketPosition.AfterNegation;
+                    continue;
+                }
+                if (current == ']' && bracket == BracketPosition.Contents)
+                {
+                    bracket = BracketPosition.Outside;
+                    continue;
+                }
+                // A leading ] and an ordinary [ are class members. Only the
+                // POSIX [: :], [. .] and [= =] terms have an inner closing ].
+                bracket = BracketPosition.Contents;
+                if (current == '[' && index + 1 < text.Length && text[index + 1] is ':' or '.' or '=')
+                    bracketTerminator = text[++index];
+                continue;
+            }
+
+            if (current == '[')
+            {
+                bracket = BracketPosition.First;
+                continue;
+            }
+
+            if (current == '/')
+                return new AwkRegexLiteralScanResult(AwkRegexLiteralTermination.Delimiter, index);
         }
 
         return new AwkRegexLiteralScanResult(AwkRegexLiteralTermination.EndOfText, text.Length);
     }
+
+    private enum BracketPosition { Outside, First, AfterNegation, Contents }
 }
 
 internal readonly record struct AwkRegexLiteralScanResult(

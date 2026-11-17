@@ -65,6 +65,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(ControlHeaderRegexCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex),
         .. Tagged(CommonParsingIdiomCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex, AwkGoldenTag.Array),
         .. Tagged(IncrementConcatenationCases(), AwkGoldenTag.Expression, AwkGoldenTag.Field),
+        .. Tagged(RegexLiteralBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Regex),
 
         .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
