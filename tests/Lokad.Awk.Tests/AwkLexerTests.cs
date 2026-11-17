@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkLexerTests
 {
     [Theory]
+    [InlineData("x y /=b/", "/=b/")]
+    [InlineData("a[x y] z /=[};#\"]/", "/=[};#\"]/")]
+    [InlineData("x f(y z) /=b/", "/=b/")]
+    [InlineData("(x y) z /=b/", "/=b/")]
+    [InlineData("x (y z) /=b/", "/=b/")]
+    public void ConcatenatedLeadingEqualsPatternPreservesSourceSpan(string source, string pattern)
+    {
+        var tokens = AwkLexer.Tokenize(source);
+        var regex = Assert.Single(tokens, token => token.Kind == AwkTokenKind.Regex);
+        Assert.Equal(pattern, regex.Text);
+        Assert.Equal(new AwkTextSpan(source.IndexOf(pattern, StringComparison.Ordinal), pattern.Length), regex.Span);
+        Assert.DoesNotContain(tokens, token => token.Kind == AwkTokenKind.SlashEqual);
+    }
+
+    [Theory]
     [InlineData("if((f(8)/2)==4)")]
     [InlineData("while((f(8)/2)==4)")]
     [InlineData("for(i=0;i<f(8)/2;i++)")]

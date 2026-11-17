@@ -79,11 +79,27 @@ internal sealed record AwkStackSafetyScenario(string Source, string Output,
         "four-argument-pending", "field-call-pending", "control-call-pending",
         "nested-array-keys", "nested-path-keys", "incoming-error", "incoming-cancellation",
         "numeric-formats", "beginfile-read", "endfile-read", "repeated-file-phases",
-        "include-boundary", "include-limit", "date-composites", "nested-getline"
+        "include-boundary", "include-limit", "date-composites", "nested-getline",
+        "concatenated-regex", "division-field-lookbehind", "division-array-lookbehind"
     ];
 
     internal static AwkStackSafetyScenario Create(string shape)
     {
+        if (shape is "concatenated-regex" or "division-field-lookbehind")
+        {
+            const int depth = 5_000;
+            var grouped = new string('(', depth) +
+                (shape == "concatenated-regex" ? "\"Y\"" : "2") + new string(')', depth);
+            return shape == "concatenated-regex"
+                ? new("BEGIN{$0=\"=b\";x=\"X\";print x " + grouped + " /=b/}", "XY1\n")
+                : new("BEGIN{$0=\"b 8\";$(" + grouped + ")/=2;print $0}", "b 4\n");
+        }
+        if (shape == "division-array-lookbehind")
+        {
+            const int depth = 3_000;
+            var key = string.Concat(Enumerable.Repeat("a[", depth)) + "1" + new string(']', depth);
+            return new("BEGIN{a[1]=1;b[1]=8;b[" + key + "]/=2;print b[1]}", "4\n");
+        }
         if (shape is "field-postfix-chain" or "field-mutation-chain")
         {
             var depth = shape == "field-postfix-chain" ? 5_000 : 256;

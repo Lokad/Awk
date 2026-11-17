@@ -155,7 +155,8 @@ internal static class AwkLexer
                     continue;
                 }
 
-                if (Current == '/' && _canStartRegex)
+                if (Current == '/' && (_canStartRegex ||
+                    lexeme.Kind == AwkTokenKind.SlashEqual && FollowsConcatenation()))
                 {
                     ReadRegex();
                     continue;
@@ -303,6 +304,66 @@ internal static class AwkLexer
                 _checkpoint?.Invoke();
                 nextCheckpoint = (long)_position + 1024;
             }
+        }
+
+        private bool FollowsConcatenation()
+        {
+            // /= cannot assign to a concatenation. In this context its slash
+            // starts a regex whose first pattern character is '='. Ordinary /
+            // still denotes division. Inspect only the current simple expression;
+            // nested argument/index expressions are already complete operands.
+            var hasRightOperand = false;
+            for (var index = _tokens.Count - 1; index >= 0; index--)
+            {
+                _checkpoint?.Invoke();
+                var kind = _tokens[index].Kind;
+                if (kind == AwkTokenKind.Comment) continue;
+                if (kind is AwkTokenKind.RightParen or AwkTokenKind.RightBracket)
+                {
+                    var close = kind;
+                    var open = close == AwkTokenKind.RightParen
+                        ? AwkTokenKind.LeftParen : AwkTokenKind.LeftBracket;
+                    var depth = 1;
+                    while (--index >= 0)
+                    {
+                        _checkpoint?.Invoke();
+                        kind = _tokens[index].Kind;
+                        if (kind == close) depth++;
+                        else if (kind == open && --depth == 0) break;
+                    }
+                    if (index < 0) return false;
+                    // Array subscripts belong to their preceding target.
+                    if (close == AwkTokenKind.RightBracket) continue;
+                    var before = index - 1;
+                    while (before >= 0 && _tokens[before].Kind == AwkTokenKind.Comment)
+                    {
+                        _checkpoint?.Invoke();
+                        before--;
+                    }
+                    if (before >= 0 && _tokens[before].Kind is AwkTokenKind.If or
+                        AwkTokenKind.While or AwkTokenKind.For or AwkTokenKind.Switch)
+                        return false;
+                    if (before >= 0 && _tokens[before].Kind == AwkTokenKind.Identifier &&
+                        (_tokens[before].Span.End == _tokens[index].Span.Start ||
+                         AwkBuiltins.IsKnownFunctionOrSpecialForm(_tokens[before].Text)))
+                        index = before; // A call and its name form one operand.
+                    kind = AwkTokenKind.RightParen;
+                }
+                if (kind is AwkTokenKind.Identifier or AwkTokenKind.Number or
+                    AwkTokenKind.String or AwkTokenKind.InternationalizedString or
+                    AwkTokenKind.Regex or AwkTokenKind.StrongRegex or AwkTokenKind.RightParen)
+                {
+                    if (hasRightOperand) return true;
+                    hasRightOperand = true;
+                }
+                else if (kind is AwkTokenKind.Plus or AwkTokenKind.Minus or AwkTokenKind.Star or
+                    AwkTokenKind.Slash or AwkTokenKind.Percent or AwkTokenKind.Caret)
+                    hasRightOperand = false;
+                else if (kind is not (AwkTokenKind.Dollar or AwkTokenKind.Bang or
+                    AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus))
+                    return false;
+            }
+            return false;
         }
 
         private void AddToken(AwkTokenKind kind, int start, int length)
