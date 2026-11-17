@@ -20,7 +20,7 @@ internal static partial class AwkGoldenCorpus
             ["{if($1)nextfile # skip file\nprint \"kept\"}", "/one", "/two"],
             [File("/one", "1\n0\n"), File("/two", "0\n")], "kept\n");
         yield return Passing("next-with-trailing-comment-and-crlf",
-            ["{if($1)next # skip\r\nprint \"kept\"}"], [], "kept\n", "0\n1\n");
+            ["{if($1){seen++;next # skip\r\n}print \"kept\",seen}"], [], "kept \nkept 1\n", "0\n1\n0\n");
         yield return Passing("for-membership-in-condition",
             ["BEGIN{a[1]=3;a[2]=4;for(i=1;i in a;i++)n++;print n}"], [], "2\n");
         yield return Passing("for-membership-with-empty-initializer",
