@@ -118,7 +118,8 @@ With `--non-decimal-data`, `0x1.5` retains its text but errors on numeric conver
 GNU 5.2.1 and 5.3.2 instead accept the numeric prefix `1`.
 
 Missing ordinary array reads create untyped entries; membership does not. Arrays pass
-by alias, including forwarded missing parameters. Scalar assignments/returns copy values.
+by alias, including forwarded missing parameters. Scalar assignments/returns copy values,
+including string-like unassigned field origins.
 Grouped arguments impose scalar context and reject arrays. Function parameters shadow
 globals, including for `length` and forwarded array aliases.
 

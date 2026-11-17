@@ -20,6 +20,10 @@ internal readonly struct AwkRecordField
     }
 
     internal static AwkRecordField Empty => default;
+    // Grown fields have no input slice. Keep that origin in the existing coordinate
+    // word, distinct from an actual empty field admitted by a record producer.
+    internal static AwkRecordField Unassigned => new(-2, 0);
+    internal bool IsUnassigned => _start == -2;
     // Raw slices have record coordinates; owned text needs no record start.
     // Derive the kind instead of storing a second discriminator in every cell.
     internal AwkFieldTextKind Kind => _length == 0 ? AwkFieldTextKind.Empty :
@@ -60,7 +64,8 @@ internal readonly struct AwkRecordField
     }
     internal AwkRecordField WithRuneLength(int length) => new(_start, _length, CacheSlot, _number, length);
     internal AwkRecordField WithCacheFrom(AwkRecordField source) =>
-        new(_start, _length, source.CacheSlot, source._number, source._runeLength);
+        new(_length == 0 && source.IsUnassigned ? -2 : _start,
+            _length, source.CacheSlot, source._number, source._runeLength);
 
     internal bool TryGetNumericValue(out double number)
     {

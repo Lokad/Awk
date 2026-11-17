@@ -105,7 +105,7 @@ internal sealed class AwkFieldFrame(
     }
 
     private AwkText _recordText = AwkText.Empty;
-    private AwkValue _recordValue = AwkValue.FromText(string.Empty);
+    private AwkValue _recordValue = AwkValue.UnassignedText();
     private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
     private AwkRecordFieldBuffer _fieldTexts = new();
     internal readonly struct CachedFieldValue
@@ -163,7 +163,7 @@ internal sealed class AwkFieldFrame(
         ReplaceRetainedMemory(0);
         _recordText = AwkText.Empty;
         _recordWasRecomposed = false;
-        _recordValue = AwkValue.FromText(string.Empty);
+        _recordValue = AwkValue.UnassignedText();
         _recordValueIsCurrent = true;
         _recordTextIsCurrent = true;
         ClearSplitFields(releaseCache: true);
@@ -252,7 +252,7 @@ internal sealed class AwkFieldFrame(
     {
         EnsureField(index);
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
-            return AwkValue.FromText(string.Empty);
+            return AwkValue.UnassignedText();
 
         var fieldIndex = index.Value - 1;
         if (TryGetCachedFieldValue(fieldIndex, out var cached)) return cached;
@@ -265,6 +265,7 @@ internal sealed class AwkFieldFrame(
     private AwkValue MaterializeFieldValue(int fieldIndex)
     {
         var field = _fieldTexts[fieldIndex];
+        if (field.IsUnassigned) return AwkValue.UnassignedText();
         AwkValue? classification = field.HasInputClassification ? field.InputClassification :
             field.CacheSlot > 0 && _fieldValueCache[field.CacheSlot - 1].HasInputClassification
                 ? _fieldValueCache[field.CacheSlot - 1].Value : null;
@@ -323,6 +324,11 @@ internal sealed class AwkFieldFrame(
             return true;
         }
         var field = _fieldTexts[index.Value - 1];
+        if (field.IsUnassigned)
+        {
+            input = AwkTextInput.FromTextRange(AwkText.Empty, 0, 0, index.Value);
+            return true;
+        }
         if (HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned) return false;
         if (HasBufferedRecord)
             input = AwkTextInput.FromMemory(BufferedRecord.Slice(field.RecordStart, field.ByteLength()), index.Value);
@@ -398,9 +404,10 @@ internal sealed class AwkFieldFrame(
     {
         EnsureField(index);
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
-            return new(AwkValue.FromText(string.Empty));
+            return new(AwkValue.UnassignedText());
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
+        if (field.IsUnassigned) return new(AwkValue.UnassignedText());
         // A later $0 read can retire dirty record slices while reconstructing it.
         // Clean input storage survives all prepared computational operands.
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
@@ -416,6 +423,7 @@ internal sealed class AwkFieldFrame(
         if (!index.IsNamedField || index.Value > _fieldTexts.Count) return false;
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
+        if (field.IsUnassigned) return false;
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
         {
             var value = GetFieldValue(index);
@@ -782,7 +790,7 @@ internal sealed class AwkFieldFrame(
             checkpoint?.Invoke();
             ReplaceRetainedMemory(newRetainedBytes);
         }
-        while (_fieldTexts.Count < newFieldCount) _fieldTexts.Add(AwkRecordField.Empty);
+        while (_fieldTexts.Count < newFieldCount) _fieldTexts.Add(AwkRecordField.Unassigned);
         _fieldTexts[fieldIndex] = newField;
         SetCachedFieldValue(fieldIndex, value, spelling);
         _fieldPayloadByteLength = newPayloadByteLength;
@@ -839,7 +847,7 @@ internal sealed class AwkFieldFrame(
             checkpoint?.Invoke();
             ReplaceRetainedMemory(newRetainedBytes);
             while (_fieldTexts.Count < index.Value)
-                _fieldTexts.Add(AwkRecordField.Empty);
+                _fieldTexts.Add(AwkRecordField.Unassigned);
         }
 
         _fieldCountValue = AwkValue.FromNumber(index.Value);
@@ -928,7 +936,7 @@ internal sealed class AwkFieldFrame(
             else if (newFieldCount > oldFieldCount)
             {
                 while (_fieldTexts.Count < newFieldCount)
-                    _fieldTexts.Add(AwkRecordField.Empty);
+                    _fieldTexts.Add(AwkRecordField.Unassigned);
             }
         }
         if (newFieldCount > oldFieldCount)
@@ -958,7 +966,7 @@ internal sealed class AwkFieldFrame(
         {
             if ((index & (MutationCheckpointFields - 1)) == 0)
                 checkpoint?.Invoke();
-            fields.Add(index < _fieldTexts.Count ? _fieldTexts[index] : AwkRecordField.Empty);
+            fields.Add(index < _fieldTexts.Count ? _fieldTexts[index] : AwkRecordField.Unassigned);
         }
         checkpoint?.Invoke();
         return fields;

@@ -3,9 +3,11 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentBindingTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task LaterPendingArgumentKeepsEarlierValuesAndDoesNotReadFollowingArrayEntries(bool governed, bool cancel)
+    [InlineData(false, false, false)] [InlineData(false, true, false)]
+    [InlineData(true, false, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(false, true, true)]
+    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    public async Task LaterPendingArgumentKeepsEarlierValuesAndDoesNotReadFollowingArrayEntries(bool governed, bool cancel, bool unassignedField)
     {
         var budget = new CooperativeTestBudget(4 << 20);
         using var cancellation = new CancellationTokenSource();
@@ -20,10 +22,12 @@ public sealed class AwkArgumentBindingTests
             host.ReadAsyncOverride = null;
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
+        var observed = unassignedField ? "typeof(x),(x==0)" : "x";
+        var first = unassignedField ? "$2" : "a[\"first\"]";
         var command = AwkTestHarness.BuildInvocation("awk",
-            "function pause(){a[\"first\"]=\"changed\";print (\"later\" in a);getline x<\"/side\";return x}" +
-            "function pick(x,y,z){print x,y,z}" +
-            "BEGIN{a[\"first\"]=\"one\";a[\"7\"]=\"two\";pick(a[\"first\"],a[pause()],a[\"later\"])}");
+            "function pause(){a[\"first\"]=\"changed\";$0=\"changed\";print (\"later\" in a);getline x<\"/side\";return x}" +
+            "function pick(x,y,z){print " + observed + ",y,z}" +
+            "BEGIN{NF=3;a[\"first\"]=\"one\";a[\"7\"]=\"two\";pick(" + first + ",a[pause()],a[\"later\"])}");
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
         var execution = AwkTestHarness.ParseAwk(command).ExecuteAsync(host, policy, cancellation.Token);
@@ -38,7 +42,8 @@ public sealed class AwkArgumentBindingTests
             release.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
             else Assert.Equal(AwkExitCode.Success, await execution);
-            Assert.Equal(cancel ? "0\n" : "0\none two \n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(cancel ? "0\n" : unassignedField ? "0\nunassigned 0 two \n" : "0\none two \n",
+                host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         }
         finally

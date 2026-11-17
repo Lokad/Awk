@@ -30,7 +30,9 @@ internal enum AwkValueKind
     NonDecimalConversionErrorText,
     NonDecimalConversionErrorInput,
     // Variable owners resolve external input in their reading mode before use.
-    StoredInputText
+    StoredInputText,
+    // Missing fields are empty strings with an unassigned origin, not numeric zero.
+    UnassignedText
 }
 
 internal readonly struct AwkValue
@@ -109,7 +111,8 @@ internal readonly struct AwkValue
 
     internal bool HasSameTextStorage(AwkValue other) =>
         _kind is AwkValueKind.Text or AwkValueKind.DeferredDecimalText or
-            AwkValueKind.DeferredHexadecimalText or AwkValueKind.DeferredNonDecimalText or AwkValueKind.Unassigned &&
+            AwkValueKind.DeferredHexadecimalText or AwkValueKind.DeferredNonDecimalText or
+            AwkValueKind.Unassigned or AwkValueKind.UnassignedText &&
         _kind == other._kind && ReferenceEquals(_text, other._text);
 
     // A frame fixes the reading mode once. Mode-independent input facts keep
@@ -120,6 +123,7 @@ internal readonly struct AwkValue
         {
             case AwkValueKind.Number:
             case AwkValueKind.Unassigned:
+            case AwkValueKind.UnassignedText:
                 return this;
             case AwkValueKind.ArrayReference:
             case AwkValueKind.Untyped:
@@ -268,6 +272,9 @@ internal readonly struct AwkValue
 
     public static AwkValue Unassigned() =>
         new(AwkText.Empty, 0, AwkValueKind.Unassigned);
+
+    public static AwkValue UnassignedText() =>
+        new(AwkText.Empty, 0, AwkValueKind.UnassignedText);
 
     public static AwkValue FromUntypedScalar(AwkUntypedScalar scalar) =>
         new(scalar, 0, AwkValueKind.Untyped);
@@ -451,7 +458,7 @@ internal readonly struct AwkValue
     internal static bool HasInputClassification(AwkValueKind kind) =>
         kind is AwkValueKind.NumericString or AwkValueKind.NonDecimalConversionErrorInput;
 
-    public bool IsUnassignedValue => _kind == AwkValueKind.Unassigned ||
+    public bool IsUnassignedValue => _kind is AwkValueKind.Unassigned or AwkValueKind.UnassignedText ||
         _kind == AwkValueKind.Untyped && _text is AwkUntypedScalar { IsScalar: true };
 
     public bool IsUntypedValue => _kind == AwkValueKind.Untyped &&
@@ -482,7 +489,7 @@ internal readonly struct AwkValue
             ThrowIfInputConversionError();
             return _kind switch
             {
-                AwkValueKind.Unassigned => AwkRuntimeValueKind.Unassigned,
+                AwkValueKind.Unassigned or AwkValueKind.UnassignedText => AwkRuntimeValueKind.Unassigned,
                 AwkValueKind.Untyped => IsArrayValue ? AwkRuntimeValueKind.Array :
                     IsUntypedValue ? AwkRuntimeValueKind.Untyped : AwkRuntimeValueKind.Unassigned,
                 AwkValueKind.ArrayReference => AwkRuntimeValueKind.Array,
