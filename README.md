@@ -31,8 +31,9 @@ var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 ```
 
 `TryParse` recognizes the invocation; execution loads, parses and runs the program.
-`ApplicationAwkHost` above is application code; the test suite's
-[MockFileSystem](tests/Lokad.Awk.Tests/MockFileSystem.cs) illustrates a host implementation.
+`ApplicationAwkHost` above is application code. Implement the
+[host interface](src/Lokad.Awk/Hosting/IAwkHost.cs) using the application's storage and streams;
+the [runtime guide](docs/RUNTIME.md#buffer-lifetimes) explains buffer lifetimes and outcomes.
 File opens receive original path spelling, cwd and the requested accessible root. The host
 resolves its namespace and enforces that root before effects.
 
@@ -49,11 +50,12 @@ A [copyable adapter](examples/README.md) uses published Lokad.Utf8Regex 0.4.0 wi
 cancellation. Its POSIX longest-match and capture-selection gaps remain documented limitations.
 Non-regex processing needs no provider.
 
-Supported core behavior includes records/fields, expressions, loops, functions, flat arrays,
+Supported core behavior includes records/fields, expressions, loops, functions, arrays,
 formatting and `getline`, with selected GNU conveniences. This is not full POSIX/GNU
 conformance: `system()` and namespaces remain unsupported.
-Version 0.5.0 adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`);
-published 0.4.0 supports neither.
+The development checkout adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`).
+These are unreleased; published 0.4.0 supports neither. See the
+[development migration notes](CHANGELOG.md#unreleased) for current API changes.
 
 - [Compatibility](docs/COMPATIBILITY.md): supported boundaries and known differences.
 - [Benchmarks](docs/BENCHMARKS.md): representative elapsed-time ratios and managed allocations.
@@ -67,4 +69,4 @@ Use the stable SDK pinned in `global.json`, then run `dotnet test Lokad.Awk.slnx
 CI builds, tests and packs on Windows and Linux. Only `src/Lokad.Awk` produces a NuGet package;
 the adapter example, tests and benchmarks are not packaged.
 Development packages use `0.0.0-dev`, with output kept separate from published artifacts.
-Release packaging supplies explicit package and assembly versions.
+Release versions and tags are assigned separately from development builds.

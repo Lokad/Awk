@@ -2,185 +2,58 @@
 
 ## Unreleased
 
-- Treat bare length after getline as status concatenation, preserving comparison and pipe precedence.
+Development packages use `0.0.0-dev`. Changes below are unreleased and relative to
+published 0.4.0. Before 1.0, minor releases may break public APIs.
 
-- Reject malformed nonempty for clauses before execution instead of treating them as omitted.
+### API migration
 
-- Select nested getline diagnostics iteratively, preserving target precedence and source spans.
+- **Regex providers:** `TryCompile` borrows a UTF-8 `ReadOnlySpan<byte>`, replacing a
+  UTF-16 pattern. Providers admit retained source. Replace stateless matching with
+  `CreateSearch` over a complete immutable UTF-8 subject; scoped `Match` uses absolute
+  byte restarts. `AwkRegexCaptureRange` holds participation and byte index/length only.
+  Dispose searches before subjects/handles; active searches pin handles through eviction.
+  Default RSTART/capture lengths now count Unicode scalars, not UTF-16 units: matching
+  `b` in `a😀b` reports 3 (explicit byte mode still reports 6).
+- **File opens:** `OpenFileAsync` receives `AwkPathRequest` containing original path text,
+  cwd and an optional accessible root. Hosts traverse/authorize before effects and return
+  `Opened(descriptor, resolvedPath)` with a stable identity. Core no longer collapses dot
+  segments/trailing slashes. PolicyDenied is fatal; ordinary getline I/O remains recoverable.
+- **Reads:** replace `ReadLinesAsync` / `AwkReadResult` with bounded
+  `ValueTask<AwkReadBuffer> ReadAsync(descriptor, maxBytes, token)`. Advance an absolute
+  consumed prefix and dispose before another descriptor operation. Keep bytes immutable
+  until disposal; terminal results may contain a usable prefix. Hosts no longer split lines.
+- **Appends:** return `Task<AwkAppendResult>`, acknowledging full acceptance or terminal
+  DownstreamClosed/Failure. Payloads are never retried; keep them valid until actual
+  completion. Command callbacks still return AwkExitCode. `AwkOperationError` takes a
+  cause and safe message. See the [host contract](docs/RUNTIME.md) for migration details.
 
-- Expand nested source includes without recursive async calls, preserving source maps, admission and cleanup.
-- Walk composed token endpoints iteratively, avoiding stack overflow on deeply composed input.
+### Behavior
 
-- Carry next, nextfile and exit through explicit interpreter frames, removing internal control-flow exceptions while preserving phase validation and cleanup.
+- Add CSV input (`--csv`/`-k`): quoted/multiline fields, escaped quotes, CRLF and CSV-aware
+  two-argument split. Explicit separators and field reconstruction retain ordinary behavior.
+- Add arrays of arrays: child aliases, nested iteration/deletion and array-taking builtin
+  targets. Captured paths survive parent replacement without reevaluating keys; documented
+  evaluation-order boundaries remain.
+- Correct getline/concatenation and field postfix precedence, regex/division boundaries,
+  regex literals beginning with `=` and non-lvalue prefixes, bare printf and bare length
+  after getline. Reject malformed for clauses and invalid computed-field calls before effects.
+- Preserve input origins in retained array keys, function arguments, traversal, asorti and
+  comparator arguments. Keep unassigned field origins and revalidate aliases after later
+  arguments mutate their source. Builtin inputs/targets retain ordered capture and conversion.
+- Correct replacement escaping across GNU/POSIX/traditional profiles, record/field behavior,
+  numeric formatting and special-variable observations. See [compatibility](docs/COMPATIBILITY.md)
+  for qualified boundaries rather than full POSIX/GNU conformance.
+- Bound source/include/token/diagnostic traversal and user execution on small managed stacks.
+  Preserve next/nextfile/exit through explicit continuations and real pending host work.
+  Cancellation, refused admission, output failure and cleanup retain their observable contracts.
 
-- Count structural syntax nesting without rejecting long left-associated expressions or unbraced else-if chains; retain delimiter and nested-expression backstops.
+### Performance and qualification
 
-- Start significant-token lookahead at its requested index, avoiding repeated prefix scans in identifier expressions.
+The single interpreter reduces repeated field/value materialization, lookup and transport;
+the [benchmark snapshot](docs/BENCHMARKS.md) identifies measured revisions and allocations.
+Expanded golden, structural-boundary, native differential and host-lifetime coverage protects
+these changes. Provider selection gaps remain explicit; green CI is not full regex conformance.
 
-- Assemble else-if continuations without repeatedly rebuilding earlier branches; preserve dangling-else binding and source spans.
-
-- Honor CONVFMT for numeric string conversions inside OFMT and keep recursive conversion bounded.
-- Format excessive general precision within binary64 bounds without losing alternate-form zeroes.
-
-- Execute print, printf and delete in for initializers and steps, including redirected output
-  and continuation after continue. Validate their operands before execution.
-
-- Accept compound expressions beginning with close, fflush, split, substitution and sorting calls.
-
-- Include special-form functions in FUNCTAB, preserve numeric-string origins in match captures,
-  and validate calls inside computed field indices before execution.
-
-- Apply getline redirection precedence consistently, completing reads before concatenated
-  suffix effects while preserving recoverable read failures and explicit source grouping.
-
-- Parse prefix increment/decrement in concatenations without changing field postfix mutation.
-- Recognize leading closing brackets and POSIX terms when locating regex-literal delimiters.
-
-- Accept equals-prefixed regex literals, trailing comments after control statements, and
-  membership expressions in C-style for headers. Preserve ordinary for-in and division assignment.
-
-- Fix numeric CONVFMT/OFMT assignment, preserving the captured format and numeric origin
-  without recursive formatting. Honor memory admission and cancellation for retained formats.
-- Fix call-result array updates at inserted cancellation boundaries.
-- Preserve buffered field captures after record mutation.
-- Match Unicode record separators containing ASCII alternatives.
-
-- Prepare arithmetic-only scalar input with the shared value-consumption analysis,
-  avoiding unobserved field-text ownership while preserving spelling observations and deferred errors.
-- Reduce print preparation overhead while preserving complete-record size checks and output admission.
-- Separate compact record cells from byte views, retaining owned spelling and scalar values in
-  the record frame. Preserve lazy field classification, CSV decoding, mutation and cleanup.
-- Execute complete array updates with local targets, including composite keys. Remove unused
-  retained-target storage and rule cleanup; preserve funded captures across effects and suspension.
-
-- Keep cancellation checks with record owners and long consumers, avoiding a duplicate poll
-  when inspecting already-admitted record bytes.
-- Stage already-numeric field arguments directly into prepared function frames.
-- Prepare and capture numeric function returns directly, keeping owning return values
-  funded through host completion.
-- Reuse recognized short-integer digits during numeric conversion; preserve the floating-point
-  fallback, input spelling and cooperative cancellation.
-- Prepare admitted record splitting once and defer RT numeric conversion until use. An absent
-  terminator now gives RT an unassigned value, matching GNU type and comparison behavior.
-- Unify record field publication and admission across splitting modes. Avoid whole-record text
-  copies for CSV, character and width fields; decode CSV escapes in one field scan.
-- Reuse funded descriptors for whitespace and single-byte field splitting. Admit growth before
-  allocation, extend/complete prefixes within admitted capacity at every record size and copy
-  prefix descriptors only when capacity grows. Keep unpublished storage funded through cancellation
-  and cleanup; complete field-copy owners before borrowing their bytes.
-- Check long field scans in bounded byte regions, retaining cancellation checks around admission
-  and publication without a separate check for every literal-separated field.
-- Bind numeric RHS sources directly to complete array updates, preserving prior values,
-  funded captures and aliases across RHS effects and suspension.
-- Return newline processing to available host buffers after crossing records, preserving
-  unread suffixes, separator changes and pending-read ownership. Clear invalid record-value
-  caches without classifying discarded empty text.
-- Cache arithmetic field numbers in their funded descriptors, retaining original spelling
-  for comparisons and escaping values. Remove separate numeric-cache entries and growth.
-- Consume ready field numbers directly; retain owned argument values and deferred conversion
-  errors through the shared field producer.
-- Share immutable splitting configuration through compact record snapshots. Reuse preparation
-  for assignments of the same separator storage, preserving settings captured by admitted records.
-- Bind splitting and value construction to the record frame. Remove the forwarding record runtime
-  and callback-only splitting paths, preserving value origins, snapshots and mutation preflights.
-- Bind implicit special-scalar reads to their existing execution-owned cells, preserving
-  computed fields, lazy names, current formatting and function scope. Consume stored text
-  without repeating numeric classification or value reconstruction.
-- Prepare global array locations in user functions, reusing execution-owned identities
-  while keeping parameter aliases and file-phase global scope separate.
-- Pass compact completion signals through input scanning, scheduling and execution.
-  Consume cursor-owned record metadata before publication or reentry, preserving
-  pending-read ownership, paragraph EOF behavior and recoverable getline failures.
-- Bind ordinary scalars and record headers to execution-owned storage, preserving
-  lazy creation, value origins and function-local special names. Check cancellation
-  requested during scalar admission before publishing a new name or value.
-- Consume bound numeric comparison operands directly, preserving value origins and
-  the captured left value across right-operand admission or mutation.
-- Run prepared rules, computation and calls through the common interpreter, with explicit
-  function continuations for actual host suspension and separate scratch for reentrant phases.
-- Replace recursive source preparation with explicit work stacks. Remove retired action and
-  statement/expression trees, synchronous evaluators, reference/index adapters, function
-  preparation/transport, builtin staging, concatenation continuations and duplicate bookkeeping,
-  preserving qualified diagnostics, cancellation and admission before effects.
-
-- Run user sorting callbacks through ordinary interpreter frames, including `sorted_in`
-  traversal. Keep stable comparisons, admitted snapshots, mutation and publication rules
-  while removing the separate pending traversal and argument-buffer paths.
-
-- Prepare `gensub` through the common interpreter with byte-native patterns and selectors.
-  Preserve early pattern conversion and late replacement conversion; large or nonfinite
-  occurrence numbers no longer wrap to the first match. Positive numeric selectors avoid
-  unnecessary `CONVFMT` conversion.
-- Separate buffered record recognition from pending host reads, retaining one refill
-  loop and the existing streaming ownership and cancellation behavior.
-- Bind known special-scalar read identities during interpreter preparation, preserving
-  computed values, local bindings and effects between reads.
-- Prepare `sub`/`gsub` operands in the common interpreter. Numeric replacements format
-  after target-index effects; dynamic regex validation follows those effects. Publish
-  target changes only after a successful replacement, preserving mutation admission.
-- Capture `match`, `split` and `patsplit` input values before later arguments, and format
-  numeric inputs afterward using the resulting `CONVFMT`. Regex arguments retain their
-  earlier conversion point.
-- Correct `typeof(length)` to inspect the implicit length call.
-- Correct standalone two-argument `close()` to evaluate and validate the direction,
-  consistently with calls used as expressions.
-- Correct dynamic regex matching to capture the left value before RHS effects and
-  apply `CONVFMT` afterward when formatting numeric input.
-- Prepare standard `printf` operands in the common interpreter, retaining values across
-  pending calls and borrowing literal field arguments without an arity cutoff.
-- Correct numeric `printf` format conversion to use `CONVFMT` after argument effects,
-  while preserving the previously captured format value.
-- Prepare file and pipe output in the common interpreter, retaining payloads and target
-  storage through actual host completion. Numeric target conversion now uses `CONVFMT`
-  after argument effects while the target value is captured beforehand.
-- Reuse numeric field interpretations in spare record-cache slots while preserving
-  original text. The initial buffer uses shared admission; numeric-only reads do not
-  enlarge a populated cache.
-- **Breaking regex-provider API:** replace stateless UTF-16 matching with `CreateSearch`
-  over a borrowed immutable UTF-8 subject. Scoped `Match` takes absolute byte offsets;
-  `AwkRegexCaptureRange` contains only participation and byte index/length. Dispose each
-  search before releasing its subject; active calls/searches keep compiled handles alive
-  through cache eviction. Direct `IsMatch` remains capture-free.
-- Correct default regex positions and capture lengths to count Unicode scalars, matching
-  ordinary string operations. For `a😀b`, matching `b` now reports RSTART 3; explicit byte
-  mode still reports 6. Consumers relying on UTF-16 positions must update their indexing.
-- **Breaking regex-provider API:** `TryCompile` now borrows a `ReadOnlySpan<byte>` UTF-8
-  pattern. Core translation, warning history and cache keys stay byte-native. Providers
-  must own and admit retained source; the example adapts the published provider's string
-  compilation API.
-- **Breaking host API:** `OpenFileAsync` receives `AwkPathRequest` with original path text,
-  explicit cwd and an optional accessible root. Hosts traverse and authorize before effects;
-  `Opened(descriptor, resolvedPath)` supplies their stable canonical identity. Core no longer
-  collapses dot segments or trailing slashes before host access. Report `PolicyDenied` for
-  fatal policy denial; ordinary getline I/O failures remain recoverable. Parent paths now
-  follow host traversal instead of an automatic above-root syntax rejection.
-- **Breaking host API:** replace `ReadLinesAsync` / `AwkReadResult` with bounded
-  `ValueTask<AwkReadBuffer> ReadAsync(descriptor, maxBytes, token)`. Hosts no longer provide
-  line offsets. Awk advances an absolute consumed prefix; disposal commits it once and ends
-  the borrow. Return unread bytes on the next read and keep storage alive until disposal.
-  Terminal reads may include bytes; complete records precede failure, without treating a
-  partial failed record as EOF. Source loading also accepts scalar-splitting byte chunks.
-- **Breaking host API:** `AppendAsync` now returns `Task<AwkAppendResult>`: acknowledge
-  complete output with `Accepted()`, or report terminal `DownstreamClosed()` / `Failure(error)`.
-  Command callbacks still return `AwkExitCode`. `AwkOperationError` now takes a cause enum
-  and a safe message. See the [host contract](docs/RUNTIME.md#host-authority) for migration
-  and output-failure behavior.
-- Reuse bounded record storage and a compact scalar cache while preserving owned escaping values.
-- Simplify immediate shared-memory charges while keeping pending reservations funded.
-- Use range-only searches and dense sparse-group publication in the source regex adapter.
-
-## 0.5.0
-
-- Separate development packages (`0.0.0-dev`) from immutable published release artifacts.
-- Add GNU-style CSV input (`--csv`/`-k`), including multiline/quoted fields and CSV-aware
-  two-argument `split()`. Ordinary explicit-separator splitting and field reconstruction remain unchanged.
-- Reduce repeated array-name resolution with stable execution-owned bindings for globals,
-  parameters and update targets, preserving backing replacement, admission and cancellation.
-- Prepare numeric array updates with their captured owners and prior values, including dynamic
-  field indices, without changing RHS ordering or missing-read insertion.
-- Add GNU arrays of arrays, including child aliases, nested iteration and array-taking
-  builtin targets. Captured update/getline paths survive parent replacement without
-  reevaluating keys; see the documented evaluation-order boundaries.
 
 ## 0.4.0
 
@@ -296,7 +169,7 @@ individual results do not imply an overall speedup.
 
 Published on [NuGet](https://www.nuget.org/packages/Lokad.Awk/0.3.0) from source
 [`574e5e8`](https://github.com/Lokad/Awk/commit/574e5e8fe3109adad59876e47491f65619d8e58e).
-The following describes that published release; later API removals appear under Unreleased.
+The following describes that published release; later API changes are described under 0.4.0 and Unreleased.
 
 - Expanded ordinary awk support across expressions, functions, flat arrays, records/fields,
   redirections, formatting and selected GNU helpers. Corrected source/ARGV scheduling,

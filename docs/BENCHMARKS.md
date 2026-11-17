@@ -1,44 +1,13 @@
 # Benchmarks
 
-Current package results at [6ac50cf9](https://github.com/Lokad/Awk/commit/6ac50cf965521ce31feee6feddc3a15ad03ca375), measured **2026-11-17 UTC**
-on quiet Linux x64: .NET 10.0.12 / SDK 10.0.401, GNU awk 5.3.2.
-Lower elapsed-time ratios are faster. Managed allocations include the host; GNU
-allocations are not compared. The catalog retains a separately identified source
-revision; its timings have not been refreshed for the current package.
+The latest measured catalog uses the existing BenchmarkDotNet comparison. Lower
+elapsed-time ratios are faster. Managed allocations include the host; GNU allocations
+are not measured. Source revisions and methods below identify retained evidence;
+later correctness changes have not been remeasured.
 
 ## Representative processing
 
-The actual qualified Linux Release package processes **1,048,576 records** in four
-core scripts and **65,536** in the arithmetic, sorting and regex probes.
-Default execution has no shared admission; shared execution supplies a 512 MiB budget.
-Both reuse a policy and live caller token, consume/hash complete output and finish
-with all execution reservations refunded.
-
-Times are full-invocation means over five seconds after twelve seconds of warmup,
-including parsing/compilation. All twenty-one processing cells are from one quiet cohort,
-one process per cell. They do not establish process-to-process variation, the effect
-of a source change or an isolated governor cost.
-
-| Script / records | Lokad ms, default/shared | GNU ms | Lokad.Awk/awk, default/shared | Allocated MiB, default/shared |
-| --- | ---: | ---: | ---: | ---: |
-| Sum one numeric column / 1,048,576 | 76.268 / 87.571 | 84.719 | 0.90× / 1.03× | 0.085 / 0.086 |
-| Keyed sum / sorted output (GNU) / 1,048,576 | 97.646 / 115.814 | 89.515 | 1.09× / 1.29× | 0.128 / 0.130 |
-| Nested-array calls, 16 keys (GNU) / 1,048,576 | 328.691 / 368.829 | 298.180 | 1.10× / 1.24× | 0.215 / 0.217 |
-| Nested-array calls, 1,024 keys (GNU) / 1,048,576 | 324.907 / 352.161 | 317.462 | 1.02× / 1.11× | 0.842 / 0.843 |
-| For loop and numeric arithmetic / 65,536 | 21.894 / 22.207 | 28.130 | 0.78× / 0.79× | 0.124 / 0.125 |
-| Numeric array sort (GNU) / 65,536 | 24.068 / 35.560 | 22.994 | 1.05× / 1.55× | 10.980 / 10.981 |
-| ERE boolean matching / 65,536 | 23.445 / 38.567 | 4.720 | 4.97× / 8.17× | 112.198 / 117.202 |
-
-An additional **2,048-record function-print** diagnostic exercises ready and genuinely
-pending appends. Default ready/pending means are **0.507/2.155 ms**, allocating **0.168/1.514 MiB**.
-Shared ready/pending means are **0.896/2.566 ms**, allocating **0.169/1.515 MiB**.
-The first pending append is held until public execution returns incomplete. These
-figures include the diagnostic host, gate/controller and scheduler; they do not
-isolate interpreter suspension overhead. Output and final refunds match.
-
-## Catalog processing
-
-Retained **Release source build** at [72589eb5](https://github.com/Lokad/Awk/commit/72589eb58e5a6d060f18f9611a1cc86ac6b50562),
+Latest measured **Release source-build catalog** at [72589eb5](https://github.com/Lokad/Awk/commit/72589eb58e5a6d060f18f9611a1cc86ac6b50562),
 measured **2026-11-17 UTC** using BenchmarkDotNet. Its out-of-process toolchain
 rebuilds project references, so these are not timings of the CI-package DLL above.
 Times are medians. The 56 families below mostly process 4,096 records; all-field,
@@ -150,17 +119,17 @@ uses a 15 s caller deadline per invocation. Compare within each method/cohort.
 
 ## Method and refresh
 
-The **21 package-processing and four host cells** are current at 6ac50cf9.
-The **82 managed/82 GNU catalog timings and 20 policy cells** retain 72589eb5;
-they are not fresh results of the current package. Each section states its revision
-and method; compare within that boundary.
-All GNU timings are available. All 82 catalog fixture/output checks pass.
+All **82 managed/82 GNU catalog timings and 20 policy cells** were measured at
+72589eb5. They are retained measurements, not fresh results of the development
+checkout. All 82 fixture/output checks passed at that revision. Timing uses the
+tracked catalog; separate actual-package and pending-host diagnostics remain local
+evidence until their method is represented by the tracked tooling.
 
 Quiet checks bracket measurement batches and sample machine state rather than
 guarantee continuous isolation. Source, preflight runtime/driver DLLs, native binary
 and fixture/output identities are verified. Each catalog phase retains its generated
-core/PDB, build project and source/output preflight before later build reuse. These source-built identities are separate from
-the qualified package and preflight driver; no byte-equality claim is made.
+core/PDB, build project and source/output preflight before later build reuse. These source-built identities are separate from the preflight driver; no byte-equality
+claim is made.
 Single-launch snapshots sample
 natural JIT and array-hash variation; they are not source-change speedups.
 
@@ -178,8 +147,7 @@ include both output collectors.
 BenchmarkDotNet uses one launch, four warmups and five 500 ms measurement iterations,
 with normal outlier handling. GNU elapsed comes from `ReferenceAwkBenchmarks.GnuAwkCli`;
 managed elapsed and allocation come from `WorkloadAllocationBenchmarks.LokadFullInvocation`,
-avoiding duplicate managed timing. The separate actual-package means use the same
-public invocation/output hashing boundary. Raw results and history remain local.
+avoiding duplicate managed timing. Raw results and history remain local.
 
 Use the stable SDK in `global.json`:
 
@@ -193,7 +161,8 @@ dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --filter '*Wo
 
 Native comparisons need an independently installed GNU binary outside `external/`.
 `--check-machine` checks quietness; `--driver-smoke` checks process cancellation,
-early exits, drains and cleanup; `--smoke` checks library fixtures without GNU.
+early exits, drains and cleanup. `--smoke` checks library fixtures; it also runs native
+comparisons when `LOKAD_AWK_ORACLE_EXE` is set.
 Catalog filters select family/scale before constructing input. `--governed-profile`
 uses existing budget controls. Small-stack safety is covered by the CI test suite.
 

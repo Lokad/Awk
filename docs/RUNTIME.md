@@ -1,649 +1,199 @@
 # Runtime and host contract
 
-Lokad.Awk runs managed code with all I/O supplied by `IAwkHost`. Awk programs have no
+Lokad.Awk is a managed interpreter with all I/O supplied by `IAwkHost`. Programs have no
 direct filesystem, process, console, networking, reflection or native-loading access.
-Core disables unsafe C#; the host, parser and selected regex engine remain trusted code.
-The embedding boundary does not provide OS isolation.
+Core disables unsafe C#. The host, parser and regex provider are trusted code; this
+embedding boundary does not provide OS isolation.
 
-This guide describes the development checkout. See the changelog for released APIs.
-Version 0.3.0 retains the earlier quota/deadline APIs;
-[migration notes](../CHANGELOG.md#040) describe their removal.
+This guide covers the development checkout. See the [changelog](../CHANGELOG.md) for
+released APIs and migration requirements. Internal maintenance contracts live in
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Host authority
 
-`AwkExecutionPolicy.CreateRestricted()` disables script-created redirections, command pipes,
-`@include` and changed `ARGV` input paths; hides invocation environment and host-error details;
-fixes time to Unix epoch/UTC; and tightens stack and open-resource bounds.
-Explicit invocation inputs remain available. Supply shared admission and caller cancellation
-for resource control; the preset supplies neither an aggregate memory allowance nor a deadline.
+`AwkExecutionPolicy.CreateRestricted()` disables file redirections, command pipes,
+includes and changed ARGV input paths; hides invocation environment and host-error
+details; fixes time to Unix epoch/UTC; and tightens depth/open-resource bounds.
+Explicit invocation inputs remain available. Supply a shared budget and caller
+cancellation separately: the preset supplies neither a memory allowance nor a deadline.
 
-`--sandbox` disables file and command redirections. `AccessiblePathRoot` is forwarded to
-the host, which enforces it against its resolved namespace before effects, including links
-and races. Supported `/dev/*` aliases name supplied descriptors. Main input accepts `-`,
-`/dev/stdin` and `/dev/fd/0` without opening a host path or taking ownership of stdin.
+`--sandbox` disables file and command redirections. It does not implement every GNU
+sandbox restriction: changed ARGV inputs are controlled separately by
+`WithDynamicMainInputPaths(false)`. All opens remain subject to host authorization.
 
-Main-input operands remain text until the scheduler selects them. Unused or discarded operands
-are not validated as paths; selected paths receive shared admission before host traversal.
-Source/include requests are prepared while loading the program. Include expansion is iterative
-and retains its configured depth bound. Virtual filenames
-accept literal `:`, `*` and `\`; only `/` separates segments. There is no glob expansion or drive
-syntax. Hosts determine whether their backing store supports these names.
+`OpenFileAsync(AwkPathRequest, mode, token)` receives original path spelling, cwd and an
+optional accessible root. The host traverses its namespace and enforces that root before
+effects, including links and races. Preserve dot segments and trailing slash until
+traversal: `link/../data` can differ from `data`. Return
+`Opened(descriptor, resolvedPath)` with a stable canonical identity. Source/include reuse
+uses this identity; stream names, ARGV, FILENAME and diagnostics retain their own spelling.
+Core performs no lexical containment check or direct filesystem traversal.
 
-Pipes require policy and host permission. Awk passes opaque command text to the host without
-invoking a shell. Hosts control command allowlists, parsing, environment and process limits.
-Unsupported effects remain explicit; see [compatibility](COMPATIBILITY.md).
+Virtual paths use `/` as their separator. Colons, stars and backslashes are literal;
+there is no glob expansion or drive syntax. Main-input operands are resolved only when
+selected, so programs may replace/discard unused ARGV entries. Main input accepts `-`,
+`/dev/stdin` and `/dev/fd/0` as borrowed stdin. Other alias/redirection distinctions are
+listed in [compatibility](COMPATIBILITY.md#host-io-and-getline).
 
-`OpenFileAsync(AwkPathRequest, mode, token)` receives original spelling and explicit cwd.
-Preserve dot segments and trailing slash until traversal: `link/../data` can differ from
-`data`, and a missing intermediate directory cannot disappear through normalization.
-Return `Opened(descriptor, resolvedPath)` with a stable canonical identity after authorization.
-Source reuse and include-role checks use that identity; ARGV, FILENAME, diagnostics and
-redirection stream names retain their own spelling. Different source aliases may require
-another open/close to discover identity, while exact repeated requests reuse loaded source.
-Return `PolicyDenied` for fatal policy refusal. Ordinary missing/permission/transport errors
-retain their I/O behavior, including recoverable getline. Lexical helpers do not prove
-filesystem containment. Core performs no direct filesystem traversal.
+Return structured failures with safe, unprefixed `AwkOperationError` messages. Causes are
+`NotFound`, `PermissionDenied`, `NotSupported`, `IoFailure`, `PolicyDenied` and
+`Unspecified`. `PolicyDenied` is fatal; ordinary redirected getline I/O failure returns
+-1 and sets enabled ERRNO without an automatic stderr diagnostic. Unexpected host
+exceptions become generic awk diagnostics, without CLR exception details. Completed
+effects are not rolled back when a later operation fails.
 
-Hosts implement `RunCommandAsync(AwkCommandInvocation, CancellationToken)` returning
-`Task<AwkExitCode>` and `CreatePipeAsync(CancellationToken)` for streaming pipes.
-Each command has one completion status; independent commands may run concurrently.
+## Buffer lifetimes
 
-Awk initially owns both created pipe descriptors. Returning a command task accepts the handoff,
-including an already faulted/canceled task; a synchronous launch throw leaves both ends for Awk
-to close. For output pipes, the host retires the consumer reader (`command.StdIn`) before task
-completion; Awk closes the writer to signal EOF. For input pipes, Awk closes both created ends;
-the producer writer (`command.StdOut`) stays addressable until that close, even after EOF.
-Setup failure may request best-effort close of either end. Command tasks await actual users on
-success, nonzero exit, failure and cancellation. Supplied standard descriptors remain borrowed.
+`ReadAsync(descriptor, maxBytes, token)` returns a disposable `AwkReadBuffer` borrowing
+at most maxBytes. Keep it immutable and funded until disposal. MoreData requires
+nonempty content; EOF/failure may carry a usable prefix. Awk recognizes records and
+validates UTF-8 across arbitrary chunks. Complete prefix records precede a read-error
+diagnostic; a partial failed record is not successful EOF. Explicit later getline may
+attempt another read; failed operations are not automatically retried.
 
-Hosts return structured outcomes and honor the [buffer lifetime contract](../README.md#embedding).
-Unexpected host exceptions become generic awk diagnostics. Policy/admission failures produce
-awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
-Mutation preflights preserve earlier state/output without rolling back completed effects.
-Record publication checks cancellation after admission, before changing the record or counters.
-Main input and record-target `getline` share header/record publication: prepared terminator state,
-split configuration and record-memory estimates are reused at publication; numeric input counters
-update their existing owners. `RT` preserves terminator spelling and string origin, converting
-on numeric use; an absent terminator is unassigned.
-Unchanged terminator storage reuses its existing funding; replacements still preflight admission.
-Reader metadata is consumed before publication or reentrant execution; it does not retain a
-previous owned getline value after that value's user retires it.
-Scalar publication also checks cancellation requested during admission before changing names
-or values. Numeric overwrites that require no admission retain their computational checkpoints.
-Implicit special-variable reads, including in user functions, share those scalar owners.
-Text-only consumers keep original bytes, while numeric separators use current formatting. Computed fields and lazy names retain
-their ordinary semantics.
-Record-header preflight ends after record/counter/terminator publication. Later actions
-can return relinquished storage to the shared budget for host and nested users; actual
-retained values and pending operations keep their own funding.
+`SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it
+once without cancellation, ending the borrow and leaving the suffix on the descriptor.
+The completion callback must not throw or perform cancellable I/O. Dispose before any
+other operation on that descriptor, including aliases. Different descriptors may have
+independent borrows. Awk may consume bytes into its admitted read-ahead storage; early
+exit preserves bytes still unconsumed by the borrow. Command hosts coordinate their
+own descriptor users after handoff.
 
-`ReadAsync(descriptor, maxBytes, token)` returns `ValueTask<AwkReadBuffer>`, a disposable
-borrow of at most the requested bytes. `MoreData` requires a nonempty buffer; EOF and failure
-may carry a usable prefix. Awk recognizes records across chunks and validates strict UTF-8,
-including source files. Complete prefix records precede a read-error diagnostic; an incomplete
-failed record is never published as successful EOF. An explicit later getline may attempt a
-new read after returning -1; Awk does not automatically retry a failed operation.
-The reader can reuse proof that an immutable borrow is ASCII for its record slices.
-The record slot preserves that proof through promotion, allowing field lengths to use byte
-length directly. Replacement bytes without proof retain ordinary scalar counting.
-Other records retain strict validation; inspecting later bytes never rejects them early.
-Current records may reference the live read borrow. Before retiring it, Awk preserves retained
-record bytes in already-funded storage; escaping scalar values own their text.
-Reusable record buffers have bounded retained capacity; larger records remain supported through
-ordinary owning storage and shared admission.
-Prepared computation-only calls may retain an immutable reader slice for text arguments.
-Later field writes preserve the argument's original spelling; escaping values own text,
-and calls that may perform host work retain owning captures. The frame funds its cells;
-borrowed text keeps the host's existing charge. An owning copy requests admission when
-materialized and may fail then, before allocation or publication.
-Prepared function returns transfer existing scratch funding to the caller before retiring
-the callee. Numeric conversion uses the still-funded callee snapshot. Discarded assignments
-transfer funded return scratch into validated scalar cells; fresh case/substring assignments
-use those same publication owners. Used results and unresolved or special targets retain ordinary
-captures and mutation preflights.
-Immediate substring output can borrow text until it is copied into the funded output
-buffer. Whole owned text keeps its backing; escaping values still own text. Output bytes
-are owned before host suspension, with the existing formatting order and statement visibility.
+`AppendAsync` borrows its payload until the returned task actually completes. Hosts that
+retain content afterward must copy it. Return `AwkAppendResult.Accepted()` only after
+accepting the whole payload with the destination still writable. DownstreamClosed and
+Failure are terminal, do not guarantee an accepted prefix and do not retire the descriptor.
+Awk never replays the payload. Immediate hosts may reuse a completed acceptance task;
+pending tasks provide backpressure and retain the payload even after cancellation.
 
-`SetConsumedBytes(count)` advances an absolute prefix monotonically. Disposal commits it once,
-without cancellation, and ends the borrow; any unconsumed suffix remains on the descriptor,
-including after ordinary early exit. Hosts keep the content immutable and funded until disposal.
-The completion callback must not throw or perform cancellable I/O. Dispose before another
-operation on the same descriptor; concurrent borrows on one descriptor are unsupported.
-Different descriptors have independent borrows. Consumption includes bytes transferred into
-Awk's funded record-recognition/read-ahead storage. Stdin aliases retain their independent
-awk buffers; switching cursors transfers their read-ahead before releasing the host borrow.
-Command hosts coordinate any shared descriptor access by their own users; input-command
-handoff releases Awk's current stdin borrow before the host can start those users.
+Ordinary stdout appends are awaited at statement boundaries. Hosts may buffer physical
+I/O; there is no physical-flush callback. File `fflush` closes the current output
+descriptor and retains its name for append-mode reopening. Output-pipe flush neither
+closes the pipe nor awaits its command; input-only flush warns and returns -1.
 
-Ordinary stdout is passed to `AppendAsync` at statement boundaries and awaited before execution
-continues. Hosts may buffer physical I/O; append completion acknowledges the bytes and ends the
-borrowed-buffer lifetime. There is no separate host callback for physical flushing. File
-`fflush` closes the current output descriptor while retaining the stream name for a later
-append-mode reopen. Output-pipe flush does not close the pipe or wait for its command.
+Terminal output failure stops execution with status 2, identifying the destination and
+filtered cause; later statements and END actions do not run. Cleanup still retires owned
+resources. If stderr fails, Awk returns failure without recursively writing another
+diagnostic there. Help/version output also requires complete acceptance.
 
-`AppendAsync` returns `Task<AwkAppendResult>`. Return `Accepted()` only after accepting the
-entire payload with the destination still open. `DownstreamClosed()` and `Failure(error)`
-are terminal and make no promise about an accepted prefix; Awk never retries the payload.
-Neither outcome retires the descriptor. For ordinary stdout, closure stops execution with
-status 2 and `awk: standard output: downstream closed`. Redirected files and pipes also
-stop with status 2, identifying their descriptor; command status is a separate result.
-Write failures report the filtered host cause. No later statements or END actions run;
-cleanup still awaits command users and closes owned descriptors. If stderr itself fails
-or closes, Awk returns status 2 without attempting another diagnostic to that destination.
-Help/version and diagnostic appends also require full acceptance and return status 2 on failure.
+## Pipes and close
 
-Hosts that consume the payload synchronously can reuse one completed `Accepted()` task.
-Pending appends must retain the borrowed bytes until their actual operation completes.
-Cancellation requested during an append stops later execution after that completion, even
-when the host accepts the bytes. It does not shorten the pending borrow's lifetime.
+`CreatePipeAsync(token)` creates streaming descriptors. `RunCommandAsync(invocation,
+token)` returns one `Task<AwkExitCode>` per command. Pipe command text is opaque: hosts
+interpret and authorize colons, backslashes, wildcards and quoted arguments themselves.
+Awk does not invoke a shell. Command policy, environment and external-process limits
+belong to the host. Unsupported capabilities fail explicitly.
 
-Construct `AwkOperationError(kind, message)` with a safe, unprefixed message and a cause:
-`NotFound`, `PermissionDenied`, `NotSupported`, `IoFailure`, or `Unspecified`. Classification
-does not replace diagnostic filtering or turn cancellation/refused admission into I/O errors.
+Awk initially owns both created endpoints. Returning a command task accepts the handoff,
+including an already faulted/canceled task; a synchronous launch throw leaves both ends
+for Awk cleanup. For output pipes the host retires the consumer reader before its command
+task completes, while Awk closes the writer to signal EOF. For input pipes Awk closes
+both ends; the producer writer must remain addressable until that close, even after EOF.
+Setup failure may request best-effort close of either endpoint. Command tasks must await
+all actual users on success, failure and cancellation. Supplied standard descriptors
+remain borrowed. Successful `close()` preserves command exit status.
 
-`CloseDescriptorAsync` returns `AwkDescriptorCloseResult`. `Closed()` reports success and
-ends ownership. `Failure(error, descriptorRetired: true)` reports an expected close/final-flush
-failure after retirement; Awk reports the filtered host cause and never closes that descriptor
-again. Use `descriptorRetired: false` when the resource remains owned and can receive the
-existing best-effort cleanup attempt. Default means failure with ownership retained.
-Close diagnostics identify the file operand/path or pipe command where available. Earlier
-read/write/evaluation failures remain primary while other resources are cleaned up; failed
-diagnostic output does not turn failure into success. Unexpected host exceptions keep the
-generic diagnostic channel. Caller-owned standard descriptors remain borrowed.
-
-Clock and time-zone configuration is borrowed from the policy. Each execution has an independent
-random sequence; unused and UTC-only time services do not copy adjustment rules. Explicit local
-`mktime` DST flags can acquire one cached BCL rule-array copy. The BCL exposes no size-before-copy
-API, so this metadata remains outside coarse admission, including unusually large custom zones.
+`CloseDescriptorAsync` returns `AwkDescriptorCloseResult`. Closed reports retirement;
+`Failure(error, descriptorRetired: true)` reports an expected close/final-flush failure
+after retirement. Awk never repeats a retired close. Use false when the resource remains
+owned and may receive one best-effort cleanup attempt; default means this failure state.
+Diagnostics identify the operand/command where available. Earlier read/write/evaluation
+failures stay primary while remaining resources are cleaned up.
 
 ## Text boundary
 
-Awk-visible text is valid UTF-8. Source, records, `getline` and host byte payloads are
-validated before publication; malformed input produces a fatal awk diagnostic. Locale
-values and byte mode do not permit arbitrary raw bytes. Arguments, paths and environment
-arrive as .NET strings and are strictly encoded; their original process bytes are unavailable.
-Unpaired UTF-16 surrogates fail with an awk text diagnostic rather than leaking encoding exceptions.
-Long validation scans remain cooperatively cancellable.
+Awk-visible text is valid UTF-8. Source, records and getline are validated before
+publication; malformed input is fatal. Byte mode and locale settings do not allow raw
+invalid bytes. .NET arguments, paths and environment strings are strictly encoded;
+unpaired surrogates produce awk text diagnostics. Original process bytes are unavailable.
 
-For text, `length`, `index`, `substr`, `FIELDWIDTHS` and `%s` format width/precision count
-Unicode scalars by default, as do regex positions and capture lengths.
-`--characters-as-bytes` changes these units to UTF-8 bytes, but results and observable
-regex ranges must still end at scalar boundaries.
-Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--posix`
-overrides byte mode with a warning, independently of option order.
-Case conversion uses invariant Unicode casing in scalar mode; byte mode changes ASCII
-letters only and preserves all other UTF-8 bytes.
-String formatting and bounded substring prefixes stay byte-native. Short text and bounded
-prefix slices need no whole-value UTF-16 conversion or rune index; nonlocal slicing of long
-text can retain an index.
-Immediate string consumers can borrow stable record bytes; results that escape own their text.
-The semantic substring producer writes the consumer's byte view directly; field promotion
-and escaping copies stay at their existing owners.
-Arguments crossing mutation or suspension retain owned snapshots. Formatting and numeric errors
-remain at their language consumption point. Unicode casing retains its managed-string
-compatibility boundary, with temporary source storage covered by shared admission.
-Prepared substring and case results keep string origin when observed as values. An immediate
-consumer can avoid retaining an intermediate value; source or produced storage stays funded
-through consumption. Input numeric-string origins, original spelling and deferred numeric errors
-stay distinct.
+String length/index/substr, FIELDWIDTHS, `%s` width/precision and regex coordinates count
+Unicode scalars by default. `--characters-as-bytes` selects UTF-8 bytes, but observable
+ranges/results must still end at scalar boundaries. Byte-mode `FS=""` requires ASCII;
+widths/skips cannot split a scalar. POSIX overrides byte mode with a warning. Case
+conversion is invariant Unicode in scalar mode, ASCII-only in byte mode.
 
-Selecting a [regex engine](#regex-engines) does not change ingress or units.
-[Compatibility notes](COMPATIBILITY.md#source-string-escapes) cover escape-to-text conversion
-and the remaining language differences.
+Hot paths use UTF-8. Escaping values own their spelling; borrowed views cannot outlive
+their owners. Unicode casing has a managed-string compatibility boundary. Regex provider
+selection does not change ingress or language units. See
+[compatibility](COMPATIBILITY.md) for language differences and numeric/string origins.
 
 ## Shared memory admission
 
-`WithMemoryBudget(IMemoryBudget)` borrows an application-owned allowance. An invocation budget
-takes precedence and follows nested command descriptors. Awk owns only its child scopes and
-reservations; scopes share the root allowance. Without a supplied budget, there is no private
-aggregate memory cap.
+`WithMemoryBudget(IMemoryBudget)` borrows an application-owned allowance. An invocation's
+budget takes precedence and follows nested command descriptors. Awk owns only its child
+scopes/reservations; they share the root allowance. Keep budgets and ancestors live until
+execution and cleanup finish, serializing disposal with users. Cancellation alone does
+not end their lifetimes. Invocation snapshots remain caller-owned.
 
-The caller keeps borrowed budgets and ancestor scopes live through execution and cleanup,
-serializing their disposal with actual users. Cancellation alone does not end those lifetimes.
+Retained frontend/runtime capacity, growth overlap, captured values and pending I/O are
+admitted before allocation/publication. Estimates are coarse, not a process-heap cap or
+per-object ledger. Live storage is charged rather than cumulative input/output volume;
+reused capacity remains funded. Refused admission fails the command without retry.
+Mutation preflights preserve existing state/output, rather than undoing earlier effects.
+Without a supplied budget there is no private aggregate cap, even in the restricted preset.
 
-Invocation input snapshots belong to the caller. `TryParse` only recognizes and wraps the
-command. Execution borrows its immutable entry environment and admits Awk-owned argument
-preparation before copies. Mutable `ENVIRON` and command-export storage have their own owners.
-Forwarding a pipe command reuses its immutable argument/environment snapshots when attaching
-the active shared budget; it does not copy those snapshots again.
-Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.
-Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
-before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
-Compound field and record mutations admit their construction overlap before publication;
-their component storage consumes that same admitted allowance.
-Record splitting reuses funded descriptors and admits capacity growth. Whitespace and single-byte
-fields extend on demand at every record size. Completion reuses the admitted prefix where it fits;
-wide records can reuse their existing descriptor and value-cache capacity. Incoming record size
-bounds larger retained buffers; narrow records release oversized storage, and replacement clears
-cached values. The shared budget funds retained capacity as well as growth.
-Field mutation completes that owner before borrowing byte views. Cancellation discards unpublished
-appends while retaining the prior prefix and numeric caches. Long scans check cancellation in
-4 KiB byte regions and before publication. Capacity growth checks before and after
-admission; reused capacity needs no separate scan-entry check. Escaped CSV text is
-admitted before decode; CSV, character and width fields read record bytes directly. Regex keeps
-an immutable owned subject. Unpublished scan storage stays owned until publication or cleanup.
-Completed fields publish before unused plan/staging funding is returned; cancellation
-from a refund stops the next consumer.
-Prepared computation and argument segments can extend known field prefixes within admitted capacity.
-This keeps cold admission and lazy byte materialization at their ordinary demand points, respects
-unknown effects and branches, and waits for pending output completion before preparing later work.
-Ordinary string primitives share this preparation; dynamic or potentially invalidating operands
-retain their normal demand boundaries.
-Argument preparation starts at the first static field, after earlier arguments have staged.
-Lowering's name-to-ordinal table is temporary; prepared execution retains its count and
-bound accesses, with runtime slots owned by each execution.
-Executions borrow the program's immutable function lookup; frames, locals and mutable arrays
-remain execution-owned. Array parameter operations read the current frame slot; aliases
-repaired by mutation are not cached separately in prepared code.
-Repeated nested owners share existing funded scratch within proven computation windows.
-Empty statement boundaries retain the reference; an actual flush retires it before invoking the host.
-Later consumers resolve the current prefix at use. Calls, mutations and control flow end reuse.
-Nested locations capture keys in the same computation driver. Each intermediate child is
-admitted before the following key runs; captured locations follow their logical path if later
-work detaches an owner. Pending getline destinations keep their keys funded until completion.
-Prepared scratch retains funded path capacity between uses and clears active key payloads.
-Transferred destinations keep their independent owner and lease through actual completion.
-Whole-callee use analysis may capture arithmetic-only field inputs as numbers, including
-forwarded parameters. Text-sensitive uses and conversion errors retain their ordinary owned
-representations; numeric errors still occur at actual use.
-Key-only parameters can instead carry owned key bytes through known forwarding calls. Observers,
-writes and general scalar scratch retain full values. Numeric keys still format at their actual
-use, so a callee's `CONVFMT` change takes effect. Pending calls keep captured keys funded.
-Prepared call segments bind argument source locations and stage directly into admitted incoming
-frames in source order. Dynamic types and unavailable bindings retain runtime resolution.
-Snapshots precede admission callbacks; intervening effects retain earlier captures, and the
-actual staged frame activates after the final segment.
-Prepared builtin arguments consume ready numeric registers directly; other arguments retain
-their ordinary value capture, spelling and conversion order.
-One preparation graph tracks arithmetic, numeric-comparison, text and key consumers. String-only
-parameters and direct builtins capture owned record/field spelling without classifying input numbers. Mixed
-or type-observing uses retain full values. Numeric arguments keep their kind and format at use;
-captured text stays funded through mutation, suspension and cleanup.
-The record owner reuses immutable field spelling across text captures and later scalar reads.
-Input classification remains deferred until observed; incoming frames fund their actual users.
-Earlier builtin arguments retain funded snapshots across later effects and actual suspension.
-Assigned numeric records and fields keep formatting at use, after later argument evaluation.
-One frame-owned buffer holds record cells: slices, numeric interpretations, scalar lengths and
-cache indices without text references. Incremental scans publish their count after preflights;
-cancellation preserves the earlier prefix. The frame cache owns decoded/assigned spelling and
-scalar values; decoded CSV text
-stays distinct from input-value classification. Byte-only consumers read record slices directly.
-Numeric reads consume ready field numbers directly. Existing owned field values keep their
-spelling and origin; their cache is read before any later mutation or suspension.
-Raw input classification shares the reference-free record cells with arithmetic prefix facts;
-strict numeric-string classification stays distinct from a numeric prefix. Already-owned decoded
-spelling keeps its cache ownership when reconstruction rebases fields onto record bytes.
-Comparisons and introspection can reuse record-local classification and bytes. Values that
-escape still own their spelling; dirty reconstruction and potentially invalidating RHS work
-keep owned capture. Caller order and deferred conversion errors remain unchanged.
-The common numeric-operand path can consume established field facts; a cold speculative probe
-does not split, classify or admit, and an arithmetic prefix is not a strict comparison fact.
-String values retain origin and spelling through keys, assignments and calls. Stored
-strings convert numerically when consumed, using the reading execution's mode; repeated
-string reads do not classify them again. Input numeric-string classification stays separate.
-Interpreter preparation binds operands, scalar/array locations, special-scalar reads and
-function targets. Computed values such as `NF` still resolve at their actual use.
-Numeric consumers can read an already-available special-scalar number directly from its owner.
-Speculative probes never split fields, request admission or convert assigned strings; assigned
-`NF` retains its scalar value and spelling independently of the descriptor count.
-Global, array and function storage retain the same unboxed scalar payload. Ordinary strings
-bind their numeric conversion mode at storage; external input keeps classification at read.
-Cached input numbers keep their original spelling.
-
-Prepared print lists keep computed numbers in execution scratch through later arguments and
-format them at use. Integer fragments avoid temporary numeric text owners. Other values retain
-their captured origins and spelling. Already-owned results stay in their existing caller slots
-through later arguments, calls and pending host work, without a second capture. Live sources
-still capture at argument evaluation. The final bound source can be read directly before
-formatting, without another retained copy. Scalar and list output share this preparation;
-stored spelling and separators borrow live owners during synchronous copying, while newly
-formatted numeric text remains funded until that copy finishes.
-Redirected writes receive the complete payload slice; its buffer remains
-funded until the host operation completes. Argument and formatting order are preserved.
-Array updates bind their numeric RHS at preparation. Complete synchronous updates keep their
-stable target local, capturing an owned key before retiring key scratch and evaluating the RHS.
-Only captures that cross instructions retain target storage and its cleanup. Earlier captures
-remain funded across RHS mutation, calls or suspension.
-Nested numeric updates use the same captured-target operation. Their owned path repairs the
-destination after RHS deletion or replacement; a valid captured cell avoids a second lookup.
-The update publishes any postfix old-number result directly before retiring its target.
-Execution scratch keeps its current prepared body and constants; revisiting it avoids repeated
-capacity checks and initialization. Switching bodies refreshes preparation without retaining
-unrelated scratch payloads.
-Main input, rule conditions/bodies and record backedges form one prepared program, sharing
-the computation and call driver. Ordinary records retain their location and operand tables.
-Consecutive key-assembly operations share a synchronous computation block. Intervening
-evaluation, polls and host work retain their original boundaries and funded captures.
-One prepared operand carries a variable's binding and fallback name. Value kinds and required
-name-based fallback still resolve at execution time.
-Length reads visible local scalars and arrays through their ordinal bindings; missing, potential
-and hidden locals retain ordinary promotion and name fallback.
-Numeric updates, readers and variable stores reference the same canonical operand locations.
-Complete updates share numeric RHS preparation. Immediate dynamic-field reads validate their
-index and produce the number directly, preserving old-target capture before RHS effects.
-Known numeric builtin results stay in numeric scratch; formatting occurs at their actual text use.
-Numeric-string arguments used in proved-number comparisons can use established field numbers when the opposite
-operand is proved numeric. Ordinary strings retain lexical comparison, and observers retain spelling.
-Execution and binding-frame ownership remain distinct during reentry and cleanup.
-Rule completion retires its reference scratch. Actual host suspension saves its continuation.
-Ready and pending flushes share statement visibility, post-host cancellation and field
-preparation. Pending operations and failures retain their existing awaited completion path.
-Returns capture and validate a scalar before flushing, retaining that snapshot and callee storage
-until required output actually completes.
-An adjacent bound-scalar assignment can be prepared as the return's consumer and completed
-after restoring caller scope. Used expression results and escaping text retain funded snapshots;
-discarded numeric results need no intermediate value transport. Runtime value kinds and
-ordinary assignment admission and cancellation checks remain.
-Available records pass completion directly through the input scheduler and cursor; awaiting
-consumers share that same reader. Pending refills retain their existing continuation, cursor and
-storage until actual completion. Record/header publication retains its admission and
-cancellation preflight. Command-wide host services are reused; reentrant scopes retain actual
-overrides and restore them after
-pending work. File/start/end phases use separate funded scratch when they
-interrupt a caller through `getline`; default and single-value output retain the ordinary
-flush/diagnostic contract. Multi-value output stages operands before formatting and keeps
-fixed-field lists byte-native across arities. Rebuilding `$0` or mutating/suspending operands
-retain owned captures. Preparation has no flat block-size or argument-count cutoff;
-managed stack protection still applies. Builtins consume evaluated caller slots; earlier
-arguments stay funded across nested calls and pending host operations. Cancellation alone does
-not retire those users. There is no public execution-engine selector.
-Array traversal keeps its existing leased key snapshot in execution-owned scratch. Loop
-progression shares the computation driver; source mutation does not change the snapshot.
-Stored key spellings own their bytes independently of input records. Projecting keys into
-language strings can materialize admitted text, funded through the snapshot or value lifetime.
-`asort`, `asorti` and `sorted_in` callbacks use the same function frames and continuations as
-ordinary calls. The admitted sort snapshot survives source mutation and pending callbacks;
-comparison phases and atomic destination publication retain their existing rules. Unsorted
-traversal takes its ordinary key snapshot without constructing a sort operation.
-Builtin sorting binds the complete comparison directly to its semantic operation, with a
-cancellation check before each comparison. Comparisons or user callbacks establish an integer
-ordering over one captured entry snapshot. Admission follows the actual snapshot element layout.
-Its buffers survive pending callbacks; final reordering affects
-only private staging before destination publication.
-Sorted snapshots retain owning keys through source deletion and iteration. Value orders avoid
-unused text projections; index orders, user comparators and `asorti` retain one admitted key-text
-projection. Traversal copies owned keys directly. Builtin scalar
-captures stay independent of later source promotion; user comparators retain their origin/alias behavior.
-Type-order sorting keeps conversion failures deferred until a comparison or later numeric use requires them.
-Switch selectors are captured once; ordered case tests and fallthrough use the same branch
-driver as loops. Regex labels use the supplied provider. Function exit uses the existing
-status/phase checks and unwind path, including pending status evaluation and END handling.
-Regex predicates use native byte operands and the existing provider/cache. Dynamic predicates
-keep captured input values funded through RHS suspension; numeric formatting uses the updated
-`CONVFMT`. Predicate temporaries retire after matching. Range conditions use the same driver
-and keep inclusive start/end state in funded per-execution slots, across files and suspended
-calls. Reusing a prepared program does not share that state between executions.
-`close()` and `fflush()` retain evaluated operands in caller scratch until the host operation
-completes. A pending call does not return that storage on cancellation alone. `close()` captures
-the formatted stream name before evaluating its direction; `fflush()` retains value origins
-for its lint behavior. Both preserve their diagnostic and stream-status contracts.
-`match()`, `split()` and `patsplit()` retain captured input values, patterns and array
-destinations through pending argument evaluation. Numeric inputs format after later arguments;
-regex arguments keep their earlier conversion point. Array replacement retains its preflight.
-`sub()` and `gsub()` capture replacement values before target-index effects and format them
-afterward. Target indices run once; matching finishes before replacement publication.
-`gensub()` retains its pattern and evaluated values through pending arguments. Ordinary pattern
-and selector processing stays byte-native; rendering a selector warning uses the diagnostic boundary.
-Standard `printf` uses the same argument ownership and retains field byte views across
-arities. Its formatter's UTF-16 format boundary has admission before decoding; temporary
-format storage retires after formatting, before the host receives owned output bytes.
-File and one-way pipe output retain their prepared target and reusable payload buffer
-until the host write actually finishes, including when it ignores cancellation. Formatting
-preflights before file creation or truncation; authorization remains at the host boundary.
-Immediate numeric consumers of function returns write directly to numeric scratch; other
-returns preserve their value kind and spelling. Bound numeric reads and writes use their active
-function frame; spelling and alias transitions retain their ownership preflights. Text remains
-funded through conversion, type changes and genuinely pending host operations. Numeric builtins
-share the arithmetic-input consumption rule. Values, arguments, captured
-keys and formatted concatenation prefixes remain funded through their actual pending users.
-Scalar string operations consume prebound operands directly. Stable synchronous reads keep
-their existing owners; captures remain funded before intervening computation, array reads or
-suspension. Prepared text consumers share owned and borrowed byte views; type-sensitive uses
-retain full scalar values and numeric formatting occurs at use. Other scalar builtins use reusable
-argument storage. Statement temporaries retire
-after their final users, including for functions that can report warnings.
-`length` counts ASCII and Unicode field slices without owning or classifying their text, caching
-scalar counts at the record cell. It reuses decoded CSV spelling without early classification
-and distinguishes scalar text from array aliases. Scans poll in bounded byte regions and before
-caching a count; cached reads use the surrounding computation-region cancellation checks.
-Prepared `getline` captures the source before its destination and retains both through the
-actual read. Main-input reads can reenter file phases without overwriting caller scratch.
-EOF and recoverable errors preserve the ordinary status, `RT` and `ERRNO` behavior.
-Concatenation preserves operand formatting order and lazy text composition. Computed fields
-reuse record caches; discarded fixed-field copies can retain record-backed text. Escaping
-values own their spelling. Array updates preserve captured keys/prior values and rebind owners
-after RHS work. Prepared update sites are separate from reused capture slots; those slots stay
-funded through their final RHS/commit users, including suspension. Borrowed byte spans remain
-local to synchronous consumption.
-Ordinary captured key/cell holding space is admitted with those reusable slots; larger live
-captures admit their excess. Holding capacity remains charged until its owner retires.
-Composite-key scratch owns its separator snapshot through component evaluation and retires
-it before the completed bytes are consumed; nested or pending components keep that funding.
-Array membership consumes field bytes or a completed composite-key buffer synchronously;
-misses do not insert elements. Earlier key components remain owned across suspending calls.
-All accepted programs use this interpreter; there is no retained tree evaluator or alternative
-execution backend. Diagnostic acceptance still precedes later effects. Cancellation is checked during preparation, bounded computation,
-calls and host interactions, including after admission callbacks and before mutation.
-Preparation may omit unobserved `NR`/`FNR`/`RT` updates in a closed program. Dynamic symbol or
-argument access, counter assignments and unknown preparation retain the normal updates
-and conversion errors. Input recognition and UTF-8 validation still run; this adds no
-runtime policy or host setting.
-Ordinary newline main input uses two frame-owned slots with admitted fallback buffers.
-An immutable host slice can remain borrowed until the reader retires it, then the owner
-promotes its live users into funded storage before releasing the borrow.
-Staging leaves the previous record intact until admission succeeds. Fields use scoped
-bytes; scalar escapes and regex operands that survive later evaluation own their text.
-Immediate synchronous consumers may borrow record or field bytes. Plain
-getline keeps owned input, so nested reads cannot overwrite the current record. Larger
-records, CSV and other record separators keep their ordinary input path. Buffer capacity
-stays funded through active use and cleanup; this is an internal cache bound, not an input limit.
-An array's stable identity stays funded after `delete array` clears
-its entries/backing storage; that small owner retires with its execution or function scope.
-Ordinal arrays, including bulk `split`/sort results, hold owning values in admitted pages.
-Growth stages replacement page/table storage while retaining earlier full pages. Admission covers
-owner headers and overlapping storage before publication. Sparse or
-noncanonical keys can require dictionary promotion, including real entry cells; refusal or
-cancellation preserves existing entries. Aliases retain their stable array owner.
-Prepared pure numeric indices reach ordinal storage without decimal-key formatting or parsing.
-Text origins keep their spelling, and missing reads retain their usual admission and insertion.
-Numeric updates capture an owned key and prior value before the RHS. Dictionary targets can
-retain a stable cell; ordinal targets locate the current value at commit. Deletion, reinsertion,
-replacement and suspension preserve the captured prior number without reevaluating the key.
-Captured users stay funded, and retirement clears payloads before the containing owner refunds them.
-Ordinary byte-key misses admit key/cell/backing storage before copying or insertion. Short keys
-own their bytes in the key value; longer keys own text. Language-key projections
-fund any text materialization. Cold names and special arrays retain their resolution policy.
-Reads and update captures can complete an ordinary miss without a field scalar or repeated lookup;
-the retained entry still starts untyped. Membership remains non-inserting.
-Scalar and array updates use bound numeric sources, keeping arithmetic field reads byte-native.
-Captured prior numbers survive RHS calls and suspension; numeric stores retain mutation preflights.
-Plain numbers retain no text reference. Numeric overwrites reuse their funded owners;
-transitions from text, input values or untyped origins retain admission and payload retirement.
-Later text reads still preserve field input spelling.
-Nested-array storage belongs to its parent. Captured path keys stay funded through later
-mutation and actual completion of pending host operations; deleting an entry does not
-authorize an unfunded write through a removed child.
-Source-directive preprocessing shares that frontend admission before token allocation.
-Replacement may need old/new overlap; streaming charges live storage, not cumulative I/O.
-
-**Any refused admission fails the command**, including optional cache storage. No retry,
-waiting, spilling, eviction or algorithm change recovers from refusal. Unused admission is
-released on failed allocation. Routine bounded-cache eviction remains separate from refusal.
-
-Refund follows actual ownership. Pending host reads/writes/commands keep borrowed storage
-funded until completion; cancellation alone does not end that lifetime. Reused prepared storage
-stays funded through active executions, including when disposal prevents further use.
-Case conversion and substring copies admit result storage before allocation and retain it through publication
-under its destination owner. Overlapping Unicode conversion scratch remains separately admitted.
-An open command funds its command/environment snapshot; it does not retain charges for
-unrelated records or completed writes. Closing it releases that snapshot after command completion.
-Function argument/slot buffers are admitted before allocation. Cached frames and alias-index
-capacity remain funded until execution ends. Frames reuse sufficient cleared backing across
-different arities, including smaller activations. A larger layout retires insufficient
-inactive backing before admitting its replacement. Unwinding releases active scalar payloads;
-local and temporary cleanup uses the activation's bounds, while retained capacity stays funded.
-Cleared local cells already represent omitted arguments with an unassigned value; supplied
-arguments replace those cells in caller evaluation order.
-Scalar arguments capture their payload before admission and initialize those incoming cells directly;
-later callbacks cannot change the captured value. Bound local array aliases forward their canonical
-cells; array aliases and untyped origins retain entry reconciliation.
-Function cells retain canonical scalar payloads, preserving spelling and input origins without a
-variable-slot conversion. Prepared reads use their execution frame; dynamic name resolution and
-standalone helpers retain visible-scope lookup. Payloads are captured before cancellation callbacks.
-Mode-sensitive input is classified at the frame owner; conversion errors remain
-deferred until numeric use, and long input reads retain cancellation coverage.
-Arithmetic and numeric-pair comparisons consume stored scalar facts without changing their
-spelling or input origins. General comparisons retain original captures before RHS effects.
-Only actual array/untyped arguments need entry reconciliation; alias registration still follows
-it, preserving later-argument mutation and admission order.
-Builtin arguments occupy contiguous caller scratch. User arguments bind directly into admitted
-incoming frames; later argument evaluation remains in caller scope. Pending and nested calls
-retain separate active storage. Bound local arrays use their current parameter slots, with
-name resolution when local bindings are hidden or unavailable. Scalar captures and array aliases
-retain their distinct semantics; cancellation after admission precedes publication.
-Computed string results and array keys retain string origin without eager numeric classification.
-Numeric use applies the execution's reading mode; actual input keeps its separate classification.
-Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
-loop body or comparator clears its original owner. These scoped estimates can temporarily count
-shared text twice; Awk does not track object aliases.
-Output staging includes captured values, decoded formats and redirection names. Replacing OFMT
-or CONVFMT does not leave a separate formatter cache retaining the old text.
-Captured `close()` names remain funded across later argument evaluation and pending users.
-Dirty records fund their captured `OFS` until reconstruction or replacement, independently of
-the variable's current value. Zero- and one-field records do not retain an unused separator.
-Printing dirty text fields to stdout copies into owned output; escaping `$0` still owns its
-reconstructed text. Numeric fields retain reconstruction's formatting checkpoint.
-Record and print-argument preparation supply complete byte lengths before output storage grows.
-Copying publishes the buffered length only after all bytes are owned, including the terminator.
-Main-input records can use bounded frame-owned UTF-8 buffers; larger records retain ordinary
-owned storage. Completing a newline across host batches keeps the remaining suffix with its
-reader; stdin-alias transfers preserve all unread bytes before releasing the borrow.
-Immediate synchronous text consumers may borrow record/field bytes. They do
-not retain views across record mutation, subsequent operands or suspension. Escaping values,
-dynamic regex subjects and capture searches retain immutable owned text. Provider handles
-stay pinned through matching, and record capacity remains funded until its owner ends.
-Using stdin aliases alongside main input can retain admitted read-ahead; hosts may reuse a read
-buffer only after its borrow is disposed. Cancellation alone does not end that borrow.
-Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a
-decoded regex-input cache. This is a byte-memory borrow lasting through search disposal;
-scalar text remains immutable and owned. Composite keys can copy field bytes straight into their
-owned builder; no field view survives later operand evaluation or suspension. Escaping scalar
-values still own their text. Arithmetic field reads and raw input classification cache their
-facts in already-funded descriptors. Owned spelling and scalar values use separately admitted storage;
-refused admission remains fatal. Existing composite compound targets reuse the stored key and
-capture its value/array identity, retaining key admission across a pending RHS. A new retained
-key still requires an owned copy; commit reacquires the array's current storage.
-File redirections admit open-path scratch, retained exact stream names and table growth before
-host opens. Logical flush retains name ownership; close refunds the name after the host finishes, while reusable table
-capacity stays funded until execution cleanup.
-Large numeric-format conversion strings and overlapping copies receive temporary admission
-before allocation; encoding releases this scratch charge independently of pending output.
-Character formatting does not create a decoded cache for the rest of its string input.
+Hosts and providers must fund their own storage through the shared allowance. Core cannot
+account for arbitrary external implementation internals. Explicit local mktime DST flags
+may obtain a cached BCL time-zone rule-array copy; BCL exposes no size-before-copy API,
+so that metadata is outside coarse admission. This includes custom zones.
 
 ```csharp
-// memoryBudget and cancellationToken belong to the embedding application.
+// memoryBudget and cancellationToken belong to the application.
 var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(memoryBudget);
 var exitCode = await awk.ExecuteAsync(host, policy, cancellationToken);
 ```
 
 ## Cancellation and cleanup
 
-Source loading checks cancellation before decoding returned or buffered text and before
-materializing the assembled source, including after memory admission. Pending reads still
-complete before source descriptors close and their storage is refunded.
-Option preparation observes caller cancellation while decoding escaped `-v`/`-F` values.
-Formatting encodes literal text in bounded runs without splitting Unicode scalars;
-long formats retain cancellation checkpoints and shared-memory admission before growth.
+CPU control uses the caller's CancellationToken, including caller-owned CancelAfter
+deadlines. Computational/loop/call boundaries and long primitives poll even with counters
+disabled. Admission callbacks and observable publication keep their boundary checks.
+The host/provider receives the current token; core cannot forcibly interrupt an
+indivisible provider call or non-cooperating host operation.
 
-CPU control uses the caller's `CancellationToken`, including caller-owned `CancelAfter`
-deadlines. Checkpoints remain active with observational counters disabled. Cancellation
-requests that runtime and host work stop; it cannot forcibly terminate a non-cooperating host.
-Short numeric conversions and ready byte views use the surrounding computational checkpoints.
-Long input captures, scans and lazy text materialization retain their own checks; admission
-callbacks and observable mutations retain their boundary checks.
-Long array-key hashing also observes cancellation during the scan.
-Reconstructed-record output checks cancellation across bounded byte and field-metadata intervals,
-after destination admission and before publishing the completed copy. Cancellation preserves
-earlier buffered output; retained output capacity stays funded.
-
-Awk awaits actual completion. Acquired descriptors and delivered buffers remain owned while
-cancellation unwinds. Essential cleanup uses an uncancelled token, attempts every acquired
-descriptor and awaits outstanding users before refunds. A host that never completes can
-delay completion indefinitely; hard process/container isolation belongs to the embedding host.
-Confirmed successful closes are not repeated; failed closes may receive one best-effort
-cleanup attempt only when the host retained ownership, including source-file descriptors.
-
-Parent failure cancels owned pipe commands before cleanup waits. Cleanup still awaits actual
-command completion; successful `close()` preserves command exit statuses.
-
-Regex providers receive the current cancellation token. Cooperation inside a provider is
-its responsibility; core cannot interrupt an indivisible synchronous provider call.
+Awk awaits actual completion before releasing borrowed buffers, descriptors or funding.
+Essential cleanup uses an uncancelled token, attempts acquired resources and waits for
+outstanding users before refunds. Parent failure cancels owned pipe commands before
+waiting. A host that never completes can delay execution indefinitely; hard termination
+belongs to the embedding application. Caller cancellation propagates after cleanup.
 
 ## Regex engines
 
-Supply `IAwkRegexEngine` through `policy.WithRegexEngine(engine)` for regex matching.
-Core has no concrete matching engine, semantic selector or fallback, and no Lokad.Utf8Regex
-dependency. A missing provider or unsupported pattern fails with an awk-shaped diagnostic;
-refusal and cancellation fail without retrying another engine. Ordinary field/record
-separator fast paths remain byte-native.
+Supply an application-owned `IAwkRegexEngine` with `WithRegexEngine(engine)`. Core has
+no matching engine, fallback or Utf8Regex dependency. Missing providers/unsupported
+patterns fail with awk diagnostics; cancellation/refusal never retries another engine.
 
-The [contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) keeps responsibilities explicit:
+The [provider contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) divides ownership:
 
-- Awk translates AWK escapes, ERE operators, classes and assertions in UTF-8. Pattern
-  payloads and cache keys stay byte-native. `TryCompile` borrows translated UTF-8 bytes;
-  providers own and admit any retained source. Case choice is invariant.
-- Providers select the earliest start, longest whole match and POSIX subexpression priority.
-  Selection must not depend on the number of capture slots requested. Dot/classes operate
-  on complete Unicode scalars. Core checks byte bounds and scalar alignment before publication.
-- Compiled handles report `GroupCount`, including group 0. `CreateSearch` binds a complete,
-  immutable UTF-8 subject until disposal; scoped `Match` receives an absolute byte restart
-  and fills every supplied capture slot. Preserve complete-subject assertion context.
-  Captures contain participation and byte ranges only. Do not retain capture spans or tokens.
-- Construction and matching receive the active borrowed memory budget and current token.
-  Providers own engine admission/protection and poll cancellation during work. Refused
-  admission throws `AwkRegexAdmissionException`. There is no adapter-owned deadline.
+- Awk translates patterns into UTF-8 using .NET-compatible assertion/category spellings.
+  Providers admit any retained source and implement earliest-start, longest-whole and
+  POSIX subcapture selection over Unicode scalars. Core validates published byte ranges.
+- Compiled handles report GroupCount, including group 0. CreateSearch borrows one complete
+  immutable subject until disposal; Match uses absolute byte restarts and fills all supplied
+  capture slots. Keep complete-subject assertion context. Never retain operation tokens.
+- Providers receive the active budget and current token, own engine admission/protection
+  and signal refusal with AwkRegexAdmissionException. There is no private regex deadline.
+- Awk owns its bounded cache, source keys, translation, replacements and capture storage.
+  Active calls/searches pin handles through eviction; dispose searches before subjects and
+  handles. Disposal must be idempotent/non-throwing. Engines support concurrent compilation.
 
-The application owns the engine and must allow concurrent compilation. One execution-local
-bounded cache owns compiled handles and admits its retained UTF-8 source keys and entry
-storage independently of provider admission. Translation buffers are temporary; cache backing
-is admitted on first use. Entries retire on eviction or cleanup. Disposal is
-deferred until active calls/searches finish. Dispose searches before releasing or changing
-their subject; disposal is idempotent and non-throwing. Awk funds scoped search metadata,
-translation, replacements and published captures
-through ordinary memory admission; it does not predict the provider's internal footprint.
-Regex literals require the provider during source validation, before effects; Awk releases its
-temporary validation handle. Dynamic patterns require the provider when prepared. Internal
-prepared programs share no compiled handles between executions.
+The [copyable source adapter](../examples/README.md) uses published Lokad.Utf8Regex 0.4.0,
+not a sibling checkout. It passes subject bytes without copies and forwards cancellation.
+Its string-only compilation requires an admitted pattern conversion; UTF-16 restart
+coordinates are adapted within the search scope. Engine allocation coverage is coarse:
+the published producer has no shared-budget hook. Core counters exclude provider internals.
 
-The [source adapter example](../examples/README.md) is compiled into tests and benchmark
-tools against published **Lokad.Utf8Regex 0.4.0**, never a sibling source checkout. It passes
-UTF-8 spans without adding input/capture-text copies and funds handles and scoped search scratch
-with coarse estimates through the borrowed budget. The published provider has no shared-budget
-hook; these estimates do not cover every engine allocation. Its string-only compilation API
-requires one adapter-owned UTF-8-to-string conversion per compilation, after admission.
-Core conversion counters exclude provider internals; zero core conversions do not establish
-native end-to-end execution. The published restart API uses UTF-16 offsets; a search scope
-tracks the corresponding offset incrementally without copying or rescanning subject prefixes.
-Range-only searches avoid detailed
-capture shaping, and sparse provider groups map to dense AWK slots. Compilation and searches use the producer's cooperative token
-APIs without independent construction or matching deadlines. A compiled handle does not
-retain its compilation token. POSIX longest-match and subcapture selection remain conformance
-gaps; the example is not a qualified general AWK provider. CI explicitly skips those
-documented selection cases while retaining all expectations; see the
-[qualification procedure](../tests/Lokad.Awk.Tests/README.md#regex-provider-qualification).
-Existing AWK semantic expectations remain the acceptance target. Adopting a
-new producer package requires separate semantic/cancellation qualification, not a core release.
-
-[Host-provider tests](../tests/Lokad.Awk.Tests/AwkHostRegexTests.cs) cover missing/unsupported
-providers, ownership, invalid ranges, refusal and token forwarding. [Adapter tests](../tests/Lokad.Awk.Tests/AwkUtf8RegexAdapterTests.cs)
-exercise the published package and adapter lifetimes. The [benchmark snapshot](BENCHMARKS.md)
-identifies its measured provider context explicitly.
+The example is not a qualified general AWK provider. POSIX selection deferrals remain
+explicit, and escaped-bracket range matching has a documented provider gap. See
+[qualification](../tests/Lokad.Awk.Tests/README.md#regex-provider-qualification).
+A producer upgrade needs separate semantic/cancellation qualification and does not block
+independent core releases. [Benchmarks](BENCHMARKS.md) identify their provider context.
 
 ## Remaining bounds
 
-Bounds cover function/syntax/include depth, open input/output files and pipes, fixed cache retention,
-disclosed host-error length and checked allocation representability. These are not work quotas.
-There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
-
-[Compatibility](COMPATIBILITY.md) describes qualified language support and known differences.
+Policy retains function/syntax/include depth, open input/output files and pipes, host-error
+disclosure length, fixed cache retention and checked allocation representability. These
+protect concrete storage/resources. There are no fuel, operation, cumulative I/O,
+record-count, regex-work or sorting-work quotas. See
+[compatibility](COMPATIBILITY.md) for qualified support rather than full POSIX/GNU conformance.

@@ -5,7 +5,7 @@ host-controlled I/O and predictable resource admission. This is not full POSIX/G
 conformance. The interpreter is the only execution engine; regex matching requires an
 application-supplied provider.
 
-This guide covers the development checkout. Published 0.4.0 lacks CSV input and nested arrays.
+This guide covers the development checkout. CSV input and nested arrays are unreleased; published 0.4.0 lacks both.
 
 **Supported** means golden coverage within the stated boundary. **Partial** means
 implemented with remaining differences. **Deferred** means unsupported, without a delivery
@@ -29,10 +29,10 @@ identify qualified support and Lokad-specific boundaries.
 | Formatting | Partial: common conversions, `%a`/`%A`, positional arguments, width/precision and integer rules. `%C`/`%S`, D/H/w controls and `%P` remain unsupported. | [Formatting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FormattingSyntax.cs), [integers](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.IntegerFormatting.cs) |
 | Numbers and math | Supported within binary64/invariant-culture policy: numeric coercion, math diagnostics, nondecimal conversion and strtonum. Hexadecimal floating source literals are deferred. | [Numbers](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericSemantics.cs), [strtonum](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.StrtonumConversion.cs) |
 | Strings and escapes | Supported scalar/byte units within strict UTF-8. GNU lowercase `\u` and numeric-byte escapes have profile-aware warnings. | [Text boundary](RUNTIME.md#text-boundary), [escape cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericByteEscapes.cs) |
-| Regex | Partial: ERE matching, longest/capture selection, replacements, split and UTF-8 boundary checks. Supplementary folding, inherited backend syntax and minimized repetitions have explicit limits. | [Regex semantics](#regex-semantics), [longest matches](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.LongestRegex.cs) |
-| GNU string/array helpers | Supported in GNU mode: gensub, patsplit, separator/capture arrays, asort/asorti and sorted traversal within flat arrays. | [Splitting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SplitSeparators.cs), [sorting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SortingCompatibility.cs) |
+| Regex | Partial: ERE translation, matching/replacements/splitting through a host provider, and UTF-8 capture validation. Required POSIX selection remains deferred in the example provider. | [Regex semantics](#regex-semantics), [provider deferrals](../tests/Lokad.Awk.Tests/README.md#regex-provider-qualification) |
+| GNU string/array helpers | Supported in GNU mode: gensub, patsplit, separator/capture arrays, asort/asorti and sorted traversal; nested operands retain the documented array rules. | [Splitting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SplitSeparators.cs), [sorting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SortingCompatibility.cs) |
 | Bitwise and calendar helpers | Supported within unsigned-number and policy clock/time-zone behavior, not every native overflow/locale quirk. | [Bitwise](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.BitwiseCompatibility.cs), [calendar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.CalendarNormalization.cs) |
-| Introspection | Partial: typeof/isarray, SYMTAB/FUNCTAB/PROCINFO and flat-array origins; special-array behavior has GNU differences. | [Special-array rules](#special-array-reads), [cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SpecialArrayReads.cs) |
+| Introspection | Partial: typeof/isarray, SYMTAB/FUNCTAB/PROCINFO and array origins; special-array behavior has GNU differences. | [Special-array rules](#special-array-reads), [cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SpecialArrayReads.cs) |
 | Profiles and flags | Partial: POSIX/traditional name/effect restrictions, lint and warnings. Compatibility aliases do not imply full profile conformance. | [Names](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ProfileNames.cs), [options](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.OptionCompatibility.cs) |
 
 ## Compatibility profiles and names
@@ -116,6 +116,9 @@ is true, and NaN is true as a condition. Ordinary strings retain string truth/co
 
 With `--non-decimal-data`, `0x1.5` retains its text but errors on numeric conversion;
 GNU 5.2.1 and 5.3.2 instead accept the numeric prefix `1`.
+Hexadecimal floating input conversion also accepts exponents: `strtonum("0x1p-3")`
+returns 0.125, whereas pinned GNU 5.3.2 returns the integer prefix 1. This is separate
+from deferred hexadecimal floating **source** literals.
 
 Missing ordinary array reads create untyped entries; membership does not. Arrays pass
 by alias, including forwarded missing parameters. Scalar assignments/returns copy values,
@@ -185,7 +188,7 @@ access or mutation, including substitution and getline destinations.
 
 The record-handling boundaries to account for are:
 
-- In default/GNU mode, default RS removes the CR of CRLF from `$0` and sets `RT="\n"`.
+- In every profile, default RS removes the CR of CRLF from `$0` and sets `RT="\n"`.
   Paragraph RS recognizes CRLF as one newline and retains the separator's original bytes
   in RT; lone CR remains data. This extends the LF-only paragraph behavior of the GNU reference.
 - POSIX RS uses its first UTF-8 byte, but a match consumes the complete scalar with that
@@ -204,7 +207,7 @@ Evidence: [record cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs),
 
 ## Regex semantics
 
-These rules apply across engines. Host integration and the internal Utf8Regex adapter
+These requirements apply to every supplied provider. Host integration and the copyable Utf8Regex adapter
 are described in [runtime regex integration](RUNTIME.md#regex-engines).
 
 ### Regex patterns
@@ -214,6 +217,9 @@ are supported within this contract. Dot consumes a complete scalar, including LF
 denote absolute input boundaries. Awk translates the end anchor to `\z`. Escaped/bracketed
 dots and dollars remain literals;
 unmatched closing `)` is literal. Private translation groups preserve user capture numbers.
+GNU-specific spellings such as `[qrs---tuv]` and `^+[2-9]` are not qualified;
+use `^[+][2-9]` for a literal plus. Pinned GNU 5.3.2 also differs on `.^` inside
+multiline text; this contract retains absolute anchors.
 
 GNU/default mode enables IGNORECASE and GNU word/space/buffer operators. POSIX/traditional
 modes keep the assigned IGNORECASE value but force case-sensitive regex behavior. Unknown
@@ -367,7 +373,7 @@ general locale collation are excluded.
 
 The public boundary comprises invocations, async execution, host outcomes, resource policy
 and AWK-specific memory/regex contracts. Prepared-program helpers remain internal. Core
-has no Utf8Regex runtime dependency; the repository adapter is internal and non-packable.
+has no Utf8Regex runtime dependency; the repository adapter is copyable application source, not a separate package.
 Newer producer adoption is an independent qualification decision.
 
 ## Qualification

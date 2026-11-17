@@ -1,283 +1,90 @@
 # Test layers
 
-Use the narrowest boundary that observes the contract. Ordinary language behavior belongs in
-`AwkGoldenCorpus`; host lifetime, admission and deterministic counters need focused fixtures.
-Run `dotnet test Lokad.Awk.slnx -c Release`. CI builds and tests Release on Windows and Linux.
+Run `dotnet test Lokad.Awk.slnx -c Release` with the SDK pinned in global.json.
+CI builds/tests Release on Windows and Linux. Use the narrowest boundary that observes
+the contract; the [architecture guide](../../docs/ARCHITECTURE.md) maps enduring invariants
+to enforcing tests.
 
-## Language and frontend
+## Coverage map
 
-Goldens are the canonical stdout/stderr/status expectations, exercised through direct and
-internally prepared execution. New semantics and diagnostics need a golden unless they are
-observable only at an internal boundary. Assert exact diagnostics and no CLR exception leakage
-with `AwkTestHarness.AssertFriendlyAwkFailure`.
+| Behavior | Fixtures / entry point | What to assert |
+| --- | --- | --- |
+| Language and diagnostics | [AwkGoldenCorpus](AwkGoldenCorpus.cs), [AwkGoldenCorpusTests](AwkGoldenCorpusTests.cs) | Canonical stdout/stderr/status, file effects and unsupported forms. New ordinary behavior belongs here first. |
+| Lexer/parser/binder | AwkLexerTests, AwkParserTests, AwkBinderTests, AwkGrammarBoundaryTests | Spans, bindings, diagnostic order and source acceptance; avoid a duplicate language corpus. |
+| Source loading | [AwkSourceLoaderTests](AwkSourceLoaderTests.cs), AwkSourceDiagnosticMapTests, AwkSourceCloseTests | Include/search identity, mapped coordinates, cancellation and cleanup. |
+| Stack safety | [AwkStackSafetyTests](AwkStackSafetyTests.cs) | Public execution on 256 KiB threads in isolated children: deep syntax/calls, pending hosts, failure, cancellation and refunds. |
+| Execution and calls | AwkPreparedFunctionRegionTests.*, [AwkMainInputOwnershipTests](AwkMainInputOwnershipTests.cs), AwkFunctionFlowTests | Values/effects through calls, returns, file phases and nonlocal flow; restored owners after actual suspension. |
+| Records and text | AwkIncrementalFieldTests, AwkRecordInputMemoryTests, AwkInputHandoffCancellationTests, AwkTextCancellationTests | Captured configuration/spelling, strict UTF-8, chunk boundaries, lazy fields, mutation and borrowed lifetimes. |
+| Arrays and sorting | AwkIndexedArrayStorageTests, AwkNestedArrayStorageTests, AwkSortingResourceTests, AwkSortingContinuationTests | Origin/alias behavior, admission before mutation, detached targets, snapshot ordering and callbacks. |
+| Host contracts | [AwkHostContractTests](AwkHostContractTests.cs), AwkHostStreamingTests, AwkOpaquePipeTests | Original path requests, authorization, reads/appends, opaque commands, close/flush and terminal failure. |
+| Shared admission | AwkExecutionPolicyBudgetTests, AwkFrontendMemoryTests, AwkRuntimeMemoryTests | Refusal fails, existing state survives failed publication, pending users stay funded, final reservations are refunded. |
+| Regex | AwkHostRegexTests, AwkRegexProviderSemanticsTests, AwkRegexProviderOwnershipTests, AwkUtf8RegexAdapterTests | Translation/capture boundaries, provider lifetimes, token forwarding and adapter integration; gaps below. |
+| Mechanism evidence | [AwkBenchmarkCounterTests](AwkBenchmarkCounterTests.cs), focused allocation/layout tests | Actual conversions, field preparation, copying and transport. Retire assertions when their mechanism disappears. |
+| Preparation boundaries | [AwkFusionBoundaryTests](AwkFusionBoundaryTests.cs) | Canonical results/effects under inert filler shapes and pending-output controls, without opcode/route expectations. |
+| Native comparisons | AwkDifferentialTests, AwkDifferentialFilesTests, AwkDifferentialComparisonTests | Live reference stdout, declared output files, diagnostic class and status; explicit opt-in below. |
 
-Lexer/parser/binder tests cover spans, symbols, outlines and diagnostic order. They should not
-be a second language corpus. Deep-source tests distinguish linear size from nesting depth and
-preserve untaken-branch and effect/error order. Small deterministic property tests cover
-malformed input, generated arithmetic and parser/runtime consistency.
+Goldens currently run through public execution and internal prepared helpers. Those
+helpers are not a public compilation API; their planned removal must preserve independent
+semantic coverage. Source-level checks cover additional parser/binder contracts.
 
-`AwkStackSafetyTests` executes the public API on 256 KiB threads in isolated child
-processes. It covers adversarial source shapes, deep calls, actual host suspension,
-cancellation, diagnostics and cleanup under ordinary/shared memory. Its test-only entry
-point protects the runner from a process-fatal stack overflow; no benchmark mode is needed.
+## Writing and running checks
 
-Source-loading tests cover includes, AWKPATH, source identity, mapped coordinates and failures.
-Compiled executions emit their own warnings: the harness must not append them independently.
-Governed compiled artifacts retain their admission owner until their users finish.
+Select a class or method with `--filter FullyQualifiedName~AwkHostContractTests`, for
+example. A run discovering zero tests is invalid. DisplayName filters do not reliably
+select individual golden data rows; filter their actual entry methods instead.
 
-## Execution, ownership and hosts
+Use `AwkTestHarness.AssertFriendlyAwkFailure` / `AssertNoClrExceptionLeak` for diagnostics.
+Check visible prefixes, stopped suffixes, descriptor retirement and final refunds. Include
+genuinely pending reads/appends and hosts that ignore cancellation when changing lifetimes.
+Cancellation tests establish responsiveness, effect order and cleanup, not a fixed number
+of polls. Failed admission must not partially publish an array, record, field or output.
 
-There is one production interpreter. Bind source for execution tests; do not rebuild a reference
-evaluator or assert obsolete eligibility routes. Internal prepared programs are test/benchmark
-facilities, not a public compilation API.
-
-Use real immediate and genuinely pending host operations to cover continuation order, single
-consumption, nested calls, file-phase reentry, nonlocal flow, failure and ignored cancellation.
-Check the visible prefix, stopped suffix, frame restoration, descriptor cleanup and final refunds.
-Public input/getline checks cover ready and pending hosts that ignore cancellation, preserving
-pending descriptor/funding lifetime and preventing subsequent output or END effects.
-Loop cancellation covers empty bodies and continue paths, including for loops without a step.
-Phase tests keep main-record permission through actual pending output/cancellation, then restore
-the enclosing phase before input progression or cleanup; sort callbacks retain their restrictions.
-Statement-completion tests preserve inherited output before later callee effects, CSV warning order
-and public print buffers through actual completion/cancellation. Retain the actual flush check and
-the ordering of admission/refund callbacks; host-effect classification alone cannot prove empty output.
-
-Builder byte-span checks cover borrowed source ranges through growth, refusal and cancellation
-in both existing and growing capacity. Assert published content and final refunds.
-
-Captured field-key updates retain the old number through RHS admission, refusal and cancellation.
-Input-memory callbacks cover cell deletion/retyping with funded cleanup. Alias forwarding checks
-preserve full frame identities and evaluation of extra arguments before discarding them.
-Argument captures cover admission changing visible scope or later cells, explicit execution owners,
-and name fallback without replaying earlier captures.
-Cursor semantic tests may use `ReadRecordAsync`; completion and ownership tests use the production
-`MoveNextAsync`/`TakeRecord(out ...)` boundary directly.
-Owned-record handoffs retain canonical text backing without wrapper objects. Transport checks
-distinguish captured storage slots, owned spelling, EOF and record-terminator clearing.
-Reusable owned records cover width/chunk boundaries, bounded retained capacity, refused/canceled
-staging and escaped spelling through slot reuse, getline and actual pending output. Small host
-borrows keep their separate bound; oversized records retain ordinary owning text.
-Entry checks preserve cancellation in empty and standalone programs, including refunds during
-record publication. Observe stopped effects and cleanup, without asserting entry opcodes.
-Record-header goldens cover computed SYMTAB observations, mutable ARGV and deferred NR
-conversion failures from option/operand assignments even when source does not read NR.
-Unknown standalone preparation retains normal counter semantics.
-Terminator goldens distinguish ordinary EOF retention from paragraph EOF clearing,
-including computed symbol access and redirected getline. Observation diagnostics retain
-RT publication for source/dynamic/argument access and external assignments; unused RT
-does not create a scalar owner. Input validation and actual owner admission still apply.
-Structured read failures are recoverable `getline`; faulted host operations are redacted failures.
-Mock file truncation occurs at open and appended data becomes visible after close.
-Append tests cover completed faults, synchronous throws and cancellation during callbacks,
-as well as pending stdout/warning borrows. Check stopped effects, cleanup and funding until
-actual completion, including hosts that ignore cancellation.
-Field-split refund tests cover reused buffers, new storage, prefix growth and full completion.
-Governor callbacks see the completed owner; cancellation there stops numeric/NF consumption
-and cleanup returns all funding.
-Warm-prefix cancellation covers short/long whitespace and literal fields without publishing
-fields or numeric caches. Growth checks cancellation before and after admission, including
-an existing prefix; assertions cover stopped effects and funding, not fixed checkpoint counts.
-Return-owner tests retain the funded callee through both ready and pending host completion,
-including numeric/text captures and cancellation before caller mutation.
-Terminal local returns also cover full-budget handoffs, original spelling/input origins,
-long-input cancellation before source retirement and current cells after frame reuse.
-Mixed numeric, string and input returns preserve their origins across reuse of the same frame.
-Return capture also covers ready/pending host mutation of fields, globals, locals and arrays,
-public failed diagnostic completion, and return field-demand termination before unreachable code.
-Array-return captures include pure numbers and missing nested entries before a host callback
-replaces their source, with both immediate and pending completion.
-Preparation binds physical owning return slots without an unused source-operand descriptor.
-Fresh array-return producers reuse their canonical access. Return tests retain actual
-numbers, original string/input origins and missing-read effects through both ready and
-pending host mutation; nonnumeric captures keep their funded private destination.
-Direct-call returns cover pure-number forwarding alongside mixed value/input origins and recursive
-calls. Keep every real frame and outer-owned array alias; refund-created output retains the outer
-frame through pending completion, and cancellation at either retirement stops caller mutation.
-The forwarding counter observes removed value transport, not an enforcing execution quota.
-Numeric-array tests compare flat and nested reads at a full budget, preserving original spelling
-and input kind while real owning consumers still refuse before destination mutation. Goldens cover
-conditional observers, key/RHS effects, missing entries and numeric returns using retained locations.
-Prepared-key cases cover file-phase scopes, scalar/key transitions and observed input spelling.
-Standalone reads retain visible/hidden bindings at a full budget in ordinary/governed execution.
-Scalar-publication tests exercise both canonical source kinds and actual local/global owners,
-including tight admission, fallback failures and refund reentry after source retirement.
-Closed call-result ranges also cover external definitions, cross-rule/symbol-table observers,
-full-value scratch through pending output, later refusal and cancellation during callee retirement.
-Counted returns cover direct/assigned/forwarding and recursive calls, all reaching local writes,
-numeric formatting at use, dynamic sort/traversal callbacks and callee funding through pending
-diagnostics. Their counters retain observed spellings while removing unused returned text.
-Count-only locals also cover earlier/source-self reads, formatting at definition, shared untyped
-origin promotion and array-argument rejection. Retirement tests observe refunds and cancellation
-without publishing a scalar proxy. Nested scalar-unit slices use the same conversion order as
-owning slices; byte mode and observed kinds/spelling retain ordinary text. Pending diagnostics
-keep the callee funded through actual completion.
-Text producers also cover used assignment snapshots, plain-string origins and refusal or
-cancellation at publication after actual RHS production.
-Computed text retains local/global numeric reading modes. Raw untyped payload checks use their
-untyped cell role; reader-materialization callbacks mutate existing cells rather than invoking
-cleared-cell initialization. Preserve backing, pending snapshot and refund assertions in both.
-Concatenation covers empty and multi-part values, used snapshots, numeric modes, and local/global
-results retained through genuinely pending output and cancellation.
-Owner-mode tests preserve spelling, input origins and deferred errors across scalar/array
-writes; sort goldens also cover ordinary string keys and nondecimal input values.
-Text projection also preserves untyped origins and charges, and rejects array scalars.
-Final-string print tests cover direct copying into actual output, numeric-buffer growth,
-refusal before publication and pending stdout/redirected payloads through cancellation.
-Substring kernel fixtures consume already-formatted byte views; public/prepared cases retain
-the source-formatting, index-capture and deferred length-conversion contracts.
-GNU-derived extreme-index goldens cover finite overflow, infinities, NaN and fractional
-truncation across owning and count-only consumers in scalar and byte modes.
-Count-only case/substring consumers preserve unit counts without unused text construction;
-owning-result fixtures assign their text explicitly. Unicode casing's scalar-count law covers
-all valid scalars on the actual platform, and counted byte slices retain strict UTF-8 checks.
-Check source/output ownership and visible effects rather than retired fragment-cache mechanics.
-
-Memory tests distinguish ordinary execution from a supplied shared budget. Refusal fails the
-command without retry or fallback. Check admission before mutation and keep storage funded through
-actual pending users; cancellation alone does not end their lifetime. Assert owner retirement and
-final refunds, not exact aggregate bookkeeping deltas when other live owners can grow.
-Function-cell checks preserve full-width alias identities, live origins and independent scalar,
-key and reader snapshots. Frame capacity admission follows the actual element layout.
-Arithmetic-only incoming parameters reuse normalized numeric facts at full budget; observable
-spelling still needs admission. Cover reading modes and unchanged caller/key/text observations.
-Array cleanup checks preserve caller-owned arrays through nested frames and retire promoted
-locals or detached-entry replacements before frame reuse, under ordinary and shared admission.
-
-Numeric-cache publication preserves captured cell snapshots, coordinates and rune caches
-through backing replacement. Complete successful raw-field parses also supply strict numeric-string
-facts to comparisons; partial prefixes retain classification at use. Spelling and assigned-string
-origins remain unchanged, including captures before a mutating RHS. Full-value construction
-reuses established input classification captured before materialization/admission, while retaining
-the creation callback, long-text cancellation and owned-cache publication checks.
-
-Focused field/value/array tests preserve numeric-string origins and original spelling, lazy
-splitting/reconstruction, byte-native consumers and owned escapes. Captured updates retain their
-key and prior value across RHS mutation, deletion, replacement and rehash. Never keep dictionary
-entry references across mutation or suspension. Membership must not insert missing elements.
-Nested owner reads also cover file-action reentry with a hidden caller, live shared untyped
-origins, and current arrays after genuinely pending input clears and repopulates their storage.
-Standalone key and array-root reads keep visible bindings, including hidden caller scopes,
-without fresh admission when existing storage is fully funded.
-GNU-derived cases preserve overlapping and sequential updates/reads, postfix values, the latest
-repeated update and key mutation between an update and its following read.
-Complete operation/read bindings also cover current spelling and missing insertion after
-deletion, genuinely pending host mutation/cancellation, and lookup reduction across key forms.
-Repeated captured updates cover changing keys, cells, values and array storage. Hash and
-key-comparison observations distinguish table work from lookup reuse across field, literal,
-variable, alias, temporary and composite keys, including bounded scans of small tables.
-Key formatting and SUBSEP changes remain observable; pending RHS tests preserve prior numbers,
-funded users and cancellation through key changes and array replacement.
-Composite components also retain separator growth/refusal before the next component and
-separator retirement before target admission, including interrupted and nested assembly.
-Loop updates also cover conditions/steps, distinct sites, multiple rules and overlap with
-live RHS captures. Admission tests check stopped mutation and retirement, and pending-host
-tests keep their actual frame funded through completion and cancellation.
-Ordinal entries hold owning values directly; captured updates re-locate after RHS work,
-while dictionary captures may retain real cells. Promotion admits new cells plus overlapping
-backing. Cover partial-page and table growth, logical values and payload retirement
-rather than ordinal object identity. Pending-host updates also cross page boundaries.
-Numeric-index reads and writes cover prepared source categories, spelling, scalar reading mode,
-aliases and missing insertion. Plain assignments retain RHS-before-destination effects;
-compound updates retain their captured prior value. Refusal/cancellation must precede insertion
-and later effects, including partial-page and table growth.
-Indexed compound updates retain numeric coordinates through capture and commit. Check their
-key identity after dictionary promotion, missing-entry admission before RHS work, aliases,
-current formatting and pending-output/cancellation lifetimes. Raw coordinates and prepared dictionary words
-must agree after packed storage, hashing and language projection.
-Ordinary byte-key assignments retain spelling without classifying/caching a field; insertion
-preflights cover both key and value before copying or publishing either.
-Key equality and hashes agree across inline, ordinal, owned and borrowed forms. Long comparisons
-and hash scans retain cancellation coverage; canceled insertion/lookup preserves the dictionary.
-Hash-window cases also cover UTF-8 scalar crossings and the ordinary randomized hash domain.
-Deletion crosses numeric/text lookup representations and refunds the actual stored key,
-while ordinary owned-key entry access needs only its value and stable cell.
-Key forwarding preserves spelling, ordinal origins and adjacent arguments at full budget.
-Admission callbacks may replace its caller cell; refusal/cancellation leaves incoming storage
-unpublished and cleanup refunds its actual owners.
-Direct record/cache tests use `AwkFieldTestContext` with real splitting services and provider
-ownership. Preserve input versus recomposed-value factories and owner-specific refunds.
-Call and sort/traversal tests exercise aliases, snapshots and captured payloads through actual
-pending calls. Cancellation tests establish bounded responsiveness, effect order and cleanup,
-not historical checkpoint counts. Public host tests retain capability/path/pipe/append contracts.
-Cell array bindings preserve live promoted/detached origins and reject missing, key and reader
-roles. Name/index lookup captures identity before resolution can replace its source cell;
-an unresolved alias must not promote that replacement.
-Prepared argument staging also distinguishes its execution owner from visible-stack
-resolution, and reads later cells after earlier admission callbacks change them.
-Reader-backed text arguments also use poisoned buffers and custom memory to verify original
-spelling, retirement and admission before an actual owning copy. Borrow forwarding needs no
-future-copy allowance; materialization refusal/cancellation keeps the reader cell unchanged.
-Compact text-input tests verify owner/range snapshots, reader-cell and record replacement,
-source capture before callbacks, numeric formatting at use and the24-byte representation.
-Long owned-record capture checks cancellation after saving its immutable source. Ready span
-access uses surrounding computation/primitive checks; lazy materialization retains its checks.
-Stored-text consumers preserve scalar origins, scope hiding and earlier captures; exercise
-their restored frame after actual host suspension, including cancellation and final refunds.
-Immediate case-length counters verify no unused text construction; owning-result fixtures
-retain actual casing preparation/conversion. Goldens observe assignments, nested producers,
-formatting and input origins.
-
-`AwkRuntimeCounters` assertions measure actual byte conversion, field preparation, copies and
-transport. Key comparer diagnostics select immutable enablement at construction; default
-lookups retain no disabled observer. Key projection tests cover byte-length boundaries,
-embedded zero bytes and agreement between retained and borrowed lookup. Retire counters when their mechanism disappears. Tests that force GC or measure
-thread-local allocation use `[Collection(AwkAllocationMeasurementCollection.Name)]`.
-Keep warm allocation ceilings unchanged when isolating tests. A few exact BCL allocation guards
-use isolated threads and bounded no-GC regions; semantics and lifetime coverage run separately.
+Allocation/GC fixtures use `[Collection(AwkAllocationMeasurementCollection.Name)]`.
+Keep existing warm ceilings when isolating tests. Thread-local/BCL allocation diagnostics
+are not substitutes for semantic/ownership checks or quiet-machine throughput measurements.
 
 ## Regex provider qualification
 
-Cache checks preserve replacement visibility during retirement, exactly-once release and clear/reinsert
-behavior. The collision/case golden keeps equal hashes distinct from pattern and sensitivity identity.
-
-Tests compile the example adapter against published Lokad.Utf8Regex 0.4.0. It lacks required
-POSIX longest/subcapture selection: `AwkRegexProviderGaps` explicitly defers 22 golden cases in
-both execution entries and three focused cases, 47 results total. Their original expectations
-remain. Other regex, translation, scalar, host, cancellation, capture and ownership tests run.
+Tests compile the copyable adapter against published Lokad.Utf8Regex 0.4.0. It lacks
+required POSIX whole/subcapture selection. `AwkRegexProviderGaps` defers 22 goldens in
+both execution entries and three focused results: 47 results total, with expectations
+preserved. Other translation, scalar, host, cancellation and ownership tests remain active.
 New failures must not silently expand the list.
 
-Before adopting a provider, disable `AwkRegexProviderGaps.SkipReason` locally and run the suite;
-remove only resolved entries. Green CI with deferrals does not establish full regex conformance.
-Core stays independent of a concrete provider. Contract fixtures isolate core storage and capture
-validation from provider gaps. Adapter tests cover byte restarts, token forwarding, disposal,
-selection and sparse group publication. Published 0.4.0 lacks shared engine admission; adapter
-reservations are coarse, not full engine accounting.
+Before adopting a producer, disable `AwkRegexProviderGaps.SkipReason` locally and run the
+suite; remove only qualified entries. Green CI with deferrals is not full regex conformance.
+The published adapter also misses an escaped-endpoint bracket range (`[\[-\]]` against
+backslash); this is a separately reproduced producer issue, not another skipped test.
+Core has no fallback matcher. Contract fixtures isolate core capture/storage validation
+from provider selection. Published engine allocation coverage is coarse, not complete
+shared admission. See the [runtime provider contract](../../docs/RUNTIME.md#regex-engines).
 
-## Benchmarks and oracle checks
+## Native comparisons and benchmarks
 
-Benchmarks are not another correctness suite. Reference canonical scenarios or describe generated
-workloads. `AwkBenchmarkCounterTests` holds deterministic runtime invariants. Harness and input
-tests cover byte consumption, quiet gates, claims, statistics and expected-output contracts.
+Set `LOKAD_AWK_ORACLE_EXE` to an absolute independently installed GNU awk executable
+(5.3.2 is the qualified CSV reference), then run:
 
-The differential idiom tests run through `Awk.ExecuteAsync` under ordinary and shared-memory
-policies. Opt in by setting `LOKAD_AWK_ORACLE_EXE` to an absolute GNU awk 5.3+ executable, then run
-`dotnet test Lokad.Awk.slnx -c Release --filter FullyQualifiedName~AwkDifferential`.
-Without the variable, the native theory is visibly skipped; comparison-unit and golden tests run.
+```powershell
+dotnet test Lokad.Awk.slnx -c Release --filter FullyQualifiedName~AwkDifferential
+```
 
-Native output is compared with live Awk output, not just stored expectations. The harness shares
-the benchmark process runner: argument lists, streamed stdin, bounded capture, cancellation and
-process-tree cleanup. It records executable version/hash, arguments/input, core revision, locale
-(`C.UTF-8`), timezone (`UTC`), both results and any declared native exit-status difference in test
-output. It compares stdout and declared output-file bytes, stderr class and exit status; goldens
-keep exact diagnostic text. Missing expected files fail even when both implementations omit them.
-Each native invocation owns an isolated working directory containing its input/source fixtures.
-Arguments and source text stay unchanged; file idioms use relative names against virtual-root fixtures.
-The corpus includes 200 curated script/stdin idioms, 14 file-based idioms and focused parsing
-controls. File cases cover joins, per-file phases/counters, getline, redirection, flush/close,
-source files/includes, operand assignments and CSV. Custom environment, injected read failures and
-permission differences require separate profiles. External-suite triage/imports remain follow-up work.
-Provider selection gaps remain explicit and must not silently expand with new idioms.
+Without the variable the native theory is visibly skipped; comparison/golden tests run.
+The harness exercises public execution under ordinary and shared-memory policies. It
+records core revision, native version/hash, arguments/input, C.UTF-8/UTC and both results.
+It compares live stdout and declared output-file bytes, stderr class and exact declared
+statuses. Goldens retain exact diagnostic expectations. Missing expected files fail even
+when both implementations omit them. Each native invocation owns isolated fixture files;
+source/argument spelling stays unchanged.
 
-`AwkFusionBoundaryTests` reuses canonical expectations across 0..140 inert filler statements
-of six shapes, under ordinary/shared memory. It covers prepared return, assignment, branch,
-argument, string, numeric, array and key consumers. Function padding stays in fresh locals.
-The tests check results, effects, cleanup and refunds; separate pending-output controls retain
-real borrows through host completion and cancellation. Live GNU qualification includes the
-seed programs and three contrasting generated positions per site. No opcode or poll count
-is a semantic expectation.
+Curated script/stdin idioms, file cases and generated boundary variants cover ordinary
+processing and parsing. Custom environments, injected read failures and permission
+differences require explicit fixtures. External suites are local review inputs; re-author
+confirmed independent findings as goldens instead of importing foreign suites or normalizing
+away unexplained differences. Reference bugs, unsupported extensions and provider gaps
+must stay distinct from core regressions.
 
-Benchmark native comparisons use the same executable variable or explicit `--awk`.
-`--reference-contracts` qualifies equivalent native work; `--driver-smoke` checks the process
-boundary. Known reference bugs must not become equivalent performance cases.
-See [benchmark workflow](../../docs/BENCHMARKS.md) for focused development and milestone refreshes.
+Benchmarks are opt-in diagnostics, not another correctness suite. The shared process
+runner uses argument lists, bounded capture, streamed input, cancellation and process-tree
+cleanup. `--reference-contracts` checks equivalent native work; `--driver-smoke` checks the
+process boundary. Known reference bugs cannot be equivalent performance cases. See the
+[benchmark workflow](../../docs/BENCHMARKS.md) for focused development and milestone refreshes.
