@@ -4,6 +4,14 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> IncrementConcatenationCases()
     {
+        yield return CompilerDiagnostic(Failing("postfix-does-not-make-prefix-result-assignable",
+            ["BEGIN{print \"before\";print ++a++;print \"after\"}"], [], 2, "", "awk: invalid increment target.\n"));
+        yield return CompilerDiagnostic(Failing("single-field-cannot-consume-two-postfix-mutations",
+            ["BEGIN{print \"before\";print $a++++;print \"after\"}"], [], 2, "", "awk: invalid `print' statement.\n"));
+        // Concatenation captures the earlier spelling before later field writes.
+        // GNU 5.3.2 instead prints 22 for this order-sensitive expression.
+        yield return Passing("field-postfix-concatenation-captures-spelling-before-later-record-mutation",
+            ["BEGIN{$0=\"AAAAAAAABBBBBBBBCCCCCCCC\";x=$$$B++ \"\"*\"\"+$$B++N;print x}"], [], "12\n");
         yield return Passing("concatenate-string-before-prefix-increment",
             ["BEGIN{n=1;print \"n=\" ++n}"], [], "n=2\n");
         yield return Passing("concatenate-number-before-prefix-increment",

@@ -73,7 +73,7 @@ internal sealed record AwkStackSafetyScenario(string Source, string Output,
     internal static readonly string[] Shapes =
     [
         "flat-sum", "flat-concatenation", "parentheses", "unary-not", "unary-minus",
-        "field-chain", "conditional-chain", "nested-arguments", "nested-if", "nested-while", "else-if",
+        "field-chain", "field-postfix-chain", "field-mutation-chain", "conditional-chain", "nested-arguments", "nested-if", "nested-while", "else-if",
         "return", "arguments", "mutual", "pending-read", "depth-limit", "runtime-error", "cancellation",
         "raised-syntax", "four-argument-chain", "field-call-chain", "control-call-chain",
         "four-argument-pending", "field-call-pending", "control-call-pending",
@@ -84,6 +84,12 @@ internal sealed record AwkStackSafetyScenario(string Source, string Output,
 
     internal static AwkStackSafetyScenario Create(string shape)
     {
+        if (shape is "field-postfix-chain" or "field-mutation-chain")
+        {
+            var depth = shape == "field-postfix-chain" ? 5_000 : 256;
+            var postfix = string.Concat(Enumerable.Repeat("++", shape == "field-postfix-chain" ? 1 : depth));
+            return new("BEGIN{if(0)print " + new string('$', depth) + "1" + postfix + "}", "");
+        }
         if (shape == "nested-getline")
         {
             const int depth = 5_000;

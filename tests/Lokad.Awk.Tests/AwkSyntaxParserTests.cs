@@ -6,6 +6,27 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSyntaxParserTests
 {
+    [Theory]
+    [InlineData("$$a++")]
+    [InlineData("$$a++++")]
+    [InlineData("$$$a++++++")]
+    [InlineData("$$a[1][2]++++")]
+    [InlineData("$$ix()++++")]
+    [InlineData("$$++a++++")]
+    public void FieldPostfixBindingPreservesSourceSpansAndTokens(string expression)
+    {
+        var source = "BEGIN{r=" + expression + "}";
+        var program = AwkSyntaxParser.Parse(source,
+            new AwkFrontendBudget(int.MaxValue), CancellationToken.None);
+        Assert.Empty(program.Diagnostics);
+        var assignment = RequiredExpression(Assert.Single(Assert.Single(program.Rules).ActionStatements));
+        var value = assignment.Children[1];
+        Assert.Equal(expression, source.Substring(value.Span.Start, value.Span.Length));
+        Assert.Equal(value.Tokens.Count, value.Tokens.Select(token => token.Span.Start).Distinct().Count());
+        Assert.All(value.Tokens, token =>
+            Assert.Equal(token.Text, source.Substring(token.Span.Start, token.Span.Length)));
+    }
+
     [Fact]
     public void AwkSyntaxParser_PreservesUnaryFieldAndMutationBinding()
     {

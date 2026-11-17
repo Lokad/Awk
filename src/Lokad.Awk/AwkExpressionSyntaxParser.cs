@@ -219,6 +219,28 @@ internal sealed class AwkExpressionSyntaxParser
                 previous--;
             }
 
+            if (previous >= 0 && tokens[previous].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
+            {
+                var mutations = 0;
+                var primary = previous;
+                while (primary >= 0 && tokens[primary].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
+                {
+                    checkpoint?.Invoke();
+                    mutations++;
+                    primary--;
+                    while (primary >= 0 && !AwkTokenNavigation.IsSignificant(tokens[primary].Kind))
+                    {
+                        checkpoint?.Invoke();
+                        primary--;
+                    }
+                }
+                // Each dollar can own one postfix mutation. Once those targets
+                // are consumed, ++/-- can still start the next concatenated value.
+                if (primary >= 0 && CountFieldIndexPrefixes(tokens, primary, checkpoint) > mutations)
+                    return token.Kind is AwkTokenKind.PlusPlus
+                        ? AwkTokenKind.PostfixPlusPlus : AwkTokenKind.PostfixMinusMinus;
+            }
+
             if (previous >= 0 && tokens[previous].Kind is
                 AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier or
                 AwkTokenKind.Number or AwkTokenKind.String or AwkTokenKind.InternationalizedString or
@@ -233,7 +255,7 @@ internal sealed class AwkExpressionSyntaxParser
                     var following = AwkTokenNavigation.SkipNonSignificant(tokens, index + 1, tokens.Count, checkpoint);
                     if (following < tokens.Count && tokens[following].Kind is
                         (AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier or AwkTokenKind.Dollar) &&
-                        !HasFieldIndexPrefix(tokens, previous, checkpoint))
+                        CountFieldIndexPrefixes(tokens, previous, checkpoint) == 0)
                         return token.Kind;
                 }
                 return token.Kind is AwkTokenKind.PlusPlus
@@ -256,29 +278,44 @@ internal sealed class AwkExpressionSyntaxParser
         return token.Kind;
     }
 
-    private static bool HasFieldIndexPrefix(IReadOnlyList<AwkToken> tokens, int end, Action? checkpoint)
+    private static int CountFieldIndexPrefixes(IReadOnlyList<AwkToken> tokens, int end, Action? checkpoint)
     {
         var start = end;
-        if (tokens[end].Kind == AwkTokenKind.RightParen)
+        while (start >= 0 && tokens[start].Kind is AwkTokenKind.RightParen or AwkTokenKind.RightBracket)
         {
+            var close = tokens[start].Kind;
+            var open = close == AwkTokenKind.RightParen ? AwkTokenKind.LeftParen : AwkTokenKind.LeftBracket;
             var depth = 1;
             while (--start >= 0)
             {
                 if (((end - start) & 1023) == 0) checkpoint?.Invoke();
-                if (tokens[start].Kind == AwkTokenKind.RightParen) depth++;
-                else if (tokens[start].Kind == AwkTokenKind.LeftParen && --depth == 0) break;
+                if (tokens[start].Kind == close) depth++;
+                else if (tokens[start].Kind == open && --depth == 0) break;
             }
-            if (start < 0) return false;
+            if (start < 0) return 0;
             var name = Previous(start);
+            if (close == AwkTokenKind.RightBracket)
+            {
+                start = name;
+                continue;
+            }
             if (name >= 0 && tokens[name].Kind is (AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier) &&
                 (tokens[name].Span.End == tokens[start].Span.Start ||
                     AwkBuiltins.IsKnownFunctionOrSpecialForm(tokens[name].Text)))
                 start = name;
+            break;
         }
+        if (start < 0) return 0;
+        var fields = 0;
         var prefix = Previous(start);
-        while (prefix >= 0 && tokens[prefix].Kind is AwkTokenKind.Plus or AwkTokenKind.Minus or AwkTokenKind.Bang)
+        while (prefix >= 0 && tokens[prefix].Kind is AwkTokenKind.Dollar or AwkTokenKind.Plus or AwkTokenKind.Minus or
+            AwkTokenKind.Bang or AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
+        {
+            checkpoint?.Invoke();
+            if (tokens[prefix].Kind == AwkTokenKind.Dollar) fields++;
             prefix = Previous(prefix);
-        return prefix >= 0 && tokens[prefix].Kind == AwkTokenKind.Dollar;
+        }
+        return fields;
 
         int Previous(int position)
         {
@@ -429,15 +466,48 @@ internal sealed class AwkExpressionSyntaxParser
     {
         _checkpoint?.Invoke();
         var dollarToken = ToToken(AwkTokenKind.Dollar, dollar);
+        return BindPrefixBeforePostfix(AwkExpressionKind.Field, dollarToken, index);
+    }
+
+    private AwkExpressionSyntax BindPrefixBeforePostfix(AwkExpressionKind kind, AwkToken prefix, AwkExpressionSyntax index)
+    {
         if (index.Kind == AwkExpressionKind.Postfix &&
             index.Children.Count == 1 &&
             index.OperatorTokens.Count == 1)
         {
-            var field = CreateNode(AwkExpressionKind.Field, dollarToken, index.Children[0], [dollarToken]);
-            return CreateNode(AwkExpressionKind.Postfix, field, index.OperatorTokens[0], [index.OperatorTokens[0]]);
+            if (index.Children[0].Kind == AwkExpressionKind.Field)
+                return CreateNode(kind, prefix, index, [prefix]);
+            if (index.Children[0].Kind == AwkExpressionKind.Postfix)
+            {
+                var mutations = new List<AwkExpressionSyntax>();
+                var target = index;
+                while (target.Kind == AwkExpressionKind.Postfix && target.Children.Count == 1 && target.OperatorTokens.Count == 1)
+                {
+                    _checkpoint?.Invoke();
+                    mutations.Add(target);
+                    target = target.Children[0];
+                }
+                var remaining = mutations.Count;
+                if (kind == AwkExpressionKind.Unary && target.Kind == AwkExpressionKind.Field)
+                    return CreateNode(kind, prefix, index, [prefix]);
+                // A nested field already owns the first mutation. This dollar
+                // encloses it and owns the next one, leaving later dollars to
+                // consume any remaining postfix operators.
+                if (target.Kind == AwkExpressionKind.Field) target = mutations[--remaining];
+                var result = CreateNode(kind, prefix, target, [prefix]);
+                for (var mutation = remaining - 1; mutation >= 0; mutation--)
+                {
+                    _checkpoint?.Invoke();
+                    var op = mutations[mutation].OperatorTokens[0];
+                    result = CreateNode(AwkExpressionKind.Postfix, result, op, [op]);
+                }
+                return result;
+            }
+            var operand = CreateNode(kind, prefix, index.Children[0], [prefix]);
+            return CreateNode(AwkExpressionKind.Postfix, operand, index.OperatorTokens[0], [index.OperatorTokens[0]]);
         }
 
-        return CreateNode(AwkExpressionKind.Field, dollarToken, index, [dollarToken]);
+        return CreateNode(kind, prefix, index, [prefix]);
     }
 
     [Rule]
@@ -577,7 +647,7 @@ internal sealed class AwkExpressionSyntaxParser
     {
         _checkpoint?.Invoke();
         var operatorToken = AwkParsingSupport.ToToken(op, _checkpoint);
-        return CreateNode(AwkExpressionKind.Unary, operatorToken, target, [operatorToken]);
+        return BindPrefixBeforePostfix(AwkExpressionKind.Unary, operatorToken, target);
     }
 
     [Rule]

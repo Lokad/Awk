@@ -126,6 +126,7 @@ Plain assignment evaluates the RHS before resolving its target/key. Compound ass
 reads the target and old value before the RHS. Concatenation formats each operand before
 evaluating the next. Side effects on targets, SUBSEP or CONVFMT
 can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
+This includes capturing a field's spelling before a later operand changes the record.
 This also applies when a RHS clears, splits or mutates an aliased target array; the
 [array identity cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArrayIdentity.cs) pin these boundaries.
 Nested-array targets retain evaluated paths and prior values, then reacquire
