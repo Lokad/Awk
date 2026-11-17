@@ -37,6 +37,11 @@ internal sealed class AwkLoweringScope
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null) =>
         new(functionLocals, true, mode, checkpoint, globalReads, functions: functions);
 
+    internal bool ConsumesArithmetic(AwkVariableName name) =>
+        TryGetFunctionLocalSlot(name, out var slot)
+            ? _functionLocals.InputConsumption(slot.Index) == AwkParameterInput.Arithmetic
+            : _globalReads is not null && _globalReads.ConsumesArithmetic(name);
+
     public bool TryGetGlobalReadIndex(AwkVariableName name, out int index)
     {
         if (_globalReads is not null)

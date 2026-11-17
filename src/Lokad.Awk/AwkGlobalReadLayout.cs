@@ -15,6 +15,13 @@ internal sealed class AwkGlobalReadLayout
         }
     }
 
+    private bool[] _arithmeticInputs = [];
+
+    internal void PrepareArithmeticInputs(bool[] inputs) => _arithmeticInputs = inputs;
+
+    internal bool ConsumesArithmetic(AwkVariableName name) =>
+        _arithmeticInputs.Length != 0 && TryGetIndex(name, out var index) && _arithmeticInputs[index];
+
     public int Count => _indices.Count;
 
     public bool TryGetIndex(AwkVariableName name, out int index) => _indices.TryGetValue(name, out index);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare arithmetic-only scalar input with the shared value-consumption analysis,
+  avoiding unobserved field-text ownership while preserving spelling observations and deferred errors.
 - Reduce print preparation overhead while preserving complete-record size checks and output admission.
 - Separate compact record cells from byte views, retaining owned spelling and scalar values in
   the record frame. Preserve lazy field classification, CSV decoding, mutation and cleanup.

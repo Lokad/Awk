@@ -83,7 +83,8 @@ internal static partial class AwkProgramLowerer
                     "Duplicate function definition `" + function.Name + "'.", AwkDiagnosticId.BindInvalidProgram)]);
         }
 
-        AwkParameterConsumption.Prepare(syntax, functions, mode, checkpoint);
+        AwkValueConsumption.Prepare(syntax, functions, mode, checkpoint, globalReads,
+            externalArguments is null ? null : symbols);
 
         var scratchResults = AwkResultPreparation.Prepare(syntax, functions, symbols, externalArguments, mode, stringUnits, checkpoint);
 

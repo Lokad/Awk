@@ -1,8 +1,8 @@
 namespace Lokad.Awk;
 
-// Preparation metadata only: preserve full values unless all reads ultimately consume
-// arithmetic, proved-number comparisons, text or complete array keys. Numbers format at use.
-internal static class AwkParameterConsumption
+// Preparation metadata only: one use graph for bound globals and parameters.
+// Preserve full values for observable uses; numbers still format at consumption.
+internal static class AwkValueConsumption
 {
     private const int Arithmetic = -1;
     private const int Observable = -2;
@@ -15,10 +15,19 @@ internal static class AwkParameterConsumption
     private enum Use : byte { None = 0, Arithmetic = 1, Comparison = 2, Key = 4, Storage = 8, Observable = 16, Text = 32 }
 
     public static void Prepare(AwkSyntaxProgram syntax,
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, AwkCompatibilityMode mode, Action? checkpoint)
+        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, AwkCompatibilityMode mode, Action? checkpoint,
+        AwkGlobalReadLayout globals, IReadOnlyList<AwkSymbolReference>? symbols)
     {
-        if (functions.Count == 0) return;
-        var ranges = new Dictionary<AwkFunctionName, ParameterRange>(functions.Count);
+        // Standalone preparation and dynamic symbol/argument access retain full
+        // globals. Parameter consumption remains available in those contexts.
+        var closedGlobals = symbols is not null;
+        if (symbols is not null)
+            foreach (var symbol in symbols)
+            {
+                checkpoint?.Invoke();
+                if (symbol.Name is "ARGV" or "SYMTAB") { closedGlobals = false; break; }
+            }
+        var ranges = new Dictionary<AwkFunctionName, LocalRange>(functions.Count);
         var count = 0;
         foreach (var (name, function) in functions)
         {
@@ -26,35 +35,52 @@ internal static class AwkParameterConsumption
             ranges.Add(name, new(count, function.Parameters.Count));
             count = checked(count + function.Parameters.Count);
         }
+        var globalStart = count;
+        if (closedGlobals) count = checked(count + globals.Count);
         if (count == 0) return;
 
         // One use lattice replaces independent mark arrays/passes. Queue membership
-        // bounds pending propagation to one entry per parameter, including cycles.
+        // bounds pending propagation to one entry per binding, including cycles.
         // Existing coarse frontend admission funds this token-bounded preparation.
         var uses = new Use[count];
         var heads = new int[count];
         Array.Fill(heads, -1);
         var edges = new List<ForwardingEdge>();
         var statements = new Stack<AwkStatementSyntax>();
-        var expressions = new Stack<ParameterRead>();
+        var expressions = new Stack<ValueRead>();
         foreach (var function in syntax.Functions)
         {
             checkpoint?.Invoke();
             var name = AwkFunctionName.FromText(function.Name);
             var current = ranges[name];
-            var layout = functions[name].LocalLayout;
-            PushStatements(function.BodyStatements);
-            while (statements.TryPop(out var statement))
+            Analyze(function.BodyStatements, functions[name].LocalLayout, current);
+        }
+        if (closedGlobals)
+            foreach (var rule in syntax.Rules)
             {
                 checkpoint?.Invoke();
-                foreach (var expression in statement.EnumerateChildExpressions())
-                    expressions.Push(new(expression, statement.Kind == AwkStatementKind.Exit ? Arithmetic : Observable));
-                PushStatements(statement.BodyStatements);
-                PushStatements(statement.ElseStatements);
-                foreach (var clause in statement.SwitchCases)
+                foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
+                    expressions.Push(new(expression, Observable));
+                Analyze(rule.ActionStatements, AwkFunctionLocalLayout.Empty, default);
+            }
+
+        void Analyze(IReadOnlyList<AwkStatementSyntax> body, AwkFunctionLocalLayout layout, LocalRange current)
+        {
+            PushStatements(body);
+            while (statements.Count != 0 || expressions.Count != 0)
+            {
+                if (statements.TryPop(out var statement))
                 {
-                    if (clause.Expression.TryGetValue(out var expression)) expressions.Push(new(expression, Observable));
-                    PushStatements(clause.BodyStatements);
+                    checkpoint?.Invoke();
+                    foreach (var expression in statement.EnumerateChildExpressions())
+                        expressions.Push(new(expression, statement.Kind == AwkStatementKind.Exit ? Arithmetic : Observable));
+                    PushStatements(statement.BodyStatements);
+                    PushStatements(statement.ElseStatements);
+                    foreach (var clause in statement.SwitchCases)
+                    {
+                        if (clause.Expression.TryGetValue(out var expression)) expressions.Push(new(expression, Observable));
+                        PushStatements(clause.BodyStatements);
+                    }
                 }
                 while (expressions.TryPop(out var work))
                 {
@@ -63,9 +89,11 @@ internal static class AwkParameterConsumption
                     var use = work.Use;
                     if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier))
                     {
-                        if (!layout.TryGetSlot(new(identifier.Identifier), out var slot))
-                            continue;
-                        var node = current.Start + slot.Index;
+                        var name = new AwkVariableName(identifier.Identifier);
+                        int node;
+                        if (layout.TryGetSlot(name, out var slot)) node = current.Start + slot.Index;
+                        else if (closedGlobals && globals.TryGetIndex(name, out var global)) node = globalStart + global;
+                        else continue;
                         if (work.NeedsScalarStorage) uses[node] |= Use.Storage;
                         uses[node] |= use switch
                         {
@@ -213,6 +241,20 @@ internal static class AwkParameterConsumption
             functions[name].LocalLayout.PrepareInputs(inputs);
         }
 
+        if (closedGlobals)
+        {
+            bool[] arithmetic = [];
+            for (var index = 0; index < globals.Count; index++)
+            {
+                if ((index & 63) == 0) checkpoint?.Invoke();
+                var use = uses[globalStart + index];
+                if ((use & ~(Use.Arithmetic | Use.Storage)) != 0 || (use & Use.Arithmetic) == 0) continue;
+                if (arithmetic.Length == 0) arithmetic = new bool[globals.Count];
+                arithmetic[index] = true;
+            }
+            globals.PrepareArithmeticInputs(arithmetic);
+        }
+
         bool ProducesNumber(AwkExpressionSyntax expression, AwkFunctionLocalLayout layout)
         {
             while (expression.Kind == AwkExpressionKind.Group && expression.Children.Count == 1)
@@ -254,15 +296,15 @@ internal static class AwkParameterConsumption
     private static bool IsComparison(AwkTokenKind token) => token is AwkTokenKind.EqualEqual or AwkTokenKind.BangEqual or
         AwkTokenKind.Less or AwkTokenKind.LessEqual or AwkTokenKind.Greater or AwkTokenKind.GreaterEqual;
 
-    private readonly record struct ParameterRead
+    private readonly record struct ValueRead
     {
         private readonly AwkExpressionSyntax? _expression;
-        public ParameterRead(AwkExpressionSyntax expression, int use, bool NeedsScalarStorage = false) =>
+        public ValueRead(AwkExpressionSyntax expression, int use, bool NeedsScalarStorage = false) =>
             (_expression, Use, this.NeedsScalarStorage) = (expression, use, NeedsScalarStorage);
         public AwkExpressionSyntax Expression => _expression ?? throw new InvalidOperationException("An empty parameter read has no expression.");
         public int Use { get; }
         public bool NeedsScalarStorage { get; }
     }
-    private readonly record struct ParameterRange(int Start, int Count);
+    private readonly record struct LocalRange(int Start, int Count);
     private readonly record struct ForwardingEdge(int Source, int Next);
 }

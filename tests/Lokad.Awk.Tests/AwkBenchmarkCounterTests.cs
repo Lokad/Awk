@@ -1409,7 +1409,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, cached.ExitCode);
         Assert.Equal("21\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("21\n", cached.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(3, cached.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
+        // A stored arithmetic-only binding shares the field consumer proof.
+        Assert.Equal(0, cached.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
         Assert.Equal(0, direct.Counters.StringDecodes);
         Assert.Equal(0, direct.Counters.StringInteropFallbacks);
     }

@@ -154,7 +154,7 @@ internal sealed partial class AwkRegionCompiler
             else
             {
                 var argument = CompletedResult<int>(completed);
-                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument,
+                compiler.Emit(new(AwkRegionInstructionKind.InputValue, _start + _argument,
                     AwkRegionNumberSource.Bind(argument, compiler._operands[argument]).Location,
                     Detail: (int)definition.InputConsumption(_argument)));
                 _argument++;
@@ -166,7 +166,7 @@ internal sealed partial class AwkRegionCompiler
             }
             // Retain captures before effects; fold only their final uninterrupted suffix.
             var firstPending = compiler._code.Count;
-            while (firstPending > 0 && compiler._code[firstPending - 1] is { Kind: AwkRegionInstructionKind.BuiltinArgument } capture &&
+            while (firstPending > 0 && compiler._code[firstPending - 1] is { Kind: AwkRegionInstructionKind.InputValue } capture &&
                 capture.Target >= _start && capture.Target < _start + count) firstPending--;
             var pendingArguments = firstPending == compiler._code.Count ? [] : new int[compiler._code.Count - firstPending];
             for (var index = 0; index < pendingArguments.Length; index++)
@@ -208,7 +208,7 @@ internal sealed partial class AwkRegionCompiler
             else
             {
                 var argument = CompletedResult<int>(completed);
-                compiler.Emit(new(AwkRegionInstructionKind.BuiltinArgument, _start + _argument,
+                compiler.Emit(new(AwkRegionInstructionKind.InputValue, _start + _argument,
                     AwkRegionNumberSource.Bind(argument, compiler._operands[argument]).Location));
                 // close formats its captured name before evaluating the direction.
                 if (definition.Id == AwkBuiltinId.Close && _argument == 0)

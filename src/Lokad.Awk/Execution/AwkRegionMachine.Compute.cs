@@ -490,9 +490,9 @@ internal partial struct AwkRegionMachine
                     // Successful entry is synchronous; only the context needs rebinding.
                     goto BindExecution;
                 }
-                case AwkRegionInstructionKind.BuiltinArgument:
+                case AwkRegionInstructionKind.InputValue:
                     computationView.Storage.StoreValue(instruction.Target,
-                        computationView.ArgumentValue(instruction.Left, (AwkParameterInput)instruction.Detail), preserveOrigin: true);
+                        computationView.InputValue(instruction.Left, (AwkParameterInput)instruction.Detail), preserveOrigin: true);
                     break;
                 case AwkRegionInstructionKind.Builtin:
                     if (ExecuteBuiltin(in computationView, in instruction, position)) goto Resume;

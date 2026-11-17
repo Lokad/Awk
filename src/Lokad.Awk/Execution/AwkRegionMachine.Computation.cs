@@ -75,7 +75,7 @@ internal partial struct AwkRegionMachine
             return position - 1;
         }
 
-        internal AwkValue ArgumentValue(int location, AwkParameterInput consumption)
+        internal AwkValue InputValue(int location, AwkParameterInput consumption)
         {
             var source = new AwkRegionNumberSource(location);
             if (source.IsRegister) return AwkValue.FromNumber(numbers[source.RegisterIndex]);
@@ -105,8 +105,8 @@ internal partial struct AwkRegionMachine
         {
             var operation = region.Strings[instruction.Left];
             CaptureTextArgument(operation.First, out var first);
-            var second = ArgumentValue(operation.Second, operation.SecondInput);
-            var third = instruction.Detail == 3 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
+            var second = InputValue(operation.Second, operation.SecondInput);
+            var third = instruction.Detail == 3 ? InputValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
             // Full values remain captured through argument preparation. From
             // this ordered formatting boundary onward, slicing consumes bytes.
@@ -128,8 +128,8 @@ internal partial struct AwkRegionMachine
         {
             var operation = region.Strings[instruction.Left];
             var length = (int)numbers[operands[operation.First].Index];
-            var second = ArgumentValue(operation.Second, operation.SecondInput);
-            var third = instruction.Detail == 3 ? ArgumentValue(operation.Third, operation.ThirdInput) : default;
+            var second = InputValue(operation.Second, operation.SecondInput);
+            var third = instruction.Detail == 3 ? InputValue(operation.Third, operation.ThirdInput) : default;
             state.ThrowIfCancellationRequested();
             numbers[instruction.Target] = AwkBuiltins.CountSubstring(state, length, second, third, instruction.Detail);
         }

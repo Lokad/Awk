@@ -26,7 +26,7 @@ internal partial struct AwkRegionMachine
         {
             if ((index & 63) == 63) view.State.ThrowIfCancellationRequested();
             view.Storage.StoreValue(firstPending + index,
-                view.ArgumentValue(pendingArguments[index], computation.InputConsumption(firstArgument + index)),
+                view.InputValue(pendingArguments[index], computation.InputConsumption(firstArgument + index)),
                 preserveOrigin: true);
         }
         view.State.ThrowIfCancellationRequested();

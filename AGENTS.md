@@ -403,7 +403,13 @@ or environment dependencies.
   The frame publishes key payload words without unused alias copies, and retained non-scalar
   arguments share one admission/publication boundary. Preserve ordinary alias indexing.
   Strings and aliases retain their existing capture, admission and pending-user lifetimes.
-  One parameter-consumption graph uses the builtin's positional arithmetic/text contract.
+  One value-consumption graph uses the builtin's positional arithmetic/text contract.
+  Closed-program ordinary globals share that graph with function parameters. Only
+  discarded assignments to arithmetic-only bindings may replace owning field capture
+  with the existing arithmetic/deferred-error producer. Used assignment results and
+  mixed spelling, type, key, truth or comparison observations retain full values;
+  standalone preparation and dynamic SYMTAB/ARGV access retain ordinary globals.
+  The shared input-capture instruction owns no new runtime storage or execution route.
   Prepared string and general builtin arguments use that same contract at early captures and
   final consumption. Text snapshots include record zero; assigned numbers retain formatting
   at actual use. Buffered-record materialization stays at its owner, outside cached reads.

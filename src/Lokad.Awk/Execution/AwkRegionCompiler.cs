@@ -541,7 +541,7 @@ internal sealed partial class AwkRegionCompiler
         {
             if (_operands[arguments[index]].Kind is AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary) continue;
             var captured = _values++;
-            Emit(new(AwkRegionInstructionKind.BuiltinArgument, captured, arguments[index],
+            Emit(new(AwkRegionInstructionKind.InputValue, captured, arguments[index],
                 Detail: (int)definition.InputConsumption(index)));
             arguments[index] = Operand(AwkRegionOperandKind.ValueTemporary, captured);
         }
@@ -1073,8 +1073,17 @@ internal sealed partial class AwkRegionCompiler
         if (source.Kind is AwkRegionOperandKind.TextTemporary or AwkRegionOperandKind.ValueTemporary &&
             _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.Assign } assignment && assignment.Left == operand)
         {
-            // The statement has no later consumer. Publish from its existing
-            // owner; adjacent calls keep their already-prepared return handoff.
+            // A discarded assignment can use the bound scalar's complete consumer
+            // contract. Keep used assignment snapshots and all mixed observations
+            // owning; arithmetic field capture defers conversion failures as before.
+            if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
+                _scope.ConsumesArithmetic(_operands[assignment.Target].Name) &&
+                _code[^2] is { Kind: AwkRegionInstructionKind.Value } input && input.Target == source.Index &&
+                _operands[input.Left].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
+                _code[^2] = input with { Kind = AwkRegionInstructionKind.InputValue,
+                    Detail = (int)AwkParameterInput.Arithmetic };
+            // Publish from its existing owner; adjacent calls keep their
+            // already-prepared return handoff.
             if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&
                 TryTakeFreshTextProducer(operand, _code.Count - 2, out var producer))
             {

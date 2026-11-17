@@ -98,7 +98,7 @@ internal static class AwkFunctionHostEffects
         AwkRegionInstructionKind.PathKey or AwkRegionInstructionKind.PathEnd or AwkRegionInstructionKind.KeyBegin or
         AwkRegionInstructionKind.KeyAppend or
         AwkRegionInstructionKind.KeyEnd or AwkRegionInstructionKind.ReleaseValue or AwkRegionInstructionKind.ReleaseValues or
-        AwkRegionInstructionKind.BeginCall or AwkRegionInstructionKind.Arguments or AwkRegionInstructionKind.BuiltinArgument or
+        AwkRegionInstructionKind.BeginCall or AwkRegionInstructionKind.Arguments or AwkRegionInstructionKind.InputValue or
         AwkRegionInstructionKind.ConcatArgument or
         AwkRegionInstructionKind.ConcatValue or AwkRegionInstructionKind.Return or AwkRegionInstructionKind.ReturnNumber or
         AwkRegionInstructionKind.PrepareString or AwkRegionInstructionKind.PrepareByteText or
