@@ -152,9 +152,9 @@ public sealed class AwkPreparedArrayKindTests
     public static IEnumerable<object[]> PendingAccesses()
     {
         foreach (var mode in new[] { 0, 1, 2, 3, 4 })
-        foreach (var outcome in new[] { "success", "fault", "cancel" })
-        foreach (var governed in new[] { false, true })
-            yield return [mode, outcome, governed];
+            foreach (var outcome in new[] { "success", "fault", "cancel" })
+                foreach (var governed in new[] { false, true })
+                    yield return [mode, outcome, governed];
     }
 
     [Theory]
@@ -305,8 +305,8 @@ public sealed class AwkPreparedArrayKindTests
         const string source = "function size(x){return length(x)} BEGIN{a[1]=7;print size(a),length(a);ARGV[1]=\"x\";print ARGV[1]}";
         var host = new MockFileSystem();
         var options = Options();
-        var program = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", [source]), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var result = await program.ExecuteAsync(host, CancellationToken.None, options);
+        var command = AwkTestHarness.BuildInvocation("awk", [source]);
+        var result = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options);
         Assert.Equal(0, result.Value);
         Assert.Equal("1 1\nx\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -314,7 +314,9 @@ public sealed class AwkPreparedArrayKindTests
     }
 
     [Theory]
-    [InlineData("ARGV")] [InlineData("ENVIRON")] [InlineData("SYMTAB")]
+    [InlineData("ARGV")]
+    [InlineData("ENVIRON")]
+    [InlineData("SYMTAB")]
     public async Task SpecialArrayArgumentsRetainTheirDispatch(string name)
     {
         var source = "function get(p){return p[\"x\"]}BEGIN{" + name + "[\"x\"]=\"kept\";print get(" +
@@ -322,7 +324,7 @@ public sealed class AwkPreparedArrayKindTests
         var host = new MockFileSystem();
         var options = Options();
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None, options);
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, options);
         Assert.Equal(0, exit.Value);
         Assert.Equal("kept kept\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));

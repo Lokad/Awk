@@ -3,10 +3,14 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(1, false)] [InlineData(1, true)]
-    [InlineData(2, false)] [InlineData(2, true)]
-    [InlineData(5, false)] [InlineData(5, true)]
-    [InlineData(65, false)] [InlineData(65, true)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    [InlineData(5, false)]
+    [InlineData(5, true)]
+    [InlineData(65, false)]
+    [InlineData(65, true)]
     public async Task BoundFrameNumbersKeepNativeReadsAndOwnedCleanup(int slots, bool governed)
     {
         const int records = 128;
@@ -19,9 +23,10 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None, options);
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1280\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
@@ -35,7 +40,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task AlternatingPreparedAritiesReuseFundedLocalCapacity(bool governed)
     {
         const int records = 128;
@@ -46,9 +52,10 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None, options);
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));

@@ -15,8 +15,8 @@ public sealed partial class AwkBenchmarkCounterTests
             var host = new MockFileSystem();
             host.SetStandardInput(string.Concat(Enumerable.Repeat("7\n", records)));
             var exit = await AwkExecutor.ExecuteAsync(host,
-                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk",
-                    "{values[$1]+=$1} END{print values[\"7\"]}")),
+                AwkTestHarness.BuildInvocation("awk",
+                    "{values[$1]+=$1} END{print values[\"7\"]}"),
                 CancellationToken.None, CreateOptions(counters));
             Assert.Equal(0, exit.Value);
             Assert.Equal("1792\n", host.GetOutput(AwkFileDescriptor.StdOut));

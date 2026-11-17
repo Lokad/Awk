@@ -5,8 +5,8 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> SharedArgumentBindings()
     {
         foreach (var shape in new[] { "global", "local", "array", "omitted-array" })
-        foreach (var withSwitch in new[] { false, true })
-        foreach (var governed in new[] { false, true }) yield return [shape, withSwitch, governed];
+            foreach (var withSwitch in new[] { false, true })
+                foreach (var governed in new[] { false, true }) yield return [shape, withSwitch, governed];
     }
 
     [Theory]
@@ -26,9 +26,8 @@ public sealed partial class AwkBenchmarkCounterTests
         host.SetStandardInput(string.Concat(Enumerable.Repeat(shape is "global" or "local" ? "0007\n" : "key 2\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        var result = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var result = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, result);
         Assert.Equal(shape switch { "array" => "16512 256\n", "omitted-array" => "256 0\n", _ => "1024\n" },

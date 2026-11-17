@@ -3,10 +3,14 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData("literal", false)] [InlineData("literal", true)]
-    [InlineData("global", false)] [InlineData("global", true)]
-    [InlineData("field", false)] [InlineData("field", true)]
-    [InlineData("local", false)] [InlineData("local", true)]
+    [InlineData("literal", false)]
+    [InlineData("literal", true)]
+    [InlineData("global", false)]
+    [InlineData("global", true)]
+    [InlineData("field", false)]
+    [InlineData("field", true)]
+    [InlineData("local", false)]
+    [InlineData("local", true)]
     public async Task ImmediateCaseLengthsCountFormattedInputsWithoutProducingText(string source, bool governed)
     {
         const int records = 32;
@@ -22,7 +26,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var budget = new CooperativeTestBudget(8 << 20);
             var exit = await AwkExecutor.ExecuteAsync(host,
-                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", script)), CancellationToken.None,
+                AwkTestHarness.BuildInvocation("awk", script), CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("128\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -37,7 +41,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task LocalTextProducersKeepByteNativeValuesAcrossRepeatedAssignments(bool governed)
     {
         const int records = 128;
@@ -48,7 +53,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", script)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", script), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal((records * 8) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -60,7 +65,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task StringOperationsPreserveOwnedFieldsThroughRecordReconstruction(bool governed)
     {
         const int records = 128;
@@ -75,7 +81,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("0 0 AB abc ABC ABC 0007 ABC\n", host.GetOutput(AwkFileDescriptor.StdOut));

@@ -7,8 +7,8 @@ public sealed class AwkCsvHostTests
     public static IEnumerable<object[]> Sources()
     {
         foreach (var source in new[] { "stdin", "file", "pipe" })
-        foreach (var governed in new[] { false, true })
-            yield return [source, governed];
+            foreach (var governed in new[] { false, true })
+                yield return [source, governed];
     }
 
     [Theory]
@@ -33,7 +33,8 @@ public sealed class AwkCsvHostTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task MalformedUtf8IsRejectedBeforeCsvRecordPublication(bool normalize)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -84,7 +85,8 @@ public sealed class AwkCsvHostTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PendingReadKeepsTheRecordFundedUntilActualCompletion(bool cancel)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -119,7 +121,8 @@ public sealed class AwkCsvHostTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PreparedCsvStaysByteNativeAndScansLinearly(bool governed)
     {
         const int records = 1000;
@@ -131,8 +134,8 @@ public sealed class AwkCsvHostTests
             counters, AwkRuntimeLimits.CreateDefault(), memoryBudget: governed ? budget : null);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["--csv", "{n+=length($2)} END{print n}"], []);
-        await using var compiled = await AwkExecutor.CompileAsync(host, command, CancellationToken.None);
-        Assert.Equal(0, (await compiled.ExecuteAsync(host, CancellationToken.None, options)).Value);
+        var executionCommand = command;
+        Assert.Equal(0, (await AwkExecutor.ExecuteAsync(host, executionCommand, CancellationToken.None, options)).Value);
         Assert.Equal("3000\n", host.Output);
         Assert.Equal("", host.Error);
         Assert.InRange(counters.RecordSeparatorBytesScanned, bytes.Length, bytes.Length + 1L);

@@ -7,9 +7,9 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> OwnedRecordWidths()
     {
         foreach (var governed in new[] { false, true })
-        foreach (var width in new[] { 4095, 4096, 4097, 8193, 32768, 65536, 65537 })
-        foreach (var chunk in new[] { 1023, 131072 })
-            yield return [governed, width, chunk];
+            foreach (var width in new[] { 4095, 4096, 4097, 8193, 32768, 65536, 65537 })
+                foreach (var chunk in new[] { 1023, 131072 })
+                    yield return [governed, width, chunk];
     }
 
     [Theory]
@@ -36,7 +36,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(16 << 20);
         var command = AwkTestHarness.BuildInvocation("awk", "{sum+=$1}END{print sum,NR}");
-        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None,
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal("224 32\n", host.GetOutput(AwkFileDescriptor.StdOut));

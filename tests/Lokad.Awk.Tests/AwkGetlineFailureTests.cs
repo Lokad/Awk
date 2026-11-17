@@ -5,10 +5,10 @@ public sealed class AwkGetlineFailureTests
     public static IEnumerable<object[]> ReadFailures()
     {
 
-            foreach (var source in new[] { "file", "pipe", "main" })
-                foreach (var afterRecord in new[] { false, true })
-                    foreach (var target in new[] { "", "v", "a[++i]", "$5" })
-                        yield return [source, afterRecord, target];
+        foreach (var source in new[] { "file", "pipe", "main" })
+            foreach (var afterRecord in new[] { false, true })
+                foreach (var target in new[] { "", "v", "a[++i]", "$5" })
+                    yield return [source, afterRecord, target];
     }
 
     [Theory]
@@ -74,7 +74,7 @@ bool readFailure)
             host.AfterAppend = () => appends++;
             var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
             var limits = AwkRuntimeLimits.CreateDefault();
-            var options = Options(counters,limits);
+            var options = Options(counters, limits);
 
             var exit = await ExecuteAsync(host, "BEGIN{code=(getline v<\"data\");exit(code!=-1)}", options);
 
@@ -107,7 +107,7 @@ bool readFailure)
         Assert.Equal(0, host.OpenPipeCount);
     }
 
-    private static AwkRuntimeOptions Options(        AwkRuntimeCounters counters,AwkRuntimeLimits? limits = null) =>
+    private static AwkRuntimeOptions Options(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
@@ -115,7 +115,7 @@ bool readFailure)
     {
         var invocation = AwkTestHarness.BuildInvocation("awk", script);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        return await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), deadline.Token, options);
+        return await AwkExecutor.ExecuteAsync(host, invocation, deadline.Token, options);
     }
 
     private sealed class FailureHost(MockFileSystem files) : IAwkHost

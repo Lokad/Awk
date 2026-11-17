@@ -3,10 +3,14 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false, false, 5)] [InlineData(true, false, 5)]
-    [InlineData(false, true, 5)] [InlineData(true, true, 5)]
-    [InlineData(false, false, 65)] [InlineData(true, false, 65)]
-    [InlineData(false, true, 65)] [InlineData(true, true, 65)]
+    [InlineData(false, false, 5)]
+    [InlineData(true, false, 5)]
+    [InlineData(false, true, 5)]
+    [InlineData(true, true, 5)]
+    [InlineData(false, false, 65)]
+    [InlineData(true, false, 65)]
+    [InlineData(false, true, 65)]
+    [InlineData(true, true, 65)]
     public async Task RepeatedOutputArgumentsReuseClearedCapacity(bool governed, bool printf, int arity)
     {
         const int records = 32;
@@ -18,7 +22,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var invocation = AwkTestHarness.BuildInvocation("awk", "{" + statement + "}");
-        var result = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), CancellationToken.None,
+        var result = await AwkExecutor.ExecuteAsync(host, invocation, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         var expected = string.Join(printf ? ":" : " ", Enumerable.Repeat("7", arity)) + "\n";
         Assert.Equal(AwkExitCode.Success, result);
@@ -29,8 +33,10 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task ScalarBuiltinArgumentsUseExecutionOwnedStorage(bool governed, bool prepared)
     {
         const int records = 128;
@@ -41,9 +47,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var source = prepared
             ? "function use(x){return int(x)}{sum+=use($1)}END{print sum}"
             : "{sum+=sqrt($1)}END{print int(sum)}";
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(prepared ? "896\n" : "338\n", host.GetOutput(AwkFileDescriptor.StdOut));

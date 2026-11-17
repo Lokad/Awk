@@ -6,7 +6,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFlushTests
 {
     [Theory]
-    [InlineData("none")] [InlineData("stdout")] [InlineData("diagnostic")] [InlineData("both")]
+    [InlineData("none")]
+    [InlineData("stdout")]
+    [InlineData("diagnostic")]
+    [InlineData("both")]
     public async Task FlushPublishesEachPendingChannelOnce(string payload)
     {
         var host = new MockFileSystem();
@@ -319,6 +322,6 @@ bool inputFirst)
         var invocation = AwkTestHarness.BuildInvocation("awk", script);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var options = Options(limits, counters);
-        return await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), deadline.Token, options);
+        return await AwkExecutor.ExecuteAsync(host, invocation, deadline.Token, options);
     }
 }

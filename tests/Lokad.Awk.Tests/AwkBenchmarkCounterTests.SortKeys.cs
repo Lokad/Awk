@@ -16,7 +16,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var source = "BEGIN{for(i=1;i<=" + count + ";i++)a[" + key + "]=" + count +
             "-i;n=asort(a,b,\"@val_num_asc\");print n,b[1],b[n]}";
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal("128 0 127\n", host.GetOutput(AwkFileDescriptor.StdOut));

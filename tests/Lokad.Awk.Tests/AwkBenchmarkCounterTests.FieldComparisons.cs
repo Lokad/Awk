@@ -3,9 +3,12 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData("0007", true)] [InlineData("0007", false)]
-    [InlineData("7tail", true)] [InlineData("7tail", false)]
-    [InlineData("word", true)] [InlineData("word", false)]
+    [InlineData("0007", true)]
+    [InlineData("0007", false)]
+    [InlineData("7tail", true)]
+    [InlineData("7tail", false)]
+    [InlineData("word", true)]
+    [InlineData("word", false)]
     public async Task FieldClassificationUsesRecordCellsWithoutAnOwningValueCache(string field, bool governed)
     {
         const int records = 16;
@@ -13,11 +16,9 @@ public sealed partial class AwkBenchmarkCounterTests
         var budget = new CooperativeTestBudget(8 << 20);
         var host = new MockFileSystem();
         host.SetStandardInput(string.Concat(Enumerable.Repeat(field + " tail\n", records)));
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk",
-                "{hits+=($1==7);hits+=($1==7);sum+=$1;lex+=($1==\"0007\")}END{print hits,sum,lex}"),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk",
+                        "{hits+=($1==7);hits+=($1==7);sum+=$1;lex+=($1==\"0007\")}END{print hits,sum,lex}");
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal(field == "0007" ? "32 112 16\n" : field == "7tail" ? "0 112 0\n" : "0 0 0\n",
@@ -34,7 +35,7 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> FieldComparisonConsumptionCases()
     {
         foreach (var shape in new[] { "number", "reverse", "variable", "fields", "text", "warm", "mixed", "escape", "named-condition", "named-body", "do" })
-        foreach (var governed in new[] { false, true }) yield return [shape, governed];
+            foreach (var governed in new[] { false, true }) yield return [shape, governed];
     }
 
     [Theory]
@@ -63,10 +64,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var budget = new CooperativeTestBudget(8 << 20);
         var host = new MockFileSystem();
         host.SetStandardInput(string.Concat(Enumerable.Repeat("0007 7\n", records)));
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
-            regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         var total = records * (shape is "mixed" or "do" ? 2 : shape is "named-condition" or "named-body" ? 7 : 1);
         Assert.Equal(0, exit.Value);

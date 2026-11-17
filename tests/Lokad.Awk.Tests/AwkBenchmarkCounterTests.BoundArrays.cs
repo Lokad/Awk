@@ -6,8 +6,12 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)]
-    [InlineData(3)] [InlineData(4)] [InlineData(5)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
     public async Task CompleteUpdatesAndReadsReuseValidatedCurrentLocations(int shape)
     {
         var (prefix, update, read) = shape switch
@@ -34,7 +38,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NumericIndexReadsKeepStoredNumbersAndSpellingWithoutTextTransport(bool governed)
     {
         const int count = 4097;
@@ -44,9 +49,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var host = new MockFileSystem();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(16 << 20);
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal("8394753\n0007 strnum\n0 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -63,10 +67,10 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> BoundArrayWorkloads()
     {
         foreach (var keys in new[] { 16, 1024 })
-        foreach (var composite in new[] { false, true })
-        foreach (var fields in new[] { composite ? 3 : 2, 32 })
-        foreach (var loop in new[] { false, true })
-        foreach (var governed in new[] { false, true }) yield return [keys, fields, loop, governed, composite];
+            foreach (var composite in new[] { false, true })
+                foreach (var fields in new[] { composite ? 3 : 2, 32 })
+                    foreach (var loop in new[] { false, true })
+                        foreach (var governed in new[] { false, true }) yield return [keys, fields, loop, governed, composite];
     }
 
     [Theory]
@@ -98,9 +102,8 @@ public sealed partial class AwkBenchmarkCounterTests
         host.SetStandardInput(input.ToString());
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(16 << 20);
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal(total.ToString(CultureInfo.InvariantCulture) + " " + keys + " " + keys + "\n",

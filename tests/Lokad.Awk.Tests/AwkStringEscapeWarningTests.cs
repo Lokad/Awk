@@ -6,52 +6,36 @@ public sealed class AwkStringEscapeWarningTests
 {
     private const string Warning = "awk: warning: escape sequence `\\q' treated as plain `q'\n";
 
-    public static IEnumerable<object[]> CompiledEntries()
+    public static IEnumerable<object[]> InvocationEntries()
     {
         foreach (var profile in new[] { "", "--posix", "--traditional" })
             foreach (var optionFirst in new[] { false, true })
 
-                    yield return [profile, optionFirst];
+                yield return [profile, optionFirst];
     }
 
     [Theory]
-    [MemberData(nameof(CompiledEntries))]
-    public async Task CompiledHistoryRetainsFirstOriginAndIsFreshForConcurrentRuns(
+    [MemberData(nameof(InvocationEntries))]
+    public async Task InvocationHistoryRetainsFirstOriginAndIsFreshForConcurrentRuns(
         string profile, bool optionFirst)
     {
-        var source = new MockFileSystem();
-        source.AddFile("/warning.awk", "# source\nBEGIN{print \"\\q\\q\"}END{print a,b}\n");
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile },
             .. optionFirst ? new[] { "-v", @"v=\q" } : Array.Empty<string>(),
             "-f", "/warning.awk", @"a=\q", @"b=\q"];
-        var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", args, []), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var warning = Assert.Single(compiled.Warnings);
-        Assert.Equal(AwkStringEscapeWarningKind.Unknown, warning.StringEscapeWarning.Kind);
-        Assert.Equal(new Rune('q'), warning.StringEscapeWarning.Character);
-        if (optionFirst)
-            Assert.Null(warning.SourceLocation);
-        else
-        {
-            var location = Assert.IsType<AwkSourceLocation>(warning.SourceLocation);
-            Assert.Equal("/warning.awk", location.SourceName.Text);
-            Assert.Equal(2, location.LineNumber.Value);
-            Assert.Equal(13, location.ColumnNumber.Value);
-        }
-        Assert.Equal(string.Empty, source.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, source.OpenFileCount);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", args, []));
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         async Task RunAsync()
         {
             var host = new MockFileSystem();
+            host.AddFile("/warning.awk", "# source\nBEGIN{print \"\\q\\q\"}END{print a,b}\n");
             var options = Options();
-            var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
+            var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), deadline.Token);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("qq\nq q\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(optionFirst ? Warning
                 : "awk: /warning.awk:2:13: warning: escape sequence `\\q' treated as plain `q'\n",
                 host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(0, host.ReadOpenCount);
+            Assert.Equal(1, host.ReadOpenCount);
             Assert.Equal(0, host.OpenFileCount);
         }
         await Task.WhenAll(RunAsync(), RunAsync());
@@ -75,7 +59,7 @@ public sealed class AwkStringEscapeWarningTests
         var host = new MockFileSystem();
         var options = Options(AwkRuntimeLimits.CreateDefault());
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
+            AwkTestHarness.BuildInvocation("awk", args, []), CancellationToken.None, options);
         var perOccurrence = escaped is 'x' or 'u';
         var posixNumeric = profile == "--posix" && perOccurrence;
         var firstWarning = posixNumeric ? string.Empty : perOccurrence

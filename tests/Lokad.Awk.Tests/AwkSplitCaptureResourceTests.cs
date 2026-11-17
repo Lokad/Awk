@@ -9,7 +9,8 @@ public sealed class AwkSplitCaptureResourceTests
     private static readonly AwkArrayKey Old = new("old");
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RepeatedPublicSplitKeepsUtf8NativeAndRefundsCapturedStorage(bool governed)
     {
         const int records = 128;
@@ -18,11 +19,10 @@ public sealed class AwkSplitCaptureResourceTests
         var budget = new CooperativeTestBudget(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", "{total+=split($0,a,\":\",seps);separators+=length(seps)}END{print total,separators,a[2],a[3]}"),
-            CancellationToken.None);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", "{total+=split($0,a,\":\",seps);separators+=length(seps)}END{print total,separators,a[2],a[3]}");
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("384 256 bé 😀\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.RecordsRead);

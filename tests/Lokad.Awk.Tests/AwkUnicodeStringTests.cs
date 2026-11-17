@@ -36,12 +36,10 @@ public sealed class AwkUnicodeStringTests
         var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        Assert.Empty(compiled.Warnings);
+        var command = AwkTestHarness.BuildInvocation("awk", source);
         var host = new MockFileSystem();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, deadline.Token, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1\n\U0001f600", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty,
@@ -50,27 +48,18 @@ public sealed class AwkUnicodeStringTests
     }
 
     [Fact]
-    public async Task CompiledUnicodeWarningRetainsMappedSourceLocation()
+    public async Task UnicodeWarningRetainsMappedSourceLocation()
     {
-        var sourceHost = new MockFileSystem();
-        sourceHost.AddFile("/unicode.awk", "# source\nBEGIN{print \"\\ud800\"}\n");
-        var compiled = await AwkExecutor.CompileAsync(sourceHost,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/unicode.awk"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var warning = Assert.Single(compiled.Warnings);
-        var location = Assert.IsType<AwkSourceLocation>(warning.SourceLocation);
-        Assert.Equal("/unicode.awk", location.SourceName.Text);
-        Assert.Equal(2, location.LineNumber.Value);
-        Assert.Equal(13, location.ColumnNumber.Value);
-        Assert.Equal(0, sourceHost.OpenFileCount);
-        Assert.Equal(string.Empty, sourceHost.GetOutput(AwkFileDescriptor.StdErr));
         var host = new MockFileSystem();
+        host.AddFile("/unicode.awk", "# source\nBEGIN{print \"\\ud800\"}\n");
+        var command = AwkTestHarness.BuildInvocation("awk", "-f", "/unicode.awk");
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("?\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: /unicode.awk:2:13: warning: invalid `\\u' escape sequence\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, host.ReadOpenCount);
+        Assert.Equal(1, host.ReadOpenCount);
     }
 }

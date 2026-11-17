@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NumericSpecialComparisonsConsumeExistingFacts(bool governed)
     {
         async Task<AwkRuntimeCounters> Run(int count)
@@ -13,9 +14,8 @@ public sealed partial class AwkBenchmarkCounterTests
             var host = new MockFileSystem();
             var source = "BEGIN{$0=\"a b c\";NR=7;FNR=9;for(i=0;i<" + count +
                 ";i++)total+=(i<NF)+(NR<FNR);print total}";
-            await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-            var exit = await program.ExecuteAsync(host, CancellationToken.None,
+            var command = AwkTestHarness.BuildInvocation("awk", source);
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal((count + 3) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -37,7 +37,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NumericInputFactsKeepSpellingWithoutRepeatedGeneralLocalReads(bool governed)
     {
         async Task<(MockFileSystem Host, AwkRuntimeCounters Counters)> Run(int count)
@@ -48,9 +49,8 @@ public sealed partial class AwkBenchmarkCounterTests
             var budget = new CooperativeTestBudget(8 << 20);
             var host = new MockFileSystem();
             host.SetStandardInput("001 2\n");
-            await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-            var exit = await program.ExecuteAsync(host, CancellationToken.None,
+            var command = AwkTestHarness.BuildInvocation("awk", source);
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
@@ -70,7 +70,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ComparisonBranchesKeepUnorderedValuesAcrossPreparationBoundaries(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -80,9 +81,8 @@ public sealed partial class AwkBenchmarkCounterTests
                 "if(x<0)return 9;return 7}BEGIN{print choose(\"+nan\"+0),choose(-1),choose(0)}";
             var host = new MockFileSystem();
             var counters = AwkRuntimeCounters.CreateEnabled();
-            await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-            var exit = await program.ExecuteAsync(host, CancellationToken.None,
+            var command = AwkTestHarness.BuildInvocation("awk", source);
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("7 9 7\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -95,8 +95,10 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task NumericComparisonsConsumeBoundNumbers(bool local, bool governed)
     {
         const string comparisons = "print(a==b),(a!=b),(a<b),(a<=b),(a>b),(a>=b)";
@@ -106,9 +108,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var host = new MockFileSystem();
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        var exit = await program.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("0 1 1 1 0 0\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -121,7 +122,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task MixedComparisonsKeepNumericStringOriginsAndAssignedNf(bool governed)
     {
         const string source = "BEGIN{a=\"20\";b=3;print(a<b),a,typeof(a);" +
@@ -132,9 +134,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var budget = new CooperativeTestBudget(8 << 20);
         var host = new MockFileSystem();
         host.SetStandardInput("0020\n");
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        var exit = await program.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1 20 string\n1 0\n0 1 02 string\n0 0020 strnum\n", host.GetOutput(AwkFileDescriptor.StdOut));

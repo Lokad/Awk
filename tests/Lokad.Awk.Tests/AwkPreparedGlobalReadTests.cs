@@ -91,12 +91,9 @@ public sealed class AwkPreparedGlobalReadTests
     }
 
     [Fact]
-    public async Task CompiledReadsOwnSlotsAcrossPendingConcurrentAndRepeatedExecutions()
+    public async Task InvocationsReadsOwnSlotsAcrossPendingConcurrentAndRepeatedExecutions()
     {
-        var source = new MockFileSystem();
-        source.AddFile("/script", "{SYMTAB[$1]=$2;seen+=x+0} END{print seen+0,x+0,y+0}");
-        var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{SYMTAB[$1]=$2;seen+=x+0} END{print seen+0,x+0,y+0}", "/data"));
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var arrivals = 0;
@@ -113,7 +110,7 @@ public sealed class AwkPreparedGlobalReadTests
                 try { return await host.ReadAsync(descriptor, count, token).ConfigureAwait(false); }
                 finally { host.ReadAsyncOverride = ReadAsync; }
             }
-            var exit = await compiled.ExecuteAsync(host, deadline.Token, AwkTestHarness.CreateRuntimeOptions());
+            var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), deadline.Token);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
@@ -125,15 +122,16 @@ public sealed class AwkPreparedGlobalReadTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task BoundScalarUpdateSurvivesTableGrowthAndPendingRhs(bool governed, bool cancel)
     {
         const string source = "function rhs(v,i){for(i=0;i<1024;i++)SYMTAB[\"p\"i]=i;" +
             "x=100;print \"ready\";getline v<\"/side\";return v}" +
             "BEGIN{x=7;keep=\"0007\";result=(x+=rhs());print result,x,keep,SYMTAB[\"p1023\"]}";
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var command = AwkTestHarness.BuildInvocation("awk", source);
         var host = new MockFileSystem();
         host.AddFile("/side", "3\n");
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -148,7 +146,7 @@ public sealed class AwkPreparedGlobalReadTests
         }
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(8 << 20);
-        var run = compiled.ExecuteAsync(host, cancellation.Token,
+        var run = AwkExecutor.ExecuteAsync(host, command, cancellation.Token,
             AwkTestHarness.CreateRuntimeOptions() with { MemoryBudget = governed ? budget : null });
         try
         {

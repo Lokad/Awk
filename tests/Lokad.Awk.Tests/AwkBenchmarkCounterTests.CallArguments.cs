@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RecycledCallCellsKeepBindingsWithoutNewSlotBuffersPerCall(bool governed)
     {
         const string source = "function id(x){return x}function touch(a,k,unused){a[k]++;return a[k]}" +
@@ -12,7 +13,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal("0007 64 63 64\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -27,10 +28,14 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task CallAssignmentsKeepUsedValuesAndBypassDiscardedNumericTransport(bool governed, bool local, bool used)
     {
         var loop = "x=0;for(i=0;i<64;i++)" + (used ? "total+=(x=step(x));" : "x=step(x);");
@@ -42,7 +47,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal(used ? "2080\n" : "64\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -58,10 +63,14 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false, " ")] [InlineData(true, false, " ")]
-    [InlineData(false, true, " ")] [InlineData(true, true, " ")]
-    [InlineData(false, false, "|")] [InlineData(true, false, "|")]
-    [InlineData(false, true, "|")] [InlineData(true, true, "|")]
+    [InlineData(false, false, " ")]
+    [InlineData(true, false, " ")]
+    [InlineData(false, true, " ")]
+    [InlineData(true, true, " ")]
+    [InlineData(false, false, "|")]
+    [InlineData(true, false, "|")]
+    [InlineData(false, true, "|")]
+    [InlineData(true, true, "|")]
     public async Task ArgumentSegmentsShareOnlyAdmittedFieldPrefixes(bool governed, bool earlierSegment, string separator)
     {
         var prepared = await Run("$1", "$2");
@@ -85,7 +94,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var budget = new CooperativeTestBudget(8 << 20);
             var exit = await AwkExecutor.ExecuteAsync(host,
-                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(0, exit.Value);
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
@@ -96,7 +105,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PreparedArgumentsForwardArrayAndScalarCellsWithoutTextConversion(bool governed)
     {
         const string source = "function add(p,k,v){p[k]+=v;return p[k]}function call(p,k,v){return add(p,k,v)}BEGIN{for(i=0;i<64;i++)t=call(a,\"key\",i);print t}";
@@ -104,7 +114,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var result = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, result.Value);
         Assert.Equal("2016\n", host.GetOutput(AwkFileDescriptor.StdOut));

@@ -3,12 +3,18 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData("unobserved", false)] [InlineData("unobserved", true)]
-    [InlineData("direct", false)] [InlineData("direct", true)]
-    [InlineData("computed", false)] [InlineData("computed", true)]
-    [InlineData("argv", false)] [InlineData("argv", true)]
-    [InlineData("option", false)] [InlineData("option", true)]
-    [InlineData("operand", false)] [InlineData("operand", true)]
+    [InlineData("unobserved", false)]
+    [InlineData("unobserved", true)]
+    [InlineData("direct", false)]
+    [InlineData("direct", true)]
+    [InlineData("computed", false)]
+    [InlineData("computed", true)]
+    [InlineData("argv", false)]
+    [InlineData("argv", true)]
+    [InlineData("option", false)]
+    [InlineData("option", true)]
+    [InlineData("operand", false)]
+    [InlineData("operand", true)]
     public async Task ClosedRecordPreparationKeepsObservableTerminatorOwners(string observation, bool governed)
     {
         const int records = 32;
@@ -30,7 +36,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", arguments)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal("224\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -48,10 +54,14 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(2, false)] [InlineData(2, true)]
-    [InlineData(5, false)] [InlineData(5, true)]
-    [InlineData(16, false)] [InlineData(16, true)]
-    [InlineData(65, false)] [InlineData(65, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    [InlineData(5, false)]
+    [InlineData(5, true)]
+    [InlineData(16, false)]
+    [InlineData(16, true)]
+    [InlineData(65, false)]
+    [InlineData(65, true)]
     public async Task ContiguousCallArgumentsShareStagingAcrossArities(int arity, bool governed)
     {
         var names = Enumerable.Range(0, arity).Select(x => "p" + x).ToArray();
@@ -62,7 +72,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var result = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, result.Value);
         Assert.Equal((arity * (arity - 1) / 2).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
@@ -77,9 +87,12 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData("single", false)] [InlineData("single", true)]
-    [InlineData("rules", false)] [InlineData("rules", true)]
-    [InlineData("loop", false)] [InlineData("loop", true)]
+    [InlineData("single", false)]
+    [InlineData("single", true)]
+    [InlineData("rules", false)]
+    [InlineData("rules", true)]
+    [InlineData("loop", false)]
+    [InlineData("loop", true)]
     public async Task RepeatedPreparationKeepsConstantsAcrossRulesAndRecycledFunctionFrames(string shape, bool governed)
     {
         const int records = 128;
@@ -94,9 +107,8 @@ public sealed partial class AwkBenchmarkCounterTests
         host.SetStandardInput(string.Concat(Enumerable.Repeat("0007\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        var exit = await program.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(shape switch { "rules" => "1984\n", "loop" => "3840\n", _ => "1408\n" },
@@ -113,10 +125,10 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> PreparationEntryCases()
     {
         foreach (var count in new[] { 16, 17, 64 })
-        foreach (var shape in new[] { "flat", "for", "while", "do" })
-        foreach (var functions in new[] { "none", "unused", "used" })
-        foreach (var governed in new[] { false, true })
-            yield return [count, shape, functions, governed];
+            foreach (var shape in new[] { "flat", "for", "while", "do" })
+                foreach (var functions in new[] { "none", "unused", "used" })
+                    foreach (var governed in new[] { false, true })
+                        yield return [count, shape, functions, governed];
     }
 
     [Theory]
@@ -140,10 +152,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var budget = new CooperativeTestBudget(8 << 20);
         var host = new MockFileSystem();
         host.SetStandardInput(string.Concat(Enumerable.Repeat("0007\n", records)));
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
-            regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         var iterations = shape == "flat" ? 1 : 2;
         Assert.Equal(0, exit.Value);

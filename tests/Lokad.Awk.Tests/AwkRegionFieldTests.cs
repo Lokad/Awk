@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionFieldTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task SpecialScalarReadsFollowRecordMutationAndKeepByteNativeProcessing(bool governed)
     {
         const int records = 128;
@@ -13,10 +14,10 @@ public sealed class AwkRegionFieldTests
         var budget = new CooperativeTestBudget(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("640 8256 3\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.RecordsRead);
@@ -28,7 +29,8 @@ public sealed class AwkRegionFieldTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task IntrospectionReusesNativeFieldClassificationWithoutOwningSpelling(bool governed)
     {
         const int records = 128;
@@ -37,11 +39,10 @@ public sealed class AwkRegionFieldTests
         var budget = new CooperativeTestBudget(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", "{kind=typeof($2);arrays+=isarray($2);typed+=(kind==\"strnum\");sum+=$2}END{print typed,arrays,sum}"),
-            CancellationToken.None);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", "{kind=typeof($2);arrays+=isarray($2);typed+=(kind==\"strnum\");sum+=$2}END{print typed,arrays,sum}");
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("128 0 896\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.RecordsRead);
@@ -64,8 +65,8 @@ public sealed class AwkRegionFieldTests
             "sub-pattern", "sub-replacement", "sub-field", "gsub-child", "sub-source-pattern", "sub-numeric", "gsub-record", "sub-prefix",
             "gensub-pattern", "gensub-replacement", "gensub-selector", "gensub-input", "gensub-default", "gensub-prefix", "gensub-numeric"
         })
-        foreach (var cancel in new[] { false, true })
-        foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
+            foreach (var cancel in new[] { false, true })
+                foreach (var governed in new[] { false, true }) yield return [operation, cancel, governed];
     }
 
     [Theory]
@@ -147,8 +148,9 @@ public sealed class AwkRegionFieldTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) { MemoryBudget = governed ? budget : null };
-        var run = AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+            counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
+        { MemoryBudget = governed ? budget : null };
+        var run = AwkExecutor.ExecuteAsync(host, AwkTestHarness.BuildInvocation("awk", source),
             cancellation.Token, options);
         try
         {

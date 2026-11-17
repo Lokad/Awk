@@ -59,31 +59,23 @@ public sealed class AwkUnicodeRegexTests
     }
 
     [Fact]
-    public async Task CompiledRegexWarningsAreFreshForConcurrentHosts()
+    public async Task RegexWarningsAreFreshForConcurrentInvocations()
     {
-        var source = new MockFileSystem();
-        source.AddFile("/regex.awk", "# source\nBEGIN{if(0)print /\\u/;p=\"\\\\u\";for(i=0;i<3;i++)print \"u\"~p;exit}");
-        var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/regex.awk"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var warning = Assert.Single(compiled.Warnings);
-        var location = Assert.IsType<AwkSourceLocation>(warning.SourceLocation);
-        Assert.Equal("/regex.awk", location.SourceName.Text);
-        Assert.Equal(2, location.LineNumber.Value);
-        Assert.Equal(18, location.ColumnNumber.Value);
-        Assert.Equal(string.Empty, source.GetOutput(AwkFileDescriptor.StdErr));
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/regex.awk"));
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         async Task RunAsync()
         {
             var host = new MockFileSystem();
+            host.AddFile("/regex.awk", "# source\nBEGIN{if(0)print /\\u/;p=\"\\\\u\";for(i=0;i<3;i++)print \"u\"~p;exit}");
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-            var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
+            var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), deadline.Token);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("awk: /regex.awk:2:18: warning: no hex digits in `\\u' escape sequence\n" + Warning,
                 host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
-            Assert.Equal(0, host.ReadOpenCount);
+            Assert.Equal(1, host.ReadOpenCount);
         }
         await Task.WhenAll(RunAsync(), RunAsync());
     }

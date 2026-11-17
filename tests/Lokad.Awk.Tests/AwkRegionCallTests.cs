@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegionCallTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task DeepSubstitutionDestinationsBindWithoutBuildingValidationTrees(bool governed, bool field)
     {
         const int depth = 2048;
@@ -25,27 +27,44 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, "length")] [InlineData(true, "length")]
-    [InlineData(false, "substr")] [InlineData(true, "substr")]
-    [InlineData(false, "typeof")] [InlineData(true, "typeof")]
-    [InlineData(false, "split")] [InlineData(true, "split")]
-    [InlineData(false, "match")] [InlineData(true, "match")]
-    [InlineData(false, "gensub")] [InlineData(true, "gensub")]
-    [InlineData(false, "sub")] [InlineData(true, "sub")]
-    [InlineData(false, "regex")] [InlineData(true, "regex")]
+    [InlineData(false, "length")]
+    [InlineData(true, "length")]
+    [InlineData(false, "substr")]
+    [InlineData(true, "substr")]
+    [InlineData(false, "typeof")]
+    [InlineData(true, "typeof")]
+    [InlineData(false, "split")]
+    [InlineData(true, "split")]
+    [InlineData(false, "match")]
+    [InlineData(true, "match")]
+    [InlineData(false, "gensub")]
+    [InlineData(true, "gensub")]
+    [InlineData(false, "sub")]
+    [InlineData(true, "sub")]
+    [InlineData(false, "regex")]
+    [InlineData(true, "regex")]
     public async Task DeepSpecialFormsPreserveResultsAndRefunds(bool governed, string shape)
     {
         const int depth = 2048;
         var prefix = shape switch
         {
-            "length" => "length(", "substr" => "substr(", "typeof" => "typeof(",
-            "split" => "split(", "match" => "match(", "gensub" => "gensub(/x/,\"y\",\"g\",",
-            "sub" => "sub(/x/,", _ => ""
+            "length" => "length(",
+            "substr" => "substr(",
+            "typeof" => "typeof(",
+            "split" => "split(",
+            "match" => "match(",
+            "gensub" => "gensub(/x/,\"y\",\"g\",",
+            "sub" => "sub(/x/,",
+            _ => ""
         };
         var suffix = shape switch
         {
-            "substr" => ",1)", "split" => ",a,\" \")", "match" => ",/1/)",
-            "sub" => ",v)", "regex" => " ~ /1/", _ => ")"
+            "substr" => ",1)",
+            "split" => ",a,\" \")",
+            "match" => ",/1/)",
+            "sub" => ",v)",
+            "regex" => " ~ /1/",
+            _ => ")"
         };
         var source = "BEGIN{v=1;value=" + string.Concat(Enumerable.Repeat(prefix, depth)) + "1" +
             string.Concat(Enumerable.Repeat(suffix, depth)) + ";print value}";
@@ -63,13 +82,20 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, "assignment")] [InlineData(true, "assignment")]
-    [InlineData(false, "compound")] [InlineData(true, "compound")]
-    [InlineData(false, "field")] [InlineData(true, "field")]
-    [InlineData(false, "subscript")] [InlineData(true, "subscript")]
-    [InlineData(false, "composite")] [InlineData(true, "composite")]
-    [InlineData(false, "membership")] [InlineData(true, "membership")]
-    [InlineData(false, "concatenation")] [InlineData(true, "concatenation")]
+    [InlineData(false, "assignment")]
+    [InlineData(true, "assignment")]
+    [InlineData(false, "compound")]
+    [InlineData(true, "compound")]
+    [InlineData(false, "field")]
+    [InlineData(true, "field")]
+    [InlineData(false, "subscript")]
+    [InlineData(true, "subscript")]
+    [InlineData(false, "composite")]
+    [InlineData(true, "composite")]
+    [InlineData(false, "membership")]
+    [InlineData(true, "membership")]
+    [InlineData(false, "concatenation")]
+    [InlineData(true, "concatenation")]
     public async Task DeepValueLocationsPreserveResultsAndRefunds(bool governed, string shape)
     {
         const int depth = 2048;
@@ -98,16 +124,27 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, "while")] [InlineData(true, "while")]
-    [InlineData(false, "for")] [InlineData(true, "for")]
-    [InlineData(false, "do")] [InlineData(true, "do")]
-    [InlineData(false, "iteration")] [InlineData(true, "iteration")]
-    [InlineData(false, "switch")] [InlineData(true, "switch")]
+    [InlineData(false, "while")]
+    [InlineData(true, "while")]
+    [InlineData(false, "for")]
+    [InlineData(true, "for")]
+    [InlineData(false, "do")]
+    [InlineData(true, "do")]
+    [InlineData(false, "iteration")]
+    [InlineData(true, "iteration")]
+    [InlineData(false, "switch")]
+    [InlineData(true, "switch")]
     public async Task DeepControlBodiesKeepScopesBreaksAndSnapshotCleanup(bool governed, string shape)
     {
         const int depth = 2048;
-        var prefix = shape switch { "while" => "while(1){", "for" => "for(;;){", "do" => "do{",
-            "iteration" => "for(k in a){", _ => "switch(1){case 1:" };
+        var prefix = shape switch
+        {
+            "while" => "while(1){",
+            "for" => "for(;;){",
+            "do" => "do{",
+            "iteration" => "for(k in a){",
+            _ => "switch(1){case 1:"
+        };
         var suffix = shape switch { "do" => "}while(0);", "iteration" => "}", _ => "break;}" };
         var source = "BEGIN{a[1]=1;" + string.Concat(Enumerable.Repeat(prefix, depth)) + "value=7;" +
             string.Concat(Enumerable.Repeat(suffix, depth)) + "print value}";
@@ -125,8 +162,10 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task DeepConditionsPrepareWithTheirStatementAndExpressionScopes(bool governed, bool conditional)
     {
         const int depth = 2048;
@@ -147,8 +186,10 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task DeepCallArgumentsPrepareAndExecuteWithoutRecursiveTransport(bool governed, bool builtin)
     {
         const int depth = 2048;
@@ -169,9 +210,12 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, "arithmetic")] [InlineData(true, "arithmetic")]
-    [InlineData(false, "logical")] [InlineData(true, "logical")]
-    [InlineData(false, "unary")] [InlineData(true, "unary")]
+    [InlineData(false, "arithmetic")]
+    [InlineData(true, "arithmetic")]
+    [InlineData(false, "logical")]
+    [InlineData(true, "logical")]
+    [InlineData(false, "unary")]
+    [InlineData(true, "unary")]
     public async Task DeepOperatorsUsePreparationFramesAndPreserveValues(bool governed, string shape)
     {
         const int depth = 2048;
@@ -196,7 +240,8 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task DeepBlocksKeepFunctionScopeAndRefundThroughPublicExecution(bool governed)
     {
         const int depth = 2048;
@@ -217,10 +262,14 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task PendingRangeConditionOrdersItsActionAndLaterRules(bool governed, bool matches, bool cancel)
     {
         const string source = """
@@ -284,10 +333,14 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task NumericAndValueReturnsKeepPendingOwnersAndOriginalSpelling(bool governed, bool sortPrelude, bool cancel)
     {
         // Preserve numeric/value returns after an optional sort initializes
@@ -317,8 +370,9 @@ public sealed class AwkRegionCallTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
-        var run = AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
+        var run = AwkExecutor.ExecuteAsync(host, AwkTestHarness.BuildInvocation("awk", source),
             cancellation.Token, options);
         try
         {
@@ -351,7 +405,8 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NumericGlobalArgumentsUseTheirBoundLocationWithoutIntermediateValues(bool governed)
     {
         const int records = 1024;
@@ -362,8 +417,8 @@ public sealed class AwkRegionCallTests
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+        { MemoryBudget = governed ? budget : null };
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkTestHarness.BuildInvocation("awk", source),
             CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("8\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -377,9 +432,9 @@ public sealed class AwkRegionCallTests
         var controlCounters = AwkRuntimeCounters.CreateEnabled();
         var controlOptions = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             controlCounters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
+        { MemoryBudget = governed ? budget : null };
         var controlExit = await AwkExecutor.ExecuteAsync(control,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", "BEGIN{x=7}{v=8}END{print v}")),
+            AwkTestHarness.BuildInvocation("awk", "BEGIN{x=7}{v=8}END{print v}"),
             CancellationToken.None, controlOptions);
         Assert.Equal(AwkExitCode.Success, controlExit);
         Assert.Equal("8\n", control.GetOutput(AwkFileDescriptor.StdOut));
@@ -392,10 +447,14 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, true, false)]
-    [InlineData(true, false, false)] [InlineData(true, true, false)]
-    [InlineData(false, false, true)] [InlineData(false, true, true)]
-    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
     public async Task PendingReadKeepsExplicitCallersUntilCompletionOrCancellation(bool governed, bool cancel, bool legacyRoot)
     {
         var source = "function leaf(x,y){y=(getline value<\"/side\");return x+value}" +
@@ -424,8 +483,8 @@ public sealed class AwkRegionCallTests
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        var run = AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+        { MemoryBudget = governed ? budget : null };
+        var run = AwkExecutor.ExecuteAsync(host, AwkTestHarness.BuildInvocation("awk", source),
             cancellation.Token, options);
         try
         {
@@ -453,7 +512,8 @@ public sealed class AwkRegionCallTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RecursiveCallsUseExplicitContinuationsAndRefundFrames(bool governed)
     {
         var host = new MockFileSystem();
@@ -463,8 +523,8 @@ public sealed class AwkRegionCallTests
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
+        { MemoryBudget = governed ? budget : null };
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkTestHarness.BuildInvocation("awk", source),
             CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("907\n", host.GetOutput(AwkFileDescriptor.StdOut));

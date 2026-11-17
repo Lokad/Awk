@@ -5,7 +5,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSpecialVariablesTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void TextOnlySpecialReadsAvoidReclassificationAndNumbersKeepCurrentFormatting(bool insideFunction)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -73,7 +74,8 @@ public sealed class AwkSpecialVariablesTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ImplicitSeparatorsShareBoundCellsWithoutTextConversions(bool governed)
     {
         const int records = 128;
@@ -83,10 +85,10 @@ public sealed class AwkSpecialVariablesTests
         var budget = new CooperativeTestBudget(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(string.Concat(Enumerable.Repeat("left changed 2 left\n", records)) + "256\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));

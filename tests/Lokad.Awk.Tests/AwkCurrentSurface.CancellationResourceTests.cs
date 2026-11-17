@@ -287,13 +287,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var input = new string('a', 64);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{s=\"" + input + "\"; gsub(/a/,\"b\",s); print length(s)}"),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = BuildInvocation("awk", "BEGIN{s=\"" + input + "\"; gsub(/a/,\"b\",s); print length(s)}");
         var fileSystem = new MockFileSystem();
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("64\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -349,14 +346,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with
         { MemoryBudget = new CooperativeTestBudget(memoryBudgetBytes) };
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", program),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(standardInput);
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -367,13 +361,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_RecursiveFunctionLimitFailsWithAwkDiagnostic()
     {
         var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2));
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "function f(){return f()} BEGIN{print f()}"),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = BuildInvocation("awk", "function f(){return f()} BEGIN{print f()}");
         var fileSystem = new MockFileSystem();
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: function recursion limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -515,7 +506,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => AwkArrayStorageTestOperations.Sort(state,sourceArrayName,destinationArrayName,AwkArraySortOrder.Default,keys:false));
+            () => AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, AwkArraySortOrder.Default, keys: false));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("keep", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -555,7 +546,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var count = AwkArrayStorageTestOperations.Sort(state,sourceArrayName,destinationArrayName,AwkArraySortOrder.Default,keys:false);
+        var count = AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, AwkArraySortOrder.Default, keys: false);
 
         Assert.Equal(1, count);
         Assert.Equal("v", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -573,7 +564,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var count = AwkArrayStorageTestOperations.Sort(state,sourceArrayName,destinationArrayName,AwkArraySortOrder.Default,keys:true);
+        var count = AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, AwkArraySortOrder.Default, keys: true);
 
         Assert.Equal(1, count);
         Assert.Equal("k", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -793,13 +784,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with
         { MemoryBudget = new CooperativeTestBudget(1 << 20) };
         var content = new string('x', 80);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", $"BEGIN{{print \"{content}\" > \"/out.txt\"}}"),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = BuildInvocation("awk", $"BEGIN{{print \"{content}\" > \"/out.txt\"}}");
         var fileSystem = new MockFileSystem();
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
@@ -1108,10 +1096,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Theory]
-    [InlineData("sum", false)] [InlineData("sum", true)]
-    [InlineData("concatenation", false)] [InlineData("concatenation", true)]
-    [InlineData("else-if", false)] [InlineData("else-if", true)]
-    [InlineData("fields", false)] [InlineData("fields", true)]
+    [InlineData("sum", false)]
+    [InlineData("sum", true)]
+    [InlineData("concatenation", false)]
+    [InlineData("concatenation", true)]
+    [InlineData("else-if", false)]
+    [InlineData("else-if", true)]
+    [InlineData("fields", false)]
+    [InlineData("fields", true)]
     public async Task Awk_SyntaxLimitsAllowFlatPrograms(string shape, bool restricted)
     {
         var source = shape switch
@@ -1139,9 +1131,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Theory]
-    [InlineData("unary", false)] [InlineData("unary", true)]
-    [InlineData("power", false)] [InlineData("power", true)]
-    [InlineData("ternary", false)] [InlineData("ternary", true)]
+    [InlineData("unary", false)]
+    [InlineData("unary", true)]
+    [InlineData("power", false)]
+    [InlineData("power", true)]
+    [InlineData("ternary", false)]
+    [InlineData("ternary", true)]
     public async Task Awk_SyntaxLimitsStillRejectStructuralExpressionNestingBeforeEffects(string shape, bool restricted)
     {
         const int count = 140;
@@ -1286,15 +1281,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(1), regexEngine: AwkUtf8RegexEngine.Instance);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation(
+        var command = BuildInvocation(
                 "awk",
-                "BEGIN{print \"one\" > \"/one.txt\"; print \"two\" > \"/two.txt\"}"),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+                "BEGIN{print \"one\" > \"/one.txt\"; print \"two\" > \"/two.txt\"}");
         var fileSystem = new MockFileSystem();
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: output file limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));

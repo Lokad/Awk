@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexRegionTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task GensubAdmissionStopsBeforeFollowingArgumentEffects(bool cancel)
     {
         var host = new MockFileSystem();
@@ -30,8 +31,10 @@ public sealed class AwkRegexRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task GensubKeepsPatternsSubjectsAndSelectorsByteNative(bool global, bool governed)
     {
         const int records = 128;
@@ -43,10 +46,9 @@ public sealed class AwkRegexRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(global ? "512 ZZZZ\n" : "512 0Z07\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.RecordsRead);
@@ -58,8 +60,10 @@ public sealed class AwkRegexRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task SubstitutionsKeepByteNativeFieldsAndRefundOwners(bool global, bool governed)
     {
         const int records = 128;
@@ -71,10 +75,9 @@ public sealed class AwkRegexRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(global ? "384 128 XXX7\n" : "128 128 X007\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.RecordsRead);
@@ -86,9 +89,12 @@ public sealed class AwkRegexRegionTests
     }
 
     [Theory]
-    [InlineData("split", false)] [InlineData("split", true)]
-    [InlineData("patsplit", false)] [InlineData("patsplit", true)]
-    [InlineData("gensub", false)] [InlineData("gensub", true)]
+    [InlineData("split", false)]
+    [InlineData("split", true)]
+    [InlineData("patsplit", false)]
+    [InlineData("patsplit", true)]
+    [InlineData("gensub", false)]
+    [InlineData("gensub", true)]
     public async Task PatternCaptureStaysFundedAfterItsVariableIsCleared(string builtin, bool sortPrelude)
     {
         const int characters = 65_536;
@@ -149,8 +155,10 @@ public sealed class AwkRegexRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task MatchPositionsAndCapturesKeepByteNativePreparation(bool capture, bool governed)
     {
         const int records = 128;
@@ -162,10 +170,9 @@ public sealed class AwkRegexRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(capture ? "128 128 512 0007\n" : "128 128 512\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(records, counters.RecordsRead);
@@ -177,9 +184,12 @@ public sealed class AwkRegexRegionTests
     }
 
     [Theory]
-    [InlineData("field", false)] [InlineData("field", true)]
-    [InlineData("rule", false)] [InlineData("rule", true)]
-    [InlineData("expression", false)] [InlineData("expression", true)]
+    [InlineData("field", false)]
+    [InlineData("field", true)]
+    [InlineData("rule", false)]
+    [InlineData("rule", true)]
+    [InlineData("expression", false)]
+    [InlineData("expression", true)]
     public async Task LiteralMatchesKeepNativeFieldAndRecordInputs(string shape, bool governed)
     {
         const int records = 128;
@@ -195,10 +205,9 @@ public sealed class AwkRegexRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
-            { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("128\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.StringDecodes);
@@ -212,9 +221,9 @@ public sealed class AwkRegexRegionTests
     public static IEnumerable<object[]> DynamicInputs()
     {
         foreach (var shape in new[] { "field", "record", "number", "match-field", "match-record", "match-number" })
-        foreach (var governed in new[] { false, true })
-        foreach (var cancel in new[] { false, true })
-        foreach (var sortPrelude in new[] { false, true }) yield return [shape, governed, cancel, sortPrelude];
+            foreach (var governed in new[] { false, true })
+                foreach (var cancel in new[] { false, true })
+                    foreach (var sortPrelude in new[] { false, true }) yield return [shape, governed, cancel, sortPrelude];
     }
 
     [Theory]

@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkIterationLifetimeTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task SnapshotAdmissionStopsBeforeBodyAndLaterEffects(bool nested, bool cancel)
     {
         var child = nested ? "[\"child\"]" : "";
@@ -32,10 +34,14 @@ public sealed class AwkIterationLifetimeTests
     }
 
     [Theory]
-    [InlineData(16, false, false)] [InlineData(16, false, true)]
-    [InlineData(16, true, false)] [InlineData(16, true, true)]
-    [InlineData(1024, false, false)] [InlineData(1024, false, true)]
-    [InlineData(1024, true, false)] [InlineData(1024, true, true)]
+    [InlineData(16, false, false)]
+    [InlineData(16, false, true)]
+    [InlineData(16, true, false)]
+    [InlineData(16, true, true)]
+    [InlineData(1024, false, false)]
+    [InlineData(1024, false, true)]
+    [InlineData(1024, true, false)]
+    [InlineData(1024, true, true)]
     public async Task AggregationAndAliasedTraversalKeepNativeValuesAndBoundCalls(int keys, bool nested, bool governed)
     {
         var child = nested ? "[\"child\"]" : "";
@@ -48,10 +54,9 @@ public sealed class AwkIterationLifetimeTests
         var budget = new CooperativeTestBudget(8 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault())
-            { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        var exit = await program.ExecuteAsync(host, CancellationToken.None, options);
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal((keys * 3).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
@@ -66,14 +71,22 @@ public sealed class AwkIterationLifetimeTests
     }
 
     [Theory]
-    [InlineData(false, false, false, false)] [InlineData(false, false, false, true)]
-    [InlineData(false, false, true, false)] [InlineData(false, false, true, true)]
-    [InlineData(false, true, false, false)] [InlineData(false, true, false, true)]
-    [InlineData(false, true, true, false)] [InlineData(false, true, true, true)]
-    [InlineData(true, false, false, false)] [InlineData(true, false, false, true)]
-    [InlineData(true, false, true, false)] [InlineData(true, false, true, true)]
-    [InlineData(true, true, false, false)] [InlineData(true, true, false, true)]
-    [InlineData(true, true, true, false)] [InlineData(true, true, true, true)]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, true, true, false)]
+    [InlineData(true, true, true, true)]
     public async Task SnapshotAndCallerSurvivePendingComparerOrBody(
         bool governed, bool nested, bool comparer, bool cancel)
     {

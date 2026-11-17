@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CountedLocalCaseAvoidsUnobservedTextPublication(bool governed)
     {
         const int records = 128;
@@ -15,7 +16,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -30,9 +31,12 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData("direct", false)] [InlineData("direct", true)]
-    [InlineData("assigned", false)] [InlineData("assigned", true)]
-    [InlineData("forwarded", false)] [InlineData("forwarded", true)]
+    [InlineData("direct", false)]
+    [InlineData("direct", true)]
+    [InlineData("assigned", false)]
+    [InlineData("assigned", true)]
+    [InlineData("forwarded", false)]
+    [InlineData("forwarded", true)]
     public async Task ProvedLengthReturnsAvoidUnusedTextWithoutChangingCallerValues(string shape, bool governed)
     {
         const int records = 128;
@@ -52,7 +56,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var budget = new CooperativeTestBudget(8 << 20);
             var exit = await AwkExecutor.ExecuteAsync(host,
-                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));

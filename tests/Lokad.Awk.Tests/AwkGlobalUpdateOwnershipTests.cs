@@ -80,11 +80,9 @@ public sealed class AwkGlobalUpdateOwnershipTests
     }
 
     [Fact]
-    public async Task CompiledUpdatesRetainExecutionOwnershipWithPendingHostsAndLocalShadowing()
+    public async Task InvocationsUpdatesRetainExecutionOwnershipWithPendingHostsAndLocalShadowing()
     {
-        var source = new MockFileSystem();
-        source.AddFile("/script", "function bump(value){value+=1;total+=value;return value} {SYMTAB[$1]=$2;value=$2+0;value+=bump(1);total+=value} END{print total,value}");
-        var compiled = await AwkExecutor.CompileAsync(source, AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "function bump(value){value+=1;total+=value;return value} {SYMTAB[$1]=$2;value=$2+0;value+=bump(1);total+=value} END{print total,value}", "/data"));
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var arrivals = 0;
@@ -101,7 +99,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
                 try { return await host.ReadAsync(descriptor, count, token).ConfigureAwait(false); }
                 finally { host.ReadAsyncOverride = ReadAsync; }
             }
-            var exit = await compiled.ExecuteAsync(host, deadline.Token, AwkTestHarness.CreateRuntimeOptions());
+            var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), deadline.Token);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));

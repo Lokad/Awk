@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRangeLifetimeTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RepeatedRangesKeepFieldPredicatesByteNative(bool governed)
     {
         const int groups = 128;
@@ -13,10 +14,10 @@ public sealed class AwkRangeLifetimeTests
         var budget = new CooperativeTestBudget(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault()) { MemoryBudget = governed ? budget : null };
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
-        Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(host, CancellationToken.None, options));
+            counters, AwkRuntimeLimits.CreateDefault())
+        { MemoryBudget = governed ? budget : null };
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("384\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(groups * 4, counters.RecordsRead);
@@ -29,8 +30,8 @@ public sealed class AwkRangeLifetimeTests
     public static IEnumerable<object[]> PendingRanges()
     {
         foreach (var kind in new[] { "start", "end", "end-next" })
-        foreach (var governed in new[] { false, true })
-        foreach (var cancel in new[] { false, true }) yield return [kind, governed, cancel];
+            foreach (var governed in new[] { false, true })
+                foreach (var cancel in new[] { false, true }) yield return [kind, governed, cancel];
     }
 
     [Theory]
@@ -104,15 +105,15 @@ public sealed class AwkRangeLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ReusedArtifactKeepsConcurrentRangesIndependent(bool governed)
     {
         const string source = """
             $1=="A",$1=="Z"{print "one",$1}
             $1=="B",$1=="Y"{split($0,parts);print "two",$1;getline wait<"/gate"}
             """;
-        await using var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var command = AwkTestHarness.BuildInvocation("awk", source);
         var first = new MockFileSystem();
         first.SetStandardInput("A\nB\n");
         first.AddFile("/gate", "\n");
@@ -133,7 +134,7 @@ public sealed class AwkRangeLifetimeTests
         var budget = new CooperativeTestBudget(8 << 20);
         var options = AwkRuntimeOptions.CreateSystemDefault() with { MemoryBudget = governed ? budget : null };
         using var cancellation = new CancellationTokenSource();
-        var run = program.ExecuteAsync(first, cancellation.Token, options);
+        var run = AwkExecutor.ExecuteAsync(first, command, cancellation.Token, options);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -143,7 +144,7 @@ public sealed class AwkRangeLifetimeTests
             if (governed) Assert.True(held > 0);
             var second = new MockFileSystem();
             second.SetStandardInput("plain\n");
-            Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(second, CancellationToken.None, options));
+            Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(second, command, CancellationToken.None, options));
             Assert.Empty(second.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(second.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(held, budget.Reserved);
@@ -151,7 +152,7 @@ public sealed class AwkRangeLifetimeTests
             Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
             var third = new MockFileSystem();
             third.SetStandardInput("plain\n");
-            Assert.Equal(AwkExitCode.Success, await program.ExecuteAsync(third, CancellationToken.None, options));
+            Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(third, command, CancellationToken.None, options));
             Assert.Empty(third.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(third.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Empty(first.GetOutput(AwkFileDescriptor.StdErr));

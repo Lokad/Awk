@@ -44,7 +44,7 @@ internal static class ReferenceExecution
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(Invocation(workload)),
+        var exit = await AwkExecutor.ExecuteAsync(host, Invocation(workload),
             deadline.Token, options).ConfigureAwait(false);
         Verify(host.Finish(exit.Value), workload.ExpectedDigest);
         return new(counters.HostCalls, counters.RecordsRead, counters.FieldSplits,

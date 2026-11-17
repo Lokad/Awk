@@ -26,7 +26,10 @@ public sealed class AwkAdmissionRefusalTests
     }
 
     [Theory]
-    [InlineData(1, false)] [InlineData(2, false)] [InlineData(4, false)] [InlineData(2, true)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(4, false)]
+    [InlineData(2, true)]
     public async Task StdoutPrintAdmissionRefusalStopsLaterAndEndWorkWithoutRecovery(int count, bool fieldList)
     {
         var budget = new CooperativeTestBudget(1 << 20);
@@ -51,7 +54,8 @@ public sealed class AwkAdmissionRefusalTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task FailedInitialRefusalDiagnosticStillReturnsFatalStatus(bool throwFromHost)
     {
         var budget = new CooperativeTestBudget(1 << 20) { RefuseNextAdmissionMinimumGrowth = 0 };
@@ -76,9 +80,12 @@ public sealed class AwkAdmissionRefusalTests
     }
 
     [Theory]
-    [InlineData("initial", false)] [InlineData("initial", true)]
-    [InlineData("frontend", false)] [InlineData("frontend", true)]
-    [InlineData("runtime", false)] [InlineData("runtime", true)]
+    [InlineData("initial", false)]
+    [InlineData("initial", true)]
+    [InlineData("frontend", false)]
+    [InlineData("frontend", true)]
+    [InlineData("runtime", false)]
+    [InlineData("runtime", true)]
     public async Task RefusalFailsTheCommandWithoutRecoveryAndLaterCommandsCanReuseTheBudget(string stage, bool commandBudget)
     {
         var budget = new CooperativeTestBudget(1 << 20);
@@ -113,31 +120,6 @@ public sealed class AwkAdmissionRefusalTests
             Assert.Equal(16, budget.Reserved);
         }
         Assert.Equal(0, budget.Reserved);
-    }
-
-    [Fact]
-    public async Task InitialExecutionRefusalPreservesTheCompiledArtifactCharge()
-    {
-        var budget = new CooperativeTestBudget(1 << 20);
-        await using (var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command("BEGIN{print 42}", budget), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance))
-        {
-            var retained = budget.Reserved;
-            Assert.True(retained > 0);
-            budget.RefuseNextAdmissionMinimumGrowth = 0;
-            var host = new MockFileSystem();
-            Assert.Equal(2, (await compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions())).Value);
-            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(1, budget.Refusals);
-            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
-            Assert.Equal(retained, budget.Reserved);
-            var next = new MockFileSystem();
-            Assert.Equal(0, (await compiled.ExecuteAsync(next, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions())).Value);
-            Assert.Equal("42\n", next.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Equal(retained, budget.Reserved);
-        }
-        Assert.Equal(0, budget.Reserved);
-        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
     }
 
     [Fact]

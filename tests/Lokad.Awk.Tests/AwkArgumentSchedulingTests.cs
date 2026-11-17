@@ -8,9 +8,9 @@ public sealed class AwkArgumentSchedulingTests
     public static IEnumerable<object[]> EmptyOperandBoundaryCases()
     {
         foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("empty-input-operand-", StringComparison.Ordinal)))
-        foreach (var restricted in new[] { false, true })
-        foreach (var governed in new[] { false, true })
-            yield return [test, restricted, governed];
+            foreach (var restricted in new[] { false, true })
+                foreach (var governed in new[] { false, true })
+                    yield return [test, restricted, governed];
     }
 
     [Theory]
@@ -124,11 +124,10 @@ public sealed class AwkArgumentSchedulingTests
         {
             var host = Files();
             var arguments = operand.Length == 0 ? new[] { program } : new[] { program, operand };
-            var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            var command = AwkTestHarness.BuildInvocation("awk", arguments);
             var options = Options(allowDynamicPaths: false);
 
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options);
 
             Assert.Equal(AwkExitCode.FatalError, exit);
             Assert.Equal(expectedOutput, host.GetOutput(AwkFileDescriptor.StdOut));
@@ -148,10 +147,9 @@ public sealed class AwkArgumentSchedulingTests
     {
         {
             var host = Files();
-            var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", program, "/a.txt"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            var command = AwkTestHarness.BuildInvocation("awk", program, "/a.txt");
 
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
                 Options(allowDynamicPaths: false));
 
             Assert.Equal(AwkExitCode.Success, exit);
@@ -169,11 +167,9 @@ public sealed class AwkArgumentSchedulingTests
     {
         {
             var host = Files();
-            var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", "BEGIN{ARGV[ARGC++]=\"" + path + "\"}{print $0}"),
-                CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{ARGV[ARGC++]=\"" + path + "\"}{print $0}");
 
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
                 Options(accessibleRoot: new AwkPath("/jail")));
 
             Assert.Equal(AwkExitCode.FatalError, exit);
@@ -191,12 +187,10 @@ public sealed class AwkArgumentSchedulingTests
             using var cancellation = new CancellationTokenSource();
             var host = Files();
             host.AfterCloseDescriptor = cancellation.Cancel;
-            var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", "{print $0}ENDFILE{ARGC=1e12}", "/a.txt"),
-                CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            var command = AwkTestHarness.BuildInvocation("awk", "{print $0}ENDFILE{ARGC=1e12}", "/a.txt");
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                compiled.ExecuteAsync(host, cancellation.Token, Options()));
+AwkExecutor.ExecuteAsync(host, command, cancellation.Token, Options()));
 
             Assert.Equal("a\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -218,11 +212,10 @@ public sealed class AwkArgumentSchedulingTests
         {
             var host = Files();
             var program = dynamic ? "BEGIN{ARGV[1]=\"/b.txt\"}{print $0}" : "{print $0}";
-            var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", program, originalPath), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            var command = AwkTestHarness.BuildInvocation("awk", program, originalPath);
             var counters = AwkRuntimeCounters.CreateEnabled();
 
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
+            var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, Options(counters));
 
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(dynamic ? "b\n" : "a\n", host.GetOutput(AwkFileDescriptor.StdOut));

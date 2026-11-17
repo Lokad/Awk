@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkGetlineExpressionTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public async Task BareLengthAfterPipeConcatenatesTheReadStatus(bool governed, bool comparison)
     {
         var files = new MockFileSystem();
@@ -28,7 +30,8 @@ public sealed class AwkGetlineExpressionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task LongPipeStatusArithmeticExecutesAndClosesThePipe(bool governed)
     {
         var arithmetic = string.Concat(Enumerable.Repeat("+1", 10_000));
@@ -69,9 +72,9 @@ public sealed class AwkGetlineExpressionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var executionCommand = invocation;
 
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+        var exit = await AwkExecutor.ExecuteAsync(host, executionCommand, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));

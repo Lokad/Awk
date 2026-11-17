@@ -154,88 +154,30 @@ public sealed class AwkFrontendMemoryTests
     }
 
     [Fact]
-    public async Task FailedCompilationRefundsBeforeReturningTheError()
-    {
-        var budget = new CooperativeTestBudget(16 << 10);
-        var command = Command("BEGIN{print 42}\n#" + new string('x', 65_536), budget);
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-            AwkExecutor.CompileAsync(new MockFileSystem(), command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, budget.Reserved);
-        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
-    }
-
-    [Fact]
-    public async Task CompiledStorageKeepsItsSurvivingOwnerAcrossReuseAndRefundsOnDispose()
+    public async Task ConcurrentInvocationsUseTheCommandBudgetAndRefundBeforeReturning()
     {
         var budget = new CooperativeTestBudget(1 << 20);
         using var parent = budget.CreateScope();
-        using var construction = new CancellationTokenSource();
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command("BEGIN{a[1]=42;print a[1]}", parent),
-            construction.Token, regexEngine: AwkUtf8RegexEngine.Instance);
-        construction.Cancel();
-        var retained = budget.Reserved;
-        Assert.True(retained > 0);
+        var awk = AwkTestHarness.ParseAwk(Command("BEGIN{a[1]=42;print a[1]}", parent));
         var foreign = new CooperativeTestBudget(0);
-        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(foreign));
+        var policy = AwkTestHarness.CreatePolicy().WithMemoryBudget(foreign);
         var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
-        var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
+        var results = await Task.WhenAll(hosts.Select(host => awk.ExecuteAsync(host, policy, CancellationToken.None)));
         Assert.All(results, result => Assert.Equal(0, result.Value));
         Assert.All(hosts, host => Assert.Equal("42\n", host.GetOutput(AwkFileDescriptor.StdOut)));
         Assert.Equal(0, foreign.Peak);
-        Assert.Equal(retained, budget.Reserved);
-        Assert.True(budget.Peak > retained);
-        await compiled.DisposeAsync();
-        await compiled.DisposeAsync();
+        Assert.True(budget.Peak > 0);
         Assert.Equal(0, budget.Reserved);
-        Assert.Throws<ObjectDisposedException>(() => { _ = compiled.ExecuteAsync(new MockFileSystem(), CancellationToken.None, AwkTestHarness.CreateRuntimeOptions()); });
-        Assert.Throws<ObjectDisposedException>(() => compiled.Warnings);
         Assert.True(parent.TryReserve(1 << 20, out var reusable));
         reusable.Dispose();
     }
 
     [Fact]
-    public async Task CompiledDisposalWaitsForActiveExecutionAndEveryDisposerObservesCompletion()
-    {
-        var budget = new CooperativeTestBudget(1 << 20);
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command("{print}", budget), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var retained = budget.Reserved;
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var host = new MockFileSystem
-        {
-            ReadAsyncOverride = (_, _, _) => { started.TrySetResult(); return new(pending.Task); }
-        };
-        var execution = compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions());
-        Task first;
-        Task second;
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.True(budget.Reserved > retained);
-            first = compiled.DisposeAsync().AsTask();
-            second = compiled.DisposeAsync().AsTask();
-            Assert.Same(first, second);
-            Assert.False(first.IsCompleted);
-            Assert.True(budget.Reserved > retained);
-            Assert.Throws<ObjectDisposedException>(() => { _ = compiled.ExecuteAsync(new MockFileSystem(), CancellationToken.None, AwkTestHarness.CreateRuntimeOptions()); });
-        }
-        finally
-        {
-            pending.TrySetResult(AwkReadBuffer.EndOfFile);
-        }
-        Assert.Equal(0, (await execution).Value);
-        await Task.WhenAll(first, second);
-        Assert.Equal(0, budget.Reserved);
-        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
-    }
-
-    [Fact]
-    public async Task FunctionMetadataSurvivesConcurrentExecutionAndPendingDisposal()
+    public async Task ConcurrentInvocationsKeepFunctionStateAndPendingOwnersIndependent()
     {
         var budget = new CooperativeTestBudget(1 << 20);
         var source = "function render(x){calls++;value=x+1;return value}{print render($1),calls}";
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command(source, budget), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var awk = AwkTestHarness.ParseAwk(Command(source, budget));
         var entered = new[]
         {
             new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously),
@@ -250,18 +192,16 @@ public sealed class AwkFrontendMemoryTests
         {
             ReadAsyncOverride = (_, _, _) => { entered[index].TrySetResult(); return new(pending[index].Task); }
         }).ToArray();
-        var executions = hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions())).ToArray();
+        var executions = hosts.Select(host => awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).ToArray();
         try
         {
             await Task.WhenAll(entered.Select(signal => signal.Task)).WaitAsync(TimeSpan.FromSeconds(10));
-            var disposal = compiled.DisposeAsync().AsTask();
-            Assert.False(disposal.IsCompleted);
+            Assert.All(executions, execution => Assert.False(execution.IsCompleted));
             Assert.True(budget.Reserved > 0);
             pending[0].TrySetResult(AwkReadBuffer.FromContent("41\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
             pending[1].TrySetResult(AwkReadBuffer.FromContent("10\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
             Assert.All(await Task.WhenAll(executions).WaitAsync(TimeSpan.FromSeconds(10)),
                 exit => Assert.Equal(AwkExitCode.Success, exit));
-            await disposal.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal("42 1\n", hosts[0].GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("11 1\n", hosts[1].GetOutput(AwkFileDescriptor.StdOut));
             Assert.All(hosts, host =>
@@ -270,13 +210,11 @@ public sealed class AwkFrontendMemoryTests
                 Assert.Equal(0, host.OpenFileCount);
             });
             Assert.Equal(0, budget.Reserved);
-            Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
         }
         finally
         {
             foreach (var result in pending) result.TrySetResult(AwkReadBuffer.EndOfFile);
             await Task.WhenAll(executions);
-            await compiled.DisposeAsync();
         }
     }
 
@@ -317,10 +255,15 @@ public sealed class AwkFrontendMemoryTests
     }
 
     [Theory]
-    [InlineData("action")] [InlineData("for")] [InlineData("while")] [InlineData("do")]
-    [InlineData("function-action")] [InlineData("function-for")]
-    [InlineData("function-while")] [InlineData("function-do")]
-    public async Task LongPreparedArtifactDoesNotRetainItsConstructionToken(string shape)
+    [InlineData("action")]
+    [InlineData("for")]
+    [InlineData("while")]
+    [InlineData("do")]
+    [InlineData("function-action")]
+    [InlineData("function-for")]
+    [InlineData("function-while")]
+    [InlineData("function-do")]
+    public async Task LongInvocationsKeepTheirOwnCancellationAndCommandBudget(string shape)
     {
         var function = shape.StartsWith("function-", StringComparison.Ordinal);
         if (function) shape = shape[9..];
@@ -338,16 +281,17 @@ public sealed class AwkFrontendMemoryTests
             : "BEGIN{" + body + ";print x}";
         var budget = new CooperativeTestBudget(8 << 20);
         using var parent = budget.CreateScope();
-        using var construction = new CancellationTokenSource();
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            Command(source, parent), construction.Token, regexEngine: AwkUtf8RegexEngine.Instance);
-        construction.Cancel();
-        var retained = budget.Reserved;
-        Assert.True(retained > 0);
+        var awk = AwkTestHarness.ParseAwk(Command(source, parent));
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        var canceledHost = new MockFileSystem();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            awk.ExecuteAsync(canceledHost, AwkTestHarness.CreatePolicy(), canceled.Token));
+        Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdOut));
         var foreign = new CooperativeTestBudget(0);
-        var options = AwkRuntimeOptions.Create(AwkTestHarness.CreatePolicy().WithMemoryBudget(foreign));
+        var policy = AwkTestHarness.CreatePolicy().WithMemoryBudget(foreign);
         var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
-        var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
+        var results = await Task.WhenAll(hosts.Select(host => awk.ExecuteAsync(host, policy, CancellationToken.None)));
         var expected = count * (shape == "action" ? 1 : 2);
         Assert.All(results, result => Assert.Equal(0, result.Value));
         Assert.All(hosts, host =>
@@ -357,8 +301,6 @@ public sealed class AwkFrontendMemoryTests
             Assert.Equal(0, host.OpenFileCount);
         });
         Assert.Equal(0, foreign.Peak);
-        Assert.Equal(retained, budget.Reserved);
-        await compiled.DisposeAsync();
         Assert.Equal(0, budget.Reserved);
         Assert.True(parent.TryReserve(8 << 20, out var reusable));
         reusable.Dispose();

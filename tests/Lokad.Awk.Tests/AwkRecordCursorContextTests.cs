@@ -6,8 +6,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordCursorContextTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task ParagraphTerminatorClearsBeforeEndFileAfterReadyRecord(bool pending, bool governed)
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -48,12 +50,18 @@ public sealed class AwkRecordCursorContextTests
     }
 
     [Theory]
-    [InlineData("invalid-same", false)] [InlineData("invalid-same", true)]
-    [InlineData("invalid-refill", false)] [InlineData("invalid-refill", true)]
-    [InlineData("invalid-exit-same", false)] [InlineData("invalid-exit-same", true)]
-    [InlineData("invalid-exit-refill", false)] [InlineData("invalid-exit-refill", true)]
-    [InlineData("unicode-refill", false)] [InlineData("unicode-refill", true)]
-    [InlineData("unicode-split", false)] [InlineData("unicode-split", true)]
+    [InlineData("invalid-same", false)]
+    [InlineData("invalid-same", true)]
+    [InlineData("invalid-refill", false)]
+    [InlineData("invalid-refill", true)]
+    [InlineData("invalid-exit-same", false)]
+    [InlineData("invalid-exit-same", true)]
+    [InlineData("invalid-exit-refill", false)]
+    [InlineData("invalid-exit-refill", true)]
+    [InlineData("unicode-refill", false)]
+    [InlineData("unicode-refill", true)]
+    [InlineData("unicode-split", false)]
+    [InlineData("unicode-split", true)]
     public async Task InputValidationPreservesPrefixesAcrossBorrows(string scenario, bool governed)
     {
         var invalid = scenario.StartsWith("invalid", StringComparison.Ordinal);
@@ -88,10 +96,14 @@ public sealed class AwkRecordCursorContextTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task CrossingNewlinePreservesTheRestOfTheBorrow(
         bool governed, bool changeSeparator, bool suspend)
     {
@@ -121,10 +133,14 @@ public sealed class AwkRecordCursorContextTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task PendingRefillsKeepPartialRecordsAndFundingUntilActualCompletion(
         bool governed, bool afterPrefix, bool cancel)
     {
@@ -189,10 +205,10 @@ public sealed class AwkRecordCursorContextTests
     public static IEnumerable<object[]> Configurations()
     {
         foreach (var golden in AwkGoldenCorpus.DirectCases.Where(c => c.Name.StartsWith("cursor-reader-", StringComparison.Ordinal)))
-        foreach (var source in new[] { "stdin", "file", "pipe" })
-        foreach (var chunkBytes in new[] { 1, 128 })
-        foreach (var governed in new[] { false, true })
-            yield return [golden, source, chunkBytes, governed];
+            foreach (var source in new[] { "stdin", "file", "pipe" })
+                foreach (var chunkBytes in new[] { 1, 128 })
+                    foreach (var governed in new[] { false, true })
+                        yield return [golden, source, chunkBytes, governed];
     }
 
     [Theory]
@@ -216,7 +232,8 @@ public sealed class AwkRecordCursorContextTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RegexRecordWindowsBorrowTheUtf8Batch(bool governed)
     {
         const int count = 2048;
@@ -228,9 +245,7 @@ public sealed class AwkRecordCursorContextTests
             AwkRuntimeLimits.CreateDefault(), memoryBudget: governed ? budget : null, regexEngine: AwkUtf8RegexEngine.Instance);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{RS=\"x|\\\\<b\"}{n++}END{print n}"], []);
-        var compiled = await AwkExecutor.CompileAsync(host, command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        await using (compiled)
-            Assert.Equal(0, (await compiled.ExecuteAsync(host, CancellationToken.None, options)).Value);
+        Assert.Equal(0, (await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options)).Value);
         Assert.Equal((count + 1) + "\n", host.Output);
         Assert.Equal("", host.Error);
         // Record/RT copies stay linear; searches borrow UTF-8 without a decoded batch.

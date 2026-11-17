@@ -4,8 +4,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexEscapeWarningTests
 {
     [Theory]
-    [InlineData(false, 4096)] [InlineData(true, 4096)]
-    [InlineData(false, 262144)] [InlineData(true, 262144)]
+    [InlineData(false, 4096)]
+    [InlineData(true, 4096)]
+    [InlineData(false, 262144)]
+    [InlineData(true, 262144)]
     public async Task SourceBackedWarningInspectionDoesNotCopyThePattern(bool strong, int length)
     {
         // Keep the small allocation guard off xUnit's worker and exclude GC/pool
@@ -43,25 +45,18 @@ public sealed class AwkRegexEscapeWarningTests
 
     [Theory]
     [MemberData(nameof(Modes))]
-    public async Task CompiledWarningHistoryIsFreshAndSharedWithDynamicPatterns(
+    public async Task InvocationWarningHistoryIsFreshAndSharedWithDynamicPatterns(
         string profile)
     {
-        var source = new MockFileSystem();
-        source.AddFile("/warning.awk", "function dead(){return /\\q\\q/}\nBEGIN{print \"q\"~\"\\\\q\";print \"d\"~\"\\\\d\";print \"d\"~\"\\\\d\"}");
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile }, "-f", "/warning.awk"];
-        var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", args, []), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var diagnostic = Assert.Single(compiled.Warnings);
-        Assert.Equal(AwkDiagnosticId.WarningRegexEscape, diagnostic.Id);
-        Assert.Equal(AwkRegexEscapeWarningKind.UnknownOperator, diagnostic.RegexEscapeWarning.Kind);
-        Assert.Equal(new System.Text.Rune('q'), diagnostic.RegexEscapeWarning.Character);
-        Assert.Equal(string.Empty, source.GetOutput(AwkFileDescriptor.StdErr));
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", args, []));
         async Task RunAsync()
         {
             var host = new MockFileSystem();
+            host.AddFile("/warning.awk", "function dead(){return /\\q\\q/}\nBEGIN{print \"q\"~\"\\\\q\";print \"d\"~\"\\\\d\";print \"d\"~\"\\\\d\"}");
             var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+            var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("awk: /warning.awk:1:24: warning: regexp escape sequence `\\q' is not a known regexp operator\n" +
@@ -172,7 +167,7 @@ public sealed class AwkRegexEscapeWarningTests
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
+            AwkTestHarness.BuildInvocation("awk", args, []), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
         var warnings = "awk: warning: regexp escape sequence `\\q' is not a known regexp operator\n";

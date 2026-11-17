@@ -212,28 +212,33 @@ public sealed class AwkHostRegexTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PreparedProgramReuseKeepsEngineCachesSeparate(bool literal)
+    public async Task InvocationsKeepProviderCachesAndHandleOwnershipSeparate(bool literal)
     {
         var command = AwkTestHarness.BuildInvocation("awk", literal ? "BEGIN{print (\"a\"~/a/)}" : "BEGIN{r=\"a\";print (\"a\"~r)}");
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var awk = AwkTestHarness.ParseAwk(command);
         var first = new RecordingEngine();
         var second = new RecordingEngine();
         foreach (var engine in new[] { first, second, first })
         {
             var host = new MockFileSystem();
-            var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine));
-            Assert.Equal(AwkExitCode.Success, await compiled.ExecuteAsync(host, CancellationToken.None, options));
+            var before = engine.Patterns.Count;
+            Assert.Equal(AwkExitCode.Success, await awk.ExecuteAsync(host,
+                AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine), CancellationToken.None));
             Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.True(engine.Patterns.Count > before);
+            Assert.All(engine.Patterns.Skip(before), pattern => Assert.True(pattern.Disposed));
         }
-        Assert.Equal(2, first.Compiles);
-        Assert.Equal(1, second.Compiles);
         Assert.All(first.Patterns, pattern => Assert.True(pattern.Disposed));
+        Assert.All(second.Patterns, pattern => Assert.True(pattern.Disposed));
     }
 
     [Theory]
-    [InlineData("compile", false)] [InlineData("compile", true)]
-    [InlineData("boolean", false)] [InlineData("boolean", true)]
-    [InlineData("captures", false)] [InlineData("captures", true)]
+    [InlineData("compile", false)]
+    [InlineData("compile", true)]
+    [InlineData("boolean", false)]
+    [InlineData("boolean", true)]
+    [InlineData("captures", false)]
+    [InlineData("captures", true)]
     public async Task PublicExecutionForwardsCancellationIntoEveryEngineOperation(string stage, bool governed)
     {
         using var cancellation = new CancellationTokenSource();

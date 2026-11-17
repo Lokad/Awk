@@ -5,8 +5,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionFlowTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task PendingRecordOutputKeepsAndRestoresTheEnclosingPhase(bool governed, bool cancel)
     {
         var budget = new CooperativeTestBudget(4 << 20);
@@ -19,7 +21,8 @@ public sealed class AwkFunctionFlowTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var limits = AwkRuntimeLimits.CreateDefault();
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0),
-                TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits) { MemoryOwner = owner };
+                TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits)
+            { MemoryOwner = owner };
             using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
             state.InitializeGlobalNames(program.GlobalNames);
             state.InitializeGlobalReadSlots(program.GlobalReadCount);
@@ -137,12 +140,12 @@ public sealed class AwkFunctionFlowTests
             try { return await host.ReadAsync(descriptor, count, token); }
             finally { host.ReadAsyncOverride = ReadAsync; }
         }
-        var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = AwkTestHarness.BuildInvocation("awk", source);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2), regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options);
         Assert.Equal(0, exit.Value);
         Assert.True(reads >= 2);
         Assert.Equal("2\n", host.GetOutput(AwkFileDescriptor.StdOut));

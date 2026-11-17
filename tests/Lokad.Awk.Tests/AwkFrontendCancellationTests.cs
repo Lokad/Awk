@@ -6,25 +6,23 @@ public sealed class AwkFrontendCancellationTests
     [InlineData("", "24 48\n")]
     [InlineData("--posix", "30 0\n")]
     [InlineData("--traditional", "30 0\n")]
-    public async Task PreparedNumbersKeepTheirBoundModeAndUseCurrentExecutionCancellation(string mode, string expected)
+    public async Task InvocationsKeepTheirNumberModeAndUseCurrentCancellation(string mode, string expected)
     {
         const string source = "BEGIN{for(i=0;i<3;i++){a+=010;b+=0x10}print a,b}";
         var command = mode.Length == 0 ? AwkTestHarness.BuildInvocation("awk", source)
             : AwkTestHarness.BuildInvocation("awk", mode, source);
-        using var preparation = new CancellationTokenSource();
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, preparation.Token, regexEngine: AwkUtf8RegexEngine.Instance);
-        preparation.Cancel();
+        var awk = AwkTestHarness.ParseAwk(command);
 
         using var execution = new CancellationTokenSource();
         execution.Cancel();
         var canceledHost = new MockFileSystem();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiled.ExecuteAsync(canceledHost, execution.Token, AwkTestHarness.CreateRuntimeOptions()));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => awk.ExecuteAsync(canceledHost, AwkTestHarness.CreatePolicy(), execution.Token));
         Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdErr));
 
         foreach (var host in new[] { new MockFileSystem(), new MockFileSystem() })
         {
-            Assert.Equal(AwkExitCode.Success, await compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions()));
+            Assert.Equal(AwkExitCode.Success, await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
             Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
@@ -344,41 +342,5 @@ public sealed class AwkFrontendCancellationTests
         Assert.Equal(128, rebuilt.SlotCount);
         Assert.True(rebuilt.TryGetSlot(binding.Parameters[^1], out var last));
         Assert.Equal(127, last.Index);
-    }
-
-    [Fact]
-    public async Task ReturnedArtifactsDoNotRetainTheFrontendCancellationCallback()
-    {
-        const string source = "function f(a){return a+1} BEGIN{print f(2), 3e1, \"ok\"}";
-        var parsed = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
-        using var cancellation = new CancellationTokenSource();
-        var calls = 0;
-        void Checkpoint()
-        {
-            calls++;
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-
-        var binding = AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default, Checkpoint);
-        Assert.True(binding.PhaseResult.Success);
-        var program = binding.Program.Program;
-        var compiled = new AwkCompiledProgram(AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
-            program, parsed.Warnings, AwkExecutionMemoryOwner.Disabled);
-        var frontendCalls = calls;
-        Assert.True(frontendCalls > 0);
-        cancellation.Cancel();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
-        var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
-        Assert.All(results, result => Assert.Equal(AwkExitCode.Success, result));
-        Assert.All(hosts, host =>
-        {
-            Assert.Equal("3 30 ok\n", host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(0, host.OpenFileCount);
-        });
-        Assert.Equal(frontendCalls, calls);
     }
 }

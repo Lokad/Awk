@@ -4,7 +4,9 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCooperativeCancellationTests
 {
     [Theory]
-    [InlineData("and")] [InlineData("or")] [InlineData("xor")]
+    [InlineData("and")]
+    [InlineData("or")]
+    [InlineData("xor")]
     public void LongNumericPrimitiveObservesCancellationWithEvaluatedArguments(string name)
     {
         using var cancellation = new CancellationTokenSource();
@@ -45,7 +47,7 @@ public sealed class AwkCooperativeCancellationTests
             "recursive-calls" => "function f(n){return n?f(n-1):1}BEGIN{getline x<\"/input\";while(1){x+=f(64)}}",
             _ => "BEGIN{getline x<\"/input\";while(1){x++}}"
         };
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = AwkTestHarness.BuildInvocation("awk", source);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = new TaskCompletionSource<AwkReadBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -61,7 +63,7 @@ public sealed class AwkCooperativeCancellationTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var budget = new CooperativeTestBudget(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = budget };
-        var run = Task.Run(() => compiled.ExecuteAsync(host, cancellation.Token, options));
+        var run = Task.Run(() => AwkExecutor.ExecuteAsync(host, command, cancellation.Token, options));
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -88,12 +90,18 @@ public sealed class AwkCooperativeCancellationTests
         }
     }
     [Theory]
-    [InlineData("source", false)] [InlineData("source", true)]
-    [InlineData("main", false)] [InlineData("main", true)]
-    [InlineData("input", false)] [InlineData("input", true)]
-    [InlineData("output", false)] [InlineData("output", true)]
-    [InlineData("input-pipe", false)] [InlineData("input-pipe", true)]
-    [InlineData("output-pipe", false)] [InlineData("output-pipe", true)]
+    [InlineData("source", false)]
+    [InlineData("source", true)]
+    [InlineData("main", false)]
+    [InlineData("main", true)]
+    [InlineData("input", false)]
+    [InlineData("input", true)]
+    [InlineData("output", false)]
+    [InlineData("output", true)]
+    [InlineData("input-pipe", false)]
+    [InlineData("input-pipe", true)]
+    [InlineData("output-pipe", false)]
+    [InlineData("output-pipe", true)]
     public async Task CancellationOnAcquisitionClosesEveryAcquiredDescriptor(string kind, bool governed)
     {
         using var cancellation = new CancellationTokenSource();

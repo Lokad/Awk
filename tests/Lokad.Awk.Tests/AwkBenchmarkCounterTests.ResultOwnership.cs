@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ExternalDefinitionsRetainOrdinaryResultPublication(bool option)
     {
         const string source = "function copy(s){return substr(s,1)}{v=copy($1);total+=length(v)}END{print total}";
@@ -13,7 +14,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", arguments)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = budget });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("7\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -24,7 +25,8 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ClosedCallResultsKeepFullValuesWithoutNamedPublication(bool governed)
     {
         const int records = 128;
@@ -39,7 +41,7 @@ public sealed partial class AwkBenchmarkCounterTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var budget = new CooperativeTestBudget(8 << 20);
             var exit = await AwkExecutor.ExecuteAsync(host,
-                AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+                AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
                 CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(observed ? "896 string 000700000000\n" : "896\n", host.GetOutput(AwkFileDescriptor.StdOut));

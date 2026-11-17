@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PreparedStoredTextConsumersKeepSpellingWithoutGeneralValueTransport(bool governed)
     {
         const int records = 1024;
@@ -13,9 +14,8 @@ public sealed partial class AwkBenchmarkCounterTests
         host.SetStandardInput(string.Concat(Enumerable.Repeat("ID:beta:tail 4\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(16 << 20);
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(0, exit.Value);
         Assert.Equal("29696\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -32,10 +32,10 @@ public sealed partial class AwkBenchmarkCounterTests
     public static IEnumerable<object[]> DirectTextInputCases()
     {
         foreach (var operation in new[] { "lower", "upper", "substr", "index" })
-        foreach (var field in new[] { "$0", "$1", "$(column)" })
-        foreach (var capture in new[] { false, true })
-        foreach (var governed in new[] { false, true })
-            if (!capture || operation is "substr" or "index") yield return [operation, field, capture, governed];
+            foreach (var field in new[] { "$0", "$1", "$(column)" })
+                foreach (var capture in new[] { false, true })
+                    foreach (var governed in new[] { false, true })
+                        if (!capture || operation is "substr" or "index") yield return [operation, field, capture, governed];
     }
 
     [Theory]
@@ -58,7 +58,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(operation == "index" ? "192\n" : operation == "substr" ? "256\n" : "640\n",
@@ -72,8 +72,10 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task SubstringInputsUseTheirTextAndArithmeticContracts(bool governed, bool capture)
     {
         const int records = 64;
@@ -84,7 +86,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -97,12 +99,18 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false, 1)] [InlineData(true, false, 1)]
-    [InlineData(false, true, 1)] [InlineData(true, true, 1)]
-    [InlineData(false, false, 2)] [InlineData(true, false, 2)]
-    [InlineData(false, true, 2)] [InlineData(true, true, 2)]
-    [InlineData(false, false, 65)] [InlineData(true, false, 65)]
-    [InlineData(false, true, 65)] [InlineData(true, true, 65)]
+    [InlineData(false, false, 1)]
+    [InlineData(true, false, 1)]
+    [InlineData(false, true, 1)]
+    [InlineData(true, true, 1)]
+    [InlineData(false, false, 2)]
+    [InlineData(true, false, 2)]
+    [InlineData(false, true, 2)]
+    [InlineData(true, true, 2)]
+    [InlineData(false, false, 65)]
+    [InlineData(true, false, 65)]
+    [InlineData(false, true, 65)]
+    [InlineData(true, true, 65)]
     public async Task NumericBuiltinsKeepFieldInputsByteNative(bool governed, bool forwarding, int arity)
     {
         const int records = 128;
@@ -121,9 +129,8 @@ public sealed partial class AwkBenchmarkCounterTests
         host.SetStandardInput(string.Concat(Enumerable.Repeat("0007 0003\n", records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal((records * (binary ? 3 : 7)) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -138,9 +145,12 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData("sqrt", false)] [InlineData("sqrt", true)]
-    [InlineData("exp", false)] [InlineData("exp", true)]
-    [InlineData("log", false)] [InlineData("log", true)]
+    [InlineData("sqrt", false)]
+    [InlineData("sqrt", true)]
+    [InlineData("exp", false)]
+    [InlineData("exp", true)]
+    [InlineData("log", false)]
+    [InlineData("log", true)]
     public async Task MathCallsKeepNativeNumericInputs(string builtin, bool governed)
     {
         const int records = 128;
@@ -149,9 +159,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var source = "function score(x){return " + builtin + "(x)}{sum+=(score($1)>=0)}END{print sum}";
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
+        var command = AwkTestHarness.BuildInvocation("awk", source);
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(records + "\n", host.GetOutput(AwkFileDescriptor.StdOut));

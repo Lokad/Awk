@@ -396,13 +396,10 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", program),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+        var command = BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -425,12 +422,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
                 AwkRuntimeCounters.Disabled,
                 AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
             var fileSystem = new MockFileSystem();
-            var compiled = await AwkExecutor.CompileAsync(
-                fileSystem,
-                BuildInvocation("awk", "BEGIN{IGNORECASE=1; print (\"I\" ~ /i/), (\"i\" ~ /I/)}"),
-                CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            var command = BuildInvocation("awk", "BEGIN{IGNORECASE=1; print (\"I\" ~ /i/), (\"i\" ~ /I/)}");
 
-            var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+            var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
             Assert.Equal(AwkExitCode.Success, exitCode);
             Assert.Equal("1 1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -468,17 +462,14 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation(
+        var command = BuildInvocation(
                 "awk",
                 "BEGIN{switch(\"éclair\"){case /écl/: print \"switch\"}; p=\"fé\"; print (\"café\" ~ p)} /é/{print \"action\", $0} /dé/,/fin/{print \"range\", $0}",
-                "/file.txt"),
-            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+                "/file.txt");
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "abc\ndébut\nmilieu\nfin\néclair\n");
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(

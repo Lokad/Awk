@@ -3,9 +3,12 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBenchmarkCounterTests
 {
     [Theory]
-    [InlineData("root", false)] [InlineData("root", true)]
-    [InlineData("block", false)] [InlineData("block", true)]
-    [InlineData("local", false)] [InlineData("local", true)]
+    [InlineData("root", false)]
+    [InlineData("root", true)]
+    [InlineData("block", false)]
+    [InlineData("block", true)]
+    [InlineData("local", false)]
+    [InlineData("local", true)]
     public async Task ArithmeticScalarInputAvoidsUnobservedFieldOwnership(string shape, bool governed)
     {
         var source = shape switch
@@ -19,7 +22,7 @@ public sealed partial class AwkBenchmarkCounterTests
         var budget = new CooperativeTestBudget(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var result = await AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)), CancellationToken.None,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, result);
         Assert.Equal(shape == "block" ? "24960\n" : "384\n", host.GetOutput(AwkFileDescriptor.StdOut));

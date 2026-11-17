@@ -22,7 +22,7 @@ public sealed class AwkParagraphPipeEofTests
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), deadline.Token, options);
+        var exit = await AwkExecutor.ExecuteAsync(host, invocation, deadline.Token, options);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));

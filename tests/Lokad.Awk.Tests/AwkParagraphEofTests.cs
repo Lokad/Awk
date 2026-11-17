@@ -19,11 +19,11 @@ public sealed class AwkParagraphEofTests
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk",
+        var command = AwkTestHarness.BuildInvocation("awk",
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";\"producer\"|getline v;" +
-            "print NR,FNR,NF,v,\"[\"RT\"]\",\"[\"$0\"]\";exit}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            "print NR,FNR,NF,v,\"[\"RT\"]\",\"[\"$0\"]\";exit}");
 
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, Options(counters));
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("0 0 2 kept [] [seed fields]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
@@ -49,11 +49,11 @@ public sealed class AwkParagraphEofTests
         };
         host.AddFile("/data", "ignored");
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk",
+        var command = AwkTestHarness.BuildInvocation("awk",
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";code=(getline v<\"data\");" +
-            "print code,NR,FNR,NF,v,RT,\"[\"$0\"]\";exit}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
+            "print code,NR,FNR,NF,v,RT,\"[\"$0\"]\";exit}");
 
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
+        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, Options(counters));
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("-1 0 0 2 kept sentinel [seed fields]\n", host.GetOutput(AwkFileDescriptor.StdOut));

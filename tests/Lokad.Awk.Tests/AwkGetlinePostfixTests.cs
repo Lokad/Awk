@@ -21,7 +21,7 @@ public sealed class AwkGetlinePostfixTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
-        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+        var exit = await AwkExecutor.ExecuteAsync(host, invocation,
             CancellationToken.None, options);
         Assert.Equal(testCase.ExpectedExitCode, exit.Value);
         Assert.Equal(testCase.ExpectedStdErr, files.GetOutput(AwkFileDescriptor.StdErr));
