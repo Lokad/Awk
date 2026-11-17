@@ -227,7 +227,9 @@ internal static class AwkValueConsumption
                 if ((index & 63) == 0) checkpoint?.Invoke();
                 var node = range.Start + index;
                 var use = uses[node];
-                if ((use & Use.Observable) != 0) continue;
+                // Text-only captures discard input origin. A key can publish it
+                // into an array, so mixed text/key users need the actual value.
+                if ((use & Use.Observable) != 0 || (use & (Use.Key | Use.Text)) == (Use.Key | Use.Text)) continue;
                 // An unread parameter can also carry an owning key unchanged. This
                 // matters when a key flows to a known callee that ignores its input.
                 var input = (use & (Use.Key | Use.Text)) == 0 && (use & Use.Comparison) != 0 ? AwkParameterInput.NumericComparison :

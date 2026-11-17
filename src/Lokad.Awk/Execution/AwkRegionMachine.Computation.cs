@@ -636,7 +636,8 @@ internal partial struct AwkRegionMachine
                 var bytes = storage.Builders[operand.Index].Buffer.AsSpan();
                 if (bytes.Length is > 0 and <= AwkArrayKey.InlineByteCapacity)
                 {
-                    key = AwkArrayKey.CopyTrustedBytes(bytes, state.Counters, state.MemoryAccounting, checkpoint: null);
+                    key = AwkArrayKey.CopyTrustedBytes(bytes, state.Counters, state.MemoryAccounting, checkpoint: null)
+                        .WithInputOrigin(true);
                     return true;
                 }
                 key = default;

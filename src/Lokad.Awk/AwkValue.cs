@@ -455,6 +455,9 @@ internal readonly struct AwkValue
     internal bool RetainsInputClassification =>
         HasInputClassification(_kind);
 
+    internal bool HasInputOrigin =>
+        _kind == AwkValueKind.StoredInputText || RetainsInputClassification;
+
     internal static bool HasInputClassification(AwkValueKind kind) =>
         kind is AwkValueKind.NumericString or AwkValueKind.NonDecimalConversionErrorInput;
 

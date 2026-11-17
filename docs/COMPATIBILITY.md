@@ -120,6 +120,9 @@ GNU 5.2.1 and 5.3.2 instead accept the numeric prefix `1`.
 Missing ordinary array reads create untyped entries; membership does not. Arrays pass
 by alias, including forwarded missing parameters. Scalar assignments/returns copy values,
 including string-like unassigned field origins.
+Input numeric-string keys retain their spelling and type through calls, traversal
+and `asorti`. Canonical integer traversal keys can project as strings and differ
+from GNU's storage-dependent `typeof` results.
 Grouped arguments and discarded expressions reject arrays in scalar context. Function parameters shadow
 globals, including for `length` and forwarded array aliases.
 

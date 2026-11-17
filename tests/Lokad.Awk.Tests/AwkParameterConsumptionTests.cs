@@ -12,7 +12,8 @@ public sealed partial class AwkParameterConsumptionTests
     [InlineData("function f(s){if(length(s)>3)return tolower(s);return s}", "f", "V")]
     [InlineData("function f(s){return tolower(s)+(s+0)}", "f", "V")]
     [InlineData("function f(s){return typeof(s)tolower(s)}", "f", "V")]
-    [InlineData("function f(a,s){a[s]++;return tolower(s)}", "f", "VT")]
+    // Array insertion observes input origin even when another consumer needs only text.
+    [InlineData("function f(a,s){a[s]++;return tolower(s)}", "f", "VV")]
     public void TextConsumersSharePreparationAndPreserveOtherObservations(string source, string function, string expected)
     {
         var layout = Bind(source).Functions[AwkFunctionName.FromText(function)].LocalLayout;

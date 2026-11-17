@@ -275,7 +275,8 @@ internal sealed class AwkFunctionCallStack(
             else
             {
                 var owned = MaterializeReaderText(frame, source, in sourceSlot).Value;
-                StageKey(incoming, index, new AwkArrayKey(owned.ByteText, checkpoint));
+                StageKey(incoming, index,
+                    new AwkArrayKey(owned.ByteText, checkpoint).WithInputOrigin(owned.HasInputOrigin));
             }
             return true;
         }
@@ -285,7 +286,8 @@ internal sealed class AwkFunctionCallStack(
             var value = sourceSlot.Value;
             _counters.RecordScalarLocalValueRead();
             if (prepareKey && value.TryGetStoredScalarText(out var text))
-                StageKey(incoming, index, new AwkArrayKey(text, checkpoint));
+                StageKey(incoming, index,
+                    new AwkArrayKey(text, checkpoint).WithInputOrigin(value.HasInputOrigin));
             else StageScalarArgument(incoming, index, in value);
             return true;
         }

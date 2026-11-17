@@ -6,6 +6,49 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayKeyTests
 {
     [Theory]
+    [InlineData("")] [InlineData("0007")] [InlineData("1234567")]
+    [InlineData("12345678")] [InlineData("0000000007")] [InlineData("é😀")]
+    [InlineData("\0")] [InlineData("a\0b")] [InlineData("2147483647")]
+    public void InputOriginPreservesByteIdentityAndFirstInsertedKey(string spelling)
+    {
+        var ordinary = new AwkArrayKey(spelling);
+        var input = ordinary.WithInputOrigin(true);
+        var restored = AwkArrayKey.FromStorage(input.StoredText, input.StoredOrdinal, input.StorageTag);
+        var projected = restored.WithTextProjection(AwkRuntimeCounters.Disabled);
+        var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
+        var comparer = AwkArrayKeyComparer.Instance;
+        Assert.True(restored.HasInputOrigin);
+        Assert.True(projected.HasInputOrigin);
+        Assert.Equal(ordinary, restored);
+        Assert.Equal(ordinary.GetHashCode(), restored.GetHashCode());
+        Assert.Equal(comparer.GetHashCode(bytes), comparer.GetHashCode(restored));
+        Assert.Equal(spelling, projected.AsString(AwkRuntimeCounters.Disabled));
+        var entries = new Dictionary<AwkArrayKey, int>(comparer) { [restored] = 1 };
+        entries[ordinary] = 2;
+        Assert.True(Assert.Single(entries).Key.HasInputOrigin);
+        Assert.Equal(2, entries.GetAlternateLookup<ReadOnlySpan<byte>>()[bytes]);
+        Assert.Equal(2, entries[projected]);
+        Assert.False(input.WithInputOrigin(false).HasInputOrigin);
+    }
+
+    [Theory]
+    [InlineData(-1)] [InlineData(0)] [InlineData(1)]
+    [InlineData(9999999)] [InlineData(int.MaxValue)]
+    public void InputOrdinalOriginSurvivesOwnedBytePreparation(int ordinal)
+    {
+        var coordinate = AwkArrayKey.FromOrdinal(ordinal).WithInputOrigin(true);
+        var prepared = coordinate.PrepareByteLookup();
+        var restored = AwkArrayKey.FromStorage(prepared.StoredText, prepared.StoredOrdinal, prepared.StorageTag);
+        var spelling = ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
+        Assert.True(restored.HasInputOrigin);
+        Assert.Equal(coordinate, restored);
+        Assert.Equal(AwkArrayKeyComparer.Instance.GetHashCode(bytes), AwkArrayKeyComparer.Instance.GetHashCode(restored));
+        Assert.Equal(spelling, restored.AsString(AwkRuntimeCounters.Disabled));
+        Assert.True(restored.WithTextProjection(AwkRuntimeCounters.Disabled).HasInputOrigin);
+    }
+
+    [Theory]
     [InlineData(8)] [InlineData(9)] [InlineData(15)] [InlineData(16)] [InlineData(17)]
     [InlineData(4095)] [InlineData(4096)] [InlineData(4097)]
     [InlineData(8191)] [InlineData(8192)] [InlineData(8193)] [InlineData(16387)]

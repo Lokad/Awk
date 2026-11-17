@@ -215,10 +215,10 @@ internal sealed partial class AwkVariables
         return array.TryGetValue(key, out slot) ? slot : CreateMissingArraySlot(array, key, out _);
     }
 
-    internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index) =>
-        CreateValue(GetArraySlot(array, index));
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false) =>
+        CreateValue(GetArraySlot(array, index, input));
 
-    internal double GetArrayNumber(AwkArrayIdentity array, ReadOnlySpan<byte> index)
+    internal double GetArrayNumber(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false)
     {
         ThrowIfDetached(array);
         if (array.IsIndexed)
@@ -226,17 +226,17 @@ internal sealed partial class AwkVariables
             if (array.TryGetIndexed(index, out _, out var slot)) return ReadArraySlotNumber(slot);
         }
         else if (array.ByteLookup.TryGetDictionaryCell(index, out var cell)) return ReadArraySlotNumber(in cell.BorrowedSlot);
-        return ReadArraySlotNumber(InsertByteSlot(array, index, default, missing: true, out _, out _));
+        return ReadArraySlotNumber(InsertByteSlot(array, index, default, missing: true, out _, out _, input));
     }
 
-    private AwkValue GetArraySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index)
+    private AwkValue GetArraySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input)
     {
         ThrowIfDetached(array);
         return array.ByteLookup.TryGetValue(index, out var slot)
-            ? slot : InsertByteSlot(array, index, default, missing: true, out _, out _);
+            ? slot : InsertByteSlot(array, index, default, missing: true, out _, out _, input);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index)
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false)
     {
         ThrowIfDetached(array);
         AwkArrayKey key;
@@ -247,18 +247,18 @@ internal sealed partial class AwkVariables
         {
             cell = null;
             if (array.TryGetIndexed(index, out var ordinal, out slot)) key = AwkArrayKey.FromOrdinal(ordinal);
-            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
+            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell, input);
         }
         else
         {
             if (array.ByteLookup.TryGetDictionaryCell(index, out key, out cell)) numberSource = ref cell.BorrowedSlot;
-            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell);
+            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell, input);
         }
-        return new(key, ReadArraySlotNumber(in numberSource), array, cell);
+        return new(key.WithInputOrigin(input), ReadArraySlotNumber(in numberSource), array, cell);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
-        in AwkArrayUpdateTarget previous)
+        in AwkArrayUpdateTarget previous, bool input = false)
     {
         if (!array.IsDetached && ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
             previous.Key.RequiresTextMaterialization && previous.Key.Equals(index, checkpoint: null) &&
@@ -267,9 +267,9 @@ internal sealed partial class AwkVariables
             // No callback occurs between validating the bounded owning key and
             // capturing the current number. Never reuse the earlier snapshot.
             _counters.RecordNumericArraySlotRead();
-            return new(previous.Key, number, array, priorCell);
+            return new(previous.Key.WithInputOrigin(input), number, array, priorCell);
         }
-        return PrepareArrayUpdate(array, index);
+        return PrepareArrayUpdate(array, index, input);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
@@ -356,12 +356,12 @@ internal sealed partial class AwkVariables
         else SetArraySlot(array, AwkArrayKey.FromOrdinal(ordinal), slot);
     }
 
-    internal void InsertArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, AwkValue value) =>
-        InsertByteSlot(array, index, AwkValue.ForVariableStorage(value, _numberParsingMode), missing: false, out _, out _);
+    internal void InsertArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, AwkValue value, bool input = false) =>
+        InsertByteSlot(array, index, AwkValue.ForVariableStorage(value, _numberParsingMode), missing: false, out _, out _, input);
 
     // Admission covers retained key construction and its actual storage form.
     private AwkValue InsertByteSlot(AwkArrayIdentity array, ReadOnlySpan<byte> index,
-        AwkValue slot, bool missing, out AwkArrayKey key, out AwkArrayCell? cell)
+        AwkValue slot, bool missing, out AwkArrayKey key, out AwkArrayCell? cell, bool input)
     {
         ThrowIfDetached(array);
         using var admission = _memoryAccounting.AdmitMutation(_memoryAccounting.IsEnabled
@@ -369,7 +369,8 @@ internal sealed partial class AwkVariables
                 AwkArrayKey.EstimateRetainedTextBytes(index.Length),
                 AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayCellBytes,
                     missing ? AwkRuntimeMemory.EstimateUntypedScalarBytes() : slot.RetainedTextMemoryBytes))) : 0);
-        key = AwkArrayKey.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint);
+        key = AwkArrayKey.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint)
+            .WithInputOrigin(input);
         _checkpoint?.Invoke();
         if (missing) slot = AwkValue.FromUntypedScalar(new AwkUntypedScalar(array));
         cell = InsertAdmittedArraySlot(array, key, slot);

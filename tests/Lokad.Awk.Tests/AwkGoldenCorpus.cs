@@ -77,6 +77,8 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(ReplacementProfileCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Regex, AwkGoldenTag.Output),
         .. Tagged(FieldRegexGrammarCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Regex, AwkGoldenTag.Field),
         .. Tagged(NonLvalueRegexGrammarCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Regex, AwkGoldenTag.Field),
+        .. Tagged(ArrayKeyOriginCases(), AwkGoldenTag.Idiom, AwkGoldenTag.Field),
+        .. Tagged(ArrayKeyOriginPolicyCases(), AwkGoldenTag.Field),
         .. Tagged(ElseAttachmentCases(), AwkGoldenTag.Statement),
         .. Tagged(NonlocalFunctionFlowCases(), AwkGoldenTag.Function, AwkGoldenTag.Statement),
         .. Tagged(IncrementConcatenationCases(), AwkGoldenTag.Expression, AwkGoldenTag.Field),

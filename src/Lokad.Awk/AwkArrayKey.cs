@@ -13,6 +13,14 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     private readonly AwkArrayKeyKind _kind;
     private readonly int _ordinal;
 
+    private AwkArrayKeyKind Representation => _kind & ~AwkArrayKeyKind.Input;
+    internal bool HasInputOrigin => (_kind & AwkArrayKeyKind.Input) != 0;
+
+    // Origin belongs to the source value or the first retained entry. It never
+    // participates in byte identity and needs no additional key storage.
+    internal AwkArrayKey WithInputOrigin(bool input) =>
+        new(_text, _ordinal, (int)(input ? _kind | AwkArrayKeyKind.Input : _kind & ~AwkArrayKeyKind.Input));
+
     // Restore only an existing owning key; these words never describe borrowed bytes.
     internal AwkText StoredText => _text;
     internal int StoredOrdinal => _ordinal;
@@ -55,18 +63,18 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     // Prepare the bounded spelling only at the byte lookup or retention boundary.
     internal AwkArrayKey PrepareByteLookup()
     {
-        if (_kind != AwkArrayKeyKind.Ordinal || _ordinal is < -999999 or > 9999999)
+        if (Representation != AwkArrayKeyKind.Ordinal || _ordinal is < -999999 or > 9999999)
             return this;
         Span<byte> buffer = stackalloc byte[InlineByteCapacity];
         var prepared = FromInlineBytes(FormatOrdinalBytes(_ordinal, buffer));
         return new(prepared._text, prepared._ordinal,
-            (int)prepared._kind | (int)AwkArrayKeyKind.Ordinal);
+            (int)(prepared._kind | AwkArrayKeyKind.Ordinal | (_kind & AwkArrayKeyKind.Input)));
     }
 
     internal bool TryGetOrdinalValue(out int ordinal)
     {
         ordinal = _ordinal;
-        return _kind == AwkArrayKeyKind.Ordinal;
+        return Representation == AwkArrayKeyKind.Ordinal;
     }
 
     private AwkArrayKey(int lowBytes, uint highBytes, int length)
@@ -125,7 +133,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         if (IsInline)
         {
             length = InlineByteLength;
-            hash = HashCode.Combine(_ordinal, (uint)_kind & ~3u);
+            hash = HashCode.Combine(_ordinal, (uint)_kind & ~(3u | (uint)AwkArrayKeyKind.Input));
             return true;
         }
         hash = 0;
@@ -141,8 +149,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
-        if (_kind == AwkArrayKeyKind.Ordinal) return _ordinal.ToString(CultureInfo.InvariantCulture);
-        if (_kind == AwkArrayKeyKind.Text) return Text.AsString(counters, checkpoint);
+        if (Representation == AwkArrayKeyKind.Ordinal) return _ordinal.ToString(CultureInfo.InvariantCulture);
+        if (Representation == AwkArrayKeyKind.Text) return Text.AsString(counters, checkpoint);
         checkpoint?.Invoke();
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
         return AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer), counters);
@@ -158,29 +166,29 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
                 return FormatOrdinalBytes(ordinal, buffer).Length;
             }
 
-            return _kind == AwkArrayKeyKind.Text ? Text.ByteLength :
-                _kind == AwkArrayKeyKind.Ordinal ? CountOrdinalBytes(_ordinal) : InlineByteLength;
+            return Representation == AwkArrayKeyKind.Text ? Text.ByteLength :
+                Representation == AwkArrayKeyKind.Ordinal ? CountOrdinalBytes(_ordinal) : InlineByteLength;
         }
     }
 
     public long RetainedTextMemoryBytes =>
-        _kind == AwkArrayKeyKind.Text ? Text.EstimatedRetainedMemoryBytes : 0;
+        Representation == AwkArrayKeyKind.Text ? Text.EstimatedRetainedMemoryBytes : 0;
 
     public bool IsOrdinal => ((uint)_kind & (uint)AwkArrayKeyKind.Ordinal) != 0;
 
     private bool IsInline => ((uint)_kind & (uint)AwkArrayKeyKind.Inline) != 0;
 
     // Ordinals and inline keys are bounded without formatting or inspecting bytes.
-    internal bool NeedsCancellationCheckpoint => _kind == AwkArrayKeyKind.Text &&
+    internal bool NeedsCancellationCheckpoint => Representation == AwkArrayKeyKind.Text &&
         _text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes;
 
-    internal bool RequiresTextMaterialization => _kind != AwkArrayKeyKind.Text;
+    internal bool RequiresTextMaterialization => Representation != AwkArrayKeyKind.Text;
 
     // A repeated language consumer keeps one owning projection instead of
     // compacting it again through the ordinary key constructor.
     internal AwkArrayKey WithTextProjection(AwkRuntimeCounters counters) =>
         RequiresTextMaterialization
-            ? new(ToByteText(counters, AwkMemoryAccounting.Disabled), 0, (int)AwkArrayKeyKind.Text)
+            ? new(ToByteText(counters, AwkMemoryAccounting.Disabled), 0, (int)(_kind & AwkArrayKeyKind.Input))
             : this;
 
     public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryAccounting governor)
@@ -225,11 +233,12 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     internal bool Equals(AwkArrayKey other, Action? checkpoint)
     {
         checkpoint?.Invoke();
-        if (_kind == AwkArrayKeyKind.Ordinal && other._kind == AwkArrayKeyKind.Ordinal)
+        if (Representation == AwkArrayKeyKind.Ordinal && other.Representation == AwkArrayKeyKind.Ordinal)
             return _ordinal == other._ordinal;
         if (IsInline && other.IsInline)
-            return ((uint)_kind & ~1u) == ((uint)other._kind & ~1u) && _ordinal == other._ordinal;
-        if (_kind == AwkArrayKeyKind.Text && other._kind == AwkArrayKeyKind.Text)
+            return ((uint)_kind & ~(1u | (uint)AwkArrayKeyKind.Input)) ==
+                ((uint)other._kind & ~(1u | (uint)AwkArrayKeyKind.Input)) && _ordinal == other._ordinal;
+        if (Representation == AwkArrayKeyKind.Text && other.Representation == AwkArrayKeyKind.Text)
             return Text.Equals(other.Text, checkpoint);
         return EqualsMixed(other, checkpoint);
     }
@@ -261,8 +270,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     internal ReadOnlySpan<byte> AsSpan(Span<byte> buffer, Action? checkpoint = null)
     {
-        if (_kind == AwkArrayKeyKind.Text) return Text.AsSpan(checkpoint);
-        if (_kind == AwkArrayKeyKind.Ordinal) return FormatOrdinalBytes(_ordinal, buffer);
+        if (Representation == AwkArrayKeyKind.Text) return Text.AsSpan(checkpoint);
+        if (Representation == AwkArrayKeyKind.Ordinal) return FormatOrdinalBytes(_ordinal, buffer);
         BinaryPrimitives.WriteInt32LittleEndian(buffer, _ordinal);
         BinaryPrimitives.WriteUInt32LittleEndian(buffer[sizeof(int)..], (uint)_kind >> 8);
         return buffer[..InlineByteLength];
@@ -280,6 +289,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     {
         Text,
         Ordinal,
-        Inline
+        Inline,
+        Input = 1 << 5
     }
 }

@@ -309,10 +309,14 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkArrayKey ToArrayKey(AwkValue value) =>
         value.TryGetArrayOrdinal(out var ordinal)
             ? AwkArrayKey.FromOrdinal(ordinal)
-            : new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint);
+            : new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint)
+                .WithInputOrigin(value.HasInputOrigin);
 
-    public AwkValue CreateArrayKeyValue(AwkArrayKey key) =>
-        CreateStringValue(key.ToByteText(Counters, MemoryAccounting));
+    public AwkValue CreateArrayKeyValue(AwkArrayKey key)
+    {
+        var text = key.ToByteText(Counters, MemoryAccounting);
+        return key.HasInputOrigin ? CreateNumericStringValue(text) : CreateStringValue(text);
+    }
 
     internal Action CancellationCheckpoint { get; }
 
@@ -809,7 +813,7 @@ internal sealed class AwkRuntimeState : IDisposable
             }
             if (slot.TryGetStoredScalarText(out var text))
             {
-                key = new(text, CancellationCheckpoint);
+                key = new AwkArrayKey(text, CancellationCheckpoint).WithInputOrigin(slot.HasInputOrigin);
                 return true;
             }
         }
@@ -834,7 +838,8 @@ internal sealed class AwkRuntimeState : IDisposable
                         incoming.StageNumber(index, number);
                     }
                     else if (argument.Consumption == AwkParameterInput.Key && slot.TryGetStoredScalarText(out var text))
-                        _functions.StageKey(incoming, index, new AwkArrayKey(text, CancellationCheckpoint));
+                        _functions.StageKey(incoming, index,
+                            new AwkArrayKey(text, CancellationCheckpoint).WithInputOrigin(slot.HasInputOrigin));
                     else
                     {
                         var value = _variables.CreateValue(slot);
@@ -934,7 +939,7 @@ internal sealed class AwkRuntimeState : IDisposable
             if (slot.TryGetStoredScalarText(out var text))
             {
                 Counters.RecordScalarLocalValueRead();
-                key = new(text, CancellationCheckpoint);
+                key = new AwkArrayKey(text, CancellationCheckpoint).WithInputOrigin(slot.HasInputOrigin);
                 return true;
             }
         }
@@ -948,7 +953,8 @@ internal sealed class AwkRuntimeState : IDisposable
         // One existing admission funds construction through publication into its
         // incoming owner. Only immutable bytes are borrowed during this copy.
         using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(bytes.Length));
-        var key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
+        var key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint)
+            .WithInputOrigin(true);
         ThrowIfCancellationRequested();
         _functions.StageKey(incoming, index, key);
         return true;
@@ -1577,7 +1583,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding))
+            _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
             return value;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return GetArrayAwkValue(name, ToArrayKey(field), binding);
@@ -1588,7 +1594,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding))
+            _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
             return number;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return GetArrayNumber(name, ToArrayKey(field), binding);
@@ -1600,7 +1606,7 @@ internal sealed class AwkRuntimeState : IDisposable
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
             _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, binding))
-            return key;
+            return key.WithInputOrigin(true);
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return ToArrayKey(field);
     }
@@ -1609,7 +1615,8 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
-            return AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint);
+            return AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint)
+                .WithInputOrigin(true);
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return ToArrayKey(field);
     }
@@ -1618,7 +1625,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
-            _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding)) return;
+            _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         var key = ToArrayKey(field);
         ThrowIfCancellationRequested();
@@ -1634,11 +1641,11 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             if (TryGetBoundArray(in name, binding, out var array))
             {
-                var boundTarget = _variables.PrepareArrayUpdate(array, bytes);
+                var boundTarget = _variables.PrepareArrayUpdate(array, bytes, input: true);
                 Counters.RecordBorrowedFieldTargetSnapshot();
                 return boundTarget;
             }
-            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding))
+            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
             {
                 Counters.RecordBorrowedFieldTargetSnapshot();
                 return target;
@@ -1654,11 +1661,11 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             if (TryGetBoundArray(in name, binding, out var array))
             {
-                var boundTarget = _variables.PrepareArrayUpdate(array, bytes, in previous);
+                var boundTarget = _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
                 Counters.RecordBorrowedFieldTargetSnapshot();
                 return boundTarget;
             }
-            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding))
+            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
             {
                 Counters.RecordBorrowedFieldTargetSnapshot();
                 return target;
