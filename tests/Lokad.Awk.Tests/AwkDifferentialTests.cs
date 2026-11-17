@@ -21,8 +21,8 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
         var diagnosticNames = new[]
         {
             "computed-field-validates-builtin-arity-before-effects",
-            "getline-nested-source-invalid-target-before-effects",
-            "getline-expression-nested-source-invalid-target-before-effects"
+            "getline-nested-source-invalid-function-before-effects",
+            "getline-expression-nested-source-invalid-function-before-effects"
         };
         var diagnostics = diagnosticNames.Select(name => AwkGoldenCorpus.DirectCases.Single(test => test.Name == name))
             .Concat(AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("for-invalid-", StringComparison.Ordinal)));
