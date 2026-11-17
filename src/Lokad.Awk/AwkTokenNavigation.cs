@@ -293,19 +293,19 @@ internal static class AwkTokenNavigation
         public AwkToken[] Materialize(Action? checkpoint)
         {
             checkpoint?.Invoke();
-            var indexedTokens = Volatile.Read(ref _indexedTokens);
+            var indexedTokens = _indexedTokens;
             if (indexedTokens != null)
                 return indexedTokens;
 
             // Interrupted construction never publishes a partial snapshot.
-            // The callback belongs to this operation, not to the shared list.
+            // The callback belongs to this operation, not to the token list.
             var materialized = new AwkToken[Count];
             var materializedIndex = 0;
             foreach (var token in Enumerate(checkpoint))
                 materialized[materializedIndex++] = token;
 
             checkpoint?.Invoke();
-            return Interlocked.CompareExchange(ref _indexedTokens, materialized, null) ?? materialized;
+            return _indexedTokens = materialized;
         }
 
         public IEnumerator<AwkToken> GetEnumerator() => Enumerate(null).GetEnumerator();

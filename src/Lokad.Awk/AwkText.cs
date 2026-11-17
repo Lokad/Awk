@@ -12,7 +12,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     // Literal/string ingress retains caches; managed boundaries prepare them explicitly.
     private const int CompactAsciiByteLength = 32;
     // Scalar/slot payloads retain this backing directly, without boxing the view.
-    // Default is empty text; mutable caches belong to the shared storage owner.
+    // Default is empty text; storage owns bytes and lazily computed text facts.
     private readonly object? _backing;
     private static readonly TextStorage EmptyStorage = new([]);
 
@@ -63,7 +63,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         ((byte[]?)_backing)?.Length ?? 0;
 
     internal bool HasAvailableBytes => _concatenation is null ||
-        Volatile.Read(ref _concatenation.MaterializedBytes) is not null;
+        _concatenation.MaterializedBytes is not null;
 
 
     // Keep the conservative cache allowance with the actual owner. Promotion at
@@ -80,13 +80,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (storage is null && _backing is byte[] bytes)
             return bytes.Length;
         storage ??= EmptyStorage;
-        var cached = Volatile.Read(ref storage.TextFacts);
+        var cached = storage.TextFacts;
         if (cached > UnknownTextFacts)
             return cached - 1;
 
         var runeLength = CountRunes(AsSpan(checkpoint), checkpoint);
         checkpoint?.Invoke();
-        Volatile.Write(ref storage.TextFacts, runeLength + 1);
+        storage.TextFacts = runeLength + 1;
         return runeLength;
     }
 
@@ -121,7 +121,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (_backing is TextStorage storage)
         {
             if (storage.Concatenation is not { } concatenation) return storage.Bytes;
-            // Ready bytes need no callback. Flattening can wait, allocate and
+            // Ready bytes need no callback. Flattening can allocate and
             // copy, so retain its entry check as well as its bounded work checks.
             checkpoint?.Invoke();
             return MaterializeConcatenation(concatenation, checkpoint);
@@ -230,7 +230,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return Empty;
         var text = CreateTrustedOwnedBytes(bytes, counters, knownAscii: true);
         if (text._backing is TextStorage storage)
-            Volatile.Write(ref storage.TextFacts, bytes.Length + 1);
+            storage.TextFacts = bytes.Length + 1;
         return text;
     }
 
@@ -267,7 +267,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     // A host-boundary preparation has already decoded and funded this cache.
     // Reading it during the pending operation must not repeat conversion work.
     internal string PreparedString => ByteLength == 0 ? string.Empty :
-        _backing is TextStorage storage && Volatile.Read(ref storage.CachedString) is { } prepared
+        _backing is TextStorage storage && storage.CachedString is { } prepared
             ? prepared : throw new InvalidOperationException("Text must be decoded before its prepared string is used.");
 
     // The caller retains the returned cache owner. Its ordinary text estimate
@@ -293,14 +293,14 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return converted;
         }
 
-        var cached = Volatile.Read(ref storage.CachedString);
+        var cached = storage.CachedString;
         if (cached is not null)
             return cached;
 
         counters.RecordAwkTextAsStringDecodeMiss();
         var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint), counters);
         checkpoint?.Invoke();
-        return Interlocked.CompareExchange(ref storage.CachedString, decoded, null) ?? decoded;
+        return storage.CachedString = decoded;
     }
 
     public int CompareBytes(AwkText other, Action? checkpoint = null) =>
@@ -465,7 +465,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (index >= ByteLength) return false;
         if (index == 0) return true;
         if (RequiresStringCache) return true;
-        var facts = Volatile.Read(ref _textFacts);
+        var facts = _textFacts;
         if (facts > UnknownTextFacts) return index < facts - 1;
         if (index >= RuneCheckpointStride) return index < GetRuneLength(checkpoint);
 
@@ -569,7 +569,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        var knownAscii = text.RequiresStringCache || Volatile.Read(ref text._textFacts) - 1 == text.ByteLength;
+        var knownAscii = text.RequiresStringCache || text._textFacts - 1 == text.ByteLength;
         if (knownAscii)
         {
             byteStart = Math.Min(start, text.ByteLength);
@@ -584,7 +584,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             // A short text or bounded prefix needs neither total rune count nor a whole-text index.
             // Keep the index for nonlocal/repeated access once it is available.
             if ((text.ByteLength <= RuneCheckpointStride || endRuneIndex <= RuneCheckpointStride) &&
-                Volatile.Read(ref text._runeByteCheckpoints) is null)
+                text._runeByteCheckpoints is null)
             {
                 AwkText.ResolveRuneByteRange(text.AsSpan(checkpoint), start, length, counters, checkpoint,
                     out resolvedByteStart, out resolvedByteEnd);
@@ -609,7 +609,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
         int[] GetRuneByteCheckpoints()
         {
-            var cached = Volatile.Read(ref text._runeByteCheckpoints);
+            var cached = text._runeByteCheckpoints;
             if (cached is not null)
                 return cached;
 
@@ -642,8 +642,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
             checkpoint?.Invoke();
             counters.RecordRuneSliceBytesScanned(span.Length);
             counters.RecordRuneSliceIndexAllocation(checkpointBytes);
-            Volatile.Write(ref text._textFacts, runeIndex + 1);
-            return Interlocked.CompareExchange(ref text._runeByteCheckpoints, created, null) ?? created;
+            text._textFacts = runeIndex + 1;
+            return text._runeByteCheckpoints = created;
         }
 
         int ResolveRuneByteOffset(int runeIndex, int[] checkpoints)
@@ -748,7 +748,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             inspectedByteCount = 0;
             return true;
         }
-        var cached = Volatile.Read(ref _textFacts);
+        var cached = _textFacts;
         if (cached > UnknownTextFacts)
         {
             inspectedByteCount = 0;
@@ -770,76 +770,53 @@ internal readonly struct AwkText : IEquatable<AwkText>
                 continue;
 
             inspectedByteCount = index + 1;
-            _ = Interlocked.CompareExchange(
-                ref _textFacts,
-                KnownNonAsciiWithoutRuneCount,
-                comparand: UnknownTextFacts);
+            if (_textFacts == UnknownTextFacts)
+                _textFacts = KnownNonAsciiWithoutRuneCount;
             return false;
         }
 
         inspectedByteCount = span.Length;
-        Volatile.Write(ref _textFacts, ByteLength + 1);
+        _textFacts = ByteLength + 1;
         return true;
     }
 
     private byte[] MaterializeConcatenation(AwkTextConcatenation concatenation, Action? checkpoint)
     {
         var text = this;
-        var cached = Volatile.Read(ref concatenation.MaterializedBytes);
+        var cached = concatenation.MaterializedBytes;
         if (cached is not null)
             return cached;
 
-        var lockTaken = false;
+        checkpoint?.Invoke();
+        // Keep the allocation live while copying; cancellation releases the lease
+        // and leaves the retained parts available for an independent retry.
+        var governor = concatenation.Governor;
+        governor.Reserve(text.ByteLength);
+        byte[] bytes;
         try
         {
-            if (checkpoint is null)
-                Monitor.Enter(concatenation, ref lockTaken);
-            else
-            {
-                while (!Monitor.TryEnter(concatenation, millisecondsTimeout: 50))
-                    checkpoint();
-                lockTaken = true;
-                checkpoint();
-            }
-            cached = concatenation.MaterializedBytes;
-            if (cached is not null)
-                return cached;
-
-            // Keep the allocation live while copying; cancellation releases the lease
-            // and leaves the retained parts available for an independent retry.
-            var governor = concatenation.Governor;
-            governor.Reserve(text.ByteLength);
-            byte[] bytes;
-            try
-            {
-                bytes = new byte[text.ByteLength];
-                governor.CommitReserved(text.ByteLength);
-            }
-            catch
-            {
-                governor.ReleaseReserved(text.ByteLength);
-                throw;
-            }
-            try
-            {
-                CopyConcatenationTo(bytes);
-                checkpoint?.Invoke();
-                concatenation.Counters.RecordConcatenationBytesCopied(text.ByteLength);
-                concatenation.Counters.RecordAwkTextAllocation(text.ByteLength);
-                Volatile.Write(ref concatenation.MaterializedBytes, bytes);
-                concatenation.LeftPart = Empty;
-                concatenation.RightPart = Empty;
-                return bytes;
-            }
-            finally
-            {
-                governor.ReleaseCommitted(text.ByteLength);
-            }
+            bytes = new byte[text.ByteLength];
+            governor.CommitReserved(text.ByteLength);
+        }
+        catch
+        {
+            governor.ReleaseReserved(text.ByteLength);
+            throw;
+        }
+        try
+        {
+            CopyConcatenationTo(bytes);
+            checkpoint?.Invoke();
+            concatenation.Counters.RecordConcatenationBytesCopied(text.ByteLength);
+            concatenation.Counters.RecordAwkTextAllocation(text.ByteLength);
+            concatenation.MaterializedBytes = bytes;
+            concatenation.LeftPart = Empty;
+            concatenation.RightPart = Empty;
+            return bytes;
         }
         finally
         {
-            if (lockTaken)
-                Monitor.Exit(concatenation);
+            governor.ReleaseCommitted(text.ByteLength);
         }
 
         void CopyConcatenationTo(Span<byte> destination)
@@ -865,7 +842,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
                         continue;
                     }
 
-                    var materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
+                    var materialized = currentConcatenation.MaterializedBytes;
                     if (materialized is not null)
                     {
                         CopyBytes(materialized, destination[destinationOffset..], checkpoint);
@@ -875,17 +852,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
                     var left = currentConcatenation.LeftPart;
                     var right = currentConcatenation.RightPart;
-                    if (left.ByteLength == 0 || right.ByteLength == 0)
-                    {
-                        materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
-                        if (materialized is null)
-                            throw new InvalidOperationException("Concatenated text lost both its parts and materialized bytes.");
-
-                        CopyBytes(materialized, destination[destinationOffset..], checkpoint);
-                        destinationOffset += materialized.Length;
-                        continue;
-                    }
-
                     EnsurePendingCapacity(2);
                     pending[pendingCount++] = right;
                     pending[pendingCount++] = left;

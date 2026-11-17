@@ -98,7 +98,7 @@ POSIX strings retain plain `u`/`x` for `\u`/`\x`.
 
 [Regex patterns](#regex-patterns) have a separate ERE interpretation pass.
 Warning histories and locations are execution-local, including
-unreachable lexical warnings; reusing a prepared program does not share history.
+unreachable lexical warnings; independent invocations do not share history.
 
 ## Syntax depth
 

@@ -48,7 +48,7 @@ internal sealed class AwkExpressionSyntax(
     public IReadOnlyList<AwkToken> GetTokens(Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        var cached = Volatile.Read(ref _tokens);
+        var cached = _tokens;
         if (cached != null)
             return cached;
         static int CopyTo(IReadOnlyList<AwkToken> source, AwkToken[] destination, int offset, Action? checkpoint)
@@ -72,7 +72,7 @@ internal sealed class AwkExpressionSyntax(
             {
                 checkpoint?.Invoke();
                 var node = nodes.Pop();
-                if (Volatile.Read(ref node._tokens) is { } materializedTokens)
+                if (node._tokens is { } materializedTokens)
                 {
                     count = checked(count + materializedTokens.Count);
                     continue;
@@ -100,7 +100,7 @@ internal sealed class AwkExpressionSyntax(
             {
                 checkpoint?.Invoke();
                 var node = nodes.Pop();
-                if (Volatile.Read(ref node._tokens) is { } materializedTokens)
+                if (node._tokens is { } materializedTokens)
                 {
                     offset = CopyTo(materializedTokens, result, offset, checkpoint);
                     continue;
@@ -130,7 +130,7 @@ internal sealed class AwkExpressionSyntax(
 
         var built = BuildTokens(this, checkpoint);
         checkpoint?.Invoke();
-        return Interlocked.CompareExchange(ref _tokens, built, null) ?? built;
+        return _tokens = built;
     }
 
     public IReadOnlyList<AwkToken> OperatorTokens { get; } = operatorTokens;

@@ -108,46 +108,6 @@ public sealed class AwkGrammarCancellationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ConcurrentTokenMaterializationReturnsOneCompleteSnapshot(bool expression)
-    {
-        var expected = Tokens(256);
-        Func<Action?, IReadOnlyList<AwkToken>> getTokens;
-        if (expression)
-        {
-            var children = expected.Reverse().Select(token =>
-                new AwkExpressionSyntax(AwkExpressionKind.Variable, [token], [], token.Span)).ToArray();
-            var syntax = new AwkExpressionSyntax(AwkExpressionKind.Binary, null, [], [], [], children,
-                new AwkTextSpan(0, expected.Length * 2));
-            getTokens = syntax.GetTokens;
-        }
-        else
-        {
-            var composite = AwkTokenNavigation.Flatten([expected[..128], expected[128..]]);
-            getTokens = checkpoint => AwkTokenNavigation.ForIndexedAccess(composite, checkpoint);
-        }
-        using var construction = new Barrier(4);
-        var tasks = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
-        {
-            var calls = 0;
-            void Checkpoint()
-            {
-                // All builders have passed their cache lookup before any publishes.
-                if (++calls == (expression ? 2 : 3))
-                    Assert.True(construction.SignalAndWait(TimeSpan.FromSeconds(30)));
-            }
-            return getTokens(Checkpoint);
-        })).ToArray();
-        var results = await Task.WhenAll(tasks);
-        foreach (var result in results)
-        {
-            Assert.Same(results[0], result);
-            Assert.Equal(expected, result);
-        }
-    }
-
-    [Theory]
     [InlineData("skip")]
     [InlineData("first")]
     [InlineData("last")]

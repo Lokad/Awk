@@ -11,6 +11,10 @@ backedges. Explicit frames and continuations preserve caller ownership across ca
 nonlocal flow and real pending host work. Execution ownership can differ from the
 currently visible binding scope during retirement or file-phase reentry.
 
+Each invocation parses, prepares and executes its own program. Programs, token caches
+and concatenation owners are not shared between executions. Concurrent invocations
+remain independent; observational counters can be shared explicitly.
+
 Synchronous views borrow actual program/storage/frame state and cannot survive suspension
 or callbacks that replace their backing. Publish active ownership before operations that
 can fail; unwind through the owner that acquired it. Pending operations retain their

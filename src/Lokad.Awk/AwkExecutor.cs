@@ -2,45 +2,12 @@ namespace Lokad.Awk;
 
 internal static class AwkExecutor
 {
-    public static Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(host, invocation, cancellationToken, AwkRuntimeOptions.CreateSystemDefault());
-
-    internal static Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions) =>
-        ExecuteCoreAsync(host, invocation, cancellationToken, runtimeOptions, null);
-
-    internal static Task<AwkExitCode> ExecuteCompiledAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        AwkProgram program,
-        IReadOnlyList<AwkDiagnostic> warnings,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions) =>
-        ExecuteCoreAsync(
-            host,
-            invocation,
-            cancellationToken,
-            runtimeOptions,
-            AwkProgramResolution.Success(program, warnings));
-
-    internal static Task<AwkExitCode> ExecuteAsync(IAwkHost host, AwkCommandInvocation command,
-        CancellationToken cancellationToken, AwkRuntimeOptions runtimeOptions) =>
-        ExecuteCoreAsync(host, null, cancellationToken, runtimeOptions, null, command);
-
-    private static async Task<AwkExitCode> ExecuteCoreAsync(
-        IAwkHost host, AwkInvocation? invocation, CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution,
-        AwkCommandInvocation? command = null)
+    internal static async Task<AwkExitCode> ExecuteAsync(
+        IAwkHost host, AwkCommandInvocation command, CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var stderr = invocation is { } prepared ? prepared.Stdio.StdErr :
-            command is { } unparsed ? unparsed.StdErr : throw new ArgumentException("An invocation is required.");
+        var stderr = command.StdErr;
         AwkExecutionMemoryOwner owner;
         try { owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken); }
         catch (AwkRuntimeException exception)
@@ -53,11 +20,10 @@ internal static class AwkExecutor
             try
             {
                 var token = owner.Token(cancellationToken);
-                var resolved = invocation ?? AwkCommandParser.Parse(
-                    command ?? throw new ArgumentException("A command is required."), owner.FrontendMemory, token);
+                var resolved = AwkCommandParser.Parse(command, owner.FrontendMemory, token);
                 var options = owner.IsEnabled ? runtimeOptions with { MemoryOwner = owner } : runtimeOptions;
                 var result = await ExecuteBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
-                    resolved, token, options, compiledResolution).ConfigureAwait(false);
+                    resolved, token, options).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result;
             }
@@ -78,8 +44,7 @@ internal static class AwkExecutor
         IAwkHost host,
         AwkInvocation invocation,
         CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions,
-        AwkProgramResolution? compiledResolution)
+        AwkRuntimeOptions runtimeOptions)
     {
         var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
         var stringEscapeWarnings = new AwkStringEscapeWarnings();
@@ -103,16 +68,13 @@ internal static class AwkExecutor
 
         try
         {
-            if (compiledResolution is null)
+            var optionWarnings = invocation.GetOptionWarnings(cancellationToken, stringEscapeWarnings);
+            foreach (var warning in optionWarnings)
             {
-                var optionWarnings = invocation.GetOptionWarnings(cancellationToken, stringEscapeWarnings);
-                foreach (var warning in optionWarnings)
-                {
-                    var status = await AppendResultAsync(invocation.Stdio.StdErr,
-                        AwkDiagnostics.Warning(warning), AwkDiagnostics.SuccessExitCode).ConfigureAwait(false);
-                    if (status != AwkDiagnostics.SuccessExitCode)
-                        return status;
-                }
+                var status = await AppendResultAsync(invocation.Stdio.StdErr,
+                    AwkDiagnostics.Warning(warning), AwkDiagnostics.SuccessExitCode).ConfigureAwait(false);
+                if (status != AwkDiagnostics.SuccessExitCode)
+                    return status;
             }
             if (invocation.TerminalResult.IsHelp)
             {
@@ -141,7 +103,7 @@ internal static class AwkExecutor
                     .ConfigureAwait(false);
             }
 
-            var resolved = compiledResolution ?? await ResolveProgramAsync(
+            var resolved = await ResolveProgramAsync(
                     host,
                     invocation,
                     resources,
@@ -242,82 +204,6 @@ internal static class AwkExecutor
             cancellationToken.ThrowIfCancellationRequested();
             return AwkDiagnostics.FatalExitCode;
         }
-    }
-
-    internal static Task<AwkCompiledProgram> CompileAsync(IAwkHost host,
-        AwkCommandInvocation command, CancellationToken cancellationToken, IAwkRegexEngine? regexEngine = null) =>
-        CompileCoreAsync(host, null, command, cancellationToken, command.MemoryBudget, regexEngine);
-
-    internal static Task<AwkCompiledProgram> CompileAsync(IAwkHost host,
-        AwkInvocation invocation, CancellationToken cancellationToken, IMemoryBudget? memoryBudget = null,
-        IAwkRegexEngine? regexEngine = null) =>
-        CompileCoreAsync(host, invocation, null, cancellationToken, memoryBudget, regexEngine);
-
-    private static async Task<AwkCompiledProgram> CompileCoreAsync(IAwkHost host,
-        AwkInvocation? invocation, AwkCommandInvocation? command,
-        CancellationToken cancellationToken, IMemoryBudget? memoryBudget, IAwkRegexEngine? regexEngine)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var owner = AwkExecutionMemoryOwner.Create(memoryBudget, cancellationToken);
-        try
-        {
-            var token = owner.Token(cancellationToken);
-            var resolved = invocation ?? AwkCommandParser.Parse(
-                command ?? throw new ArgumentException("A command is required."), owner.FrontendMemory, token);
-            return await CompileBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
-                resolved, token, owner, regexEngine).ConfigureAwait(false);
-        }
-        catch
-        {
-            await owner.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
-    }
-
-    private static async Task<AwkCompiledProgram> CompileBodyAsync(
-        IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken,
-        AwkExecutionMemoryOwner owner, IAwkRegexEngine? regexEngine)
-    {
-        if (invocation.TerminalResult.IsTerminal)
-        {
-            if (invocation.TerminalResult.IsError)
-            {
-                throw new System.InvalidOperationException(
-                    AwkUtf8Codec.Decode(invocation.TerminalResult.ErrorMessage));
-            }
-
-            throw new System.InvalidOperationException("Terminal awk invocations cannot be precompiled.");
-        }
-
-        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
-        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
-        var stringEscapeWarnings = new AwkStringEscapeWarnings();
-        var regexEscapeWarnings = new AwkRegexEscapeWarnings();
-        var optionWarnings = invocation.GetOptionWarnings(cancellationToken, stringEscapeWarnings);
-        var resolved = await ResolveProgramAsync(
-                host,
-                invocation,
-                resources,
-                stringEscapeWarnings,
-                regexEscapeWarnings,
-                runtimeOptions.AccessiblePathRoot,
-                runtimeOptions.AllowSourceIncludes,
-                runtimeOptions.ExposeEnvironment,
-                runtimeOptions.ExposeHostErrorDetails,
-                runtimeOptions.MaxHostErrorBytes,
-                cancellationToken,
-                owner.FrontendMemory, regexEngine)
-            .ConfigureAwait(false);
-        if (resolved is AwkProgramResolution.Failed failed)
-            throw new System.InvalidOperationException(AwkUtf8Codec.Decode(failed.Diagnostic.Message));
-
-        if (resolved is not AwkProgramResolution.ResolvedProgram resolvedProgram)
-            throw new System.InvalidOperationException("Unexpected awk program resolution.");
-
-        return new AwkCompiledProgram(
-            invocation,
-            resolvedProgram.Program,
-            [.. optionWarnings, .. resolved.Warnings], owner);
     }
 
     private static async Task<AwkProgramResolution> ResolveProgramAsync(
