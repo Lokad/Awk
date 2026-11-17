@@ -196,7 +196,8 @@ internal sealed class AwkStatementSyntaxParser
         var continuation = new ElseContinuation(
             Flatten([elseIntro.Tokens, elseBody.Tokens]),
             elseBody.Statements,
-            IsUnbracedBody(elseBody));
+            IsUnbracedBody(elseBody),
+            elseBody.End == 0 ? elseIntro.End : elseBody.End);
         return TryAttachElse(statement, [], continuation, out var attached)
             ? attached
             : CreateStatement(AwkStatementKind.Unknown,
@@ -210,7 +211,7 @@ internal sealed class AwkStatementSyntaxParser
     {
         _checkpoint?.Invoke();
         var elseToken = ToToken(AwkTokenKind.Else, elseKeyword);
-        return new ElseIntro(Flatten([[elseToken], Flatten(afterElse)]));
+        return new ElseIntro(Flatten([[elseToken], Flatten(afterElse)]), elseToken.Span.End);
     }
 
     [Rule]
@@ -224,7 +225,8 @@ internal sealed class AwkStatementSyntaxParser
         return new ElseContinuation(
             Flatten([[elseToken], Flatten(afterElse), elseBody.Tokens]),
             elseBody.Statements,
-            IsUnbracedBody(elseBody));
+            IsUnbracedBody(elseBody),
+            elseBody.End == 0 ? elseToken.Span.End : elseBody.End);
     }
 
     [Rule]
@@ -453,7 +455,7 @@ internal sealed class AwkStatementSyntaxParser
         var innerTokens = Flatten(items.Select(item => item.Tokens));
         return new StatementBody(
             Flatten([[openToken], innerTokens, [closeToken]]),
-            StatementsFrom(items));
+            StatementsFrom(items), closeToken.Span.End);
     }
 
     [Rule]
@@ -461,14 +463,14 @@ internal sealed class AwkStatementSyntaxParser
     {
         _checkpoint?.Invoke();
         return new(statement.Tokens,
-            statement.Kind is AwkStatementKind.Block ? statement.BodyStatements : [statement]);
+            statement.Kind is AwkStatementKind.Block ? statement.BodyStatements : [statement], statement.Span.End);
     }
 
     [Rule]
     public StatementBody NullStatementBody([AwkT(AwkTokenKind.Semicolon)] Pos<string> semicolon)
     {
         _checkpoint?.Invoke();
-        return new([ToToken(AwkTokenKind.Semicolon, semicolon)], []);
+        return new([ToToken(AwkTokenKind.Semicolon, semicolon)], [], 0);
     }
 
     [Rule]
@@ -1452,21 +1454,15 @@ internal sealed class AwkStatementSyntaxParser
 
             if (item.ElseContinuation != null)
             {
-                if (statements.Count > 0 &&
-                    TryAttachElse(statements[^1], pendingSeparators, item.ElseContinuation.Value, out var attached))
+                foreach (var (separators, continuation) in FoldContinuations(items, ref index, pendingSeparators))
                 {
-                    statements[^1] = attached;
-                    pendingSeparators.Clear();
-                    continue;
+                    if (statements.Count > 0 &&
+                        TryAttachElse(statements[^1], separators, continuation, out var attached))
+                        statements[^1] = attached;
+                    else
+                        statements.Add(CreateStatement(AwkStatementKind.Unknown,
+                            Flatten([separators, continuation.Tokens]), [], [], [], []));
                 }
-
-                statements.Add(CreateStatement(
-                    AwkStatementKind.Unknown,
-                    Flatten([pendingSeparators, item.ElseContinuation.Value.Tokens]),
-                    [],
-                    [],
-                    [],
-                    []));
                 pendingSeparators.Clear();
                 continue;
             }
@@ -1478,6 +1474,44 @@ internal sealed class AwkStatementSyntaxParser
         return statements;
     }
 
+    private Stack<(IReadOnlyList<AwkToken> Separators, ElseContinuation Continuation)> FoldContinuations(
+        StatementListItem[] items, ref int position, IReadOnlyList<AwkToken> preceding)
+    {
+        var clauses = new List<(IReadOnlyList<AwkToken> Separators, ElseContinuation Continuation)>();
+        var gaps = new List<IReadOnlyList<AwkToken>> { preceding.ToArray() };
+        for (var index = position; index < items.Length && items[index].Statement is null; index++)
+        {
+            _checkpoint?.Invoke();
+            if (items[index].ElseContinuation is { } continuation)
+            {
+                clauses.Add((Flatten(gaps), continuation));
+                gaps.Clear();
+                position = index;
+            }
+            else gaps.Add(items[index].Tokens);
+        }
+
+        // Assemble the tail once instead of rebuilding every earlier ancestor
+        // for each additional clause. Invalid extra clauses remain separate.
+        var folded = new Stack<(IReadOnlyList<AwkToken> Separators, ElseContinuation Continuation)>();
+        for (var index = clauses.Count - 1; index >= 0; index--)
+        {
+            _checkpoint?.Invoke();
+            var (separators, continuation) = clauses[index];
+            if (continuation.HasUnbracedBody && continuation.Statements.Count == 1 &&
+                folded.TryPeek(out var tail) &&
+                TryAttachElse(continuation.Statements[0], tail.Separators, tail.Continuation, out var child))
+            {
+                folded.Pop();
+                continuation = new ElseContinuation(
+                    Flatten([continuation.Tokens, tail.Separators, tail.Continuation.Tokens]),
+                    [child], hasUnbracedBody: true, tail.Continuation.End);
+            }
+            folded.Push((separators, continuation));
+        }
+        return folded;
+    }
+
     private bool TryAttachElse(
         AwkStatementSyntax statement,
         IReadOnlyList<AwkToken> separatorTokens,
@@ -1485,55 +1519,77 @@ internal sealed class AwkStatementSyntaxParser
         out AwkStatementSyntax attached)
     {
         attached = statement;
-        AwkStatementSyntaxPayload payload;
-        if (statement.Payload is AwkControlStatementSyntaxPayload control)
+        Stack<(AwkStatementSyntax Statement, bool Else)>? parents = null;
+        var current = statement;
+        AwkStatementSyntaxPayload? payload = null;
+        while (payload is null)
         {
-            if (statement.Kind is AwkStatementKind.If && control.HasElse)
+            _checkpoint?.Invoke();
+            if (current.Payload is AwkControlStatementSyntaxPayload control)
             {
-                if (!control.HasUnbracedElseBody || control.ElseStatements.Count != 1 ||
-                    !TryAttachElse(control.ElseStatements[0], separatorTokens, continuation, out var child))
+                if (current.Kind == AwkStatementKind.If && control.HasElse)
                 {
-                    return false;
+                    if (control.HasUnbracedElseBody && control.ElseStatements.Count == 1)
+                    {
+                        (parents ??= new()).Push((current, true));
+                        current = control.ElseStatements[0];
+                        continue;
+                    }
                 }
+                else if (control.HasUnbracedBody && control.BodyStatements.Count == 1)
+                {
+                    (parents ??= new()).Push((current, false));
+                    current = control.BodyStatements[0];
+                    continue;
+                }
+                else if (current.Kind == AwkStatementKind.If && CanAttachElse(current, separatorTokens))
+                {
+                    payload = control.WithElse(continuation.Statements, continuation.HasUnbracedBody);
+                    break;
+                }
+            }
+            else if (current.Payload is AwkForStatementSyntaxPayload { HasUnbracedBody: true, BodyStatements.Count: 1 } loop)
+            {
+                (parents ??= new()).Push((current, false));
+                current = loop.BodyStatements[0];
+                continue;
+            }
 
-                payload = control.WithElse([child], hasUnbracedElseBody: true);
-            }
-            else if (control.HasUnbracedBody && control.BodyStatements.Count == 1 &&
-                TryAttachElse(control.BodyStatements[0], separatorTokens, continuation, out var child))
+            // If the child has no eligible if, resume at the nearest unmatched
+            // ancestor. An already attached else cannot accept another one.
+            while (parents is not null && parents.TryPop(out var parent))
             {
-                payload = control.WithBody([child]);
+                current = parent.Statement;
+                if (!parent.Else && current.Kind == AwkStatementKind.If &&
+                    current.Payload is AwkControlStatementSyntaxPayload { HasElse: false } unmatched &&
+                    CanAttachElse(current, separatorTokens))
+                {
+                    payload = unmatched.WithElse(continuation.Statements, continuation.HasUnbracedBody);
+                    break;
+                }
             }
-            else if (statement.Kind is AwkStatementKind.If)
-            {
-                if (!CanAttachElse(statement, separatorTokens))
-                    return false;
-                payload = control.WithElse(continuation.Statements, continuation.HasUnbracedBody);
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else if (statement.Payload is AwkForStatementSyntaxPayload loop && loop.HasUnbracedBody &&
-            loop.BodyStatements.Count == 1 &&
-            TryAttachElse(loop.BodyStatements[0], separatorTokens, continuation, out var child))
-        {
-            payload = loop.WithBody([child]);
-        }
-        else
-        {
-            return false;
+            if (payload is null) return false;
         }
 
-        var tokens = Flatten([statement.Tokens, separatorTokens, continuation.Tokens]);
-        _checkpoint?.Invoke();
-        var first = FindFirstSignificant(tokens);
-        var last = FindLastSignificant(tokens);
-        attached = statement.WithPayload(tokens, payload,
-            first != null && last != null
-                ? new AwkTextSpan(first.Value.Span.Start, last.Value.Span.End - first.Value.Span.Start)
-                : statement.Span);
+        attached = Append(current, payload);
+        while (parents is not null && parents.TryPop(out var parent))
+        {
+            _checkpoint?.Invoke();
+            payload = parent.Statement.Payload switch
+            {
+                AwkControlStatementSyntaxPayload control when parent.Else =>
+                    control.WithElse([attached], hasUnbracedElseBody: true),
+                AwkControlStatementSyntaxPayload control => control.WithBody([attached]),
+                AwkForStatementSyntaxPayload loop => loop.WithBody([attached]),
+                _ => throw new InvalidOperationException("Invalid else attachment ancestor.")
+            };
+            attached = Append(parent.Statement, payload);
+        }
         return true;
+
+        AwkStatementSyntax Append(AwkStatementSyntax original, AwkStatementSyntaxPayload updated) =>
+            original.WithPayload(Flatten([original.Tokens, separatorTokens, continuation.Tokens]), updated,
+                new AwkTextSpan(original.Span.Start, continuation.End - original.Span.Start));
     }
 
     private bool CanAttachElse(AwkStatementSyntax statement, IReadOnlyList<AwkToken> separators)
@@ -1686,28 +1742,36 @@ internal sealed class AwkStatementSyntaxParser
 
     public readonly struct StatementBody(
         IReadOnlyList<AwkToken>? tokens,
-        IReadOnlyList<AwkStatementSyntax>? statements)
+        IReadOnlyList<AwkStatementSyntax>? statements,
+        int end)
     {
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
         public IReadOnlyList<AwkStatementSyntax> Statements => statements ?? [];
+
+        public int End { get; } = end;
     }
 
-    public readonly struct ElseIntro(IReadOnlyList<AwkToken>? tokens)
+    public readonly struct ElseIntro(IReadOnlyList<AwkToken>? tokens, int end)
     {
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
+
+        public int End { get; } = end;
     }
 
     public readonly struct ElseContinuation(
         IReadOnlyList<AwkToken>? tokens,
         IReadOnlyList<AwkStatementSyntax>? statements,
-        bool hasUnbracedBody)
+        bool hasUnbracedBody,
+        int end)
     {
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
         public IReadOnlyList<AwkStatementSyntax> Statements => statements ?? [];
 
         public bool HasUnbracedBody { get; } = hasUnbracedBody;
+
+        public int End { get; } = end;
     }
 
     public readonly struct SwitchBlock(

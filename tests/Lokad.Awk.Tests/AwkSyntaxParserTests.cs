@@ -178,6 +178,41 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Fact]
+    public void AwkSyntaxParser_ParsesElseIfChainsWithLinearAllocation()
+    {
+        _ = ParseAndMeasure(8);
+        var small = ParseAndMeasure(256);
+        var large = ParseAndMeasure(512);
+        Assert.True(large < small * 3, "Else-if allocations at 256/512 arms: " + small + "/" + large);
+
+        static long ParseAndMeasure(int count)
+        {
+            var source = new System.Text.StringBuilder("BEGIN{x=0;");
+            for (var index = 0; index < count; index++)
+                source.Append(index == 0 ? "if(x==" : "else if(x==").Append(index)
+                    .Append(")print ").Append(index).Append(';');
+            source.Append("else print -1}");
+            var text = source.ToString();
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var parsed = AwkParser.Parse(text, int.MaxValue);
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(parsed.Success);
+            var current = parsed.Syntax.Rules[0].ActionStatements[1];
+            var lastStart = 0;
+            for (var index = 0; index < count; index++)
+            {
+                Assert.Equal(AwkStatementKind.If, current.Kind);
+                Assert.True(current.Span.Start > lastStart);
+                Assert.Equal(text.Length - 1, current.Span.End);
+                lastStart = current.Span.Start;
+                current = Assert.Single(current.ElseStatements);
+            }
+            Assert.Equal(AwkStatementKind.Print, current.Kind);
+            return allocated;
+        }
+    }
+
+    [Fact]
     public void AwkSyntaxParser_ParsesBeginMainAndEndRulesInOrder()
     {
         var program = AwkSyntaxParser.Parse("BEGIN{print \"start\"} /foo/ {print $0} END{print NR}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);

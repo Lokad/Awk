@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Assemble else-if continuations without repeatedly rebuilding earlier branches; preserve dangling-else binding and source spans.
+
 - Honor CONVFMT for numeric string conversions inside OFMT and keep recursive conversion bounded.
 - Format excessive general precision within binary64 bounds without losing alternate-form zeroes.
 
