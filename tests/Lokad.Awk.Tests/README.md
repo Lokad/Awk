@@ -255,7 +255,8 @@ the benchmark process runner: argument lists, streamed stdin, bounded capture, c
 process-tree cleanup. It records executable version/hash, arguments/input, core revision, locale
 (`C.UTF-8`), timezone (`UTC`), both results and any declared native exit-status difference in test
 output. It compares stdout bytes, stderr class and exit status; goldens keep exact diagnostic text.
-The initial corpus uses script/stdin fixtures. File-suite imports remain separate follow-up work.
+The corpus includes 200 curated script/stdin idioms covering reports, fields, arrays, strings,
+CSV, functions and control flow. File-suite imports remain separate follow-up work.
 Provider selection gaps remain explicit and must not silently expand with new idioms.
 
 Benchmark native comparisons use the same executable variable or explicit `--awk`.

@@ -34,6 +34,7 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
         Assert.Empty(golden.InputDirectories);
         Assert.Empty(golden.ReadOpenErrors);
         Assert.Empty(golden.ExpectedFiles);
+        Assert.Empty(golden.Environment);
         Assert.False(AwkRegexProviderGaps.AffectsExecution(golden),
             "Provider selection deferrals need their own declared differential profile.");
 
