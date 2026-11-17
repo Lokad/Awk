@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Execute print, printf and delete in for initializers and steps, including redirected output
+  and continuation after continue. Validate their operands before execution.
+
 - Accept compound expressions beginning with close, fflush, split, substitution and sorting calls.
 
 - Include special-form functions in FUNCTAB, preserve numeric-string origins in match captures,

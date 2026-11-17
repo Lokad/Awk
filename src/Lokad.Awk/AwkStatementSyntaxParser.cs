@@ -338,7 +338,13 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            new AwkStatementSyntaxOptions { ForHeader = forHeader, HasUnbracedBody = IsUnbracedBody(body) });
+            new AwkStatementSyntaxOptions
+            {
+                ForHeader = forHeader,
+                HasUnbracedBody = IsUnbracedBody(body),
+                Diagnostics = forHeader.InitializerStatements.Concat(forHeader.StepStatements)
+                    .SelectMany(statement => statement.Diagnostics).ToArray()
+            });
 
         AwkForHeaderSyntax ParseForHeader(IReadOnlyList<AwkToken> tokens)
         {
@@ -357,9 +363,35 @@ internal sealed class AwkStatementSyntaxParser
                     ], allowLeadingNewlines: false));
             }
 
-            return new AwkForHeaderSyntax(
-                isForIn: false,
-                ParseExpressionSlots(parts, allowLeadingNewlines: true));
+            var slots = ParseExpressionSlots(parts, allowLeadingNewlines: true);
+            var initializer = ParseHeaderStatement(slots, 0);
+            var step = ParseHeaderStatement(slots, 2);
+            return new AwkForHeaderSyntax(false, slots, initializer, step);
+
+            IReadOnlyList<AwkStatementSyntax> ParseHeaderStatement(AwkExpressionSlotSyntax[] slots, int index)
+            {
+                if (slots.Length != 3) return [];
+                var tokens = slots[index].Tokens;
+                var start = 0;
+                while (start < tokens.Count && tokens[start].Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
+                {
+                    _checkpoint?.Invoke();
+                    start++;
+                }
+                if (start == tokens.Count) return [];
+                var kind = tokens[start].Kind switch
+                {
+                    AwkTokenKind.Print => AwkStatementKind.Print,
+                    AwkTokenKind.Printf => AwkStatementKind.Printf,
+                    AwkTokenKind.Delete => AwkStatementKind.Delete,
+                    _ => AwkStatementKind.Expression
+                };
+                if (kind == AwkStatementKind.Expression) return [];
+                var statement = CreateSimpleStatement(kind,
+                    AwkTokenNavigation.Slice(tokens, start, tokens.Count - start, checkpoint: _checkpoint), []);
+                slots[index] = new AwkExpressionSlotSyntax(tokens, AwkSyntaxOptional<AwkExpressionSyntax>.None);
+                return [statement];
+            }
 
             AwkExpressionSlotSyntax[] ParseExpressionSlots(
                 IReadOnlyList<IReadOnlyList<AwkToken>> segments,

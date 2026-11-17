@@ -25,6 +25,12 @@ internal sealed partial class AwkRegionCompiler
                         {
                             if (statement.Payload is not AwkForStatementSyntaxPayload { Header.Parts.Count: 3 } payload) return false;
                             _header = payload.Header;
+                            if (_header.InitializerStatements.Count != 0)
+                            {
+                                _stage = 1;
+                                next = new StatementsWork(_header.InitializerStatements);
+                                return true;
+                            }
                             if (_header.Parts[0].Expression.TryGetValue(out var initial))
                             {
                                 _stage = 1;
@@ -36,7 +42,8 @@ internal sealed partial class AwkRegionCompiler
                         _stage = 2;
                         break;
                     case 1:
-                        compiler.Discard(CompletedResult<int>(completed));
+                        if (_header is { InitializerStatements.Count: 0 })
+                            compiler.Discard(CompletedResult<int>(completed));
                         _stage = 2;
                         break;
                     case 2:
@@ -64,9 +71,16 @@ internal sealed partial class AwkRegionCompiler
                         if (_header is not null) _header.Parts[2].Expression.TryGetValue(out step);
                         // Without tail computation, the head already polls after
                         // body/continue cleanup and before the next condition.
-                        var continuation = step is not null || statement.Kind == AwkStatementKind.DoWhile
+                        var hasStepStatement = _header is { StepStatements.Count: > 0 };
+                        var continuation = hasStepStatement || step is not null || statement.Kind == AwkStatementKind.DoWhile
                             ? compiler.Label() : _start;
                         foreach (var position in Loop.Continues) compiler.Patch(position, continuation);
+                        if (_header is { StepStatements.Count: > 0 })
+                        {
+                            _stage = 5;
+                            next = new StatementsWork(_header.StepStatements);
+                            return true;
+                        }
                         if (step is not null)
                         {
                             _stage = 5;
@@ -76,7 +90,8 @@ internal sealed partial class AwkRegionCompiler
                         _stage = 6;
                         break;
                     case 5:
-                        compiler.Discard(CompletedResult<int>(completed));
+                        if (_header is { StepStatements.Count: 0 })
+                            compiler.Discard(CompletedResult<int>(completed));
                         _stage = 6;
                         break;
                     case 6:

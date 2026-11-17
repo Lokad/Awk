@@ -46,9 +46,13 @@ public sealed class AwkOutputOwnershipTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task ComputationBetweenPrintsKeepsPendingOutputAndStopsCanceledEffects(bool governed, bool cancel)
+    [InlineData(false, false, "ordinary")] [InlineData(false, true, "ordinary")]
+    [InlineData(true, false, "ordinary")] [InlineData(true, true, "ordinary")]
+    [InlineData(false, false, "initializer")] [InlineData(false, true, "initializer")]
+    [InlineData(true, false, "initializer")] [InlineData(true, true, "initializer")]
+    [InlineData(false, false, "step")] [InlineData(false, true, "step")]
+    [InlineData(true, false, "step")] [InlineData(true, true, "step")]
+    public async Task PendingOutputStopsFollowingEffectsAcrossStatementPositions(bool governed, bool cancel, string position)
     {
         var budget = new CooperativeTestBudget(4 << 20);
         using var cancellation = new CancellationTokenSource();
@@ -74,8 +78,13 @@ public sealed class AwkOutputOwnershipTests
                 return AwkAppendResult.Accepted();
             }
         };
-        var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
-            ["BEGIN{a=1;b=2;print \"first\";a+=3;b*=4;print a,b}"], []));
+        var source = position switch
+        {
+            "initializer" => "BEGIN{for(print \"first\";i++<1;){a=4;b=8;print a,b}}",
+            "step" => "BEGIN{for(i=0;i<1;print \"first\"){i++}a=4;b=8;print a,b}",
+            _ => "BEGIN{a=1;b=2;print \"first\";a+=3;b*=4;print a,b}"
+        };
+        var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []));
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
         var execution = awk.ExecuteAsync(host, policy, cancellation.Token);

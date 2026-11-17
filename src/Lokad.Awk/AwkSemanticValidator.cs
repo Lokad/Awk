@@ -418,6 +418,13 @@ internal static class AwkSemanticValidator
                 ValidateExpressionSemanticsCore(expression, context, diagnostics);
 
             ValidateDeleteStatement(statement, context, diagnostics);
+            if (statement.Payload is AwkForStatementSyntaxPayload forStatement)
+            {
+                foreach (var headerStatement in forStatement.Header.InitializerStatements)
+                    ValidateDeleteStatement(headerStatement, context, diagnostics);
+                foreach (var headerStatement in forStatement.Header.StepStatements)
+                    ValidateDeleteStatement(headerStatement, context, diagnostics);
+            }
             ValidateSwitchLabels(statement, context.Scope, diagnostics);
             for (var caseIndex = statement.SwitchCases.Count - 1; caseIndex >= 0; caseIndex--)
             {

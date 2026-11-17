@@ -201,6 +201,20 @@ internal sealed class AwkForStatementSyntaxPayload(
 
     public bool HasUnbracedBody { get; } = hasUnbracedBody;
 
+    public override IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions()
+    {
+        for (var index = 0; index < Header.Parts.Count; index++)
+        {
+            var statements = index == 0 ? Header.InitializerStatements :
+                index == 2 ? Header.StepStatements : [];
+            foreach (var statement in statements)
+                foreach (var expression in statement.EnumerateChildExpressions())
+                    yield return expression;
+            if (Header.Parts[index].Expression.TryGetValue(out var part))
+                yield return part;
+        }
+    }
+
     public AwkForStatementSyntaxPayload WithBody(IReadOnlyList<AwkStatementSyntax> bodyStatements) =>
         new(Header, Expressions, bodyStatements, HasUnbracedBody);
 }
@@ -273,13 +287,19 @@ internal sealed class AwkExpressionSlotSyntax
 
 internal sealed class AwkForHeaderSyntax(
     bool isForIn,
-    IReadOnlyList<AwkExpressionSlotSyntax> parts)
+    IReadOnlyList<AwkExpressionSlotSyntax> parts,
+    IReadOnlyList<AwkStatementSyntax>? initializerStatements = null,
+    IReadOnlyList<AwkStatementSyntax>? stepStatements = null)
 {
     public static AwkForHeaderSyntax Empty { get; } = new(isForIn: false, []);
 
     public bool IsForIn { get; } = isForIn;
 
     public IReadOnlyList<AwkExpressionSlotSyntax> Parts { get; } = parts;
+
+    public IReadOnlyList<AwkStatementSyntax> InitializerStatements { get; } = initializerStatements ?? [];
+
+    public IReadOnlyList<AwkStatementSyntax> StepStatements { get; } = stepStatements ?? [];
 }
 
 internal sealed class AwkOutputRedirectionSyntax(
