@@ -23,7 +23,7 @@ internal static class AwkGetlineRuntime
                 state.SetRecordTerminator(result.Terminator);
             }
 
-            target.AssignRecord(state, result.RecordText, result.FieldSplittingMode);
+            target.AssignRecord(state, result.RecordText);
         }
         else if (result.ClearsRecordTerminator)
         {

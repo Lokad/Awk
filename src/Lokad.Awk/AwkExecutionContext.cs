@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Lokad.Awk;
 
 internal readonly struct AwkExecutionContext(AwkOutputSink? output, AwkIo? io)

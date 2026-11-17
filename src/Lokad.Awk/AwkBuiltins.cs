@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
@@ -593,29 +590,6 @@ internal static partial class AwkBuiltins
         kind = AwkStatementKind.Expression;
         return false;
     }
-
-    internal static void ValidateInvocation(AwkBuiltinDefinition definition, int argumentCount,
-        AwkEvaluationContext context) =>
-        ValidateInvocationCore(definition, definition.Name, argumentCount, context);
-
-    private static void ValidateInvocationCore(AwkBuiltinDefinition definition, string name, int argumentCount,
-        AwkEvaluationContext context)
-    {
-        if (context.State.CompatibilityMode != AwkCompatibilityMode.GnuDefault &&
-            definition.Compatibility == AwkBuiltinCompatibility.Gnu)
-        {
-            throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(name));
-        }
-
-        if (!definition.Arity.Accepts(argumentCount))
-            throw new AwkRuntimeException(AwkMessages.FormatInvalidBuiltinArgumentCount(name));
-    }
-
-    private static AwkBuiltinDefinition PosixFunctionAsync(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkAsyncBuiltinEvaluator evaluator) =>
-        PosixFunctionAsync(id, arity, evaluator, AwkStatementKind.Unknown);
 
     private static AwkBuiltinDefinition PosixFunctionAsync(
         AwkBuiltinId id,

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Lokad.Parsing.Error;
 using Lokad.Parsing.Parser;
 
@@ -108,7 +105,7 @@ internal sealed class AwkStatementSyntaxParser
     [Rule]
     public ParseResult StatementListRoot(
         [AwkL(Min = 0)] StatementListItem[] items,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> _)
     {
         _checkpoint?.Invoke();
         return new(StatementsFrom(items));

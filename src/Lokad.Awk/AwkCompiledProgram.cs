@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Lokad.Awk;
 
 internal sealed class AwkCompiledProgram(
@@ -27,9 +23,6 @@ internal sealed class AwkCompiledProgram(
             }
         }
     }
-
-    public Task<AwkExitCode> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken) =>
-        ExecuteAsync(host, cancellationToken, AwkRuntimeOptions.CreateSystemDefault());
 
     internal Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,

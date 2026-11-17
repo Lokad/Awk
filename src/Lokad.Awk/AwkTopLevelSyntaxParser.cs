@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using Lokad.Parsing.Error;
 using Lokad.Parsing.Parser;
 
@@ -49,7 +46,7 @@ internal sealed class AwkTopLevelSyntaxParser
     [Rule]
     public ParseResult Program(
         [AwkL(Min = 0)] TopLevelPart[] parts,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> _)
     {
         _checkpoint?.Invoke();
         var items = new List<TopLevelItem>(parts.Length);
@@ -71,7 +68,7 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     [Rule]
-    public TopLevelPart Separator([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] Pos<string> token)
+    public TopLevelPart Separator([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] Pos<string> _)
     {
         _checkpoint?.Invoke();
         return new(null);
@@ -97,7 +94,7 @@ internal sealed class AwkTopLevelSyntaxParser
         [AwkT(AwkTokenKind.Function)] Pos<string> functionKeyword,
         [AwkT(AwkTokenKind.Identifier)] Pos<string> name,
         [NT] BalancedParenthesized parameterList,
-        [AwkL(Min = 0)] FunctionBodyGap[] beforeBody,
+        [AwkL(Min = 0)] FunctionBodyGap[] _,
         [NT] BalancedBlock body)
     {
         _checkpoint?.Invoke();
@@ -111,7 +108,7 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public FunctionBodyGap FunctionBodyGapRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token)
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> _)
     {
         _checkpoint?.Invoke();
         return new();

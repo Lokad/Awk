@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Frozen;
-using System.Globalization;
 using System.Text;
 
 namespace Lokad.Awk;
@@ -531,20 +528,6 @@ internal sealed partial class AwkVariables
         var prepared = stored.WithStringCache();
         cell.State.Slot = slot.WithByteText(prepared);
         return prepared;
-    }
-
-    public bool TryGetScalarNumber(AwkGlobalSlotId id, out double number) =>
-        TryGetScalarNumber(GetScalarCell(id), out number);
-
-    internal bool TryGetScalarNumber(AwkScalarCell cell, out double number)
-    {
-        if (_resolveFieldCountValue is not null &&
-            string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal))
-        {
-            number = 0;
-            return false;
-        }
-        return cell.State.Slot.TryGetNumberValue(out number);
     }
 
     public void SetScalarValue(AwkGlobalSlotId id, AwkValue value) => SetScalarValue(GetScalarCell(id), value);

@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 namespace Lokad.Awk;
 
 internal sealed class AwkRuntimeActionExecutor : IDisposable

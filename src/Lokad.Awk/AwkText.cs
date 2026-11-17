@@ -1,7 +1,5 @@
-using System;
 using System.Buffers;
 using System.Text;
-using System.Threading;
 
 namespace Lokad.Awk;
 
@@ -355,8 +353,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
     public AwkText Concat(
         AwkText other,
         AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null)
+        AwkMemoryAccounting governor)
     {
         if (ByteLength == 0)
             return other;

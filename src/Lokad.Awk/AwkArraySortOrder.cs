@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal abstract class AwkArraySortOrder

@@ -1,27 +1,4 @@
-using System.Collections.Generic;
-
 namespace Lokad.Awk;
-
-internal sealed class AwkControlStatementLoweringShape(
-    AwkExpressionSlotSyntax header,
-    IReadOnlyList<AwkStatementSyntax> bodyStatements,
-    IReadOnlyList<AwkStatementSyntax> elseStatements)
-{
-    public AwkExpressionSlotSyntax Header { get; } = header;
-
-    public IReadOnlyList<AwkStatementSyntax> BodyStatements { get; } = bodyStatements;
-
-    public IReadOnlyList<AwkStatementSyntax> ElseStatements { get; } = elseStatements;
-}
-
-internal sealed class AwkForStatementLoweringShape(
-    AwkForHeaderSyntax header,
-    IReadOnlyList<AwkStatementSyntax> bodyStatements)
-{
-    public AwkForHeaderSyntax Header { get; } = header;
-
-    public IReadOnlyList<AwkStatementSyntax> BodyStatements { get; } = bodyStatements;
-}
 
 internal sealed class AwkOutputStatementLoweringShape(
     AwkExpressionSlotSyntax output,
@@ -51,29 +28,6 @@ internal static class AwkStatementLoweringShapes
     public static AwkSyntaxOptional<AwkExpressionSyntax> RequiredExpression(
         AwkExpressionSlotSyntax slot) =>
         slot.Expression;
-
-    public static AwkSyntaxOptional<AwkControlStatementLoweringShape> Control(
-        AwkStatementSyntax syntax)
-    {
-        if (syntax.Payload is not AwkControlStatementSyntaxPayload payload ||
-            syntax.Expressions.Count != 1)
-        {
-            return AwkSyntaxOptional<AwkControlStatementLoweringShape>.None;
-        }
-
-        return new AwkControlStatementLoweringShape(
-            payload.Header,
-            payload.BodyStatements,
-            payload.ElseStatements);
-    }
-
-    public static AwkSyntaxOptional<AwkForStatementLoweringShape> For(AwkStatementSyntax syntax)
-    {
-        if (syntax.Payload is not AwkForStatementSyntaxPayload payload)
-            return AwkSyntaxOptional<AwkForStatementLoweringShape>.None;
-
-        return new AwkForStatementLoweringShape(payload.Header, payload.BodyStatements);
-    }
 
     public static AwkSyntaxOptional<AwkOutputStatementLoweringShape> Output(AwkStatementSyntax syntax)
     {

@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal enum AwkFieldTextKind
@@ -57,15 +55,6 @@ internal readonly struct AwkFieldText
             _ => ReadOnlySpan<byte>.Empty
         };
 
-    public ReadOnlySpan<byte> AsSpan(AwkText recordText, Action? checkpoint = null) =>
-        Kind switch
-        {
-            AwkFieldTextKind.Empty => ReadOnlySpan<byte>.Empty,
-            AwkFieldTextKind.Owned => _ownedText.AsSpan(checkpoint),
-            AwkFieldTextKind.RecordSlice => recordText.AsSpan(checkpoint).Slice(_start, _length),
-            _ => ReadOnlySpan<byte>.Empty
-        };
-
     public AwkText Materialize(
         AwkText recordText,
         AwkRuntimeCounters counters,
@@ -78,21 +67,4 @@ internal readonly struct AwkFieldText
             AwkFieldTextKind.RecordSlice => recordText.CopyByteSlice(_start, _length, counters, governor, checkpoint),
             _ => AwkText.Empty
         };
-
-    public string AsString(AwkText recordText, AwkRuntimeCounters counters, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        var value =
-        Kind switch
-        {
-            AwkFieldTextKind.Empty => string.Empty,
-            AwkFieldTextKind.Owned => _ownedText.AsString(counters, checkpoint),
-            AwkFieldTextKind.RecordSlice => AwkUtf8Codec.DecodeRuntimeText(
-                recordText.AsSpan(checkpoint).Slice(_start, _length),
-                counters),
-            _ => string.Empty
-        };
-        checkpoint?.Invoke();
-        return value;
-    }
 }

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Lokad.Awk;
 
 internal readonly struct AwkFileOperand(ReadOnlyMemory<byte> display, AwkPathRequest? request)

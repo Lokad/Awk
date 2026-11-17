@@ -2,8 +2,6 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkDirectStringBuiltinTests
 {
-    private const int Limit = 1 << 20;
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

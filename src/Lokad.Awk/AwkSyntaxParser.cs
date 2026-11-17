@@ -1,15 +1,7 @@
-using System.Collections.Generic;
-using System.Threading;
-
 namespace Lokad.Awk;
 
 internal static class AwkSyntaxParser
 {
-    public static AwkSyntaxProgram Parse(string source)
-        => Parse(source, int.MaxValue);
-
-    public static AwkSyntaxProgram Parse(string source, int maxSyntaxNestingDepth)
-        => Parse(source, new AwkFrontendBudget(maxSyntaxNestingDepth), CancellationToken.None);
 
     public static AwkSyntaxProgram Parse(
         string source,

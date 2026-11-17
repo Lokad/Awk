@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Lokad.Awk;
 
 internal static class AwkTokenNavigation

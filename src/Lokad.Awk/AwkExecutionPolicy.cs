@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 /// <summary>Controls capabilities and resource budgets for one awk execution.</summary>

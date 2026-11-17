@@ -8,7 +8,7 @@ internal partial struct AwkRegionMachine
     {
         var output = _output;
         AwkRegionComputation computationView;
-        var position = 0;
+        int position;
         var returnedNumber = 0d;
     Resume:
         if (_pending != Pending.None && !TryCompletePending()) return false;

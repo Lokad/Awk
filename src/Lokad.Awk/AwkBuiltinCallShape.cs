@@ -1,4 +1,3 @@
-using System;
 using System.Globalization;
 
 namespace Lokad.Awk;
@@ -22,44 +21,6 @@ internal readonly struct AwkBuiltinCallSyntax(
         argumentIndex >= 0 && argumentIndex < ArgumentCount
             ? AwkSyntaxOptional<AwkExpressionSyntax>.Some(Expression.Children[argumentIndex + 1])
             : AwkSyntaxOptional<AwkExpressionSyntax>.None;
-
-    public bool TryGetIdentifierArgument(int argumentIndex, out AwkIdentifier identifier)
-    {
-        identifier = default;
-        if (!GetArgument(argumentIndex).TryGetValue(out var argument) ||
-            !AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out var syntax))
-        {
-            return false;
-        }
-
-        identifier = syntax.Identifier;
-        return true;
-    }
-
-    public bool TryGetArrayNameArgument(int argumentIndex, out AwkArrayName name)
-    {
-        name = default;
-        if (!TryGetIdentifierArgument(argumentIndex, out var identifier))
-            return false;
-
-        name = new AwkArrayName(identifier);
-        return true;
-    }
-
-    public bool TryGetOptionalArrayIdentifierArgument(
-        int argumentIndex,
-        out AwkOptionalIdentifier identifier)
-    {
-        identifier = AwkOptionalIdentifier.None;
-        if (argumentIndex >= ArgumentCount)
-            return true;
-
-        if (!TryGetIdentifierArgument(argumentIndex, out var parsed))
-            return false;
-
-        identifier = AwkOptionalIdentifier.Some(parsed);
-        return true;
-    }
 }
 
 internal readonly struct AwkBuiltinArgumentRoleFailure(
@@ -135,9 +96,6 @@ internal static class AwkBuiltinCallShape
     {
         return !TryGetArgumentRoleFailure(call, out _);
     }
-
-    public static bool AcceptsArgumentRoles(AwkBuiltinCallSyntax call, AwkLoweringScope scope) =>
-        !TryGetArgumentRoleFailure(call, scope, out _);
 
     public static bool TryGetArgumentRoleFailure(
         AwkBuiltinCallSyntax call,

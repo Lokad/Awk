@@ -3,12 +3,7 @@ namespace Lokad.Awk;
 
 internal abstract record AwkInputArgument
 {
-    private AwkInputArgument(AwkArgvIndex argvIndex)
-    {
-        ArgvIndex = argvIndex;
-    }
-
-    public AwkArgvIndex ArgvIndex { get; }
+    public abstract AwkArgvIndex ArgvIndex { get; init; }
 
     public static AwkInputArgument Empty(int argvIndex) =>
         new EmptyArgument(new AwkArgvIndex(argvIndex));
@@ -22,16 +17,16 @@ internal abstract record AwkInputArgument
     public static AwkInputArgument Assignment(int argvIndex) =>
         new VariableAssignmentArgument(new AwkArgvIndex(argvIndex));
 
-    internal sealed record EmptyArgument(AwkArgvIndex EmptyArgvIndex) : AwkInputArgument(EmptyArgvIndex);
+    internal sealed record EmptyArgument(AwkArgvIndex ArgvIndex) : AwkInputArgument;
 
     internal sealed record FileArgument(
         string RawPath,
         ReadOnlyMemory<byte> Display,
-        AwkArgvIndex FileArgvIndex) : AwkInputArgument(FileArgvIndex);
+        AwkArgvIndex ArgvIndex) : AwkInputArgument;
 
     internal sealed record StandardInputArgument(
-        AwkArgvIndex StandardInputArgvIndex) : AwkInputArgument(StandardInputArgvIndex);
+        AwkArgvIndex ArgvIndex) : AwkInputArgument;
 
     internal sealed record VariableAssignmentArgument(
-        AwkArgvIndex VariableAssignmentArgvIndex) : AwkInputArgument(VariableAssignmentArgvIndex);
+        AwkArgvIndex ArgvIndex) : AwkInputArgument;
 }

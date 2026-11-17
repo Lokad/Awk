@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 /// <summary>Contains a host-shaped failure message suitable for an awk diagnostic.</summary>

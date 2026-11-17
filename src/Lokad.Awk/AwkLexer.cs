@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Threading;
 using Lokad.Parsing.Lexer;
 
 namespace Lokad.Awk;

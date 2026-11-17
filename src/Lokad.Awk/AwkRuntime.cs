@@ -1,23 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Lokad.Awk;
 
 internal static class AwkRuntime
 {
-    public static Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        AwkProgram program,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(
-            host,
-            invocation,
-            program,
-            cancellationToken,
-            AwkRuntimeOptions.CreateSystemDefault());
 
     public static Task<AwkExitCode> ExecuteAsync(
         IAwkHost host, AwkInvocation invocation, AwkProgram program,

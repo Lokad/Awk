@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Lokad.Awk;
 
 internal abstract class AwkLoweringOutcome<T>

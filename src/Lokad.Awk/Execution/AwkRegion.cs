@@ -16,7 +16,6 @@ internal sealed class AwkRegion(
     private readonly AwkRegionStorageLayout _layout = layout;
     internal AwkRegionKind Kind => kind;
     internal ref readonly AwkRegionStorageLayout Layout => ref _layout;
-    internal int InstructionCount => instructions.Length;
     internal int MainBodyStart => mainBodyStart;
     internal int EntryFieldDemand => entryFieldDemand;
     internal AwkRegionRuleScope[] RuleScopes => ruleScopes ?? [];

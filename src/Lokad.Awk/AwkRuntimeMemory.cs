@@ -228,9 +228,6 @@ internal static class AwkRuntimeMemory
     public static long EstimateRegexBracketModeArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, sizeof(byte));
 
-    public static long EstimateRegexAnalysisFrameArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, 48);
-
     public static long EstimateRegexCoordinateArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, sizeof(long));
 

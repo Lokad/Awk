@@ -47,19 +47,6 @@ internal static class AwkExpressionSyntaxFacts
         return false;
     }
 
-    public static bool TryGetAssignableArrayElementTarget(
-        AwkExpressionSyntax expression,
-        out AwkIdentifierSyntax target)
-    {
-        if (TryGetArrayElementTarget(expression, out target))
-        {
-            return true;
-        }
-
-        target = default;
-        return false;
-    }
-
     public static bool TryGetCallableTarget(
         AwkExpressionSyntax expression,
         out AwkCallableTargetSyntax target)
@@ -79,10 +66,6 @@ internal static class AwkExpressionSyntaxFacts
         target = default;
         return false;
     }
-
-    public static bool IsFieldCountExpression(AwkExpressionSyntax expression) =>
-        TryGetIdentifier(expression, out var identifier) &&
-        AwkSpecialVariables.IsName(identifier.Name, AwkSpecialVariableId.FieldCount);
 
     public static bool IsValidMutationTarget(AwkExpressionSyntax expression)
     {

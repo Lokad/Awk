@@ -18,13 +18,6 @@ public sealed class AwkRecordRetryTests
             yield return [mode[0], newline, first];
     }
 
-    public static IEnumerable<object[]> LimitModes()
-    {
-        foreach (var mode in Modes())
-        foreach (var kind in new[] { "record", "value" })
-            yield return [mode[0], kind];
-    }
-
     public static IEnumerable<object[]> BatchModes()
     {
         foreach (var mode in Modes())

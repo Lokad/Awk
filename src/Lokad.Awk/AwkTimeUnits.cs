@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal readonly record struct AwkUnixTimestampSeconds(long Value)

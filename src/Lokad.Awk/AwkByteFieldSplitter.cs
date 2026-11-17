@@ -1,6 +1,4 @@
-using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Text;
 
 namespace Lokad.Awk;
@@ -25,7 +23,7 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     public void ValidateSeparator(AwkFieldSeparatorSpec separator) =>
-        _ = ResolveSeparator(separator, runtimeCounters, resolveRegexCaseSensitivity(), prepareBothCases: true);
+        _ = ResolveSeparator(separator, resolveRegexCaseSensitivity(), prepareBothCases: true);
 
     public AwkTextSplitResult SplitBySeparator(
         AwkText line,
@@ -33,7 +31,7 @@ internal sealed class AwkByteFieldSplitter(
         AwkSeparatorCaptureMode captureMode,
         AwkRuntimeCounters counters)
     {
-        var plan = ResolveSeparator(separator, counters, resolveRegexCaseSensitivity());
+        var plan = ResolveSeparator(separator, resolveRegexCaseSensitivity());
         if (line.ByteLength == 0)
             return new AwkTextSplitResult([], []);
 
@@ -270,14 +268,13 @@ internal sealed class AwkByteFieldSplitter(
     public void FillRegexRecordFields(AwkText line, AwkFieldSeparatorSpec separator,
         AwkRegexCaseSensitivity sensitivity, ref AwkRecordFieldWriter writer)
     {
-        var plan = ResolveSeparator(separator, runtimeCounters, sensitivity);
+        var plan = ResolveSeparator(separator, sensitivity);
         if (line.ByteLength == 0) return;
         ScanRegexFields<AwkRecordFieldWriter, int>(line, plan.Regex, ref writer);
     }
 
     private FieldSeparatorPlan ResolveSeparator(
         AwkFieldSeparatorSpec separator,
-        AwkRuntimeCounters counters,
         AwkRegexCaseSensitivity caseSensitivity,
         bool prepareBothCases = false)
     {

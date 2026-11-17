@@ -18,8 +18,6 @@ public sealed class TestOperationVisitor : IAwkHost
         }
     }
 
-    public List<string> CommandNames { get; } = [];
-
     public List<AwkCommandInvocation> CommandInvocations { get; } = [];
 
     public List<int> ReadByteCounts { get; } = [];
@@ -67,7 +65,6 @@ public sealed class TestOperationVisitor : IAwkHost
 
         ArgumentNullException.ThrowIfNull(command);
         CommandInvocations.Add(command);
-        CommandNames.Add(command.CommandName);
 
         if (RunCommandOverride is { } runCommandOverride)
             return runCommandOverride(command, cancellationToken);

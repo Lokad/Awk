@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using Lokad.Parsing.Error;
 using Lokad.Parsing.Lexer;
 using Lokad.Parsing.Parser;
@@ -341,7 +338,7 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public RootParseResult ExpressionRoot(
         [NT] AwkExpressionSyntax expression,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> _)
     {
         _checkpoint?.Invoke();
         return new RootParseResult.Expression(expression);
@@ -350,7 +347,7 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public RootParseResult ExpressionListRoot(
         [NT] ExpressionListSyntax expressionList,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> _)
     {
         _checkpoint?.Invoke();
         return new RootParseResult.ExpressionList(expressionList.Expression);

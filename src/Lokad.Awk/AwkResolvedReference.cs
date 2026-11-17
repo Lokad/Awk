@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal readonly struct AwkResolvedReference : IDisposable
@@ -58,11 +56,6 @@ internal readonly struct AwkResolvedReference : IDisposable
 
     public static AwkResolvedReference Field(AwkFieldIndex fieldIndex) =>
         new(AwkResolvedReferenceKind.Field, default, default, default, default, fieldIndex);
-
-    public double ReadNumber(AwkRuntimeState state) =>
-        _kind == AwkResolvedReferenceKind.NestedArrayElement && _arrayPath is { } path
-            ? state.GetArrayNumber(path.ResolveOwner(state), path.Key)
-            : Evaluate(state).AsNumber(state.CancellationCheckpoint);
 
     public AwkValue Evaluate(AwkRuntimeState state)
     {

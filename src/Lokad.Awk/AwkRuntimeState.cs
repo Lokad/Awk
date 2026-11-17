@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
@@ -458,8 +452,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _functions.EnterGlobalBindings();
 
-    internal bool FieldsCannotReportRegexDiagnostics => _recordFields.SupportsIncrementalFields;
-
     public AwkExecutionContextScope PushExecutionContext(AwkOutputSink output, AwkIo io)
     {
         return _executionContexts.Push(output, io);
@@ -492,8 +484,6 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     internal void PrepareAdmittedFields(int maximum) => _recordFields.PrepareAdmittedFields(maximum);
-
-    internal AwkByteTextOperand CurrentRecordByteOperand => _recordFields.RecordByteOperand;
 
     internal AwkByteTextOperand ResolveFieldByteOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
         ? new(bytes) : new(FormatStringByteText(CaptureFieldStringValue(index)));
@@ -1437,9 +1427,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkText ResolveSubscriptSeparatorText() =>
         ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator);
-
-    public AwkText FormatPrintByteText(AwkValue value) =>
-        _formattingRuntime.FormatPrintByteText(value);
 
     internal bool TryAppendPrintInteger(AwkValue value, AwkUtf8Builder destination) =>
         _formattingRuntime.TryAppendPrintInteger(value, destination);

@@ -2,6 +2,7 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkResolvedGetlineTarget : IDisposable
 {
+    // Default-initialized targets publish into $0; named targets own a reference.
     private readonly bool _hasReference;
     private readonly AwkResolvedReference _reference;
 
@@ -11,23 +12,13 @@ internal readonly struct AwkResolvedGetlineTarget : IDisposable
         _reference = reference;
     }
 
-    public static AwkResolvedGetlineTarget CurrentRecord => default;
     public static AwkResolvedGetlineTarget ReferenceTarget(AwkResolvedReference reference) => new(reference);
     public bool IsCurrentRecord => !_hasReference;
     public long RetainedKeyBytes => _hasReference ? _reference.RetainedKeyBytes : 0;
 
     public void Dispose() => _reference.Dispose();
 
-    public void AssignRecord(AwkRuntimeState state, AwkText record, AwkRecordFieldSplittingMode fieldSplittingMode)
-    {
-        if (_hasReference)
-        {
-            _reference.AssignValue(state, state.CreateNumericStringValue(record));
-        }
-        else
-        {
-            state.SetRecordFieldSplittingMode(fieldSplittingMode);
-            state.SetCurrentRecord(record);
-        }
-    }
+    // ApplyResult publishes implicit-record targets before reaching this named-target path.
+    public void AssignRecord(AwkRuntimeState state, AwkText record) =>
+        _reference.AssignValue(state, state.CreateNumericStringValue(record));
 }

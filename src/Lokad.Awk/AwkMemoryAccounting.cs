@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 // Own-storage estimates; admission belongs exclusively to the host's shared allowance.

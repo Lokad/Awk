@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal static class AwkNumericOperations
@@ -58,10 +56,6 @@ internal static class AwkNumericOperations
             AwkCompoundAssignmentOperation.Power => Math.Pow(leftValue, rightValue),
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
         };
-
-    public static double Increment(double value) => value + 1;
-
-    public static double Decrement(double value) => value - 1;
 
     public static bool IsZero(double value) => Math.Abs(value) < double.Epsilon;
 }

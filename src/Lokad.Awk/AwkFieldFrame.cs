@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace Lokad.Awk;
 
@@ -154,7 +151,6 @@ internal sealed class AwkFieldFrame(
 
     // Callers that can publish or invoke callbacks keep an independent value snapshot.
     public AwkRecordSplitPlan SplitPlan => _splitPlan;
-    public bool SupportsIncrementalFields => _splitPlan.SupportsIncrementalFields;
 
     public void ResetRecord()
     {
@@ -169,15 +165,6 @@ internal sealed class AwkFieldFrame(
         ClearSplitFields(releaseCache: true);
         _fieldsAreSplit = true;
         _splitPlan = default;
-    }
-
-    internal AwkByteTextOperand RecordByteOperand
-    {
-        get
-        {
-            EnsureRecordText();
-            return HasBufferedRecord ? new(BufferedRecord.Span) : new(_recordText);
-        }
     }
 
     internal bool TryGetBufferedRecordBytes(out ReadOnlySpan<byte> bytes)
@@ -1457,15 +1444,6 @@ internal sealed class AwkFieldFrame(
         return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes), buffers);
     }
-
-    private long EstimateRetainedBytes(
-        AwkText recordText,
-        AwkRecordFieldBuffer fieldTexts,
-        List<CachedFieldValue> fieldValueCache,
-        AwkValue fieldCountValue = default)
-        => governor.IsEnabled
-            ? EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(recordText), fieldTexts, fieldValueCache, fieldCountValue)
-            : 0;
 
     private long EstimateRetainedBytes(long recordTextBytes, AwkRecordFieldBuffer fieldTexts,
         List<CachedFieldValue> fieldValueCache, AwkValue fieldCountValue)

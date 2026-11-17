@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal static class AwkMessages
@@ -58,10 +56,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: division by zero attempted in `%'\n");
     internal static readonly ReadOnlyMemory<byte> ErrorDivisionByZeroInModuloAssignment =
         AwkUtf8Codec.Encode("awk: division by zero attempted in `%='\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorBreakOutsideLoop =
-        AwkUtf8Codec.Encode("awk: break used outside loop or switch\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorContinueOutsideLoop =
-        AwkUtf8Codec.Encode("awk: continue used outside loop\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNextOutsideInput =
         AwkUtf8Codec.Encode("awk: next used outside input action\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNextFileOutsideInput =
@@ -72,8 +66,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: non-redirected `getline' invalid inside `BEGINFILE' rule\n");
     internal static readonly ReadOnlyMemory<byte> ErrorMainInputGetlineInEndFile =
         AwkUtf8Codec.Encode("awk: non-redirected `getline' invalid inside `ENDFILE' rule\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorReturnOutsideFunction =
-        AwkUtf8Codec.Encode("awk: return used outside function\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedCoprocess =
         AwkUtf8Codec.Encode("awk: coprocesses are unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedInetSpecialFile =
@@ -138,8 +130,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: execution failed without exposing host exception details\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSplitSeparatorArrayExtension =
         AwkUtf8Codec.Encode("awk: split: fourth argument is a GNU extension\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorSwitchIsGnuExtension =
-        AwkUtf8Codec.Encode("awk: switch is a GNU extension\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidCloseMode =
         AwkUtf8Codec.Encode("awk: close second argument must be `to' or `from'\n");
     internal const string ErrnoNoSuchFileOrDirectory = "No such file or directory";
@@ -166,8 +156,6 @@ internal static class AwkMessages
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFilePrefix = AwkUtf8Codec.Encode("awk: ");
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFileSuffix =
         AwkUtf8Codec.Encode(": No such file or directory\n");
-    private static readonly ReadOnlyMemory<byte> ErrorInvalidBuiltinArgumentCountPrefix =
-        AwkUtf8Codec.Encode("awk: invalid number of arguments for ");
     private static readonly ReadOnlyMemory<byte> ErrorUndefinedSortComparisonPrefix =
         AwkUtf8Codec.Encode("awk: sort comparison function is not defined: ");
     private static readonly ReadOnlyMemory<byte> ErrorScalarAsArrayPrefix =
@@ -261,25 +249,6 @@ internal static class AwkMessages
 
     internal static ReadOnlyMemory<byte> FormatSourceRoleConflict(string name) =>
         AwkUtf8Codec.Encode("awk: " + name + ": cannot use a file as both program source and include\n");
-
-    internal static ReadOnlyMemory<byte> FormatUndefinedFunction(string name)
-        => AwkUtf8Codec.Encode(FormatUndefinedFunctionText(name));
-
-    internal static ReadOnlyMemory<byte> FormatInvalidBuiltinArgumentCount(string name)
-    {
-        var nameBytes = string.IsNullOrEmpty(name) ? ReadOnlyMemory<byte>.Empty : AwkUtf8Codec.Encode(name);
-        var buffer = new byte[ErrorInvalidBuiltinArgumentCountPrefix.Length + nameBytes.Length + 1];
-        ErrorInvalidBuiltinArgumentCountPrefix.CopyTo(buffer.AsMemory());
-        nameBytes.CopyTo(buffer.AsMemory(ErrorInvalidBuiltinArgumentCountPrefix.Length));
-        buffer[^1] = (byte)'\n';
-        return buffer;
-    }
-
-    internal static ReadOnlyMemory<byte> FormatUndefinedFunctionWithLintWarning(string name)
-        => AwkUtf8Codec.Encode(FormatUndefinedFunctionWithLintWarningText(name));
-
-    internal static ReadOnlyMemory<byte> FormatUndefinedFunctionWithFatalLint(string name)
-        => AwkUtf8Codec.Encode(FormatUndefinedFunctionWithFatalLintText(name));
 
     internal static string FormatUndefinedFunctionText(string name) =>
         "awk: undefined function: " + name + "\n";
