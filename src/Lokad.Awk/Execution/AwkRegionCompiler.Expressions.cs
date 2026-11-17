@@ -19,6 +19,8 @@ internal sealed partial class AwkRegionCompiler
 
     private bool PrepareWork(PreparationWork current)
     {
+        // Leaf/header preparation can enter a second work loop. Descendants return
+        // work items to that loop; statement bodies never nest CLR invocations.
         Stack<PreparationWork>? callers = null;
         var completed = current;
         while (true)
@@ -40,7 +42,7 @@ internal sealed partial class AwkRegionCompiler
                 if (callers is not null)
                     foreach (var ancestor in callers)
                         if (ancestor is StatementsWork { CurrentStatement: { Kind: not AwkStatementKind.Block } parent }) failed = parent;
-                if (failed is not null) _diagnostic = AwkPreparationDiagnostics.ForStatement(failed);
+                if (failed is not null) _diagnostic = AwkPreparationDiagnostics.ForStatement(failed, _scope.Checkpoint);
                 return false;
             }
             completed = current;

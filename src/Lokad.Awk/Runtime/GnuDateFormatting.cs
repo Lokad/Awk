@@ -174,6 +174,8 @@ internal static class GnuDateFormatting
             if (directive.ColonCount.Value > 0 && directive.Specifier != 'z')
                 return false;
 
+            // Composite formats expand only to terminal directives, allowing at
+            // most one nested Format call regardless of the input format's length.
             var formatted = directive.Specifier switch
             {
                 '%' => "%",

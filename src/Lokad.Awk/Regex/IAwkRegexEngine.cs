@@ -8,7 +8,8 @@ namespace Lokad.Awk;
 /// refused memory admission and cancellation must fail. Unsupported patterns fail the command;
 /// Awk has no fallback engine.
 /// The provider owns admission for its construction, retained handles and matching workspace;
-/// engine-specific bounds belong to the provider, not Awk's execution policy.</remarks>
+/// engine-specific bounds belong to the provider, not Awk's execution policy.
+/// Preparation and matching must bound stack use, including nested patterns.</remarks>
 public interface IAwkRegexEngine
 {
     /// <summary>Compiles an already translated pattern, or reports unsupported syntax.</summary>

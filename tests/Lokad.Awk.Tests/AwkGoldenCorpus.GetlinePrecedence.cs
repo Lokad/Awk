@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> GetlinePrecedenceCases()
     {
+        yield return CompilerDiagnostic(Failing("getline-nested-source-invalid-target-before-effects",
+            ["BEGIN{print \"unreached\";getline x < (getline x < (getline length))}"], [], 2, "",
+            "awk: invalid getline target.\n"));
+        yield return CompilerDiagnostic(Failing("getline-expression-nested-source-invalid-target-before-effects",
+            ["BEGIN{print \"unreached\";print (getline x < (getline x < (getline length)))}"], [], 2, "",
+            "awk: invalid getline target.\n"));
         yield return Passing("getline-statement-result-concatenation",
             ["BEGIN{getline x y}"], [], "");
         yield return Passing("getline-statement-numeric-result-concatenation",

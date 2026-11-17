@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Select nested getline diagnostics iteratively, preserving target precedence and source spans.
+
 - Expand nested source includes without recursive async calls, preserving source maps, admission and cleanup.
 - Walk composed token endpoints iteratively, avoiding stack overflow on deeply composed input.
 

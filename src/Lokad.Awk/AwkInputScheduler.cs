@@ -55,6 +55,8 @@ internal sealed class AwkInputScheduler(
 
     private AwkRecordReadStatus MoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending)
     {
+        // File phases can call functions and redirected readers. Blocking their
+        // main-input read prevents recursive activation of another file phase.
         if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInBeginFile);
 

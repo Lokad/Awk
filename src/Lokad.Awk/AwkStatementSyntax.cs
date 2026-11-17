@@ -203,6 +203,8 @@ internal sealed class AwkForStatementSyntaxPayload(
 
     public override IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions()
     {
+        // Header statement payloads are print/printf/delete only. Compound bodies
+        // belong to the outer traversal, so this enumeration adds no nesting chain.
         for (var index = 0; index < Header.Parts.Count; index++)
         {
             var statements = index == 0 ? Header.InitializerStatements :

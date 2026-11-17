@@ -109,34 +109,29 @@ internal static class AwkGetlineSyntaxFacts
         return true;
     }
 
-
-
-    public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
-    {
-        var fallback = InvalidGetline(expression.Span, "Invalid getline expression.");
-        return TryResolveExpressionCallParts(expression, out var parts) ? FailureDiagnostic(parts, fallback) : fallback;
-    }
-
-    public static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax statement)
+    public static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax statement, Action? checkpoint = null)
     {
         var fallback = InvalidGetline(statement.Span, "Invalid getline statement.");
-        return statement.Payload is AwkGetlineStatementSyntaxPayload payload && TryResolveStatementParts(payload.Getline, out var parts)
-            ? FailureDiagnostic(parts, fallback) : fallback;
+        if (statement.Payload is not AwkGetlineStatementSyntaxPayload payload ||
+            !TryResolveStatementParts(payload.Getline, out var parts)) return fallback;
+        return TryGetFailureDiagnostic(parts, fallback, out var diagnostic) ? diagnostic
+            : AwkPreparationDiagnostics.ForExpression(parts.Source.Value, checkpoint);
     }
 
-    private static AwkDiagnostic FailureDiagnostic(AwkGetlineParts parts, AwkDiagnostic fallback)
+    // A false result means the present source expression must be diagnosed next.
+    internal static bool TryGetFailureDiagnostic(AwkGetlineParts parts, AwkDiagnostic fallback, out AwkDiagnostic diagnostic)
     {
         if (parts.Target.TryGetValue(out var target))
         {
-            if (IsPostfixFieldTarget(target)) return PostfixFieldTargetDiagnostic(target);
+            if (IsPostfixFieldTarget(target)) { diagnostic = PostfixFieldTargetDiagnostic(target); return true; }
             if (!AwkExpressionSyntaxFacts.IsValidMutationTarget(target, AwkLoweringScope.Global))
-                return InvalidGetline(target.Span, "Invalid getline target.");
+            { diagnostic = InvalidGetline(target.Span, "Invalid getline target."); return true; }
         }
-        if (parts.Source.TryGetValue(out var source)) return AwkPreparationDiagnostics.ForExpression(source);
-        if (parts.HasRedirection)
-            return InvalidGetline(parts.Target.TryGetValue(out target) ? target.Span : new(0, 0),
-                "Input redirection getline requires a source expression.");
-        return fallback;
+        if (parts.Source.HasValue) { diagnostic = default; return false; }
+        diagnostic = parts.HasRedirection
+            ? InvalidGetline(parts.Target.TryGetValue(out target) ? target.Span : new(0, 0),
+                "Input redirection getline requires a source expression.") : fallback;
+        return true;
     }
 
     private static AwkDiagnostic InvalidGetline(AwkTextSpan span, string message) =>

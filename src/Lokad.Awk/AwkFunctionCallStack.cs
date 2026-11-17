@@ -357,6 +357,8 @@ internal sealed class AwkFunctionCallStack(
 
     internal void DiscardIncomingFrame(AwkFunctionFrame frame)
     {
+        // An incoming frame has not executed its body, and recycled scratch was
+        // cleared at prior retirement. Its reset cannot own another incoming tree.
         var payload = frame.RetainedMemoryBytes;
         _incomingFrames--;
         RecycleFrame(frame);

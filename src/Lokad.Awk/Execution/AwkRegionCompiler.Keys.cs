@@ -112,6 +112,8 @@ internal sealed partial class AwkRegionCompiler
                 var key = CompletedResult<int>(completed);
                 if (_path < 0)
                 {
+                    // Capture nested array keys before dependent reads, bounding
+                    // the runtime's recursion through array-valued operands.
                     if (compiler._operands[key].Kind == AwkRegionOperandKind.ArrayElement) key = compiler.CaptureValue(key);
                     var access = compiler._arrays.Count;
                     compiler._arrays.Add(new(_name, _binding, key));

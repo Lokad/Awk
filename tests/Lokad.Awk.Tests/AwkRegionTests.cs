@@ -19,6 +19,33 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
+    [InlineData("BEGIN{getline length < (getline x < (getline length))}")]
+    [InlineData("BEGIN{getline x < (getline x < (getline length))}")]
+    [InlineData("BEGIN{print (getline x < (getline length))}")]
+    public void GetlineFailureRetainsTheFirstInvalidTargetSpan(string source)
+    {
+        var parsed = AwkParser.Parse(source);
+        Assert.True(parsed.Success);
+        Assert.False(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
+            -1, out _, out var diagnostic));
+        Assert.Equal("Invalid getline target.", diagnostic.Message);
+        Assert.Equal(new AwkTextSpan(source.IndexOf("length", StringComparison.Ordinal), "length".Length), diagnostic.Span);
+    }
+
+    [Fact]
+    public void DiagnosticSourceWalkObservesCallerCancellation()
+    {
+        var parsed = AwkParser.Parse("BEGIN{getline x < (getline length)}");
+        Assert.True(parsed.Success);
+        var statement = Assert.Single(Assert.Single(parsed.Syntax.Rules).ActionStatements);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var error = Assert.Throws<OperationCanceledException>(() =>
+            AwkPreparationDiagnostics.ForStatement(statement, cancellation.Token.ThrowIfCancellationRequested));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+    }
+
+    [Theory]
     [InlineData(512)]
     [InlineData(2048)]
     public void DeepSyntacticBlocksPrepareAndExecuteWithoutRecursiveBlockEmission(int depth)
