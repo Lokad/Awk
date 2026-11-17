@@ -6,6 +6,8 @@ internal static partial class AwkGoldenCorpus
     {
         yield return Passing("getline-statement-result-concatenation",
             ["BEGIN{getline x y}"], [], "");
+        yield return Passing("getline-statement-numeric-result-concatenation",
+            ["BEGIN{getline 1}"], [], "");
         var files = new[] { File("/a", "A\n"), File("/ab", "AB\n") };
         yield return Passing("getline-statement-concatenates-after-file-read",
             ["BEGIN{getline x < \"/a\" \"b\";print x}"], files, "A\n");

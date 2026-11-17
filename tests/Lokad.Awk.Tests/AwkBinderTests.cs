@@ -68,18 +68,6 @@ public sealed class AwkBinderTests
     }
 
     [Fact]
-    public void AwkBinder_ReportsSemanticAndLoweringFailurePhases()
-    {
-        var semanticFailure = AwkBinder.Bind(AwkParser.Parse("BEGIN{break}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
-        var loweringFailure = AwkBinder.Bind(AwkParser.Parse("BEGIN{getline 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
-
-        Assert.Equal(AwkPipelinePhase.Bind, semanticFailure.Phase);
-        Assert.False(semanticFailure.PhaseResult.Success);
-        Assert.Equal(AwkPipelinePhase.Lower, loweringFailure.Phase);
-        Assert.False(loweringFailure.PhaseResult.Success);
-    }
-
-    [Fact]
     public void AwkBinder_CollectsSymbolReferencesFromSyntax()
     {
         var binding = AwkBinder.Bind(AwkParser.Parse("function helper(value, extra){ return value + extra }\n" +

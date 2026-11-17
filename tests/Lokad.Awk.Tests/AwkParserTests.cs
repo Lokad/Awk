@@ -105,7 +105,6 @@ public sealed class AwkParserTests
     }
 
     [Theory]
-    [InlineData("BEGIN{getline 1}", "Invalid getline target.")]
     [InlineData("BEGIN{sub(/x/, \"y\", 1)}", "Argument 3 of `sub' must be an lvalue.")]
     [InlineData("BEGIN{split($0, 1)}", "Argument 2 of `split' must be an array name.")]
     public void AwkBinder_ReturnsPreciseLoweringDiagnostics(string source, string expectedMessage)
