@@ -6,6 +6,7 @@
   without recursive formatting. Honor memory admission and cancellation for retained formats.
 - Fix call-result array updates at inserted cancellation boundaries.
 - Preserve buffered field captures after record mutation.
+- Match Unicode record separators containing ASCII alternatives.
 
 - Prepare arithmetic-only scalar input with the shared value-consumption analysis,
   avoiding unobserved field-text ownership while preserving spelling observations and deferred errors.

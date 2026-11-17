@@ -597,7 +597,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             if (termLength == 1)
             {
                 var value = text[termStart];
-                if (IsAsciiLetter(value) || IsRegexMetacharacter(value))
+                if (value > 0x7F || IsAsciiLetter(value) || IsRegexMetacharacter(value))
                     return false;
 
                 values = values.Add(value);
@@ -613,7 +613,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 if (((index - termStart - 1) & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                     checkpoint();
                 var ch = text[index];
-                if (ch is (byte)'\\' or (byte)'-' or (byte)'^' or (byte)'[' or (byte)']' || IsAsciiLetter(ch))
+                if (ch > 0x7F || ch is (byte)'\\' or (byte)'-' or (byte)'^' or (byte)'[' or (byte)']' || IsAsciiLetter(ch))
                     return false;
 
                 values = values.Add(ch);
