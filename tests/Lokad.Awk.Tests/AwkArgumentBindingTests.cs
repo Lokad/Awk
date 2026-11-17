@@ -3,9 +3,11 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentBindingTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task PotentialGlobalAliasRevalidatesAfterPendingRead(bool governed, bool cancel)
+    [InlineData(false, false, false)] [InlineData(false, true, false)]
+    [InlineData(true, false, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(false, true, true)]
+    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    public async Task ArrayValidationPreservesPendingReadLifetime(bool governed, bool cancel, bool discard)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         using var cancellation = new CancellationTokenSource();
@@ -20,9 +22,12 @@ public sealed class AwkArgumentBindingTests
             host.ReadAsyncOverride = null;
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
-        var command = AwkTestHarness.BuildInvocation("awk",
-            "function fill(p){print \"entered\";getline data<\"/side\";x=\"changed\";p[1]=3;print \"after\"}" +
-            "BEGIN{fill(x)}END{print \"end\"}");
+        var source = discard
+            ? "function key(){print \"entered\";getline data<\"/side\";return 1}" +
+                "BEGIN{a[1][2]=3;a[key()];print \"after\"}END{print \"end\"}"
+            : "function fill(p){print \"entered\";getline data<\"/side\";x=\"changed\";p[1]=3;print \"after\"}" +
+                "BEGIN{fill(x)}END{print \"end\"}";
+        var command = AwkTestHarness.BuildInvocation("awk", source);
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
         var execution = AwkTestHarness.ParseAwk(command).ExecuteAsync(host, policy, cancellation.Token);
@@ -38,7 +43,8 @@ public sealed class AwkArgumentBindingTests
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
             else Assert.Equal(AwkExitCode.FatalError, await execution);
             Assert.Equal("entered\n", host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Equal(cancel ? "" : "awk: attempt to use scalar `p' as an array\n",
+            Assert.Equal(cancel ? "" : discard ? "awk: attempt to use array `array element' in a scalar context\n"
+                    : "awk: attempt to use scalar `p' as an array\n",
                 host.GetOutput(AwkFileDescriptor.StdErr));
         }
         finally

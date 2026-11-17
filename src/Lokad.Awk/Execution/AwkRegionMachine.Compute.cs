@@ -380,7 +380,7 @@ internal partial struct AwkRegionMachine
                     computationView.Numbers[instruction.Target] = computationView.Value(instruction.Left).IsTruthy() ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.Discard:
-                    _ = computationView.Value(instruction.Left);
+                    computationView.Value(instruction.Left).ThrowIfArrayValue();
                     break;
                 case AwkRegionInstructionKind.Assign:
                     var value = computationView.Value(instruction.Left);

@@ -1102,8 +1102,12 @@ internal sealed partial class AwkRegionCompiler
                 call.Target == source.Index)
                 _code[^2] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentDiscarded };
             else _code[^1] = assignment with { Kind = AwkRegionInstructionKind.AssignConsumedScalar };
+            // The assignment already validated its scalar and may have retired
+            // the captured slot through its complete consumer.
+            return;
         }
-        if (source.IsVariable || source.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or AwkRegionOperandKind.ArrayElement)
+        if (source.IsVariable || source.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or
+            AwkRegionOperandKind.ArrayElement or AwkRegionOperandKind.ValueTemporary)
             Emit(new(AwkRegionInstructionKind.Discard, Left: operand));
     }
 

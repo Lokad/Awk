@@ -120,7 +120,7 @@ GNU 5.2.1 and 5.3.2 instead accept the numeric prefix `1`.
 Missing ordinary array reads create untyped entries; membership does not. Arrays pass
 by alias, including forwarded missing parameters. Scalar assignments/returns copy values,
 including string-like unassigned field origins.
-Grouped arguments impose scalar context and reject arrays. Function parameters shadow
+Grouped arguments and discarded expressions reject arrays in scalar context. Function parameters shadow
 globals, including for `length` and forwarded array aliases.
 
 Plain assignment evaluates the RHS before resolving its target/key. Compound assignment

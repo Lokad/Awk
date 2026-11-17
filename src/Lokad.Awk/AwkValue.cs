@@ -313,7 +313,7 @@ internal readonly struct AwkValue
         return false;
     }
 
-    private void ThrowIfArrayValue()
+    internal void ThrowIfArrayValue()
     {
         if (IsArrayValue)
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(
