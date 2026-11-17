@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Apply getline redirection precedence consistently, completing reads before concatenated
+  suffix effects while preserving recoverable read failures and explicit source grouping.
+
 - Parse prefix increment/decrement in concatenations without changing field postfix mutation.
 - Recognize leading closing brackets and POSIX terms when locating regex-literal delimiters.
 

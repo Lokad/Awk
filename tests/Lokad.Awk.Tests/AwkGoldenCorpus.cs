@@ -66,6 +66,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(CommonParsingIdiomCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex, AwkGoldenTag.Array),
         .. Tagged(IncrementConcatenationCases(), AwkGoldenTag.Expression, AwkGoldenTag.Field),
         .. Tagged(RegexLiteralBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Regex),
+        .. Tagged(GetlinePrecedenceCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Field),
 
         .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
@@ -1785,14 +1786,6 @@ internal static partial class AwkGoldenCorpus
             2,
             string.Empty,
             "awk: unexpected token after delete target.\n"),
-
-        Failing(
-            "trailing-getline-target-token-fails",
-            ["BEGIN{getline x y}"],
-            [],
-            2,
-            string.Empty,
-            "awk: unexpected token after getline target.\n"),
 
         Failing(
             "trailing-split-call-token-fails",

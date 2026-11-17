@@ -823,6 +823,13 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<SimpleTail> tails)
     {
         var tokens = Flatten([firstTokens, Flatten(tails.Select(tail => tail.Tokens))]);
+        var getlineExpression = kind == AwkStatementKind.Getline ? ParseExpression(tokens) : null;
+        if (getlineExpression is { Kind: not AwkExpressionKind.Unknown } &&
+            (!AwkExpressionSyntaxFacts.TryGetCallableTarget(getlineExpression, out var getlineCall) ||
+                getlineCall.Name != AwkBuiltins.Name(AwkBuiltinId.Getline) ||
+                !AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(getlineExpression, out var getlineParts) ||
+                getlineParts.SourceKind == AwkGetlineSourceKind.InputPipe))
+            kind = AwkStatementKind.Expression;
         var outputParts = ResolveOutputStatementParts(tokens, kind);
         var getline = ResolveGetlineSyntax(tokens, kind);
         var inputPipeGetline = ResolveInputPipeGetlineSyntax(tokens, kind);
@@ -849,7 +856,7 @@ internal sealed class AwkStatementSyntaxParser
             OutputStatementParts outputParts)
         {
             if (kind == AwkStatementKind.Expression)
-                return ExpressionListFromParsed(ParseExpression(tokens));
+                return ExpressionListFromParsed(getlineExpression ?? ParseExpression(tokens));
 
             if (kind is AwkStatementKind.Print or AwkStatementKind.Printf)
                 return outputParts.Payload.TryGetValue(out var payload)
@@ -1058,6 +1065,14 @@ internal sealed class AwkStatementSyntaxParser
             if (kind != AwkStatementKind.Getline)
                 return AwkSyntaxOptional<AwkGetlineSyntax>.None;
 
+            if (getlineExpression is { Kind: not AwkExpressionKind.Unknown } &&
+                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(getlineExpression, out var parts))
+            {
+                return new AwkGetlineSyntax(Slot(parts.Target), Slot(parts.Source), parts.HasRedirection);
+            }
+
+            // Malformed statements retain their targeted diagnostics. Valid source
+            // boundaries come from the expression grammar, including concatenation.
             var payloadTokens = AwkTokenNavigation.Slice(tokens, startIndex: 1, count: tokens.Count - 1, checkpoint: _checkpoint);
             var redirectionIndex = AwkTokenNavigation.FindTopLevel(
                 payloadTokens,
@@ -1079,6 +1094,10 @@ internal sealed class AwkStatementSyntaxParser
                     sourceTokens,
                     AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(sourceTokens))),
                 redirectionIndex >= 0);
+
+            static AwkExpressionSlotSyntax Slot(AwkSyntaxOptional<AwkExpressionSyntax> expression) =>
+                expression.TryGetValue(out var syntax)
+                    ? new(syntax.Tokens, expression) : AwkExpressionSlotSyntax.Empty;
         }
 
         AwkSyntaxOptional<AwkInputPipeGetlineSyntax> ResolveInputPipeGetlineSyntax(
