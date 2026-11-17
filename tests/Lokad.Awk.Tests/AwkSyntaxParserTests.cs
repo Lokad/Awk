@@ -404,10 +404,7 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Theory]
-    [InlineData("BEGIN{close(\"/tmp\")y}", "Unexpected token after close statement.")]
-    [InlineData("BEGIN{fflush(\"/tmp\")y}", "Unexpected token after fflush statement.")]
     [InlineData("BEGIN{delete a[1] y}", "Unexpected token after delete target.")]
-    [InlineData("BEGIN{split(\"a\", a) y}", "Unexpected token after split statement.")]
     [InlineData("BEGIN{while (1) {break 1}}", "`break' does not take an argument.")]
     [InlineData("{nextfile 1}", "`nextfile' does not take an argument.")]
     public void AwkSyntaxParser_ReportsDirectStatementTrailingTokenDiagnostics(string source, string message)

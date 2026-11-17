@@ -823,12 +823,17 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<SimpleTail> tails)
     {
         var tokens = Flatten([firstTokens, Flatten(tails.Select(tail => tail.Tokens))]);
-        var getlineExpression = kind == AwkStatementKind.Getline ? ParseExpression(tokens) : null;
-        if (getlineExpression is { Kind: not AwkExpressionKind.Unknown } &&
-            (!AwkExpressionSyntaxFacts.TryGetCallableTarget(getlineExpression, out var getlineCall) ||
+        var wholeExpression = AwkStatementSyntaxFacts.HasWholeStatementExpression(kind)
+            ? ParseExpression(tokens) : null;
+        if (kind == AwkStatementKind.Getline && wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
+            (!AwkExpressionSyntaxFacts.TryGetCallableTarget(wholeExpression, out var getlineCall) ||
                 getlineCall.Name != AwkBuiltins.Name(AwkBuiltinId.Getline) ||
-                !AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(getlineExpression, out var getlineParts) ||
+                !AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(wholeExpression, out var getlineParts) ||
                 getlineParts.SourceKind == AwkGetlineSourceKind.InputPipe))
+            kind = AwkStatementKind.Expression;
+        if (AwkStatementSyntaxFacts.RequiresCallBoundary(kind) &&
+            wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
+            !AwkExpressionSyntaxFacts.TryGetCallableTarget(wholeExpression, out _))
             kind = AwkStatementKind.Expression;
         var outputParts = ResolveOutputStatementParts(tokens, kind);
         var getline = ResolveGetlineSyntax(tokens, kind);
@@ -856,7 +861,7 @@ internal sealed class AwkStatementSyntaxParser
             OutputStatementParts outputParts)
         {
             if (kind == AwkStatementKind.Expression)
-                return ExpressionListFromParsed(getlineExpression ?? ParseExpression(tokens));
+                return ExpressionListFromParsed(wholeExpression ?? ParseExpression(tokens));
 
             if (kind is AwkStatementKind.Print or AwkStatementKind.Printf)
                 return outputParts.Payload.TryGetValue(out var payload)
@@ -867,7 +872,7 @@ internal sealed class AwkStatementSyntaxParser
                 return ExpressionListFromParsed(ParseExpressionList(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1, checkpoint: _checkpoint)));
 
             if (AwkStatementSyntaxFacts.HasWholeStatementExpression(kind))
-                return ExpressionListFromParsed(ParseExpression(tokens));
+                return ExpressionListFromParsed(wholeExpression);
 
             if (AwkStatementKindFacts.IsOptionalValue(kind))
                 return ExpressionListFromParsed(ParseExpression(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1, checkpoint: _checkpoint)));
@@ -1065,8 +1070,8 @@ internal sealed class AwkStatementSyntaxParser
             if (kind != AwkStatementKind.Getline)
                 return AwkSyntaxOptional<AwkGetlineSyntax>.None;
 
-            if (getlineExpression is { Kind: not AwkExpressionKind.Unknown } &&
-                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(getlineExpression, out var parts))
+            if (wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
+                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(wholeExpression, out var parts))
             {
                 return new AwkGetlineSyntax(Slot(parts.Target), Slot(parts.Source), parts.HasRedirection);
             }

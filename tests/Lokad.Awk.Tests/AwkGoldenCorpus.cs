@@ -68,6 +68,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(RegexLiteralBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Regex),
         .. Tagged(GetlinePrecedenceCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Field),
         .. Tagged(ValueValidationRepairCases(), AwkGoldenTag.Array, AwkGoldenTag.Expression, AwkGoldenTag.Regex),
+        .. Tagged(CompoundBuiltinStatementCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Array),
 
         .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
@@ -1764,21 +1765,7 @@ internal static partial class AwkGoldenCorpus
             string.Empty,
             "awk: input redirection getline requires a source expression.\n"),
 
-        Failing(
-            "trailing-close-call-token-fails",
-            ["BEGIN{close(\"/tmp\")y}"],
-            [],
-            2,
-            string.Empty,
-            "awk: unexpected token after close statement.\n"),
 
-        Failing(
-            "trailing-fflush-call-token-fails",
-            ["BEGIN{fflush(\"/tmp\")y}"],
-            [],
-            2,
-            string.Empty,
-            "awk: unexpected token after fflush statement.\n"),
 
         Failing(
             "trailing-delete-token-fails",
@@ -1788,13 +1775,6 @@ internal static partial class AwkGoldenCorpus
             string.Empty,
             "awk: unexpected token after delete target.\n"),
 
-        Failing(
-            "trailing-split-call-token-fails",
-            ["BEGIN{split(\"a\", a) y}"],
-            [],
-            2,
-            string.Empty,
-            "awk: unexpected token after split statement.\n"),
 
         Failing(
             "trailing-break-argument-fails",
