@@ -269,6 +269,14 @@ source files/includes, operand assignments and CSV. Custom environment, injected
 permission differences require separate profiles. External-suite triage/imports remain follow-up work.
 Provider selection gaps remain explicit and must not silently expand with new idioms.
 
+`AwkFusionBoundaryTests` reuses canonical expectations across 0..140 inert filler statements
+of six shapes, under ordinary/shared memory. It covers prepared return, assignment, branch,
+argument, string, numeric, array and key consumers. Function padding stays in fresh locals.
+The tests check results, effects, cleanup and refunds; separate pending-output controls retain
+real borrows through host completion and cancellation. Live GNU qualification includes the
+seed programs and three contrasting generated positions per site. No opcode or poll count
+is a semantic expectation.
+
 Benchmark native comparisons use the same executable variable or explicit `--awk`.
 `--reference-contracts` qualifies equivalent native work; `--driver-smoke` checks the process
 boundary. Known reference bugs must not become equivalent performance cases.

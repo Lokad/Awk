@@ -15,7 +15,8 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
 
     public static IEnumerable<object[]> Cases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Tags.Contains(AwkGoldenTag.Idiom)))
+        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Tags.Contains(AwkGoldenTag.Idiom))
+            .Concat(AwkFusionBoundaryTests.NativeCases()).DistinctBy(test => test.Name))
             yield return [new AwkDifferentialCase(test)];
 
         var diagnosticNames = new[]
