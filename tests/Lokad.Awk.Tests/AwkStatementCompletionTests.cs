@@ -30,11 +30,16 @@ public sealed class AwkStatementCompletionTests
     [InlineData("next", false)] [InlineData("next", true)]
     [InlineData("nextfile", false)] [InlineData("nextfile", true)]
     [InlineData("exit", false)] [InlineData("exit", true)]
+    [InlineData("called-next", false)] [InlineData("called-next", true)]
+    [InlineData("called-nextfile", false)] [InlineData("called-nextfile", true)]
+    [InlineData("called-exit", false)] [InlineData("called-exit", true)]
     public async Task ReadCompletionIsConsumedOnceBeforeFollowingControlFlow(string flow, bool suspend)
     {
-        var stop = flow switch { "continue" => "", "continue-loop" => "continue;", _ => flow + ";" };
+        var called = flow.StartsWith("called-", StringComparison.Ordinal);
+        var operation = called ? flow[7..] : flow;
+        var stop = operation switch { "continue" => "", "continue-loop" => "continue;", _ => operation + ";" };
         var body = "print \"prefix\";getline v<\"/side\";print \"completed\",v;" + stop + "print \"suffix\"";
-        var source = flow switch
+        var source = called ? "function worker(){" + body + "}{worker()}" : operation switch
         {
             "break" or "continue-loop" => "{for(i=0;i<1;i++){" + body + "}}",
             "return" => "function worker(){" + body + "}{worker()}",

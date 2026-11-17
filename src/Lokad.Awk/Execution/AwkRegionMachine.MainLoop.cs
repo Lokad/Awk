@@ -4,18 +4,6 @@ internal partial struct AwkRegionMachine
 {
     private bool IsProcessingMainRecord => _hasRecordPhase;
 
-    internal bool Run()
-    {
-        while (true)
-        {
-            try { return RunCore(); }
-            catch (AwkFunctionFlowSignal signal) when (IsProcessingMainRecord)
-            {
-                CompleteMainFlow(signal.Flow);
-            }
-        }
-    }
-
     // Ordinary completed reads stay inside the prepared instruction loop.
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private bool ReadMainRecord()

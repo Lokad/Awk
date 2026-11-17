@@ -81,23 +81,15 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     {
         using var actionPhase = state.EnterActionPhase(phase);
         using var globalBindings = state.EnterGlobalBindings();
-        try
+        for (var index = 0; index < actions.Length; index++)
         {
-            for (var index = 0; index < actions.Length; index++)
-            {
-                var flow = await actions[index].ExecuteAsync(state, io, _output).ConfigureAwait(false);
-                var result = ResolvePhaseActionFlow(flow, phase);
-                if (result != AwkStatementFlow.Continue)
-                    return result;
-            }
-
-            return AwkStatementFlow.Continue;
-
+            var flow = await actions[index].ExecuteAsync(state, io, _output).ConfigureAwait(false);
+            var result = ResolvePhaseActionFlow(flow, phase);
+            if (result != AwkStatementFlow.Continue)
+                return result;
         }
-        catch (AwkFunctionFlowSignal signal)
-        {
-            return ResolvePhaseActionFlow(signal.Flow, phase);
-        }
+
+        return AwkStatementFlow.Continue;
 
         static AwkStatementFlow ResolvePhaseActionFlow(
             AwkStatementFlow flow,

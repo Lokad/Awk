@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Carry next, nextfile and exit through explicit interpreter frames, removing internal control-flow exceptions while preserving phase validation and cleanup.
+
 - Count structural syntax nesting without rejecting long left-associated expressions or unbraced else-if chains; retain delimiter and nested-expression backstops.
 
 - Start significant-token lookahead at its requested index, avoiding repeated prefix scans in identifier expressions.

@@ -237,27 +237,27 @@ internal partial struct AwkRegionMachine
         Return(value);
     }
 
-    // Only root record flow keeps the currently loaded code/storage view.
-    // Calls and returns still switch to the saved execution location.
+    // Root record flow can keep its loaded view. Nonlocal function flow
+    // unwinds to the root and makes the driver reload the actual execution owner.
     private bool Finish(AwkStatementFlow flow)
     {
-        if (_frame is null)
+        var fromFunction = _frame is not null;
+        if (fromFunction)
         {
-            if (IsProcessingMainRecord)
+            if (flow == AwkStatementFlow.Continue)
             {
-                CompleteMainFlow(flow);
-                return true;
+                Return(AwkValue.Unassigned());
+                return false;
             }
-            Flow = flow;
-            _finished = true;
-            return false;
-        }
-        if (flow != AwkStatementFlow.Continue)
-        {
             _state.ValidateFunctionFlow(flow);
-            throw new AwkFunctionFlowSignal(flow);
         }
-        Return(AwkValue.Unassigned());
+        if (IsProcessingMainRecord)
+        {
+            CompleteMainFlow(flow);
+            return !fromFunction;
+        }
+        Flow = flow;
+        _finished = true;
         return false;
     }
 
@@ -386,45 +386,38 @@ internal partial struct AwkRegionMachine
         {
             while (!machine.Run())
             {
-                try
+                switch (machine._pending)
                 {
-                    switch (machine._pending)
-                    {
-                        case Pending.Flush:
-                        case Pending.Output:
-                            await machine._hostCompletion.ConfigureAwait(false);
-                            machine.CompleteHostOperation();
-                            break;
-                        case Pending.NumberReturn:
-                            await machine._hostCompletion.ConfigureAwait(false);
-                            machine.CompleteNumberReturn();
-                            break;
-                        case Pending.ValueReturn:
-                            await machine._hostCompletion.ConfigureAwait(false);
-                            machine.CompleteValueReturn();
-                            break;
-                        case Pending.Read:
-                            await machine._hostCompletion.ConfigureAwait(false);
-                            machine.CompleteRead();
-                            break;
-                        case Pending.MainRead:
-                            var mainRecord = await machine._mainRead.ConfigureAwait(false);
-                            machine.CompleteMainRead(mainRecord);
-                            break;
-                        case Pending.MainClose:
-                            var mainFlow = await machine._hostFlow.ConfigureAwait(false);
-                            machine.CompleteMainClose(mainFlow);
-                            break;
-                        case Pending.BuiltinValue:
-                            var builtinValue = await machine._pendingValue.ConfigureAwait(false);
-                            machine.CompleteBuiltinValue(builtinValue);
-                            break;
-                        default: throw new InvalidOperationException("The pending operation has no completion source.");
-                    }
-                }
-                catch (AwkFunctionFlowSignal signal) when (machine.IsProcessingMainRecord)
-                {
-                    machine.CompleteMainFlow(signal.Flow);
+                    case Pending.Flush:
+                    case Pending.Output:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompleteHostOperation();
+                        break;
+                    case Pending.NumberReturn:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompleteNumberReturn();
+                        break;
+                    case Pending.ValueReturn:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompleteValueReturn();
+                        break;
+                    case Pending.Read:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompleteRead();
+                        break;
+                    case Pending.MainRead:
+                        var mainRecord = await machine._mainRead.ConfigureAwait(false);
+                        machine.CompleteMainRead(mainRecord);
+                        break;
+                    case Pending.MainClose:
+                        var mainFlow = await machine._hostFlow.ConfigureAwait(false);
+                        machine.CompleteMainClose(mainFlow);
+                        break;
+                    case Pending.BuiltinValue:
+                        var builtinValue = await machine._pendingValue.ConfigureAwait(false);
+                        machine.CompleteBuiltinValue(builtinValue);
+                        break;
+                    default: throw new InvalidOperationException("The pending operation has no completion source.");
                 }
             }
             return machine.Flow;
