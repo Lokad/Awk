@@ -148,31 +148,6 @@ internal static class AwkTestHarness
             expectedFiles);
     }
 
-    public static async Task<AwkTestRunResult> RunGoldenCaseAsync(
-        AwkGoldenCase testCase,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions)
-    {
-        var fileSystem = BuildFileSystem(testCase);
-        var compiled = await AwkExecutor
-            .CompileAsync(fileSystem, BuildInvocation("awk", testCase.Arguments, testCase.Environment), cancellationToken, regexEngine: AwkUtf8RegexEngine.Instance)
-            .ConfigureAwait(false);
-        var exitCode = await compiled.ExecuteAsync(fileSystem, cancellationToken, runtimeOptions).ConfigureAwait(false);
-        var expectedFiles = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var expectedFile in testCase.ExpectedFiles)
-        {
-            expectedFiles[expectedFile.Path] = fileSystem.FileExists(expectedFile.Path)
-                ? fileSystem.ReadFile(expectedFile.Path)
-                : null;
-        }
-
-        return new AwkTestRunResult(
-            exitCode.Value,
-            fileSystem.GetOutput(AwkFileDescriptor.StdOut),
-            fileSystem.GetOutput(AwkFileDescriptor.StdErr),
-            expectedFiles);
-    }
-
     public static async Task<AwkTestRunResult> RunProgramAsync(
         string program,
         IReadOnlyList<AwkTestInputFile> files,

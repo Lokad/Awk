@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed partial class AwkCompiledWarningTests
+public sealed partial class AwkWarningTests
 {
     [Theory]
     [InlineData(false, false, "success")] [InlineData(true, false, "success")]
@@ -33,9 +33,10 @@ public sealed partial class AwkCompiledWarningTests
             }
             return AwkAppendResult.Accepted();
         };
-        var execution = AwkExecutor.ExecuteAsync(host,
-            AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", "--csv", source)), cancellation.Token,
-            Options(AwkRuntimeCounters.CreateEnabled()) with { MemoryBudget = governed ? budget : null });
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var execution = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "--csv", source))
+            .ExecuteAsync(host, policy, cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));

@@ -32,20 +32,6 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(expected, translated.AsString());
     }
 
-    public static IEnumerable<object[]> RegexGoldenCases(bool providerGap)
-    {
-        foreach (var testCase in AwkGoldenCorpus.DirectCases)
-        {
-            if (testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass &&
-                testCase.Tags.Contains(AwkGoldenTag.Regex) &&
-                !testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic) &&
-                AwkRegexProviderGaps.AffectsExecution(testCase) == providerGap)
-            {
-                yield return [testCase];
-            }
-        }
-    }
-
     [Fact]
     public void Awk_RegexRuntimeCachesByPatternAndIgnoreCase()
     {
@@ -374,26 +360,6 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.True(input.HasSameStorage(result));
         Assert.Equal(0, replacementCount);
         Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
-    }
-
-    [Theory]
-    [MemberData(nameof(RegexGoldenCases), false)]
-    [MemberData(nameof(RegexGoldenCases), true, Skip = AwkRegexProviderGaps.SkipReason)]
-    public async Task Awk_PreparedRegexGoldenCasesMatch(AwkGoldenCase testCase)
-    {
-        var options = new AwkRuntimeOptions(
-            () => new AwkUnixTimestampSeconds(0),
-            TimeZoneInfo.Utc,
-            new AwkRandomGenerator(),
-            AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-
-        var result = await AwkTestHarness
-            .RunGoldenCaseAsync(testCase, CancellationToken.None, options);
-
-        Assert.Equal(testCase.ExpectedExitCode, result.ExitCode);
-        Assert.Equal(testCase.ExpectedStdOut, result.StdOut);
-        Assert.Equal(testCase.ExpectedStdErr, result.StdErr);
     }
 
     public static TheoryData<string, string> Utf8RegexAdapterMatrixCases => new()

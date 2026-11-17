@@ -23,9 +23,9 @@ to enforcing tests.
 | Preparation boundaries | [AwkFusionBoundaryTests](AwkFusionBoundaryTests.cs) | Canonical results/effects under inert filler shapes and pending-output controls, without opcode/route expectations. |
 | Native comparisons | AwkDifferentialTests, AwkDifferentialFilesTests, AwkDifferentialComparisonTests | Live reference stdout, declared output files, diagnostic class and status; explicit opt-in below. |
 
-Goldens currently run through public execution and internal prepared helpers. Those
-helpers are not a public compilation API; their planned removal must preserve independent
-semantic coverage. Source-level checks cover additional parser/binder contracts.
+Goldens run through public command execution. Focused internal preparation/ownership
+fixtures are not a public compilation API; their planned migration must preserve
+independent contracts. Source-level checks cover additional parser/binder behavior.
 
 ## Writing and running checks
 
@@ -46,8 +46,8 @@ are not substitutes for semantic/ownership checks or quiet-machine throughput me
 ## Regex provider qualification
 
 Tests compile the copyable adapter against published Lokad.Utf8Regex 0.4.0. It lacks
-required POSIX whole/subcapture selection. `AwkRegexProviderGaps` defers 22 goldens in
-both execution entries and three focused results: 47 results total, with expectations
+required POSIX whole/subcapture selection. `AwkRegexProviderGaps` defers 22 goldens and
+three focused results: 25 results total, with expectations
 preserved. Other translation, scalar, host, cancellation and ownership tests remain active.
 New failures must not silently expand the list.
 
