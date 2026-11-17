@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix numeric CONVFMT/OFMT assignment, preserving the captured format and numeric origin
+  without recursive formatting. Honor memory admission and cancellation for retained formats.
+
 - Prepare arithmetic-only scalar input with the shared value-consumption analysis,
   avoiding unobserved field-text ownership while preserving spelling observations and deferred errors.
 - Reduce print preparation overhead while preserving complete-record size checks and output admission.

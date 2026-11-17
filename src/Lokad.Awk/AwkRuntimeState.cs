@@ -141,7 +141,7 @@ internal sealed class AwkRuntimeState : IDisposable
             _specialVariables = new AwkSpecialVariableDispatcher(
                 _variables,
                 _fieldSplitter,
-                FormatStringByteText,
+                _formattingRuntime,
                 RecordSpecialVariableAssignment,
                 MemoryAccounting,
                 CompatibilityMode,
@@ -164,10 +164,10 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable)
         {
             var id = AwkFormattingVariableFacts.SpecialVariableId(variable);
-            var text = ResolveSpecialVariableText(id);
-            // These format names are reserved as parameters. Resolve normally
-            // first, including file-phase scope, then cache only the matching
-            // retained scalar. Numeric/transient formatting remains unchanged.
+            var text = specialVariables is not null && specialVariables.TryGetNumericFormat(id, out var captured)
+                ? captured : ResolveSpecialVariableText(id);
+            // Format parameters are reserved. Numeric assignments retain their
+            // captured format; cache decoded text only at its owning scalar.
             if (text.RequiresStringCache && _variables.GetSpecialScalarCell(id) is { } cell)
                 text = AwkVariables.PrepareScalarStringCache(cell, text);
             return new(text);
@@ -1828,12 +1828,16 @@ internal sealed class AwkRuntimeState : IDisposable
         try { _regexRuntime.Dispose(); }
         finally
         {
-            try { _recordFields.ResetRecord(); }
+            try { _specialVariables.Dispose(); }
             finally
             {
-                var rangeBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
-                _rangePatterns = [];
-                if (rangeBytes > 0) MemoryAccounting.ReleaseCommitted(rangeBytes);
+                try { _recordFields.ResetRecord(); }
+                finally
+                {
+                    var rangeBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
+                    _rangePatterns = [];
+                    if (rangeBytes > 0) MemoryAccounting.ReleaseCommitted(rangeBytes);
+                }
             }
         }
     }

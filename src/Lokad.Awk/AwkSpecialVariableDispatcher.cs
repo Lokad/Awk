@@ -5,14 +5,14 @@ namespace Lokad.Awk;
 internal sealed class AwkSpecialVariableDispatcher(
     AwkVariables variables,
     AwkFieldSplitter fieldSplitter,
-    Func<AwkValue, AwkText> formatString,
+    AwkFormattingRuntime formatting,
     Action<AwkSpecialVariableId> recordAssignment,
     AwkMemoryAccounting memoryAccounting,
     AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
     Action? checkpoint = null,
     Action<AwkText>? validateRecordSeparator = null,
     bool csv = false,
-    Action<bool>? reportCsvWarning = null)
+    Action<bool>? reportCsvWarning = null) : IDisposable
 {
     private static readonly AwkArrayName ProcInfo = AwkArrayName.FromText("PROCINFO");
     private static readonly AwkArrayKey FieldModeKey = new(AwkText.FromSourceLiteralString("FS"));
@@ -33,6 +33,59 @@ internal sealed class AwkSpecialVariableDispatcher(
     private FieldParser _parser;
     private bool _csvFieldsWarned;
     private bool _csvRecordsWarned;
+    private NumericFormat? _numericConversionFormat;
+    private NumericFormat? _numericOutputFormat;
+
+    private readonly struct NumericFormat(AwkText text, AwkMemoryLease memory) : IDisposable
+    {
+        public AwkText Text { get; } = text;
+        public void Dispose() => memory?.Dispose();
+    }
+
+    internal bool TryGetNumericFormat(AwkSpecialVariableId id, out AwkText text)
+    {
+        var format = id == AwkSpecialVariableId.ConversionFormat
+            ? _numericConversionFormat : _numericOutputFormat;
+        text = format?.Text ?? default;
+        return format.HasValue;
+    }
+
+    private void AssignFormat(AwkVariableName name, AwkSpecialVariableId id, AwkValue value)
+    {
+        AwkMemoryLease? staging = null;
+        try
+        {
+            NumericFormat? prepared = null;
+            if (value.IsNumberValue)
+            {
+                staging = memoryAccounting.CreateTransientLease();
+                // Capture with the previous CONVFMT before publishing the number.
+                // Keeping this text separate preserves typeof and numeric origins.
+                var text = formatting.CaptureNumericFormat(value, staging);
+                prepared = new(text, staging);
+            }
+            checkpoint?.Invoke();
+            variables.SetScalarValue(name, value);
+            ref var current = ref (id == AwkSpecialVariableId.ConversionFormat
+                ? ref _numericConversionFormat : ref _numericOutputFormat);
+            var previous = current;
+            current = prepared;
+            staging = null;
+            previous?.Dispose();
+            checkpoint?.Invoke();
+        }
+        finally { staging?.Dispose(); }
+    }
+
+    public void Dispose()
+    {
+        var conversion = _numericConversionFormat;
+        var output = _numericOutputFormat;
+        _numericConversionFormat = null;
+        _numericOutputFormat = null;
+        try { conversion?.Dispose(); }
+        finally { output?.Dispose(); }
+    }
 
     public void InitializeScalars(AwkFieldSeparatorSpec fieldSeparator)
     {
@@ -70,7 +123,9 @@ internal sealed class AwkSpecialVariableDispatcher(
         if (id is not (AwkSpecialVariableId.FieldSeparator or AwkSpecialVariableId.FieldPattern or
             AwkSpecialVariableId.FieldWidths or AwkSpecialVariableId.RecordSeparator))
         {
-            variables.SetScalarValue(name, value);
+            if (id is AwkSpecialVariableId.ConversionFormat or AwkSpecialVariableId.OutputFormat)
+                AssignFormat(name, id, value);
+            else variables.SetScalarValue(name, value);
             recordAssignment(id);
             return;
         }
@@ -86,9 +141,9 @@ internal sealed class AwkSpecialVariableDispatcher(
                 reportCsvWarning?.Invoke(records);
             }
             if (id == AwkSpecialVariableId.FieldPattern)
-                fieldSplitter.ValidateFieldPattern(formatString(value));
+                fieldSplitter.ValidateFieldPattern(formatting.FormatStringByteText(value));
             else if (id == AwkSpecialVariableId.FieldWidths)
-                _ = fieldSplitter.EstimateFieldWidthsMemory(formatString(value));
+                _ = fieldSplitter.EstimateFieldWidthsMemory(formatting.FormatStringByteText(value));
             variables.SetScalarValue(name, value);
             warned = true;
             return;
@@ -102,25 +157,25 @@ internal sealed class AwkSpecialVariableDispatcher(
         switch (id)
         {
             case AwkSpecialVariableId.FieldSeparator:
-                text = formatString(value);
+                text = formatting.FormatStringByteText(value);
                 fieldSplitter.ValidateFieldSeparator(text);
                 SelectSeparator(text, ResolveText(AwkSpecialVariableId.RecordSeparator),
                     !text.Equals(ResolveText(id)));
                 break;
             case AwkSpecialVariableId.FieldPattern:
-                text = formatString(value);
+                text = formatting.FormatStringByteText(value);
                 fieldSplitter.ValidateFieldPattern(text);
                 parser = FieldParser.Pattern;
                 publish = parser != _parser;
                 break;
             case AwkSpecialVariableId.FieldWidths:
-                text = formatString(value);
+                text = formatting.FormatStringByteText(value);
                 widthBytes = fieldSplitter.EstimateFieldWidthsMemory(text);
                 parser = FieldParser.Widths;
                 publish = parser != _parser;
                 break;
             case AwkSpecialVariableId.RecordSeparator:
-                text = formatString(value);
+                text = formatting.FormatStringByteText(value);
                 validateRecordSeparator?.Invoke(text);
                 if (IsSeparatorParser(_parser))
                 {
@@ -168,7 +223,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         recordAssignment(id);
 
         AwkText ResolveText(AwkSpecialVariableId special) =>
-            formatString(variables.GetOrCreateScalarValue(AwkSpecialVariables.VariableName(special)));
+            formatting.FormatStringByteText(variables.GetOrCreateScalarValue(AwkSpecialVariables.VariableName(special)));
 
         void SelectSeparator(AwkText separator, AwkText recordSeparator, bool changed)
         {

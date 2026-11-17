@@ -9,6 +9,11 @@ internal sealed class AwkFormattingRuntime(
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
     Action? checkpoint = null)
 {
+    internal AwkText CaptureNumericFormat(AwkValue value, AwkMemoryLease lease) =>
+        double.IsFinite(value.StoredNumber)
+            ? FormatStringByteText(value, lease)
+            : AwkNumberFormatter.ToDefaultFormatAwkText(value.StoredNumber, counters, governor, lease);
+
     public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
 
     internal bool TryAppendPrintInteger(AwkValue value, AwkUtf8Builder destination) =>

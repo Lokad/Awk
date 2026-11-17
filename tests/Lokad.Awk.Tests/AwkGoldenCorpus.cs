@@ -13,6 +13,7 @@ internal static partial class AwkGoldenCorpus
         [
         .. Tagged(VariableCases(), AwkGoldenTag.Variable),
         .. Tagged(SpecialScalarBindingCases(), AwkGoldenTag.Variable, AwkGoldenTag.Field),
+        .. Tagged(NumericFormatAssignmentCases(), AwkGoldenTag.Variable, AwkGoldenTag.Expression),
         .. Tagged(RecordHeaderObservationCases(), AwkGoldenTag.Variable, AwkGoldenTag.Record, AwkGoldenTag.CommandLine),
 
         .. Tagged(FieldCases(), AwkGoldenTag.Field),
