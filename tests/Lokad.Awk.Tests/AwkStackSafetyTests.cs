@@ -79,16 +79,16 @@ internal sealed record AwkStackSafetyScenario(string Source, string Output,
         "four-argument-pending", "field-call-pending", "control-call-pending",
         "nested-array-keys", "nested-path-keys", "incoming-error", "incoming-cancellation",
         "numeric-formats", "beginfile-read", "endfile-read", "repeated-file-phases",
-        "include-boundary", "include-limit", "date-composites", "diagnostic-deep"
+        "include-boundary", "include-limit", "date-composites", "nested-getline"
     ];
 
     internal static AwkStackSafetyScenario Create(string shape)
     {
-        if (shape == "diagnostic-deep")
+        if (shape == "nested-getline")
         {
             const int depth = 5_000;
-            return new("BEGIN{getline x < " + string.Concat(Enumerable.Repeat("(getline x < ", depth)) +
-                "(getline length)" + new string(')', depth) + "}", "", "awk: invalid getline target.\n", 2);
+            return new("BEGIN{print (getline x < " + string.Concat(Enumerable.Repeat("(getline x < ", depth)) +
+                "(getline length)" + new string(')', depth) + ")}", "-1\n");
         }
         if (shape is "include-boundary" or "include-limit")
         {

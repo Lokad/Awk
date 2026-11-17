@@ -4,6 +4,7 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> GetlinePrecedenceCases()
     {
+        foreach (var test in GetlineBareLengthCases()) yield return test;
         yield return CompilerDiagnostic(Failing("getline-nested-source-invalid-function-before-effects",
             ["BEGIN{print \"unreached\";getline x < (getline x < (getline sin))}"], [], 2, "",
             "awk: function `sin' requires a call.\n"));
@@ -34,5 +35,41 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("getline-statement-concatenation-keeps-recoverable-failure",
             ["BEGIN{x=\"keep\";getline x < \"/missing\" \"b\";print x,(ERRNO!=\"\")}"],
             [File("/missingb", "wrong\n")], "keep 1\n");
+    }
+
+    private static IEnumerable<AwkGoldenCase> GetlineBareLengthCases()
+    {
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-statement",
+            ["BEGIN{getline length;print NR,NF,$0}"], [])
+            .WithStandardInput("abc\n").WithStdOut("1 1 abc\n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-expression",
+            ["BEGIN{print (getline length),NR,NF,$0}"], [])
+            .WithStandardInput("abc\n").WithStdOut("13 1 1 abc\n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-statement-comparison",
+            ["BEGIN{getline length < \"data\";print NR,NF,$0}"], [])
+            .WithStandardInput("abc\n").WithStdOut("1 1 abc\n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-expression-comparison",
+            ["BEGIN{print (getline length < \"data\"),NR,NF,$0}"], [])
+            .WithStandardInput("abc\n").WithStdOut("1 1 1 abc\n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-explicit-source",
+            ["BEGIN{print (getline < \"data\") length,NR,NF,$0}"], [File("/data", "longer record\n")])
+            .WithStandardInput("abc\n").WithStdOut("113 0 2 longer record\n")
+            .WithTags([AwkGoldenTag.Io]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-missing",
+            ["BEGIN{print (getline < \"absent\") length,(ERRNO!=\"\")}"], [])
+            .WithStandardInput("abc\n").WithStdOut("-10 1\n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-nested",
+            ["BEGIN{print \"unreached\";print (getline x < (getline x < (getline length)))}"], [])
+            .WithStandardInput("abc\n").WithStdOut("unreached\n-1\n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
+        yield return AwkGoldenCaseBuilder.Create("getline-bare-length-empty",
+            ["BEGIN{print (getline length),NR,NF,$0}"], [])
+            .WithStandardInput("").WithStdOut("00 0 0 \n")
+            .WithTags([AwkGoldenTag.Idiom]).Build();
     }
 }

@@ -3,6 +3,31 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkGetlineExpressionTests
 {
     [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task BareLengthAfterPipeConcatenatesTheReadStatus(bool governed, bool comparison)
+    {
+        var files = new MockFileSystem();
+        files.AddFile("/data", "longer record\n");
+        var host = new AwkGetlinePipeTestHost(files);
+        var budget = new CooperativeTestBudget(128 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{print (\"cat data\"|getline length" + (comparison ? " < \"data\"" : "") +
+            "),NR,NF,$0;print close(\"cat data\")}"));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, cancellation.Token));
+        Assert.Equal((comparison ? "1" : "113") + " 0 2 longer record\n0\n",
+            files.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", files.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Single(host.Commands);
+        Assert.Equal(0, host.OpenPipeCount);
+        Assert.Equal(0, files.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task LongPipeStatusArithmeticExecutesAndClosesThePipe(bool governed)
     {

@@ -19,9 +19,9 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData("BEGIN{getline length < (getline x < (getline length))}")]
-    [InlineData("BEGIN{getline x < (getline x < (getline length))}")]
-    [InlineData("BEGIN{print (getline x < (getline length))}")]
+    [InlineData("BEGIN{getline sin < (getline x < (getline sin))}")]
+    [InlineData("BEGIN{getline x < (getline x < (getline sin))}")]
+    [InlineData("BEGIN{print (getline x < (getline sin))}")]
     public void GetlineFailureRetainsTheFirstInvalidTargetSpan(string source)
     {
         var parsed = AwkParser.Parse(source);
@@ -29,13 +29,13 @@ public sealed partial class AwkRegionTests
         Assert.False(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
             -1, out _, out var diagnostic));
         Assert.Equal("Invalid getline target.", diagnostic.Message);
-        Assert.Equal(new AwkTextSpan(source.IndexOf("length", StringComparison.Ordinal), "length".Length), diagnostic.Span);
+        Assert.Equal(new AwkTextSpan(source.IndexOf("sin", StringComparison.Ordinal), "sin".Length), diagnostic.Span);
     }
 
     [Fact]
     public void DiagnosticSourceWalkObservesCallerCancellation()
     {
-        var parsed = AwkParser.Parse("BEGIN{getline x < (getline length)}");
+        var parsed = AwkParser.Parse("BEGIN{getline x < (getline sin)}");
         Assert.True(parsed.Success);
         var statement = Assert.Single(Assert.Single(parsed.Syntax.Rules).ActionStatements);
         using var cancellation = new CancellationTokenSource();

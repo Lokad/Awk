@@ -1014,12 +1014,18 @@ internal sealed class AwkExpressionSyntaxParser
         AwkExpressionSyntax? source)
     {
         var getlineToken = ToToken(AwkTokenKind.Identifier, getline);
+        // Bare length is a zero-argument call, not an lvalue. It concatenates
+        // after the read status; a following < is comparison, not redirection.
+        var length = target is { Kind: AwkExpressionKind.Variable } &&
+            AwkExpressionSyntaxFacts.TryGetIdentifier(target, out var identifier) &&
+            AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ? target : null;
+        if (length is not null) target = null;
         var children = new List<AwkExpressionSyntax> { CreateTokenNode(AwkExpressionKind.Variable, getlineToken) };
         if (target != null)
             children.Add(target);
 
         var operators = new List<AwkToken>();
-        if (less.HasValue)
+        if (less.HasValue && length is null)
         {
             operators.Add(ToToken(AwkTokenKind.Less, less.Value));
             if (source != null)
@@ -1027,7 +1033,7 @@ internal sealed class AwkExpressionSyntaxParser
         }
 
         var last = children[^1].LastToken;
-        return CreateNode(
+        var read = CreateNode(
             AwkExpressionKind.FunctionCall,
             getlineToken,
             last,
@@ -1035,6 +1041,11 @@ internal sealed class AwkExpressionSyntaxParser
             operators,
             [],
             []);
+        if (length is null) return read;
+        var concatenated = CreateNode(AwkExpressionKind.Concatenation, read, length, []);
+        return less.HasValue && source is not null
+            ? CreateNode(AwkExpressionKind.Binary, concatenated, source, [ToToken(AwkTokenKind.Less, less.Value)])
+            : concatenated;
     }
 
     private AwkExpressionSyntax FoldLeftBinary<TTail>(
