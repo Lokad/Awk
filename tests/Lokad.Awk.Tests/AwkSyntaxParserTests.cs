@@ -671,6 +671,23 @@ public sealed class AwkSyntaxParserTests
             RequiredExpression(statements[1]).Children.Select(child => child.Kind).ToArray());
     }
 
+    [Theory]
+    [InlineData("if(1) x=1")]
+    [InlineData("for(;;) break")]
+    [InlineData("while(1) break")]
+    [InlineData("{x=1}")]
+    public void ForClausesDoNotPrepareCompoundStatementBodies(string clause)
+    {
+        var parsed = AwkParser.Parse("BEGIN{for(" + clause + ";;)break}");
+        Assert.False(AwkBinder.Bind(parsed).Success);
+        if (parsed.Success)
+        {
+            var statement = Assert.Single(Assert.Single(parsed.Syntax.Rules).ActionStatements);
+            var header = Assert.IsType<AwkForStatementSyntaxPayload>(statement.Payload).Header;
+            Assert.Empty(header.InitializerStatements);
+        }
+    }
+
     [Fact]
     public void AwkSyntaxParser_ParsesControlFlowExpressionSlots()
     {

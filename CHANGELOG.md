@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject malformed nonempty for clauses before execution instead of treating them as omitted.
+
 - Select nested getline diagnostics iteratively, preserving target precedence and source spans.
 
 - Expand nested source includes without recursive async calls, preserving source maps, admission and cleanup.

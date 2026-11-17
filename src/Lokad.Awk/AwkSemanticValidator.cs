@@ -402,7 +402,7 @@ internal static class AwkSemanticValidator
             var statement = frame.Statements[frame.Position];
             if (frame.Position + 1 < frame.Statements.Count)
                 pending.Push((frame.Statements, frame.Position + 1, context, default, false));
-            ValidateControlStatementShape(statement, diagnostics);
+            ValidateControlStatementShape(statement, diagnostics, context.Scope.Checkpoint);
             ValidateControlFlowUsage(statement, context, diagnostics);
             var getlineTarget = statement.Payload switch
             {
@@ -493,8 +493,26 @@ internal static class AwkSemanticValidator
 
         static void ValidateControlStatementShape(
             AwkStatementSyntax statement,
-            List<AwkDiagnostic> diagnostics)
+            List<AwkDiagnostic> diagnostics,
+            Action? checkpoint)
         {
+            if (statement.Payload is AwkForStatementSyntaxPayload
+                { Header.IsForIn: false, Header.Parts.Count: 3 } loop)
+            {
+                for (var index = 0; index < 3; index++)
+                {
+                    var part = loop.Header.Parts[index];
+                    if (part.Expression.HasValue ||
+                        (index == 0 && loop.Header.InitializerStatements.Count != 0) ||
+                        (index == 2 && loop.Header.StepStatements.Count != 0)) continue;
+                    // A failed expression parse is not an omitted clause.
+                    if (AwkTokenNavigation.FindFirstSignificant(part.Tokens, checkpoint) is { } token)
+                    {
+                        diagnostics.Add(new(token.Span, "Invalid `for' statement.", AwkDiagnosticId.BindInvalidProgram));
+                        break;
+                    }
+                }
+            }
             if (AwkStatementValidationFacts.TryGetMissingExpressionDiagnostic(statement.Kind, out var message) &&
                 !statement.Expression.HasValue)
             {

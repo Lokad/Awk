@@ -18,10 +18,17 @@ public sealed class AwkDifferentialTests(ITestOutputHelper output)
         foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Tags.Contains(AwkGoldenTag.Idiom)))
             yield return [new AwkDifferentialCase(test)];
 
-        var diagnostic = AwkGoldenCorpus.DirectCases.Single(test =>
-            test.Name == "computed-field-validates-builtin-arity-before-effects");
-        yield return [new AwkDifferentialCase(diagnostic, 1,
-            "GNU reports this compile error as status 1; Lokad.Awk uses fatal status 2.")];
+        var diagnosticNames = new[]
+        {
+            "computed-field-validates-builtin-arity-before-effects",
+            "getline-nested-source-invalid-target-before-effects",
+            "getline-expression-nested-source-invalid-target-before-effects"
+        };
+        var diagnostics = diagnosticNames.Select(name => AwkGoldenCorpus.DirectCases.Single(test => test.Name == name))
+            .Concat(AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("for-invalid-", StringComparison.Ordinal)));
+        foreach (var diagnostic in diagnostics)
+            yield return [new AwkDifferentialCase(diagnostic, 1,
+                "GNU reports this compile error as status 1; Lokad.Awk uses fatal status 2.")];
     }
 
     [AwkOracleTheory]

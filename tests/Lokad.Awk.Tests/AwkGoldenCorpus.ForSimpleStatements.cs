@@ -4,6 +4,26 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> ForSimpleStatementCases()
     {
+        yield return Passing("for-empty-whitespace-clauses",
+            ["BEGIN{for( \t ; \t ; \t ){print \"once\";break}print \"done\"}"], [], "once\ndone\n");
+        yield return CompilerDiagnostic(Failing("for-invalid-initializer-if",
+            ["BEGIN{print \"unreached\";for(if(1) x=1;;)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-initializer-while",
+            ["BEGIN{print \"unreached\";for(while(1) break;;)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-initializer-block",
+            ["BEGIN{print \"unreached\";for({x=1};;)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-condition-if",
+            ["BEGIN{print \"unreached\";for(;if(1) x=1;)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-condition-while",
+            ["BEGIN{print \"unreached\";for(;while(1) break;)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-condition-block",
+            ["BEGIN{print \"unreached\";for(;{x=1};)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-step-if",
+            ["BEGIN{print \"unreached\";for(;;if(1) x=1)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-step-while",
+            ["BEGIN{print \"unreached\";for(;;while(1) break)break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
+        yield return CompilerDiagnostic(Failing("for-invalid-step-block",
+            ["BEGIN{print \"unreached\";for(;;{x=1})break;print \"after\"}"], [], 2, "", "awk: invalid `for' statement.\n"));
         yield return CompilerDiagnostic(Failing("for-simple-validates-print-calls-before-effects",
             ["BEGIN{print \"before\";for(print substr(\"a\");0;);}"], [], 2, "",
             "awk: invalid number of arguments for substr\n"));
