@@ -696,21 +696,6 @@ internal sealed partial class AwkVariables
         DeleteArrayValue(_arrays.ResolveArray(name), index);
     }
 
-    public void SetArrayValues<TValue>(
-        AwkArrayName name,
-        IReadOnlyList<TValue> values,
-        Func<TValue, AwkNumberParsingMode, AwkValue> createSlot,
-        AwkMemoryLease sourceMemoryLease,
-        long sourceRetainedTextBytes)
-    {
-        if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
-        using var construction = _state.MemoryAccounting.AdmitMutation(
-            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
-        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, createSlot),
-            sourceMemoryLease, sourceRetainedTextBytes);
-    }
-
     public bool TryGetExistingArrayValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
@@ -788,27 +773,12 @@ internal sealed partial class AwkVariables
             AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index) - AwkRuntimeMemory.EstimateArrayBackingBytes(1)));
     }
 
-    public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
-    {
-        if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
-        using var construction = _state.MemoryAccounting.AdmitMutation(
-            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
-        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, static (text, _) => AwkValue.ForStoredInputText(text)));
-    }
-
-    public void SetSplitArrayValues(
-        AwkArrayName fieldArrayName,
-        IReadOnlyList<AwkText> fields,
-        AwkArrayName separatorArrayName,
-        IReadOnlyList<AwkCapturedSeparator> separators) =>
-        SetSplitArrayValues(new AwkArrayTarget(fieldArrayName), fields, new AwkArrayTarget(separatorArrayName), separators);
-
     internal void SetSplitArrayValues(
         AwkArrayTarget fieldArrayName,
         IReadOnlyList<AwkText> fields,
         AwkArrayTarget separatorArrayName,
-        IReadOnlyList<AwkCapturedSeparator> separators)
+        IReadOnlyList<AwkCapturedSeparator> separators,
+        long fieldBytes)
     {
         ValidateArrayOverlap(fieldArrayName, separatorArrayName, allowSame: false);
         if (fieldArrayName.IsNamed && !fieldArrayName.Name.IsFunctionLocal)
@@ -827,8 +797,12 @@ internal sealed partial class AwkVariables
         AwkArrayIdentity CreateSeparatorArraySlots()
         {
             var slots = CreateArraySlots(separators.Count);
-            foreach (var separator in separators)
+            for (var index = 0; index < separators.Count; index++)
+            {
+                if ((index & 63) == 0) _state.ThrowIfCancellationRequested();
+                var separator = separators[index];
                 slots[AwkArrayKey.FromOrdinal(separator.FieldIndex)] = AwkValue.ForStoredInputText(separator.Text);
+            }
             return slots;
         }
 
@@ -844,9 +818,10 @@ internal sealed partial class AwkVariables
                     : 0;
 
             var oldBytes = AwkRuntimeMemory.CheckedAdd(ExistingBytes(firstName), ExistingBytes(secondName));
-            var newBytes = AwkRuntimeMemory.CheckedAdd(
-                EstimateOwnedArrayBytes(firstSlots),
-                EstimateOwnedArrayBytes(secondSlots));
+            var newBytes = _state.MemoryAccounting.IsEnabled
+                ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, fieldBytes),
+                    EstimateOwnedArrayBytes(secondSlots))
+                : 0;
             using var mutation = ReserveMemoryMutation(newBytes, oldBytes);
             if (TryGetTargetArray(firstName, out var first)) RetireArrayContents(first, includeRoot: false);
             if (TryGetTargetArray(secondName, out var second)) RetireArrayContents(second, includeRoot: false);
@@ -861,18 +836,6 @@ internal sealed partial class AwkVariables
         if (!name.IsFunctionLocal)
             AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
         ReplaceArraySlots(name, CreateArraySlots(0));
-    }
-
-    public void ReplaceMutableArraySlots(
-        AwkArrayName name,
-        AwkArrayIdentity slots,
-        AwkMemoryLease sourceMemoryLease,
-        long sourceRetainedTextBytes)
-    {
-        if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
-        ReplaceArraySlots(name, slots, sourceMemoryLease, sourceRetainedTextBytes);
-
     }
 
     public TResult[] SnapshotArrayValues<TState, TResult>(
@@ -1245,22 +1208,38 @@ internal sealed partial class AwkVariables
     }
 
     private void ReplaceArraySlots(AwkArrayName name, AwkArrayIdentity slots) =>
-        ReplaceArraySlots(name, slots, AwkMemoryLease.Disabled, transferredBytes: 0);
+        ReplaceArraySlots(new AwkArrayTarget(name), slots, AwkMemoryLease.Disabled, transferredBytes: 0);
 
     private void ReplaceArraySlots(
-        AwkArrayName name,
+        AwkArrayTarget target,
         AwkArrayIdentity slots,
         AwkMemoryLease sourceMemoryLease,
-        long transferredBytes)
+        long transferredBytes,
+        long? measuredContentsBytes = null)
     {
-        var oldBytes = 0L;
-        if (_arrays.TryGetArray(name, out var existingSlots))
-            oldBytes = EstimateOwnedArrayBytes(existingSlots);
-        var newBytes = EstimateOwnedArrayBytes(slots);
+        AwkArrayIdentity? existing;
+        if (target.IsNamed)
+            _arrays.TryGetArray(target.Name, out existing);
+        else
+        {
+            if (!target.TryGetArray(out existing))
+                throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
+            ThrowIfDetached(existing);
+        }
+        var rootBytes = target.IsNamed ? AwkRuntimeMemory.ArrayIdentityBytes : 0;
+        long oldBytes = 0, newBytes = 0;
+        if (_state.MemoryAccounting.IsEnabled)
+        {
+            if (existing is not null)
+                oldBytes = AwkRuntimeMemory.CheckedAdd(rootBytes, EstimateArrayBytes(existing, _state.CancellationCheckpoint));
+            newBytes = AwkRuntimeMemory.CheckedAdd(rootBytes,
+                measuredContentsBytes ?? EstimateArrayBytes(slots, _state.CancellationCheckpoint));
+        }
         var creditedBytes = AwkRuntimeMemory.CheckedAdd(oldBytes, transferredBytes);
         using var mutation = ReserveMemoryMutation(newBytes, creditedBytes);
-        if (_arrays.TryGetArray(name, out var existing)) RetireArrayContents(existing, includeRoot: false);
-        _arrays.SetSlots(name, slots);
+        if (existing is not null) RetireArrayContents(existing, includeRoot: false);
+        else _state.ThrowIfCancellationRequested();
+        PublishArraySlots(target, slots);
         mutation.Commit();
         sourceMemoryLease.Transfer(transferredBytes);
     }
@@ -1344,7 +1323,7 @@ internal sealed partial class AwkVariables
     private static long EstimateScalarBytes(AwkValue slot) =>
         AwkRuntimeMemory.EstimateStoredValueBytes(slot);
 
-    private long EstimateOwnedArrayBytes(IReadOnlyDictionary<AwkArrayKey, AwkValue> slots) =>
+    private long EstimateOwnedArrayBytes(AwkArrayIdentity slots) =>
         _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
             EstimateArrayBytes(slots, _state.CancellationCheckpoint)) : 0;
 

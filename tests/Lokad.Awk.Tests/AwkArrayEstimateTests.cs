@@ -20,16 +20,23 @@ public sealed class AwkArrayEstimateTests
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
     }
 
-    [Fact]
-    public void SplitPairIdentitiesStayFundedUntilTheirFunctionScopeRetires()
+    [Theory]
+    [InlineData("x", false)]
+    [InlineData(" x ", true)]
+    public void SplitPairIdentitiesStayFundedUntilTheirFunctionScopeRetires(string input, bool capturesSeparators)
     {
         using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
-        var variables = memory.State.Variables;
+        var state = memory.State;
+        var variables = state.Variables;
         var first = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("fields"), 1);
         var retained = memory.Budget.Reserved;
         var second = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("separators"), 1);
-        variables.SetSplitArrayValues(first, [AwkText.FromSourceLiteralString("x")], second, []);
+        var count = state.Arrays.SplitIntoArray(AwkText.FromSourceLiteralString(input), new(first),
+            AwkFieldSeparatorSpec.Default, new AwkArrayTarget(second));
+        Assert.Equal(1, count);
         Assert.Equal("x", variables.GetArrayValue(first, AwkArrayKey.FromOrdinal(1)).AsString());
+        if (capturesSeparators)
+            Assert.Equal(" ", variables.GetArrayValue(second, AwkArrayKey.FromOrdinal(0)).AsString());
         var filled = memory.Budget.Reserved;
         variables.ClearArray(first);
         variables.ClearArray(second);
@@ -108,7 +115,7 @@ public sealed class AwkArrayEstimateTests
         var replacement = variables.CreateMutableArraySlots(0);
         replacement[key] = AwkValue.ForStoredText(new string('x', refuse ? 4096 : 16));
 
-        void Replace() => variables.ReplaceMutableArraySlots(name, replacement, AwkMemoryLease.Disabled, 0);
+        void Replace() => variables.ReplaceMutableArraySlots(new(name), replacement, AwkMemoryLease.Disabled, 0);
         if (refuse)
         {
             AssertMemoryLimit(Replace);

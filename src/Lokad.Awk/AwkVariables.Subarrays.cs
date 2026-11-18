@@ -77,24 +77,36 @@ internal sealed partial class AwkVariables
         else throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
     }
 
-    internal long EstimateSplitPublicationBytes(IReadOnlyList<AwkText> fields,
-        IReadOnlyList<AwkCapturedSeparator> separators, bool includeSeparators)
+    internal AwkMemoryMutationAdmission AdmitSplitPublication(AwkTextSplitResult result, bool includeSeparators,
+        out long fieldBytes)
     {
-        var bytes = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
-            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(fields.Count));
+        fieldBytes = 0;
+        if (!_state.MemoryAccounting.IsEnabled) return default;
+
+        // Ordinal keys are inline. Reuse this exact contents total for publication.
+        var fields = result.Fields;
+        fieldBytes = AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(fields.Count);
         for (var index = 0; index < fields.Count; index++)
         {
             if ((index & 63) == 0) _state.ThrowIfCancellationRequested();
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayPayloadBytes(
-                AwkArrayKey.FromOrdinal(index + 1), AwkValue.ForStoredInputText(fields[index])));
+            fieldBytes = AwkRuntimeMemory.CheckedAdd(fieldBytes, fields[index].EstimatedRetainedMemoryBytes);
         }
-        if (!includeSeparators) return bytes;
-        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
-            AwkRuntimeMemory.EstimateArrayBackingBytes(AwkRuntimeMemory.BoundArrayCapacity(separators.Count))));
-        foreach (var separator in separators)
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(
-                AwkArrayKey.FromOrdinal(separator.FieldIndex), AwkValue.ForStoredInputText(separator.Text)));
-        return bytes;
+        var bytes = AwkRuntimeMemory.CheckedAdd(fieldBytes, AwkRuntimeMemory.ArrayIdentityBytes);
+        if (includeSeparators)
+        {
+            var separators = result.Separators;
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.ArrayIdentityBytes);
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes,
+                AwkRuntimeMemory.EstimateArrayBackingBytes(AwkRuntimeMemory.BoundArrayCapacity(separators.Count)));
+            for (var index = 0; index < separators.Count; index++)
+            {
+                if ((index & 63) == 0) _state.ThrowIfCancellationRequested();
+                var separator = separators[index];
+                bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(
+                    AwkArrayKey.FromOrdinal(separator.FieldIndex), AwkValue.ForStoredInputText(separator.Text)));
+            }
+        }
+        return _state.MemoryAccounting.AdmitMutation(bytes);
     }
 
     internal AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayTarget target, bool materializeKeys,
@@ -126,51 +138,29 @@ internal sealed partial class AwkVariables
     internal void SetArrayValues<TValue>(AwkArrayTarget target, IReadOnlyList<TValue> values,
         Func<TValue, AwkNumberParsingMode, AwkValue> createSlot, AwkMemoryLease sourceMemoryLease, long sourceRetainedTextBytes)
     {
-        if (target.IsNamed)
-        {
-            SetArrayValues(target.Name, values, createSlot, sourceMemoryLease, sourceRetainedTextBytes);
-            return;
-        }
+        if (target.IsNamed && !target.Name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(target.Name.Text, _state.CompatibilityMode);
         using var construction = _state.MemoryAccounting.AdmitMutation(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
-        ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, createSlot), sourceMemoryLease, sourceRetainedTextBytes);
+        ReplaceArraySlots(target, CreateIndexedArraySlots(values, 1, createSlot), sourceMemoryLease, sourceRetainedTextBytes);
     }
 
-    internal void SetArrayValuesFromExternalText(AwkArrayTarget target, IReadOnlyList<AwkText> values)
+    internal void SetSplitFields(AwkArrayTarget target, IReadOnlyList<AwkText> fields, long? fieldBytes = null)
     {
-        if (target.IsNamed)
-        {
-            SetArrayValuesFromExternalText(target.Name, values);
-            return;
-        }
+        if (target.IsNamed && !target.Name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(target.Name.Text, _state.CompatibilityMode);
         using var construction = _state.MemoryAccounting.AdmitMutation(
-            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
-        ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, static (text, _) => AwkValue.ForStoredInputText(text)),
-            AwkMemoryLease.Disabled, 0);
+            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(fields.Count));
+        ReplaceArraySlots(target, CreateIndexedArraySlots(fields, 1, static (text, _) => AwkValue.ForStoredInputText(text)),
+            AwkMemoryLease.Disabled, 0, fieldBytes);
     }
 
     internal void ReplaceMutableArraySlots(AwkArrayTarget target, AwkArrayIdentity slots,
         AwkMemoryLease sourceMemoryLease, long transferredBytes)
     {
-        if (target.IsNamed)
-        {
-            ReplaceMutableArraySlots(target.Name, slots, sourceMemoryLease, transferredBytes);
-            return;
-        }
-        if (!target.TryGetArray(out var array))
-            throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
-        ThrowIfDetached(array);
-        long oldBytes = 0, newBytes = 0;
-        if (_state.MemoryAccounting.IsEnabled)
-        {
-            oldBytes = EstimateArrayBytes(array, _state.CancellationCheckpoint);
-            newBytes = EstimateArrayBytes(slots, _state.CancellationCheckpoint);
-        }
-        using var mutation = ReserveMemoryMutation(newBytes, AwkRuntimeMemory.CheckedAdd(oldBytes, transferredBytes));
-        RetireArrayContents(array, includeRoot: false);
-        array.ReplaceSlots(slots);
-        mutation.Commit();
-        sourceMemoryLease.Transfer(transferredBytes);
+        if (target.IsNamed && !target.Name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(target.Name.Text, _state.CompatibilityMode);
+        ReplaceArraySlots(target, slots, sourceMemoryLease, transferredBytes);
     }
 
     private static void ThrowIfDetached(AwkArrayIdentity array)

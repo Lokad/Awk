@@ -479,24 +479,7 @@ internal sealed partial class AwkArrayRuntime
             input,
             separator,
             captureMode);
-        using var publication = _state.MemoryAccounting.AdmitMutation(
-            _variables.EstimateSplitPublicationBytes(result.Fields, result.Separators, separatorArrayName.HasValue));
-        arrayName = ResolveTarget(arrayName);
-        if (separatorArrayName.HasValue)
-        {
-
-            SetSplitArrayValues(
-                arrayName,
-                result.Fields,
-                ResolveTarget(separatorArrayName.Value),
-                result.Separators);
-        }
-        else
-        {
-            SetValuesFromExternalText(arrayName, result.Fields);
-        }
-
-        return result.Fields.Count;
+        return PublishSplitArrays(arrayName, separatorArrayName, result);
     }
 
     internal int PatsplitIntoArray(AwkText input, AwkArrayTarget arrayName, AwkRegexPattern pattern,
@@ -510,20 +493,26 @@ internal sealed partial class AwkArrayRuntime
         using var splitLease = _state.MemoryAccounting.ReserveTransient(
             EstimateSplitBuffers(input.ByteLength, captureMode));
         var result = _fieldSplitter.Patsplit(input, pattern, captureMode);
-        using var publication = _state.MemoryAccounting.AdmitMutation(
-            _variables.EstimateSplitPublicationBytes(result.Fields, result.Separators, separatorArrayName.HasValue));
+        return PublishSplitArrays(arrayName, separatorArrayName, result);
+    }
+
+    private int PublishSplitArrays(AwkArrayTarget arrayName, AwkArrayTarget? separatorArrayName, AwkTextSplitResult result)
+    {
+        using var publication = _variables.AdmitSplitPublication(result, separatorArrayName.HasValue, out var fieldBytes);
+        _state.ThrowIfCancellationRequested();
         arrayName = ResolveTarget(arrayName);
-        if (separatorArrayName.HasValue)
+        if (separatorArrayName is { } separators)
         {
-            SetSplitArrayValues(
+            _variables.SetSplitArrayValues(
                 arrayName,
                 result.Fields,
-                ResolveTarget(separatorArrayName.Value),
-                result.Separators);
+                ResolveTarget(separators),
+                result.Separators,
+                fieldBytes);
         }
         else
         {
-            SetValuesFromExternalText(arrayName, result.Fields);
+            _variables.SetSplitFields(arrayName, result.Fields, fieldBytes);
         }
         return result.Fields.Count;
     }
@@ -674,24 +663,6 @@ internal sealed partial class AwkArrayRuntime
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             EstimateSortOperationBytes(size.Count, order, output), size.TextBytes));
         return new AwkArrayReservation(size.Count, lease, size.KeyTextBytes, materializeKeys);
-    }
-
-    private void SetValuesFromExternalText(AwkArrayTarget name, IReadOnlyList<AwkText> values)
-    {
-        _variables.SetArrayValuesFromExternalText(name, values);
-    }
-
-    private void SetSplitArrayValues(
-        AwkArrayTarget fieldArrayName,
-        IReadOnlyList<AwkText> fields,
-        AwkArrayTarget separatorArrayName,
-        IReadOnlyList<AwkCapturedSeparator> separators)
-    {
-        _variables.SetSplitArrayValues(
-            fieldArrayName,
-            fields,
-            separatorArrayName,
-            separators);
     }
 
     private bool TryResolveSortedInOrder(out AwkArraySortOrder order)

@@ -67,7 +67,7 @@ public sealed class AwkIndexedArrayStorageTests
         var variables = memory.State.Variables;
         var baseline = memory.Budget.Reserved;
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("scratch"), 1);
-        if (bulk) variables.SetArrayValuesFromExternalText(name, Enumerable.Repeat(AwkText.FromString("7"), 1024).ToArray());
+        if (bulk) variables.SetSplitFields(new(name), Enumerable.Repeat(AwkText.FromString("7"), 1024).ToArray());
         else for (var index = 1; index <= 1024; index++) variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(7));
         var owner = variables.ResolveOrdinaryArray(name);
         for (var index = 1; index < 1024; index++) variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(index));
@@ -118,7 +118,7 @@ public sealed class AwkIndexedArrayStorageTests
             var initial = shape switch { "new-page" => 2048, "partial-page" => 2049, "table" => 6144, _ => 3 };
             var values = Enumerable.Repeat(AwkText.FromString("8"), initial).ToArray();
             values[0] = AwkText.FromString("0007");
-            variables.SetArrayValuesFromExternalText(name, values);
+            variables.SetSplitFields(new(name), values);
         }
         var owner = variables.ResolveOrdinaryArray(name);
         if (shape == "hole") variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
@@ -261,7 +261,7 @@ public sealed class AwkIndexedArrayStorageTests
         using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
         var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
-        variables.SetArrayValuesFromExternalText(name, [AwkText.FromString("0007"), AwkText.FromString("8")]);
+        variables.SetSplitFields(new(name), [AwkText.FromString("0007"), AwkText.FromString("8")]);
         var owner = variables.ResolveOrdinaryArray(name);
         Assert.True(owner.IsIndexed);
         var first = owner[AwkArrayKey.FromOrdinal(1)];
@@ -287,7 +287,7 @@ public sealed class AwkIndexedArrayStorageTests
         using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
         var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
-        variables.SetArrayValuesFromExternalText(name, [AwkText.FromString("7"), AwkText.FromString("8"), AwkText.FromString("9")]);
+        variables.SetSplitFields(new(name), [AwkText.FromString("7"), AwkText.FromString("8"), AwkText.FromString("9")]);
         var owner = variables.ResolveOrdinaryArray(name);
         var first = owner[AwkArrayKey.FromOrdinal(1)];
         variables.DeleteArrayValue(owner, AwkArrayKey.FromOrdinal(2));
