@@ -232,8 +232,9 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     public AwkValue GetFieldValue(
         AwkFieldIndex index)
     {
+        if (index.IsCurrentRecord) return GetRecordValue();
         EnsureField(index);
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+        if (index.Value > _fieldTexts.Count)
             return AwkValue.UnassignedText();
 
         var fieldIndex = index.Value - 1;

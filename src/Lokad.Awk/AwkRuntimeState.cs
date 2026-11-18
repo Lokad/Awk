@@ -627,7 +627,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     // Assigned numbers retain formatting at actual consumption.
     private AwkValue CaptureFieldStringValue(int index) => TryGetFieldTextArgument(index, out var text) ? text :
-        index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        GetFieldValue(index);
 
     internal void AppendFieldByteText(AwkUtf8Builder destination, int index)
     {
@@ -639,7 +639,7 @@ internal sealed class AwkRuntimeState : IDisposable
             destination.Append(bytes, CancellationCheckpoint);
             return;
         }
-        var value = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        var value = GetFieldValue(index);
         destination.Append(FormatStringByteText(value), CancellationCheckpoint);
     }
 
@@ -661,7 +661,7 @@ internal sealed class AwkRuntimeState : IDisposable
         }
         ReadOnlySpan<byte> bytes = default;
         var borrowed = index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
-        var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        var value = borrowed ? default : GetFieldValue(index);
         var terminatorValue = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         // Stored spelling is already owned; only numeric formatting creates text
         // whose funding must survive until the synchronous output copy completes.
@@ -1089,7 +1089,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkText CaptureFieldStringText(int field) =>
         _recordFields.TryGetFieldTextSnapshot(new(field), out var text) ? text :
-            FormatStringByteText(field == 0 ? GetCurrentRecordValue() : GetFieldValue(field));
+            FormatStringByteText(GetFieldValue(field));
 
     internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true,
         AwkMemoryLease? destination = null) =>
@@ -1662,8 +1662,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
             _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
             return value;
-        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return GetArrayAwkValue(name, ToArrayKey(field), binding);
+        return GetArrayAwkValue(name, ToArrayKey(GetFieldValue(index)), binding);
     }
 
     internal double GetArrayFieldNumber(AwkArrayName name, int index, AwkArrayBinding binding)
@@ -1673,8 +1672,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
             _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
             return number;
-        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return GetArrayNumber(name, ToArrayKey(field), binding);
+        return GetArrayNumber(name, ToArrayKey(GetFieldValue(index)), binding);
     }
 
     public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index, AwkArrayBinding binding = default)
@@ -1684,8 +1682,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
             _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, binding))
             return key.WithInputOrigin(true);
-        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return ToArrayKey(field);
+        return ToArrayKey(GetFieldValue(index));
     }
 
     internal AwkArrayKey CaptureFieldKey(int index)
@@ -1694,8 +1691,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
             return CopyArrayKey(bytes)
                 .WithInputOrigin(true);
-        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return ToArrayKey(field);
+        return ToArrayKey(GetFieldValue(index));
     }
 
     internal void SetArrayFieldValue(AwkArrayName name, int index, AwkValue value, AwkArrayBinding binding)
@@ -1703,8 +1699,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
             _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
-        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        var key = ToArrayKey(field);
+        var key = ToArrayKey(GetFieldValue(index));
         ThrowIfCancellationRequested();
         _arrayRuntime.SetAwkValue(name, key, value, binding);
     }
@@ -1729,8 +1724,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (index < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return ToArrayKey(field);
+        return ToArrayKey(GetFieldValue(index));
     }
 
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
@@ -1791,8 +1785,7 @@ internal sealed class AwkRuntimeState : IDisposable
         // The dictionary consumes the borrowed bytes before this synchronous call returns.
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
             return _arrayRuntime.ContainsValue(name, bytes, binding);
-        var value = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
-        return ContainsArrayValue(name, ToArrayKey(value), binding);
+        return ContainsArrayValue(name, ToArrayKey(GetFieldValue(index)), binding);
     }
 
     public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)
