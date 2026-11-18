@@ -333,13 +333,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint?.Invoke();
     }
 
-    internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkMemoryAccounting governor, Action? checkpoint)
+    internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkMemoryAccounting accounting, Action? checkpoint)
     {
-        ResolveRuneSliceRange(start, length, governor, checkpoint, out var byteStart, out var byteEnd);
+        ResolveRuneSliceRange(start, length, accounting, checkpoint, out var byteStart, out var byteEnd);
         return AsSpan(checkpoint)[byteStart..byteEnd];
     }
 
-    internal bool ResolveRuneSliceRange(int start, int length, AwkMemoryAccounting governor, Action? checkpoint, out int byteStart, out int byteEnd)
+    internal bool ResolveRuneSliceRange(int start, int length, AwkMemoryAccounting accounting, Action? checkpoint, out int byteStart, out int byteEnd)
     {
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
@@ -388,7 +388,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
             var checkpointCount = checked((text.ByteLength / RuneCheckpointStride) + 2);
             var checkpointBytes = checked(checkpointCount * sizeof(int));
-            using var checkpointLease = governor.ReserveTransient(checkpointBytes);
+            using var checkpointLease = accounting.ReserveTransient(checkpointBytes);
             var created = new int[checkpointCount];
 
             var span = text.AsSpan(checkpoint);
@@ -525,8 +525,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint?.Invoke();
         // Keep the allocation funded through the copy and publication.
         // On interruption the retained parts remain available for a later read.
-        var governor = concatenation.Governor;
-        governor.Charge(text.ByteLength);
+        var accounting = concatenation.Accounting;
+        accounting.Charge(text.ByteLength);
         try
         {
             var bytes = new byte[text.ByteLength];
@@ -541,7 +541,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
         finally
         {
-            governor.Refund(text.ByteLength);
+            accounting.Refund(text.ByteLength);
         }
 
         void CopyConcatenationTo(Span<byte> destination)
@@ -620,17 +620,17 @@ internal readonly struct AwkText : IEquatable<AwkText>
             AwkText left,
             AwkText right,
             AwkRuntimeCounters counters,
-            AwkMemoryAccounting governor)
+            AwkMemoryAccounting accounting)
         {
             LeftPart = left;
             RightPart = right;
             Counters = counters;
-            Governor = governor;
+            Accounting = accounting;
         }
 
         public AwkRuntimeCounters Counters { get; }
 
-        public AwkMemoryAccounting Governor { get; }
+        public AwkMemoryAccounting Accounting { get; }
 
         public AwkText LeftPart { get; set; }
 
@@ -669,13 +669,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     // The destination retains construction funding through publication or cleanup.
     // Admission includes text/cache capacity; the byte allocation is not probed again.
-    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting governor,
+    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting accounting,
         AwkMemoryLease destination, Action? checkpoint)
     {
         if (length < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         if (length == 0) return [];
-        var bytes = governor.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(length) : 0;
+        var bytes = accounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(length) : 0;
         destination.ReserveAdditional(bytes);
         try
         {
@@ -691,7 +691,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
     }
 
-    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting governor)
+    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting accounting)
     {
         if (length < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
@@ -699,9 +699,9 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (length == 0)
             return [];
 
-        governor.Charge(length);
+        accounting.Charge(length);
         try { return new byte[length]; }
-        finally { governor.Refund(length); }
+        finally { accounting.Refund(length); }
     }
 
     internal static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes, Action? checkpoint)

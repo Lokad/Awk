@@ -67,12 +67,12 @@ public sealed class AwkRegexDialectMemoryTests
         var required = memoryForGovernor.Budget.Peak - 43;
         using var memoryForExact = Governor(required);
         var exact = memoryForExact.Accounting;
-        Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: exact));
+        Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, accounting: exact));
         Assert.Equal(0, exact.LiveBytes);
         using var memoryForShortGovernor = Governor(required - 1);
         var shortGovernor = memoryForShortGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() =>
-            AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: shortGovernor));
+            AwkRegex.TranslatePattern(pattern, mode, () => { }, accounting: shortGovernor));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, shortGovernor.LiveBytes);
     }

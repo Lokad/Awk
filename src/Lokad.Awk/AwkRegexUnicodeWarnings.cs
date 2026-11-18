@@ -1,6 +1,6 @@
 namespace Lokad.Awk;
 
-internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkCompatibilityMode mode,
+internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting accounting, AwkCompatibilityMode mode,
     Action<string>? report, Action checkpoint, AwkRegexEscapeWarnings? regexEscapeWarnings = null)
 {
     private readonly AwkRegexEscapeWarnings _operatorWarnings = regexEscapeWarnings ?? new AwkRegexEscapeWarnings();
@@ -34,7 +34,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
             if (found)
             {
                 _sites?.Remove(site);
-                governor.Refund(previous.Bytes);
+                accounting.Refund(previous.Bytes);
             }
             return;
         }
@@ -48,7 +48,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
                 AwkRuntimeMemory.CheckedMultiply(capacity, 3)))
             : _bufferBytes;
         var reserved = AwkRuntimeMemory.CheckedAdd(bytes, grow ? bufferBytes : 0);
-        governor.Charge(reserved);
+        accounting.Charge(reserved);
         Dictionary<object, Entry> next;
         try
         {
@@ -74,10 +74,10 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
         }
         catch
         {
-            governor.Refund(reserved);
+            accounting.Refund(reserved);
             throw;
         }
-        governor.Refund((grow ? _bufferBytes : 0) + (found ? previous.Bytes : 0));
+        accounting.Refund((grow ? _bufferBytes : 0) + (found ? previous.Bytes : 0));
         _sites = next;
         _capacity = capacity;
         _bufferBytes = bufferBytes;
@@ -90,7 +90,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
     public void Reset(object site)
     {
         if (_sites is not null && _sites.Remove(site, out var previous))
-            governor.Refund(previous.Bytes);
+            accounting.Refund(previous.Bytes);
     }
 
     private readonly record struct Entry(AwkText Pattern, int CompiledCases, long Bytes);

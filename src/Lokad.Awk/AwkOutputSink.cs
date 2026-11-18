@@ -4,16 +4,16 @@ internal sealed class AwkOutputSink : IDisposable
 {
     private readonly AwkUtf8Builder _standardOutput;
     private readonly List<AwkDiagnostic> _diagnostics = [];
-    private readonly AwkMemoryAccounting _governor;
+    private readonly AwkMemoryAccounting _accounting;
     private readonly Action? _checkpoint;
     private long _diagnosticBufferBytes;
     private long _diagnosticMessageBytes;
 
     public AwkOutputSink(
-        AwkMemoryAccounting governor, Action? checkpoint = null)
+        AwkMemoryAccounting accounting, Action? checkpoint = null)
     {
-        _standardOutput = new AwkUtf8Builder(governor);
-        _governor = governor;
+        _standardOutput = new AwkUtf8Builder(accounting);
+        _accounting = accounting;
         _checkpoint = checkpoint;
 
     }
@@ -85,7 +85,7 @@ internal sealed class AwkOutputSink : IDisposable
             : _diagnostics.Capacity;
         var bufferBytes = grow ? AwkRuntimeMemory.EstimateDiagnosticBufferBytes(capacity) : 0;
         var reservedBytes = AwkRuntimeMemory.CheckedAdd(messageBytes, bufferBytes);
-        _governor.Charge(reservedBytes);
+        _accounting.Charge(reservedBytes);
         try
         {
             if (grow)
@@ -93,13 +93,13 @@ internal sealed class AwkOutputSink : IDisposable
         }
         catch
         {
-            _governor.Refund(reservedBytes);
+            _accounting.Refund(reservedBytes);
             throw;
         }
 
         if (grow)
         {
-            _governor.Refund(_diagnosticBufferBytes);
+            _accounting.Refund(_diagnosticBufferBytes);
             _diagnosticBufferBytes = bufferBytes;
         }
         _diagnosticMessageBytes = retainedMessages;
@@ -156,7 +156,7 @@ internal sealed class AwkOutputSink : IDisposable
     {
         ClearDiagnostics();
         _diagnostics.Capacity = 0;
-        _governor.Refund(_diagnosticBufferBytes);
+        _accounting.Refund(_diagnosticBufferBytes);
         _diagnosticBufferBytes = 0;
         _standardOutput.Dispose();
     }
@@ -164,7 +164,7 @@ internal sealed class AwkOutputSink : IDisposable
     private void ClearDiagnostics()
     {
         _diagnostics.Clear();
-        _governor.Refund(_diagnosticMessageBytes);
+        _accounting.Refund(_diagnosticMessageBytes);
         _diagnosticMessageBytes = 0;
     }
 

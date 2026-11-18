@@ -1242,7 +1242,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     // Producers have admitted the full new backing before publication. Keep
     // retired old capacity/plan funding in that same staging lease until cleanup;
-    // no governor callback can observe an unfinished or underfunded handoff.
+    // no budget callback can observe an unfinished or underfunded handoff.
     private bool TransferFieldProductionFunding(long retainedBytes, AwkMemoryLease staging)
     {
         if (!state.MemoryAccounting.IsEnabled) return false;

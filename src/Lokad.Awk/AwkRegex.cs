@@ -52,15 +52,15 @@ internal sealed class AwkRegex
 
     public static AwkText TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null, AwkMemoryLease? resultLease = null, AwkMemoryAccounting? governor = null)
+        Action? checkpoint = null, AwkMemoryLease? resultLease = null, AwkMemoryAccounting? accounting = null)
     {
-        var memory = governor ?? AwkMemoryAccounting.Disabled;
-        using var ownedResults = resultLease is null ? memory.CreateTransientLease() : AwkMemoryLease.Disabled;
+        accounting ??= AwkMemoryAccounting.Disabled;
+        using var ownedResults = resultLease is null ? accounting.CreateTransientLease() : AwkMemoryLease.Disabled;
         var results = resultLease ?? ownedResults;
-        var decoded = AwkRegexEscapes.Decode(pattern.Text, compatibilityMode, checkpoint, memory, results);
+        var decoded = AwkRegexEscapes.Decode(pattern.Text, compatibilityMode, checkpoint, accounting, results);
         AwkRegexBracketClasses.Validate(decoded, checkpoint, results);
-        return TranslateClasses(TranslateEscapes(decoded, compatibilityMode, checkpoint, memory, results),
-            checkpoint, memory, results);
+        return TranslateClasses(TranslateEscapes(decoded, compatibilityMode, checkpoint, accounting, results),
+            checkpoint, accounting, results);
     }
 
     private static AwkText TranslateEscapes(AwkText pattern, AwkCompatibilityMode mode, Action? checkpoint,

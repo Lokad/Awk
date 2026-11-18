@@ -34,18 +34,18 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
     public static AwkGensubReplacementPlan Rent(
         AwkText replacement,
         Action? checkpoint = null,
-        AwkMemoryAccounting? governor = null)
+        AwkMemoryAccounting? accounting = null)
     {
         if (replacement.ByteLength == 0)
             return default;
 
-        governor ??= AwkMemoryAccounting.Disabled;
+        accounting ??= AwkMemoryAccounting.Disabled;
         var bytes = replacement.AsSpan(checkpoint);
-        var pooled = !governor.IsEnabled;
+        var pooled = !accounting.IsEnabled;
         // Size instructions by parsed parts, not by the bytes in literal runs.
         // ArrayPool only promises a minimum length, so its capacity is not an admission bound.
         var capacity = Parse(bytes, [], checkpoint).PartCount;
-        var memoryLease = governor.ReserveTransient(
+        var memoryLease = accounting.ReserveTransient(
             AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(capacity));
         AwkGensubReplacementPart[]? parts = null;
         try

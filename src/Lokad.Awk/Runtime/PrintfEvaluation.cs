@@ -24,14 +24,14 @@ internal static class PrintfEvaluation
     {
         ArgumentNullException.ThrowIfNull(state);
         var checkpoint = state.CancellationCheckpoint;
-        var governor = state.MemoryAccounting;
+        var accounting = state.MemoryAccounting;
         if (format.Length == 0)
         {
             checkpoint?.Invoke();
             return AwkText.Empty;
         }
 
-        using var builder = new AwkUtf8Builder(governor, capacity: 0);
+        using var builder = new AwkUtf8Builder(accounting, capacity: 0);
         FormatToBuilder(builder, format, arguments, missingArgumentPolicy, state, stringUnitMode);
         var output = new PrintfByteOutput(builder, state, retainedTextLease);
         var result = output.ToAwkText();
@@ -51,7 +51,7 @@ internal static class PrintfEvaluation
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(state);
         var checkpoint = state.CancellationCheckpoint;
-        var governor = state.MemoryAccounting;
+        var accounting = state.MemoryAccounting;
         var compatibilityMode = state.CompatibilityMode;
         if (format.Length == 0)
         {
@@ -148,7 +148,7 @@ internal static class PrintfEvaluation
                 else if (directive.Conversion is PrintfConversion.HexFloatLower or PrintfConversion.HexFloatUpper)
                 {
                     var hexadecimal = AwkHexFloatFormat.CreateFinite(number, precision, flags, directive.Conversion.IsUppercase());
-                    using var scratch = governor.ReserveTransient(
+                    using var scratch = accounting.ReserveTransient(
                         AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(hexadecimal.ByteCount));
                     output.PreflightAdditionalBytes(Math.Max(width.Value, hexadecimal.ByteCount));
                     checkpoint?.Invoke();
@@ -159,7 +159,7 @@ internal static class PrintfEvaluation
                 else
                 {
                     var estimatedBytes = EstimateFloatByteCount(number, directive.Conversion, precision, flags.AlternateForm);
-                    using var scratch = governor.ReserveTransient(
+                    using var scratch = accounting.ReserveTransient(
                         AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(estimatedBytes));
                     output.PreflightAdditionalBytes(Math.Max(width.Value, estimatedBytes));
                     var formatted = FormatFloat(number, directive.Conversion, precision, flags, checkpoint);

@@ -2,16 +2,16 @@ namespace Lokad.Awk;
 
 internal sealed class AwkUtf8Builder : IDisposable
 {
-    private readonly AwkMemoryAccounting _governor;
+    private readonly AwkMemoryAccounting _accounting;
     private byte[] _buffer;
     private bool _disposed;
 
-    public AwkUtf8Builder(AwkMemoryAccounting governor,
+    public AwkUtf8Builder(AwkMemoryAccounting accounting,
         int capacity = AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(capacity);
 
-        _governor = governor;
+        _accounting = accounting;
         if (capacity > Array.MaxLength)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         if (capacity == 0)
@@ -20,14 +20,14 @@ internal sealed class AwkUtf8Builder : IDisposable
             return;
         }
 
-        _governor.Charge(capacity);
+        _accounting.Charge(capacity);
         try
         {
             _buffer = new byte[capacity];
         }
         catch
         {
-            _governor.Refund(capacity);
+            _accounting.Refund(capacity);
             throw;
         }
     }
@@ -263,7 +263,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (Length == 0)
             return [];
 
-        var bytes = AwkText.AllocateOwnedBytes(Length, _governor);
+        var bytes = AwkText.AllocateOwnedBytes(Length, _accounting);
         AwkText.CopyBytes(AsSpan(), bytes, checkpoint);
         return bytes;
     }
@@ -273,7 +273,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (_disposed)
             return;
 
-        _governor.Refund(_buffer.Length);
+        _accounting.Refund(_buffer.Length);
         Length = 0;
         _buffer = [];
         _disposed = true;
@@ -300,18 +300,18 @@ internal sealed class AwkUtf8Builder : IDisposable
             newSize *= 2;
         }
 
-        _governor.Charge(newSize);
+        _accounting.Charge(newSize);
         try
         {
             Array.Resize(ref _buffer, newSize);
         }
         catch
         {
-            _governor.Refund(newSize);
+            _accounting.Refund(newSize);
             throw;
         }
 
-        _governor.Refund(currentCapacity);
+        _accounting.Refund(currentCapacity);
     }
 
     private void ThrowIfDisposed()

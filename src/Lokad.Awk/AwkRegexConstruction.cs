@@ -76,7 +76,7 @@ internal static class AwkRegexConstruction
     }
 
     internal static AwkText EscapeLiteral(AwkText text, Action? checkpoint,
-        AwkMemoryAccounting governor, AwkMemoryLease results)
+        AwkMemoryAccounting accounting, AwkMemoryLease results)
     {
         var bytes = text.AsSpan(checkpoint);
         long next = 0;
@@ -88,7 +88,7 @@ internal static class AwkRegexConstruction
         }
         checkpoint?.Invoke();
         if (first < 0) return text;
-        using var builder = new AwkUtf8Builder(governor, bytes.Length);
+        using var builder = new AwkUtf8Builder(accounting, bytes.Length);
         builder.Append(bytes[..first], checkpoint);
         for (var index = first; index < bytes.Length; index++)
         {

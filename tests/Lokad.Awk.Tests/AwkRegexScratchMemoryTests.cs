@@ -22,7 +22,7 @@ public sealed class AwkRegexScratchMemoryTests
         var bytes = AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(parts);
         using var memoryForGovernor = Governor(Math.Max(1, bytes));
         var governor = memoryForGovernor.Accounting;
-        using (var plan = AwkGensubReplacementPlan.Rent(AwkText.FromString(replacement), governor: governor))
+        using (var plan = AwkGensubReplacementPlan.Rent(AwkText.FromString(replacement), accounting: governor))
         {
             Assert.Equal(groups, plan.CapturePlan.SelectGroupCount(10));
             Assert.Equal(bytes, governor.LiveBytes);
@@ -43,7 +43,7 @@ public sealed class AwkRegexScratchMemoryTests
         var governor = memoryForGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
-            using var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
+            using var plan = AwkGensubReplacementPlan.Rent(text, accounting: governor);
         });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.LiveBytes);
@@ -86,7 +86,7 @@ public sealed class AwkRegexScratchMemoryTests
         var text = AwkText.FromString(new string('a', 16_384));
         using var memoryForGovernor = Governor(1 << 20);
         var governor = memoryForGovernor.Accounting;
-        var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
+        var plan = AwkGensubReplacementPlan.Rent(text, accounting: governor);
         using var builder = new AwkUtf8Builder(governor, 0);
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
