@@ -233,8 +233,14 @@ internal sealed partial class AwkRegionCompiler
                 site = site with { Right = AwkRegionNumberSource.Bind(result, _operands[result]) };
                 _updates[update.Target.Capture] = site;
             }
-            if (site.Path >= 0 && _paths[site.Path].ImmediateKeys is null)
-                Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
+            if (site.Path >= 0)
+            {
+                if (_paths[site.Path].ImmediateKeys is null)
+                    Emit(new(AwkRegionInstructionKind.PathEnd, site.Path));
+                else if (site.PrepareAccess >= 0 && (site.Right.IsRegister ||
+                    _operands[site.Right.OperandIndex].Kind == AwkRegionOperandKind.LocalVariable))
+                    _code[position] = _code[position] with { Kind = AwkRegionInstructionKind.CompleteArrayNumberUpdate };
+            }
             _activeUpdates--;
         }
         else if (_operands[update.Target.Operand].IsVariable)

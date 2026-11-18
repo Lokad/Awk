@@ -225,7 +225,6 @@ internal sealed partial class AwkRegionCompiler
             PrepareArrayOwners(0);
             PrepareArrayLocations(0, 0);
         }
-        PrepareCompleteArrayUpdates();
         var entryFieldDemand = PrepareFieldDemands();
         var region = new AwkRegion(_code.ToArray(), _operands.ToArray(),
             _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
@@ -234,21 +233,6 @@ internal sealed partial class AwkRegionCompiler
             _builtins.ToArray(), _prints.ToArray(), _printfs.ToArray(), _getlines.ToArray(), _strings.ToArray(), _paths.ToArray(), _switchCases.ToArray(), _regexMatches.ToArray(), _splits.ToArray(), _matches.ToArray(), _substitutions.ToArray(), _gensubs.ToArray(), _sorts.ToArray(), _iterations.ToArray(), _kind, _ruleScopes.ToArray(), entryFieldDemand);
         if (_kind != AwkRegionKind.Function) AwkFunctionHostEffects.PrepareCalls(region, _scope.CheckCancellation);
         return region;
-    }
-
-    private void PrepareCompleteArrayUpdates()
-    {
-        for (var index = 0; index < _code.Count; index++)
-        {
-            if ((index & 127) == 127) _scope.CheckCancellation();
-            var instruction = _code[index];
-            if (instruction.Kind != AwkRegionInstructionKind.ArrayUpdate) continue;
-            var update = _updates[instruction.Left];
-            if (update.PrepareAccess >= 0 && update.Path >= 0 &&
-                (update.Right.IsRegister || _operands[update.Right.OperandIndex].Kind == AwkRegionOperandKind.LocalVariable) &&
-                _paths[update.Path].ImmediateKeys is not null)
-                _code[index] = instruction with { Kind = AwkRegionInstructionKind.CompleteArrayNumberUpdate };
-        }
     }
 
     private bool Statements(IReadOnlyList<AwkStatementSyntax> statements) =>
