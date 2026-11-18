@@ -130,7 +130,7 @@ public sealed class AwkArgumentBindingTests
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
         var owner = state.CurrentFunctionFrame;
         state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9))]);
-        var incoming = state.PrepareFunctionFrame(layout);
+        var incoming = state.FunctionCalls.PrepareFrame(layout);
         var argument = new AwkRegionArgument(AwkRegionArgumentKind.Local, 0, name,
             Consumption: key ? AwkParameterInput.Key : AwkParameterInput.Value);
         try
@@ -139,15 +139,15 @@ public sealed class AwkArgumentBindingTests
             if (key)
                 Assert.Equal("0007", incoming.GetSlot(0).Key.ToString());
             else Assert.Equal(7, incoming.GetSlot(0).Value.AsNumber());
-            state.DiscardIncomingFunctionFrame(incoming);
-            incoming = state.PrepareFunctionFrame(layout);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
+            incoming = state.FunctionCalls.PrepareFrame(layout);
             state.StageFunctionLocalArgument(null, in argument, incoming, 0);
             Assert.Equal(9, incoming.GetSlot(0).Value.AsNumber());
             Assert.Equal(9, state.CurrentFunctionFrame.GetSlot(0).Value.AsNumber());
         }
         finally
         {
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             state.PopFunctionFrame();
             state.PopFunctionFrame();
         }
@@ -167,7 +167,7 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
         var owner = state.CurrentFunctionFrame;
-        var incoming = state.PrepareFunctionFrame(layout);
+        var incoming = state.FunctionCalls.PrepareFrame(layout);
         fixture.Budget.OnGrowth = _ =>
         {
             fixture.Budget.OnGrowth = null;
@@ -183,7 +183,7 @@ public sealed class AwkArgumentBindingTests
         finally
         {
             fixture.Budget.OnGrowth = null;
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             state.PopFunctionFrame();
         }
         fixture.Dispose();
@@ -204,15 +204,15 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
         var caller = state.CurrentFunctionFrame;
-        var replacement = state.PrepareFunctionFrame(layout);
+        var replacement = state.FunctionCalls.PrepareFrame(layout);
         replacement.StageNumber(0, 9);
         replacement.StageNumber(1, 17);
-        var incoming = state.PrepareFunctionFrame(layout);
+        var incoming = state.FunctionCalls.PrepareFrame(layout);
         var activated = false;
         fixture.Budget.OnGrowth = _ =>
         {
             fixture.Budget.OnGrowth = null;
-            state.ActivateFunctionFrame(replacement);
+            state.FunctionCalls.ActivateFrame(replacement);
             activated = true;
         };
         try
@@ -229,9 +229,9 @@ public sealed class AwkArgumentBindingTests
         finally
         {
             fixture.Budget.OnGrowth = null;
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             if (activated) state.PopFunctionFrame();
-            else state.DiscardIncomingFunctionFrame(replacement);
+            else state.FunctionCalls.DiscardIncomingFrame(replacement);
             state.PopFunctionFrame();
         }
         fixture.Dispose();
@@ -251,7 +251,7 @@ public sealed class AwkArgumentBindingTests
         state.PushFunctionFrame(new([text, number]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
         var caller = state.CurrentFunctionFrame;
-        var incoming = state.PrepareFunctionFrame(new([text, global, number, AwkVariableName.FromText("last")]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([text, global, number, AwkVariableName.FromText("last")]));
         incoming.StageNumber(3, 42);
         fixture.Budget.OnGrowth = _ =>
         {
@@ -272,7 +272,7 @@ public sealed class AwkArgumentBindingTests
         finally
         {
             fixture.Budget.OnGrowth = null;
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             state.PopFunctionFrame();
         }
         fixture.Dispose();
@@ -294,12 +294,12 @@ public sealed class AwkArgumentBindingTests
         var p = AwkVariableName.FromText("p");
         var q = AwkVariableName.FromText("q");
         state.PushFunctionFrame(new([p]), [AwkFunctionLocalSlot.ArrayAlias(child)]);
-        var incoming = state.PrepareFunctionFrame(new([q]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([q]));
         try
         {
             state.StageFunctionLocalArgument(null, new(AwkRegionArgumentKind.Local, 0, p, AllowArray: true), incoming, 0);
             state.DeleteArrayValue(parent, row);
-            state.ActivateFunctionFrame(incoming);
+            state.FunctionCalls.ActivateFrame(incoming);
             try
             {
                 var local = new AwkArrayName(q.Identifier);
@@ -389,13 +389,13 @@ public sealed class AwkArgumentBindingTests
     private static AwkFunctionLocalSlot BindLocalArgument(AwkRuntimeState state, AwkFunctionLocalSlotId source,
         AwkVariableName name)
     {
-        var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("argument")]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("argument")]));
         try
         {
             state.StageFunctionLocalArgument(null, new(AwkRegionArgumentKind.Local, source.Index, name, AllowArray: true), incoming, 0);
             return incoming.GetSlot(0);
         }
-        finally { state.DiscardIncomingFunctionFrame(incoming); }
+        finally { state.FunctionCalls.DiscardIncomingFrame(incoming); }
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public sealed class AwkArgumentBindingTests
             : AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling));
         state.PushFunctionFrame(new([name]), [argument]);
         var caller = state.CurrentFunctionFrame;
-        var incoming = state.PrepareFunctionFrame(new([name]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([name]));
         try
         {
             var callbacks = 0;
@@ -439,7 +439,7 @@ public sealed class AwkArgumentBindingTests
         finally
         {
             fixture.Budget.OnGrowth = null;
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             state.PopFunctionFrame();
         }
         fixture.Dispose();
@@ -454,7 +454,7 @@ public sealed class AwkArgumentBindingTests
         var spelling = new string('x', 4096);
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling))]);
         var caller = state.CurrentFunctionFrame;
-        var incoming = state.PrepareFunctionFrame(new([name]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([name]));
         try
         {
             var callbacks = 0;
@@ -468,7 +468,7 @@ public sealed class AwkArgumentBindingTests
             };
             ref var source = ref state.CurrentFunctionFrame.GetSlot(0);
             if (preparedLocal) state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 0, name, AllowArray: true), incoming, 0);
-            else state.StageFunctionArgument(incoming, 0, in source);
+            else state.FunctionCalls.StageArgument(incoming, 0, in source);
             Assert.Equal(1, callbacks);
             Assert.Equal(spelling, incoming.GetSlot(0).Value.AsString());
             Assert.Equal(17, state.ResolveVariableValue(name).AsNumber());
@@ -476,7 +476,7 @@ public sealed class AwkArgumentBindingTests
         finally
         {
             fixture.Budget.OnGrowth = null;
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             state.PopFunctionFrame();
         }
         fixture.Dispose();

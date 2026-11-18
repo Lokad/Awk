@@ -480,17 +480,17 @@ internal partial struct AwkRegionMachine
                         {
                             // Deferred errors and owned spellings retain ordinary value capture.
                             var value = ReadField(ordinal);
-                            state.StageFunctionValue(incoming, index, in value);
+                            state.FunctionCalls.StageValue(incoming, index, in value);
                         }
                         break;
                     }
                     default:
                         if (argument.Kind == AwkRegionArgumentKind.Variable && state.TryResolveArrayArgument(argument.Name, out var array))
-                            state.StageFunctionArgument(incoming, index, in array);
+                            state.FunctionCalls.StageArgument(incoming, index, in array);
                         else
                         {
                             var value = Value(argument.Index);
-                            state.StageFunctionValue(incoming, index, in value);
+                            state.FunctionCalls.StageValue(incoming, index, in value);
                         }
                         break;
                 }

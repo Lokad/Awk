@@ -163,7 +163,7 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal AwkFunctionFrame BeginCall(in AwkRegionCall call)
     {
-        var frame = _state.PrepareFunctionFrame(call.Function.LocalLayout);
+        var frame = _state.FunctionCalls.PrepareFrame(call.Function.LocalLayout);
         _incoming[call.Slot] = frame;
         return frame;
     }
@@ -693,7 +693,7 @@ internal sealed class AwkRegionStorage : IDisposable
         {
             if (_incoming[index] is not { } frame) continue;
             _incoming[index] = null;
-            _state.DiscardIncomingFunctionFrame(frame);
+            _state.FunctionCalls.DiscardIncomingFrame(frame);
         }
     }
 

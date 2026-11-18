@@ -18,6 +18,13 @@ internal static class AwkRuntimeStateTestExtensions
 
         public AwkText CurrentRecordByteText => state.RecordFields.RecordAwkText;
 
+        public bool IsInsideFunction => state.FunctionCalls.IsInsideFunction;
+
+        public AwkFunctionFrame CurrentFunctionFrame => state.FunctionCalls.CurrentFrame;
+
+        public void PushFunctionFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments) =>
+            state.FunctionCalls.PushFrame(layout, arguments);
+
         public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
             state.Variables.GetScalarValue(state.Variables.GetScalarCell(id));
 

@@ -11,7 +11,7 @@ public sealed class AwkIncomingFrameTests
         foreach (var width in new[] { 8, 1, 3, 12, 2, 7 })
         {
             var names = Enumerable.Range(0, width).Select(index => AwkVariableName.FromText("p" + index)).ToArray();
-            var frame = state.PrepareFunctionFrame(new(names));
+            var frame = state.FunctionCalls.PrepareFrame(new(names));
             for (var index = 0; index < width; index++)
             {
                 ref readonly var slot = ref frame.GetSlot(index);
@@ -19,8 +19,8 @@ public sealed class AwkIncomingFrameTests
                 Assert.Equal(AwkValueKind.Unassigned, slot.Value.StoredKind);
             }
             Assert.False(state.IsInsideFunction);
-            state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromText("")));
-            state.ActivateFunctionFrame(frame);
+            state.FunctionCalls.StageArgument(frame, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromText("")));
+            state.FunctionCalls.ActivateFrame(frame);
             try
             {
                 Assert.Equal(AwkRuntimeValueKind.String, state.ResolveFunctionLocalValue(new(0), names[0]).RuntimeKind);
@@ -45,16 +45,16 @@ public sealed class AwkIncomingFrameTests
         var x = AwkVariableName.FromText("x");
         var layout = new AwkFunctionLocalLayout([x]);
         state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
-        var outer = state.PrepareFunctionFrame(layout);
-        state.StageFunctionArgument(outer, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)));
+        var outer = state.FunctionCalls.PrepareFrame(layout);
+        state.FunctionCalls.StageArgument(outer, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)));
         Assert.Equal(42, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
-        var inner = state.PrepareFunctionFrame(layout);
-        state.StageFunctionArgument(inner, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9)));
-        state.ActivateFunctionFrame(inner);
+        var inner = state.FunctionCalls.PrepareFrame(layout);
+        state.FunctionCalls.StageArgument(inner, 0, AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(9)));
+        state.FunctionCalls.ActivateFrame(inner);
         Assert.Equal(9, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
         state.PopFunctionFrame();
         Assert.Equal(42, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
-        state.ActivateFunctionFrame(outer);
+        state.FunctionCalls.ActivateFrame(outer);
         Assert.Equal(7, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
         state.PopFunctionFrame();
         Assert.Equal(42, state.ResolveFunctionLocalValue(new(0), x).AsNumber());
@@ -73,10 +73,10 @@ public sealed class AwkIncomingFrameTests
         var parent = new AwkArrayKey("row");
         var child = state.GetSubarray(name, parent, default);
         state.SetArrayAwkValue(child, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
-        var frame = state.PrepareFunctionFrame(new([AwkVariableName.FromText("p")]));
-        state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(child));
+        var frame = state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("p")]));
+        state.FunctionCalls.StageArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(child));
         state.DeleteArrayValue(name, parent);
-        state.ActivateFunctionFrame(frame);
+        state.FunctionCalls.ActivateFrame(frame);
         var local = AwkArrayName.FromText("p");
         Assert.Equal(0, state.GetArrayAwkValue(local, AwkArrayKey.FromOrdinal(1)).AsNumber());
         state.SetArrayAwkValue(local, AwkArrayKey.FromOrdinal(2), AwkValue.FromNumber(9));
@@ -96,16 +96,16 @@ public sealed class AwkIncomingFrameTests
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
         var state = fixture.State;
-        var frame = state.PrepareFunctionFrame(new([AwkVariableName.FromText("p")]));
+        var frame = state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("p")]));
         var before = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var argument = AwkFunctionLocalSlot.Scalar(AwkValue.FromText(new string('x', 4096)));
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => state.StageFunctionArgument(frame, 0, argument));
-        else Assert.Throws<AwkRuntimeException>(() => state.StageFunctionArgument(frame, 0, argument));
+        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => state.FunctionCalls.StageArgument(frame, 0, argument));
+        else Assert.Throws<AwkRuntimeException>(() => state.FunctionCalls.StageArgument(frame, 0, argument));
         Assert.False(state.IsInsideFunction);
         Assert.Equal(before, fixture.Budget.Reserved);
-        state.DiscardIncomingFunctionFrame(frame);
+        state.FunctionCalls.DiscardIncomingFrame(frame);
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -125,16 +125,16 @@ public sealed class AwkIncomingFrameTests
         var layout = new AwkFunctionLocalLayout([parameter, local]);
         for (var iteration = 0; iteration < 2; iteration++)
         {
-            var frame = state.PrepareFunctionFrame(layout);
-            state.StageFunctionArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(callerName));
-            state.ActivateFunctionFrame(frame);
+            var frame = state.FunctionCalls.PrepareFrame(layout);
+            state.FunctionCalls.StageArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(callerName));
+            state.FunctionCalls.ActivateFrame(frame);
             var owned = AwkArrayName.FunctionLocal(local.Identifier, frame.Id);
             state.SetArrayAwkValue(new AwkArrayName(local.Identifier), key, AwkValue.FromNumber(9));
             Assert.True(state.ContainsArrayValue(owned, key));
             Assert.Equal(7, state.GetArrayAwkValue(new AwkArrayName(parameter.Identifier), key).AsNumber());
-            var inner = state.PrepareFunctionFrame(new([parameter]));
-            state.StageFunctionArgument(inner, 0, AwkFunctionLocalSlot.ArrayAlias(owned));
-            state.ActivateFunctionFrame(inner);
+            var inner = state.FunctionCalls.PrepareFrame(new([parameter]));
+            state.FunctionCalls.StageArgument(inner, 0, AwkFunctionLocalSlot.ArrayAlias(owned));
+            state.FunctionCalls.ActivateFrame(inner);
             Assert.Equal(9, state.GetArrayAwkValue(new AwkArrayName(parameter.Identifier), key).AsNumber());
             state.PopFunctionFrame();
             Assert.True(state.ContainsArrayValue(owned, key));
@@ -165,7 +165,7 @@ public sealed class AwkIncomingFrameTests
         var spelling = new string('x', 4096);
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(spelling))]);
         var caller = state.CurrentFunctionFrame;
-        var incoming = state.PrepareFunctionFrame(new([name]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([name]));
         var before = fixture.Budget.Reserved;
         try
         {
@@ -183,7 +183,7 @@ public sealed class AwkIncomingFrameTests
         finally
         {
             fixture.Budget.OnGrowth = null;
-            state.DiscardIncomingFunctionFrame(incoming);
+            state.FunctionCalls.DiscardIncomingFrame(incoming);
             state.PopFunctionFrame();
         }
         fixture.Dispose();

@@ -14,7 +14,7 @@ public sealed class AwkArgumentStorageTests
         var state = fixture.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(new string('k', width) + " 1"));
         _ = state.GetFieldNumber(2);
-        var incoming = state.PrepareFunctionFrame(new([AwkVariableName.FromText("key")]));
+        var incoming = state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("key")]));
         var before = fixture.Budget.Reserved;
         cancellation.Cancel();
         try
@@ -24,7 +24,7 @@ public sealed class AwkArgumentStorageTests
             Assert.Equal(0, incoming.RetainedMemoryBytes);
             Assert.Equal(before, fixture.Budget.Reserved);
         }
-        finally { state.DiscardIncomingFunctionFrame(incoming); }
+        finally { state.FunctionCalls.DiscardIncomingFrame(incoming); }
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }

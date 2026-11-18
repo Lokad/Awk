@@ -570,29 +570,12 @@ internal sealed class AwkRuntimeState : IDisposable
         return _functionDefinitions.TryGetValue(name, out function);
     }
 
-    public void PushFunctionFrame(
-        AwkFunctionLocalLayout layout,
-        ReadOnlySpan<AwkFunctionLocalSlot> arguments)
-    {
-        _functions.PushFrame(layout, arguments);
-    }
+    internal AwkFunctionCallStack FunctionCalls => _functions;
 
     public void PopFunctionFrame()
     {
         _functions.PopFrame(_removeFunctionLocalArray);
     }
-
-    internal AwkFunctionFrame PrepareFunctionFrame(AwkFunctionLocalLayout layout) => _functions.PrepareFrame(layout);
-    internal void StageFunctionArgument(AwkFunctionFrame frame, int index, in AwkFunctionLocalSlot argument) => _functions.StageArgument(frame, index, in argument);
-    internal void StageFunctionValue(AwkFunctionFrame frame, int index, in AwkValue value) => _functions.StageValue(frame, index, in value);
-    internal void ActivateFunctionFrame(AwkFunctionFrame frame)
-    {
-        _functions.ActivateFrame(frame);
-    }
-    internal void DiscardIncomingFunctionFrame(AwkFunctionFrame frame) => _functions.DiscardIncomingFrame(frame);
-
-    public bool IsInsideFunction => _functions.IsInsideFunction;
-    internal AwkFunctionFrame CurrentFunctionFrame => _functions.CurrentFrame;
 
     internal AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _functions.EnterGlobalBindings();
 
