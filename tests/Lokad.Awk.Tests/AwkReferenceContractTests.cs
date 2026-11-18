@@ -66,13 +66,16 @@ public sealed class AwkReferenceContractTests
         Assert.Equal("UnexpectedDifference", ReferenceContracts.Classify(contract, version, 0, [.. bytes, 0], []).Status);
     }
 
-    [Fact]
-    public void MeasuredNullableSeparatorOutputHasItsExactRecordedSignature()
+    [Theory]
+    [InlineData("5.2.1")]
+    [InlineData("5.3.2")]
+    [InlineData("5.4.0")]
+    public void MeasuredNullableSeparatorOutputHasItsExactRecordedSignature(string version)
     {
-        // Both retained GNU 5.2.1/5.4.0 captures contain 85 repeats, not one per input line.
+        // Qualified GNU captures contain 85 repeats, not one per input line.
         var contract = Find("regex-rs-empty-matches-preserve-record-across-host-batches");
         var output = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("0 3\n", 85)) + "0 2\n5 0\n");
-        Assert.Equal("KnownReferenceDifference", ReferenceContracts.Classify(contract, "GNU Awk 5.2.1", 0, output, []).Status);
+        Assert.Equal("KnownReferenceDifference", ReferenceContracts.Classify(contract, "GNU Awk " + version, 0, output, []).Status);
     }
 
     [Fact]

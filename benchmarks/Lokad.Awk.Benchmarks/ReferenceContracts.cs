@@ -23,7 +23,7 @@ internal static class ReferenceContracts
             "BEGIN{RS=\"a*\"} {print length($0),length(RT)}", "empty.txt",
             string.Concat(Enumerable.Repeat("b\n", 127)) + "aaab\nEND", "254 3\n5 0\n",
             Hex(string.Concat(Enumerable.Repeat("0 3\n", 85)) + "0 2\n5 0\n"),
-            ["5.2.1", "5.4.0"], "Nullable RS discards the record prefix and repeats RT."),
+            ["5.2.1", "5.3.2", "5.4.0"], "Nullable RS discards the record prefix and repeats RT."),
         new("regex-empty-matches-progress-over-supplementary-characters",
             "BEGIN{x=\"😀🦊\"; print gsub(/()/,\"X\",x),x; print gensub(/()/,\"X\",\"g\",\"😀🦊\")}",
             "", "", "3 X😀X🦊X\nX😀X🦊X\n",
