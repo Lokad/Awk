@@ -26,6 +26,12 @@ internal static class AwkTestHarness
     public static string AsString(this AwkValue value) => value.IsNumberValue
         ? AwkNumberFormatter.ToString(value.AsNumber()) : value.ByteText.AsString();
 
+    public static AwkText CopyHostText(ReadOnlyMemory<byte> bytes)
+    {
+        using var state = CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
+        return state.CopyHostText(bytes.Span);
+    }
+
     internal static bool TryPrepareRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
         [NotNullWhen(true)] out AwkRegion? region) => TryPrepareRule(rule, scope, rangeIndex, out region, out _);
 

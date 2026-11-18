@@ -14,7 +14,7 @@ public sealed class AwkRegexNativePatternTests
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters) with { RegexEngine = engine });
         var first = AwkText.FromSourceLiteralString(source);
-        var equalBytes = AwkText.FromHostBytes(first.AsMemory());
+        var equalBytes = AwkTestHarness.CopyHostText(first.AsMemory());
         var regex = runtime.Create(new AwkRegexPattern(first));
         Assert.Same(regex, runtime.Create(new AwkRegexPattern(equalBytes)));
         Assert.True(runtime.IsMatch(regex, AwkText.FromSourceLiteralString(input)));

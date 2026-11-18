@@ -117,7 +117,7 @@ public sealed class AwkStoredValueTests
     public void AwkValue_ConvertsAwkTextWithoutStringDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var slot = AwkValue.ForStoredInputText(AwkText.FromHostBytes("001"u8.ToArray()));
+        var slot = AwkValue.ForStoredInputText(AwkTestHarness.CopyHostText("001"u8.ToArray()));
         var value = slot.ReadVariableStorage(AwkNumberParsingMode.Decimal);
 
         Assert.True(value.IsNumericStringValue);

@@ -40,7 +40,7 @@ public sealed class AwkBorrowedMembershipTests
         var comparer = AwkArrayKeyComparer.ForRuntime(cancellation.Token.ThrowIfCancellationRequested);
         var bytes = new byte[16_384];
         Array.Fill(bytes, (byte)'x');
-        var key = new AwkArrayKey(AwkText.FromHostBytes(bytes));
+        var key = new AwkArrayKey(AwkTestHarness.CopyHostText(bytes));
         cancellation.Cancel();
         var error = Assert.Throws<OperationCanceledException>(() =>
         {

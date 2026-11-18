@@ -40,7 +40,7 @@ public sealed class AwkNumericSemanticsTests
     public void NumericClassificationReadsOnlyAsciiWhitespaceWithoutDecoding(string whitespace, bool numeric)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(whitespace + "2" + whitespace).ToArray());
+        var text = AwkTestHarness.CopyHostText(AwkUtf8Codec.Encode(whitespace + "2" + whitespace).ToArray());
         var value = AwkTestHarness.NumericInput(text);
 
         Assert.Equal(numeric, value.IsNumericStringValue);
@@ -58,7 +58,7 @@ public sealed class AwkNumericSemanticsTests
     public void SignedNanRetainsItsBitAndComparisonKindWithoutDecoding(string spelling, bool posix, bool negative)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(spelling).ToArray());
+        var text = AwkTestHarness.CopyHostText(AwkUtf8Codec.Encode(spelling).ToArray());
         var mode = posix ? AwkNumberParsingMode.HexadecimalInput : AwkNumberParsingMode.Decimal;
         var record = AwkTestHarness.NumericInput(text, mode);
         var literal = AwkValue.FromText(text, mode);

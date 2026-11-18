@@ -43,7 +43,7 @@ public sealed class AwkValueTests
     public void AwkValue_ParsesNumericAwkTextWithoutStringDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var value = AwkTestHarness.NumericInput(AwkText.FromHostBytes("+inf"u8.ToArray()));
+        var value = AwkTestHarness.NumericInput(AwkTestHarness.CopyHostText("+inf"u8.ToArray()));
 
         Assert.True(value.IsNumericStringValue);
         Assert.Equal(double.PositiveInfinity, value.AsNumber());
@@ -55,7 +55,7 @@ public sealed class AwkValueTests
     public void AwkValue_ParsesIncompleteExponentFromAwkTextWithoutStringDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var value = AwkTestHarness.NumericInput(AwkText.FromHostBytes("1e"u8.ToArray()));
+        var value = AwkTestHarness.NumericInput(AwkTestHarness.CopyHostText("1e"u8.ToArray()));
 
         Assert.False(value.IsNumericStringValue);
         Assert.Equal(1, value.AsNumber());
@@ -115,8 +115,8 @@ public sealed class AwkValueTests
     public void AwkValue_UsesByteComparisonWithoutStringDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var left = AwkValue.FromText(AwkText.FromHostBytes("café"u8.ToArray()));
-        var right = AwkValue.FromText(AwkText.FromHostBytes("caff"u8.ToArray()));
+        var left = AwkValue.FromText(AwkTestHarness.CopyHostText("café"u8.ToArray()));
+        var right = AwkValue.FromText(AwkTestHarness.CopyHostText("caff"u8.ToArray()));
 
         using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var result = AwkComparisonOperations.Evaluate(left, right, AwkComparison.GreaterThan, state);

@@ -12,7 +12,7 @@ public sealed partial class AwkRegionTests
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Values: 1));
         var capacity = fixture.Budget.Reserved;
-        var source = AwkText.FromHostBytes("/side"u8.ToArray());
+        var source = AwkTestHarness.CopyHostText("/side"u8.ToArray());
         storage.StoreValue(0, state.CreateStringValue(source));
         var retained = fixture.Budget.Reserved;
         if (governed) Assert.True(retained > capacity);

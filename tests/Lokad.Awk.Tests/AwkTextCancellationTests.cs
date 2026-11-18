@@ -158,9 +158,10 @@ public sealed class AwkTextCancellationTests
     public void CallersCheckCancellationBeforeHiddenMaterialization(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
-        var text = runtime.ConcatText([AwkText.FromString(new string('0', LongText)), AwkText.FromString("1")]);
         using var cancellation = new CancellationTokenSource();
+        using var runtime = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
+            AwkTestHarness.CreateRuntimeOptions(counters));
+        var text = runtime.ConcatText([AwkText.FromString(new string('0', LongText)), AwkText.FromString("1")]);
         cancellation.Cancel();
         Action checkpoint = cancellation.Token.ThrowIfCancellationRequested;
 
@@ -170,13 +171,13 @@ public sealed class AwkTextCancellationTests
             {
                 case "runes": _ = text.GetRuneLength(checkpoint); break;
                 case "ascii": _ = text.IsAscii(out _, checkpoint); break;
-                case "number": _ = text.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out _, checkpoint); break;
+                case "number": _ = text.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out _, out _, checkpoint); break;
                 case "parsed-value": _ = AwkValue.FromText(text, AwkNumberParsingMode.Decimal, checkpoint); break;
                 case "hash": _ = text.GetHashCode(checkpoint); break;
                 case "key": _ = new AwkArrayKey(text, checkpoint); break;
                 case "compare": _ = text.CompareBytes(text, checkpoint); break;
                 case "text-equality": _ = text.Equals(text, checkpoint); break;
-                case "search": _ = text.IndexOf(AwkText.FromString("1"), checkpoint); break;
+                case "search": _ = runtime.IndexOfStringUnits(new(text), new("1"u8)); break;
                 case "string": _ = text.AsString(checkpoint); break;
                 case "memory": _ = text.AsMemory(checkpoint); break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));
@@ -291,7 +292,7 @@ public sealed class AwkTextCancellationTests
     public void OwnedConcatenationRetainsIngressThroughCanceledMaterializationAndRetry()
     {
         var bytes = AwkUtf8Codec.Encode(new string('a', LongText)).ToArray();
-        var owned = AwkText.FromHostBytes(bytes);
+        var owned = AwkTestHarness.CopyHostText(bytes);
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor().InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;

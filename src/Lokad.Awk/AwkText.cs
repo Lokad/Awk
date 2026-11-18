@@ -144,12 +144,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
     internal static AwkText FromEncodedStringBytes(byte[] bytes) =>
         bytes.Length == 0 ? Empty : new AwkText(bytes);
 
-    public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes)
-    {
-        ThrowIfInvalidUtf8(bytes.Span, null);
-        return FromTrustedOwnedBytes(bytes.ToArray());
-    }
-
     // The caller owns valid UTF-8 and can supply an existing ASCII proof.
     internal static AwkText FromTrustedOwnedBytes(byte[] bytes, bool knownAscii = false)
     {
@@ -444,42 +438,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
             return byteOffset;
         }
-    }
-
-    public int IndexOf(AwkText value, Action? checkpoint = null)
-    {
-        var position = AsSpan(checkpoint).IndexOf(value.AsSpan(checkpoint));
-        checkpoint?.Invoke();
-        return position;
-    }
-
-    public bool Contains(AwkText value, Action? checkpoint = null) => IndexOf(value, checkpoint) >= 0;
-
-    public bool StartsWith(AwkText value, Action? checkpoint = null) =>
-        ByteLength >= value.ByteLength &&
-        CompareBytes(AsSpan(checkpoint)[..value.ByteLength], value.AsSpan(checkpoint), checkpoint) == 0;
-
-    public bool EndsWith(AwkText value, Action? checkpoint = null) =>
-        ByteLength >= value.ByteLength &&
-        CompareBytes(AsSpan(checkpoint)[(ByteLength - value.ByteLength)..], value.AsSpan(checkpoint), checkpoint) == 0;
-
-    public bool TryParseNumber(
-        AwkNumberParsingMode numberParsingMode,
-        AwkNumberTextExtent textExtent,
-        out double number,
-        Action? checkpoint = null)
-    {
-        var span = AsSpan(checkpoint);
-        if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end, checkpoint))
-            return false;
-
-        if (textExtent is AwkNumberTextExtent.EntireText && SkipAsciiWhitespace(span, end, checkpoint) != span.Length)
-        {
-            number = 0;
-            return false;
-        }
-
-        return true;
     }
 
     internal bool TryParseAwkNumber(

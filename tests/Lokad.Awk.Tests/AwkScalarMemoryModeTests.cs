@@ -13,7 +13,7 @@ public sealed class AwkScalarMemoryModeTests
         var variables = memory.InitializeRuntime(AwkRuntimeCounters.Disabled).State.Variables;
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.ConversionFormat);
         var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
-        var text = AwkText.FromHostBytes(bytes);
+        var text = AwkTestHarness.CopyHostText(bytes);
         var value = input ? AwkTestHarness.NumericInput(text) :
             AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
         variables.SetScalarValue(name, value);

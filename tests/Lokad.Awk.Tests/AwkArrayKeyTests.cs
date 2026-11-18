@@ -234,8 +234,8 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
         var owned = new AwkArrayKey(text);
-        var scalar = new AwkArrayKey(AwkText.FromHostBytes(bytes));
-        var literal = new AwkRegionLiteral(AwkText.FromHostBytes(bytes), null);
+        var scalar = new AwkArrayKey(AwkTestHarness.CopyHostText(bytes));
+        var literal = new AwkRegionLiteral(AwkTestHarness.CopyHostText(bytes), null);
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkRegionLiteral>());
         Assert.Equal(bytes.Length is > 0 and <= 7, literal.Key.RequiresTextMaterialization);
         Assert.Equal(owned, literal.Key);
@@ -492,7 +492,7 @@ public sealed class AwkArrayKeyTests
     public void AwkArrayKey_UsesAwkTextByteEquality()
     {
         var fromString = new AwkArrayKey("café");
-        var text = AwkText.FromHostBytes("café"u8.ToArray());
+        var text = AwkTestHarness.CopyHostText("café"u8.ToArray());
         var fromText = new AwkArrayKey(text);
         var values = new Dictionary<AwkArrayKey, string>
         {
@@ -518,7 +518,7 @@ public sealed class AwkArrayKeyTests
             AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var fromOrdinal = AwkArrayKey.FromOrdinal(ordinal);
         var fromText = new AwkArrayKey(text);
-        var fromBytes = new AwkArrayKey(AwkText.FromHostBytes(AwkUtf8Codec.Encode(text)));
+        var fromBytes = new AwkArrayKey(AwkTestHarness.CopyHostText(AwkUtf8Codec.Encode(text)));
         var values = new Dictionary<AwkArrayKey, string>
         {
             [fromOrdinal] = "value"

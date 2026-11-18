@@ -46,7 +46,7 @@ public sealed class AwkTextTests
     {
         var bytes = Enumerable.Repeat((byte)'a', length).ToArray();
         bytes[^1] = 0;
-        var text = AwkText.FromHostBytes(bytes);
+        var text = AwkTestHarness.CopyHostText(bytes);
         Assert.Equal(compact, text.Backing is byte[]);
         Assert.Equal(length, text.RuneLength);
         Assert.Equal(length, text.ByteLength);
@@ -68,7 +68,7 @@ public sealed class AwkTextTests
     [Fact]
     public void CompactTextKeepsNumericStringSpellingWhileManagedPreparationKeepsItsOwnCache()
     {
-        var text = AwkText.FromHostBytes("0007"u8.ToArray());
+        var text = AwkTestHarness.CopyHostText("0007"u8.ToArray());
         Assert.IsType<byte[]>(text.Backing);
         var value = AwkTestHarness.NumericInput(text);
         var copied = AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal).ReadVariableStorage(AwkNumberParsingMode.Decimal);
@@ -77,14 +77,14 @@ public sealed class AwkTextTests
         Assert.Equal(7, copied.AsNumber());
         Assert.Equal("0007", copied.AsString());
         Assert.IsNotType<byte[]>(AwkText.FromSourceLiteralString("0007").Backing);
-        Assert.IsNotType<byte[]>(AwkText.FromHostBytes("café"u8.ToArray()).Backing);
+        Assert.IsNotType<byte[]>(AwkTestHarness.CopyHostText("café"u8.ToArray()).Backing);
     }
 
     [Fact]
     public void AwkText_FullRuneSliceRetainsOwnedIngressBytes()
     {
         var bytes = "é😀q"u8.ToArray();
-        var text = AwkText.FromHostBytes(bytes);
+        var text = AwkTestHarness.CopyHostText(bytes);
         using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
         var copy = runtime.CopyRuneSlice(text, 0, int.MaxValue);
         Array.Fill(bytes, (byte)'x');
@@ -95,7 +95,7 @@ public sealed class AwkTextTests
     [Fact]
     public void AwkText_CountsBytesAndRunesForValidUtf8()
     {
-        var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray());
+        var text = AwkTestHarness.CopyHostText("caf\u00e9"u8.ToArray());
 
         Assert.Equal(5, text.ByteLength);
         Assert.Equal(4, text.RuneLength);
@@ -130,7 +130,7 @@ public sealed class AwkTextTests
     public void AwkText_UsesOrdinalByteEqualityAndHashing()
     {
         var first = AwkText.FromString("alpha");
-        var second = AwkText.FromHostBytes("alpha"u8.ToArray());
+        var second = AwkTestHarness.CopyHostText("alpha"u8.ToArray());
         var later = AwkText.FromString("beta");
 
         Assert.True(first.Equals(second));
@@ -155,7 +155,7 @@ public sealed class AwkTextTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var text = runtime.ConcatText([AwkText.FromString(start), AwkText.FromString(suffix)]);
-        var owned = AwkText.FromHostBytes(AwkUtf8Codec.Encode(start + suffix).ToArray());
+        var owned = AwkTestHarness.CopyHostText(AwkUtf8Codec.Encode(start + suffix).ToArray());
         var different = AwkText.FromString(start + "\0é😀y");
         var longer = AwkText.FromString(start + suffix + "\0");
         foreach (var checkpoint in new Action?[] { null, static () => { } })
@@ -186,10 +186,7 @@ public sealed class AwkTextTests
         Assert.Equal(
             "caf\u00e9",
             runtime.CopyRuneSlice(source, 6, 4).AsString());
-        Assert.Equal(6, source.IndexOf(AwkText.FromString("caf\u00e9")));
-        Assert.True(source.StartsWith(AwkText.FromString("Alpha")));
-        Assert.True(source.EndsWith(AwkText.FromString("caf\u00e9")));
-        Assert.True(source.Contains(AwkText.FromString("ha c")));
+        Assert.Equal(7, runtime.IndexOfStringUnits(new(source), new("café"u8)));
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.CopyByteSlice(source, 10, 1));
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
@@ -212,7 +209,7 @@ public sealed class AwkTextTests
     public void AwkText_ConcatenationRetainsOwnedIngressParts()
     {
         var buffer = "ab"u8.ToArray();
-        var owned = AwkText.FromHostBytes(buffer);
+        var owned = AwkTestHarness.CopyHostText(buffer);
         using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
         var concatenated = runtime.ConcatText([owned, AwkText.FromString("cd")]);
 
@@ -298,7 +295,7 @@ public sealed class AwkTextTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
-        var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray());
+        var text = AwkTestHarness.CopyHostText("caf\u00e9"u8.ToArray());
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
@@ -331,12 +328,14 @@ public sealed class AwkTextTests
         var hexText = AwkText.FromSourceLiteralString(" -0x10 ");
         var octalText = AwkText.FromSourceLiteralString("010");
 
-        Assert.True(decimalText.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.Prefix, out var decimalNumber));
+        Assert.True(decimalText.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var decimalNumber, out var decimalComplete));
         Assert.Equal(-1250, decimalNumber);
-        Assert.False(decimalText.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out _));
-        Assert.True(hexText.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, AwkNumberTextExtent.EntireText, out var hexNumber));
+        Assert.False(decimalComplete);
+        Assert.True(hexText.TryParseAwkNumber(AwkNumberParsingMode.HexadecimalInput, out var hexNumber, out var hexComplete));
+        Assert.True(hexComplete);
         Assert.Equal(-16, hexNumber);
-        Assert.True(octalText.TryParseNumber(AwkNumberParsingMode.NonDecimalData, AwkNumberTextExtent.EntireText, out var octalNumber));
+        Assert.True(octalText.TryParseAwkNumber(AwkNumberParsingMode.NonDecimalData, out var octalNumber, out var octalComplete));
+        Assert.True(octalComplete);
         Assert.Equal(8, octalNumber);
     }
 
@@ -347,12 +346,14 @@ public sealed class AwkTextTests
         var leadingDot = AwkText.FromSourceLiteralString(".5 ");
         var overflow = AwkText.FromSourceLiteralString("1e999");
 
-        Assert.True(incompleteExponent.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.Prefix, out var exponentNumber));
+        Assert.True(incompleteExponent.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var exponentNumber, out var exponentComplete));
         Assert.Equal(1, exponentNumber);
-        Assert.False(incompleteExponent.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out _));
-        Assert.True(leadingDot.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out var leadingDotNumber));
+        Assert.False(exponentComplete);
+        Assert.True(leadingDot.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var leadingDotNumber, out var dotComplete));
+        Assert.True(dotComplete);
         Assert.Equal(0.5, leadingDotNumber);
-        Assert.True(overflow.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out var overflowNumber));
+        Assert.True(overflow.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var overflowNumber, out var overflowComplete));
+        Assert.True(overflowComplete);
         Assert.Equal(double.PositiveInfinity, overflowNumber);
     }
 }
