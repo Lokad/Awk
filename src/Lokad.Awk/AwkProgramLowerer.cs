@@ -20,12 +20,6 @@ internal static partial class AwkProgramLowerer
         return unobserved;
     }
 
-    public static AwkLoweringResult Lower(AwkSyntaxProgram syntax)
-    {
-        AwkSymbolCollector.Collect(syntax, out var globalNames);
-        return Lower(syntax, globalNames);
-    }
-
     public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
