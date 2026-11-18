@@ -188,7 +188,8 @@ public sealed class AwkPrintfFormattingTests
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         Assert.Equal(15000, sum);
-        Assert.Equal(0, allocatedBytes);
+        // Allow incidental runtime allocations while detecting a box on each of the 10,000 reads.
+        Assert.InRange(allocatedBytes, 0, 16 * 1024);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         static double ReadSum(AwkValueArrayPrintfArguments arguments, AwkRuntimeState state)
