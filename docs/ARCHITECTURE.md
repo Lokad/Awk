@@ -148,6 +148,9 @@ The frame transfers the staged record's funding on publication and checks cancel
 retiring the old payload. Field mutations publish cells and `NF` before refunds.
 The frame's two input slots use the invocation ledger. A borrowed slot has funded
 fallback storage before it can be published, and promotion rebinds the frame's view.
+Governed input preflights the record and headers together using the staged length and
+captured split plan. Publication resolves the slot's current byte view after admission
+and any retirement callbacks.
 
 Enforced by [incremental fields](../tests/Lokad.Awk.Tests/AwkIncrementalFieldTests.cs),
 [input ownership](../tests/Lokad.Awk.Tests/AwkInputHandoffCancellationTests.cs),

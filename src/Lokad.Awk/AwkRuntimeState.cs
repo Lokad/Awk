@@ -1316,21 +1316,28 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var hasTerminator = PublishesRecordTerminator;
         var terminator = hasTerminator ? PrepareRecordTerminatorSlot(record.Terminator) : default;
-        var splitPlan = _fieldSplitter.CaptureRecordPlan(record.FieldSplittingMode);
         var text = record.TryGetStorage(out var storage) ? AwkText.Empty : record.RecordText;
-        var recordByteLength = storage is not null ? storage.ContentAt(record.StorageSlot).Length : text.ByteLength;
-        var publication = _recordFields.PrepareRecordPublication(text, splitPlan, recordByteLength);
-        using var admission = MemoryAccounting.IsEnabled
-            ? MemoryAccounting.AdmitMutation(hasTerminator
-                ? AwkRuntimeMemory.CheckedAdd(publication.GrowthBytes, EstimateRecordTerminatorMemoryGrowth(terminator))
-                : publication.GrowthBytes)
-            : default;
+        var slot = record.StorageSlot;
+        var recordMode = record.FieldSplittingMode;
+        var splitPlan = _fieldSplitter.CaptureRecordPlan(recordMode);
+        var retained = 0L;
+        var staged = default(AwkMemoryMutationAdmission);
+        if (MemoryAccounting.IsEnabled)
+        {
+            var length = storage is not null ? storage.LengthAt(slot) : text.ByteLength;
+            retained = _recordFields.EstimateUnsplitRecordBytes(text, splitPlan, length);
+            var growth = _recordFields.GetRecordReplacementGrowth(retained);
+            if (hasTerminator)
+                growth = AwkRuntimeMemory.CheckedAdd(growth, EstimateRecordTerminatorMemoryGrowth(terminator));
+            staged = MemoryAccounting.AdmitMutation(growth);
+        }
+        using var admission = staged;
         ThrowIfCancellationRequested();
         if (readsMainInput) AdvanceInputCounters();
         if (hasTerminator) _variables.SetRecordTerminatorSlot(terminator);
-        SetRecordFieldSplittingMode(record.FieldSplittingMode);
-        if (storage is not null) _recordFields.SetBufferedRecord(storage, record.StorageSlot, publication);
-        else _recordFields.PublishRecordText(text, publication);
+        SetRecordFieldSplittingMode(recordMode);
+        if (storage is not null) _recordFields.SetBufferedRecord(storage, slot, splitPlan, retained);
+        else _recordFields.PublishRecordText(text, splitPlan, retained);
     }
 
     private void AdvanceInputCounters()

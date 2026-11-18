@@ -217,6 +217,41 @@ public sealed class AwkRecordInputMemoryTests
         AssertRefunded(memory.Budget);
     }
 
+    [Fact]
+    public async Task RecordPublicationReadsCurrentSlotAfterAdmissionPromotesBorrow()
+    {
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        using (memory)
+        {
+            var host = new InputHost(memory.Budget, "first 0007\n") { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
+                memory.State.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var storage = memory.State.InputRecordStorage;
+            storage.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            var terminator = AwkRecordTerminator.FromText(
+                AwkText.FromSourceLiteralString(new string('x', 8192)));
+            var record = AwkInputRecordResult.Buffered(storage, terminator);
+
+            memory.Budget.OnGrowth = _ => reader.ReleaseBorrow();
+            try
+            {
+                memory.State.PublishInputRecord(record, readsMainInput: true);
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+            }
+
+            Assert.Equal("first 0007\n"u8.Length, host.CommittedInputBytes);
+            Assert.Equal("first 0007", memory.State.CurrentRecordByteText.AsString());
+            Assert.Equal(2, memory.State.FieldCount);
+            Assert.Equal("0007", memory.State.RecordFields.GetFieldValue(new(2)).AsString());
+        }
+        AssertRefunded(memory.Budget);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

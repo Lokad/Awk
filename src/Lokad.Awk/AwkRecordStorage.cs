@@ -15,6 +15,7 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     internal int CurrentSlot => _currentSlot;
     internal ReadOnlyMemory<byte> Content => ContentAt(_currentSlot);
     internal ReadOnlyMemory<byte> ContentAt(int slot) => BufferAt(slot).Content;
+    internal int LengthAt(int slot) => BufferAt(slot).Length;
     internal bool IsKnownAsciiAt(int slot) => BufferAt(slot).IsKnownAscii;
 
     internal bool TryCaptureText(int slot, ReadOnlySpan<byte> bytes,
@@ -114,6 +115,7 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
         internal bool IsKnownAscii;
         internal readonly ReadOnlyMemory<byte> Content => Borrower is not null
             ? BorrowedBytes : Buffer?.AsMemory() ?? ReadOnlyMemory<byte>.Empty;
+        internal readonly int Length => Borrower is not null ? BorrowedBytes.Length : Buffer?.Length ?? 0;
 
         internal void SetOwned()
         {

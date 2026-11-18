@@ -74,10 +74,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             state.CopyText(field.BytesInRecord(RecordBytes()));
     }
 
-    internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordPublication publication)
+    internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordSplitPlan splitPlan, long retainedBytes)
     {
-        ReplaceRetainedMemory(publication.RetainedBytes);
-        _splitPlan = publication.SplitPlan;
+        ReplaceRetainedMemory(retainedBytes);
+        _splitPlan = splitPlan;
         _recordText = AwkText.Empty;
         _bufferedStorage = storage;
         _bufferedSlot = slot;
@@ -644,30 +644,27 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     public void SetRecordText(AwkText text) => SetRecordText(text, state.FieldSplitter.CaptureRecordPlan());
 
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan) =>
-        PublishRecordText(text, PrepareRecordPublication(text, splitPlan, text.ByteLength));
+        PublishRecordText(text, splitPlan, EstimateUnsplitRecordBytes(text, splitPlan, text.ByteLength));
 
-    internal void PublishRecordText(AwkText text, AwkRecordPublication publication, AwkValue? assignedValue = null)
+    internal void PublishRecordText(AwkText text, AwkRecordSplitPlan splitPlan, long retainedBytes,
+        AwkValue? assignedValue = null)
     {
-        ReplaceRetainedMemory(publication.RetainedBytes);
-        _splitPlan = publication.SplitPlan;
+        ReplaceRetainedMemory(retainedBytes);
+        _splitPlan = splitPlan;
         ClearBufferedRecord();
         _recordText = text;
         FinishRecordPublication(assignedValue);
     }
 
-    internal AwkRecordPublication PrepareRecordPublication(AwkText text, AwkRecordSplitPlan splitPlan,
-        int recordByteLength)
-    {
-        var retained = EstimateEmptyRecordBytes(text, splitPlan, recordByteLength);
-        return new(splitPlan, retained, Math.Max(0, retained - _retainedMemoryBytes));
-    }
+    internal long GetRecordReplacementGrowth(long retainedBytes) =>
+        Math.Max(0, retainedBytes - _retainedMemoryBytes);
 
     public void SetRecordValue(
         AwkValue value,
         AwkRecordSplitPlan splitPlan)
     {
         var text = state.FormatStringByteText(value);
-        PublishRecordText(text, PrepareRecordPublication(text, splitPlan, text.ByteLength), value);
+        PublishRecordText(text, splitPlan, EstimateUnsplitRecordBytes(text, splitPlan, text.ByteLength), value);
     }
 
     private void FinishRecordPublication(AwkValue? assignedValue = null)
@@ -1394,7 +1391,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _retainedMemoryBytes = newBytes;
     }
 
-    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan, int recordByteLength)
+    internal long EstimateUnsplitRecordBytes(AwkText text, AwkRecordSplitPlan plan, int recordByteLength)
     {
         if (!state.MemoryAccounting.IsEnabled) return 0;
         // Retain already-funded capacity, never allocate speculatively. The same
