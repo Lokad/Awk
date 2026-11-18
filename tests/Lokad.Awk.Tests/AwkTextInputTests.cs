@@ -19,7 +19,7 @@ public sealed class AwkTextInputTests
         var value = kind switch
         {
             "number" => AwkValue.FromNumber(1.26),
-            "numeric-string" => AwkValue.FromNumericString("0007"),
+            "numeric-string" => AwkTestHarness.NumericInput("0007"),
             _ => AwkValue.FromText("0007")
         };
         var captured = new AwkTextInput(in value);

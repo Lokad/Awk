@@ -14,7 +14,7 @@ public sealed class AwkNumericFieldConsumptionTests
             using var memory = State(governed);
             var state = memory.State;
             state.SetCurrentRecord(AwkText.FromSourceLiteralString("k " + spelling));
-            var expected = AwkValue.FromNumericString(AwkText.FromSourceLiteralString(spelling));
+            var expected = AwkTestHarness.NumericInput(AwkText.FromSourceLiteralString(spelling));
             Assert.Equal(expected.AsNumber(), state.GetFieldNumber(2));
             Assert.Equal(spelling == "0007", state.TryGetFieldComparisonNumber(2, out _));
             var captured = captureText ? state.CaptureFieldStringText(2) : AwkText.Empty;
@@ -74,7 +74,7 @@ public sealed class AwkNumericFieldConsumptionTests
                     var frame = context.Frame;
                     var text = AwkText.FromSourceLiteralString(spelling);
                     frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
-                    var expected = AwkValue.FromNumericString(text, mode);
+                    var expected = AwkTestHarness.NumericInput(text, mode);
                     var number = frame.GetFieldNumber(new(1), mode);
                     Assert.Equal(BitConverter.DoubleToUInt64Bits(expected.AsNumber()), BitConverter.DoubleToUInt64Bits(number));
                     var strict = expected.TryGetStoredComparisonNumber(out var expectedNumber, null);

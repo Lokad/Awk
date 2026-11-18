@@ -54,7 +54,7 @@ public sealed class AwkPreparedNumericInputTests
         Assert.True(text.HasSameStorage(result.ByteText));
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
         Assert.Equal(number, result.AsNumber());
-        Assert.Equal(0, AwkValue.Compare(result, AwkValue.FromNumber(number)));
+        Assert.True(AwkComparisonOperations.Evaluate(result, AwkValue.FromNumber(number), AwkComparison.Equal, state));
 
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -74,7 +74,7 @@ public sealed class AwkPreparedNumericInputTests
         using var memoryForState = CreateState(nonDecimal: nonDecimal);
         var state = memoryForState.State;
         var originalMode = nonDecimal ? AwkNumberParsingMode.Decimal : AwkNumberParsingMode.NonDecimalData;
-        using var frame = Store(state, AwkValue.FromNumericString("010", originalMode), storage);
+        using var frame = Store(state, AwkTestHarness.NumericInput("010", originalMode), storage);
         var result = Read(state, storage);
         Assert.Equal(nonDecimal ? 8 : 10, result.AsNumber());
         Assert.Equal("010", result.AsString());
@@ -125,7 +125,7 @@ public sealed class AwkPreparedNumericInputTests
         var state = memoryForState.State;
         Store(state, state.CreateNumericStringValue("123"), storage: 1);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
-        var oversized = AwkValue.FromNumericString("1" + new string('0', 2000));
+        var oversized = AwkTestHarness.NumericInput("1" + new string('0', 2000));
         Assert.Throws<AwkRuntimeException>(() => Store(state, oversized, storage: 1));
         Assert.Equal(123, Read(state, storage: 1).AsNumber());
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);

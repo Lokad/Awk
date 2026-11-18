@@ -11,7 +11,7 @@ public sealed class AwkFunctionLocalSlotTests
     {
         var spelling = new string('0', 4096) + "7";
         var text = AwkText.FromString(spelling);
-        var slot = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text));
+        var slot = AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput(text));
         var entered = false;
         Assert.True(slot.TryGetTextInput(out var captured, () =>
         {
@@ -29,7 +29,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void ScalarReadCapturesSpellingAndPayloadBeforeLongInputCallback()
     {
         var spelling = new string('0', 4096) + "7";
-        var slot = AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(spelling));
+        var slot = AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput(spelling));
         var entered = false;
         var captured = slot.ReadValue(() =>
         {
@@ -74,7 +74,7 @@ public sealed class AwkFunctionLocalSlotTests
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), long.MaxValue);
         var array = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
         AwkFunctionLocalSlot[] cells = [AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)),
-            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(text)),
+            AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput(text)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromPreparedNumericInput(text, 7)),
             AwkFunctionLocalSlot.Scalar(AwkValue.Unassigned()),
             AwkFunctionLocalSlot.ArrayAlias(name, array),
@@ -110,7 +110,7 @@ public sealed class AwkFunctionLocalSlotTests
         var text = AwkText.FromSourceLiteralString("0007");
         var origin = new AwkUntypedScalar();
         AwkValue[] values = [AwkValue.FromNumber(7), AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
-            AwkValue.FromNumericString(text), AwkValue.Unassigned(),
+            AwkTestHarness.NumericInput(text), AwkValue.Unassigned(),
             AwkValue.FromPreparedNumericInput(text, 7),
             AwkValue.FromUntypedScalar(origin)];
         foreach (var value in values)
@@ -394,7 +394,7 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
 
         var text = AwkText.FromSourceLiteralString("0012");
-        var value = AwkValue.FromNumericString(text);
+        var value = AwkTestHarness.NumericInput(text);
         for (var index = 0; index < 100; index++) value = RoundTrip(value);
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++) value = RoundTrip(value);
@@ -442,7 +442,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.False(stack.TryAssignLocal(name, AwkValue.FromNumber(99)));
             Assert.False(stack.TryAssignLocal(slot, AwkValue.FromNumber(99)));
             // Owned payload is refunded; numeric inline storage stays in the cached frame.
-            stack.PushFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString("003"))]);
+            stack.PushFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput("003"))]);
             var nestedBytes = memory.CurrentCommittedBytes;
             try
             {
@@ -542,7 +542,7 @@ public sealed class AwkFunctionLocalSlotTests
             AwkVariableName.FromText("potential"), AwkVariableName.FromText("array"), AwkVariableName.FromText("missing")];
         var array = AwkArrayName.FromText("a");
         stack.PushFrame(new AwkFunctionLocalLayout(names), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)),
-            AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString("007")),
+            AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput("007")),
             AwkFunctionLocalSlot.PotentialArrayAlias(array), AwkFunctionLocalSlot.ArrayAlias(array)]);
         try
         {

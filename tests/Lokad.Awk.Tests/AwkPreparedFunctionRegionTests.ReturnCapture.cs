@@ -146,7 +146,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariableValue(AwkVariableName.FromText("n"), AwkValue.FromNumber(1));
         state.AssignVariable(AwkVariableName.FromText("OFS"), "0007");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("0007"));
-        var arrayValue = numeric ? AwkValue.FromNumber(7) : AwkValue.FromNumericString("0007");
+        var arrayValue = numeric ? AwkValue.FromNumber(7) : AwkTestHarness.NumericInput("0007");
         state.SetArrayAwkValue(a, new("r"), arrayValue);
         if (nested)
         {

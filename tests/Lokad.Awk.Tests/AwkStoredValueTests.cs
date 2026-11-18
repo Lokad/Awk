@@ -18,7 +18,7 @@ public sealed class AwkStoredValueTests
         var text = AwkText.FromSourceLiteralString("010");
         foreach (var sourceMode in Enum.GetValues<AwkNumberParsingMode>())
         {
-            AwkValue[] inputs = [AwkValue.FromDeferredText(text, sourceMode), AwkValue.FromNumericString(text, sourceMode)];
+            AwkValue[] inputs = [AwkValue.FromDeferredText(text, sourceMode), AwkTestHarness.NumericInput(text, sourceMode)];
             foreach (var input in inputs)
             {
                 variables.SetScalarValue(name, input);
@@ -48,7 +48,7 @@ public sealed class AwkStoredValueTests
         var variables = memory.State.Variables;
         var text = AwkText.FromSourceLiteralString("0x1.2");
         AwkValue[] inputs = [AwkValue.FromDeferredText(text, AwkNumberParsingMode.NonDecimalData),
-            AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData)];
+            AwkTestHarness.NumericInput(text, AwkNumberParsingMode.NonDecimalData)];
         foreach (var input in inputs)
         {
             var name = AwkVariableName.FromText("saved");

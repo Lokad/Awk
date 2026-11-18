@@ -175,7 +175,7 @@ public sealed class AwkBorrowedArrayReadTests
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
-        var replacement = AwkValue.FromNumericString("0009");
+        var replacement = AwkTestHarness.NumericInput("0009");
 
         if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
         else state.SetArrayFieldValue(name, 1, replacement, binding);
@@ -295,7 +295,7 @@ public sealed class AwkBorrowedArrayReadTests
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
-        var replacement = AwkValue.FromNumericString("0009");
+        var replacement = AwkTestHarness.NumericInput("0009");
 
         var allocations = counters[AwkCounter.TextAllocations];
 
@@ -350,7 +350,7 @@ public sealed class AwkBorrowedArrayReadTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = memory.Initialize(() => State(memory.Owner, counters)).State;
         var name = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(name, new AwkArrayKey("café\x1cpart"), AwkValue.FromNumericString("007"));
+        state.SetArrayAwkValue(name, new AwkArrayKey("café\x1cpart"), AwkTestHarness.NumericInput("007"));
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
         var allocations = counters[AwkCounter.TextAllocations];

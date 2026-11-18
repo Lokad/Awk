@@ -16,7 +16,7 @@ public sealed partial class AwkFunctionStorageTests
         var stack = Stack(memory, numberParsingMode: frameMode);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]);
         layout.PrepareInputs([AwkParameterInput.Arithmetic]);
-        var value = AwkValue.FromNumericString(spelling, sourceMode);
+        var value = AwkTestHarness.NumericInput(spelling, sourceMode);
         var normalizedBits = BitConverter.DoubleToInt64Bits(value.ForFunctionStorage(frameMode, null).AsNumber());
         using (memory.Accounting.ReserveTransient(value.RetainedTextMemoryBytes))
         {
@@ -47,7 +47,7 @@ public sealed partial class AwkFunctionStorageTests
         var stack = Stack(memory);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]);
         layout.PrepareInputs([ordinaryString ? AwkParameterInput.Arithmetic : AwkParameterInput.Value]);
-        var value = ordinaryString ? AwkValue.FromText("0007") : AwkValue.FromNumericString("0007");
+        var value = ordinaryString ? AwkValue.FromText("0007") : AwkTestHarness.NumericInput("0007");
         using (memory.Accounting.ReserveTransient(value.RetainedTextMemoryBytes))
         {
             var frame = stack.PrepareFrame(layout);

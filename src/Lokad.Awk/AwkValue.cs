@@ -194,17 +194,6 @@ internal readonly struct AwkValue
         return FromParsedText(text, numberParsingMode, input: false, checkpoint);
     }
 
-    public static AwkValue FromNumericString(string text) =>
-        FromNumericString(text, AwkNumberParsingMode.Decimal);
-
-    public static AwkValue FromNumericString(string text, AwkNumberParsingMode numberParsingMode)
-    {
-        return FromNumericString(AwkText.FromString(text), numberParsingMode);
-    }
-
-    public static AwkValue FromNumericString(AwkText text) =>
-        FromNumericString(text, AwkNumberParsingMode.Decimal);
-
     public static AwkValue FromNumericString(AwkText text, AwkNumberParsingMode numberParsingMode, Action? checkpoint = null)
     {
         return FromParsedText(text, numberParsingMode, input: true, checkpoint);
@@ -355,9 +344,6 @@ internal readonly struct AwkValue
         return false;
     }
 
-    public string AsString() =>
-        _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString();
-
     public AwkText ByteText
     {
         get
@@ -496,14 +482,6 @@ internal readonly struct AwkValue
                 _ => AwkRuntimeValueKind.String
             };
         }
-    }
-
-    public static int Compare(AwkValue left, AwkValue right)
-    {
-        if (left.TryGetNumber(out var leftNumber) && right.TryGetNumber(out var rightNumber))
-            return leftNumber.CompareTo(rightNumber);
-
-        return left.ByteText.CompareBytes(right.ByteText);
     }
 
     public bool IsTruthy()

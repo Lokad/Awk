@@ -15,7 +15,7 @@ public sealed class AwkSpecialVariablesTests
             CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()))));
         var state = memory.State;
-        state.AssignSpecialVariableValue(AwkSpecialVariableId.SubscriptSeparator, AwkValue.FromNumericString("0007"));
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.SubscriptSeparator, AwkTestHarness.NumericInput("0007"));
         if (insideFunction)
             state.PushFunctionFrame(new AwkFunctionLocalLayout([AwkVariableName.FromText("ordinary")]),
                 [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(1))]);

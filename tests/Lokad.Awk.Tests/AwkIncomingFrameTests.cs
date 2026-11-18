@@ -27,7 +27,7 @@ public sealed class AwkIncomingFrameTests
                 for (var index = 1; index < width; index++)
                 {
                     Assert.Equal(AwkRuntimeValueKind.Unassigned, state.ResolveFunctionLocalValue(new(index), names[index]).RuntimeKind);
-                    state.AssignFunctionLocalValue(new(index), names[index], AwkValue.FromNumericString("0007"));
+                    state.AssignFunctionLocalValue(new(index), names[index], AwkTestHarness.NumericInput("0007"));
                 }
             }
             finally { state.PopFunctionFrame(); }

@@ -41,7 +41,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var x = AwkVariableName.FromText("x");
         state.AssignVariableValue(x, AwkValue.FromNumber(5));
         var spelling = numericString ? "0007" : "0007" + new string('x', 256);
-        var original = numericString ? AwkValue.FromNumericString(spelling) : AwkValue.FromText(spelling);
+        var original = numericString ? AwkTestHarness.NumericInput(spelling) : AwkValue.FromText(spelling);
         var root = AwkArrayName.FromText("a");
         var child = nested ? state.GetSubarray(root, new("k"), default) : null;
         if (child is not null) state.SetArrayAwkValue(child, new("v"), original);

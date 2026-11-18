@@ -19,7 +19,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var state = memory.State;
         var name = AwkVariableName.FromText("s");
         var spelling = "0007" + new string(' ', 32 << 10);
-        var value = input ? AwkValue.FromNumericString(spelling) : AwkValue.FromText(spelling);
+        var value = input ? AwkTestHarness.NumericInput(spelling) : AwkValue.FromText(spelling);
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(value)]);
         var frame = state.CurrentFunctionFrame;
         var captured = state.ResolveFunctionLocalValue(new(0), name);
@@ -91,7 +91,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var state = memory.State;
         var name = AwkVariableName.FromText("s");
         var spelling = new string('0', 32 << 10) + "7";
-        state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumericString(spelling))]);
+        state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput(spelling))]);
         var frame = state.CurrentFunctionFrame;
         using var snapshot = new AwkRegionStorage(state);
         snapshot.Prepare(new(0, Values: 1));

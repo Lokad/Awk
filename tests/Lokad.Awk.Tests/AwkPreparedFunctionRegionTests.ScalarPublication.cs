@@ -257,7 +257,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         source.Prepare(new(0, Values: 1));
         var spelling = "0007" + new string(' ', 32 << 10);
         var text = AwkText.FromSourceLiteralString(spelling);
-        var value = numericString ? AwkValue.FromNumericString(text) : state.CreateStringValue(text);
+        var value = numericString ? AwkTestHarness.NumericInput(text) : state.CreateStringValue(text);
         source.StoreValue(0, value);
         Assert.True(memory.Budget.TryReserve(memory.Budget.Limit - memory.Budget.Reserved, out var pressure));
         using (pressure)

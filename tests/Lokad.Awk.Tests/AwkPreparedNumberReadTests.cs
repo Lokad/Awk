@@ -17,7 +17,7 @@ public sealed class AwkPreparedNumberReadTests
 
         reference.AssignValue(state, AwkValue.FromNumber(7));
         Assert.Equal(7, reference.EvaluateNumber(state));
-        state.AssignVariableValue(name, AwkValue.FromNumericString("007"));
+        state.AssignVariableValue(name, AwkTestHarness.NumericInput("007"));
         Assert.Equal(7, reference.EvaluateNumber(state));
         Assert.Equal("007", state.ResolveVariableValue(name).AsString());
 
@@ -57,7 +57,7 @@ public sealed class AwkPreparedNumberReadTests
         using var memoryForState = State();
         var state = memoryForState.State;
         var scalar = AwkResolvedReference.Scalar(AwkVariableName.FromText("x"));
-        scalar.AssignValue(state, AwkValue.FromNumericString("007"));
+        scalar.AssignValue(state, AwkTestHarness.NumericInput("007"));
         Assert.Equal(7, scalar.EvaluateNumber(state));
         var array = AwkResolvedReference.ArrayElement(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1));
         array.AssignValue(state, AwkValue.FromText("4tail"));

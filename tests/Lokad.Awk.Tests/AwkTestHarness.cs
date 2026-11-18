@@ -17,6 +17,15 @@ internal static class AwkTestHarness
 
     public static List<AwkToken> TokenizeSource(string source) => AwkLexer.Tokenize(source, CancellationToken.None);
 
+    public static AwkValue NumericInput(string text, AwkNumberParsingMode mode = AwkNumberParsingMode.Decimal) =>
+        NumericInput(AwkText.FromString(text), mode);
+
+    public static AwkValue NumericInput(AwkText text, AwkNumberParsingMode mode = AwkNumberParsingMode.Decimal) =>
+        AwkValue.FromNumericString(text, mode);
+
+    public static string AsString(this AwkValue value) => value.IsNumberValue
+        ? AwkNumberFormatter.ToString(value.AsNumber()) : value.ByteText.AsString();
+
     internal static bool TryPrepareRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
         [NotNullWhen(true)] out AwkRegion? region) => TryPrepareRule(rule, scope, rangeIndex, out region, out _);
 

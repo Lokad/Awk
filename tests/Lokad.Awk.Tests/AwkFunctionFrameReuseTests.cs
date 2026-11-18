@@ -31,7 +31,7 @@ public sealed class AwkFunctionFrameReuseTests
                     if (count == 2 && index == 1)
                     {
                         Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, local.Kind);
-                        Assert.True(stack.TryAssignLocal(new AwkFunctionLocalSlotId(1), AwkValue.FromNumericString("007")));
+                        Assert.True(stack.TryAssignLocal(new AwkFunctionLocalSlotId(1), AwkTestHarness.NumericInput("007")));
                         Assert.True(stack.TryResolveLocalValue(new AwkFunctionLocalSlotId(1), out local));
                         Assert.Equal("007", local.Value.ByteText.AsString());
                         Assert.Equal(7, local.Value.AsNumber());

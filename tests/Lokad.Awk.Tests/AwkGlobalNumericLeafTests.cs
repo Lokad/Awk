@@ -20,7 +20,7 @@ public sealed class AwkGlobalNumericLeafTests
         Assert.Equal(0, await ReadAsync(region, state, storage, regionOutput, regionIo));
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         Assert.Equal(7, await ReadAsync(region, state, storage, regionOutput, regionIo));
-        state.AssignVariableValue(name, AwkValue.FromNumericString("007"));
+        state.AssignVariableValue(name, AwkTestHarness.NumericInput("007"));
         Assert.Equal(7, await ReadAsync(region, state, storage, regionOutput, regionIo));
         Assert.Equal("007", state.ResolveVariableValue(name).AsString());
 

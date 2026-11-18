@@ -14,7 +14,7 @@ public sealed class AwkScalarMemoryModeTests
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.ConversionFormat);
         var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
         var text = AwkText.FromHostBytes(bytes);
-        var value = input ? AwkValue.FromNumericString(text) :
+        var value = input ? AwkTestHarness.NumericInput(text) :
             AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
         variables.SetScalarValue(name, value);
         var cell = variables.GetSpecialScalarCell(AwkSpecialVariableId.ConversionFormat) ??

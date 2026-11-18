@@ -618,7 +618,7 @@ public sealed class AwkArrayKeyTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
         var ordinal = state.ToArrayKey(AwkValue.FromNumber(42));
-        var numericString = state.ToArrayKey(AwkValue.FromNumericString("042"));
+        var numericString = state.ToArrayKey(AwkTestHarness.NumericInput("042"));
         var text = state.ToArrayKey(AwkValue.FromText("42"));
         var fractional = state.ToArrayKey(AwkValue.FromNumber(1.5));
 

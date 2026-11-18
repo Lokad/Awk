@@ -22,7 +22,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         caller.Prepare(new(0, Values: 1));
         var spelling = "0007" + new string(' ', 32 << 10);
         var text = AwkText.FromSourceLiteralString(spelling);
-        var value = textSource ? memory.State.CreateStringValue(text) : AwkValue.FromNumericString(text);
+        var value = textSource ? memory.State.CreateStringValue(text) : AwkTestHarness.NumericInput(text);
         if (textSource) source.StoreText(0, text);
         else source.StoreValue(0, value);
         if (overwrite) caller.StoreValue(0, AwkValue.FromText("previous"));

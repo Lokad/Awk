@@ -70,7 +70,7 @@ public sealed class AwkTextTests
     {
         var text = AwkText.FromHostBytes("0007"u8.ToArray());
         Assert.IsType<byte[]>(text.Backing);
-        var value = AwkValue.FromNumericString(text);
+        var value = AwkTestHarness.NumericInput(text);
         var copied = AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal).ReadVariableStorage(AwkNumberParsingMode.Decimal);
         Assert.True(text.HasSameStorage(copied.ByteText));
         Assert.Equal(AwkRuntimeValueKind.NumericString, copied.RuntimeKind);

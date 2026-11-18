@@ -21,7 +21,7 @@ public sealed class AwkNumericSemanticsTests
     public void DecimalInputPreservesBinaryValueAndOriginalBytes(string spelling, double number, bool negativeZero)
     {
         var text = AwkText.FromSourceLiteralString(spelling);
-        var value = AwkValue.FromNumericString(text);
+        var value = AwkTestHarness.NumericInput(text);
         var expectedBits = negativeZero ? long.MinValue : BitConverter.DoubleToInt64Bits(number);
         Assert.Equal(expectedBits, BitConverter.DoubleToInt64Bits(value.AsNumber()));
         Assert.True(text.HasSameStorage(value.ByteText));
@@ -41,7 +41,7 @@ public sealed class AwkNumericSemanticsTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(whitespace + "2" + whitespace).ToArray());
-        var value = AwkValue.FromNumericString(text);
+        var value = AwkTestHarness.NumericInput(text);
 
         Assert.Equal(numeric, value.IsNumericStringValue);
         Assert.Equal(numeric ? 2 : 0, value.AsNumber());
@@ -60,7 +60,7 @@ public sealed class AwkNumericSemanticsTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(spelling).ToArray());
         var mode = posix ? AwkNumberParsingMode.HexadecimalInput : AwkNumberParsingMode.Decimal;
-        var record = AwkValue.FromNumericString(text, mode);
+        var record = AwkTestHarness.NumericInput(text, mode);
         var literal = AwkValue.FromText(text, mode);
 
         Assert.True(record.IsNumericStringValue);

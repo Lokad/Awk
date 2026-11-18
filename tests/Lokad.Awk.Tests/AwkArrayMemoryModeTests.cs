@@ -77,7 +77,7 @@ public sealed class AwkArrayMemoryModeTests
             Assert.Equal(42, variables.GetArrayValue(name, textKey).AsNumber());
             variables.SetArrayValue(name, textKey, AwkValue.ForStoredText(new string('a', 4096)));
             Assert.Equal(new string('a', 4096), variables.GetArrayValue(name, numericKey).AsString());
-            variables.SetArrayValue(name, numericKey, AwkValue.FromNumericString(AwkText.FromString("007")));
+            variables.SetArrayValue(name, numericKey, AwkTestHarness.NumericInput(AwkText.FromString("007")));
             var numericString = variables.GetArrayValue(name, textKey);
             Assert.Equal("007", numericString.AsString());
             Assert.Equal(7, numericString.AsNumber());

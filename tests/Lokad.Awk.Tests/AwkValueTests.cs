@@ -17,7 +17,7 @@ public sealed class AwkValueTests
     [Fact]
     public void AwkValue_PreservesNumericStringState()
     {
-        var value = AwkValue.FromNumericString("001");
+        var value = AwkTestHarness.NumericInput("001");
 
         Assert.True(value.IsNumericStringValue);
         Assert.Equal(1, value.AsNumber());
@@ -28,21 +28,22 @@ public sealed class AwkValueTests
     public void AwkValue_SeparatesArithmeticNumericTextFromComparisonNumericValues()
     {
         var text = AwkValue.FromText("001");
-        var numericString = AwkValue.FromNumericString("001");
+        var numericString = AwkTestHarness.NumericInput("001");
         var number = AwkValue.FromNumber(1);
 
         Assert.Equal(1, text.AsNumber());
         Assert.False(text.TryGetNumber(out _));
         Assert.True(text.IsTruthy());
-        Assert.NotEqual(0, AwkValue.Compare(text, number));
-        Assert.Equal(0, AwkValue.Compare(numericString, number));
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
+        Assert.False(AwkComparisonOperations.Evaluate(text, number, AwkComparison.Equal, state));
+        Assert.True(AwkComparisonOperations.Evaluate(numericString, number, AwkComparison.Equal, state));
     }
 
     [Fact]
     public void AwkValue_ParsesNumericAwkTextWithoutStringDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var value = AwkValue.FromNumericString(AwkText.FromHostBytes("+inf"u8.ToArray()));
+        var value = AwkTestHarness.NumericInput(AwkText.FromHostBytes("+inf"u8.ToArray()));
 
         Assert.True(value.IsNumericStringValue);
         Assert.Equal(double.PositiveInfinity, value.AsNumber());
@@ -54,7 +55,7 @@ public sealed class AwkValueTests
     public void AwkValue_ParsesIncompleteExponentFromAwkTextWithoutStringDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var value = AwkValue.FromNumericString(AwkText.FromHostBytes("1e"u8.ToArray()));
+        var value = AwkTestHarness.NumericInput(AwkText.FromHostBytes("1e"u8.ToArray()));
 
         Assert.False(value.IsNumericStringValue);
         Assert.Equal(1, value.AsNumber());
@@ -117,9 +118,10 @@ public sealed class AwkValueTests
         var left = AwkValue.FromText(AwkText.FromHostBytes("café"u8.ToArray()));
         var right = AwkValue.FromText(AwkText.FromHostBytes("caff"u8.ToArray()));
 
-        var result = AwkValue.Compare(left, right);
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var result = AwkComparisonOperations.Evaluate(left, right, AwkComparison.GreaterThan, state);
 
-        Assert.True(result > 0);
+        Assert.True(result);
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
