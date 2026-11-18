@@ -36,9 +36,7 @@ internal sealed class AwkIo
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
         AwkPath? accessiblePathRoot = null,
-        bool forwardCommandEnvironment = true,
-        bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10)
+        bool forwardCommandEnvironment = true)
     {
         _stdIn = stdIn;
         _stdOut = stdOut;
@@ -51,12 +49,10 @@ internal sealed class AwkIo
             stdErr,
             cancellationToken,
             snapshotEnvironment,
-            state.Resources,
+            state.Options,
             state.MemoryAccounting,
             accessiblePathRoot,
-            forwardCommandEnvironment,
-            exposeHostErrorDetails,
-            maxHostErrorBytes);
+            forwardCommandEnvironment);
         _maxOutputFiles = limits.MaxOutputFiles;
         _maxInputFiles = limits.MaxInputFiles;
         _sandbox = sandbox;
@@ -67,9 +63,7 @@ internal sealed class AwkIo
         _descriptorReader = new AwkRecordDescriptorReader(
             host,
             cancellationToken,
-            state.Resources,
-            exposeHostErrorDetails,
-            maxHostErrorBytes);
+            state.Options);
         _pipes = new AwkPipeRuntime(
             _host,
             state.MemoryAccounting,

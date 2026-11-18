@@ -77,7 +77,7 @@ public sealed class AwkParagraphEofTests
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("sentinel")));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
-        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
 
         var eof = await cursor.ReadRecordAsync();
@@ -103,7 +103,7 @@ public sealed class AwkParagraphEofTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             Options(AwkRuntimeCounters.Disabled));
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
-        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
         for (var index = 0; index < 16; index++)
             _ = await cursor.ReadRecordAsync();
@@ -148,7 +148,7 @@ public sealed class AwkParagraphEofTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
-        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn),
             retain ? AwkParagraphLeaderPolicy.Retain : AwkParagraphLeaderPolicy.Discard);
 
@@ -191,7 +191,7 @@ public sealed class AwkParagraphEofTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
             state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
-            var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+            var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
             using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
             // Match the other exact allocation guards: keep runner/GC/pool work
             // outside this thread's warm EOF reads, without relaxing the ceiling.
@@ -240,7 +240,7 @@ public sealed class AwkParagraphEofTests
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("marker")));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn),
             retain ? AwkParagraphLeaderPolicy.Retain : AwkParagraphLeaderPolicy.Discard);
 
@@ -270,7 +270,7 @@ public sealed class AwkParagraphEofTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         Assert.Equal(2, state.FieldCount);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -307,7 +307,7 @@ public sealed class AwkParagraphEofTests
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
+        var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Options);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
         var pending = cursor.ReadRecordAsync().AsTask();
         try

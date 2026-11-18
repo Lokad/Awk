@@ -8,7 +8,6 @@ internal static class AwkScriptFileReader
         IAwkHost host,
         AwkSourceLoadPlan plan,
         AwkFileOperand path,
-        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         path = plan.BindHostPolicy(path);
@@ -41,7 +40,7 @@ internal static class AwkScriptFileReader
 
         async Task<AwkScriptFileReadResult> ReadCandidateAsync(AwkFileOperand candidate)
         {
-            var result = await TryReadRequestedFileAsync(host, plan, candidate, resources, cancellationToken)
+            var result = await TryReadRequestedFileAsync(host, plan, candidate, cancellationToken)
                 .ConfigureAwait(false);
             return result switch
             {
@@ -58,7 +57,6 @@ internal static class AwkScriptFileReader
         IAwkHost host,
         AwkSourceLoadPlan plan,
         AwkFileOperand path,
-        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         if (plan.TryGetRequestText(path.Request, out var cached))
@@ -67,7 +65,6 @@ internal static class AwkScriptFileReader
         var result = await ReadRequestedFileAsync(
                 host,
                 path,
-                resources,
                 cancellationToken,
                 plan)
             .ConfigureAwait(false);
@@ -77,7 +74,6 @@ internal static class AwkScriptFileReader
         static async Task<AwkScriptTextReadResult> ReadRequestedFileAsync(
             IAwkHost host,
             AwkFileOperand path,
-            AwkRuntimeResourceMonitor resources,
             CancellationToken cancellationToken,
             AwkSourceLoadPlan plan)
         {
@@ -87,7 +83,7 @@ internal static class AwkScriptFileReader
                 if (descriptorRetired) return;
                 try
                 {
-                    resources.RecordCleanupHostCall();
+                    plan.Options.Counters.Add(AwkCounter.HostCalls);
                     await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception)
@@ -97,7 +93,8 @@ internal static class AwkScriptFileReader
                 finally { descriptorRetired = true; }
             }
 
-            resources.RecordHostCall();
+            cancellationToken.ThrowIfCancellationRequested();
+            plan.Options.Counters.Add(AwkCounter.HostCalls);
             var opened = await host.OpenFileAsync(path.Request, AwkFileOpenMode.Read, cancellationToken)
                 .ConfigureAwait(false);
             AwkHostPathPolicy.ThrowIfDenied(opened);
@@ -120,7 +117,6 @@ internal static class AwkScriptFileReader
                         opened.FileDescriptor,
                         path,
                         opened.ResolvedPath,
-                        resources,
                         cancellationToken,
                         plan)
                     .ConfigureAwait(false);
@@ -134,7 +130,8 @@ internal static class AwkScriptFileReader
 
             try
             {
-                resources.RecordHostCall();
+                cancellationToken.ThrowIfCancellationRequested();
+                plan.Options.Counters.Add(AwkCounter.HostCalls);
                 var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                     .ConfigureAwait(false);
                 descriptorRetired = closed.DescriptorRetired;
@@ -170,24 +167,22 @@ internal static class AwkScriptFileReader
                 AwkFileDescriptor descriptor,
                 AwkFileOperand path,
                 AwkPath identity,
-                AwkRuntimeResourceMonitor resources,
                 CancellationToken cancellationToken,
                 AwkSourceLoadPlan plan)
             {
                 try
                 {
                     plan.Memory.AdmitTextCopy(32);
-                    resources.Checkpoint();
+                    cancellationToken.ThrowIfCancellationRequested();
                     var builder = new StringBuilder();
                     var decoder = AwkUtf8Codec.CreateDecoder();
-                    using var reader = new AwkByteReader(host, descriptor, cancellationToken, resources,
-                        plan.ExposeHostErrorDetails, plan.MaxHostErrorBytes);
+                    using var reader = new AwkByteReader(host, descriptor, cancellationToken, plan.Options);
                     try
                     {
                         while (await reader.TryBufferAsync().ConfigureAwait(false))
                         {
                             plan.Memory.AdmitTextCopy(reader.Content.Length);
-                            resources.Checkpoint();
+                            cancellationToken.ThrowIfCancellationRequested();
                             var content = reader.Content;
                             DecodeChunk(content.Span, reader.ReachedEof);
                             reader.Advance(content.Length);
@@ -200,7 +195,7 @@ internal static class AwkScriptFileReader
                             bool completed;
                             do
                             {
-                                resources.Checkpoint();
+                                cancellationToken.ThrowIfCancellationRequested();
                                 decoder.Convert(bytes, characters, final,
                                     out var consumed, out var written, out completed);
                                 builder.Append(characters[..written]);
@@ -214,7 +209,7 @@ internal static class AwkScriptFileReader
                             AwkMessages.FormatPathError(path.Display, "invalid UTF-8 source"),
                             AwkDiagnosticId.SourceLoadFailure);
                     }
-                    resources.Checkpoint();
+                    cancellationToken.ThrowIfCancellationRequested();
                     return AwkScriptTextReadResult.FoundText(builder.ToString(), identity);
                 }
                 catch (AwkHostReadException exception)

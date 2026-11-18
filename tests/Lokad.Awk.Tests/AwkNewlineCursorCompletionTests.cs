@@ -57,7 +57,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
 
         if (!pending)
             Complete();
-        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         var byteReader = descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, byteReader);
         var read = cursor.MoveNextAsync();

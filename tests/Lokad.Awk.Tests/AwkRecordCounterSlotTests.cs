@@ -134,7 +134,7 @@ public sealed class AwkRecordCounterSlotTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options,
-            new AwkRuntimeResourceMonitor(limits, counters, cancellation.Token), AwkCompatibilityProfile.Default);
+            AwkCompatibilityProfile.Default);
         var terminator = longTerminator
             ? AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(new string('x', 8_192)))
             : AwkRecordTerminator.NewLine;
@@ -393,7 +393,6 @@ public sealed class AwkRecordCounterSlotTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
-            new AwkRuntimeResourceMonitor(limits, counters, CancellationToken.None),
             AwkCompatibilityProfile.Default.WithMode(mode)));
     }
 }

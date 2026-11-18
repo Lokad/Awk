@@ -51,7 +51,6 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
-        AwkRuntimeResourceMonitor resources,
         AwkCompatibilityProfile compatibilityProfile,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null,
@@ -64,7 +63,7 @@ internal sealed class AwkRuntimeState : IDisposable
         CsvInput = csvInput;
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
-        Resources = resources;
+        Options = runtimeOptions;
         MemoryAccounting = AwkMemoryAccounting.Create(runtimeOptions.MemoryOwner);
         CompatibilityMode = compatibilityProfile.Mode;
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
@@ -206,7 +205,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkRuntimeLimits Limits { get; }
 
-    public AwkRuntimeResourceMonitor Resources { get; }
+    internal AwkRuntimeOptions Options { get; }
 
     public AwkMemoryAccounting MemoryAccounting { get; }
 
@@ -479,13 +478,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal Action CancellationCheckpoint { get; }
 
-    public void ThrowIfCancellationRequested()
-    {
-        Resources.ThrowIfCancellationRequested(_cancellationToken);
-    }
-
-    public void Checkpoint() =>
-        Resources.Checkpoint(_cancellationToken);
+    public void ThrowIfCancellationRequested() => _cancellationToken.ThrowIfCancellationRequested();
 
     public void InitializeArguments(IReadOnlyList<string> arguments)
     {
@@ -632,7 +625,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkUnixTimestampSeconds CurrentUnixTimeSeconds() => _timeRuntime.CurrentUnixTimeSeconds();
 
     public long MakeCalendarTime(AwkText specification, bool utc) =>
-        _timeRuntime.MakeTime(specification, utc, Resources, MemoryAccounting);
+        _timeRuntime.MakeTime(specification, utc, CancellationCheckpoint, MemoryAccounting);
 
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);

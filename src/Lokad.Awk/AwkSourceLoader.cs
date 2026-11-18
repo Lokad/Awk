@@ -5,24 +5,10 @@ internal static partial class AwkSourceLoader
     public static async Task<AwkSourceLoadResult> LoadAsync(
         IAwkHost host,
         AwkInvocation invocation,
-        AwkRuntimeResourceMonitor resources,
-        CancellationToken cancellationToken,
-        AwkPath? accessiblePathRoot = null,
-        bool allowSourceIncludes = true,
-        bool exposeEnvironment = true,
-        bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10,
-        AwkFrontendMemory? memory = null)
+        AwkRuntimeOptions options,
+        CancellationToken cancellationToken)
     {
-        var plan = AwkSourceLoadPlan.FromInvocation(
-            invocation,
-            accessiblePathRoot,
-            allowSourceIncludes,
-            exposeEnvironment,
-            exposeHostErrorDetails,
-            maxHostErrorBytes,
-            memory,
-            cancellationToken);
+        var plan = AwkSourceLoadPlan.FromInvocation(invocation, options, cancellationToken);
         plan.Memory.AdmitSourceUnits(plan.SourceCount);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;
@@ -41,7 +27,6 @@ internal static partial class AwkSourceLoader
                         sourceName,
                         AwkSourceSegmentKind.Inline,
                         includeDepth: 0,
-                        resources,
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (expanded is SourceExpansionResult.Failed inlineFailure)
@@ -61,7 +46,6 @@ internal static partial class AwkSourceLoader
                         plan,
                         AwkUtf8Codec.Decode(includePath.Display),
                         includeDepth: 1,
-                        resources,
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (include is SourceExpansionResult.Failed includeFailure)
@@ -81,7 +65,6 @@ internal static partial class AwkSourceLoader
                     host,
                     plan,
                     fileSource.ScriptPath,
-                    resources,
                     cancellationToken)
                 .ConfigureAwait(false);
             if (script is AwkScriptFileReadResult.Failed scriptFailure)
@@ -107,7 +90,6 @@ internal static partial class AwkSourceLoader
                     found.Script.SourceName,
                     AwkSourceSegmentKind.File,
                     includeDepth: 0,
-                    resources,
                     cancellationToken)
                 .ConfigureAwait(false);
             if (expandedScript is SourceExpansionResult.Failed expansionFailure)

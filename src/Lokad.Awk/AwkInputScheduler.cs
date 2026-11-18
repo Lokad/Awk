@@ -13,9 +13,7 @@ internal sealed class AwkInputScheduler(
     AwkIo io,
     CancellationToken cancellationToken,
     AwkPath? accessiblePathRoot = null,
-    bool allowDynamicMainInputPaths = true,
-    bool exposeHostErrorDetails = true,
-    int maxHostErrorBytes = 4 << 10) : IAwkInputRecordReader
+    bool allowDynamicMainInputPaths = true) : IAwkInputRecordReader
 {
     private static readonly AwkText StandardInputFileName = AwkText.FromSourceLiteralString("-");
     private OwnedInputDescriptor _ownedDescriptor;
@@ -110,7 +108,7 @@ internal sealed class AwkInputScheduler(
         {
             while (_nextArgvIndex < state.MainInputArgumentCount)
             {
-                state.Checkpoint();
+                state.ThrowIfCancellationRequested();
                 var argumentIndex = new AwkArgvIndex((int)_nextArgvIndex++);
                 if (!state.TryGetArgumentVectorByteText(argumentIndex, out var argumentText) ||
                     argumentText.ByteLength == 0)
@@ -160,14 +158,15 @@ internal sealed class AwkInputScheduler(
 
                 var rawPath = originalFile?.RawPath ?? ResolveArgumentString(argumentText);
                 using var resolution = io.AdmitPathRequest(rawPath, hasDisplay: originalFile is not null);
-                state.Checkpoint();
+                state.ThrowIfCancellationRequested();
                 var path = AwkPathResolution.PrepareRuntimeArgument(rawPath,
                     invocation.RuntimeArgumentsPlan.CurrentDirectory, originalFile?.Display ?? default,
                     accessiblePathRoot);
                 state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                 var displayBytes = AwkRuntimeMemory.CheckedAdd(32, path.Display.Length);
                 using var pendingDisplay = state.MemoryAccounting.ReserveTransient(displayBytes);
-                state.Resources.RecordHostCall();
+                cancellationToken.ThrowIfCancellationRequested();
+                state.Counters.Add(AwkCounter.HostCalls);
                 var opened = await host.OpenFileAsync(path.Request, AwkFileOpenMode.Read, cancellationToken)
                     .ConfigureAwait(false);
                 AwkHostPathPolicy.ThrowIfDenied(opened);
@@ -258,9 +257,7 @@ internal sealed class AwkInputScheduler(
                 var descriptorReader = new AwkRecordDescriptorReader(
                     host,
                     cancellationToken,
-                    state.Resources,
-                    exposeHostErrorDetails,
-                    maxHostErrorBytes);
+                    state.Options);
                 var cursor = new AwkRecordCursor(
                     state,
                     descriptorReader.CreateByteReader(descriptor));
@@ -296,7 +293,7 @@ internal sealed class AwkInputScheduler(
         {
             try
             {
-                state.Resources.RecordCleanupHostCall();
+                state.Counters.Add(AwkCounter.HostCalls);
                 await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception)
@@ -358,14 +355,15 @@ internal sealed class AwkInputScheduler(
             return;
 
         // Keep ownership through pending or failed closes; cleanup can retry a failure.
-        state.Resources.RecordHostCall();
+        cancellationToken.ThrowIfCancellationRequested();
+        state.Counters.Add(AwkCounter.HostCalls);
         var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
             .ConfigureAwait(false);
         if (closed.DescriptorRetired) _ownedDescriptor = OwnedInputDescriptor.None;
         try
         {
             if (!closed.Success)
-                throw AwkHostBoundaryPolicy.CloseFailure(descriptor, closed, exposeHostErrorDetails, maxHostErrorBytes, _ownedInputDisplay);
+                throw AwkHostBoundaryPolicy.CloseFailure(descriptor, closed, state.Options.ExposeHostErrorDetails, state.Options.MaxHostErrorBytes, _ownedInputDisplay);
         }
         finally { if (closed.DescriptorRetired) RetireOwnedDescriptor(); }
     }
@@ -385,7 +383,7 @@ internal sealed class AwkInputScheduler(
         AwkHostBoundaryPolicy.ResolveError(error, exposeDetails, maxErrorBytes);
 
     private string ResolveHostError(AwkOperationError error) =>
-        ResolveHostErrorCore(error, exposeHostErrorDetails, maxHostErrorBytes);
+        ResolveHostErrorCore(error, state.Options.ExposeHostErrorDetails, state.Options.MaxHostErrorBytes);
 
     private readonly struct OwnedInputDescriptor
     {

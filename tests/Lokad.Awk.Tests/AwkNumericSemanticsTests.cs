@@ -207,8 +207,9 @@ public sealed class AwkNumericSemanticsTests
 
     private static AwkIo CreateIo(MockFileSystem host)
     {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var options = AwkTestHarness.CreateRuntimeOptions() with { ExposeHostErrorDetails = false };
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         return new AwkIo(host, new AwkPath("/"), AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None,             AwkRuntimeLimits.CreateDefault(), state, static _ => [], exposeHostErrorDetails: false);
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
     }
 }

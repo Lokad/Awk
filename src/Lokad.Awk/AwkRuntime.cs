@@ -3,19 +3,12 @@ namespace Lokad.Awk;
 internal static class AwkRuntime
 {
 
-    public static Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host, AwkInvocation invocation, AwkProgram program,
-        CancellationToken cancellationToken, AwkRuntimeOptions runtimeOptions) =>
-        ExecuteAsync(host, invocation, program, cancellationToken, runtimeOptions,
-            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken));
-
     internal static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
-        AwkRuntimeResourceMonitor resources,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
@@ -27,7 +20,6 @@ internal static class AwkRuntime
             AwkFieldSeparatorSpec.Default,
             cancellationToken,
             runtimeOptions,
-            resources,
             executionOptions.CompatibilityProfile,
             stringEscapeWarnings, regexEscapeWarnings, executionOptions.Csv, unobservedHeaders);
         state.InitializeGlobalNames(program.GlobalNames);
@@ -55,9 +47,7 @@ internal static class AwkRuntime
             runtimeOptions.AllowFileRedirections,
             runtimeOptions.AllowCommandPipes,
             runtimeOptions.AccessiblePathRoot,
-            runtimeOptions.ForwardCommandEnvironment,
-            runtimeOptions.ExposeHostErrorDetails,
-            runtimeOptions.MaxHostErrorBytes);
+            runtimeOptions.ForwardCommandEnvironment);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, state);
         var inputScheduler = new AwkInputScheduler(
             host,
@@ -67,9 +57,7 @@ internal static class AwkRuntime
             io,
             cancellationToken,
             runtimeOptions.AccessiblePathRoot,
-            runtimeOptions.AllowDynamicMainInputPaths,
-            runtimeOptions.ExposeHostErrorDetails,
-            runtimeOptions.MaxHostErrorBytes);
+            runtimeOptions.AllowDynamicMainInputPaths);
         io.BindMainInputReader(inputScheduler, inputScheduler.PreserveStandardInput);
         using var execution = state.PushExecutionContext(actionExecutor.Output, io);
         try

@@ -11,10 +11,10 @@ internal static class AwkCalendarTime
         ReadOnlySpan<byte> specification,
         bool utc,
         AwkTimeRuntime timeRuntime,
-        AwkRuntimeResourceMonitor resources,
+        Action checkpoint,
         AwkMemoryAccounting memoryAccounting)
     {
-        var reader = new DateReader(specification, resources);
+        var reader = new DateReader(specification, checkpoint);
         Span<long> values = stackalloc long[7];
         for (var index = 0; index < 6; index++)
         {
@@ -125,7 +125,7 @@ internal static class AwkCalendarTime
         return value % divisor < 0 ? quotient - 1 : quotient;
     }
 
-    private ref struct DateReader(ReadOnlySpan<byte> bytes, AwkRuntimeResourceMonitor resources)
+    private ref struct DateReader(ReadOnlySpan<byte> bytes, Action checkpoint)
     {
         private readonly ReadOnlySpan<byte> _bytes = bytes;
         private int _position;
@@ -164,7 +164,7 @@ internal static class AwkCalendarTime
             if (_admitted == 0)
             {
                 _admitted = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, _bytes.Length - _position);
-                resources.Checkpoint();
+                checkpoint();
             }
             return _bytes[_position];
         }

@@ -269,7 +269,7 @@ public sealed class AwkControlRegionTests
         return memory.Initialize(() =>
         {
             var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, token, memory.Configure(options),
-                new(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint ? AwkLintMode.Normal : AwkLintMode.Off));
+                AwkCompatibilityProfile.Default.WithLintMode(lint ? AwkLintMode.Normal : AwkLintMode.Off));
             state.InitializeGlobalNames(program.GlobalNames);
             state.InitializeGlobalReadSlots(program.GlobalReadCount);
             state.InitializeFunctions(program.Functions);

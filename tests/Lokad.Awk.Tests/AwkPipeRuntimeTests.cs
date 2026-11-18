@@ -95,10 +95,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
                 return completions[descriptor.Id - 82].Task;
             }
         };
-        var limits = AwkRuntimeLimits.CreateDefault();
         var adapter = new AwkIoHostAdapter(host, AwkPath.Root, AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, static _ => [],
-            new(limits, AwkRuntimeCounters.Disabled), AwkMemoryAccounting.Disabled);
+            AwkTestHarness.CreateRuntimeOptions(), AwkMemoryAccounting.Disabled);
         for (var index = 0; index < completions.Length; index++)
         {
             var closing = adapter.CloseDescriptorForCleanupAsync(new(82 + index));

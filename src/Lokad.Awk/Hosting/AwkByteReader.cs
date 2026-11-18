@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 // Owns the current descriptor borrow. Record/source storage remains in its existing owners.
 internal sealed class AwkByteReader(
     IAwkHost host, AwkFileDescriptor descriptor, CancellationToken cancellationToken,
-    AwkRuntimeResourceMonitor resources, bool exposeHostErrorDetails, int maxHostErrorBytes) : IDisposable
+    AwkRuntimeOptions options) : IDisposable
 {
     internal const int ReadSize = 64 << 10;
     private AwkReadBuffer? _borrow;
@@ -38,13 +38,14 @@ internal sealed class AwkByteReader(
         if (_completion == AwkReadCompletion.Failure) ThrowReadFailure();
         if (ReachedEof) return false;
         ReleaseBorrow();
-        resources.RecordHostCall();
+        cancellationToken.ThrowIfCancellationRequested();
+        options.Counters.Add(AwkCounter.HostCalls);
         var borrow = await host.ReadAsync(descriptor, ReadSize, cancellationToken).ConfigureAwait(false);
         _borrow = borrow;
         _offset = 0;
         _completion = borrow.Completion;
         _error = borrow.Error;
-        resources.RecordBytesRead(borrow.Content.Length);
+        options.Counters.Add(AwkCounter.BytesRead, borrow.Content.Length);
         cancellationToken.ThrowIfCancellationRequested();
         if (borrow.Content.Length > ReadSize)
             throw new AwkHostReadException(descriptor,
@@ -63,7 +64,7 @@ internal sealed class AwkByteReader(
         while (bytes.Length > AwkRuntimeLimits.CancellationCheckBytes)
         {
             if (!Ascii.IsValid(bytes[..AwkRuntimeLimits.CancellationCheckBytes])) return false;
-            resources.Checkpoint(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             bytes = bytes[AwkRuntimeLimits.CancellationCheckBytes..];
         }
         return Ascii.IsValid(bytes);
@@ -107,6 +108,6 @@ internal sealed class AwkByteReader(
         ReleaseBorrow();
         // Report once. A later explicit getline may make a new host read; there is no automatic retry.
         throw new AwkHostReadException(descriptor,
-            new(error.Kind, AwkHostBoundaryPolicy.ResolveError(error, exposeHostErrorDetails, maxHostErrorBytes)));
+            new(error.Kind, AwkHostBoundaryPolicy.ResolveError(error, options.ExposeHostErrorDetails, options.MaxHostErrorBytes)));
     }
 }

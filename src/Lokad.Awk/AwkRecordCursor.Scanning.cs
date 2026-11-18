@@ -47,12 +47,12 @@ internal sealed partial class AwkRecordCursor
                 if (content[i] == (byte)'"') _csvInQuote = !_csvInQuote;
                 if (content[i] == (byte)'\n' && !_csvInQuote)
                 {
-                    _state.Resources.Checkpoint();
+                    _state.ThrowIfCancellationRequested();
                     return ConsumeRecord(content[..i], i + 1, AwkRecordTerminator.NewLine,
                         AwkRecordFieldSplittingMode.Ordinary);
                 }
             }
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             MarkScannedThroughEnd(0);
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
@@ -62,7 +62,7 @@ internal sealed partial class AwkRecordCursor
             var scanStart = GetRelativeScanStart(content);
             var candidate = content[scanStart..];
             var relativeIndex = IndexOfByte(candidate, (byte)'\n', _scanCheckpoint);
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             var separatorIndex = relativeIndex < 0 ? -1 : scanStart + relativeIndex;
             if (separatorIndex < 0)
             {
@@ -88,7 +88,7 @@ internal sealed partial class AwkRecordCursor
             var scanStart = GetRelativeScanStart(content);
             var candidate = content[scanStart..];
             var relativeIndex = IndexOfByte(candidate, separator.Value, _scanCheckpoint);
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             if (relativeIndex < 0)
             {
                 MarkScannedThroughEnd(0);
@@ -116,7 +116,7 @@ internal sealed partial class AwkRecordCursor
                 if (!separator.Contains(value))
                     continue;
 
-                _state.Resources.Checkpoint();
+                _state.ThrowIfCancellationRequested();
                 return ConsumeRecord(
                     content[..index],
                     index + 1,
@@ -124,7 +124,7 @@ internal sealed partial class AwkRecordCursor
                     AwkRecordFieldSplittingMode.Ordinary);
             }
 
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             MarkScannedThroughEnd(0);
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
@@ -151,7 +151,7 @@ internal sealed partial class AwkRecordCursor
 
             if (separatorIndex < 0)
             {
-                _state.Resources.Checkpoint();
+                _state.ThrowIfCancellationRequested();
                 MarkScannedThroughEnd(0);
                 return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
             }
@@ -168,7 +168,7 @@ internal sealed partial class AwkRecordCursor
                 separatorEnd++;
             }
 
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             if (separatorEnd == content.Length && !_descriptorReachedEof)
             {
                 _pendingSeparatorStart = _bufferStart + separatorIndex;
@@ -200,7 +200,7 @@ internal sealed partial class AwkRecordCursor
                     separatorEnd++;
                 }
 
-                _state.Resources.Checkpoint();
+                _state.ThrowIfCancellationRequested();
                 _pendingSeparatorEnd = _bufferStart + separatorEnd;
                 _scanOffset = _pendingSeparatorEnd;
                 if (separatorEnd == content.Length && !_descriptorReachedEof)
@@ -222,7 +222,7 @@ internal sealed partial class AwkRecordCursor
             var candidate = content[scanStart..];
             var separatorBytes = separator.Value.AsSpan(_state.CancellationCheckpoint);
             var relativeIndex = IndexOfLiteral(candidate, separatorBytes, _scanCheckpoint);
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             if (relativeIndex < 0)
             {
                 MarkScannedThroughEnd(separatorBytes.Length - 1);
@@ -367,7 +367,7 @@ internal sealed partial class AwkRecordCursor
             _discardedParagraphLeader |= recordStart > 0;
             if (_paragraphLeaderPolicy == AwkParagraphLeaderPolicy.Retain)
             {
-                _state.Resources.Checkpoint();
+                _state.ThrowIfCancellationRequested();
                 _hasConsumedDescriptorBytes |= recordStart > 0;
                 // GNU keeps all-blank pipe input buffered at paragraph EOF. A later
                 // RS change can read it; repeated paragraph reads only clear RT.
@@ -406,7 +406,7 @@ internal sealed partial class AwkRecordCursor
                     out var separatorIndex,
                     out var separatorLength))
             {
-                _state.Resources.Checkpoint();
+                _state.ThrowIfCancellationRequested();
                 if (!_descriptorReachedEof)
                 {
                     MarkScannedThroughEnd(3);
@@ -429,7 +429,7 @@ internal sealed partial class AwkRecordCursor
                     AwkRecordFieldSplittingMode.Paragraph);
             }
 
-            _state.Resources.Checkpoint();
+            _state.ThrowIfCancellationRequested();
             if (!_descriptorReachedEof && separatorIndex + separatorLength == content.Length)
             {
                 _pendingSeparatorStart = _bufferStart + recordStart + separatorIndex;
@@ -462,7 +462,7 @@ internal sealed partial class AwkRecordCursor
                     separatorEnd += newlineLength;
                 }
 
-                _state.Resources.Checkpoint();
+                _state.ThrowIfCancellationRequested();
                 _pendingSeparatorEnd = _bufferStart + separatorEnd;
                 _scanOffset = _pendingSeparatorEnd;
                 if (!_descriptorReachedEof &&

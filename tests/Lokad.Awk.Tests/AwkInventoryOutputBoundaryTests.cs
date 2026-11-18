@@ -262,7 +262,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         var state = memoryForState.State;
         var host = new TestOperationVisitor([]);
         host.EnqueueReadBuffer(AwkReadBuffer.FromContent(Array.Empty<byte>(), AwkReadCompletion.EndOfFile, static _ => { }));
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
+        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.FromSourceLiteralString(separator)));
         var allocations = counters[AwkCounter.TextAllocations];
         var payloadBytes = counters[AwkCounter.TextBytes];

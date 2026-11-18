@@ -37,13 +37,12 @@ public sealed class AwkIgnoreCaseResourceTests
     public void LongFoldedScansObserveCancellationBetweenChunks(bool search)
     {
         using var cancellation = new CancellationTokenSource();
-        var work = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled, cancellation.Token);
         var checkpoints = 0;
         var strings = new AwkStringRuntime(AwkStringUnitMode.Utf8Rune, () =>
         {
             if (++checkpoints == 2)
                 cancellation.Cancel();
-            work.Checkpoint();
+            cancellation.Token.ThrowIfCancellationRequested();
         });
         var source = AwkText.FromString(new string('A', 4096));
         var value = AwkText.FromString(search ? new string('a', 1024) + "b" : new string('a', 4096));

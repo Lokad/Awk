@@ -170,6 +170,6 @@ public sealed class AwkFieldModeTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, resolvedLimits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
-            new AwkRuntimeResourceMonitor(resolvedLimits, counters), AwkCompatibilityProfile.Default.WithMode(mode)));
+            AwkCompatibilityProfile.Default.WithMode(mode)));
     }
 }

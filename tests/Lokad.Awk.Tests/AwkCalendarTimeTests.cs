@@ -130,16 +130,14 @@ public sealed class AwkCalendarTimeTests
             [AwkText.FromString("1970 1 1 0 0 0 "), AwkText.FromString(new string(' ', 1_000_000))]);
         var runtime = new AwkTimeRuntime(static () => new(0), TimeZoneInfo.Utc);
         using var cancellation = new CancellationTokenSource();
-        var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
         cancellation.Cancel();
 
-        var error = Assert.Throws<OperationCanceledException>(() => runtime.MakeTime(text, true, resources, memory.Accounting));
+        var error = Assert.Throws<OperationCanceledException>(() => runtime.MakeTime(text, true, cancellation.Token.ThrowIfCancellationRequested, memory.Accounting));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(initialBytes, memory.Budget.Reserved);
-        var active = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
-        Assert.Equal(0, runtime.MakeTime(text, true, active, memory.Accounting));
+        Assert.Equal(0, runtime.MakeTime(text, true, memory.State.CancellationCheckpoint, memory.Accounting));
         Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(initialBytes, memory.Budget.Reserved);
     }

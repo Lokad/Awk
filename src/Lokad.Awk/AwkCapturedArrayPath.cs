@@ -124,7 +124,7 @@ internal sealed class AwkCapturedArrayPath : IDisposable
         var array = state.GetSubarray(rootName, keys[0], rootBinding);
         for (var index = 1; index < count; index++)
         {
-            state.Checkpoint();
+            state.ThrowIfCancellationRequested();
             array = state.GetSubarray(array, keys[index]);
         }
         return array;

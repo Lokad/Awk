@@ -58,6 +58,6 @@ public sealed class AwkIgnoreCaseSlotTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
-            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default.WithMode(mode)));
+            AwkCompatibilityProfile.Default.WithMode(mode)));
     }
 }

@@ -249,6 +249,6 @@ public sealed class AwkFieldStringTests
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         return memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, token, options,
-            new AwkRuntimeResourceMonitor(limits, counters, token), profile));
+            profile));
     }
 }

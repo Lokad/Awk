@@ -139,6 +139,9 @@ The host resolves and authorizes original path requests before effects. Command 
 opaque, independent of path spelling. Read borrows must be consumed/disposed before
 another descriptor operation; appends retain bytes through actual completion. Terminal
 failures never replay payloads or diagnostics. Standard descriptors remain borrowed.
+Source loading and runtime I/O take their observer and diagnostic policy from the
+invocation options. Descriptor readers observe received bytes before checking for
+cancellation. Cleanup observes close attempts and uses an independent token.
 
 Regex providers own matching, scalar boundaries, POSIX selection and engine admission.
 Compilation reports an explicit status; only core's dedicated syntax signal denotes

@@ -739,7 +739,7 @@ internal sealed partial class AwkArrayRuntime
         {
             ref readonly AwkArraySortEntry FirstEntry(int index)
             {
-                state.Resources.Checkpoint();
+                state.ThrowIfCancellationRequested();
                 return ref entries[index];
             }
 

@@ -251,7 +251,7 @@ public sealed class AwkRecordRetryTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForState = State(enabled, limits, cancellation.Token, memoryEnabled: finite);
         var state = memoryForState.State;
-        var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
+        var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Options);
         var byteReader = reader.CreateByteReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, byteReader);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -298,7 +298,7 @@ public sealed class AwkRecordRetryTests
         var state = memoryForState.State;
         Assign(state, "RS", ":");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("kept"));
-        var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
+        var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Options);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
         Assert.Equal("ok", (await cursor.ReadRecordAsync()).RecordText.AsString());
@@ -335,7 +335,7 @@ public sealed class AwkRecordRetryTests
     }
 
     private static AwkRecordDescriptorReader Reader(AwkRuntimeState state, TestOperationVisitor host) =>
-        new(host, CancellationToken.None, state.Resources);
+        new(host, CancellationToken.None, state.Options);
 
     private static void Assign(AwkRuntimeState state, string name, string value) =>
         state.AssignVariableValue(AwkVariableName.FromText(name), AwkValue.FromText(AwkText.FromSourceLiteralString(value)));

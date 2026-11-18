@@ -709,7 +709,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
         { MemoryOwner = owner ?? AwkExecutionMemoryOwner.Disabled };
-        return new(AwkFieldSeparatorSpec.Default, token, options, new AwkRuntimeResourceMonitor(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
+        return new(AwkFieldSeparatorSpec.Default, token, options, AwkCompatibilityProfile.Default.WithLintMode(lint));
     }
 
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host) =>

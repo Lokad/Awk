@@ -7,22 +7,22 @@ internal static partial class AwkSourceLoader
         AwkSourceLoadPlan plan,
         string includePath,
         int includeDepth,
-        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
-        var source = await TryReadIncludeSourceAsync(host, plan, includePath, includeDepth, resources,
+        var source = await TryReadIncludeSourceAsync(host, plan, includePath, includeDepth,
             cancellationToken).ConfigureAwait(false);
         return source is SourceExpansionResult.Unexpanded unexpanded
             ? await ExpandIncludesAsync(host, plan, unexpanded.Script.Text, unexpanded.Script.SourceName,
-                AwkSourceSegmentKind.Include, includeDepth, resources, cancellationToken).ConfigureAwait(false)
+                AwkSourceSegmentKind.Include, includeDepth, cancellationToken).ConfigureAwait(false)
             : source;
     }
 
     private static async Task<SourceExpansionResult> TryReadIncludeSourceAsync(
         IAwkHost host, AwkSourceLoadPlan plan, string includePath, int includeDepth,
-        AwkRuntimeResourceMonitor resources, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
-        resources.RecordInclude(includeDepth);
+        if (includeDepth > plan.Options.Limits.MaxIncludeDepth)
+            throw new AwkRuntimeException(AwkMessages.ErrorIncludeDepthLimit, AwkDiagnosticId.RuntimeResourceLimit);
         AwkFileOperand resolved;
         try
         {
@@ -36,7 +36,6 @@ internal static partial class AwkSourceLoader
                 host,
                 plan,
                 resolved,
-                resources,
                 cancellationToken)
             .ConfigureAwait(false);
         if (script is AwkScriptFileReadResult.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
@@ -46,7 +45,6 @@ internal static partial class AwkSourceLoader
                     host,
                     plan,
                     resolved,
-                    resources,
                     cancellationToken)
                 .ConfigureAwait(false);
         }

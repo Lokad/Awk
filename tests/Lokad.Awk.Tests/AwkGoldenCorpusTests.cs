@@ -97,7 +97,7 @@ public sealed class AwkGoldenCorpusTests
         var sourceLoad = await AwkSourceLoader.LoadAsync(
             fileSystem,
             invocation,
-            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            runtimeOptions,
             CancellationToken.None);
         if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             return;
@@ -134,7 +134,7 @@ public sealed class AwkGoldenCorpusTests
         var sourceLoad = await AwkSourceLoader.LoadAsync(
             fileSystem,
             invocation,
-            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            runtimeOptions,
             CancellationToken.None);
         if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             return;

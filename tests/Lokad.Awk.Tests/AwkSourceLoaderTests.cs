@@ -716,7 +716,7 @@ public sealed class AwkSourceLoaderTests
         return AwkSourceLoader.LoadAsync(
             fileSystem,
             invocation,
-            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            runtimeOptions,
             CancellationToken.None);
     }
 

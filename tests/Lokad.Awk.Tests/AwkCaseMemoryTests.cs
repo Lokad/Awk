@@ -212,6 +212,6 @@ public sealed class AwkCaseMemoryTests
         { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         return new(AwkFieldSeparatorSpec.Default, cancellationToken, options,
-            new AwkRuntimeResourceMonitor(limits, options.Counters), profile);
+            profile);
     }
 }

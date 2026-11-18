@@ -14,7 +14,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
             CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault())))).State;
         var host = new MockFileSystem();
-        using var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources)
+        using var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options)
             .CreateByteReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, reader, scanCheckpoint: () => throw new OperationCanceledException(token));
         var pending = cursor.MoveNextAsync();
@@ -45,7 +45,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
                 return new(completion.Task);
             }
         };
-        using var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources)
+        using var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options)
             .CreateByteReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, reader);
         var first = cursor.MoveNextAsync();
@@ -100,7 +100,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
                 return new(completion.Task);
             }
         };
-        using var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources)
+        using var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options)
             .CreateByteReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, reader);
         var read = cursor.MoveNextAsync();

@@ -13,6 +13,6 @@ internal sealed class AwkTimeRuntime(Func<AwkUnixTimestampSeconds> currentUnixTi
 
     public AwkUnixTimestampSeconds CurrentUnixTimeSeconds() => currentUnixTimeSeconds();
 
-    public long MakeTime(AwkText specification, bool utc, AwkRuntimeResourceMonitor resources, AwkMemoryAccounting memoryAccounting) =>
-        AwkCalendarTime.MakeTime(specification.AsSpan(resources.Checkpoint), utc, this, resources, memoryAccounting);
+    public long MakeTime(AwkText specification, bool utc, Action checkpoint, AwkMemoryAccounting memoryAccounting) =>
+        AwkCalendarTime.MakeTime(specification.AsSpan(checkpoint), utc, this, checkpoint, memoryAccounting);
 }

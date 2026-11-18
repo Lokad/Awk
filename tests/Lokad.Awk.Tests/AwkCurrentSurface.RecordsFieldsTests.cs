@@ -102,12 +102,11 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0x80, 0x0A]);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var counters = AwkRuntimeCounters.Disabled;
         var reader = new AwkByteReader(
             fileSystem,
             AwkFileDescriptor.StdIn,
             CancellationToken.None,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), true, 4 << 10);
+            state.Options);
         using var cursor = new AwkRecordCursor(state, reader);
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
             async () => await cursor.ReadRecordAsync());

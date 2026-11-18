@@ -297,7 +297,7 @@ public sealed partial class AwkFunctionStorageTests
         var options = memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
             null, counters ?? AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(1_024)));
         memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
-            options, new AwkRuntimeResourceMonitor(options.Limits, options.Counters, cancellationToken), profile));
+            options, profile));
         return new(memory.State);
     }
 }

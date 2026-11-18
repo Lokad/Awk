@@ -194,7 +194,6 @@ public sealed class AwkRuntimeStartupTests
         {
             var options = AwkTestHarness.CreateRuntimeOptions();
             return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
-                new AwkRuntimeResourceMonitor(options.Limits, options.Counters, CancellationToken.None),
                 AwkCompatibilityProfile.Default.WithMode(AwkCompatibilityMode.Traditional));
         }
     }
@@ -246,14 +245,14 @@ public sealed class AwkRuntimeStartupTests
     {
         var zone = ManyRulesZone();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
+        Action checkpoint = static () => { };
         var text = AwkText.FromString(specification);
-        _ = new AwkTimeRuntime(static () => new(0), zone).MakeTime(text, true, resources, AwkMemoryAccounting.Disabled);
+        _ = new AwkTimeRuntime(static () => new(0), zone).MakeTime(text, true, checkpoint, AwkMemoryAccounting.Disabled);
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         var runtime = new AwkTimeRuntime(static () => new(0), zone);
         if (specification != "unused")
-            Assert.Equal(expected, runtime.MakeTime(text, true, resources, AwkMemoryAccounting.Disabled));
+            Assert.Equal(expected, runtime.MakeTime(text, true, checkpoint, AwkMemoryAccounting.Disabled));
         Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
         GC.KeepAlive(runtime);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
@@ -264,17 +263,17 @@ public sealed class AwkRuntimeStartupTests
     public void ImplicitLocalTimeBorrowsHostRulesAndExplicitFlagsReuseTheirCopy()
     {
         var runtime = new AwkTimeRuntime(static () => new(0), ManyRulesZone());
-        var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled);
+        Action checkpoint = static () => { };
         var implicitDate = AwkText.FromString("1970 7 1 0 0 0");
         var standardDate = AwkText.FromString("1970 7 1 0 0 0 0");
         var daylightDate = AwkText.FromString("1970 1 1 0 0 0 1");
         var before = GC.GetAllocatedBytesForCurrentThread();
-        Assert.Equal(15634800, runtime.MakeTime(implicitDate, false, resources, AwkMemoryAccounting.Disabled));
+        Assert.Equal(15634800, runtime.MakeTime(implicitDate, false, checkpoint, AwkMemoryAccounting.Disabled));
         Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
 
-        Assert.Equal(15638400, runtime.MakeTime(standardDate, false, resources, AwkMemoryAccounting.Disabled));
+        Assert.Equal(15638400, runtime.MakeTime(standardDate, false, checkpoint, AwkMemoryAccounting.Disabled));
         before = GC.GetAllocatedBytesForCurrentThread();
-        Assert.Equal(-3600, runtime.MakeTime(daylightDate, false, resources, AwkMemoryAccounting.Disabled));
+        Assert.Equal(-3600, runtime.MakeTime(daylightDate, false, checkpoint, AwkMemoryAccounting.Disabled));
         Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
     }
 

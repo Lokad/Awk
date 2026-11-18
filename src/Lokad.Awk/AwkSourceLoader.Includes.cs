@@ -11,7 +11,6 @@ internal static partial class AwkSourceLoader
         AwkSourceName sourceName,
         AwkSourceSegmentKind sourceKind,
         int includeDepth,
-        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         Action checkpoint = cancellationToken.ThrowIfCancellationRequested;
@@ -35,7 +34,7 @@ internal static partial class AwkSourceLoader
             var directive = current.BeginInclude();
             var depth = checked(current.Depth + 1);
             var include = await TryReadIncludeSourceAsync(host, plan, directive.Path.Text, depth,
-                resources, cancellationToken).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
             if (include is SourceExpansionResult.Failed) return include;
             if (include is SourceExpansionResult.Loaded loaded)
             {

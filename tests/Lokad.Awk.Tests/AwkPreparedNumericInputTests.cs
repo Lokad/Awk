@@ -167,7 +167,6 @@ public sealed class AwkPreparedNumericInputTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, testMemory.Configure(options),
-            new AwkRuntimeResourceMonitor(limits, counters, cancellationToken),
             new AwkCompatibilityProfile(AwkCompatibilityMode.GnuDefault, AwkStringUnitMode.Utf8Rune, nonDecimal, AwkLintMode.Off)));
     }
 }

@@ -84,6 +84,6 @@ public sealed class AwkSpecialRegexAssignmentTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
-            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default));
+            AwkCompatibilityProfile.Default));
     }
 }

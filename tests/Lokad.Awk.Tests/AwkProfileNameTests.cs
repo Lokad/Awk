@@ -54,7 +54,8 @@ public sealed class AwkProfileNameTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options), new(limits, counters), AwkCompatibilityProfile.Default.WithMode((AwkCompatibilityMode)modeValue))).State;
+        var state = memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            memory.Configure(options), AwkCompatibilityProfile.Default.WithMode((AwkCompatibilityMode)modeValue))).State;
         var name = AwkArrayName.FromText(text);
         var key = AwkArrayKey.FromOrdinal(1);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -98,6 +99,6 @@ public sealed class AwkProfileNameTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
-            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default.WithMode(mode));
+            AwkCompatibilityProfile.Default.WithMode(mode));
     }
 }

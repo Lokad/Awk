@@ -8,12 +8,10 @@ internal sealed class AwkIoHostAdapter(
     AwkFileDescriptor stdErr,
     CancellationToken cancellationToken,
     Func<AwkMemoryLease, IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
-    AwkRuntimeResourceMonitor resources,
+    AwkRuntimeOptions options,
     AwkMemoryAccounting accounting,
     AwkPath? accessiblePathRoot = null,
-    bool forwardCommandEnvironment = true,
-    bool exposeHostErrorDetails = true,
-    int maxHostErrorBytes = 4 << 10)
+    bool forwardCommandEnvironment = true)
 {
     private CancellationTokenSource? _commandCancellation;
 
@@ -21,14 +19,14 @@ internal sealed class AwkIoHostAdapter(
     {
         if (!accounting.IsEnabled || !AwkPathRequest.IsValidPath(path)) return default;
         // Original display UTF-8 and the request; cwd/root are borrowed immutable values.
-        resources.Checkpoint();
+        cancellationToken.ThrowIfCancellationRequested();
         var displayBytes = hasDisplay ? 0 : AwkUtf8Codec.GetEncodedByteCount(path);
         return accounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(128, displayBytes));
     }
 
     public AwkFileOperand PreparePath(string path)
     {
-        resources.Checkpoint();
+        cancellationToken.ThrowIfCancellationRequested();
         return AwkPathResolution.PrepareRuntimeArgument(path, currentDirectory,
             accessiblePathRoot: accessiblePathRoot);
     }
@@ -44,8 +42,8 @@ internal sealed class AwkIoHostAdapter(
             if (content.Length == 0)
                 return Task.CompletedTask;
 
-            resources.RecordHostCall();
-            resources.RecordOutputBytes(content.Length);
+            ObserveHostCall();
+            options.Counters.Add(AwkCounter.OutputBytes, content.Length);
             var append = AwaitHostAsync(host.AppendAsync(descriptor, content, cancellationToken));
             if (!append.IsCompletedSuccessfully)
                 return CompleteAppendAsync(descriptor, append);
@@ -64,7 +62,7 @@ internal sealed class AwkIoHostAdapter(
 
     public async Task<AwkPipeDescriptors> CreatePipeAsync()
     {
-        resources.RecordHostCall();
+        ObserveHostCall();
         var result = await host.CreatePipeAsync(cancellationToken).ConfigureAwait(false);
         if (result.Success)
             return result.Descriptors;
@@ -107,7 +105,7 @@ internal sealed class AwkIoHostAdapter(
     public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command)
     {
         // Failure before handoff leaves both new pipe endpoints with the caller.
-        resources.RecordHostCall();
+        ObserveHostCall();
         var commandToken = (_commandCancellation ??=
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)).Token;
         return AwaitHostAsync(host.RunCommandAsync(command, commandToken));
@@ -127,7 +125,7 @@ internal sealed class AwkIoHostAdapter(
 
     public async Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode)
     {
-        resources.RecordHostCall();
+        ObserveHostCall();
         var opened = await host.OpenFileAsync(path, mode, cancellationToken).ConfigureAwait(false);
         AwkHostPathPolicy.ThrowIfDenied(opened);
         return opened;
@@ -135,7 +133,7 @@ internal sealed class AwkIoHostAdapter(
 
     public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor)
     {
-        resources.RecordHostCall();
+        ObserveHostCall();
         return await host.CloseDescriptorAsync(descriptor, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -143,18 +141,24 @@ internal sealed class AwkIoHostAdapter(
     public void ThrowIfCloseFailed(AwkFileDescriptor descriptor, AwkDescriptorCloseResult result, string? identity = null)
     {
         if (!result.Success)
-            throw AwkHostBoundaryPolicy.CloseFailure(descriptor, result, exposeHostErrorDetails, maxHostErrorBytes,
+            throw AwkHostBoundaryPolicy.CloseFailure(descriptor, result, options.ExposeHostErrorDetails, options.MaxHostErrorBytes,
                 identity is null ? default : AwkUtf8Codec.Encode(identity));
     }
 
     public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
     {
-        resources.RecordCleanupHostCall();
+        options.Counters.Add(AwkCounter.HostCalls);
         await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
     }
 
     public string ResolveError(AwkOperationError error) =>
-        AwkHostBoundaryPolicy.ResolveError(error, exposeHostErrorDetails, maxHostErrorBytes);
+        AwkHostBoundaryPolicy.ResolveError(error, options.ExposeHostErrorDetails, options.MaxHostErrorBytes);
+
+    private void ObserveHostCall()
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        options.Counters.Add(AwkCounter.HostCalls);
+    }
 
     private Task<T> AwaitHostAsync<T>(Task<T> operation) =>
         AwkHostBoundaryPolicy.AwaitAsync(operation, cancellationToken);

@@ -56,16 +56,33 @@ bool asynchronousHost)
     }
 
     [Fact]
-    public void HostCancellationPrecedesCallsAndCleanupCanStillRun()
+    public async Task HostCancellationPrecedesCallsAndCleanupCanStillRun()
     {
-
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var cancelled = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
-        Assert.Throws<OperationCanceledException>(cancelled.RecordHostCall);
+        var cleanedUp = false;
+        var descriptor = new AwkFileDescriptor(3);
+        var host = new MockFileSystem
+        {
+            CloseDescriptorAsyncOverride = (closed, token) =>
+            {
+                Assert.Equal(descriptor, closed);
+                Assert.Equal(CancellationToken.None, token);
+                cleanedUp = true;
+                return Task.FromResult(AwkDescriptorCloseResult.Closed());
+            }
+        };
+        var adapter = new AwkIoHostAdapter(host, AwkPath.Root, AwkFileDescriptor.StdIn,
+            AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, static _ => [],
+            AwkTestHarness.CreateRuntimeOptions(counters), AwkMemoryAccounting.Disabled);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            adapter.WriteStandardOutputAsync("output"u8.ToArray()));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters[AwkCounter.HostCalls]);
-        cancelled.RecordCleanupHostCall();
+        Assert.Equal(0, counters[AwkCounter.OutputBytes]);
+        await adapter.CloseDescriptorForCleanupAsync(descriptor);
+        Assert.True(cleanedUp);
         Assert.Equal(1, counters[AwkCounter.HostCalls]);
     }
 

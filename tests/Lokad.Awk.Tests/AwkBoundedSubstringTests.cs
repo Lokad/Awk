@@ -201,7 +201,6 @@ public sealed class AwkBoundedSubstringTests
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
             { MemoryOwner = owner };
         return new(AwkFieldSeparatorSpec.Default, token, options,
-            new AwkRuntimeResourceMonitor(limits, counters, token),
             bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default);
     }
 }

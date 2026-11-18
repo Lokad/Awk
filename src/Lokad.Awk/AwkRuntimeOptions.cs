@@ -76,7 +76,7 @@ internal sealed record AwkRuntimeOptions
 
     public bool ExposeEnvironment { get; }
 
-    public bool ExposeHostErrorDetails { get; }
+    public bool ExposeHostErrorDetails { get; init; }
 
     public int MaxHostErrorBytes { get; }
 

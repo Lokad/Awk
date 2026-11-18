@@ -32,7 +32,7 @@ public sealed class AwkRecordInputMemoryTests
                 AwkReadCompletion.EndOfFile, _ => funding.Dispose()))
         };
         using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
-            state.Resources, false, 4096);
+            state.Options with { ExposeHostErrorDetails = false });
         Assert.True(await reader.TryBufferAsync());
         var records = state.InputRecordStorage;
         records.StageBorrowed(reader, reader.Content);
@@ -94,7 +94,7 @@ public sealed class AwkRecordInputMemoryTests
                 }))
         };
         using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), false, 4096);
+            AwkTestHarness.CreateRuntimeOptions() with { ExposeHostErrorDetails = false });
         var storage = memory.State.InputRecordStorage;
         Assert.True(await reader.TryBufferAsync());
         reader.Advance(4);
@@ -178,7 +178,7 @@ public sealed class AwkRecordInputMemoryTests
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters);
         var host = new InputHost(memory.Budget, "a b\n", "é\n") { PoisonConsumedBytes = true };
         using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), false, 4 << 10);
+            AwkTestHarness.CreateRuntimeOptions(counters) with { ExposeHostErrorDetails = false });
         var baseline = memory.Budget.Reserved;
         var storage = memory.State.InputRecordStorage;
 

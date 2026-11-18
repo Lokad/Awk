@@ -243,7 +243,7 @@ public sealed class AwkFrontendMemoryTests
         var budget = new CooperativeTestBudget(1 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", "BEGIN{}"));
-        var plan = AwkSourceLoadPlan.FromInvocation(invocation, memory: owner.FrontendMemory);
+        var plan = AwkSourceLoadPlan.FromInvocation(invocation, AwkTestHarness.CreateRuntimeOptions() with { MemoryOwner = owner });
         var path = new AwkPath("/missing.awk");
         var retained = budget.Reserved;
         budget.RefuseNextAdmissionMinimumGrowth = 1;

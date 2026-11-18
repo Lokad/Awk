@@ -96,8 +96,7 @@ public sealed class AwkUnicodeCallerTests
         var host = new MockFileSystem();
         host.AddFile("/A.awk", "BEGIN{print \"unread\"}");
         var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", "@include \"" + name + "\""));
-        var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled);
-        var result = await AwkSourceLoader.LoadAsync(host, invocation, resources, CancellationToken.None);
+        var result = await AwkSourceLoader.LoadAsync(host, invocation, AwkTestHarness.CreateRuntimeOptions(), CancellationToken.None);
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
         Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
         Assert.Equal($"awk: {name}: No such file or directory\n", AwkUtf8Codec.Decode(failure.ErrorMessage));

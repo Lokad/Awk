@@ -6,10 +6,6 @@ internal sealed class AwkSourceLoadPlan
 {
     private readonly IReadOnlyList<AwkSourceReference> _sources;
     private readonly AwkPath _currentDirectory;
-    private readonly AwkPath? _accessiblePathRoot;
-    private readonly bool _allowSourceIncludes;
-    private readonly bool _exposeHostErrorDetails;
-    private readonly int _maxHostErrorBytes;
     private readonly AwkCompatibilityMode _compatibilityMode;
     private readonly Dictionary<AwkSourceIdentity, AwkSourceSegmentKind> _sourceRoles = [];
     private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByIdentity = [];
@@ -19,13 +15,8 @@ internal sealed class AwkSourceLoadPlan
         IReadOnlyList<AwkSourceReference> sources,
         IReadOnlyList<AwkEnvironmentVariable> environment,
         AwkPath currentDirectory,
-        AwkPath? accessiblePathRoot,
-        bool allowSourceIncludes,
-        bool exposeEnvironment,
-        bool exposeHostErrorDetails,
-        int maxHostErrorBytes,
+        AwkRuntimeOptions options,
         AwkCompatibilityMode compatibilityMode,
-        AwkFrontendMemory? memory,
         CancellationToken cancellationToken)
     {
         static string FindAwkPath(
@@ -44,54 +35,36 @@ internal sealed class AwkSourceLoadPlan
         }
 
         _sources = sources;
-        Memory = memory ?? AwkFrontendMemory.Disabled;
-        AwkPath = exposeEnvironment ? FindAwkPath(environment, cancellationToken) : string.Empty;
+        Options = options;
+        AwkPath = options.ExposeEnvironment ? FindAwkPath(environment, cancellationToken) : string.Empty;
         _currentDirectory = currentDirectory;
-        _accessiblePathRoot = accessiblePathRoot;
-
-        _allowSourceIncludes = allowSourceIncludes;
-
-        _exposeHostErrorDetails = exposeHostErrorDetails;
-        _maxHostErrorBytes = maxHostErrorBytes;
-
         _compatibilityMode = compatibilityMode;
     }
 
     public int SourceCount => _sources.Count;
-    public AwkFrontendMemory Memory { get; }
+    public AwkRuntimeOptions Options { get; }
+    public AwkFrontendMemory Memory => Options.MemoryOwner.FrontendMemory;
 
     public string AwkPath { get; }
 
-    public bool AllowSourceIncludes => _allowSourceIncludes;
+    public bool AllowSourceIncludes => Options.AllowSourceIncludes;
     public AwkCompatibilityMode CompatibilityMode => _compatibilityMode;
 
-    public bool ExposeHostErrorDetails => _exposeHostErrorDetails;
 
-    public int MaxHostErrorBytes => _maxHostErrorBytes;
 
     public string ResolveHostError(AwkOperationError error) =>
-        AwkHostBoundaryPolicy.ResolveError(error, _exposeHostErrorDetails, _maxHostErrorBytes);
+        AwkHostBoundaryPolicy.ResolveError(error, Options.ExposeHostErrorDetails, Options.MaxHostErrorBytes);
 
     public static AwkSourceLoadPlan FromInvocation(
         AwkInvocation invocation,
-        AwkPath? accessiblePathRoot = null,
-        bool allowSourceIncludes = true,
-        bool exposeEnvironment = true,
-        bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10,
-        AwkFrontendMemory? memory = null,
+        AwkRuntimeOptions options,
         CancellationToken cancellationToken = default) =>
         new(
             invocation.SourcePlan.Sources,
             invocation.RuntimeArgumentsPlan.Environment,
             invocation.RuntimeArgumentsPlan.CurrentDirectory,
-            accessiblePathRoot,
-            allowSourceIncludes,
-            exposeEnvironment,
-            exposeHostErrorDetails,
-            maxHostErrorBytes,
+            options,
             invocation.ExecutionOptions.CompatibilityProfile.Mode,
-            memory,
             cancellationToken);
 
     public AwkSourceReference GetSource(int index) => _sources[index];
@@ -99,11 +72,11 @@ internal sealed class AwkSourceLoadPlan
     // A bare name can resolve through AWKPATH instead. Authorize the actual candidate
     // in the reader before consulting its cache or opening a host descriptor.
     public AwkFileOperand PreparePath(string path) =>
-        AwkPathResolution.PrepareRuntimeArgument(path, _currentDirectory, accessiblePathRoot: _accessiblePathRoot);
+        AwkPathResolution.PrepareRuntimeArgument(path, _currentDirectory, accessiblePathRoot: Options.AccessiblePathRoot);
 
     public AwkFileOperand BindHostPolicy(AwkFileOperand path) =>
-        Equals(path.Request.AccessiblePathRoot, _accessiblePathRoot) ? path :
-            new(path.Display, new(path.Request.Path, path.Request.CurrentDirectory, _accessiblePathRoot));
+        Equals(path.Request.AccessiblePathRoot, Options.AccessiblePathRoot) ? path :
+            new(path.Display, new(path.Request.Path, path.Request.CurrentDirectory, Options.AccessiblePathRoot));
 
     public bool TryGetRequestText(AwkPathRequest request,
         [NotNullWhen(true)] out AwkScriptTextReadResult? result) =>

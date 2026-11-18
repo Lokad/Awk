@@ -390,7 +390,6 @@ state.Limits, state, static _ => []);
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var memory = new CooperativeTestMemory(1 << 20, enabled: finite);
         return memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation,
-            memory.Configure(options), new AwkRuntimeResourceMonitor(limits, counters, cancellation),
-            profile ?? AwkCompatibilityProfile.Default));
+            memory.Configure(options), profile ?? AwkCompatibilityProfile.Default));
     }
 }
