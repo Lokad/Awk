@@ -418,25 +418,17 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Fact]
-    public void AwkSyntaxParser_ClassifiesLValueOutlines()
+    public void AwkSyntaxParser_PreservesAssignmentAndUpdateTargets()
     {
         var program = AwkSyntaxParser.Parse("BEGIN{x=1; a[$1]++; $2 += 3; NF=4}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
-        Assert.Equal(
-            [
-                (AwkLValueKind?)AwkLValueKind.Variable,
-                AwkLValueKind.ArrayElement,
-                AwkLValueKind.Field,
-                AwkLValueKind.Variable
-            ],
-            statements.Select(LValueKind).ToArray());
-
-        static AwkLValueKind? LValueKind(AwkStatementSyntax statement) =>
-            statement.LValue.TryGetValue(out var lValue)
-                ? lValue.Kind
-                : null;
+        Assert.Collection(statements,
+            statement => AssertUpdateTarget(statement, AwkExpressionKind.Assignment, AwkExpressionKind.Variable),
+            statement => AssertUpdateTarget(statement, AwkExpressionKind.Postfix, AwkExpressionKind.ArrayElement),
+            statement => AssertUpdateTarget(statement, AwkExpressionKind.Assignment, AwkExpressionKind.Field),
+            statement => AssertUpdateTarget(statement, AwkExpressionKind.Assignment, AwkExpressionKind.Variable));
     }
 
     [Fact]
@@ -510,20 +502,20 @@ public sealed class AwkSyntaxParserTests
             statements.Select(statement => statement.Kind).ToArray());
         Assert.All(statements, statement => Assert.True(statement.Span.Length > 0));
 
-        Assert.Equal(AwkLValueKind.Variable, RequiredLValue(statements[0]).Kind);
+        AssertUpdateTarget(statements[0], AwkExpressionKind.Assignment, AwkExpressionKind.Variable);
         Assert.Contains(statements[0].Tokens, token => token.Kind == AwkTokenKind.PlusEqual);
         Assert.Contains(statements[0].Tokens, token => token.Kind == AwkTokenKind.Minus);
         Assert.Contains(statements[0].Tokens, token => token.Kind == AwkTokenKind.Dollar);
         Assert.Contains(statements[0].Tokens, token => token.Kind == AwkTokenKind.Caret);
 
-        Assert.Equal(AwkLValueKind.Variable, RequiredLValue(statements[1]).Kind);
+        AssertUpdateTarget(statements[1], AwkExpressionKind.Assignment, AwkExpressionKind.Variable);
         Assert.Contains(statements[1].Tokens, token => token.Kind == AwkTokenKind.LeftParen);
         Assert.Contains(statements[1].Tokens, token => token.Kind == AwkTokenKind.Comma);
         Assert.Contains(statements[1].Tokens, token => token.Kind == AwkTokenKind.Question);
         Assert.Contains(statements[1].Tokens, token => token.Kind == AwkTokenKind.Colon);
         Assert.Contains(statements[1].Tokens, token => token.Kind == AwkTokenKind.RightParen);
 
-        Assert.Equal(AwkLValueKind.ArrayElement, RequiredLValue(statements[2]).Kind);
+        AssertUpdateTarget(statements[2], AwkExpressionKind.Postfix, AwkExpressionKind.ArrayElement);
         Assert.Contains(statements[2].Tokens, token => token.Kind == AwkTokenKind.LeftBracket);
         Assert.Contains(statements[2].Tokens, token => token.Kind == AwkTokenKind.PlusPlus);
         Assert.Contains(statements[2].Tokens, token => token.Kind == AwkTokenKind.MinusMinus);
@@ -539,12 +531,16 @@ public sealed class AwkSyntaxParserTests
         Assert.True(getline.HasInputRedirection);
         Assert.Equal(AwkExpressionKind.Variable, RequiredExpression(getline.Target.Expression).Kind);
         Assert.Equal(AwkExpressionKind.Variable, RequiredExpression(getline.Source.Expression).Kind);
+    }
 
-        static AwkLValueSyntax RequiredLValue(AwkStatementSyntax statement)
-        {
-            Assert.True(statement.LValue.TryGetValue(out var lValue));
-            return lValue;
-        }
+    private static void AssertUpdateTarget(AwkStatementSyntax statement, AwkExpressionKind expressionKind,
+        AwkExpressionKind targetKind)
+    {
+        var expression = RequiredExpression(statement);
+        Assert.Equal(expressionKind, expression.Kind);
+        var target = expression.Children[0];
+        Assert.Equal(targetKind, target.Kind);
+        Assert.True(target.Span.Length > 0);
     }
 
     [Fact]

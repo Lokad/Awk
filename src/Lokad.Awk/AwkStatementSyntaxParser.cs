@@ -1233,11 +1233,8 @@ internal sealed class AwkStatementSyntaxParser
         _checkpoint?.Invoke();
         var first = FindFirstSignificant(tokens);
         var last = FindLastSignificant(tokens);
-        var lValue = AwkSyntaxOptional<AwkLValueSyntax>.FromNullable(
-            ResolveLValue(expressions.Count == 0 ? null : expressions[0]));
         var payload = CreatePayload(
             kind,
-            lValue,
             expressions,
             bodyStatements,
             elseStatements,
@@ -1268,7 +1265,6 @@ internal sealed class AwkStatementSyntaxParser
 
         AwkStatementSyntaxPayload CreatePayload(
             AwkStatementKind kind,
-            AwkSyntaxOptional<AwkLValueSyntax> lValue,
             IReadOnlyList<AwkExpressionSyntax> expressions,
             IReadOnlyList<AwkStatementSyntax> bodyStatements,
             IReadOnlyList<AwkStatementSyntax> elseStatements,
@@ -1328,40 +1324,10 @@ internal sealed class AwkStatementSyntaxParser
             if (kind == AwkStatementKind.Expression &&
                 inputPipeGetline.TryGetValue(out var inputPipeSyntax))
             {
-                return new AwkInputPipeExpressionStatementSyntaxPayload(inputPipeSyntax, lValue, expressions);
+                return new AwkInputPipeExpressionStatementSyntaxPayload(inputPipeSyntax, expressions);
             }
 
-            return new AwkSimpleStatementSyntaxPayload(lValue, expressions);
-        }
-
-        AwkLValueSyntax? ResolveLValue(AwkExpressionSyntax? expression)
-        {
-            if (expression == null)
-                return null;
-
-            var target = expression.Kind switch
-            {
-                AwkExpressionKind.Assignment when expression.Children.Count > 0 => expression.Children[0],
-                AwkExpressionKind.Postfix when expression.Children.Count > 0 => expression.Children[0],
-                AwkExpressionKind.Unary when expression.Children.Count > 0 &&
-                    expression.OperatorTokens.Count > 0 &&
-                    expression.OperatorTokens[0].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus => expression.Children[0],
-                _ => null
-            };
-            if (target == null)
-                return null;
-
-            var kind = target.Kind switch
-            {
-                AwkExpressionKind.Variable => AwkLValueKind.Variable,
-                AwkExpressionKind.ArrayElement => AwkLValueKind.ArrayElement,
-                AwkExpressionKind.Field => AwkLValueKind.Field,
-                _ => (AwkLValueKind?)null
-            };
-            if (kind == null || target.Span.Length == 0)
-                return null;
-
-            return new AwkLValueSyntax(kind.Value, target.Span);
+            return new AwkSimpleStatementSyntaxPayload(expressions);
         }
     }
 

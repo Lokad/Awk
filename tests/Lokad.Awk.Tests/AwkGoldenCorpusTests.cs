@@ -424,11 +424,6 @@ public sealed class AwkGoldenCorpusTests
         Assert.NotEmpty(statement.Tokens);
         Assert.True(statement.Span.Length > 0, context);
 
-        if (statement.LValue.TryGetValue(out var lValue))
-        {
-            Assert.True(lValue.Span.Length > 0, context);
-        }
-
         var childExpressions = statement.EnumerateChildExpressions().ToArray();
         for (var expressionIndex = 0; expressionIndex < childExpressions.Length; expressionIndex++)
         {

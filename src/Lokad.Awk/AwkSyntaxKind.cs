@@ -47,13 +47,6 @@ internal enum AwkStatementKind
     Return
 }
 
-internal enum AwkLValueKind
-{
-    Variable,
-    ArrayElement,
-    Field
-}
-
 internal enum AwkExpressionKind
 {
     Unknown,

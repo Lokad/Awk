@@ -1,12 +1,5 @@
 namespace Lokad.Awk;
 
-internal sealed class AwkLValueSyntax(AwkLValueKind kind, AwkTextSpan span)
-{
-    public AwkLValueKind Kind { get; } = kind;
-
-    public AwkTextSpan Span { get; } = span;
-}
-
 internal sealed class AwkExpressionSyntax(
     AwkExpressionKind kind,
     IReadOnlyList<AwkToken>? tokens,

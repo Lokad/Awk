@@ -67,8 +67,6 @@ internal sealed class AwkStatementSyntax
 
     public AwkStatementSyntaxPayload Payload { get; }
 
-    public AwkSyntaxOptional<AwkLValueSyntax> LValue => Payload.LValue;
-
     public AwkSyntaxOptional<AwkExpressionSyntax> Expression => Payload.Expression;
 
     public IReadOnlyList<AwkExpressionSyntax> Expressions => Payload.Expressions;
@@ -95,9 +93,6 @@ internal sealed class AwkStatementSyntax
 
 internal abstract class AwkStatementSyntaxPayload
 {
-    /// <summary>Gets the statement target when this payload shape carries one.</summary>
-    public virtual AwkSyntaxOptional<AwkLValueSyntax> LValue => AwkSyntaxOptional<AwkLValueSyntax>.None;
-
     /// <summary>Gets the ordered direct expressions carried by this statement shape.</summary>
     public virtual IReadOnlyList<AwkExpressionSyntax> Expressions => [];
 
@@ -130,22 +125,16 @@ internal sealed class AwkBlockStatementSyntaxPayload(
 }
 
 internal sealed class AwkSimpleStatementSyntaxPayload(
-    AwkSyntaxOptional<AwkLValueSyntax> lValue,
     IReadOnlyList<AwkExpressionSyntax> expressions) : AwkStatementSyntaxPayload
 {
-    public override AwkSyntaxOptional<AwkLValueSyntax> LValue { get; } = lValue;
-
     public override IReadOnlyList<AwkExpressionSyntax> Expressions { get; } = expressions;
 }
 
 internal sealed class AwkInputPipeExpressionStatementSyntaxPayload(
     AwkInputPipeGetlineSyntax inputPipeGetline,
-    AwkSyntaxOptional<AwkLValueSyntax> lValue,
     IReadOnlyList<AwkExpressionSyntax> expressions) : AwkStatementSyntaxPayload
 {
     public AwkInputPipeGetlineSyntax InputPipeGetline { get; } = inputPipeGetline;
-
-    public override AwkSyntaxOptional<AwkLValueSyntax> LValue { get; } = lValue;
 
     public override IReadOnlyList<AwkExpressionSyntax> Expressions { get; } = expressions;
 }
