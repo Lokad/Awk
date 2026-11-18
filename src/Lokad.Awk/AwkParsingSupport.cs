@@ -22,53 +22,32 @@ internal static class AwkParsingSupport
     public static LexerResult<AwkTokenKind> ToLexerResult(
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        bool ensureEndOfFile = false)
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        var lexerTokens = new LexerToken<AwkTokenKind>[tokens.Count];
+        var appendEnd = ensureEndOfFile && (tokens.Count == 0 || tokens[^1].Kind != AwkTokenKind.EndOfFile);
+        var lexerTokens = new LexerToken<AwkTokenKind>[tokens.Count + (appendEnd ? 1 : 0)];
         var hasInvalidTokens = false;
+        var end = 0;
         for (var index = 0; index < tokens.Count; index++)
         {
             checkpoint?.Invoke();
             var token = tokens[index];
-            lexerTokens[index] = new LexerToken<AwkTokenKind>(token.Kind, token.Span.Start, token.Span.Length);
+            var span = token.Span;
+            lexerTokens[index] = new LexerToken<AwkTokenKind>(token.Kind, span.Start, span.Length);
             hasInvalidTokens |= token.Kind == AwkTokenKind.BadToken;
+            if (appendEnd) end = Math.Max(end, span.End);
         }
+        if (appendEnd)
+            lexerTokens[^1] = new LexerToken<AwkTokenKind>(AwkTokenKind.EndOfFile, end, 0);
 
         return new LexerResult<AwkTokenKind>(
             source.Text,
             lexerTokens,
             source.NewLines,
             hasInvalidTokens);
-    }
-
-    public static LexerResult<AwkTokenKind> ToLexerResultWithEndOfFile(
-        AwkParsingSource source,
-        IReadOnlyList<AwkToken> tokens,
-        Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        if (tokens.Count > 0 && tokens[^1].Kind == AwkTokenKind.EndOfFile)
-            return ToLexerResult(source, tokens, checkpoint);
-
-        var end = 0;
-        for (var index = 0; index < tokens.Count; index++)
-        {
-            checkpoint?.Invoke();
-            end = Math.Max(end, tokens[index].Span.End);
-        }
-
-        var withEnd = new AwkToken[tokens.Count + 1];
-        for (var index = 0; index < tokens.Count; index++)
-        {
-            checkpoint?.Invoke();
-            withEnd[index] = tokens[index];
-        }
-
-        withEnd[^1] = new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(end, 0));
-        return ToLexerResult(source, withEnd, checkpoint);
     }
 
     public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value, Action? checkpoint = null)

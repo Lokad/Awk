@@ -27,7 +27,7 @@ internal sealed class AwkStatementSyntaxParser
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var parser = new AwkStatementSyntaxParser(source, tokens, checkpoint);
-        parser.Tokens = AwkParsingSupport.ToLexerResultWithEndOfFile(source, tokens, checkpoint);
+        parser.Tokens = AwkParsingSupport.ToLexerResult(source, tokens, checkpoint, ensureEndOfFile: true);
         try
         {
             checkpoint?.Invoke();
