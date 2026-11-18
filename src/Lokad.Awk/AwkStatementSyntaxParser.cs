@@ -94,7 +94,7 @@ internal sealed class AwkStatementSyntaxParser
     public StatementListItem StatementItem([NT] AwkStatementSyntax statement)
     {
         _checkpoint?.Invoke();
-        return new(statement, statement.Tokens, null);
+        return new(statement, null, null);
     }
 
     [Rule]
@@ -108,7 +108,7 @@ internal sealed class AwkStatementSyntaxParser
     public StatementListItem ElseContinuationItem([NT] ElseContinuation continuation)
     {
         _checkpoint?.Invoke();
-        return new(null, continuation.Tokens, continuation);
+        return new(null, null, continuation);
     }
 
     [Rule]
@@ -431,12 +431,9 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
     {
         _checkpoint?.Invoke();
-        var openToken = ToToken(AwkTokenKind.LeftBrace, open);
-        var closeToken = ToToken(AwkTokenKind.RightBrace, close);
-        var innerTokens = Flatten(items.Select(item => item.Tokens));
-        return new StatementBody(
-            Flatten([[openToken], innerTokens, [closeToken]]),
-            StatementsFrom(items), closeToken.Span.End);
+        var end = AwkParsingSupport.SourceSpan(close);
+        var tokens = GroupTokens(AwkParsingSupport.SourceSpan(open), end);
+        return new(tokens.FullTokens, StatementsFrom(items), end.End);
     }
 
     [Rule]
@@ -472,8 +469,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
     {
         _checkpoint?.Invoke();
-        var openToken = ToToken(AwkTokenKind.LeftBrace, open);
-        var closeToken = ToToken(AwkTokenKind.RightBrace, close);
+        var tokens = GroupTokens(AwkParsingSupport.SourceSpan(open), AwkParsingSupport.SourceSpan(close));
         var cases = new List<AwkSwitchCaseSyntax>();
         for (var index = 0; index < items.Length; index++)
         {
@@ -482,65 +478,47 @@ internal sealed class AwkStatementSyntaxParser
                 cases.Add(switchCase);
         }
 
-        return new SwitchBlock(
-            Flatten([[openToken], Flatten(items.Select(item => item.Tokens)), [closeToken]]),
-            cases);
+        return new(tokens.FullTokens, cases);
     }
 
     [Rule]
-    public SwitchBlockItem SwitchCaseItem([NT] SwitchCasePart switchCase)
+    public SwitchBlockItem SwitchCaseItem([NT] AwkSwitchCaseSyntax switchCase)
     {
         _checkpoint?.Invoke();
-        return new(switchCase.Syntax, switchCase.Tokens);
+        return new(switchCase);
     }
 
     [Rule]
-    public SwitchBlockItem SwitchSeparatorItem([NT] StatementSeparator separator)
+    public SwitchBlockItem SwitchSeparatorItem([NT] StatementSeparator _)
     {
         _checkpoint?.Invoke();
-        return new(null, separator.Tokens);
+        return default;
     }
 
     [Rule]
-    public SwitchCasePart CaseClause(
-        [AwkT(AwkTokenKind.Case)] Pos<string> keyword,
+    public AwkSwitchCaseSyntax CaseClause(
+        [AwkT(AwkTokenKind.Case)] Pos<string> _,
         [AwkL(Min = 0)] CaseLabelPart[] label,
-        [AwkT(AwkTokenKind.Colon)] Pos<string> colon,
+        [AwkT(AwkTokenKind.Colon)] Pos<string> __,
         [AwkL(Min = 0)] StatementListItem[] body)
     {
         _checkpoint?.Invoke();
-        var keywordToken = ToToken(AwkTokenKind.Case, keyword);
-        var colonToken = ToToken(AwkTokenKind.Colon, colon);
         var labelTokens = Flatten(label.Select(part => part.Tokens));
-        var bodyTokens = Flatten(body.Select(item => item.Tokens));
         var expression = ParseExpression(labelTokens);
         var labelSyntax = expression == null
             ? AwkSwitchCaseLabelSyntax.Missing
             : AwkSwitchCaseLabelSyntax.FromExpression(expression);
-        var syntax = new AwkSwitchCaseSyntax(
-            labelSyntax,
-            StatementsFrom(body));
-        return new SwitchCasePart(
-            syntax,
-            Flatten([[keywordToken], labelTokens, [colonToken], bodyTokens]));
+        return new(labelSyntax, StatementsFrom(body));
     }
 
     [Rule]
-    public SwitchCasePart DefaultClause(
-        [AwkT(AwkTokenKind.Default)] Pos<string> keyword,
-        [AwkT(AwkTokenKind.Colon)] Pos<string> colon,
+    public AwkSwitchCaseSyntax DefaultClause(
+        [AwkT(AwkTokenKind.Default)] Pos<string> _,
+        [AwkT(AwkTokenKind.Colon)] Pos<string> __,
         [AwkL(Min = 0)] StatementListItem[] body)
     {
         _checkpoint?.Invoke();
-        var keywordToken = ToToken(AwkTokenKind.Default, keyword);
-        var colonToken = ToToken(AwkTokenKind.Colon, colon);
-        var bodyTokens = Flatten(body.Select(item => item.Tokens));
-        var syntax = new AwkSwitchCaseSyntax(
-            AwkSwitchCaseLabelSyntax.Default,
-            StatementsFrom(body));
-        return new SwitchCasePart(
-            syntax,
-            Flatten([[keywordToken, colonToken], bodyTokens]));
+        return new(AwkSwitchCaseLabelSyntax.Default, StatementsFrom(body));
     }
 
     [Rule]
@@ -1411,7 +1389,7 @@ internal sealed class AwkStatementSyntaxParser
                 continue;
             }
 
-            foreach (var token in AwkTokenNavigation.Enumerate(item.Tokens, _checkpoint))
+            foreach (var token in AwkTokenNavigation.Enumerate(item.SeparatorTokens, _checkpoint))
                 pendingSeparators.Add(token);
         }
 
@@ -1432,7 +1410,7 @@ internal sealed class AwkStatementSyntaxParser
                 gaps.Clear();
                 position = index;
             }
-            else gaps.Add(items[index].Tokens);
+            else gaps.Add(items[index].SeparatorTokens);
         }
 
         // Assemble the tail once instead of rebuilding every earlier ancestor
@@ -1639,12 +1617,12 @@ internal sealed class AwkStatementSyntaxParser
 
     public readonly struct StatementListItem(
         AwkStatementSyntax? statement,
-        IReadOnlyList<AwkToken>? tokens,
+        IReadOnlyList<AwkToken>? separatorTokens,
         ElseContinuation? elseContinuation)
     {
         public AwkStatementSyntax? Statement { get; } = statement;
 
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
+        public IReadOnlyList<AwkToken> SeparatorTokens => separatorTokens ?? [];
 
         public ElseContinuation? ElseContinuation { get; } = elseContinuation;
     }
@@ -1707,19 +1685,9 @@ internal sealed class AwkStatementSyntaxParser
         public IReadOnlyList<AwkSwitchCaseSyntax> Cases => cases ?? [];
     }
 
-    public readonly struct SwitchBlockItem(AwkSwitchCaseSyntax? switchCase, IReadOnlyList<AwkToken>? tokens)
+    public readonly struct SwitchBlockItem(AwkSwitchCaseSyntax? switchCase)
     {
         public AwkSwitchCaseSyntax? Case { get; } = switchCase;
-
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
-
-    public readonly struct SwitchCasePart(AwkSwitchCaseSyntax? syntax, IReadOnlyList<AwkToken>? tokens)
-    {
-        public AwkSwitchCaseSyntax Syntax => syntax ??
-            throw new InvalidOperationException("The default switch case has no syntax.");
-
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
     public readonly struct CaseLabelPart(IReadOnlyList<AwkToken>? tokens)
