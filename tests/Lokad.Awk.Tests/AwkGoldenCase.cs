@@ -18,7 +18,6 @@ public sealed class AwkGoldenCase
         string expectedStdErr,
         IReadOnlyList<AwkGoldenFile> expectedFiles,
         AwkGoldenTextComparison stdOutComparison,
-        AwkGoldenSupportLevel supportLevel,
         IReadOnlyList<AwkGoldenTag> tags,
         string nondeterminismNote)
     {
@@ -34,7 +33,6 @@ public sealed class AwkGoldenCase
         ExpectedStdErr = expectedStdErr;
         ExpectedFiles = expectedFiles;
         StdOutComparison = stdOutComparison;
-        SupportLevel = supportLevel;
         Tags = tags;
         NondeterminismNote = nondeterminismNote;
     }
@@ -65,8 +63,6 @@ public sealed class AwkGoldenCase
 
     public AwkGoldenTextComparison StdOutComparison { get; }
 
-    public AwkGoldenSupportLevel SupportLevel { get; }
-
     public IReadOnlyList<AwkGoldenTag> Tags { get; }
 
     public string NondeterminismNote { get; }
@@ -88,8 +84,7 @@ internal sealed class AwkGoldenCaseBuilder
     private string _expectedStdErr = string.Empty;
     private IReadOnlyList<AwkGoldenFile> _expectedFiles = [];
     private AwkGoldenTextComparison _stdOutComparison = AwkGoldenTextComparison.Exact;
-    private AwkGoldenSupportLevel _supportLevel = AwkGoldenSupportLevel.CurrentPass;
-    private IReadOnlyList<AwkGoldenTag> _tags = [AwkGoldenTag.CurrentPass];
+    private IReadOnlyList<AwkGoldenTag> _tags = [];
     private string _nondeterminismNote = string.Empty;
 
     private AwkGoldenCaseBuilder(
@@ -182,12 +177,6 @@ internal sealed class AwkGoldenCaseBuilder
         return this;
     }
 
-    public AwkGoldenCaseBuilder WithSupportLevel(AwkGoldenSupportLevel supportLevel)
-    {
-        _supportLevel = supportLevel;
-        return this;
-    }
-
     public AwkGoldenCaseBuilder WithTags(IReadOnlyList<AwkGoldenTag> tags)
     {
         _tags = tags;
@@ -214,7 +203,6 @@ internal sealed class AwkGoldenCaseBuilder
             _expectedStdErr,
             _expectedFiles,
             _stdOutComparison,
-            _supportLevel,
             _tags,
             _nondeterminismNote);
 }
@@ -309,15 +297,8 @@ public enum AwkGoldenTextComparison
     UnorderedNonEmptyLines
 }
 
-public enum AwkGoldenSupportLevel
-{
-    CurrentPass,
-    KnownUnsupported
-}
-
 public enum AwkGoldenTag
 {
-    CurrentPass,
     DirectLayer,
     RuntimeBehavior,
     DiagnosticBehavior,
@@ -327,7 +308,6 @@ public enum AwkGoldenTag
     GnuCommon,
     GnuAdvanced,
     HostPolicyBoundary,
-    KnownUnsupported,
     AgentWorkflow,
     Array,
     CommandLine,

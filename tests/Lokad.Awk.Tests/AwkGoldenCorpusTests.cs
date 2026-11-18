@@ -14,9 +14,7 @@ public sealed class AwkGoldenCorpusTests
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
         {
-            if ((testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
-                testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported) &&
-                AwkRegexProviderGaps.AffectsExecution(testCase) == providerGap)
+            if (AwkRegexProviderGaps.AffectsExecution(testCase) == providerGap)
             {
                 yield return [testCase];
             }
@@ -26,22 +24,7 @@ public sealed class AwkGoldenCorpusTests
     public static IEnumerable<object[]> SyntaxCases()
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
-        {
-            if (testCase.SupportLevel is AwkGoldenSupportLevel.CurrentPass or AwkGoldenSupportLevel.KnownUnsupported)
-                yield return [testCase];
-        }
-    }
-
-    public static IEnumerable<object[]> ParserAcceptanceCases()
-    {
-        foreach (var testCase in AwkGoldenCorpus.DirectCases)
-        {
-            if (testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
-                IsParserDiagnosticCase(testCase))
-            {
-                yield return [testCase];
-            }
-        }
+            yield return [testCase];
     }
 
     [Theory]
@@ -82,43 +65,6 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Theory]
-    [MemberData(nameof(ParserAcceptanceCases))]
-    public async Task Awk_GoldenSourcesHaveExpectedParserAcceptance(AwkGoldenCase testCase)
-    {
-        var fileSystem = AwkTestHarness.BuildFileSystem(testCase);
-        var invocation = AwkCommandParser.Parse(
-            AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment));
-        if (invocation.TerminalResult.IsTerminal)
-        {
-            return;
-        }
-
-        var runtimeOptions = AwkTestHarness.CreateRuntimeOptions();
-        var sourceLoad = await AwkSourceLoader.LoadAsync(
-            fileSystem,
-            invocation,
-            runtimeOptions,
-            CancellationToken.None);
-        if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
-            return;
-
-        var expectParserFailure = IsParserDiagnosticCase(testCase);
-        var source = loaded.CompilationSource;
-        var binding = AwkBinder.Bind(
-            AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
-                CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode),
-            invocation.ExecutionOptions.CompatibilityProfile);
-        if (expectParserFailure)
-        {
-            AssertStructuredParserDiagnostic(testCase, binding);
-            return;
-        }
-
-        Assert.True(binding.Diagnostics.Count == 0, string.Join("\n", binding.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.True(binding.Success);
-    }
-
-    [Theory]
     [MemberData(nameof(SyntaxCases))]
     public async Task Awk_GoldenSourcesHaveInterpreterSyntaxOutlines(AwkGoldenCase testCase)
     {
@@ -150,9 +96,7 @@ public sealed class AwkGoldenCorpusTests
             return;
         }
 
-        if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass && !binding.Success)
-            return;
-
+        Assert.True(binding.Diagnostics.Count == 0, string.Join("\n", binding.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.True(binding.Success, "Expected lowering success for golden case: " + testCase.Name);
         AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
 
@@ -243,17 +187,6 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Fact]
-    public void Awk_PosixTaggedGoldenCasesAreCurrentPass()
-    {
-        var posixCases = AwkGoldenCorpus.DirectCases
-            .Where(testCase => testCase.Tags.Contains(AwkGoldenTag.Posix))
-            .ToArray();
-
-        Assert.NotEmpty(posixCases);
-        Assert.All(posixCases, testCase => Assert.Equal(AwkGoldenSupportLevel.CurrentPass, testCase.SupportLevel));
-    }
-
-    [Fact]
     public void Awk_GoldenCorpusCaseNamesAreUnique()
     {
         var duplicates = AwkGoldenCorpus.DirectCases
@@ -278,10 +211,9 @@ public sealed class AwkGoldenCorpusTests
 
         static string BuildDuplicateDetectionFingerprint(AwkGoldenCase testCase)
         {
-            return BuildGoldenCaseFingerprint(testCase, PreserveFingerprintText, includeSupport: true);
+            return BuildGoldenCaseFingerprint(testCase, PreserveFingerprintText);
             static string PreserveFingerprintText(string text) => text;
         }
-        ;
     }
 
     [Fact]
@@ -297,12 +229,11 @@ public sealed class AwkGoldenCorpusTests
 
         static string BuildNearDuplicateDetectionFingerprint(AwkGoldenCase testCase)
         {
-            return BuildGoldenCaseFingerprint(testCase, NormalizeNearDuplicateText, includeSupport: false,
+            return BuildGoldenCaseFingerprint(testCase, NormalizeNearDuplicateText,
                 preserveDataWhitespace: true);
             static string NormalizeNearDuplicateText(string text) =>
                 text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
         }
-        ;
     }
 
     [Fact]
@@ -325,6 +256,7 @@ public sealed class AwkGoldenCorpusTests
 
         Assert.Empty(missingCoverage);
         Assert.Empty(casesWithoutFeatureTag);
+        Assert.Contains(AwkGoldenCorpus.DirectCases, testCase => testCase.Tags.Contains(AwkGoldenTag.Posix));
     }
 
     [Fact]
@@ -361,10 +293,7 @@ public sealed class AwkGoldenCorpusTests
             testCase.Tags.Contains(AwkGoldenTag.HostPolicy) ||
             testCase.Tags.Contains(AwkGoldenTag.HostPolicyBoundary);
 
-        static bool NeedsCompatibilityCaveat(AwkGoldenCase testCase) =>
-            testCase.NondeterminismNote.Length > 0 ||
-            testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported ||
-            testCase.Tags.Contains(AwkGoldenTag.KnownUnsupported);
+        static bool NeedsCompatibilityCaveat(AwkGoldenCase testCase) => testCase.NondeterminismNote.Length > 0;
     }
 
     [Fact]
@@ -489,7 +418,6 @@ public sealed class AwkGoldenCorpusTests
     private static string BuildGoldenCaseFingerprint(
         AwkGoldenCase testCase,
         Func<string, string> normalizeUserText,
-        bool includeSupport,
         bool preserveDataWhitespace = false)
     {
         // Record, field, environment, and expected-output whitespace is observable awk data.
@@ -506,9 +434,6 @@ public sealed class AwkGoldenCorpusTests
         AppendValue(builder, "stderr", normalizeData(testCase.ExpectedStdErr));
         AppendFiles(builder, "expected-file", testCase.ExpectedFiles, normalizeData);
         AppendValue(builder, "stdout-comparison", testCase.StdOutComparison.ToString());
-        if (includeSupport)
-            AppendValue(builder, "support", testCase.SupportLevel.ToString());
-
         return builder.ToString();
 
         static void AppendFiles(

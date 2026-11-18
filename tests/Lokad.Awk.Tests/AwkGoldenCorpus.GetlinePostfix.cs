@@ -11,31 +11,31 @@ internal static partial class AwkGoldenCorpus
     [
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-0", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $i++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-1", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $i-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-2", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $0++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-3", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $5++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-4", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $(++i)++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-5", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $(idx())++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-6", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline v++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-7", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline a[i]++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-8", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline ($i)++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-field-postfix-9", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $++i < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 S 2 0 0 [5 seed] [5] [4] [7] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -56,31 +56,31 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-66", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-67", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-68", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-69", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $5++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-70", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $(++i)++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-71", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-72", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline v++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-73", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline a[i]++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-74", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline ($i)++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-field-postfix-75", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(getline $++i);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("0 2 0  2 0 0 [5 seed] [5] [4] [7] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -101,34 +101,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-99", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-100", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-101", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $0++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-102", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $5-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-103", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $(idx())++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-129", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-130", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i-- < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-131", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $0++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-132", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $5-- < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-133", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $(idx())++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-index-controls-159", ["function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(getline $(i++) < src());print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 1 S 2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -167,34 +167,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-243", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-244", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-245", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-246", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $5--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-247", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-273", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-274", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-275", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $0++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-276", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $5--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-277", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $(idx())++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-index-controls-303", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(getline $(i++));print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("0 2 0 1  2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -233,34 +233,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-315", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-316", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-317", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $0++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-318", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $5-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-319", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $(idx())++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-345", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-346", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i-- < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-347", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $0++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-348", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $5-- < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-349", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $(idx())++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-index-controls-375", ["--posix", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(getline $(i++) < src());print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 1 S 2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -299,34 +299,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-459", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-460", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-461", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-462", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $5--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-463", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-489", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-490", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-491", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $0++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-492", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $5--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-493", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $(idx())++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-index-controls-519", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(getline $(i++));print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("0 2 0 1  2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -365,34 +365,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-531", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-532", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-533", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $0++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-534", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $5-- < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-535", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $(idx())++ < src());print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-561", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-562", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i-- < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-563", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $0++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-564", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $5-- < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-reference-field-mutation-565", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $(idx())++ < src();code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-index-controls-591", ["--traditional", "function src(){trace=trace \"S\";return \"data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(getline $(i++) < src());print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 1 S 2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -431,34 +431,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-675", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-676", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-677", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-678", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $5--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-679", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-705", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-706", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $i--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-707", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $0++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-708", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $5--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-reference-field-mutation-709", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;getline $(idx())++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-main-index-controls-735", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(getline $(i++));print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [])
             .WithStandardInput("").WithStdOut("0 2 0 1  2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -497,13 +497,13 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-747", ["BEGIN{print \"before\";i=1;code=(getline v++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-748", ["BEGIN{print \"before\";i=1;code=(getline a[i]++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-749", ["BEGIN{print \"before\";i=1;code=(getline ($i)++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-750", ["BEGIN{print \"before\";i=1;code=(getline ++$i < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("before\n1\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -512,16 +512,16 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-752", ["BEGIN{print \"before\";i=1;code=(getline $i++++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid statement.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-753", ["--posix", "BEGIN{print \"before\";i=1;code=(getline v++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-754", ["--posix", "BEGIN{print \"before\";i=1;code=(getline a[i]++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-755", ["--posix", "BEGIN{print \"before\";i=1;code=(getline ($i)++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-756", ["--posix", "BEGIN{print \"before\";i=1;code=(getline ++$i < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("before\n1\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -530,16 +530,16 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-758", ["--posix", "BEGIN{print \"before\";i=1;code=(getline $i++++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid statement.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-759", ["--traditional", "BEGIN{print \"before\";i=1;code=(getline v++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-760", ["--traditional", "BEGIN{print \"before\";i=1;code=(getline a[i]++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-761", ["--traditional", "BEGIN{print \"before\";i=1;code=(getline ($i)++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-762", ["--traditional", "BEGIN{print \"before\";i=1;code=(getline ++$i < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("before\n1\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -548,31 +548,31 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-invalid-target-764", ["--traditional", "BEGIN{print \"before\";i=1;code=(getline $i++++ < \"data\");print code}"], [File("/data", "one\n")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid statement.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-765", ["BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $i++ < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-766", ["BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $i-- < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-767", ["BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $(i++) < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("before\n-1 2 2 [5 fields]\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-768", ["--posix", "BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $i++ < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-769", ["--posix", "BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $i-- < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-770", ["--posix", "BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $(i++) < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("before\n-1 2 2 [5 fields]\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-771", ["--traditional", "BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $i++ < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-772", ["--traditional", "BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $i-- < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-file-failure-773", ["--traditional", "BEGIN{print \"before\";$0=\"5 fields\";i=1;code=(getline $(i++) < \"missing\");print code,i,NF,\"[\"$0\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("before\n-1 2 2 [5 fields]\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -582,31 +582,31 @@ internal static partial class AwkGoldenCorpus
     [
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-33", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-34", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-35", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-36", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $5++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-37", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $(++i)++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-38", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-39", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline v++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid expression.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-40", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline a[i]++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid expression.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-41", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline ($i)++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid increment target.\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-field-postfix-42", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 seed\";i=1;j=0;v=4;a[1]=7;code=(src() | getline $++i);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"$1\"]\",\"[\"v\"]\",\"[\"a[1]\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 S 2 0 0 [5 seed] [5] [4] [7] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -627,34 +627,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-171", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-172", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-173", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-174", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $5--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-175", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-201", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $i++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-202", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $i--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-203", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $0++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-204", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $5--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-205", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $(idx())++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-index-controls-231", ["function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(src() | getline $(i++));print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 1 S 2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -693,34 +693,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-387", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-388", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-389", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-390", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $5--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-391", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-417", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $i++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-418", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $i--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-419", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $0++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-420", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $5--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-421", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $(idx())++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-index-controls-447", ["--posix", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(src() | getline $(i++));print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 1 S 2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
@@ -759,34 +759,34 @@ internal static partial class AwkGoldenCorpus
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-603", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $i++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-604", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $i--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-605", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $0++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-606", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $5--);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-607", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;code=(src() | getline $(idx())++);print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-633", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $i++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-634", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $i--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-635", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $0++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-636", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $5--;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-reference-field-mutation-637", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{print \"before\";$0=\"seed fields\";i=1;j=0;src() | getline $(idx())++;code=\"statement\";print code,i,j,trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: postfix field mutation is not a getline destination; put index mutations inside $(...).\n").ExitsWith(2)
-            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]).Build(),
+            .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build(),
         AwkGoldenCaseBuilder.Create("getline-postfix-pipe-index-controls-663", ["--traditional", "function src(){trace=trace \"S\";return \"cat data\"}function idx(){trace=trace \"T\";return ++j}BEGIN{$0=\"5 fields\";i=1;j=0;a[1]=1;code=(src() | getline $(i++));print code,i,j,a[1],trace,NF,NR,FNR,\"[\"$0\"]\",\"[\"RT\"]\"}"], [File("/data", "")])
             .WithStandardInput("").WithStdOut("0 2 0 1 S 2 0 0 [5 fields] []\n").WithStdErr("").ExitsWith(0)
             .WithEnvironment([new("LC_ALL", "C.UTF-8"), new("TZ", "UTC")]).Build(),

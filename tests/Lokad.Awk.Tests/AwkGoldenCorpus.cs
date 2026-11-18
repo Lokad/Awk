@@ -4805,7 +4805,6 @@ internal static partial class AwkGoldenCorpus
             .WithStdErr(testCase.ExpectedStdErr)
             .WithExpectedFiles(testCase.ExpectedFiles)
             .WithStdOutComparison(testCase.StdOutComparison)
-            .WithSupportLevel(testCase.SupportLevel)
             .WithTags(mergedTags)
             .WithNondeterminismNote(testCase.NondeterminismNote)
             .Build();
@@ -4814,9 +4813,7 @@ internal static partial class AwkGoldenCorpus
         {
             AddTag(tags, AwkGoldenTag.DirectLayer);
 
-            if (testCase.ExpectedStdErr.Length > 0 ||
-                testCase.ExpectedExitCode != 0 ||
-                testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass)
+            if (testCase.ExpectedStdErr.Length > 0 || testCase.ExpectedExitCode != 0)
             {
                 AddTag(tags, AwkGoldenTag.DiagnosticBehavior);
             }
@@ -4827,9 +4824,7 @@ internal static partial class AwkGoldenCorpus
             if (!HasBehaviorTag(tags))
                 AddTag(tags, AwkGoldenTag.RuntimeBehavior);
 
-            if (testCase.NondeterminismNote.Length > 0 ||
-                testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported ||
-                tags.Contains(AwkGoldenTag.KnownUnsupported))
+            if (testCase.NondeterminismNote.Length > 0)
             {
                 AddTag(tags, AwkGoldenTag.CompatibilityCaveat);
             }
@@ -4993,7 +4988,6 @@ internal static partial class AwkGoldenCorpus
             .WithStdErr(testCase.ExpectedStdErr)
             .WithExpectedFiles(testCase.ExpectedFiles)
             .WithStdOutComparison(testCase.StdOutComparison)
-            .WithSupportLevel(testCase.SupportLevel)
             .WithTags([.. testCase.Tags, AwkGoldenTag.Posix])
             .WithNondeterminismNote(testCase.NondeterminismNote)
             .Build();

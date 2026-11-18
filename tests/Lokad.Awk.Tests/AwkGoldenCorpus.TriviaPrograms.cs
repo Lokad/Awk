@@ -26,7 +26,7 @@ internal static partial class AwkGoldenCorpus
             var builder = AwkGoldenCaseBuilder.Create("trivia-program-" + test.Name + "-" + (profile.Length == 0 ? "default" : profile[2..]), arguments, files)
                 .WithStandardInput("DATA\n").ExitsWith(test.Error.Length == 0 ? 0 : 2).WithStdErr(test.Error);
             if (test.Error.Length > 0)
-                builder.WithTags([AwkGoldenTag.CurrentPass, AwkGoldenTag.CompilerDiagnostic]);
+                builder.WithTags([AwkGoldenTag.CompilerDiagnostic]);
             yield return builder.Build();
         }
         yield return AwkGoldenCaseBuilder.Create("trivia-program-include", ["# before\n@include \"comments.awk\"\n# after"], files)

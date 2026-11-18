@@ -78,7 +78,7 @@ public sealed class AwkFusionBoundaryTests
                 .WithStandardInput(golden.StandardInput).WithEnvironment(golden.Environment)
                 .ExitsWith(golden.ExpectedExitCode).WithStdOut(golden.ExpectedStdOut).WithStdErr(golden.ExpectedStdErr)
                 .WithExpectedFiles(golden.ExpectedFiles).WithStdOutComparison(golden.StdOutComparison)
-                .WithSupportLevel(golden.SupportLevel).WithTags(golden.Tags)
+                .WithTags(golden.Tags)
                 .WithNondeterminismNote(golden.NondeterminismNote).Build();
         }
     }

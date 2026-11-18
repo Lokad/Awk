@@ -25,7 +25,8 @@ to enforcing tests.
 
 Goldens run through public command execution. Focused execution tests use the production
 async phase entry or the main-input scheduler. State-only tests can exercise publication
-directly to isolate admission. Source-level checks cover additional parser/binder behavior.
+directly to isolate admission. Golden parser diagnostics, binding and syntax outlines
+share one source load and parse per case.
 
 Initialize a CooperativeTestMemory runtime before using its accounting view. That view
 is the runtime's ledger; a standalone fixture instead creates its own ledger on first use.
