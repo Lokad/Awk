@@ -63,9 +63,9 @@ internal partial struct AwkRegionMachine
         {
             switch (_region.Kind)
             {
-                case AwkRegionKind.Function: _state.Counters.RecordBoundFunctionRun(); break;
-                case AwkRegionKind.Phase: _state.Counters.RecordBoundPhaseRun(); break;
-                default: _state.Counters.RecordBoundRegionRun(); break;
+                case AwkRegionKind.Function: break;
+                case AwkRegionKind.Phase: break;
+                default: break;
             }
         }
     }
@@ -111,7 +111,7 @@ internal partial struct AwkRegionMachine
         // Activation owns the entry poll. Cold storage and long constant setup
         // retain their admission/bounded checkpoints before preparing fields.
         if (region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(region.EntryFieldDemand);
-        _state.Counters.RecordBoundFunctionRun();
+
     }
 
     private bool TryCompletePending()
@@ -285,7 +285,7 @@ internal partial struct AwkRegionMachine
                 AssignVariable(in variable, storage.Values[resumePoint.Destination]);
             }
             _position++;
-            _state.Counters.RecordCallAssignment(bypassedNumericScratch: false);
+
         }
     }
 
@@ -303,7 +303,7 @@ internal partial struct AwkRegionMachine
                 _state.PopFunctionFrame();
                 RestoreCaller(region, storage, resumePoint.Position, callerFrame);
                 _state.ThrowIfCancellationRequested();
-                _state.Counters.RecordNumericReturnForward();
+
                 if (_output is { HasPendingOutput: true } output && !TryFlush(output, _position + 1))
                 {
                     _returningNumber = number;
@@ -332,7 +332,7 @@ internal partial struct AwkRegionMachine
             {
                 _state.AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
                 _position++;
-                _state.Counters.RecordCallAssignment(resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded);
+
             }
             return;
         }

@@ -20,7 +20,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         var counters = Counters(observed);
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(8 << 20, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(8 << 20);
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -31,7 +31,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             if (++checks == 6) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        using var output = new AwkOutputSink(governor, counters, Check);
+        using var output = new AwkOutputSink(governor, Check);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var text = rope
             ? AwkText.FromString(new string('a', Large / 2)).Concat(AwkText.FromString(new string('b', Large / 2)), AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
@@ -49,7 +49,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         armed = false;
         Append(output, kind, text, bytes);
         Assert.Equal("kept:" + expected + (kind == "parts" ? "!" : ""), output.ToString());
-        Assert.Equal(observed ? 1 : 0, counters.OutputSinkCreations);
+
         output.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
@@ -66,9 +66,9 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         var counters = Counters(observed);
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(1_024, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1_024);
         var governor = memoryForGovernor.Accounting;
-        using var output = new AwkOutputSink(governor, counters, static () => { });
+        using var output = new AwkOutputSink(governor, static () => { });
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var committed = governor.CurrentCommittedBytes;
         var text = AwkText.FromString(new string('a', Large));
@@ -189,7 +189,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void VariableSnapshotsPassTheirCheckpointAndPreserveStorage(bool symbolTable, string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(8 << 20, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(8 << 20);
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -200,7 +200,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             if (++checks == 3) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(governor, counters,  (_, _) => { }, checkpoint: Check);
+        var variables = new AwkVariables(governor, counters, (_, _) => { }, checkpoint: Check);
         var names = Enumerable.Range(0, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet();
         var array = AwkArrayName.FromText(symbolTable ? AwkVariables.SymbolTableName : "kept");
         if (symbolTable) variables.InitializeGlobalNames(names);
@@ -243,9 +243,9 @@ public sealed class AwkInventoryOutputBoundaryTests
             Assert.True(first.HasSameStorage(AwkRecordTerminator.FromAsciiByte((byte)value).ByteText));
             Assert.Equal(new byte[] { (byte)value }, first.AsSpan().ToArray());
             _ = first.AsString(counters);
-            var decodes = counters.StringDecodes;
+            var decodes = counters[AwkCounter.StringDecodes];
             _ = first.AsString(counters);
-            Assert.Equal(decodes, counters.StringDecodes);
+            Assert.Equal(decodes, counters[AwkCounter.StringDecodes]);
         }
         Assert.True(AwkRecordTerminator.NewLine.ByteText.HasSameStorage(AwkRecordTerminator.FromAsciiByte(10).ByteText));
         Assert.Throws<ArgumentOutOfRangeException>(() => AwkRecordTerminator.FromAsciiByte(128));
@@ -265,17 +265,16 @@ public sealed class AwkInventoryOutputBoundaryTests
         host.EnqueueReadBuffer(AwkReadBuffer.FromContent(Array.Empty<byte>(), AwkReadCompletion.EndOfFile, static _ => { }));
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.FromSourceLiteralString(separator)));
-        var allocations = counters.AwkTextAllocations;
-        var payloadBytes = counters.AwkTextPayloadBytes;
+        var allocations = counters[AwkCounter.TextAllocations];
+        var payloadBytes = counters[AwkCounter.TextBytes];
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
 
         Assert.False((await cursor.ReadRecordAsync()).HasRecord);
 
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(payloadBytes, counters.AwkTextPayloadBytes);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.RegexMatches);
-        Assert.Equal(0, counters.RegexCompiles);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(payloadBytes, counters[AwkCounter.TextBytes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     private static AwkSymbolTableArray Table(IReadOnlySet<AwkVariableName> globals,

@@ -1,11 +1,7 @@
 namespace Lokad.Awk;
 
 internal sealed class AwkVariableRuntime(
-    AwkVariables variables,
-    AwkFunctionCallStack functions,
-    AwkSpecialVariableDispatcher specialVariables,
-    Action? checkpoint = null,
-    AwkRuntimeCounters? counters = null)
+    AwkVariables variables, AwkFunctionCallStack functions, AwkSpecialVariableDispatcher specialVariables, Action? checkpoint = null)
 {
     public bool HasScalar(AwkVariableName name) =>
         ResolveName(name).Kind is
@@ -181,7 +177,7 @@ internal sealed class AwkVariableRuntime(
 
     public AwkArrayName ResolveOrPromoteArrayName(AwkArrayName name)
     {
-        counters?.RecordArrayNameResolution();
+
         if (name.IsFunctionLocal)
             return name;
 
@@ -228,7 +224,7 @@ internal sealed class AwkVariableRuntime(
 
     public AwkArrayName ResolveArrayReadName(AwkArrayName name)
     {
-        counters?.RecordArrayNameResolution();
+
         if (name.IsFunctionLocal)
             return name;
         if (functions.TryGetArrayReadName(new AwkVariableName(name.Identifier), out var local))

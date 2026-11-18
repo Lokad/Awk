@@ -46,8 +46,8 @@ public sealed class AwkValueTests
 
         Assert.True(value.IsNumericStringValue);
         Assert.Equal(double.PositiveInfinity, value.AsNumber());
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public sealed class AwkValueTests
 
         Assert.False(value.IsNumericStringValue);
         Assert.Equal(1, value.AsNumber());
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public sealed class AwkValueTests
         Assert.True(value.IsNumberValue);
         Assert.Equal(123, value.AsNumber());
         Assert.Equal("123", value.AsString(counters));
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -86,11 +86,10 @@ public sealed class AwkValueTests
         var text = formatter.FormatStringByteText(AwkValue.FromNumber(123));
 
         Assert.Equal("123", text.AsString());
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.FormattingFallbacks);
-        Assert.Equal(0, counters.FormattingStringInteropInputs);
-        Assert.Equal(1, counters.AwkTextAllocations);
-        Assert.Equal(3, counters.AwkTextPayloadBytes);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+
+        Assert.Equal(1, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(3, counters[AwkCounter.TextBytes]);
     }
 
     [Fact]
@@ -109,10 +108,9 @@ public sealed class AwkValueTests
         Assert.Equal("0.333333", oneThird.AsString());
         Assert.Equal("1.23457e+06", exponent.AsString());
         Assert.Equal("0.333333", conversion.AsString());
-        Assert.Equal(0, counters.FormattingFallbacks);
-        Assert.Equal(0, counters.FormattingStringInteropInputs);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(3, counters.AwkTextAllocations);
+
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(3, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -122,11 +120,11 @@ public sealed class AwkValueTests
         var left = AwkValue.FromText(AwkText.FromHostBytes("café"u8.ToArray(), counters));
         var right = AwkValue.FromText(AwkText.FromHostBytes("caff"u8.ToArray(), counters));
 
-        var result = AwkValue.Compare(left, right, counters);
+        var result = AwkValue.Compare(left, right);
 
         Assert.True(result > 0);
-        Assert.Equal(1, counters.ByteTextComparisons);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 }

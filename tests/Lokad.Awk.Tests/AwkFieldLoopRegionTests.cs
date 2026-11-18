@@ -5,7 +5,8 @@ public sealed class AwkFieldLoopRegionTests
     private const string Script = "{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}}";
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CompleteFieldLoopPreservesState(bool governed)
     {
         var result = await RunAsync(AwkRuntimeLimits.CreateDefault(), governed);
@@ -17,7 +18,8 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task UnicodeFieldsKeepScalarLengths(bool governed)
     {
         var result = await RunAsync(AwkRuntimeLimits.CreateDefault(), governed, "é xyz aa");
@@ -42,8 +44,10 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task PendingFieldIndicesKeepTheirCallerAndNeverReplay(bool compare, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -76,7 +80,7 @@ public sealed class AwkFieldLoopRegionTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -126,7 +130,7 @@ public sealed class AwkFieldLoopRegionTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         var error = "";
         try { await program.MainProgram.ExecuteAsync(state, io, output); }
@@ -146,7 +150,8 @@ public sealed class AwkFieldLoopRegionTests
         CancellationToken token = default, AwkLintMode lint = AwkLintMode.Off)
     {
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits,
-            regexEngine: AwkUtf8RegexEngine.Instance) { MemoryOwner = owner };
+            regexEngine: AwkUtf8RegexEngine.Instance)
+        { MemoryOwner = owner };
         return new(AwkFieldSeparatorSpec.Default, token, options, new(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }
 

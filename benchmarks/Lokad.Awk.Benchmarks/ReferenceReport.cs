@@ -18,7 +18,7 @@ internal sealed record ReferenceInputInfo(string Name, OutputDigest Digest);
 internal sealed record ReferenceWorkloadInfo(string Name, string Scale, int Records, int Fields, long InputBytes,
     string[] Arguments, string Locale, string TimeZone, string ProgramSha256, ReferenceInputInfo[] Inputs, OutputDigest ExpectedOutput);
 internal sealed record ReferenceVerification(string Status, string Reason, OutputDigest LibraryOutput,
-    OutputDigest NativeOutput, ReferenceCounters? Counters);
+    OutputDigest NativeOutput, IReadOnlyDictionary<string, long>? Counters);
 internal sealed record ReferenceComparisonRow(ReferenceWorkloadInfo Workload, ReferenceVerification Verification);
 internal sealed record ReferenceComparisonReport(int SchemaVersion, string Mode, DateTimeOffset UpdatedUtc,
     string Contract, ReferenceHostProvenance Host, ReferenceIdentity? Reference, object Policy,

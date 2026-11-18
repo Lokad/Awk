@@ -42,142 +42,116 @@ internal static class BenchmarkCounterReport
             new(
             "counter column extraction",
             ["{print $2}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
-            recordCount: 3),
+            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")]),
         new(
             "counter multi-column projection",
             ["{print $1,$3,$2}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
-            recordCount: 3),
+            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")]),
         new(
             "counter streaming projection calibration",
             ["{print $2}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount),
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
         new(
             "counter three-key filter calibration",
             ["$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount),
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
         new(
             "counter associative aggregation calibration",
             ["{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount),
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
         new(
             "counter two-file comparison calibration",
             ["NR==FNR{left[$1]=$2; next} ($1 in left) && left[$1]!=$2{differences++} END{print differences+0}", "/left.tsv", "/right.tsv"],
             [
                 new BenchmarkFile("/left.tsv", BuildCounterComparisonRows(changed: false)),
                 new BenchmarkFile("/right.tsv", BuildCounterComparisonRows(changed: true))
-            ],
-            recordCount: CounterComparisonRecordCount * 2),
+            ]),
         new(
             "counter arithmetic loop",
             ["BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter print-heavy action",
             ["BEGIN{for(i=1;i<=50;i++) print \"row\", i}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter regex field separator",
             ["BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}", "/pipe.txt"],
-            [new BenchmarkFile("/pipe.txt", "a|beta;flag\nb|delta;plain\nc|gamma;flag\n")],
-            recordCount: 3),
+            [new BenchmarkFile("/pipe.txt", "a|beta;flag\nb|delta;plain\nc|gamma;flag\n")]),
         new(
             "counter dynamic record separator",
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
-            [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")],
-            recordCount: 4),
+            [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")]),
         new(
             "counter grouped byte-run record separator",
             ["BEGIN{RS=\"([,;])+\"} {print length($0)}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: 1),
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
         .. new[] { 100, 400, 1_600 }.Select(CreateLiteralRecordSeparatorScenario),
         new(
             "counter non-ASCII record separator",
             ["BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}", "/non-ascii-rs.txt"],
-            [new BenchmarkFile("/non-ascii-rs.txt", "caf\u00e91\u00e9r\u00e9sum\u00e92\u00e9")],
-            recordCount: 3),
+            [new BenchmarkFile("/non-ascii-rs.txt", "caf\u00e91\u00e9r\u00e9sum\u00e92\u00e9")]),
         new(
             "counter field modes",
             ["NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}", "/field-modes.txt"],
-            [new BenchmarkFile("/field-modes.txt", "A-12-B\nabcdef\nC-34-D\nghijkl\n")],
-            recordCount: 4),
+            [new BenchmarkFile("/field-modes.txt", "A-12-B\nabcdef\nC-34-D\nghijkl\n")]),
         new(
             "counter UTF-8 FIELDWIDTHS",
             ["BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}", "/fieldwidths.txt"],
-            [new BenchmarkFile("/fieldwidths.txt", "caf\u00e9bravo12\nna\u00efveplain34\n")],
-            recordCount: 2),
+            [new BenchmarkFile("/fieldwidths.txt", "caf\u00e9bravo12\nna\u00efveplain34\n")]),
         new(
             "counter large split fields",
             ["{n=split($0,a,\" \"); total += n + length($1) + length($NF) + length(a[1]) + length(a[n])} END{print total}", "/split-fields.txt"],
-            [new BenchmarkFile("/split-fields.txt", BuildCounterSeparatedRows())],
-            recordCount: 32),
+            [new BenchmarkFile("/split-fields.txt", BuildCounterSeparatedRows())]),
         new(
             "counter large scalar growth",
             ["{x = x $0} END{print length(x)}", "/scalar.txt"],
-            [new BenchmarkFile("/scalar.txt", "alpha\nbeta\ngamma\n")],
-            recordCount: 3),
+            [new BenchmarkFile("/scalar.txt", "alpha\nbeta\ngamma\n")]),
         new(
             "counter large field list",
             ["{total += NF + length($8)} END{print total}", "/fields.txt"],
-            [new BenchmarkFile("/fields.txt", "a b c d e f g h i j\n1 2 3 4 5 6 7 8 9 10\n")],
-            recordCount: 2),
+            [new BenchmarkFile("/fields.txt", "a b c d e f g h i j\n1 2 3 4 5 6 7 8 9 10\n")]),
         new(
             "counter small text split arrays",
             ["{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}", "/small-split.txt"],
-            [new BenchmarkFile("/small-split.txt", "abcdef\nbcdefg\n")],
-            recordCount: 2),
+            [new BenchmarkFile("/small-split.txt", "abcdef\nbcdefg\n")]),
         new(
             "counter regex replacement expansion",
             ["{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}", "/replace.txt"],
-            [new BenchmarkFile("/replace.txt", "sku1 item22\nsku3 item44\n")],
-            recordCount: 2),
+            [new BenchmarkFile("/replace.txt", "sku1 item22\nsku3 item44\n")]),
         new(
             "counter regex capture array",
             ["BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter gensub capture selection",
             ["BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/,\"<\\\\1>\",\"g\",\"xx\")}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter regex pattern gap",
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter array sorting",
             ["{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}", "/array-sort.txt"],
-            [new BenchmarkFile("/array-sort.txt", "b 2\na 1\nb 3\n")],
-            recordCount: 3),
+            [new BenchmarkFile("/array-sort.txt", "b 2\na 1\nb 3\n")]),
         new(
             "counter small ordinal array",
             ["BEGIN{for(i=1;i<=64;i++) a[i]=i; for(i=1;i<=64;i++) total += a[i]; print total}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter user-function loop",
             ["function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}"],
-            [],
-            recordCount: 0),
+            []),
         new(
             "counter UTF-8 rune slicing",
             ["{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}", "/runes.txt"],
-            [new BenchmarkFile("/runes.txt", new string('\u00e9', 4_096) + "\n")],
-            recordCount: 1),
+            [new BenchmarkFile("/runes.txt", new string('\u00e9', 4_096) + "\n")]),
         new(
             "counter byte concat",
             ["--characters-as-bytes", "{x = $1 \"|\" $2 \"|\" $3; total += length(x)} END{print total}", "/concat.txt"],
-            [new BenchmarkFile("/concat.txt", "a b c\nx y z\n")],
-            recordCount: 2)        ];
+            [new BenchmarkFile("/concat.txt", "a b c\nx y z\n")])
+            ];
             static CounterScenario CreateLiteralRecordSeparatorScenario(int recordCount)
             {
                 const string script = "BEGIN{RS=\"</row>\"} {n++} END{print n}";
@@ -186,8 +160,7 @@ internal static class BenchmarkCounterReport
                 return new CounterScenario(
                     "counter literal record separator (" + recordCount + " records)",
                     [script, "/literal-rs.txt"],
-                    [new BenchmarkFile("/literal-rs.txt", input)],
-                    recordCount);
+                    [new BenchmarkFile("/literal-rs.txt", input)]);
             }
 
             static string BuildCounterStreamingRows()
@@ -260,8 +233,9 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("Library SHA256: " + await ReferenceReport.HashFileAsync(library.Location, cancellationToken).ConfigureAwait(false));
         Console.WriteLine("Benchmark SHA256: " + await ReferenceReport.HashFileAsync(typeof(BenchmarkCounterReport).Assembly.Location, cancellationToken).ConfigureAwait(false));
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | Buffered RS scan bytes | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Array names resolved | Numeric array reads | Bound array updates | Bound aliases | Indexed local arrays | Regex coordinate bytes | Field number parses | Borrowed input records | Input record bytes copied | Input record promotions | Memory peak |");
-        Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", 32)));
+        var observed = Enum.GetValues<AwkCounter>().Where(counter => counter != AwkCounter.Count).ToArray();
+        Console.WriteLine("| Scenario | " + string.Join(" | ", observed) + " |");
+        Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", observed.Length)));
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -270,7 +244,7 @@ internal static class BenchmarkCounterReport
             PrintRow(scenario, result);
         }
 
-        static async Task<CounterScenarioResult> RunScenarioAsync(
+        static async Task<AwkRuntimeCounters> RunScenarioAsync(
             CounterScenario scenario,
             CancellationToken cancellationToken)
         {
@@ -280,7 +254,8 @@ internal static class BenchmarkCounterReport
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 counters,
-                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = AwkMemoryBudget.CreateFixed(CounterExecutionMemoryLimitBytes) };
+                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with
+            { MemoryBudget = AwkMemoryBudget.CreateFixed(CounterExecutionMemoryLimitBytes) };
             using var host = new ReferenceBenchmarkHost(scenario.Files, [], capture: false);
             var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []);
             var exitCode = await AwkExecutor.ExecuteAsync(host, command, cancellationToken, options)
@@ -292,49 +267,14 @@ internal static class BenchmarkCounterReport
             if (run.ErrorDigest.Bytes != 0)
                 throw new InvalidOperationException("Counter report scenario wrote stderr: " + scenario.Name);
 
-            return new CounterScenarioResult(counters, run);
+            return counters;
         }
 
-        static void PrintRow(CounterScenario scenario, CounterScenarioResult result)
+        static void PrintRow(CounterScenario scenario, AwkRuntimeCounters counters)
         {
-            var counters = result.Counters;
-            Console.WriteLine(
-                string.Join(
-                    " | ",
-                    "| " + EscapeCell(scenario.Name),
-                    scenario.RecordCount.ToString(CultureInfo.InvariantCulture),
-                    scenario.InputBytes.ToString(CultureInfo.InvariantCulture),
-                    result.Run.OutputDigest.Bytes.ToString(CultureInfo.InvariantCulture),
-
-                    counters.StringDecodes.ToString(CultureInfo.InvariantCulture),
-                    counters.AwkTextAsStringCalls.ToString(CultureInfo.InvariantCulture),
-                    counters.AwkTextAsStringDecodeMisses.ToString(CultureInfo.InvariantCulture),
-                    counters.Utf8Encodes.ToString(CultureInfo.InvariantCulture),
-                    counters.AwkTextAllocations.ToString(CultureInfo.InvariantCulture),
-                    counters.AwkTextPayloadBytes.ToString(CultureInfo.InvariantCulture),
-                    counters.RegexMatches.ToString(CultureInfo.InvariantCulture),
-                    counters.RegexGroupsMaterialized.ToString(CultureInfo.InvariantCulture),
-                    counters.RecordSeparatorResolutions.ToString(CultureInfo.InvariantCulture),
-                    counters.RecordSeparatorBytesScanned.ToString(CultureInfo.InvariantCulture),
-                    counters.RecordSeparatorTailBytesMoved.ToString(CultureInfo.InvariantCulture),
-                    counters.FormattingFallbacks.ToString(CultureInfo.InvariantCulture),
-                    counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
-                    counters.ByteTextComparisons.ToString(CultureInfo.InvariantCulture),
-                    counters.ConcatenationBytesCopied.ToString(CultureInfo.InvariantCulture),
-                    counters.RuneSliceBytesScanned.ToString(CultureInfo.InvariantCulture),
-                    counters.RuneSliceIndexAllocations.ToString(CultureInfo.InvariantCulture),
-                    counters.RuneSliceIndexBytes.ToString(CultureInfo.InvariantCulture),
-                    counters.ArrayNameResolutions.ToString(CultureInfo.InvariantCulture),
-                    counters.NumericArraySlotReads.ToString(CultureInfo.InvariantCulture),
-                    counters.BoundArrayUpdates.ToString(CultureInfo.InvariantCulture),
-                    counters.BoundLocalArrayAccesses.ToString(CultureInfo.InvariantCulture),
-                    counters.IndexedLocalArrayAccesses.ToString(CultureInfo.InvariantCulture),
-                    counters.RegexCoordinateBytes.ToString(CultureInfo.InvariantCulture),
-                    counters.NumericFieldByteParses.ToString(CultureInfo.InvariantCulture),
-                    counters.BorrowedInputRecords.ToString(CultureInfo.InvariantCulture),
-                    counters.InputRecordBytesCopied.ToString(CultureInfo.InvariantCulture),
-                    counters.InputRecordPromotions.ToString(CultureInfo.InvariantCulture),
-                    counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));
+            var values = Enum.GetValues<AwkCounter>().Where(counter => counter != AwkCounter.Count)
+                .Select(counter => counters[counter].ToString(CultureInfo.InvariantCulture));
+            Console.WriteLine("| " + EscapeCell(scenario.Name) + " | " + string.Join(" | ", values) + " |");
 
             static string EscapeCell(string value) =>
                 value.Replace("|", "\\|", StringComparison.Ordinal);
@@ -343,17 +283,12 @@ internal static class BenchmarkCounterReport
     private const int CounterStreamingRecordCount = 10_000;
     private const int CounterComparisonRecordCount = 5_000;
 
-    private readonly record struct CounterScenarioResult(
-        AwkRuntimeCounters Counters,
-        ReferenceExecutionResult Run);
 }
 
 internal sealed class CounterScenario(string name, IReadOnlyList<string> arguments,
-    IReadOnlyList<BenchmarkFile> files, long recordCount)
+    IReadOnlyList<BenchmarkFile> files)
 {
     public string Name { get; } = name;
     public IReadOnlyList<string> Arguments { get; } = arguments;
     public IReadOnlyList<BenchmarkFile> Files { get; } = files;
-    public long RecordCount { get; } = recordCount;
-    public long InputBytes => Files.Sum(file => file.ContentBytes.LongLength);
 }

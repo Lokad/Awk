@@ -3,9 +3,12 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPrintStagingMemoryTests
 {
     [Theory]
-    [InlineData(false, "field")] [InlineData(true, "field")]
-    [InlineData(false, "terminator")] [InlineData(true, "terminator")]
-    [InlineData(false, "recomposed-terminator")] [InlineData(true, "recomposed-terminator")]
+    [InlineData(false, "field")]
+    [InlineData(true, "field")]
+    [InlineData(false, "terminator")]
+    [InlineData(true, "terminator")]
+    [InlineData(false, "recomposed-terminator")]
+    [InlineData(true, "recomposed-terminator")]
     public async Task FieldPrintNumericFormattingRefusalKeepsEarlierOutputAndAllowsIndependentRetry(bool observed, string scenario)
     {
         using var memory = State(observed, "wide");
@@ -20,7 +23,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             state.AssignSpecialVariableValue(AwkSpecialVariableId.ConversionFormat,
                 AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));
         }
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem());
         // Warm field preparation and output capacity so refusal observes the
         // numeric payload's funding rather than cold descriptors or output growth.
@@ -59,7 +62,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.AssignVariableValue(AwkVariableName.FromText("payload"), AwkValue.FromText("kept"));
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline);
@@ -84,7 +87,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.AssignVariableValue(AwkVariableName.FromText("payload"), AwkValue.FromNumber(1.25));
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem());
         if (format == "wide")
         {
@@ -110,7 +113,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.AssignVariableValue(AwkVariableName.FromText("payload"), AwkValue.FromNumber(1.25));
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 1);
         var before = state.MemoryAccounting.CurrentCommittedBytes;

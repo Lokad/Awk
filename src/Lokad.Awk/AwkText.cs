@@ -65,7 +65,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
     internal bool HasAvailableBytes => _concatenation is null ||
         _concatenation.MaterializedBytes is not null;
 
-
     // Keep the conservative cache allowance with the actual owner. Promotion at
     // a managed boundary consumes that admitted capacity, without a new lease.
     public long EstimatedRetainedMemoryBytes => _backing is TextStorage storage
@@ -152,8 +151,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint?.Invoke();
         var bytes = AwkUtf8Codec.EncodeOwned(text, counters);
         checkpoint?.Invoke();
-        counters.RecordValueCreated();
-        counters.RecordAwkTextAllocation(bytes.Length);
+
+        counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
         return new AwkText(bytes);
     }
 
@@ -186,8 +185,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
             AllocateOwnedBytes(byteCount, governor, destination, checkpoint);
         AwkUtf8Codec.Encode(text, bytes, counters);
         checkpoint?.Invoke();
-        counters.RecordValueCreated();
-        counters.RecordAwkTextAllocation(bytes.Length);
+
+        counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
         return new AwkText(bytes);
     }
 
@@ -281,13 +280,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        counters.RecordAwkTextAsStringCall();
+
         if (ByteLength == 0)
             return string.Empty;
 
         if (_backing is not TextStorage storage)
         {
-            counters.RecordAwkTextAsStringDecodeMiss();
+
             var converted = AwkUtf8Codec.DecodeRuntimeText(((byte[]?)_backing).AsSpan(), counters);
             checkpoint?.Invoke();
             return converted;
@@ -297,7 +296,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (cached is not null)
             return cached;
 
-        counters.RecordAwkTextAsStringDecodeMiss();
         var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint), counters);
         checkpoint?.Invoke();
         return storage.CachedString = decoded;
@@ -362,7 +360,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return this;
 
         var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
-        counters.RecordValueCreated();
+
         return new AwkText(
             this,
             other,
@@ -406,7 +404,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
         if (nonEmptyPartCount == 2)
         {
-            counters.RecordValueCreated();
+
             return new AwkText(
                 firstNonEmptyPart,
                 secondNonEmptyPart,
@@ -430,7 +428,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             destinationOffset += source.Length;
         }
 
-        counters.RecordConcatenationBytesCopied(totalLength);
+        counters.Add(AwkCounter.ConcatenationBytesCopied, totalLength);
         return FromTrustedOwnedBytes(bytes, counters);
     }
 
@@ -496,8 +494,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     // Shared one-use range scan. Owned text keeps its cached long-range index;
     // borrowed input needs neither whole-text materialization nor an index owner.
-    internal static void ResolveRuneByteRange(ReadOnlySpan<byte> span, int start, int length,
-        AwkRuntimeCounters counters, Action? checkpoint, out int byteStart, out int byteEnd)
+    internal static void ResolveRuneByteRange(ReadOnlySpan<byte> span, int start, int length, Action? checkpoint, out int byteStart, out int byteEnd)
     {
         var endRuneIndex = (long)start + length;
         var prefix = span[..(int)Math.Min(endRuneIndex, span.Length)];
@@ -505,7 +502,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         {
             byteStart = Math.Min(start, prefix.Length);
             byteEnd = prefix.Length;
-            counters.RecordRuneSliceBytesScanned(prefix.Length);
+
             checkpoint?.Invoke();
             return;
         }
@@ -528,7 +525,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
         if (start >= runeIndex) byteStart = offset;
         byteEnd = offset;
-        counters.RecordRuneSliceBytesScanned(offset);
+
         checkpoint?.Invoke();
     }
 
@@ -541,7 +538,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         AwkMemoryLease? destination = null)
     {
         var text = this;
-        var knownAscii = ResolveRuneSliceRange(start, length, counters, governor, checkpoint, out var byteStart, out var byteEnd);
+        var knownAscii = ResolveRuneSliceRange(start, length, governor, checkpoint, out var byteStart, out var byteEnd);
 
         if (byteStart == byteEnd)
             return Empty;
@@ -556,15 +553,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return knownAscii ? FromTrustedAsciiOwnedBytes(bytes, counters) : FromTrustedOwnedBytes(bytes, counters);
     }
 
-    internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor, Action? checkpoint)
+    internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkMemoryAccounting governor, Action? checkpoint)
     {
-        ResolveRuneSliceRange(start, length, counters, governor, checkpoint, out var byteStart, out var byteEnd);
+        ResolveRuneSliceRange(start, length, governor, checkpoint, out var byteStart, out var byteEnd);
         return AsSpan(checkpoint)[byteStart..byteEnd];
     }
 
-    private bool ResolveRuneSliceRange(int start, int length, AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor, Action? checkpoint, out int byteStart, out int byteEnd)
+    private bool ResolveRuneSliceRange(int start, int length, AwkMemoryAccounting governor, Action? checkpoint, out int byteStart, out int byteEnd)
     {
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);
@@ -586,19 +581,17 @@ internal readonly struct AwkText : IEquatable<AwkText>
             if ((text.ByteLength <= RuneCheckpointStride || endRuneIndex <= RuneCheckpointStride) &&
                 text._runeByteCheckpoints is null)
             {
-                AwkText.ResolveRuneByteRange(text.AsSpan(checkpoint), start, length, counters, checkpoint,
-                    out resolvedByteStart, out resolvedByteEnd);
+                AwkText.ResolveRuneByteRange(text.AsSpan(checkpoint), start, length, checkpoint, out resolvedByteStart, out resolvedByteEnd);
                 return;
             }
             if (text.IsAscii(out var inspectedByteCount, checkpoint))
             {
-                counters.RecordRuneSliceBytesScanned(inspectedByteCount);
+
                 resolvedByteStart = Math.Min(start, text.ByteLength);
                 resolvedByteEnd = (int)Math.Min(endRuneIndex, text.ByteLength);
                 return;
             }
 
-            counters.RecordRuneSliceBytesScanned(inspectedByteCount);
             var checkpoints = GetRuneByteCheckpoints();
             var runeLength = text.GetRuneLength(checkpoint);
             start = Math.Min(start, runeLength);
@@ -640,8 +633,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             }
 
             checkpoint?.Invoke();
-            counters.RecordRuneSliceBytesScanned(span.Length);
-            counters.RecordRuneSliceIndexAllocation(checkpointBytes);
+
             text._textFacts = runeIndex + 1;
             return text._runeByteCheckpoints = created;
         }
@@ -664,7 +656,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
                 currentRuneIndex++;
             }
 
-            counters.RecordRuneSliceBytesScanned(scannedByteCount);
             return byteOffset;
         }
     }
@@ -807,8 +798,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         {
             CopyConcatenationTo(bytes);
             checkpoint?.Invoke();
-            concatenation.Counters.RecordConcatenationBytesCopied(text.ByteLength);
-            concatenation.Counters.RecordAwkTextAllocation(text.ByteLength);
+            concatenation.Counters.Add(AwkCounter.ConcatenationBytesCopied, text.ByteLength);
+            concatenation.Counters.Add(AwkCounter.TextAllocations, text.ByteLength > 0 ? 1 : 0); concatenation.Counters.Add(AwkCounter.TextBytes, text.ByteLength);
             concatenation.MaterializedBytes = bytes;
             concatenation.LeftPart = Empty;
             concatenation.RightPart = Empty;
@@ -944,8 +935,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
     private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, bool knownAscii = false)
     {
-        counters.RecordValueCreated();
-        counters.RecordAwkTextAllocation(bytes.Length);
+
+        counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
         return bytes.Length <= CompactAsciiByteLength && (knownAscii || Ascii.IsValid(bytes))
             ? new AwkText((object)bytes) : new AwkText(bytes);
     }

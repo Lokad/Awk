@@ -21,10 +21,10 @@ internal sealed class AwkRuntimeResourceMonitor
     public void RecordHostCall()
     {
         Checkpoint();
-        _counters.RecordHostCall();
+        _counters.Add(AwkCounter.HostCalls, 1);
     }
 
-    public void RecordCleanupHostCall() => _counters.RecordHostCall();
+    public void RecordCleanupHostCall() => _counters.Add(AwkCounter.HostCalls);
 
     public void Checkpoint() => ThrowIfCancellationRequested(_cancellationToken);
 
@@ -33,19 +33,13 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public void ThrowIfCancellationRequested(CancellationToken cancellationToken)
     {
-        _counters.RecordCancellationCheck();
+
         cancellationToken.ThrowIfCancellationRequested();
     }
 
     public void RecordBytesRead(long byteCount)
     {
-        _counters.RecordBytesRead(byteCount);
-    }
-
-    public void RecordRegexMatch()
-    {
-        Checkpoint();
-        _counters.RecordRegexMatch();
+        _counters.Add(AwkCounter.BytesRead, byteCount);
     }
 
     public void RecordOutputBytes(long byteCount)
@@ -53,13 +47,8 @@ internal sealed class AwkRuntimeResourceMonitor
         if (byteCount <= 0)
             return;
 
-        _counters.RecordOutputBytes(byteCount);
+        _counters.Add(AwkCounter.OutputBytes, byteCount);
     }
-
-    public void RecordRegexRecordSeparatorBytesScanned(int byteCount) =>
-        _counters.RecordRecordSeparatorBytesScanned(byteCount);
-
-    public void RecordRegexCompilation() => _counters.RecordRegexCompile();
 
     public void RecordInclude(int depth)
     {

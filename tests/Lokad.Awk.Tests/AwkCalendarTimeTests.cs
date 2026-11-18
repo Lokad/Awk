@@ -83,9 +83,9 @@ public sealed class AwkCalendarTimeTests
         var state = State(TimeZoneInfo.Utc, counters);
         var text = AwkText.FromString(new string(' ', 4096) + "1970 13 1 0 0 0");
         Assert.Equal(31536000, state.MakeCalendarTime(text, true));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.StringInteropFallbacks);
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -119,11 +119,12 @@ public sealed class AwkCalendarTimeTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void CanceledDatePreparationDoesNotMaterializeLazyText(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         var text = AwkText.FromString("1970 1 1 0 0 0 ")
             .Concat(AwkText.FromString(new string(' ', 1_000_000)), counters, memory.Accounting);
         var runtime = new AwkTimeRuntime(static () => new(0), TimeZoneInfo.Utc);
@@ -134,11 +135,11 @@ public sealed class AwkCalendarTimeTests
         var error = Assert.Throws<OperationCanceledException>(() => runtime.MakeTime(text, true, resources, memory.Accounting));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, memory.Budget.Reserved);
         var active = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
         Assert.Equal(0, runtime.MakeTime(text, true, active, memory.Accounting));
-        Assert.Equal(text.ByteLength, counters.ConcatenationBytesCopied);
+        Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, memory.Budget.Reserved);
     }
 

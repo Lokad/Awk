@@ -21,7 +21,7 @@ public sealed class AwkFieldModeTests
             Assert.True(value.ByteText.EqualsAscii("FS"));
             Assert.True(state.MemoryAccounting.CurrentCommittedBytes > 0);
         }
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -120,8 +120,8 @@ public sealed class AwkFieldModeTests
         Assign(state, "FS", AwkValue.FromText(AwkText.FromSourceLiteralString(" ")), false);
         Assert.True(state.MemoryAccounting.CurrentCommittedBytes < before);
         Assert.True(state.GetArrayAwkValue(ProcInfo, ModeKey).ByteText.EqualsAscii("FS"));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

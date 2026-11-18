@@ -19,7 +19,7 @@ internal static class AwkUtf8Codec
         try
         {
             var decoded = Decode(bytes);
-            counters.RecordStringDecode();
+            counters.Add(AwkCounter.StringDecodes, 1);
             return decoded;
         }
         catch (DecoderFallbackException)
@@ -48,7 +48,7 @@ internal static class AwkUtf8Codec
         if (text.Length == 0)
             return [];
 
-        counters.RecordUtf8Encode();
+        counters.Add(AwkCounter.Utf8Encodes, 1);
         return EncodeOwned(text);
     }
 
@@ -69,7 +69,7 @@ internal static class AwkUtf8Codec
         if (text.IsEmpty)
             return 0;
 
-        counters.RecordUtf8Encode();
+        counters.Add(AwkCounter.Utf8Encodes, 1);
         return EncodeWithoutCounting(text, destination);
     }
 

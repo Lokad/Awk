@@ -3,18 +3,30 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
-    [InlineData(false, false, false, 0)] [InlineData(true, false, false, 0)]
-    [InlineData(false, true, false, 0)] [InlineData(true, true, false, 0)]
-    [InlineData(false, false, true, 0)] [InlineData(true, false, true, 0)]
-    [InlineData(false, true, true, 0)] [InlineData(true, true, true, 0)]
-    [InlineData(false, false, false, 1)] [InlineData(true, false, false, 1)]
-    [InlineData(false, true, false, 1)] [InlineData(true, true, false, 1)]
-    [InlineData(false, false, true, 1)] [InlineData(true, false, true, 1)]
-    [InlineData(false, true, true, 1)] [InlineData(true, true, true, 1)]
-    [InlineData(false, false, false, 2)] [InlineData(true, false, false, 2)]
-    [InlineData(false, true, false, 2)] [InlineData(true, true, false, 2)]
-    [InlineData(false, false, true, 2)] [InlineData(true, false, true, 2)]
-    [InlineData(false, true, true, 2)] [InlineData(true, true, true, 2)]
+    [InlineData(false, false, false, 0)]
+    [InlineData(true, false, false, 0)]
+    [InlineData(false, true, false, 0)]
+    [InlineData(true, true, false, 0)]
+    [InlineData(false, false, true, 0)]
+    [InlineData(true, false, true, 0)]
+    [InlineData(false, true, true, 0)]
+    [InlineData(true, true, true, 0)]
+    [InlineData(false, false, false, 1)]
+    [InlineData(true, false, false, 1)]
+    [InlineData(false, true, false, 1)]
+    [InlineData(true, true, false, 1)]
+    [InlineData(false, false, true, 1)]
+    [InlineData(true, false, true, 1)]
+    [InlineData(false, true, true, 1)]
+    [InlineData(true, true, true, 1)]
+    [InlineData(false, false, false, 2)]
+    [InlineData(true, false, false, 2)]
+    [InlineData(false, true, false, 2)]
+    [InlineData(true, true, false, 2)]
+    [InlineData(false, false, true, 2)]
+    [InlineData(true, false, true, 2)]
+    [InlineData(false, true, true, 2)]
+    [InlineData(true, true, true, 2)]
     public void OrdinaryMissOwnsUntypedKeyWithoutFieldClassificationOrRepeatedLookup(
         bool governed, bool composite, bool bound, int operation)
     {
@@ -29,10 +41,7 @@ public sealed class AwkBorrowedArrayReadTests
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("0009\x1ctail"u8);
-        var borrowedHashes = counters.ArrayBorrowedHashCalls;
-        var ownedHashes = counters.ArrayOwnedHashCalls;
-        var classifications = counters.TextValueClassifications;
-        var fieldCaches = counters.FieldValueCacheBufferAllocations;
+
         AwkArrayUpdateTarget target = default;
 
         if (operation == 2)
@@ -46,10 +55,6 @@ public sealed class AwkBorrowedArrayReadTests
             Assert.Equal("", value.AsString());
         }
 
-        Assert.Equal(borrowedHashes + ownedHashes + 2,
-            counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls);
-        Assert.Equal(classifications, counters.TextValueClassifications);
-        Assert.Equal(fieldCaches, counters.FieldValueCacheBufferAllocations);
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
         Assert.NotNull(array);
         var key = new AwkArrayKey(composite ? "0009\x1ctail" : "0009");
@@ -67,8 +72,8 @@ public sealed class AwkBorrowedArrayReadTests
         }
         else Assert.Equal("", state.GetArrayAwkValue(name, key).AsString());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("9")));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         builder.Dispose();
         memory.Dispose();
@@ -76,12 +81,18 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(false, false, 0)] [InlineData(true, false, 0)]
-    [InlineData(false, true, 0)] [InlineData(true, true, 0)]
-    [InlineData(false, false, 1)] [InlineData(true, false, 1)]
-    [InlineData(false, true, 1)] [InlineData(true, true, 1)]
-    [InlineData(false, false, 2)] [InlineData(true, false, 2)]
-    [InlineData(false, true, 2)] [InlineData(true, true, 2)]
+    [InlineData(false, false, 0)]
+    [InlineData(true, false, 0)]
+    [InlineData(false, true, 0)]
+    [InlineData(true, true, 0)]
+    [InlineData(false, false, 1)]
+    [InlineData(true, false, 1)]
+    [InlineData(false, true, 1)]
+    [InlineData(true, true, 1)]
+    [InlineData(false, false, 2)]
+    [InlineData(true, false, 2)]
+    [InlineData(false, true, 2)]
+    [InlineData(true, true, 2)]
     public void ColdOrdinaryMissRejectsOrCancelsBeforeKeyAllocationAndBinding(bool composite, bool cancel, int operation)
     {
         using var cancellation = new CancellationTokenSource();
@@ -100,7 +111,7 @@ public sealed class AwkBorrowedArrayReadTests
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append(AwkUtf8Codec.Encode(keyText + "\x1ctail").Span);
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         if (cancel) memory.Budget.OnGrowth = bytes => { if (bytes >= 8192) cancellation.Cancel(); };
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 8192;
 
@@ -130,7 +141,7 @@ public sealed class AwkBorrowedArrayReadTests
             }
         }
         finally { memory.Budget.OnGrowth = null; }
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.False(state.TryGetBoundGlobalArray(0, out _));
         Assert.Single(array);
         Assert.True(array[seed].TryGetNumber(out var number));
@@ -143,10 +154,14 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(true, false, false)]
-    [InlineData(false, true, false)] [InlineData(true, true, false)]
-    [InlineData(false, false, true)] [InlineData(true, false, true)]
-    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
     public void AssignmentMissOwnsKeyWithoutFieldClassificationOrRepeatedLookup(bool governed, bool composite, bool bound)
     {
         using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
@@ -161,18 +176,12 @@ public sealed class AwkBorrowedArrayReadTests
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
         var replacement = AwkValue.FromNumericString("0009");
-        var borrowedHashes = counters.ArrayBorrowedHashCalls;
-        var ownedHashes = counters.ArrayOwnedHashCalls;
-        var classifications = counters.TextValueClassifications;
-        var fieldCaches = counters.FieldValueCacheBufferAllocations;
 
         if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
         else state.SetArrayFieldValue(name, 1, replacement, binding);
 
-        Assert.Equal(borrowedHashes + ownedHashes + 2,
-            counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls); // One lookup and one insertion hash.
-        Assert.Equal(classifications, counters.TextValueClassifications);
-        Assert.Equal(fieldCaches, counters.FieldValueCacheBufferAllocations);
+        // One lookup and one insertion hash.
+
         Assert.True(state.TryGetBoundGlobalArray(0, out _)); // Bind a cold name only after successful insertion.
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed record"));
@@ -180,8 +189,8 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal("0009", stored.AsString());
         Assert.Equal(AwkRuntimeValueKind.NumericString, stored.RuntimeKind);
         Assert.Equal(9, stored.AsNumber());
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         builder.Dispose();
         memory.Dispose();
@@ -189,10 +198,14 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(true, false, false)]
-    [InlineData(false, true, false)] [InlineData(true, true, false)]
-    [InlineData(false, false, true)] [InlineData(true, false, true)]
-    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
     public void BoundAssignmentMissPreflightsKeyAndValueBeforeAllocationOrPublication(bool composite, bool cancel, bool largeKey)
     {
         using var cancellation = new CancellationTokenSource();
@@ -210,7 +223,7 @@ public sealed class AwkBorrowedArrayReadTests
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append(AwkUtf8Codec.Encode(keyText + "\x1cpart").Span);
         var replacement = largeKey ? AwkValue.FromNumber(9) : AwkValue.FromText(new string('x', 8192));
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         if (cancel) memory.Budget.OnGrowth = bytes => { if (bytes >= 8192) cancellation.Cancel(); };
         else memory.Budget.RefuseNextAdmissionMinimumGrowth = 8192;
 
@@ -229,7 +242,7 @@ public sealed class AwkBorrowedArrayReadTests
             }
         }
         finally { memory.Budget.OnGrowth = null; }
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         // Inspect the retained owner without a new cancellable language operation.
         Assert.True(state.TryGetBoundGlobalArray(0, out var array));
         Assert.NotNull(array);
@@ -244,7 +257,8 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ReadOnlySpecialAssignmentKeepsItsDiagnosticWithoutCopyingFieldKey(bool governed)
     {
         using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
@@ -253,20 +267,22 @@ public sealed class AwkBorrowedArrayReadTests
         state.InitializeFunctions(new Dictionary<AwkFunctionName, AwkUserFunction>());
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("length"));
         _ = state.FieldCount;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         if (governed) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.SetArrayFieldValue(
             AwkArrayName.FromText("FUNCTAB"), 1, AwkValue.FromNumber(9), default));
 
         Assert.Equal("awk: cannot modify special array `FUNCTAB'\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void AssignmentConsumesLocatedCellWithoutRehashingOrCopyingKey(bool governed, bool composite)
     {
         using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
@@ -280,16 +296,13 @@ public sealed class AwkBorrowedArrayReadTests
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
         var replacement = AwkValue.FromNumericString("0009");
-        var borrowedHashes = counters.ArrayBorrowedHashCalls;
-        var ownedHashes = counters.ArrayOwnedHashCalls;
-        var allocations = counters.AwkTextAllocations;
+
+        var allocations = counters[AwkCounter.TextAllocations];
 
         if (composite) state.SetArrayBuilderValue(name, builder, replacement, default);
         else state.SetArrayFieldValue(name, 1, replacement, default);
 
-        Assert.Equal(borrowedHashes + ownedHashes + 1,
-            counters.ArrayBorrowedHashCalls + counters.ArrayOwnedHashCalls);
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("different record"));
         var stored = state.GetArrayAwkValue(name, key);
@@ -300,7 +313,8 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void AssignmentRefusalLeavesLocatedCellUnchanged(bool composite)
     {
         using var memory = new CooperativeTestMemory(8 << 20);
@@ -339,16 +353,14 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetArrayAwkValue(name, new AwkArrayKey("café\x1cpart"), AwkValue.FromNumericString("007"));
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
-        var allocations = counters.AwkTextAllocations;
-        var borrowedHashes = counters.ArrayBorrowedHashCalls;
-        var ownedHashes = counters.ArrayOwnedHashCalls;
+        var allocations = counters[AwkCounter.TextAllocations];
+
         if (governed) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
 
         Assert.Equal(7, state.GetArrayNumber(name, builder, default));
 
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(borrowedHashes + 1, counters.ArrayBorrowedHashCalls);
-        Assert.Equal(ownedHashes, counters.ArrayOwnedHashCalls);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+
         Assert.Equal("007", state.GetArrayAwkValue(name, new AwkArrayKey("café\x1cpart")).AsString());
         builder.Clear();
         builder.Append("other"u8);
@@ -382,9 +394,9 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         _ = state.FieldCount;
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         Assert.Equal(7, state.GetArrayFieldValue(name, 1).AsNumber());
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         var bytes = "new tail"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
@@ -427,9 +439,9 @@ public sealed class AwkBorrowedArrayReadTests
     public void MissingBorrowedLookupDoesNotCreateAnArrayOrCommitStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForAccounting = new CooperativeTestMemory(1024, counters);
+        using var memoryForAccounting = new CooperativeTestMemory(1024);
         var accounting = memoryForAccounting.Accounting;
-        var variables = new AwkVariables(accounting, counters,  static (_, _) => { });
+        var variables = new AwkVariables(accounting, counters, static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var retained = accounting.CurrentCommittedBytes;
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));
@@ -439,10 +451,14 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(true, false, false)]
-    [InlineData(false, true, false)] [InlineData(true, true, false)]
-    [InlineData(false, false, true)] [InlineData(true, false, true)]
-    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
     public async Task NativePendingIndexSelectsCurrentRecordAndCapturesReadOrMembership(bool governed, bool membership, bool fail)
     {
         using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
@@ -475,7 +491,7 @@ public sealed class AwkBorrowedArrayReadTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -489,7 +505,7 @@ public sealed class AwkBorrowedArrayReadTests
                 var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
                 Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(failure.MessageBytes));
                 Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
-                Assert.Equal(0, state.Counters.FieldsMaterialized);
+                Assert.Equal(0, state.Counters[AwkCounter.FieldsPrepared]);
             }
             else
             {
@@ -533,10 +549,10 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         _ = state.FieldCount;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Equal(hit, state.GetArrayFieldKey(name, 1));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         var bytes = "new tail"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);

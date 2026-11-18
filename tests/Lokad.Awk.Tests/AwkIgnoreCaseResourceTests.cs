@@ -17,18 +17,17 @@ public sealed class AwkIgnoreCaseResourceTests
         var a = state.CreateStringValue(left);
         var b = state.CreateStringValue(right);
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
-        var allocatedBefore = counters.AwkTextAllocations;
+        var allocatedBefore = counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 16; index++)
         {
             Assert.True(AwkComparisonOperations.Evaluate(a, b, AwkComparison.Equal, state));
             Assert.True(state.CompareByteText(left, right, sorting: true) < 0);
             Assert.Equal(2, state.IndexOfStringUnits(new(source), new(right)));
         }
-        Assert.Equal(observed ? 16 : 0, counters.ByteTextComparisons);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.StringInteropFallbacks);
-        Assert.Equal(allocatedBefore, counters.AwkTextAllocations);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(allocatedBefore, counters[AwkCounter.TextAllocations]);
         Assert.Equal(committedBefore, state.MemoryAccounting.CurrentCommittedBytes);
     }
 

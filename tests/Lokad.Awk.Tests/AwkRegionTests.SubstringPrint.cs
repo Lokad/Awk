@@ -29,8 +29,10 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void ColdSubstringDestinationRefusalOrCancellationPublishesNoOutput(bool cancel, bool whole)
     {
         using var cancellation = new CancellationTokenSource();
@@ -38,7 +40,7 @@ public sealed partial class AwkRegionTests
         var state = memory.State;
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Texts: 2));
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var print = new AwkRegionPrint(0, 0, [new(AwkRegionPrintArgumentKind.PreparedText, 0)]);
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 4096)));
         using var source = state.MemoryAccounting.RetainValue(value);
@@ -57,7 +59,7 @@ public sealed partial class AwkRegionTests
                 Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
             }
             Assert.False(output.HasPendingOutput);
-            Assert.Equal(0, state.Counters.AwkTextAllocations);
+            Assert.Equal(0, state.Counters[AwkCounter.TextAllocations]);
             Assert.Equal(4096, value.ByteText.ByteLength);
         }
         finally { memory.Budget.OnGrowth = null; }
@@ -69,8 +71,10 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task SubstringOutputRetainsItsActualBorrowAndPayloadUntilAppendCompletes(bool redirected, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -156,7 +160,7 @@ public sealed partial class AwkRegionTests
         var baseline = memory.Budget.Reserved;
         using var storage = new AwkRegionStorage(state);
         storage.Prepare(new(0, Texts: 2));
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var print = new AwkRegionPrint(0, 0, [new(AwkRegionPrintArgumentKind.PreparedText, 0)]);
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 8000)));
         using var source = state.MemoryAccounting.RetainValue(value);

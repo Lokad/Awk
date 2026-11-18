@@ -14,14 +14,14 @@ public sealed partial class AwkBoundScalarLengthTests
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(3, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("count")).AsNumber());
-        var lengths = state.Counters.BoundScalarLengths;
+
         state.AssignVariableValue(AwkVariableName.FromText("s"), AwkValue.FromText("updated"));
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(7, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("count")).AsNumber());
-        Assert.Equal(lengths + 1, state.Counters.BoundScalarLengths);
-        Assert.Equal(0, state.Counters.StringDecodes);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
+
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
     }
 
     [Fact]
@@ -33,10 +33,10 @@ public sealed partial class AwkBoundScalarLengthTests
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        var lengths = state.Counters.BoundScalarLengths;
+
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(lengths + 1, state.Counters.BoundScalarLengths);
+
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

@@ -3,14 +3,18 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public void ReturnedScratchKeepsItsFundingAfterCalleeRetirement(bool governed, bool textSource, bool overwrite)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         using var source = new AwkRegionStorage(memory.State);
         using var caller = new AwkRegionStorage(memory.State);
@@ -40,18 +44,22 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task TextReturnConvertsWithinItsFundedCalleeAfterActualFlush(bool cancel) =>
         CheckReturnedValueAsync(numeric: false, pending: true, cancel);
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task ReadyReturnKeepsItsFundedCalleeThroughHostCompletion(bool numeric, bool cancel) =>
         CheckReturnedValueAsync(numeric, pending: false, cancel);
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task NumericReturnKeepsItsFundedCalleeAfterActualFlush(bool cancel) =>
         CheckReturnedValueAsync(numeric: true, pending: true, cancel);
 
@@ -59,7 +67,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters);
+        using var memory = new CooperativeTestMemory(4 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
         var program = Bind("function part(s){return " + (numeric ? "s+0" : local ? "s" : "substr(s,1)") +
@@ -88,7 +96,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         };
         var io = new AwkIo(visitor, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         output.Append(AwkText.FromSourceLiteralString("before\n"));
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
@@ -121,7 +129,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task PublicTextReturnKeepsFundingAcrossPendingDiagnostics(bool cancel) =>
         CheckPublicTextReturnAsync(cancel, local: false);
 
@@ -203,22 +212,30 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public Task CapturedReturnSurvivesActualFlushCompletion(bool governed, bool numeric, bool cancel) =>
         VerifyCapturedReturnCompletion(governed, numeric, cancel, assignment: false);
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task NumericCallAssignmentWaitsForActualFlushCompletion(bool governed, bool cancel) =>
         VerifyCapturedReturnCompletion(governed, numeric: true, cancel, assignment: true);
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task StoredNumberReturnSurvivesActualFlushCompletion(bool governed, bool cancel) =>
         VerifyCapturedReturnCompletion(governed, numeric: true, cancel, assignment: false, storedNumber: true);
 
@@ -256,7 +273,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
             var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
                 AwkFileDescriptor.StdErr, cancellation.Token, counters, state.Limits, state, static _ => []);
-            using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+            using var output = new AwkOutputSink(state.MemoryAccounting);
             output.Append(AwkText.FromSourceLiteralString("before\n"));
             var pending = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
             try
@@ -280,13 +297,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
                     Assert.Equal(AwkStatementFlow.Continue, await pending);
                     if (numeric) Assert.Equal(7, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
                     else Assert.True(state.ResolveVariableValue(AwkVariableName.FromText("saved")).ByteText.AsSpan().SequenceEqual("0007"u8));
-                    if (assignment) Assert.True(counters.CallNumericScratchBypasses > 0);
+
                 }
                 Assert.True(Assert.Single(writes).AsSpan().SequenceEqual("before\n"u8));
                 Assert.False(state.IsInsideFunction);
-                Assert.Equal(1, counters.BoundFunctionRuns);
-                Assert.Equal(0, counters.Utf8Encodes);
-                Assert.Equal(0, counters.StringDecodes);
+
+                Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
             }
             finally
             {

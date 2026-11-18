@@ -51,10 +51,10 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         output.WriteLine("1,000 ordinary small-record field splits: {0} allocated bytes.", allocated);
         Assert.Equal(2_000, total);
-        Assert.Equal(1_099, counters.FieldListBufferReuses);
+
         Assert.InRange(allocated, 0, 96_000);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -64,7 +64,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finiteMemory);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: finiteMemory);
         var governor = memory.Accounting;
         using var context = new AwkFieldTestContext(counters, governor, format: value => value.ByteText);
         var frame = context.Frame;
@@ -87,11 +87,11 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         output.WriteLine("10,000 record resets and lazy field counts: {0} bytes; finite memory: {1}.", allocatedBytes, finiteMemory);
         Assert.Equal(20_000, total);
         Assert.InRange(allocatedBytes, 0, allocationLimit);
-        Assert.Equal(10_100, counters.FieldSplits);
-        Assert.Equal(20_200, counters.FieldsMaterialized);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(10_100, counters[AwkCounter.FieldSplits]);
+        Assert.Equal(20_200, counters[AwkCounter.FieldsPrepared]);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, governor.CurrentReservedBytes);
         frame.ResetRecord();
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -114,7 +114,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             _ = state.FieldCount;
             _ = state.ResolveVariableValue(fieldCount);
         }
-        var textAllocations = counters.AwkTextAllocations;
+        var textAllocations = counters[AwkCounter.TextAllocations];
         var before = GC.GetAllocatedBytesForCurrentThread();
         var total = 0;
 
@@ -128,11 +128,11 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(90_000, total);
         Assert.Equal(0, allocatedBytes);
-        Assert.Equal(1, counters.FieldSplits);
-        Assert.Equal(2, counters.FieldsMaterialized);
-        Assert.Equal(textAllocations, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(1, counters[AwkCounter.FieldSplits]);
+        Assert.Equal(2, counters[AwkCounter.FieldsPrepared]);
+        Assert.Equal(textAllocations, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -140,7 +140,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     public void GovernedWholeRecordFieldCacheRemainsChargedAndReusesStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForAccounting = new CooperativeTestMemory(4_096, counters);
+        using var memoryForAccounting = new CooperativeTestMemory(4_096);
         var accounting = memoryForAccounting.Accounting;
         using var context = new AwkFieldTestContext(counters, accounting, format: value => value.ByteText);
         var frame = context.Frame;
@@ -159,10 +159,10 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         output.WriteLine("10,000 governed whole-record field cache reads: {0} allocated bytes.", allocated);
         Assert.InRange(allocated, 0, 800_000);
-        Assert.Equal(10_100, counters.FieldSplits);
-        Assert.Equal(10_100, counters.FieldsMaterialized);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(10_100, counters[AwkCounter.FieldSplits]);
+        Assert.Equal(10_100, counters[AwkCounter.FieldsPrepared]);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         frame.SetRecordText(AwkText.Empty);
         Assert.True(accounting.CurrentCommittedBytes > 0);
@@ -175,7 +175,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     {
         var budget = new CooperativeTestBudget(4_096);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting, format: value => value.ByteText);
         var frame = context.Frame;
         frame.SetRecordText(AwkText.FromSourceLiteralString("one"));
@@ -195,7 +195,8 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void RepeatedWideRecordsReuseFundedDescriptorsAndReleaseThemForNarrowInput(bool governed)
     {
         const int width = 512;

@@ -7,7 +7,7 @@ internal sealed class AwkArrayStorage
     private readonly Dictionary<AwkArrayName, AwkArrayIdentity> _arrays = new();
 
     private readonly IEqualityComparer<AwkArrayKey> _keyComparer;
-    private readonly AwkRuntimeCounters _counters;
+
     private AwkArrayName _cachedName;
     private AwkArrayIdentity? _cachedArray;
 
@@ -17,14 +17,9 @@ internal sealed class AwkArrayStorage
     }
 
     public AwkArrayStorage(IEqualityComparer<AwkArrayKey> keyComparer)
-        : this(keyComparer, AwkRuntimeCounters.Disabled)
-    {
-    }
-
-    public AwkArrayStorage(IEqualityComparer<AwkArrayKey> keyComparer, AwkRuntimeCounters counters)
     {
         _keyComparer = keyComparer;
-        _counters = counters;
+
     }
 
     public IEnumerable<AwkArrayName> Names
@@ -89,7 +84,7 @@ internal sealed class AwkArrayStorage
     {
         if (_cachedArray is { } cached && _cachedName == name)
         {
-            _counters.RecordArrayContainerCacheHit();
+
             array = cached;
             return true;
         }

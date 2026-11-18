@@ -21,7 +21,7 @@ internal static class AwkComparisonOperations
             return Evaluate(left.Value, right.Value, comparison, state);
         if (left.Value.TryGetNumber(out var first) && right.Value.TryGetNumber(out var second))
             return EvaluateNumbers(first, second, comparison);
-        state.Counters.RecordByteTextComparison();
+
         return EvaluateTextComparison(state.CompareByteText(left.Text(state), right.Text(state)), comparison);
     }
 
@@ -56,7 +56,6 @@ internal static class AwkComparisonOperations
         if (left.TryGetNumber(out var leftNumber) && right.TryGetNumber(out var rightNumber))
             return leftNumber.CompareTo(rightNumber);
 
-        state.Counters.RecordByteTextComparison();
         return state.CompareByteText(state.FormatStringByteText(left), state.FormatStringByteText(right));
     }
 }

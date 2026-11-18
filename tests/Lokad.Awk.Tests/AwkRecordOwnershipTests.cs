@@ -7,8 +7,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordOwnershipTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public async Task FunctionFieldSnapshotStaysFundedAcrossReplacementAndPendingOutput(bool cancel, bool forceStackBoundary)
     {
         var budget = new CooperativeTestBudget(64 << 20);
@@ -52,10 +54,13 @@ public sealed class AwkRecordOwnershipTests
     public async Task PersistentFieldEscapesOwnOnlyTheirText(string assignment, string inspect, string expected)
     {
         var budget = new CooperativeTestBudget(32 << 20);
-        var host = new RecordHost { Observe = label =>
+        var host = new RecordHost
+        {
+            Observe = label =>
         {
             if (label == "held") Assert.InRange(budget.Reserved, 1, 100_000);
-        }};
+        }
+        };
         var script = "BEGIN{FS=\":\";$0=\"0007:\"sprintf(\"%1000000s\",\"x\");" +
             assignment + ";$0=\"\";print \"held\";" + inspect + "}";
         Assert.Equal(0, (await Execute(script, host, budget)).Value);
@@ -65,14 +70,18 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RefusedFieldEscapeOrRecompositionStopsBeforePublication(bool recompose)
     {
         var budget = new CooperativeTestBudget(32 << 20);
-        var host = new RecordHost { Observe = label =>
+        var host = new RecordHost
+        {
+            Observe = label =>
         {
             if (label == "ready") budget.RefuseNextAdmissionMinimumGrowth = 1;
-        }};
+        }
+        };
         var script = "function size(x){return length(x)} BEGIN{$0=\"0007 old\";n=size($1);" +
             (recompose ? "$2=\"new\";" : "") + "print \"ready\";" +
             (recompose ? "saved=$0;print saved" : "saved=$1") + ";print \"after\"}";
@@ -89,10 +98,13 @@ public sealed class AwkRecordOwnershipTests
     public async Task RefusedDirtyRecordOutputStopsBeforePublishingAnyRecordBytes()
     {
         var budget = new CooperativeTestBudget(32 << 20);
-        var host = new RecordHost { Observe = label =>
+        var host = new RecordHost
+        {
+            Observe = label =>
         {
             if (label == "ready") budget.RefuseNextAdmissionMinimumGrowth = 1;
-        }};
+        }
+        };
         var exit = await Execute("BEGIN{FS=\":\";$0=sprintf(\"%20000s\",\"x\")\":old\";$2=\"É\";" +
             "print \"ready\";print;print \"after\"}", host, budget);
         Assert.Equal(2, exit.Value);
@@ -104,7 +116,8 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task DirectRecordOutputStaysFundedThroughActualPendingCompletion(bool cancel)
     {
         var budget = new CooperativeTestBudget(32 << 20);
@@ -136,19 +149,26 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [Theory]
-    [InlineData(1, "$1=$1")] [InlineData(2, "$1=$1")]
-    [InlineData(1, "$1=\"new\"")] [InlineData(2, "$1=\"new\"")]
-    [InlineData(1, "$1=7")] [InlineData(2, "$1=7")]
-    [InlineData(1, "NF=NF")] [InlineData(2, "NF=NF")]
+    [InlineData(1, "$1=$1")]
+    [InlineData(2, "$1=$1")]
+    [InlineData(1, "$1=\"new\"")]
+    [InlineData(2, "$1=\"new\"")]
+    [InlineData(1, "$1=7")]
+    [InlineData(2, "$1=7")]
+    [InlineData(1, "NF=NF")]
+    [InlineData(2, "NF=NF")]
     public async Task CapturedSeparatorIsFundedUntilTheRecordRelinquishesIt(int fields, string mutation)
     {
         var budget = new CooperativeTestBudget(32 << 20);
-        var host = new RecordHost { Observe = label =>
+        var host = new RecordHost
+        {
+            Observe = label =>
         {
             if (label == "held")
                 Assert.InRange(budget.Reserved, fields > 1 ? 3_000_000 : 1, fields > 1 ? budget.Limit : 100_000);
             if (label == "done") Assert.InRange(budget.Reserved, 1, 100_000);
-        }};
+        }
+        };
         var record = fields == 1 ? "left" : "left right";
         var script = "BEGIN{$0=\"" + record + "\";OFS=sprintf(\"%1000000s\",\"x\");" + mutation +
             ";OFS=\"\";print \"held\";$0=\"\";print \"done\"}";
@@ -159,7 +179,8 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PendingOutputKeepsTheDirtyRecordFundedUntilActualCompletion(bool cancel)
     {
         var budget = new CooperativeTestBudget(32 << 20);
@@ -186,14 +207,19 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [Theory]
-    [InlineData("$1=$1")] [InlineData("$1=\"new\"")] [InlineData("NF=NF")]
+    [InlineData("$1=$1")]
+    [InlineData("$1=\"new\"")]
+    [InlineData("NF=NF")]
     public async Task RefusedSeparatorAdmissionStopsBeforeLaterEffects(string mutation)
     {
         var budget = new CooperativeTestBudget(32 << 20);
-        var host = new RecordHost { Observe = label =>
+        var host = new RecordHost
+        {
+            Observe = label =>
         {
             if (label == "ready") budget.RefuseNextAdmissionMinimumGrowth = 1;
-        }};
+        }
+        };
         var exit = await Execute("BEGIN{$0=\"left right\";n=NF;OFS=sprintf(\"%1000000s\",\"x\");" +
             "print \"ready\";" + mutation + ";print \"after\"}", host, budget);
         Assert.Equal(2, exit.Value);
@@ -205,13 +231,15 @@ public sealed class AwkRecordOwnershipTests
     }
 
     [Theory]
-    [InlineData(false, 0)] [InlineData(true, 0)]
-    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
     public async Task UnusedSeparatorIsNotRetained(bool governed, int fields)
     {
         var budget = new CooperativeTestBudget(32 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting, format: value => value.ByteText);
         var frame = context.Frame;
         frame.SetRecordText(AwkText.FromString("left right"));

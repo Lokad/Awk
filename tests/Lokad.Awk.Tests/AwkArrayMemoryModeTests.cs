@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayMemoryModeTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void NumericUpdatesRetainEquivalentKeysAndRefuseRealGrowth(bool storedAsText)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -61,7 +62,7 @@ public sealed class AwkArrayMemoryModeTests
         await using var owner = AwkExecutionMemoryOwner.Create(
             governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.Equal(governed, accounting.IsEnabled);
         var variables = CreateVariables(accounting, counters);
         var name = AwkArrayName.FromText("a");
@@ -101,7 +102,7 @@ public sealed class AwkArrayMemoryModeTests
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(
             budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
         var name = AwkArrayName.FromText("a");
         var textKey = new AwkArrayKey("1");
@@ -131,7 +132,7 @@ public sealed class AwkArrayMemoryModeTests
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(
             budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.True(accounting.IsEnabled);
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
         var name = AwkArrayName.FromText("a");

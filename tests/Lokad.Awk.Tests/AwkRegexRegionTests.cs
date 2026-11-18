@@ -51,11 +51,11 @@ public sealed class AwkRegexRegionTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(global ? "512 ZZZZ\n" : "512 0Z07\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.InRange(counters.RegexMatches, records, records * 8);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, records * 12 + 32);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records * 12 + 32);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -80,11 +80,11 @@ public sealed class AwkRegexRegionTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(global ? "384 128 XXX7\n" : "128 128 X007\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.InRange(counters.RegexMatches, records, records * 8);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, records * 12 + 32);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records * 12 + 32);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -175,11 +175,11 @@ public sealed class AwkRegexRegionTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal(capture ? "128 128 512 0007\n" : "128 128 512\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.Equal(records, counters.RegexMatches);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, records * (capture ? 8 : 1) + 16);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records * (capture ? 8 : 1) + 16);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -210,11 +210,10 @@ public sealed class AwkRegexRegionTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("128\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, 8);
-        Assert.InRange(counters.RegexCompiles, 0, 1);
-        Assert.Equal(records, counters.RegexMatches);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 8);
+
         Assert.Equal(0, budget.Reserved);
     }
 

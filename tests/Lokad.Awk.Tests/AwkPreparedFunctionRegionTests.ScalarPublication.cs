@@ -3,14 +3,18 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public void TextPublicationTakesCanonicalFundingWithoutAnotherAdmission(bool governed, bool overwrite, bool local)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("t");
@@ -44,11 +48,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void HiddenLocalPublicationWritesTheVisibleGlobalAndReleasesItsSource(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("t");
@@ -71,11 +76,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void InvalidOrHiddenLocalTargetsDoNotConsumeTextBeforeTheirOwnPreflights(bool hidden)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters);
+        using var memory = new CooperativeTestMemory(4 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("t");
@@ -110,20 +116,24 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task ConsumedLocalTextStaysFundedUntilPendingOutputActuallyCompletes(bool cancel) =>
         VerifyPendingPublishedText(cancel,
             "function f(s,t){t=tolower(s);print \"held\";return t}BEGIN{print f(\"0007\")}", "0007\n");
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task ConsumedGlobalTextStaysFundedUntilPendingOutputActuallyCompletes(bool cancel) =>
         VerifyPendingPublishedText(cancel,
             "function f(s){saved=tolower(s);print \"held\";return saved}BEGIN{print f(\"0007\")}", "0007\n");
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void RefundReentryObservesPublishedOwnerAndRetiredSource(bool local, bool textSource)
     {
         using var memory = new CooperativeTestMemory(4 << 20);
@@ -168,7 +178,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task StoredTextConsumersAfterPendingOutputKeepTheirActualFrame(bool cancel) =>
         VerifyPendingPublishedText(cancel,
             "function f(s,t){t=tolower(s);print \"held\";print length(t),substr(t,2,2),index(t,\"0\");return toupper(t)}" +
@@ -222,14 +233,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public void ScalarPublicationTransfersFundingToTheActualOwner(bool governed, bool local, bool numericString)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("saved");
@@ -264,12 +279,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void CancelledScalarPublicationKeepsBothOwnersIntact(bool local)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters);
+        using var memory = new CooperativeTestMemory(4 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("saved");
@@ -300,11 +316,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("cold")] [InlineData("hidden")] [InlineData("array")]
+    [InlineData("cold")]
+    [InlineData("hidden")]
+    [InlineData("array")]
     public void ScalarFallbackKeepsTheSourceUntilItsOwnPreflightsSucceed(string target)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters);
+        using var memory = new CooperativeTestMemory(4 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("saved");

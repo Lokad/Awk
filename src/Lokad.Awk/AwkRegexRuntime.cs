@@ -113,7 +113,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         owner.Pin();
         try
         {
-            _resources.RecordRegexMatch();
+            _resources.Checkpoint();
             var result = AwkRegexCallbacks.IsMatch(owner.Pattern, input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
             _throwIfCancellationRequested();
             return result;
@@ -139,9 +139,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     }
 
     public AwkRegexMatchPosition MatchPosition(AwkRegex regex, AwkText input) =>
-        AwkRegexMatchPosition.FromSpan(MatchSpan(regex, input), input,
-            _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar,
-            _counters, _throwIfCancellationRequested);
+        AwkRegexMatchPosition.FromSpan(MatchSpan(regex, input), input, _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar, _throwIfCancellationRequested);
 
     public AwkRegexMatchEnumerator EnumerateMatchValues(AwkRegex regex, AwkText input,
         AwkMemoryAccounting governor, AwkRegexCapturePlan capturePlan) =>
@@ -235,7 +233,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         {
             recipe ??= new AwkRegex(source, sensitivity, fixedSensitivity, _throwIfCancellationRequested,
                 kind, mode, suppressInputStart);
-            _resources.RecordRegexCompilation();
             using var translatedText = _memoryAccounting.CreateTransientLease();
             var translated = kind switch
             {
@@ -340,7 +337,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             runtime._throwIfCancellationRequested();
             try
             {
-                runtime._resources.RecordRegexMatch();
+                runtime._resources.Checkpoint();
                 var whole = AwkRegexCallbacks.Match(provider, offset - inputStart, [], runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
@@ -363,7 +360,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                     AwkRuntimeMemory.EstimateRegexCaptureRangeArrayBytes(count));
                 Span<AwkRegexCaptureRange> ranges = count <= 32
                     ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
-                runtime._resources.RecordRegexMatch();
+                runtime._resources.Checkpoint();
                 var whole = AwkRegexCallbacks.Match(provider, offset - inputStart, ranges, runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) { matchSpan = AwkRegexMatchSpan.NoMatch; return AwkLeasedRegexMatch.NoMatch; }

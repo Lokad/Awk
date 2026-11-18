@@ -12,7 +12,7 @@ public sealed class AwkFunctionFrameReuseTests
     {
         var budget = new CooperativeTestBudget(1 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.Equal(governed, accounting.IsEnabled);
         var stack = Stack(accounting);
         AwkVariableName[] names = [AwkVariableName.FromText("a"), AwkVariableName.FromText("b"), AwkVariableName.FromText("c")];
@@ -58,7 +58,7 @@ public sealed class AwkFunctionFrameReuseTests
     {
         var budget = new CooperativeTestBudget(1 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.Equal(governed, accounting.IsEnabled);
         var stack = Stack(accounting);
         var weak = RunPairWithOwnedPayload(stack);
@@ -76,7 +76,7 @@ public sealed class AwkFunctionFrameReuseTests
     {
         var budget = new CooperativeTestBudget(1 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         var stack = Stack(accounting);
         var name = AwkVariableName.FromText("parent");
         stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(19))]);

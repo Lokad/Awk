@@ -39,8 +39,8 @@ public sealed class AwkTextInputTests
         context.Frame.SetRecordText(AwkText.FromSourceLiteralString("changed other"));
         Assert.Equal("0007", AwkUtf8Codec.Decode(captured.ReadyText.AsSpan(null)));
         Assert.Equal(1, captured.TextField);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.TextValueClassifications);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+
     }
 
     [Fact]
@@ -67,7 +67,8 @@ public sealed class AwkTextInputTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void MemoryCaptureRetainsItsActualOwnerAndRange(bool managerBacked)
     {
         var original = "_0007_"u8.ToArray();
@@ -81,7 +82,8 @@ public sealed class AwkTextInputTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ReaderCaptureKeepsItsRangeAfterTheSourceCellIsReplaced(bool managerBacked)
     {
         var bytes = "_0007_"u8.ToArray();

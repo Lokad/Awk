@@ -22,7 +22,7 @@ public sealed class AwkTextCancellationTests
         foreach (var ingress in new[] { "host", "owned", "copy" })
         {
             var counters = AwkRuntimeCounters.CreateEnabled();
-            using var memoryForGovernor = Governor(counters);
+            using var memoryForGovernor = Governor();
             var governor = memoryForGovernor.Accounting;
             var error = Assert.Throws<AwkRuntimeException>(() =>
             {
@@ -34,8 +34,8 @@ public sealed class AwkTextCancellationTests
                 };
             });
             Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(0, counters.AwkTextAllocations);
-            Assert.Equal(0, counters.AwkTextPayloadBytes);
+            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+            Assert.Equal(0, counters[AwkCounter.TextBytes]);
             Assert.Equal(0, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
@@ -61,7 +61,7 @@ public sealed class AwkTextCancellationTests
         bytes.AsSpan(0, prefix).Fill((byte)'a');
         tail.CopyTo(bytes.AsSpan(prefix));
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -83,8 +83,8 @@ public sealed class AwkTextCancellationTests
             Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(1, checks);
         }
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.AwkTextPayloadBytes);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.TextBytes]);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
@@ -103,14 +103,14 @@ public sealed class AwkTextCancellationTests
     {
         var input = AwkUtf8Codec.Encode(new string('a', prefix) + (supplementary ? "😀" : "")).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         var text = AwkText.CopyHostBytes(input, counters, governor);
         Assert.True(text.AsSpan().SequenceEqual(input));
-        Assert.Equal(input.Length == 0 ? 0 : 1, counters.AwkTextAllocations);
-        Assert.Equal(input.Length, counters.AwkTextPayloadBytes);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(input.Length == 0 ? 0 : 1, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(input.Length, counters[AwkCounter.TextBytes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
@@ -123,7 +123,7 @@ public sealed class AwkTextCancellationTests
     public void InterruptedMaterializationReleasesMemoryAndRetainsCompleteParts(string scenario)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         var expected = scenario switch
         {
@@ -150,11 +150,11 @@ public sealed class AwkTextCancellationTests
         Assert.Equal(4, copyingChecks);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(expected, text.AsString());
-        Assert.Equal(text.ByteLength, counters.ConcatenationBytesCopied);
+        Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(expected, text.AsString());
-        Assert.Equal(text.ByteLength, counters.ConcatenationBytesCopied);
+        Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
     }
 
     [Theory]
@@ -198,7 +198,7 @@ public sealed class AwkTextCancellationTests
         });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(new string('0', LongText) + "1", text.AsString());
     }
 
@@ -212,13 +212,13 @@ public sealed class AwkTextCancellationTests
         var expected = new string('a', 4_095) + string.Concat(Enumerable.Repeat(unit, LongText));
         var bytes = AwkUtf8Codec.Encode(expected).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
 
         Assert.Throws<OperationCanceledException>(() => AwkText.CopyHostBytes(bytes, counters, governor, CancelOnCheck(cancellation, 2)));
 
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(expected, AwkText.CopyHostBytes(bytes, counters, governor).AsString());
@@ -271,15 +271,15 @@ public sealed class AwkTextCancellationTests
         using var cancellation = new CancellationTokenSource();
         Action checkpoint = () =>
         {
-            if (counters.StringDecodes > 0) cancellation.Cancel();
+            if (counters[AwkCounter.StringDecodes] > 0) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         };
         Assert.Throws<OperationCanceledException>(() => text.AsString(counters, checkpoint));
-        Assert.Equal(1, counters.StringDecodes);
+        Assert.Equal(1, counters[AwkCounter.StringDecodes]);
         Assert.Equal(new string('\u754c', LongText), text.AsString(counters));
-        Assert.Equal(2, counters.StringDecodes);
+        Assert.Equal(2, counters[AwkCounter.StringDecodes]);
         Assert.Equal(new string('\u754c', LongText), text.AsString(counters));
-        Assert.Equal(2, counters.StringDecodes);
+        Assert.Equal(2, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -294,7 +294,7 @@ public sealed class AwkTextCancellationTests
         var armed = false;
         Action checkpoint = () =>
         {
-            if (armed && counters.StringDecodes == 2) cancellation.Cancel();
+            if (armed && counters[AwkCounter.StringDecodes] == 2) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         };
         var formatter = new AwkFormattingRuntime(_ => current, counters, AwkMemoryAccounting.Disabled, checkpoint: checkpoint);
@@ -307,9 +307,9 @@ public sealed class AwkTextCancellationTests
 
         armed = false;
         Assert.Equal("1.250", Format().AsString());
-        Assert.Equal(3, counters.StringDecodes);
+        Assert.Equal(3, counters[AwkCounter.StringDecodes]);
         Assert.Equal("1.250", Format().AsString());
-        Assert.Equal(3, counters.StringDecodes);
+        Assert.Equal(3, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -317,7 +317,7 @@ public sealed class AwkTextCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
         using (var builder = new AwkUtf8Builder(governor))
         {
@@ -339,7 +339,7 @@ public sealed class AwkTextCancellationTests
         var bytes = AwkUtf8Codec.Encode(new string('a', LongText)).ToArray();
         var owned = AwkText.FromHostBytes(bytes);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var completed = owned.Concat(AwkText.FromString("z"), counters, governor);
@@ -369,7 +369,7 @@ public sealed class AwkTextCancellationTests
     public void CanceledArrayReplacementReleasesItsMutationReservation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -379,7 +379,7 @@ public sealed class AwkTextCancellationTests
             if (governor.CurrentReservedBytes > 0) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         };
-        var variables = new AwkVariables(governor, counters,  (_, _) => { }, checkpoint: checkpoint);
+        var variables = new AwkVariables(governor, counters, (_, _) => { }, checkpoint: checkpoint);
         var name = AwkArrayName.FromText("kept");
         var key = new AwkArrayKey(new string('k', LongText));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(7));
@@ -400,30 +400,30 @@ public sealed class AwkTextCancellationTests
     {
         AwkText[] parts = [AwkText.FromString(new string('a', LongText)), AwkText.FromString("b"), AwkText.FromString("c")];
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         Assert.Throws<OperationCanceledException>(() => AwkText.Concat(parts.AsSpan(), counters, governor, CancelOnCheck(cancellation, 5)));
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var completed = AwkText.Concat(parts.AsSpan(), counters, governor);
         Assert.Equal(new string('a', LongText) + "bc", completed.AsString());
-        Assert.Equal(completed.ByteLength, counters.ConcatenationBytesCopied);
+        Assert.Equal(completed.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
     }
 
     [Fact]
     public void MaterializationMemoryFailureLeavesTheCacheRetryable()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(LongText + 1, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(LongText + 1);
         var governor = memoryForGovernor.Accounting;
         var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, governor);
         using (var existing = governor.ReserveTransient(1))
         {
             var error = Assert.Throws<AwkRuntimeException>(() => { _ = text.AsSpan(() => { }); });
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(0, counters.ConcatenationBytesCopied);
+            Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
             Assert.Equal(0, governor.CurrentReservedBytes);
             Assert.Equal(1, governor.CurrentCommittedBytes);
         }
@@ -450,12 +450,15 @@ public sealed class AwkTextCancellationTests
     }
 
     [Theory]
-    [InlineData("fields")] [InlineData("long-field")] [InlineData("separator")]
-    [InlineData("terminator")] [InlineData("empty")]
+    [InlineData("fields")]
+    [InlineData("long-field")]
+    [InlineData("separator")]
+    [InlineData("terminator")]
+    [InlineData("empty")]
     public void CanceledRecordCopyKeepsThePublishedPrefixAndFundedCapacity(string mode)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = Governor(counters);
+
+        using var memory = Governor();
         using var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16);
         builder.Append("kept:"u8);
         var record = AwkUtf8Codec.Encode(mode == "fields" ? new string('a', LongText * 16) :
@@ -488,26 +491,23 @@ public sealed class AwkTextCancellationTests
     }
 
     [Theory]
-    [InlineData(100, 1)] [InlineData(256, 128)]
-    public void RecordSliceCopyPollsByCumulativeBytesRatherThanEveryFragment(int count, int width)
+    [InlineData(100, 1)]
+    [InlineData(256, 128)]
+    public void RecordSliceCopyPreservesFragmentedFields(int count, int width)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 512);
         var value = new string('a', width);
         var record = AwkUtf8Codec.Encode(value).ToArray();
         var fields = Enumerable.Repeat(AwkFieldText.FromRecordSlice(0, width), count).ToArray();
         var byteLength = count * width + count - 1;
         builder.AppendRecord(new AwkRecordFields(fields), record, AwkText.FromSourceLiteralString("|"),
-            AwkText.FromSourceLiteralString("!"), byteLength, counters.RecordCancellationCheck);
+            AwkText.FromSourceLiteralString("!"), byteLength, static () => { });
         Assert.Equal(string.Join('|', Enumerable.Repeat(value, count)) + "!", AwkUtf8Codec.Decode(builder.AsSpan()));
-        // A loose performance guard permits different owner boundaries without
-        // freezing exact steps; this short operation needs no per-fragment polls.
-        var intervals = byteLength / AwkRuntimeLimits.CancellationCheckBytes;
-        Assert.InRange(counters.CancellationChecks, Math.Max(1, intervals), 16 + 4 * (intervals + 1));
+
     }
 
-    private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
-        new CooperativeTestMemory(1 << 20, counters);
+    private static CooperativeTestMemory Governor() =>
+        new CooperativeTestMemory(1 << 20);
 
     private static AwkText DeepText(int count, AwkRuntimeCounters counters, AwkMemoryAccounting governor)
     {

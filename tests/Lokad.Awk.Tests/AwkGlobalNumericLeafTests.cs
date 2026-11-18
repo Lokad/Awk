@@ -5,7 +5,8 @@ public sealed class AwkGlobalNumericLeafTests
     private static readonly AwkVariableName Result = AwkVariableName.FromText("result");
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void NumericReadsKeepCurrentValuesAndOriginalSpelling(bool preparedBinding)
     {
         using var memory = State();
@@ -19,10 +20,10 @@ public sealed class AwkGlobalNumericLeafTests
         state.AssignVariableValue(name, AwkValue.FromNumericString("007"));
         Assert.Equal(7, Read(region, state, storage));
         Assert.Equal("007", state.ResolveVariableValue(name).AsString());
-        Assert.Equal(preparedBinding ? 1 : 0, state.Counters.NumericGlobalReads);
+
         state.AssignVariableValue(name, AwkValue.FromNumber(9));
         Assert.Equal(9, Read(region, state, storage));
-        Assert.Equal(preparedBinding ? 2 : 0, state.Counters.NumericGlobalReads);
+
     }
 
     [Fact]
@@ -39,7 +40,7 @@ public sealed class AwkGlobalNumericLeafTests
         state.AssignVariableValue(AwkVariableName.FromText("NF"), AwkValue.FromNumber(1.5));
         Assert.Equal(1, state.FieldCount);
         Assert.Equal(1.5, Read(region, state, storage));
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
+
     }
 
     [Fact]
@@ -58,7 +59,7 @@ public sealed class AwkGlobalNumericLeafTests
         Assert.False(state.HasScalar(name));
         Assert.False(state.HasScalar(Result));
         Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
+
     }
 
     [Fact]
@@ -74,12 +75,15 @@ public sealed class AwkGlobalNumericLeafTests
         var error = Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.False(state.HasScalar(Result));
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
+
     }
 
     [Theory]
-    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)]
-    [InlineData(double.NegativeInfinity)] [InlineData(-0.0)] [InlineData(1.25)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-0.0)]
+    [InlineData(1.25)]
     public void BoundNumericReadsPreserveTheirBinary64Value(double value)
     {
         using var memory = State();
@@ -92,8 +96,8 @@ public sealed class AwkGlobalNumericLeafTests
         using var storage = new AwkRegionStorage(state);
         var actual = Read(region, state, storage);
         Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(actual));
-        Assert.Equal(0, state.Counters.StringDecodes);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
     }
 
     [Fact]

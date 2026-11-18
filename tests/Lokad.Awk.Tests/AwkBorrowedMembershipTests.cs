@@ -13,7 +13,7 @@ public sealed class AwkBorrowedMembershipTests
     public void BorrowedDictionaryLookupsMatchOwnedKeysWithoutRetainingOrCopyingTheInput(string text, bool ordinal)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
+        var comparer = AwkArrayKeyComparer.ForRuntime(null);
         var key = ordinal ? AwkArrayKey.FromOrdinal(int.Parse(text, System.Globalization.CultureInfo.InvariantCulture))
             : new AwkArrayKey(AwkText.FromSourceLiteralString(text));
         var dictionary = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 17 };
@@ -23,11 +23,11 @@ public sealed class AwkBorrowedMembershipTests
         Assert.Equal(17, lookup[bytes]);
         Assert.False(lookup.ContainsKey("?missing"u8));
         Assert.Single(dictionary);
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Array.Fill(bytes, (byte)'x');
         Assert.True(lookup.ContainsKey(AwkUtf8Codec.Encode(text).Span));
         Assert.Equal(17, dictionary[key]);
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         if (ordinal && text == "7") Assert.False(lookup.ContainsKey("007"u8));
     }
 
@@ -70,11 +70,11 @@ public sealed class AwkBorrowedMembershipTests
         state.SetCurrentRecord(AwkText.FromString("hit tail"));
         _ = state.FieldCount;
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         Assert.True(state.ContainsArrayField(array, 1));
         Assert.False(state.ContainsArrayField(array, 2));
         Assert.False(state.ContainsArrayField(array, 9));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         state.SetCurrentRecord(AwkText.FromString("new other"));

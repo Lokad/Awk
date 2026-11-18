@@ -39,16 +39,15 @@ public sealed class AwkNumericByteEscapeTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var runtime = Runtime(profile,counters,limits);
+        var runtime = Runtime(profile, counters, limits);
         var pattern = new AwkRegexPattern(@"\303\251");
         var regex = runtime.Create(pattern);
         Assert.Same(regex, runtime.Create(pattern));
         Assert.True(runtime.IsMatch(regex, AwkText.FromString("é", counters)));
         Assert.False(runtime.IsMatch(regex, AwkText.FromString("Ã©", counters)));
-        Assert.Equal(1, counters.RegexCompiles);
-        Assert.Equal(2, counters.RegexMatches);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Theory]
@@ -59,10 +58,10 @@ public sealed class AwkNumericByteEscapeTests
     {
         const string pattern = @"\360\237\230\200";
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(1, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(1);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(profile,counters,limits,governor);
+        var runtime = Runtime(profile, counters, limits, governor);
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));
@@ -70,8 +69,8 @@ public sealed class AwkNumericByteEscapeTests
             Assert.Equal(0, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
-        Assert.Equal(0, counters.RegexMatches);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -143,9 +142,9 @@ public sealed class AwkNumericByteEscapeTests
         Assert.Equal("é", AwkEscapes.DecodeSourceString(text, AwkCompatibilityMode.GnuDefault));
     }
 
-    private static AwkRegexRuntime Runtime(int profile,AwkRuntimeCounters counters,        AwkRuntimeLimits limits,AwkMemoryAccounting? governor = null) =>
+    private static AwkRegexRuntime Runtime(int profile, AwkRuntimeCounters counters, AwkRuntimeLimits limits, AwkMemoryAccounting? governor = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits limits, bool counters) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),

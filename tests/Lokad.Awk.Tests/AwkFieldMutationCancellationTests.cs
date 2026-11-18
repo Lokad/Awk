@@ -15,7 +15,7 @@ public sealed class AwkFieldMutationCancellationTests
     public void CanceledGrowthPreservesFieldsCountValueRecordAndMemory(string operation, int target)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var executionToken = cancellation.Token;
@@ -32,7 +32,7 @@ public sealed class AwkFieldMutationCancellationTests
         var previousRecord = frame.RecordAwkText;
         var first = frame.GetFieldValue(new(1));
         var committed = governor.CurrentCommittedBytes;
-        var materialized = counters.FieldsMaterialized;
+        var materialized = counters[AwkCounter.FieldsPrepared];
         armed = true;
 
         var error = Assert.Throws<OperationCanceledException>(() => Grow(frame, operation, target));
@@ -40,7 +40,7 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(materialized, counters.FieldsMaterialized);
+        Assert.Equal(materialized, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(2, frame.GetFieldCount());
         Assert.Equal("02.8", frame.GetFieldCountValue().AsString());
         Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
@@ -69,7 +69,7 @@ public sealed class AwkFieldMutationCancellationTests
     {
         const int retained = 8_193;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -93,7 +93,7 @@ public sealed class AwkFieldMutationCancellationTests
                 _ = frame.GetFieldValue(new(index));
         committed = governor.CurrentCommittedBytes;
         var previousRecord = frame.RecordAwkText;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         armed = true;
 
         var error = Assert.Throws<OperationCanceledException>(() => frame.AssignFieldCount(new(retained), Separator));
@@ -103,7 +103,7 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(ManyFields, frame.GetFieldCount());
         Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         if (cached)
             Assert.Equal("a", frame.GetFieldValue(new(ManyFields)).AsString());
 
@@ -113,7 +113,7 @@ public sealed class AwkFieldMutationCancellationTests
         if (cached)
         {
             Assert.Equal("a", frame.GetFieldValue(new(retained)).AsString());
-            Assert.Equal(allocations, counters.AwkTextAllocations);
+            Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         }
         Assert.Equal(string.Join("|", Enumerable.Repeat("a", retained)), frame.RecordAwkText.AsString());
         frame.ResetRecord();
@@ -127,7 +127,7 @@ public sealed class AwkFieldMutationCancellationTests
     public void BoundedMutationChecksBeforeChangingLiveState(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         using var context = Frame(counters, governor, cancellation.Token.ThrowIfCancellationRequested);
@@ -153,7 +153,7 @@ public sealed class AwkFieldMutationCancellationTests
     {
         const int original = 8_193;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var context = Frame(counters, governor, () => { });
         var frame = context.Frame;
@@ -182,7 +182,7 @@ public sealed class AwkFieldMutationCancellationTests
     public void SuccessfulGrowthTransfersTheStagingChargeExactlyOnce(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var context = Frame(counters, governor, () => { });
         var frame = context.Frame;
@@ -224,11 +224,10 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(count, frame.GetFieldCount());
     }
 
-
     private static AwkFieldTestContext Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
         new(counters, governor, value => value.ByteText, checkpoint, separator: "");
 
-    private static CooperativeTestMemory Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
-        new CooperativeTestMemory(budget, counters);
+    private static CooperativeTestMemory Governor(long budget = 8 << 20) =>
+        new CooperativeTestMemory(budget);
 
 }

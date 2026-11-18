@@ -3,11 +3,12 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     private const string ForwardReturnOwnedSource =
-        "function leaf(n,held){held=$0 \"suffix\";return n+1}" +
+        "function leaf(n,held){held=$0 \"suffix\";ready=1;return n+1}" +
         "function relay(n,owned){owned[\"v\"]=99;return leaf(n)}{total=relay($1);print \"done\"}";
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ForwardedNumberKeepsOuterOwnerAcrossOutputCreatedDuringRetirement(bool cancel)
     {
         var binding = AwkBinder.Bind(AwkParser.Parse(ForwardReturnOwnedSource,
@@ -17,7 +18,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var program = binding.Program.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
         state.InitializeGlobalNames(program.GlobalNames);
@@ -46,11 +47,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var observed = false;
         memory.Budget.OnRefund = () =>
         {
-            if (!state.IsInsideFunction || counters.BoundFunctionRuns != 2 ||
+            if (!state.IsInsideFunction || state.ResolveVariableValue(AwkVariableName.FromText("ready")).AsNumber() != 1 ||
                 !state.CurrentFunctionFrame.Layout.TryGetSlot(AwkVariableName.FromText("owned"), out _)) return;
             memory.Budget.OnRefund = null;
             observed = true;
@@ -90,7 +92,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ForwardedNumberStopsCallerMutationAfterEitherRetirementRefund(bool outer)
     {
         var binding = AwkBinder.Bind(AwkParser.Parse(ForwardReturnOwnedSource,
@@ -100,7 +103,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var program = binding.Program.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
         state.InitializeGlobalNames(program.GlobalNames);
@@ -109,10 +112,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("7 " + new string('x', 4096)));
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(0));
+        state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var observed = false;
         memory.Budget.OnRefund = () =>
         {
-            if (counters.BoundFunctionRuns != 2) return;
+            if (state.ResolveVariableValue(AwkVariableName.FromText("ready")).AsNumber() != 1) return;
             if (outer ? state.IsInsideFunction : !state.IsInsideFunction ||
                 !state.CurrentFunctionFrame.Layout.TryGetSlot(AwkVariableName.FromText("owned"), out _)) return;
             memory.Budget.OnRefund = null;
@@ -121,7 +125,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         };
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => program.MainProgram.ExecuteAsync(state, io, output).AsTask());

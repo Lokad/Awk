@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPrintfAdmissionTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task MissingFormatFailsAfterTargetEffectsWithoutOpeningOutput(bool governed, bool existingFile)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -27,8 +29,10 @@ public sealed class AwkPrintfAdmissionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task RedirectedFormattingFailureDoesNotCreateOrTruncateOutput(bool refusal, bool existingFile)
     {
         var budget = new CooperativeTestBudget(refusal ? 128 << 10 : 8 << 20);
@@ -50,7 +54,9 @@ public sealed class AwkPrintfAdmissionTests
     }
 
     [Theory]
-    [InlineData("x")] [InlineData("é")] [InlineData("😀")]
+    [InlineData("x")]
+    [InlineData("é")]
+    [InlineData("😀")]
     public async Task LiteralRunRefusalPreservesEarlierOutput(string scalar)
     {
         var budget = new CooperativeTestBudget(32 << 20);
@@ -94,7 +100,8 @@ public sealed class AwkPrintfAdmissionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task OutputStringConversionAdmitsItsConversionFormatBeforeOpeningOutput(bool existingFile)
     {
         var budget = new CooperativeTestBudget(128 << 10);
@@ -140,8 +147,10 @@ public sealed class AwkPrintfAdmissionTests
     }
 
     [Theory]
-    [InlineData("%.*f")] [InlineData("%+.*e")]
-    [InlineData("%#.*g")] [InlineData("%.*a")]
+    [InlineData("%.*f")]
+    [InlineData("%+.*e")]
+    [InlineData("%#.*g")]
+    [InlineData("%.*a")]
     public async Task LargeConversionScratchRefusesWithoutPublishingPartialOutput(string format)
     {
         var budget = new CooperativeTestBudget(1_200_000);
@@ -158,13 +167,15 @@ public sealed class AwkPrintfAdmissionTests
     }
 
     [Theory]
-    [InlineData("%.*f", 1_000_002)] [InlineData("%+.*e", 1_000_007)]
-    [InlineData("%#.*g", 1_000_001)] [InlineData("%.*a", 1_000_007)]
+    [InlineData("%.*f", 1_000_002)]
+    [InlineData("%+.*e", 1_000_007)]
+    [InlineData("%#.*g", 1_000_001)]
+    [InlineData("%.*a", 1_000_007)]
     public async Task LargeConversionsReleaseScratchAfterEncoding(string format, int expectedLength)
     {
         var budget = new CooperativeTestBudget(16 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using (var builder = new AwkUtf8Builder(accounting, capacity: 0))
         {
             PrintfEvaluation.FormatToBuilder(builder, format.Replace("*", "1000000", StringComparison.Ordinal),
@@ -187,7 +198,7 @@ public sealed class AwkPrintfAdmissionTests
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
         using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
         {
@@ -197,8 +208,8 @@ public sealed class AwkPrintfAdmissionTests
             Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
             Assert.Equal(committed, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(0, counters.Utf8Encodes);
-            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         }
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);
@@ -210,7 +221,7 @@ public sealed class AwkPrintfAdmissionTests
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
         {
             builder.Append("kept"u8);

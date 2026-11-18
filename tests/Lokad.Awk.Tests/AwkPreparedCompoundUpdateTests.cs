@@ -52,7 +52,7 @@ public sealed class AwkPreparedCompoundUpdateTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -108,9 +108,12 @@ public sealed class AwkPreparedCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData("=", "success")] [InlineData("+=", "success")]
-    [InlineData("=", "cancel")] [InlineData("+=", "cancel")]
-    [InlineData("=", "refuse")] [InlineData("+=", "refuse")]
+    [InlineData("=", "success")]
+    [InlineData("+=", "success")]
+    [InlineData("=", "cancel")]
+    [InlineData("+=", "cancel")]
+    [InlineData("=", "refuse")]
+    [InlineData("+=", "refuse")]
     public async Task MissingTargetBindsAtItsReadOrPublicationAndSurvivesLateFailure(string operation, string outcome)
     {
         using var cancellation = new CancellationTokenSource();
@@ -132,7 +135,7 @@ public sealed class AwkPreparedCompoundUpdateTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         var pressure = AwkMemoryLease.Disabled;
         try
@@ -182,7 +185,9 @@ public sealed class AwkPreparedCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData("value+=rhs()")] [InlineData("++value")] [InlineData("value++")]
+    [InlineData("value+=rhs()")]
+    [InlineData("++value")]
+    [InlineData("value++")]
     public void ExistingArrayTypeFailureStopsRightEffectsAndPreservesEntries(string expression)
     {
         using var memory = State(true);
@@ -202,7 +207,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData("=")] [InlineData("+=")]
+    [InlineData("=")]
+    [InlineData("+=")]
     public void StorageRefusalPrecedesRightEffectsAndTargetBinding(string operation)
     {
         using var memory = State(true);

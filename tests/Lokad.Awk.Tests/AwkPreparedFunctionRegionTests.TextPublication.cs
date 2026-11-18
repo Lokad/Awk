@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task UsedTextAssignmentsKeepTheirSnapshotsAndPlainStringOrigins(bool governed)
     {
         const string source = "function f(s,t){a=(t=tolower(s));b=(t=substr(s,2,2));" +
@@ -22,19 +23,24 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task TextPublicationAdmissionFollowsProductionAndStopsBeforeMutation(bool substring, bool cancel) =>
         AssertTextPublicationStopsBeforeMutation(substring ? "substr(\"ABCD\",2,2)" : "tolower(\"ABC\")", cancel);
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task ConcatenationPublicationAdmissionFollowsProductionAndStopsBeforeMutation(bool cancel) =>
         AssertTextPublicationStopsBeforeMutation("\"AB\" \"CD\" \"EF\"", cancel);
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task PublishedConcatenationStaysFundedUntilPendingOutputCompletes(bool local, bool cancel) =>
         VerifyPendingPublishedText(cancel, local
             ? "function f(s,t){t=s \"07\";print \"held\";return t}BEGIN{print f(\"00\")}"
@@ -57,10 +63,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
         host.AfterAppend = () =>
         {
             if (host.GetOutput(AwkFileDescriptor.StdOut) != "before\n") return;
-            var allocations = counters.AwkTextAllocations;
+            var allocations = counters[AwkCounter.TextAllocations];
             memory.Budget.OnGrowth = _ =>
             {
-                if (counters.AwkTextAllocations <= allocations) return;
+                if (counters[AwkCounter.TextAllocations] <= allocations) return;
                 memory.Budget.OnGrowth = null;
                 observed = true;
                 Assert.False(state.HasScalar(saved));
@@ -70,7 +76,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         try
         {
             if (cancel)

@@ -356,7 +356,7 @@ internal partial struct AwkRegionMachine
                     }
                     else
                     {
-                        computationView.State.Counters.RecordByteTextComparison();
+
                         result = AwkComparisonOperations.EvaluateTextComparison(
                             computationView.State.CompareByteText(computationView.TextOperand(instruction.Left), computationView.TextOperand(instruction.Right)),
                             (AwkComparison)instruction.Detail);

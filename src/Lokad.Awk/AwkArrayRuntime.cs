@@ -454,7 +454,7 @@ internal sealed partial class AwkArrayRuntime
         arrayName = ResolveTarget(arrayName);
         if (separatorArrayName.HasValue)
         {
-            _state.Counters.RecordSeparatorCaptureFallback();
+
             SetSplitArrayValues(
                 arrayName,
                 result.Fields,
@@ -645,9 +645,12 @@ internal sealed partial class AwkArrayRuntime
         // Index orders and user comparators consume language key text repeatedly.
         // asorti publishes it. Value orders/traversal can retain owning keys directly.
         var materializeKeys = keys || order is AwkArraySortOrder.UserFunctionOrder or
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringAscending or
+            AwkArraySortOrder.BuiltinOrder
+        {
+            Kind: AwkArrayBuiltinSortOrder.IndexStringAscending or
                 AwkArrayBuiltinSortOrder.IndexStringDescending or AwkArrayBuiltinSortOrder.IndexNumberAscending or
-                AwkArrayBuiltinSortOrder.IndexNumberDescending };
+                AwkArrayBuiltinSortOrder.IndexNumberDescending
+        };
         var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeKeys, retainValues: true);
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             EstimateSortOperationBytes(size.Count, order, output), size.TextBytes));
@@ -1054,7 +1057,7 @@ internal sealed partial class AwkArrayRuntime
 
     private static int CompareStringValues(in AwkArraySortEntry left, in AwkArraySortEntry right, AwkRuntimeState state)
     {
-        state.Counters.RecordByteTextComparison();
+
         return state.CompareByteText(left.ValueText, right.ValueText, sorting: true);
     }
 
@@ -1066,7 +1069,7 @@ internal sealed partial class AwkArrayRuntime
         // Other origins and nonintegers retain their text tie-break before comparing keys.
         if (comparison == 0 && !(left.Value.IsNumberValue && right.Value.IsNumberValue && double.IsInteger(left.NumericKey)))
         {
-            state.Counters.RecordByteTextComparison();
+
             using (var textLease = state.MemoryAccounting.CreateTransientLease())
                 comparison = state.CompareByteText(state.FormatStringByteText(left.Value, textLease),
                     state.FormatStringByteText(right.Value, textLease), sorting: true);
@@ -1102,7 +1105,7 @@ internal sealed partial class AwkArrayRuntime
 
     private static int CompareKeys(in AwkArraySortEntry left, in AwkArraySortEntry right, AwkRuntimeState state)
     {
-        state.Counters.RecordByteTextComparison();
+
         if (!left.Key.RequiresTextMaterialization && !right.Key.RequiresTextMaterialization)
             return state.CompareByteText(left.Key.StoredText, right.Key.StoredText, sorting: true);
         Span<byte> leftBuffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];

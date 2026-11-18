@@ -14,16 +14,16 @@ public sealed class AwkPreparedNumberReadTests
         Assert.Equal(0, reference.EvaluateNumber(state));
         Assert.Equal(slots, state.HasBoundGlobalScalar(0));
         Assert.Equal(0, reference.EvaluateNumber(state));
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
+
         reference.AssignValue(state, AwkValue.FromNumber(7));
         Assert.Equal(7, reference.EvaluateNumber(state));
         state.AssignVariableValue(name, AwkValue.FromNumericString("007"));
         Assert.Equal(7, reference.EvaluateNumber(state));
         Assert.Equal("007", state.ResolveVariableValue(name).AsString());
-        Assert.Equal(slots ? 1 : 0, state.Counters.NumericGlobalReads);
+
         state.AssignVariableValue(name, AwkValue.FromNumber(9));
         Assert.Equal(9, reference.EvaluateNumber(state));
-        Assert.Equal(slots ? 2 : 0, state.Counters.NumericGlobalReads);
+
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class AwkPreparedNumberReadTests
         state.SetCurrentRecord(AwkText.FromString("next has three"));
         Assert.Equal(AwkStatementFlow.Continue, action.Execute(state, storage));
         Assert.Equal(3, state.ResolveVariableValue(result).AsNumber());
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
+
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class AwkPreparedNumberReadTests
         Assert.Equal(4, array.EvaluateNumber(state));
         state.SetCurrentRecord(AwkText.FromString("old 007"));
         Assert.Equal(7, AwkResolvedReference.Field(new AwkFieldIndex(2)).EvaluateNumber(state));
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
+
     }
 
     private static CooperativeTestMemory State(AwkRuntimeLimits? limits = null, bool slots = true)

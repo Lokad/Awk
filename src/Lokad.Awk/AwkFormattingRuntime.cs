@@ -23,7 +23,7 @@ internal sealed class AwkFormattingRuntime(
         // constructing an owning text value for this immediate print consumer.
         if (!double.IsInteger(number)) return false;
         AwkNumberFormatter.Append(number, destination, checkpoint);
-        counters.RecordPrintIntegerSegment();
+
         return true;
     }
 
@@ -56,7 +56,6 @@ internal sealed class AwkFormattingRuntime(
         if (UsesDefaultFormat(variable))
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
 
-        counters.RecordFormattingFallback();
         using var argumentText = governor.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
             resolveVariable(variable).AsString(counters, checkpoint), new NumericFormatArguments(number, variable, this, argumentText),
@@ -129,8 +128,7 @@ internal sealed class AwkFormattingRuntime(
         AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
         where TArguments : IPrintfArguments
     {
-        counters.RecordFormattingFallback();
-        counters.RecordFormattingStringInteropInput();
+
         return PrintfEvaluation.FormatByteText(
             formatText, arguments, PrintfMissingArgumentPolicy.Throw, counters, governor, compatibilityMode, checkpoint,
             retainedTextLease, stringUnitMode);
@@ -143,8 +141,7 @@ internal sealed class AwkFormattingRuntime(
         AwkRuntimeState state)
         where TArguments : IPrintfArguments
     {
-        state.Counters.RecordFormattingFallback();
-        state.Counters.RecordFormattingStringInteropInput();
+
         PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw, state.Counters,
             state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint, state.StringUnitMode);
     }

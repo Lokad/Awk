@@ -95,7 +95,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café\ncafé\ncafé\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
     }
 
     [Fact]
@@ -305,22 +305,20 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
         Assert.False(AwkTestHarness.CreateRuntimeOptions().Counters.IsEnabled);
-        Assert.Equal(0, AwkTestHarness.CreateRuntimeOptions().Counters.RecordsRead);
+        Assert.Equal(0, AwkTestHarness.CreateRuntimeOptions().Counters[AwkCounter.RecordsRead]);
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("beta\n10\ndelta\n12\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(2, counters.RecordsRead);
-        Assert.Equal(24, counters.BytesRead);
-        Assert.Equal(2, counters.FieldSplits);
-        Assert.Equal(4, counters.FieldsMaterialized);
-        Assert.True(counters.ValuesCreated > 0);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.True(counters.RecordSeparatorResolutions > 0);
-        Assert.Equal(17, counters.OutputBytes);
-        Assert.Equal(1, counters.RegexCompiles);
-        Assert.True(counters.RegexMatches >= 2);
-        Assert.True(counters.HostCalls >= 6);
-        Assert.True(counters.CancellationChecks > 0);
-        Assert.Equal(0, counters.FormattingStringInteropInputs);
+        Assert.Equal(2, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(24, counters[AwkCounter.BytesRead]);
+        Assert.Equal(2, counters[AwkCounter.FieldSplits]);
+        Assert.Equal(4, counters[AwkCounter.FieldsPrepared]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(17, counters[AwkCounter.OutputBytes]);
+
+        Assert.True(counters[AwkCounter.HostCalls] >= 6);
+
     }
 
     [Fact]
@@ -346,9 +344,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("ok\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(Encoding.UTF8.GetByteCount(script), counters.BytesRead);
-        Assert.Equal(3, counters.OutputBytes);
-        Assert.Equal(4, counters.HostCalls); // Source open/read/close and stdout; no automatic stdin read.
+        Assert.Equal(Encoding.UTF8.GetByteCount(script), counters[AwkCounter.BytesRead]);
+        Assert.Equal(3, counters[AwkCounter.OutputBytes]);
+        Assert.Equal(4, counters[AwkCounter.HostCalls]); // Source open/read/close and stdout; no automatic stdin read.
     }
 
     [Fact]
@@ -376,12 +374,11 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("00073.5\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(2, counters.FormattingFallbacks);
-        Assert.Equal(2, counters.FormattingStringInteropInputs);
+
         // printf copies its already-encoded argument; only formatting the
         // integer digits crosses from UTF-16 to UTF-8.
-        Assert.Equal(1, counters.Utf8Encodes);
-        Assert.True(counters.AwkTextAsStringCalls <= counters.FormattingStringInteropInputs);
+        Assert.Equal(1, counters[AwkCounter.Utf8Encodes]);
+
     }
 
     [Fact]
@@ -401,8 +398,8 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(1, counters.ByteTextComparisons);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -422,8 +419,8 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café résumé123\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]
@@ -445,8 +442,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café\nCAFÉ\n1970\n0\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(3, counters.StringInteropFallbacks);
-        Assert.Equal(3, counters.AwkTextAsStringCalls);
+
     }
 
     [Fact]
@@ -466,9 +462,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("abc-xyz\nABC-XYZ\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, counters.StringInteropFallbacks);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]
@@ -489,7 +485,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("abc\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.MemoryPeakLiveBytes > 0);
+
     }
 
     [Fact]
@@ -522,11 +518,11 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(input, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(66, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(Encoding.UTF8.GetByteCount(input), counters.OutputBytes);
+        Assert.Equal(66, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(Encoding.UTF8.GetByteCount(input), counters[AwkCounter.OutputBytes]);
     }
 
     [Fact]

@@ -3,23 +3,35 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkIndexedFieldCacheTests
 {
     [Theory]
-    [InlineData("0007", false, false)] [InlineData("0007", true, false)]
-    [InlineData("7tail", false, false)] [InlineData("7tail", true, false)]
-    [InlineData("0007", false, true)] [InlineData("0007", true, true)]
-    [InlineData("7tail", false, true)] [InlineData("7tail", true, true)]
-    [InlineData("7e0", false, false)] [InlineData("7e0", true, false)]
-    [InlineData("7e0", false, true)] [InlineData("7e0", true, true)]
-    [InlineData("+007", false, false)] [InlineData("+007", true, false)]
-    [InlineData("+007", false, true)] [InlineData("+007", true, true)]
-    [InlineData("7\u00e9", false, false)] [InlineData("7\u00e9", true, false)]
-    [InlineData("7\u00e9", false, true)] [InlineData("7\u00e9", true, true)]
-    [InlineData(" 7 ", false, false)] [InlineData(" 7 ", true, false)]
-    [InlineData(" 7 ", false, true)] [InlineData(" 7 ", true, true)]
+    [InlineData("0007", false, false)]
+    [InlineData("0007", true, false)]
+    [InlineData("7tail", false, false)]
+    [InlineData("7tail", true, false)]
+    [InlineData("0007", false, true)]
+    [InlineData("0007", true, true)]
+    [InlineData("7tail", false, true)]
+    [InlineData("7tail", true, true)]
+    [InlineData("7e0", false, false)]
+    [InlineData("7e0", true, false)]
+    [InlineData("7e0", false, true)]
+    [InlineData("7e0", true, true)]
+    [InlineData("+007", false, false)]
+    [InlineData("+007", true, false)]
+    [InlineData("+007", false, true)]
+    [InlineData("+007", true, true)]
+    [InlineData("7\u00e9", false, false)]
+    [InlineData("7\u00e9", true, false)]
+    [InlineData("7\u00e9", false, true)]
+    [InlineData("7\u00e9", true, true)]
+    [InlineData(" 7 ", false, false)]
+    [InlineData(" 7 ", true, false)]
+    [InlineData(" 7 ", false, true)]
+    [InlineData(" 7 ", true, true)]
     public void TextSnapshotsShareSpellingAndKeepEstablishedFactsThroughCompletion(
         string spelling, bool strict, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         var inputValues = 0;
         using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|", createInputValue: text =>
         {
@@ -30,12 +42,12 @@ public sealed class AwkIndexedFieldCacheTests
         frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail|old"));
         if (strict) _ = frame.GetFieldComparison(new(1), AwkNumberParsingMode.Decimal);
         else Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
-        var parses = counters.NumericFieldByteParses;
+
         Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var first));
         Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var repeated));
         Assert.True(first.HasSameStorage(repeated));
         Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
-        Assert.Equal(parses, counters.NumericFieldByteParses);
+
         Assert.Equal(0, inputValues);
         Assert.Equal(3, frame.GetFieldCount());
         var value = frame.GetFieldValue(new(1));
@@ -49,9 +61,12 @@ public sealed class AwkIndexedFieldCacheTests
     }
 
     [Theory]
-    [InlineData(false, 3)] [InlineData(true, 3)]
-    [InlineData(false, 8)] [InlineData(true, 8)]
-    [InlineData(false, 16)] [InlineData(true, 16)]
+    [InlineData(false, 3)]
+    [InlineData(true, 3)]
+    [InlineData(false, 8)]
+    [InlineData(true, 8)]
+    [InlineData(false, 16)]
+    [InlineData(true, 16)]
     public void WarmRecordStorageIsReusedWithoutRetainingOldValues(bool governed, int fields)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -65,16 +80,14 @@ public sealed class AwkIndexedFieldCacheTests
         state.SetCurrentRecord(record);
         var saved = state.GetFieldValue(1);
         ReadRecord();
-        var allocations = counters.FieldValueCacheBufferAllocations;
+
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         for (var row = 0; row < 100; row++) ReadRecord();
 
-        Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
-        Assert.True(counters.FieldListBufferReuses >= 100);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("next"));
         Assert.Equal("001", saved.ByteText.AsString());
         Assert.Equal("next", state.GetFieldValue(1).ByteText.AsString());
@@ -107,7 +120,7 @@ public sealed class AwkIndexedFieldCacheTests
     public void EarlyAndOutOfRangeReadsDoNotAllocateAFullWidthCacheAndRefusedGrowthIsAtomic()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8L << 20, counters);
+        using var memory = new CooperativeTestMemory(8L << 20);
         using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, separator: "");
         var frame = context.Frame;
         var record = AwkText.FromSourceLiteralString(new string('x', 1024));
@@ -119,15 +132,15 @@ public sealed class AwkIndexedFieldCacheTests
             _ = frame.GetFieldValue(new(index));
         Assert.True(memory.Accounting.CurrentCommittedBytes - before < 1024);
         var committed = memory.Accounting.CurrentCommittedBytes;
-        var allocations = counters.FieldValueCacheBufferAllocations;
+
         Assert.Equal(string.Empty, frame.GetFieldValue(new(int.MaxValue)).AsString());
-        Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
+
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1024)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
+
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         Assert.True(frame.TryGetUnmaterializedFieldBytes(new(1024), out _));
@@ -138,17 +151,18 @@ public sealed class AwkIndexedFieldCacheTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void CanceledCacheStagingPreservesExistingFieldsAndValues(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8L << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8L << 20, enabled: governed);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
-        long allocations = 0;
+        memory.Budget.OnGrowth = _ => { if (armed) cancellation.Cancel(); };
         using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, checkpoint: () =>
         {
-            if (armed && counters.FieldValueCacheBufferAllocations > allocations) cancellation.Cancel();
+            if (armed && !governed) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         }, separator: "");
         var frame = context.Frame;
@@ -158,7 +172,6 @@ public sealed class AwkIndexedFieldCacheTests
         var first = frame.GetFieldValue(new(1));
         for (var index = 2; index <= 4; index++)
             _ = frame.GetFieldValue(new(index));
-        allocations = counters.FieldValueCacheBufferAllocations;
         var committed = memory.Accounting.CurrentCommittedBytes;
         armed = true;
         var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(8192)));
@@ -177,15 +190,15 @@ public sealed class AwkIndexedFieldCacheTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void SparseLateReadsReuseOnlyCachedValues(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8L << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8L << 20, enabled: governed);
         using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, separator: "");
         var frame = context.Frame;
         var record = AwkText.FromSourceLiteralString(new string('x', 8192));
-        long allocations = 0;
         for (var row = 0; row < 3; row++)
         {
             frame.SetRecordText(record);
@@ -193,8 +206,6 @@ public sealed class AwkIndexedFieldCacheTests
             var before = memory.Accounting.CurrentCommittedBytes;
             Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
             Assert.InRange(memory.Accounting.CurrentCommittedBytes - before, 0, 1024);
-            if (row == 0) allocations = counters.FieldValueCacheBufferAllocations;
-            else Assert.Equal(allocations, counters.FieldValueCacheBufferAllocations);
             Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         }
         frame.ResetRecord();
@@ -203,7 +214,8 @@ public sealed class AwkIndexedFieldCacheTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void CompletingSplitPreservesCachedPrefixValues(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -215,11 +227,11 @@ public sealed class AwkIndexedFieldCacheTests
         memory.Initialize(state);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("007 " + new string('x', 512) + " 03"));
         var prefix = state.GetFieldValue(1);
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         Assert.Equal(3, state.FieldCount);
         var again = state.GetFieldValue(1);
         Assert.True(prefix.ByteText.HasSameStorage(again.ByteText));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal("007", again.ByteText.AsString());
         Assert.Equal(7, again.AsNumber());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

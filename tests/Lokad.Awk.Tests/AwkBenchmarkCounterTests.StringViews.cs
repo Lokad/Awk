@@ -23,10 +23,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal((records * repetitions * length) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
-        Assert.Equal(0, counters.TextValueClassifications);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], records, records + 32);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -45,11 +45,11 @@ public sealed partial class AwkBenchmarkCounterTests
             AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
             CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
         Assert.Equal(AwkExitCode.Success, exit);
-        Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal((records * repetitions * 2) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.RuneSliceBytesScanned, 1, records * characters * 2L * 2 + records * repetitions * 64);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -72,10 +72,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1280\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
-        Assert.Equal(0, counters.TextValueClassifications);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], records, records + 32);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
@@ -100,10 +100,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.AwkTextAllocations, records, records + 32);
-        Assert.Equal(0, counters.TextValueClassifications);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], records, records + 32);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
@@ -128,10 +128,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("384\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.AwkTextAllocations, 0, 32);
-        Assert.Equal(0, counters.TextValueClassifications);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 32);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

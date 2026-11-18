@@ -53,7 +53,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         var prefix = string.Concat(Enumerable.Range(0, pendingIndex + 1));
         try
@@ -106,7 +106,8 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void NativeBuiltinStorageAdmissionPrecedesArgumentEffects(bool observed)
     {
         using var memory = State(observed, CancellationToken.None);

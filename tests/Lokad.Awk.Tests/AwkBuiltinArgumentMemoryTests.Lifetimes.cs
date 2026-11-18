@@ -3,14 +3,17 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBuiltinArgumentMemoryTests
 {
     [Theory]
-    [InlineData(false, "success")] [InlineData(true, "success")]
-    [InlineData(false, "fault")] [InlineData(true, "fault")]
-    [InlineData(false, "cancel")] [InlineData(true, "cancel")]
+    [InlineData(false, "success")]
+    [InlineData(true, "success")]
+    [InlineData(false, "fault")]
+    [InlineData(true, "fault")]
+    [InlineData(false, "cancel")]
+    [InlineData(true, "cancel")]
     public async Task EarlierBuiltinPayloadStaysFundedUntilIgnoringHostActuallyCompletes(bool governed, string outcome)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(Limit, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(Limit, enabled: governed);
         var options = memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()));
         memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options));
@@ -37,7 +40,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {

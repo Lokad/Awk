@@ -220,8 +220,8 @@ AwkExecutor.ExecuteAsync(host, command, cancellation.Token, Options()));
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(dynamic ? "b\n" : "a\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(dynamic ? 1 : 0, counters.StringInteropFallbacks);
-            Assert.Equal(dynamic ? 1 : 0, counters.StringDecodes);
+
+            Assert.Equal(dynamic ? 1 : 0, counters[AwkCounter.StringDecodes]);
             Assert.Equal(0, host.OpenFileCount);
         }
     }

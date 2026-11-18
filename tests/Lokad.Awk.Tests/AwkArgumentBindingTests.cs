@@ -3,10 +3,14 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentBindingTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, true, false)]
-    [InlineData(true, false, false)] [InlineData(true, true, false)]
-    [InlineData(false, false, true)] [InlineData(false, true, true)]
-    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
     public async Task ArrayValidationPreservesPendingReadLifetime(bool governed, bool cancel, bool discard)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -57,10 +61,14 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, true, false)]
-    [InlineData(true, false, false)] [InlineData(true, true, false)]
-    [InlineData(false, false, true)] [InlineData(false, true, true)]
-    [InlineData(true, false, true)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
     public async Task LaterPendingArgumentKeepsEarlierValuesAndDoesNotReadFollowingArrayEntries(bool governed, bool cancel, bool unassignedField)
     {
         var budget = new CooperativeTestBudget(4 << 20);
@@ -110,7 +118,8 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void PreparedArgumentsUseTheirExecutionOwnerAndStandaloneUsesVisibleBindings(bool key)
     {
         using var fixture = State();
@@ -182,7 +191,8 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void LaterArgumentsUseCurrentVisibleScopeOrTheirExplicitOwnerAfterAdmission(bool explicitOwner)
     {
         using var fixture = State();
@@ -270,7 +280,8 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ForwardedChildKeepsItsCaptureUntilDetachedActivation(bool governed)
     {
         using var fixture = State(governed);
@@ -343,7 +354,7 @@ public sealed class AwkArgumentBindingTests
                 var argument = BindLocalArgument(state, new(0), name);
                 Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
                 Assert.Equal(global, argument.ArrayName);
-                Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
+
             }
             Assert.Equal(42, BindLocalArgument(state, new(0), name).Value.AsNumber());
             Assert.Equal(42, state.ResolveVariableValue(name).AsNumber());
@@ -368,7 +379,7 @@ public sealed class AwkArgumentBindingTests
             Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
             Assert.Equal(array, argument.ArrayName);
             Assert.Equal("kept", state.GetArrayAwkValue(array, new AwkArrayKey("key")).AsString());
-            Assert.Equal(0, state.Counters.IndexedLocalArrayArguments);
+
         }
         finally { state.PopFunctionFrame(); }
         fixture.Dispose();
@@ -396,7 +407,8 @@ public sealed class AwkArgumentBindingTests
         VerifyArgumentCaptureBeforeAdmission(preparedLocal: true);
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void PreparedKeysCaptureBeforeAdmissionCanChangeTheirSource(bool existingKey)
     {
         using var fixture = State();
@@ -547,8 +559,10 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task PreparedFieldArgumentsSurvivePendingRecordReplacement(bool governed, bool cancel)
     {
         const string source = "function show(a,b,c,d){print a,b,c,d}BEGIN{print \"before\";$0=\"warm 0000\";warm=$2}{show($1,$2,getline,$2)}";

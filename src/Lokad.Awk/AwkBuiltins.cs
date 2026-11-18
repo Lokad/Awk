@@ -480,7 +480,6 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount > 3)
                 return AwkValue.FromText(string.Empty);
 
-            context.State.Counters.RecordStringInteropFallback();
             var format = context.ArgumentCount >= 1
                 ? context.GetString(0)
                 : context.State.ResolveProcInfo(

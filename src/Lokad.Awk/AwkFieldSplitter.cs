@@ -19,15 +19,7 @@ internal sealed class AwkFieldSplitter(
 {
     private static readonly AwkFieldSeparatorSpec NewlineSeparator = AwkFieldSeparatorSpec.FromText("\n");
     private readonly AwkByteFieldSplitter _byteSplitter = new(
-        createRegex,
-        createLiteralRegex,
-        enumerateMatchSpans,
-        resolveRegexCaseSensitivity,
-        stringUnitMode,
-        throwIfCancellationRequested,
-        memoryAccounting,
-        counters,
-        resetRegexWarningSite);
+        createRegex, createLiteralRegex, enumerateMatchSpans, resolveRegexCaseSensitivity, stringUnitMode, throwIfCancellationRequested, memoryAccounting, resetRegexWarningSite);
 
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private AwkText _fieldPattern = AwkText.Empty;

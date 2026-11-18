@@ -18,15 +18,15 @@ public sealed class AwkNumberParserTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(source).ToArray(), counters);
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
 
         Assert.True(text.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, AwkNumberTextExtent.EntireText, out var value));
 
         Assert.Equal(ulong.Parse(expectedBits, NumberStyles.HexNumber, CultureInfo.InvariantCulture),
             BitConverter.DoubleToUInt64Bits(value));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class AwkNumberParserTests
         var text = AwkText.FromSourceLiteralString("0x1.8");
         var input = AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData);
         var slot = AwkValue.ForVariableStorage(input, AwkNumberParsingMode.NonDecimalData);
-        var restored = slot.ReadVariableStorage(AwkNumberParsingMode.NonDecimalData, AwkRuntimeCounters.Disabled);
+        var restored = slot.ReadVariableStorage(AwkNumberParsingMode.NonDecimalData);
         var literal = AwkValue.FromText(text, AwkNumberParsingMode.NonDecimalData);
 
         Assert.Equal(text, restored.ByteText);
@@ -72,10 +72,10 @@ public sealed class AwkNumberParserTests
 
         Assert.True(result.IsNumberValue);
         Assert.Equal(expected, result.AsNumber());
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.FormattingFallbacks);
-        Assert.Equal(0, counters.AwkTextAllocations);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -92,9 +92,9 @@ public sealed class AwkNumberParserTests
             var result = computation.EvaluateBound(arguments, 0, arguments.Length, context);
             Assert.Equal(BitConverter.DoubleToUInt64Bits(number), BitConverter.DoubleToUInt64Bits(result.AsNumber()));
         }
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.FormattingFallbacks);
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -102,11 +102,11 @@ public sealed class AwkNumberParserTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode("0x1." + new string('0', 20_000) + "1p-1075").ToArray(), counters);
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         Assert.True(text.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, AwkNumberTextExtent.EntireText, out var value));
         Assert.Equal(double.Epsilon, value);
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>

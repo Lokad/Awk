@@ -3,17 +3,22 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task NumericArrayReadsAtFullBudgetPreserveOwnedSpelling(bool nested, bool returned, bool numericString)
     {
         await ReadFundedArraySpelling(nested, returned, numericString, owning: false);
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task OwningNestedArrayReadsStillRefuseBeforeChangingTheirDestination(bool returned)
     {
         await ReadFundedArraySpelling(nested: true, returned, numericString: false, owning: true);
@@ -51,7 +56,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             clamped = true;
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             if (owning)

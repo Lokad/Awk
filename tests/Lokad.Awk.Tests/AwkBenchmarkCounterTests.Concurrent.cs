@@ -24,7 +24,7 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(0, host.OpenFileCount);
         })));
 
-        Assert.Equal(enabled ? executions * records : 0, counters.RecordsRead);
-        Assert.Equal(enabled ? executions * "1792\n".Length : 0, counters.OutputBytes);
+        Assert.Equal(enabled ? executions * records : 0, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(enabled ? executions * "1792\n".Length : 0, counters[AwkCounter.OutputBytes]);
     }
 }

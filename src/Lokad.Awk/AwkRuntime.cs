@@ -107,8 +107,8 @@ internal static class AwkRuntime
             if (!canReport)
                 return AwkDiagnostics.FatalExitCode;
             var failure = AwkDiagnostics.Runtime(exception);
-            runtimeOptions.Counters.RecordHostCall();
-            runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
+            runtimeOptions.Counters.Add(AwkCounter.HostCalls, 1);
+            runtimeOptions.Counters.Add(AwkCounter.OutputBytes, failure.Message.Length);
             var appendStatus = await AwkHostBoundaryPolicy.AwaitAsync(
                     host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken),
                     cancellationToken)

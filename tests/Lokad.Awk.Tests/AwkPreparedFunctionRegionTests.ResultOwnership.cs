@@ -39,7 +39,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ClosedCallResultRemainsFundedAcrossPendingOutput(bool cancel)
     {
         const string source = "function copy(s){return substr(s,1)}" +
@@ -96,7 +97,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Fact]
     public async Task ClosedCallResultStopsAfterCancellationDuringCalleeRetirement()
     {
-        const string source = "function copy(s,t,unused){unused=substr(s,1);t=substr(s,1);return t}" +
+        const string source = "function copy(s,t,unused){unused=substr(s,1);t=substr(s,1);ready=1;return t}" +
             "{v=copy($1);total+=length(v);print \"unreached\"}";
         var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None),
             AwkCompatibilityProfile.Default, externalArguments: new([], [], [], AwkPath.Root));
@@ -104,7 +105,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var program = binding.Program.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
         state.InitializeGlobalNames(program.GlobalNames);
@@ -113,17 +114,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("0007"));
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(0));
+        state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var observed = false;
         memory.Budget.OnRefund = () =>
         {
-            if (state.IsInsideFunction || counters.BoundFunctionRuns == 0) return;
+            if (state.IsInsideFunction || state.ResolveVariableValue(AwkVariableName.FromText("ready")).AsNumber() != 1) return;
             observed = true;
             memory.Budget.OnRefund = null;
             cancellation.Cancel();
         };
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => program.MainProgram.ExecuteAsync(state, io, output).AsTask());

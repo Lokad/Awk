@@ -6,9 +6,15 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayKeyTests
 {
     [Theory]
-    [InlineData("")] [InlineData("0007")] [InlineData("1234567")]
-    [InlineData("12345678")] [InlineData("0000000007")] [InlineData("é😀")]
-    [InlineData("\0")] [InlineData("a\0b")] [InlineData("2147483647")]
+    [InlineData("")]
+    [InlineData("0007")]
+    [InlineData("1234567")]
+    [InlineData("12345678")]
+    [InlineData("0000000007")]
+    [InlineData("é😀")]
+    [InlineData("\0")]
+    [InlineData("a\0b")]
+    [InlineData("2147483647")]
     public void InputOriginPreservesByteIdentityAndFirstInsertedKey(string spelling)
     {
         var ordinary = new AwkArrayKey(spelling);
@@ -32,8 +38,11 @@ public sealed class AwkArrayKeyTests
     }
 
     [Theory]
-    [InlineData(-1)] [InlineData(0)] [InlineData(1)]
-    [InlineData(9999999)] [InlineData(int.MaxValue)]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(9999999)]
+    [InlineData(int.MaxValue)]
     public void InputOrdinalOriginSurvivesOwnedBytePreparation(int ordinal)
     {
         var coordinate = AwkArrayKey.FromOrdinal(ordinal).WithInputOrigin(true);
@@ -49,9 +58,18 @@ public sealed class AwkArrayKeyTests
     }
 
     [Theory]
-    [InlineData(8)] [InlineData(9)] [InlineData(15)] [InlineData(16)] [InlineData(17)]
-    [InlineData(4095)] [InlineData(4096)] [InlineData(4097)]
-    [InlineData(8191)] [InlineData(8192)] [InlineData(8193)] [InlineData(16387)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(15)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(4095)]
+    [InlineData(4096)]
+    [InlineData(4097)]
+    [InlineData(8191)]
+    [InlineData(8192)]
+    [InlineData(8193)]
+    [InlineData(16387)]
     public void LongRuntimeKeyHashesAgreeAcrossOwnedBorrowedAndCheckpointedViews(int byteLength)
     {
         var spelling = new string('x', byteLength - 6) + "é😀";
@@ -129,8 +147,14 @@ public sealed class AwkArrayKeyTests
     }
 
     [Theory]
-    [InlineData(int.MinValue)] [InlineData(-1)] [InlineData(0)] [InlineData(1)]
-    [InlineData(16)] [InlineData(1024)] [InlineData(9999999)] [InlineData(int.MaxValue)]
+    [InlineData(int.MinValue)]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(16)]
+    [InlineData(1024)]
+    [InlineData(9999999)]
+    [InlineData(int.MaxValue)]
     public void OrdinalKeysRetainIdentityThroughStorageAndByteProjection(int ordinal)
     {
         var coordinate = AwkArrayKey.FromOrdinal(ordinal);
@@ -195,9 +219,9 @@ public sealed class AwkArrayKeyTests
         var bytes = AwkUtf8Codec.Encode(text).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var key = AwkArrayKey.CopyTrustedBytes(bytes, counters, AwkMemoryAccounting.Disabled, null);
-        Assert.Equal(bytes.Length > 7 ? 1 : 0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(bytes.Length > 7 ? 1 : 0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());
         var owned = new AwkArrayKey(text);
@@ -330,7 +354,7 @@ public sealed class AwkArrayKeyTests
         bytes.CopyTo(padded.AsSpan(1));
         var key = new AwkArrayKey(payload);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(static () => { }, counters);
+        var comparer = AwkArrayKeyComparer.ForRuntime(static () => { });
         var values = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 7 };
         var lookup = values.GetAlternateLookup<ReadOnlySpan<byte>>();
         Assert.True(lookup.TryGetValue(padded.AsSpan(1, bytes.Length), out var value));
@@ -346,26 +370,22 @@ public sealed class AwkArrayKeyTests
             Assert.False(lookup.ContainsKey(AwkUtf8Codec.Encode(different).Span));
         }
         Assert.Single(values);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
     public void RuntimeComparerMeasuresOwnedAndBorrowedWorkInBytes()
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
+
+        var comparer = AwkArrayKeyComparer.ForRuntime(null);
         var key = new AwkArrayKey("café");
 
         Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode("café"u8));
         Assert.True(comparer.Equals(key, new AwkArrayKey("café")));
         Assert.True(comparer.Equals("café"u8, key));
 
-        Assert.Equal(1, counters.ArrayOwnedHashCalls);
-        Assert.Equal(1, counters.ArrayBorrowedHashCalls);
-        Assert.Equal(10, counters.ArrayHashBytes);
-        Assert.Equal(2, counters.ArrayEqualityCalls);
     }
 
     [Fact]
@@ -380,7 +400,7 @@ public sealed class AwkArrayKeyTests
             var text = ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var bytes = AwkUtf8Codec.Encode(text).Span;
             var counters = AwkRuntimeCounters.CreateEnabled();
-            var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
+            var comparer = AwkArrayKeyComparer.ForRuntime(null);
             var key = AwkArrayKey.FromOrdinal(ordinal);
             var compactOrText = new AwkArrayKey(text);
             var projected = compactOrText.WithTextProjection(AwkRuntimeCounters.Disabled);
@@ -388,10 +408,8 @@ public sealed class AwkArrayKeyTests
             Assert.Equal(hash, comparer.GetHashCode(compactOrText));
             Assert.Equal(hash, comparer.GetHashCode(projected));
             Assert.Equal(hash, comparer.GetHashCode(bytes));
-            Assert.Equal(3, counters.ArrayOwnedHashCalls);
-            Assert.Equal(1, counters.ArrayBorrowedHashCalls);
-            Assert.Equal(4 * bytes.Length, counters.ArrayHashBytes);
-            Assert.Equal(0, counters.AwkTextAllocations);
+
+            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
             var values = new Dictionary<AwkArrayKey, int>(comparer) { [projected] = 1 };
             values[key] = 2;
             values[compactOrText] = 3;
@@ -511,7 +529,7 @@ public sealed class AwkArrayKeyTests
             fromText.RetainedTextMemoryBytes);
 
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var comparer = AwkArrayKeyComparer.ForRuntime(null, counters);
+        var comparer = AwkArrayKeyComparer.ForRuntime(null);
         Assert.Equal(comparer.GetHashCode(fromOrdinal), comparer.GetHashCode(fromBytes));
         var borrowedValues = new Dictionary<AwkArrayKey, string>(comparer) { [fromOrdinal] = "value" };
         var lookup = borrowedValues.GetAlternateLookup<ReadOnlySpan<byte>>();
@@ -520,8 +538,8 @@ public sealed class AwkArrayKeyTests
         Assert.False(lookup.ContainsKey(System.Text.Encoding.UTF8.GetBytes("0" + text)));
         Assert.False(comparer.Equals(System.Text.Encoding.UTF8.GetBytes(text + "\0"), fromOrdinal));
         Assert.Single(borrowedValues);
-        Assert.True(counters.ArrayBorrowedHashCalls > 0);
-        Assert.Equal(0, counters.AwkTextAllocations);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         var owner = new AwkArrayIdentity(1, comparer) { [fromOrdinal] = AwkValue.FromNumber(7) };
         Assert.True(owner.ByteLookup.TryGetValue(AwkUtf8Codec.Encode(text).Span,
             out var retained, out var observed));
@@ -562,17 +580,17 @@ public sealed class AwkArrayKeyTests
     public void AwkArrayKey_OrdinalMaterializationUsesRuntimeAccounting()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1024, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1024);
         var governor = memoryForGovernor.Accounting;
-        var baselineAllocations = counters.AwkTextAllocations;
-        var baselineBytes = counters.AwkTextPayloadBytes;
+        var baselineAllocations = counters[AwkCounter.TextAllocations];
+        var baselineBytes = counters[AwkCounter.TextBytes];
 
         var text = AwkArrayKey.FromOrdinal(123).ToByteText(counters, governor);
 
         Assert.Equal("123", text.AsString());
-        Assert.Equal(baselineAllocations + 1, counters.AwkTextAllocations);
-        Assert.Equal(baselineBytes + 3, counters.AwkTextPayloadBytes);
-        Assert.True(counters.MemoryPeakLiveBytes >= 3);
+        Assert.Equal(baselineAllocations + 1, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(baselineBytes + 3, counters[AwkCounter.TextBytes]);
+
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
@@ -603,7 +621,7 @@ public sealed class AwkArrayKeyTests
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
 
-        using var keys = AwkArrayStorageTestOperations.Snapshot(state,arrayName);
+        using var keys = AwkArrayStorageTestOperations.Snapshot(state, arrayName);
         var key = Assert.Single(keys);
         Assert.True(key.IsOrdinal);
         Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());

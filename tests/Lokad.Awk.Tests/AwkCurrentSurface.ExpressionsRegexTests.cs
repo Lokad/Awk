@@ -65,7 +65,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("[,;]"));
         var input = AwkText.FromString("alpha,béta;gamma", counters, governor);
-        var baselineTextAllocations = counters.AwkTextAllocations;
+        var baselineTextAllocations = counters[AwkCounter.TextAllocations];
 
         using var spans = runtime.EnumerateMatchSpans(regex, input);
         Assert.True(spans.MoveNext(out var first));
@@ -76,9 +76,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(1, second.ByteLength);
         Assert.False(spans.MoveNext(out _));
 
-        Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
-        Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(baselineTextAllocations, counters[AwkCounter.TextAllocations]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -101,9 +101,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(charactersAsBytes ? 4 : 1, match.Match.Length);
         Assert.All(match.Match.Groups, group =>
             Assert.Equal("😀", new UTF8Encoding(false, true).GetString(group.Value.AsSpan())));
-        Assert.Equal(2, counters.RegexGroupsMaterialized);
-        Assert.Equal(1, counters.RegexCompiles);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -127,7 +126,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         using var match = runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All);
         Assert.False(match.Match.Success);
         Assert.False(runtime.MatchSpan(regex, input).Success);
-        Assert.Equal(0, counters.RegexGroupsMaterialized);
+
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
@@ -154,9 +153,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         }
 
         Assert.Equal(128, count);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]
@@ -173,9 +171,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         Assert.False(runtime.IsMatch(regex, input));
         Assert.False(runtime.IsMatch(regex, input));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(2, counters.RegexMatches);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]
@@ -189,7 +186,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(a)"));
         var input = AwkText.FromString("a", counters);
-        var baselineTextAllocations = counters.AwkTextAllocations;
+        var baselineTextAllocations = counters[AwkCounter.TextAllocations];
 
         using var leasedMatch = runtime.MatchValue(
             regex,
@@ -201,7 +198,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.True(match.Success);
         Assert.Equal(2, match.Groups.Count);
         Assert.True(match.Groups[0].Value.HasSameStorage(match.Value));
-        Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
+        Assert.Equal(baselineTextAllocations + 2, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -215,7 +212,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(a)(b)(c)(d)"));
         var input = AwkText.FromString("abcd", counters);
-        var baselineTextAllocations = counters.AwkTextAllocations;
+        var baselineTextAllocations = counters[AwkCounter.TextAllocations];
 
         using var leasedMatch = runtime.MatchValue(
             regex,
@@ -231,8 +228,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             group => Assert.Equal("abcd", group.Value.AsString()),
             group => Assert.Equal("a", group.Value.AsString()),
             group => Assert.Equal("b", group.Value.AsString()));
-        Assert.Equal(3, counters.RegexGroupsMaterialized);
-        Assert.Equal(baselineTextAllocations + 3, counters.AwkTextAllocations);
+
+        Assert.Equal(baselineTextAllocations + 3, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -280,8 +277,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var regex = state.CreateRegex(new AwkRegexPattern("[[:alpha:]]+"));
         var input = AwkText.FromString("abc123déf", counters, state.MemoryAccounting);
         var replacement = AwkText.FromString("X", counters, state.MemoryAccounting);
-        var baselineTextAllocations = counters.AwkTextAllocations;
-        var baselineUtf8Encodes = counters.Utf8Encodes;
+        var baselineTextAllocations = counters[AwkCounter.TextAllocations];
+        var baselineUtf8Encodes = counters[AwkCounter.Utf8Encodes];
 
         var result = AwkRegexSubstitution.ReplaceAll(
             state,
@@ -294,9 +291,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         Assert.Equal(2, replacementCount);
         Assert.Equal("X123X", result.AsString());
-        Assert.Equal(baselineTextAllocations + 1, counters.AwkTextAllocations);
-        Assert.Equal(baselineUtf8Encodes, counters.Utf8Encodes);
-        Assert.True(counters.RegexMatches > 0);
+        Assert.Equal(baselineTextAllocations + 1, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(baselineUtf8Encodes, counters[AwkCounter.Utf8Encodes]);
+
     }
 
     [Fact]
@@ -344,7 +341,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("a1234", counters, state.MemoryAccounting);
         var replacement = AwkText.FromString("X", counters, state.MemoryAccounting);
-        var baselineTextAllocations = counters.AwkTextAllocations;
+        var baselineTextAllocations = counters[AwkCounter.TextAllocations];
 
         var result = AwkRegexSubstitution.ReplaceOccurrence(
             state,
@@ -359,7 +356,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         Assert.True(input.HasSameStorage(result));
         Assert.Equal(0, replacementCount);
-        Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
+        Assert.Equal(baselineTextAllocations, counters[AwkCounter.TextAllocations]);
     }
 
     public static TheoryData<string, string> Utf8RegexAdapterMatrixCases => new()
@@ -476,8 +473,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             "switch\n1\naction début\nrange début\nrange milieu\nrange fin\naction éclair\n",
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]

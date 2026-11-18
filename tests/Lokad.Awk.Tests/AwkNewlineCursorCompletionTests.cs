@@ -66,7 +66,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
         {
             Assert.False(read.IsCompleted);
             Assert.True(initialRecord.HasSameStorage(state.CurrentRecordByteText));
-            Assert.Equal(0, counters.BytesRead);
+            Assert.Equal(0, counters[AwkCounter.BytesRead]);
             Complete();
         }
         else
@@ -89,7 +89,7 @@ public sealed partial class AwkNewlineCursorCompletionTests
                 Assert.Equal("last", final.RecordText.AsString());
                 Assert.Equal(AwkRecordTerminator.Empty, final.Terminator);
                 Assert.Equal(2, reads);
-                Assert.Equal(11, counters.BytesRead);
+                Assert.Equal(11, counters[AwkCounter.BytesRead]);
             }
             Assert.False(await cursor.MoveNextAsync());
             cursor.TakeRecord(out var end);

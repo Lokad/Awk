@@ -28,15 +28,17 @@ public sealed partial class AwkBoundScalarLengthTests
             }
             Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
             Assert.Equal(2, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-            Assert.True(state.Counters.BoundScalarLengths >= 2);
+
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally { state.PopFunctionFrame(); }
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public async Task LocalLengthsKeepTheirBindingsThroughPendingHostWork(bool governed, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -58,7 +60,7 @@ public sealed partial class AwkBoundScalarLengthTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {

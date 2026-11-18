@@ -4,14 +4,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBoundedSubstringTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public void PartialResultsStayFundedByTheirActualDestination(bool bytes, bool unicode, bool borrowed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using (var state = State(memory.Owner, counters, bytes))
         {
             var expected = (unicode ? "😀" : "") + new string('a', 8193);
@@ -30,8 +34,8 @@ public sealed class AwkBoundedSubstringTests
                 Assert.Equal(AwkRuntimeValueKind.String, state.CreateStringValue(result).RuntimeKind);
                 Assert.True(destination.Bytes >= result.EstimatedRetainedMemoryBytes);
                 Assert.True(memory.Budget.Reserved >= destination.Bytes);
-                Assert.Equal(0, counters.StringDecodes);
-                Assert.Equal(0, counters.Utf8Encodes);
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+                Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
             }
             Assert.Equal(initialBytes, memory.Budget.Reserved);
         }
@@ -40,13 +44,15 @@ public sealed class AwkBoundedSubstringTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void AdmissionFailurePrecedesSliceAllocationAndTargetMutation(bool borrowed, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using (var state = State(memory.Owner, counters, token: cancellation.Token))
         {
             var target = AwkVariableName.FromText("saved");
@@ -79,7 +85,7 @@ public sealed class AwkBoundedSubstringTests
                 Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
             }
             Assert.Equal("keep", state.ResolveVariableValue(target).AsString());
-            Assert.Equal(0, counters.AwkTextAllocations);
+            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
             Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedAtAdmission, 0, 64 * 1024);
             Assert.Equal(0, destination.Bytes);
             Assert.Equal(initialBytes, memory.Budget.Reserved);
@@ -89,12 +95,14 @@ public sealed class AwkBoundedSubstringTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void WholeAndEmptyResultsKeepTheirExistingStorage(bool bytes, bool empty)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var state = State(memory.Owner, counters, bytes);
         var source = AwkText.FromString("008");
         using var destination = state.MemoryAccounting.CreateTransientLease();
@@ -103,18 +111,21 @@ public sealed class AwkBoundedSubstringTests
         Assert.Equal(empty ? "" : "008", result.AsString());
         Assert.Equal(AwkRuntimeValueKind.String, state.CreateStringValue(result).RuntimeKind);
         if (!empty) Assert.True(source.HasSameStorage(result));
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, destination.Bytes);
     }
 
     [Theory]
-    [InlineData(false, "a")] [InlineData(true, "a")]
-    [InlineData(false, "é")] [InlineData(true, "é")]
-    [InlineData(false, "😀")] [InlineData(true, "😀")]
+    [InlineData(false, "a")]
+    [InlineData(true, "a")]
+    [InlineData(false, "é")]
+    [InlineData(true, "é")]
+    [InlineData(false, "😀")]
+    [InlineData(true, "😀")]
     public void ShortResultsDoNotPrepareTheRemainingText(bool governed, string first)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         using (var state = State(memory.Owner, counters))
         {
             foreach (var length in new[] { 0, 1 })
@@ -123,15 +134,13 @@ public sealed class AwkBoundedSubstringTests
                 var lengthValue = numeric ? AwkValue.FromNumber(length) : AwkValue.FromText(length.ToString());
                 _ = AwkBuiltins.EvaluateSubstrValues(state, AwkValue.FromText(first), AwkValue.FromNumber(1), lengthValue, 3);
                 var source = AwkValue.FromText(first + new string('q', 1_000_000));
-                var checks = counters.CancellationChecks;
-                var indices = counters.RuneSliceIndexAllocations;
+
                 var allocated = GC.GetAllocatedBytesForCurrentThread();
                 var result = AwkBuiltins.EvaluateSubstrValues(state, source, AwkValue.FromNumber(1), lengthValue, 3);
                 Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocated, 0, 8192);
-                Assert.InRange(counters.CancellationChecks - checks, 0, 32);
+
                 Assert.Equal(System.Text.Encoding.UTF8.GetBytes(length == 0 ? "" : first), result.ByteText.AsSpan().ToArray());
-                Assert.Equal(indices, counters.RuneSliceIndexAllocations);
-                Assert.InRange(counters.RuneSliceBytesScanned, 0, 256);
+
             }
         }
         memory.Dispose();
@@ -139,7 +148,8 @@ public sealed class AwkBoundedSubstringTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void OutOfRangeStartDoesNotDemandInvalidLengthConversion(bool bytes)
     {
         using var state = State(AwkExecutionMemoryOwner.Disabled, AwkRuntimeCounters.Disabled, bytes);
@@ -152,14 +162,16 @@ public sealed class AwkBoundedSubstringTests
     }
 
     [Theory]
-    [InlineData(false, "é")] [InlineData(true, "é")]
-    [InlineData(false, "a\0é😀e\u0301z")] [InlineData(true, "a\0é😀e\u0301z")]
+    [InlineData(false, "é")]
+    [InlineData(true, "é")]
+    [InlineData(false, "a\0é😀e\u0301z")]
+    [InlineData(true, "a\0é😀e\u0301z")]
     [InlineData(false, "界界界界界界界界界界界界界界界界界界界界界a")]
     [InlineData(true, "界界界界界界界界界界界界界界界界界界界界界a")]
     public void ShortScalarSlicesNeedNoWholeTextIndex(bool governed, string input)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         using (var state = State(memory.Owner, counters))
         {
             var source = AwkValue.FromText(input);
@@ -176,7 +188,7 @@ public sealed class AwkBoundedSubstringTests
             var suffix = AwkBuiltins.EvaluateSubstrValues(state, source,
                 AwkValue.FromNumber(2), AwkValue.Unassigned(), 2);
             Assert.Equal(string.Concat(scalars.Skip(1).Select(rune => rune.ToString())), suffix.ByteText.AsString());
-            Assert.Equal(0, counters.RuneSliceIndexAllocations);
+
         }
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);

@@ -5,11 +5,11 @@ internal sealed class CooperativeTestMemory : IDisposable
 {
     private AwkRuntimeState? _state;
 
-    public CooperativeTestMemory(long bytes, AwkRuntimeCounters? counters = null, bool enabled = true)
+    public CooperativeTestMemory(long bytes, bool enabled = true)
     {
         Budget = new CooperativeTestBudget(bytes);
         Owner = AwkExecutionMemoryOwner.Create(enabled ? Budget : null, CancellationToken.None);
-        Accounting = AwkMemoryAccounting.Create(counters ?? AwkRuntimeCounters.Disabled, Owner);
+        Accounting = AwkMemoryAccounting.Create(Owner);
     }
 
     public CooperativeTestBudget Budget { get; }

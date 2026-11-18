@@ -231,9 +231,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
 
             _state.ThrowIfCancellationRequested();
             var removedLength = _bufferStart;
-            var remainingLength = buffer.Length - _bufferStart;
-            if (remainingLength > 0)
-                _state.Counters.RecordRecordSeparatorTailBytesMoved(remainingLength);
 
             buffer.RemovePrefix(_bufferStart);
             _validatedRegexBytes = Math.Max(0, _validatedRegexBytes - removedLength);
@@ -350,7 +347,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         return AwkRecordReadStatus.EndOfFile;
     }
 
-
     // Keep the copied prefix mapped into the owned scanner. Its uncopied suffix
     // stays with the reader until needed. Switching stdin cursors transfers all
     // read-ahead into funded storage before releasing the descriptor borrow.
@@ -436,12 +432,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     {
         var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
         _scanOffset = Math.Max(_bufferStart, buffer.Length - preservedTailLength);
-    }
-
-    private void RecordSeparatorScan(int byteCount)
-    {
-        _state.Resources.Checkpoint();
-        _state.Counters.RecordRecordSeparatorBytesScanned(byteCount);
     }
 
     private void ResetSeparatorSearch()

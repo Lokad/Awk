@@ -15,17 +15,16 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
     private readonly AwkRecordFieldBuffer _fields;
     private List<AwkFieldFrame.CachedFieldValue> _values;
     private readonly AwkMemoryAccounting _accounting;
-    private readonly AwkRuntimeCounters _counters;
+
     private readonly Action _checkpoint;
     private AwkMemoryLease _staging;
 
-    public AwkRecordFieldWriter(AwkRecordFieldBuffer fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting,
-        AwkRuntimeCounters counters, Action checkpoint, AwkMemoryLease staging)
+    public AwkRecordFieldWriter(AwkRecordFieldBuffer fields, List<AwkFieldFrame.CachedFieldValue> values, AwkMemoryAccounting accounting, Action checkpoint, AwkMemoryLease staging)
     {
         _fields = fields;
         _values = values;
         _accounting = accounting;
-        _counters = counters;
+
         _checkpoint = checkpoint;
         _staging = staging;
     }
@@ -67,7 +66,7 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
                 AwkRuntimeMemory.CheckedMultiply(_values.Capacity, 2));
             Fund(AwkRuntimeMemory.EstimateFieldValueListBytes(capacity));
             var values = new List<AwkFieldFrame.CachedFieldValue>(capacity);
-            _counters.RecordFieldValueCacheBufferAllocation();
+
             for (var index = 0; index < _values.Count; index++)
             {
                 if ((index & 1023) == 0) _checkpoint();

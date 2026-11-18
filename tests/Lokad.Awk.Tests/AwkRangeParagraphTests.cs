@@ -57,9 +57,9 @@ public sealed class AwkRangeParagraphTests
         Assert.False(eof.HasRecord);
         Assert.Equal(Enumerable.Repeat(AwkByteReader.ReadSize, boundary == 0 ? 1 : 2),
             host.ReadByteCounts);
-        Assert.InRange(counters.RecordSeparatorBytesScanned, input.Length, input.Length * 3L);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.RegexMatches);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Theory]
@@ -92,7 +92,7 @@ public sealed class AwkRangeParagraphTests
         Assert.True(state.GetFieldValue(1).ByteText.AsSpan().SequenceEqual("a\nb"u8));
         Assert.True(state.GetFieldValue(2).ByteText.AsSpan().SequenceEqual("x"u8));
         if (backend)
-            Assert.Equal(0, counters.StringDecodes); // Literal FS preparation and record bytes stay native.
+            Assert.Equal(0, counters[AwkCounter.StringDecodes]); // Literal FS preparation and record bytes stay native.
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public sealed class AwkRangeParagraphTests
         Assert.True(record.RecordText.EqualsAscii("x"));
         Assert.True(record.Terminator.ByteText.AsSpan().SequenceEqual("\r\n"u8));
         Assert.Single(host.ReadByteCounts);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     private static void Assign(AwkRuntimeState state, string name, string text) =>

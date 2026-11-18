@@ -25,11 +25,11 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("384 256 bé 😀\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.RegexMatches);
-        Assert.InRange(counters.AwkTextAllocations, 0, records * 6 + 8);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records * 6 + 8);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -51,12 +51,10 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(fields, count);
         Assert.True(state.TryGetExistingArrayCount(Separators, out var captureCount));
         Assert.Equal(captures, captureCount);
-        Assert.Equal(textAllocations, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.RegexMatches);
-        Assert.Equal(1, counters.SeparatorCaptureFallbacks);
+        Assert.Equal(textAllocations, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
     [Theory]

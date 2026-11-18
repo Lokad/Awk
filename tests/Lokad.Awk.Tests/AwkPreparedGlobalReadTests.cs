@@ -39,7 +39,7 @@ public sealed class AwkPreparedGlobalReadTests
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
         Assert.Equal(typed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class AwkPreparedGlobalReadTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var memory = new CooperativeTestMemory(1 << 20, counters);
+        var memory = new CooperativeTestMemory(1 << 20);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, memory.Configure(options)));
     }
 }

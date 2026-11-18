@@ -71,8 +71,7 @@ internal static class AwkTestHarness
 
     public static AwkOutputSink CreateOutputSink() =>
         new(
-            AwkMemoryAccounting.Disabled,
-            AwkRuntimeCounters.Disabled);
+            AwkMemoryAccounting.Disabled);
 
     public static AwkRedirectedOutput CreateRedirectedOutput(
         string path,

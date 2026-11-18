@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkRegionTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ManagedStringPreparationRetainsItsFundedCacheUntilScratchRetirement(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
@@ -15,12 +16,12 @@ public sealed partial class AwkRegionTests
         storage.StoreValue(0, state.CreateStringValue(source));
         var retained = fixture.Budget.Reserved;
         if (governed) Assert.True(retained > capacity);
-        var decodes = state.Counters.StringDecodes;
+        var decodes = state.Counters[AwkCounter.StringDecodes];
         storage.PrepareString(0);
         var prepared = storage.PreparedString(0);
         Assert.Equal("/side", prepared);
         Assert.Same(prepared, storage.PreparedString(0));
-        Assert.Equal(decodes + 1, state.Counters.StringDecodes);
+        Assert.Equal(decodes + 1, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(retained, fixture.Budget.Reserved);
         Assert.True(source.AsMemory().Equals(storage.Values[0].ByteText.AsMemory()));
         storage.ClearValues();
@@ -31,8 +32,10 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public async Task EscapingShortFieldPathSurvivesReplacementAndActualPendingRead(bool governed, bool cancel)
     {
         var host = new MockFileSystem();

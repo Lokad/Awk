@@ -195,6 +195,7 @@ and simplification together. Preserve the full correctness suite. See
 [runtime integration](RUNTIME.md) and [compatibility boundaries](COMPATIBILITY.md).
 
 Counter diagnostics distinguish parsed fields from owned text and count actual
-UTF-16-to-UTF-8 encoding; copying existing bytes is not encoding. Buffered RS scan
-counters cover the owned scanner; direct newline searches are excluded. Retain the
-reported source and library/driver hashes, and rebuild after source changes.
+string-boundary conversions; copying existing bytes is not encoding. The report retains
+records, fields/splits, input/output/copy bytes, text allocations/bytes and host calls.
+Execution-route, cancellation-poll and regex-engine probes are deliberately excluded.
+Retain the reported source and library/driver hashes, and rebuild after source changes.

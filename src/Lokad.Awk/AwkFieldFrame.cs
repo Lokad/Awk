@@ -447,7 +447,7 @@ internal sealed class AwkFieldFrame(
     {
         if (field.CacheSlot > 0 && _fieldValueCache[field.CacheSlot - 1].HasInputClassification)
             return field.WithInputClassification(_fieldValueCache[field.CacheSlot - 1].Value);
-        counters.RecordNumericFieldByteParse();
+
         var value = AwkValue.ClassifyInput(field.BytesInRecord(RecordBytes()), mode, checkpoint);
         if (field.CacheSlot > 0)
         {
@@ -485,7 +485,6 @@ internal sealed class AwkFieldFrame(
         if (field.CacheSlot > 0)
             return TryReadCachedFieldNumber(fieldIndex, field, mode, deferError, out number, out cachedValue);
 
-        counters.RecordNumericFieldByteParse();
         AwkNumberParser.Parse(field.BytesInRecord(RecordBytes()), mode, out var parsed, checkpoint);
         // Capturing an argument must not diagnose an untaken numeric conversion.
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
@@ -524,7 +523,7 @@ internal sealed class AwkFieldFrame(
             number = cached.Value.StoredNumber;
             return true;
         }
-        counters.RecordNumericFieldByteParse();
+
         AwkNumberParser.Parse(cached.Spelling.AsSpan(checkpoint), mode, out var parsed, checkpoint);
         if (deferError && parsed.Status == AwkNumberParseStatus.MissingHexExponent) return false;
         parsed.ThrowIfError();
@@ -598,7 +597,7 @@ internal sealed class AwkFieldFrame(
         var bytes = field.BytesInRecord(RecordBytes());
         length = AwkText.CountRunes(bytes, checkpoint);
         checkpoint?.Invoke();
-        counters.RecordFieldRuneBytesScanned(bytes.Length);
+
         _fieldTexts[fieldIndex] = field.WithRuneLength(length);
         return true;
     }
@@ -785,7 +784,7 @@ internal sealed class AwkFieldFrame(
         if (newFieldCount > oldFieldCount)
             _fieldCountValue = AwkValue.FromNumber(newFieldCount);
         MarkRecordForRecomposition(outputFieldSeparator);
-        counters.RecordFieldsMaterialized(addedFields);
+        counters.Add(AwkCounter.FieldsPrepared, addedFields);
 
         long EstimateRetainedBytesAfterFieldAssignment(
             int fieldIndex,
@@ -838,7 +837,7 @@ internal sealed class AwkFieldFrame(
         }
 
         _fieldCountValue = AwkValue.FromNumber(index.Value);
-        counters.RecordFieldsMaterialized(addedFields);
+        counters.Add(AwkCounter.FieldsPrepared, addedFields);
     }
 
     public void AssignFieldCount(
@@ -927,7 +926,7 @@ internal sealed class AwkFieldFrame(
             }
         }
         if (newFieldCount > oldFieldCount)
-            counters.RecordFieldsMaterialized(newFieldCount - oldFieldCount);
+        { counters.Add(AwkCounter.FieldsPrepared, newFieldCount - oldFieldCount); }
 
         _fieldPayloadByteLength = newPayloadByteLength;
         _numericFieldCount = newNumericFieldCount;
@@ -1035,7 +1034,7 @@ internal sealed class AwkFieldFrame(
     {
         checkpoint?.Invoke();
         var cache = new List<CachedFieldValue>(capacity);
-        if (capacity > 0) counters.RecordFieldValueCacheBufferAllocation();
+
         var remap = !ReferenceEquals(fields, _fieldTexts);
         for (var index = 0; index < _fieldValueCache.Count; index++)
         {
@@ -1202,10 +1201,10 @@ internal sealed class AwkFieldFrame(
     // completion and cancellation checks, so failure needs no descriptor rollback.
     private bool TryExtendFields(int targetCount, bool requireComplete)
     {
-        counters.RecordFieldPrefixExtension();
+
         var previousCount = _fieldTexts.Count;
         if (previousCount == 0)
-            counters.RecordFieldSplit();
+        { counters.Add(AwkCounter.FieldSplits, 1); }
         var grows = _fieldTexts.Capacity < targetCount;
         var (fields, staging) = grows ? StageFieldPrefix(targetCount) : (_fieldTexts, AwkMemoryLease.Disabled);
         bool complete;
@@ -1229,8 +1228,8 @@ internal sealed class AwkFieldFrame(
             if (grows) _fieldTexts = fields;
             _splitPosition = position;
             _fieldPayloadByteLength = payloadBytes;
-            counters.RecordFieldsMaterialized(addedCount);
-            if (!grows && previousCount == 0) counters.RecordFieldListBufferReuse();
+            counters.Add(AwkCounter.FieldsPrepared, addedCount);
+
             if (complete)
             {
                 _fieldsAreSplit = true;
@@ -1279,7 +1278,7 @@ internal sealed class AwkFieldFrame(
         {
             checkpoint?.Invoke();
             var fields = new AwkRecordFieldBuffer(capacity);
-            counters.RecordFieldPrefixStage();
+
             for (var index = 0; index < _fieldTexts.Count; index++)
             {
                 if ((index & 1023) == 0) checkpoint?.Invoke();
@@ -1290,7 +1289,7 @@ internal sealed class AwkFieldFrame(
             return (fields, staging);
         }
         catch { staging.Dispose(); throw; }
-        finally { counters.RecordFieldDescriptorCopies(copied); }
+        finally { }
     }
 
     private void EnsureFields()
@@ -1303,7 +1302,7 @@ internal sealed class AwkFieldFrame(
             return;
 
         if (_fieldTexts.Count == 0)
-            counters.RecordFieldSplit();
+        { counters.Add(AwkCounter.FieldSplits, 1); }
         var reusable = _fieldTexts.Count == 0 && _fieldTexts.Capacity > 0 ? _fieldTexts : null;
         var reusableCapacity = reusable?.Capacity ?? 0;
         var previousCount = _fieldTexts.Count;
@@ -1312,8 +1311,7 @@ internal sealed class AwkFieldFrame(
         // Keep a private empty view until staging succeeds; later field mutation owns its cells.
         if (reusable is not null) _fieldTexts = EmptyFieldTexts;
         var fieldTexts = reusable ?? new();
-        var writer = new AwkRecordFieldWriter(fieldTexts, _fieldValueCache, governor, counters,
-            checkpoint ?? (static () => { }), AwkMemoryLease.Disabled);
+        var writer = new AwkRecordFieldWriter(fieldTexts, _fieldValueCache, governor, checkpoint ?? (static () => { }), AwkMemoryLease.Disabled);
         var published = false;
         var retiredFunding = false;
         try
@@ -1346,10 +1344,10 @@ internal sealed class AwkFieldFrame(
             published = true;
             _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
             _fieldPayloadByteLength = writer.PayloadBytes;
-            counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
+            counters.Add(AwkCounter.FieldsPrepared, _fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
             _splitPlan = default;
-            if (ReferenceEquals(fieldTexts, reusable)) counters.RecordFieldListBufferReuse();
+            if (ReferenceEquals(fieldTexts, reusable)) { }
             retiredFunding = TransferFieldProductionFunding(retainedBytes, writer.Staging);
         }
         catch

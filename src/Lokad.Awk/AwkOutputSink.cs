@@ -10,14 +10,12 @@ internal sealed class AwkOutputSink : IDisposable
     private long _diagnosticMessageBytes;
 
     public AwkOutputSink(
-        AwkMemoryAccounting governor,
-        AwkRuntimeCounters counters,
-        Action? checkpoint = null)
+        AwkMemoryAccounting governor, Action? checkpoint = null)
     {
         _standardOutput = new AwkUtf8Builder(governor);
         _governor = governor;
         _checkpoint = checkpoint;
-        counters.RecordOutputSinkCreation();
+
     }
 
     internal bool HasPendingOutput => _standardOutput.Length != 0 || _diagnostics.Count != 0;
@@ -39,7 +37,7 @@ internal sealed class AwkOutputSink : IDisposable
             _standardOutput.Clear();
             throw;
         }
-        state.Counters.RecordPrintfSinkFormat();
+
         return true;
     }
 

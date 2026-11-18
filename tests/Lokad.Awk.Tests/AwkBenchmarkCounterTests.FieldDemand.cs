@@ -18,14 +18,14 @@ public sealed partial class AwkBenchmarkCounterTests
         var dynamic = await Run("first", "second", "third");
         Assert.Equal(string.Concat(Enumerable.Repeat(index ? "0 done\n" : "4 ré DONE\n", records)), prepared.Output);
         Assert.Equal(dynamic.Output, prepared.Output);
-        Assert.True(prepared.Counters.FieldPrefixExtensions < dynamic.Counters.FieldPrefixExtensions);
-        Assert.Equal(3 * records, prepared.Counters.FieldsMaterialized);
-        Assert.Equal(dynamic.Counters.FieldsMaterialized, prepared.Counters.FieldsMaterialized);
+
+        Assert.Equal(3 * records, prepared.Counters[AwkCounter.FieldsPrepared]);
+        Assert.Equal(dynamic.Counters[AwkCounter.FieldsPrepared], prepared.Counters[AwkCounter.FieldsPrepared]);
         // Dynamic argument capture may already own spelling that a static field
         // consumer can borrow; it is a semantic/extension control, not allocation parity.
-        Assert.InRange(prepared.Counters.AwkTextAllocations, records, dynamic.Counters.AwkTextAllocations);
-        Assert.Equal(0, prepared.Counters.StringDecodes);
-        Assert.Equal(0, prepared.Counters.Utf8Encodes);
+        Assert.InRange(prepared.Counters[AwkCounter.TextAllocations], records, dynamic.Counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, prepared.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, prepared.Counters[AwkCounter.Utf8Encodes]);
 
         async Task<(string Output, AwkRuntimeCounters Counters)> Run(string first, string second, string third)
         {
@@ -57,11 +57,9 @@ public sealed partial class AwkBenchmarkCounterTests
         var dynamic = await Run("$first+$second+$third");
         Assert.Equal("768\n", prepared.Output);
         Assert.Equal(prepared.Output, dynamic.Output);
-        Assert.True(prepared.Counters.FieldPrefixExtensions < dynamic.Counters.FieldPrefixExtensions);
-        Assert.Equal(3 * records, prepared.Counters.NumericFieldByteParses);
-        Assert.Equal(dynamic.Counters.NumericFieldByteParses, prepared.Counters.NumericFieldByteParses);
-        Assert.Equal(0, prepared.Counters.StringDecodes);
-        Assert.Equal(0, prepared.Counters.Utf8Encodes);
+
+        Assert.Equal(0, prepared.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, prepared.Counters[AwkCounter.Utf8Encodes]);
 
         async Task<(string Output, AwkRuntimeCounters Counters)> Run(string expression)
         {
@@ -103,13 +101,12 @@ public sealed partial class AwkBenchmarkCounterTests
             var dynamic = await Run(dynamicKey, "$second", pattern, prefix);
             Assert.Equal(dynamic.Output, prepared.Output);
             Assert.Equal("256 1\n", prepared.Output);
-            Assert.True(prepared.Counters.FieldPrefixExtensions < dynamic.Counters.FieldPrefixExtensions);
-            Assert.Equal(dynamic.Counters.FieldsMaterialized, prepared.Counters.FieldsMaterialized);
-            Assert.Equal(records, prepared.Counters.NumericFieldByteParses);
-            Assert.Equal(dynamic.Counters.NumericFieldByteParses, prepared.Counters.NumericFieldByteParses);
-            Assert.Equal(0, prepared.Counters.StringDecodes);
-            Assert.Equal(0, prepared.Counters.Utf8Encodes);
-            Assert.InRange(prepared.Counters.AwkTextAllocations, 0, 32);
+
+            Assert.Equal(dynamic.Counters[AwkCounter.FieldsPrepared], prepared.Counters[AwkCounter.FieldsPrepared]);
+
+            Assert.Equal(0, prepared.Counters[AwkCounter.StringDecodes]);
+            Assert.Equal(0, prepared.Counters[AwkCounter.Utf8Encodes]);
+            Assert.InRange(prepared.Counters[AwkCounter.TextAllocations], 0, 32);
         }
 
         async Task<(string Output, AwkRuntimeCounters Counters)> Run(string key, string value, string pattern, string prefix)
@@ -160,9 +157,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("0007\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.FieldsMaterialized, records, records + 64);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.FieldsPrepared], records, records + 64);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
     }
     [Theory]
@@ -213,25 +210,25 @@ public sealed partial class AwkBenchmarkCounterTests
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(execution.IsCompleted);
-            Assert.Equal(2, counters.FieldsMaterialized);
+            Assert.Equal(2, counters[AwkCounter.FieldsPrepared]);
             if (governed) Assert.True(budget.Reserved > 0);
             if (cancel) cancellation.Cancel();
             Assert.False(execution.IsCompleted);
-            Assert.Equal(2, counters.FieldsMaterialized);
+            Assert.Equal(2, counters[AwkCounter.FieldsPrepared]);
         }
         finally { release.TrySetResult(); }
         if (cancel)
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
             Assert.Equal(strings ? "before\n3 0002\nbefore\n" : "before\nbefore\n", string.Concat(output));
-            Assert.Equal(2, counters.FieldsMaterialized);
+            Assert.Equal(2, counters[AwkCounter.FieldsPrepared]);
         }
         else
         {
             Assert.Equal(AwkExitCode.Success, await execution);
             Assert.Equal(strings ? "before\n3 0002\nbefore\n3 0002\n" : "before\nbefore\n4\n", string.Concat(output));
-            Assert.Equal(4, counters.FieldsMaterialized);
-            Assert.True(counters.FieldPrefixExtensions < counters.FieldsMaterialized);
+            Assert.Equal(4, counters[AwkCounter.FieldsPrepared]);
+
         }
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);

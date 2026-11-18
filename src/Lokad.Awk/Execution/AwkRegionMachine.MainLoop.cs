@@ -44,7 +44,7 @@ internal partial struct AwkRegionMachine
         _previousRecordPhase = _phaseControl.SwitchPhase(AwkActionPhase.Main);
         _hasRecordPhase = true;
         _state.PublishInputRecord(in input, readsMainInput: true);
-        _state.Counters.RecordRecordRead();
+        _state.Counters.Add(AwkCounter.RecordsRead, 1);
         // Publication can refund retired owners through the supplied governor.
         // Keep the computational-entry check after those callbacks.
         _state.ThrowIfCancellationRequested();

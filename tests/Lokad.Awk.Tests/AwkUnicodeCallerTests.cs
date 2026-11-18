@@ -51,7 +51,7 @@ public sealed class AwkUnicodeCallerTests
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.ReadOpenCount);
         Assert.Equal(0, host.OpenFileCount);
-        Assert.Equal(0, options.Counters.BytesRead);
+        Assert.Equal(0, options.Counters[AwkCounter.BytesRead]);
         Assert.Equal(0, budget.Reserved);
     }
 

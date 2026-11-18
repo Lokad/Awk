@@ -6,8 +6,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFormattingOwnershipTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void ReplacedFormatIsNotRetainedByTheFormatter(bool output, bool reuseDefault)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -25,17 +27,18 @@ public sealed class AwkFormattingOwnershipTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ReusedCustomFormatUsesAwkTextDecodeCache(bool output)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var format = new AwkFormatString(AwkText.FromString("%.3f"));
         var formatter = new AwkFormattingRuntime(_ => format, counters, AwkMemoryAccounting.Disabled);
         Assert.Equal("1.250", Format(formatter, output).AsString());
-        var decodes = counters.StringDecodes;
+        var decodes = counters[AwkCounter.StringDecodes];
         for (var index = 0; index < 10; index++)
             Assert.Equal("1.250", Format(formatter, output).AsString());
-        Assert.Equal(decodes, counters.StringDecodes);
+        Assert.Equal(decodes, counters[AwkCounter.StringDecodes]);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

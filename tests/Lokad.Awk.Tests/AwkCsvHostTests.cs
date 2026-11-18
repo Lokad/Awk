@@ -138,11 +138,11 @@ public sealed class AwkCsvHostTests
         Assert.Equal(0, (await AwkExecutor.ExecuteAsync(host, executionCommand, CancellationToken.None, options)).Value);
         Assert.Equal("3000\n", host.Output);
         Assert.Equal("", host.Error);
-        Assert.InRange(counters.RecordSeparatorBytesScanned, bytes.Length, bytes.Length + 1L);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.StringInteropFallbacks);
-        Assert.InRange(counters.AwkTextAllocations, records, records * 4L);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+
+        Assert.InRange(counters[AwkCounter.TextAllocations], records, records * 4L);
         Assert.Equal(0, budget.Reserved);
     }
 

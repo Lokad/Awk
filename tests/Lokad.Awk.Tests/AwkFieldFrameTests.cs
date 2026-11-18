@@ -26,12 +26,12 @@ public sealed class AwkFieldFrameTests
         frame.SetRecordText(AwkText.FromString("alpha beta", counters, governor));
 
         var first = frame.GetFieldValue(new AwkFieldIndex(1));
-        var allocationsAfterFirstRead = counters.AwkTextAllocations;
+        var allocationsAfterFirstRead = counters[AwkCounter.TextAllocations];
         var second = frame.GetFieldValue(new AwkFieldIndex(1));
 
         Assert.Equal("alpha", first.AsString());
         Assert.Equal("alpha", second.AsString());
-        Assert.Equal(allocationsAfterFirstRead, counters.AwkTextAllocations);
+        Assert.Equal(allocationsAfterFirstRead, counters[AwkCounter.TextAllocations]);
 
     }
 
@@ -44,7 +44,7 @@ public sealed class AwkFieldFrameTests
     [InlineData(2, true)]
     public void AwkFieldFrame_RecordPlanMemoryFailurePreservesRecordAndPriorPlan(int mode, bool assignValue)
     {
-        using var memoryForGovernor = new CooperativeTestMemory(500, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(500);
         var governor = memoryForGovernor.Accounting;
         using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, governor, format: value => value.ByteText);
         var frame = context.Frame;
@@ -74,7 +74,7 @@ public sealed class AwkFieldFrameTests
     [InlineData(2)]
     public void AwkFieldFrame_MaterializationReleasesRetainedPlan(int mode)
     {
-        using var memoryForGovernor = new CooperativeTestMemory(8 << 20, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(8 << 20);
         var governor = memoryForGovernor.Accounting;
         using (var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, governor))
         {
@@ -118,15 +118,18 @@ public sealed class AwkFieldFrameTests
     public void BufferedFieldsOwnOnlyDecodedEscapesOrRequiredRegexSubjects(int mode, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, governed);
+        using var memory = new CooperativeTestMemory(8 << 20, governed);
         var accounting = memory.Accounting;
         using (var context = new AwkFieldTestContext(counters, accounting))
         {
             var source = mode switch { 0 => "é,007", 1 => "a,\"b\"\"c\",007", 2 => "é7", 3 => "é127", _ => "é::007" };
             var expected = mode switch
             {
-                0 => new[] { "é", "007" }, 1 => ["a", "b\"c", "007"],
-                2 => ["é", "7"], 3 => ["é1", "27"], _ => ["é", "007"]
+                0 => new[] { "é", "007" },
+                1 => ["a", "b\"c", "007"],
+                2 => ["é", "7"],
+                3 => ["é1", "27"],
+                _ => ["é", "007"]
             };
             var separator = AwkText.FromSourceLiteralString(mode == 4 ? ":+" : "");
             var plan = new AwkRecordSplitPlan(mode < 2 ? AwkFieldSplittingMode.Csv : mode == 3
@@ -138,9 +141,9 @@ public sealed class AwkFieldFrameTests
             var bytes = System.Text.Encoding.UTF8.GetBytes(source);
             for (var repeat = 0; repeat < 2; repeat++)
             {
-                var allocations = counters.AwkTextAllocations;
-                var encodes = counters.Utf8Encodes;
-                var decodes = counters.StringDecodes;
+                var allocations = counters[AwkCounter.TextAllocations];
+                var encodes = counters[AwkCounter.Utf8Encodes];
+                var decodes = counters[AwkCounter.StringDecodes];
                 var storage = context.Frame.InputRecordStorage;
                 storage.StageValidated(bytes);
                 context.Frame.SetBufferedRecord(storage, storage.CurrentSlot,
@@ -149,9 +152,9 @@ public sealed class AwkFieldFrameTests
                     memory.Budget.SetAvailableBytes(0);
 
                 Assert.Equal(expected.Length, context.Frame.GetFieldCount());
-                Assert.Equal(mode is 1 or 4 ? 1 : 0, counters.AwkTextAllocations - allocations);
-                Assert.Equal(encodes, counters.Utf8Encodes);
-                Assert.Equal(decodes, counters.StringDecodes);
+                Assert.Equal(mode is 1 or 4 ? 1 : 0, counters[AwkCounter.TextAllocations] - allocations);
+                Assert.Equal(encodes, counters[AwkCounter.Utf8Encodes]);
+                Assert.Equal(decodes, counters[AwkCounter.StringDecodes]);
                 memory.Budget.SetAvailableBytes(8 << 20);
                 for (var field = 0; field < expected.Length; field++)
                     Assert.Equal(expected[field], context.Frame.GetFieldValue(new(field + 1)).AsString());
@@ -166,7 +169,7 @@ public sealed class AwkFieldFrameTests
     public void RefusedCsvPreparationCannotAllocateDecodedFieldsOrPublishDescriptors()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var context = new AwkFieldTestContext(counters, memory.Accounting);
         var bytes = System.Text.Encoding.UTF8.GetBytes("\"" + new string('x', 16_384) + "\"\"y\",z");
         var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.Csv, default, AwkText.Empty, [],
@@ -180,8 +183,8 @@ public sealed class AwkFieldFrameTests
         var error = Assert.Throws<AwkRuntimeException>(() => context.Frame.GetFieldCount());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.FieldsMaterialized);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.FieldsPrepared]);
         Assert.True(context.Frame.TryGetBufferedRecordBytes(out var unchanged));
         Assert.True(unchanged.SequenceEqual(bytes));
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
@@ -197,7 +200,7 @@ public sealed class AwkFieldFrameTests
     public void InterruptedEscapedCsvStagingRetiresUnpublishedTextAndCanRetry(bool cancel, int decodedFields)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var cancellation = new CancellationTokenSource();
         var token = cancellation.Token;
         var creations = 0;
@@ -215,11 +218,11 @@ public sealed class AwkFieldFrameTests
         var record = AwkText.FromSourceLiteralString(string.Join(',', Enumerable.Repeat("\"c\"\"d\"", 6)));
         frame.SetRecordText(record, plan);
         var committed = memory.Accounting.CurrentCommittedBytes;
-        var allocations = counters.AwkTextAllocations;
-        var materialized = counters.FieldsMaterialized;
+        var allocations = counters[AwkCounter.TextAllocations];
+        var materialized = counters[AwkCounter.FieldsPrepared];
         memory.Budget.OnGrowth = _ =>
         {
-            if (counters.AwkTextAllocations - allocations < decodedFields) return;
+            if (counters[AwkCounter.TextAllocations] - allocations < decodedFields) return;
             memory.Budget.OnGrowth = null;
             if (cancel) cancellation.Cancel();
             else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -232,7 +235,7 @@ public sealed class AwkFieldFrameTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         }
         Assert.Equal(0, creations);
-        Assert.Equal(materialized, counters.FieldsMaterialized);
+        Assert.Equal(materialized, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         Assert.True(record.HasSameStorage(frame.RecordAwkText));
@@ -261,7 +264,7 @@ public sealed class AwkFieldFrameTests
     public void ReconstructedCsvClassificationAndCopyKeepOnlyTheirOwnedPayload(bool classify)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var context = new AwkFieldTestContext(counters, memory.Accounting,
             resolveOutputFieldSeparator: static () => AwkText.Empty);
         var frame = context.Frame;

@@ -14,24 +14,24 @@ public sealed class AwkNumericFieldResourceTests
         var state = memory.State;
         SetFormat(state, initialFormat);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("a b"));
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
 
         state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
 
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.FormattingFallbacks);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.True(state.GetFieldValue(1).IsNumberValue);
         SetFormat(state, "%.4f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.2500 b"u8));
-        Assert.Equal(1, counters.FormattingFallbacks);
-        Assert.Equal(allocations + 2, counters.AwkTextAllocations);
-        Assert.Equal(1, counters.FieldSplits);
+
+        Assert.Equal(allocations + 2, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(1, counters[AwkCounter.FieldSplits]);
         Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
 
         state.AssignFieldCount(0);
         Assert.Empty(state.CurrentRecordByteText.AsSpan().ToArray());
-        Assert.Equal(1, counters.FormattingFallbacks);
+
     }
 
     [Theory]
@@ -150,7 +150,7 @@ public sealed class AwkNumericFieldResourceTests
 
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, counters.FormattingFallbacks);
+
         Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
     }
 
@@ -183,7 +183,8 @@ public sealed class AwkNumericFieldResourceTests
             AwkValue.FromText(AwkText.FromSourceLiteralString(format)));
 
     private static CooperativeTestMemory State(AwkRuntimeLimits limits, AwkRuntimeCounters? counters = null,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken = default)
+    {
         var memory = new CooperativeTestMemory(1 << 20);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
             memory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,

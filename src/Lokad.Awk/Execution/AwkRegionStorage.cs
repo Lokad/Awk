@@ -315,7 +315,7 @@ internal sealed class AwkRegionStorage : IDisposable
         // no host/admission callback intervenes before the funded handoff.
         // Reader text, aliases and unresolved locals keep ordinary evaluation.
         var value = frame.GetSlot(local).ReadValue(_state.CancellationCheckpoint);
-        _state.Counters.RecordLocalValueRead(in value);
+
         var bytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
         var oldBytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
         _payload.ReceiveTransferred(bytes);

@@ -10,12 +10,10 @@ public sealed class AwkPreparedArrayKindTests
             "BEGIN{sum=0;map[\"hit\"]=7;for(i=0;i<32;i++)sum+=probe()}");
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
-        var names = state.Counters.ArrayNameResolutions;
-        var bound = state.Counters.BoundGlobalArrayAccesses;
+
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(256, state.ResolveVariableValue(AwkVariableName.FromText("sum")).AsNumber());
-        Assert.Equal(names, state.Counters.ArrayNameResolutions);
-        Assert.True(state.Counters.BoundGlobalArrayAccesses >= bound + 64);
+
     }
 
     private static readonly AwkArrayName Array = AwkArrayName.FromText("a");
@@ -29,7 +27,7 @@ public sealed class AwkPreparedArrayKindTests
     {
         var state = State(slots: slots);
         state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), AwkArrayBinding.Global(0));
-        Assert.Equal(0, state.Counters.BoundGlobalArrayAccesses);
+
         Assert.False(state.HasBoundGlobalScalar(0));
         Assert.False(state.TryResolvePreparedGlobalNumber(0, out _));
         Assert.Equal(7, state.GetArrayAwkValue(Array, Key, AwkArrayBinding.Global(0)).AsNumber());
@@ -37,7 +35,7 @@ public sealed class AwkPreparedArrayKindTests
         state.SetCurrentRecord(AwkText.FromString("k tail"));
         Assert.Equal(7, state.GetArrayFieldValue(Array, 1, AwkArrayBinding.Global(0)).AsNumber());
         Assert.True(state.ContainsArrayField(Array, 1, AwkArrayBinding.Global(0)));
-        Assert.Equal(slots ? 4 : 0, state.Counters.BoundGlobalArrayAccesses);
+
     }
 
     [Fact]
@@ -107,7 +105,7 @@ public sealed class AwkPreparedArrayKindTests
                 state.AssignVariableValue(Variable, AwkValue.FromNumber(4));
                 Assert.Equal(4, state.ResolveVariableValue(Variable).AsNumber());
             }
-            Assert.Equal(0, state.Counters.BoundGlobalArrayAccesses);
+
         }
         finally { state.PopFunctionFrame(); }
         Assert.False(state.HasBoundGlobalScalar(0));
@@ -198,7 +196,7 @@ public sealed class AwkPreparedArrayKindTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -310,7 +308,7 @@ public sealed class AwkPreparedArrayKindTests
         Assert.Equal(0, result.Value);
         Assert.Equal("1 1\nx\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.True(options.Counters.BoundGlobalArrayAccesses > 0);
+
     }
 
     [Theory]
@@ -328,7 +326,7 @@ public sealed class AwkPreparedArrayKindTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("kept kept\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, options.Counters.BoundGlobalArrayAccesses);
+
     }
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null) =>

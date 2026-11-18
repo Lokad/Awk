@@ -41,7 +41,7 @@ internal readonly ref struct AwkByteTextOperand
         }
         if (_owned.Backing is not null && !bytes)
         {
-            var view = _owned.BorrowRuneSlice(start, length, counters, governor, checkpoint);
+            var view = _owned.BorrowRuneSlice(start, length, governor, checkpoint);
             return view.Length == _owned.ByteLength ? new(_owned) : new(view);
         }
         var content = _owned.Backing is not null ? _owned.AsSpan(checkpoint) : _bytes;
@@ -51,7 +51,7 @@ internal readonly ref struct AwkByteTextOperand
             first = Math.Min(start, content.Length);
             last = (int)Math.Min((long)first + length, content.Length);
         }
-        else AwkText.ResolveRuneByteRange(content, start, length, counters, checkpoint, out first, out last);
+        else AwkText.ResolveRuneByteRange(content, start, length, checkpoint, out first, out last);
         var slice = content[first..last];
         // Byte slicing can cut a scalar; validate before admitting the escaping result.
         if (bytes) AwkText.ThrowIfInvalidUtf8(slice, checkpoint);

@@ -14,7 +14,7 @@ public sealed class AwkFieldMemoryModeTests
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.Equal(governed, accounting.IsEnabled);
         using var context = Frame(accounting, counters);
         var frame = context.Frame;
@@ -48,7 +48,7 @@ public sealed class AwkFieldMemoryModeTests
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = Frame(accounting, counters);
         var frame = context.Frame;
         frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
@@ -56,7 +56,7 @@ public sealed class AwkFieldMemoryModeTests
         Assert.Equal(2, frame.GetFieldCount());
         var record = frame.RecordAwkText;
         var committed = accounting.CurrentCommittedBytes;
-        var materialized = counters.FieldsMaterialized;
+        var materialized = counters[AwkCounter.FieldsPrepared];
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
@@ -70,7 +70,7 @@ public sealed class AwkFieldMemoryModeTests
         Assert.True(record.HasSameStorage(frame.RecordAwkText));
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
-        Assert.Equal(materialized, counters.FieldsMaterialized);
+        Assert.Equal(materialized, counters[AwkCounter.FieldsPrepared]);
         frame.AssignFieldValue(new(1), AwkValue.FromText("z"), Separator);
         Assert.Equal("z|beta", frame.RecordAwkText.AsString());
         frame.ResetRecord();
@@ -86,7 +86,7 @@ public sealed class AwkFieldMemoryModeTests
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var cancellation = new CancellationTokenSource();
         var token = cancellation.Token;
         var creations = 0;
@@ -116,9 +116,7 @@ public sealed class AwkFieldMemoryModeTests
         Assert.Equal(0, budget.Reserved);
     }
 
-
     private static AwkFieldTestContext Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, Action? checkpoint = null) =>
         new(counters, accounting, static value => AwkText.FromString(value.AsString()), checkpoint);
-
 
 }

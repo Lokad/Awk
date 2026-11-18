@@ -38,7 +38,7 @@ public sealed class AwkUntypedStateTests
         Assert.True(state.GetArrayAwkValue(name, key).IsUntypedValue);
         Assert.True(first.ByteText.AsSpan().IsEmpty);
         Assert.Equal(admitted, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

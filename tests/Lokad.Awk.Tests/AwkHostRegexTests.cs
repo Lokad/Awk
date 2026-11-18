@@ -176,7 +176,7 @@ public sealed class AwkHostRegexTests
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => state.MatchRegexCaptureValue(regex, AwkText.FromString("é")));
         Assert.Equal(AwkDiagnosticId.RuntimeInvalidRegex, error.Id);
-        Assert.Equal(0, counters.RegexGroupsMaterialized);
+
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -371,7 +371,7 @@ public sealed class AwkHostRegexTests
         Assert.Equal("awk: regular expression is unsupported by the supplied provider\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, engine.Compiles);
         Assert.Empty(engine.Patterns);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         runtime.Dispose();
         Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
@@ -407,7 +407,7 @@ public sealed class AwkHostRegexTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, pattern.SearchesCreated);
         Assert.False(pattern.Disposed);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Budget.OnGrowth = null;
         runtime.Dispose();

@@ -97,7 +97,8 @@ public sealed class AwkCooperativeMemoryTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(20)]
+    [InlineData(0)]
+    [InlineData(20)]
     public async Task ElidingUnchangedChargeDoesNotConcealDisposedAncestry(long bytes)
     {
         var budget = new CooperativeTestBudget(100);
@@ -134,7 +135,7 @@ public sealed class AwkCooperativeMemoryTests
         var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         _ = owner.Track(completion.Task);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         var borrowed = accounting.ReserveTransient(40);
         using (accounting.ReserveTransient(60))
             Assert.Equal(100, budget.Reserved);
@@ -182,8 +183,8 @@ public sealed class AwkCooperativeMemoryTests
     {
         var budget = new CooperativeTestBudget(100);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+
+        var accounting = AwkMemoryAccounting.Create(owner);
         accounting.Reserve(70);
         Assert.Throws<AwkRuntimeException>(() => accounting.Reserve(31));
         Assert.Equal(70, accounting.CurrentReservedBytes);
@@ -201,7 +202,7 @@ public sealed class AwkCooperativeMemoryTests
     {
         var budget = new CooperativeTestBudget(100);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(            AwkRuntimeCounters.CreateEnabled(), owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         accounting.Reserve(50);
         using (accounting.AdmitMutation(50))
         {
@@ -224,7 +225,8 @@ public sealed class AwkCooperativeMemoryTests
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget))
-            with { MemoryOwner = owner };
+            with
+        { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
         state.RecordNumber = 4;
@@ -266,7 +268,8 @@ public sealed class AwkCooperativeMemoryTests
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget))
-            with { MemoryOwner = owner };
+            with
+        { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var source = AwkVariableName.FromText("source");
         var parameter = AwkVariableName.FromText("parameter");

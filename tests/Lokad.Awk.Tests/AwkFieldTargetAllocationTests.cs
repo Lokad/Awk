@@ -10,7 +10,7 @@ public sealed class AwkFieldTargetAllocationTests
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         var separator = AwkText.FromSourceLiteralString(" ");
         using (var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting,
             resolveOutputFieldSeparator: () => separator))

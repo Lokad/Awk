@@ -11,8 +11,8 @@ public sealed partial class AwkRegionTests
         using var fixture = State(cancellation.Token, true);
         using var storage = new AwkRegionStorage(fixture.State);
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 65536)));
-        var calls = fixture.State.Counters.AwkTextAsStringCalls;
-        var decodes = fixture.State.Counters.StringDecodes;
+
+        var decodes = fixture.State.Counters[AwkCounter.StringDecodes];
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1024;
         try
@@ -23,8 +23,8 @@ public sealed partial class AwkRegionTests
                 var error = Assert.Throws<AwkRuntimeException>(() => storage.PrepareFormattedString(value, out _));
                 Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             }
-            Assert.Equal(calls, fixture.State.Counters.AwkTextAsStringCalls);
-            Assert.Equal(decodes, fixture.State.Counters.StringDecodes);
+
+            Assert.Equal(decodes, fixture.State.Counters[AwkCounter.StringDecodes]);
         }
         finally { fixture.Budget.OnGrowth = null; }
         storage.Dispose();

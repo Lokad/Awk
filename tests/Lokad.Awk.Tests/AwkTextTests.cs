@@ -7,7 +7,9 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkTextTests
 {
     [Theory]
-    [InlineData(1)] [InlineData(5)] [InlineData(500)]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(500)]
     public void ScalarTraversalPreservesBoundariesForOwnedAndBorrowedText(int repetitions)
     {
         const string boundaries = "\u007f\u0080\u07ff\u0800\ud7ff\ue000\uffff\U00010000\U0010ffff";
@@ -28,8 +30,7 @@ public sealed class AwkTextTests
         {
             var expected = Encoding.UTF8.GetBytes(string.Concat(scalars.Skip(start).Take(length)));
             var owned = text.CopyRuneSlice(start, length, counters, AwkMemoryAccounting.Disabled);
-            AwkText.ResolveRuneByteRange(bytes, start, length, counters, checkpoint: null,
-                out var first, out var last);
+            AwkText.ResolveRuneByteRange(bytes, start, length, checkpoint: null, out var first, out var last);
 
             Assert.Equal(expected, owned.AsSpan().ToArray());
             Assert.Equal(expected, bytes.AsSpan(first, last - first).ToArray());
@@ -38,7 +39,9 @@ public sealed class AwkTextTests
     }
 
     [Theory]
-    [InlineData(1, true)] [InlineData(32, true)] [InlineData(33, false)]
+    [InlineData(1, true)]
+    [InlineData(32, true)]
+    [InlineData(33, false)]
     public void OwnedAsciiByteViewsKeepIndependentBytesAndOptionalCacheOwnership(int length, bool compact)
     {
         var bytes = Enumerable.Repeat((byte)'a', length).ToArray();
@@ -57,8 +60,8 @@ public sealed class AwkTextTests
         var managed = cached.AsString(counters);
         Assert.Same(managed, cached.PreparedString);
         Assert.Same(managed, cached.AsString(counters));
-        Assert.Equal(1, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(1, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
     }
 
     [Fact]
@@ -67,7 +70,7 @@ public sealed class AwkTextTests
         var text = AwkText.FromHostBytes("0007"u8.ToArray());
         Assert.IsType<byte[]>(text.Backing);
         var value = AwkValue.FromNumericString(text);
-        var copied = AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal).ReadVariableStorage(AwkNumberParsingMode.Decimal, AwkRuntimeCounters.Disabled);
+        var copied = AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal).ReadVariableStorage(AwkNumberParsingMode.Decimal);
         Assert.True(text.HasSameStorage(copied.ByteText));
         Assert.Equal(AwkRuntimeValueKind.NumericString, copied.RuntimeKind);
         Assert.Equal(7, copied.AsNumber());
@@ -138,8 +141,14 @@ public sealed class AwkTextTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(7)] [InlineData(8)]
-    [InlineData(4095)] [InlineData(4096)] [InlineData(4097)] [InlineData(8193)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(4095)]
+    [InlineData(4096)]
+    [InlineData(4097)]
+    [InlineData(8193)]
     public void EqualityKeepsUtf8NulAndLongPrefixBoundariesAcrossOwnedAndConcatenatedText(int prefix)
     {
         var start = new string('a', prefix);
@@ -158,8 +167,8 @@ public sealed class AwkTextTests
             Assert.False(text.Equals(longer, checkpoint));
             Assert.False(text.Equals((object?)null));
         }
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
     }
 
     [Fact]
@@ -199,11 +208,11 @@ public sealed class AwkTextTests
         var concatenated = AwkText.FromString("ab", counters)
             .Concat(AwkText.FromString("cd", counters), counters, AwkMemoryAccounting.Disabled);
 
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal("abcd", concatenated.AsString());
-        Assert.Equal(4, counters.ConcatenationBytesCopied);
+        Assert.Equal(4, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal("abcd"u8.ToArray(), concatenated.AsSpan().ToArray());
-        Assert.Equal(4, counters.ConcatenationBytesCopied);
+        Assert.Equal(4, counters[AwkCounter.ConcatenationBytesCopied]);
     }
 
     [Fact]
@@ -225,7 +234,7 @@ public sealed class AwkTextTests
     public void AwkText_GovernedAllocationsCoverConcatAndSlices()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(64, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(64);
         var governor = memoryForGovernor.Accounting;
         var source = AwkText.FromString("café", counters, governor);
         var suffix = AwkText.FromString("!", counters, governor);
@@ -233,21 +242,21 @@ public sealed class AwkTextTests
         Assert.Equal("café!", source.Concat(suffix, counters, governor).AsString());
         Assert.Equal("fé", source.CopyRuneSlice(2, 2, counters, governor).AsString());
         Assert.Equal("ca", source.CopyByteSlice(0, 2, counters, governor).AsString());
-        Assert.True(counters.MemoryPeakLiveBytes > 0);
+
     }
 
     [Fact]
     public void AwkText_GovernedCopyFailsBeforeCreatingText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(3, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(3);
         var governor = memoryForGovernor.Accounting;
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>
             AwkText.CopyTrustedBytes("abcd"u8, counters, governor));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
@@ -256,7 +265,7 @@ public sealed class AwkTextTests
     public void AwkText_GovernedRuneIndexFailsBeforeAllocation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(4, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(4);
         var governor = memoryForGovernor.Accounting;
         var source = AwkText.FromString(new string('\u00e9', 128));
 
@@ -264,8 +273,8 @@ public sealed class AwkTextTests
             () => source.CopyRuneSlice(65, 1, counters, governor));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(0, counters.RuneSliceIndexAllocations);
-        Assert.Equal(0, counters.AwkTextAllocations);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
     }
 
     [Fact]
@@ -277,12 +286,10 @@ public sealed class AwkTextTests
         _ = AwkText.FromString("small", counters);
         _ = AwkText.FromString(new string('x', 32), counters);
 
-        Assert.Equal(3, counters.AwkTextAllocations);
-        Assert.Equal(3, counters.Utf8Encodes);
-        Assert.Equal(3, counters.ValuesCreated);
-        Assert.Equal(2, counters.AwkTextSmallPayloadAllocations);
-        Assert.Equal(6, counters.AwkTextSmallPayloadBytes);
-        Assert.Equal(38, counters.AwkTextPayloadBytes);
+        Assert.Equal(3, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(3, counters[AwkCounter.Utf8Encodes]);
+
+        Assert.Equal(38, counters[AwkCounter.TextBytes]);
     }
 
     [Fact]
@@ -298,13 +305,12 @@ public sealed class AwkTextTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray(), counters);
 
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
         Assert.Equal("caf\u00e9", text.AsString(counters));
         Assert.Equal("caf\u00e9", text.AsString(counters));
-        Assert.Equal(2, counters.AwkTextAsStringCalls);
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
-        Assert.Equal(1, counters.StringDecodes);
+
+        Assert.Equal(1, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -319,8 +325,7 @@ public sealed class AwkTextTests
 
         Assert.True(retainedBytes > text.ByteLength);
         Assert.Equal(retainedBytes, text.EstimatedRetainedMemoryBytes);
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
-        Assert.Equal(1, counters.RuneSliceIndexAllocations);
+
     }
 
     [Fact]

@@ -218,8 +218,8 @@ internal static class AwkExecutor
         var message = external ? AwkMessages.ErrorUnexpectedFailure : AwkMessages.ErrorInternalFailure;
         try
         {
-            options.Counters.RecordHostCall();
-            options.Counters.RecordOutputBytes(message.Length);
+            options.Counters.Add(AwkCounter.HostCalls, 1);
+            options.Counters.Add(AwkCounter.OutputBytes, message.Length);
             _ = await AwkHostBoundaryPolicy.AwaitAsync(host.AppendAsync(stderr, message, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
         }
@@ -234,8 +234,8 @@ internal static class AwkExecutor
         if (exception is AwkHostAppendException append && append.Descriptor == stderr)
             return AwkDiagnostics.FatalExitCode;
         var failure = AwkDiagnostics.Runtime(exception);
-        options.Counters.RecordHostCall();
-        options.Counters.RecordOutputBytes(failure.Message.Length);
+        options.Counters.Add(AwkCounter.HostCalls, 1);
+        options.Counters.Add(AwkCounter.OutputBytes, failure.Message.Length);
         try
         {
             var status = await AwkHostBoundaryPolicy.AwaitAsync(

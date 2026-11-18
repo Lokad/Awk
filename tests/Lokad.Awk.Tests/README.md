@@ -19,7 +19,7 @@ to enforcing tests.
 | Host contracts | [AwkHostContractTests](AwkHostContractTests.cs), AwkHostStreamingTests, AwkOpaquePipeTests | Original path requests, authorization, reads/appends, opaque commands, close/flush and terminal failure. |
 | Shared admission | AwkMemoryBudgetTests, AwkMemoryBudgetExecutionTests, AwkCooperativeMemoryTests, AwkFrontendMemoryTests, AwkRuntimeMemoryTests | Shared allowance, subtree disposal, refusal before mutation, pending users stay funded, final refunds. |
 | Regex | AwkHostRegexTests, AwkRegexProviderSemanticsTests, AwkRegexProviderOwnershipTests, AwkUtf8RegexAdapterTests | Translation/capture boundaries, provider lifetimes, token forwarding and adapter integration; gaps below. |
-| Mechanism evidence | [AwkBenchmarkCounterTests](AwkBenchmarkCounterTests.cs), focused allocation/layout tests | Actual conversions, field preparation, copying and transport. Retire assertions when their mechanism disappears. |
+| Cost observations | [AwkBenchmarkCounterTests](AwkBenchmarkCounterTests.cs), focused allocation/layout tests | Actual conversions, field preparation, text/copy bytes and host calls. Do not pin execution routes or checkpoint counts. |
 | Preparation boundaries | [AwkFusionBoundaryTests](AwkFusionBoundaryTests.cs) | Canonical results/effects under inert filler shapes and pending-output controls, without opcode/route expectations. |
 | Native comparisons | AwkDifferentialTests, AwkDifferentialFilesTests, AwkDifferentialComparisonTests | Live reference stdout, declared output files, diagnostic class and status; explicit opt-in below. |
 

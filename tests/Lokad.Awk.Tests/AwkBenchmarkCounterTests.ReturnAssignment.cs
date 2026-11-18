@@ -22,10 +22,10 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(0, exit.Value);
             Assert.Equal("1024 strnum 000700000000\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(records, counters.BoundFunctionRuns);
+
             Assert.Equal(0, budget.Reserved);
             Assert.Equal(0, host.OpenFileCount);
-            observations.Add((budget.ResizeCalls, counters.StringDecodes, counters.Utf8Encodes, counters.AwkTextAllocations));
+            observations.Add((budget.ResizeCalls, counters[AwkCounter.StringDecodes], counters[AwkCounter.Utf8Encodes], counters[AwkCounter.TextAllocations]));
         }
         Assert.True(observations[0].Resizes < observations[1].Resizes);
         Assert.Equal(observations[1].Decodes, observations[0].Decodes);
@@ -54,10 +54,10 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(0, exit.Value);
             Assert.Equal("1024 string 000700000000\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(records, counters.BoundFunctionRuns);
+
             Assert.Equal(0, budget.Reserved);
             Assert.Equal(0, host.OpenFileCount);
-            observations.Add((budget.ResizeCalls, counters.StringDecodes, counters.Utf8Encodes, counters.AwkTextAllocations));
+            observations.Add((budget.ResizeCalls, counters[AwkCounter.StringDecodes], counters[AwkCounter.Utf8Encodes], counters[AwkCounter.TextAllocations]));
         }
         Assert.True(observations[0].Resizes < observations[1].Resizes,
             $"Discarded/used admission callbacks: {observations[0].Resizes}/{observations[1].Resizes}");

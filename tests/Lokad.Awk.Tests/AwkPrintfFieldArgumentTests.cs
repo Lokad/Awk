@@ -76,7 +76,7 @@ public sealed class AwkPrintfFieldArgumentTests
         var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
-        return new(exit.Value, host.GetOutput(AwkFileDescriptor.StdOut), host.GetOutput(AwkFileDescriptor.StdErr), counters.HostCalls, counters.FieldsMaterialized, counters.FieldSplits);
+        return new(exit.Value, host.GetOutput(AwkFileDescriptor.StdOut), host.GetOutput(AwkFileDescriptor.StdErr), counters[AwkCounter.HostCalls], counters[AwkCounter.FieldsPrepared], counters[AwkCounter.FieldSplits]);
     }
 
     private sealed class PendingHost : IAwkHost

@@ -19,8 +19,8 @@ public sealed class AwkEvaluationContextTests
         var state = memoryForState.State;
         var firstIo = CreateIo(state);
         var secondIo = CreateIo(state);
-        using var firstOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
-        using var secondOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var firstOutput = new AwkOutputSink(state.MemoryAccounting);
+        using var secondOutput = new AwkOutputSink(state.MemoryAccounting);
         using (state.PushExecutionContext(firstOutput, firstIo))
         {
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -79,8 +79,8 @@ public sealed class AwkEvaluationContextTests
         var state = memoryForState.State;
         var firstIo = CreateIo(state);
         var secondIo = CreateIo(state);
-        using var firstOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
-        using var secondOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var firstOutput = new AwkOutputSink(state.MemoryAccounting);
+        using var secondOutput = new AwkOutputSink(state.MemoryAccounting);
         AwkEvaluationContext context;
         using (state.PushExecutionContext(firstOutput, firstIo))
         {

@@ -117,7 +117,6 @@ public sealed class AwkGetlineDestinationTests
         var region = Bind(state, "status=(getline a[\"key\"]<\"data\")");
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, io, output));
 
-
         Assert.True(readEntered);
         Assert.True(state.TryPeekArrayAwkValue(array, key, out _));
         Assert.Equal(0, state.RecordNumber);
@@ -139,9 +138,9 @@ public sealed class AwkGetlineDestinationTests
         var io = CreateIo(host, state, state.Limits, CancellationToken.None);
         using var output = AwkTestHarness.CreateOutputSink();
         await region.ExecuteAsync(state, io, output);
-        var decodes = counters.StringDecodes; // The filename crosses the host boundary once.
+        var decodes = counters[AwkCounter.StringDecodes]; // The filename crosses the host boundary once.
         await region.ExecuteAsync(state, io, output);
-        Assert.Equal(decodes, counters.StringDecodes);
+        Assert.Equal(decodes, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("status")).AsNumber());
         Assert.True(state.TryGetExistingArrayCount(array, out var count));
         Assert.Equal(1, count);

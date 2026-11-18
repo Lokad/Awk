@@ -20,11 +20,8 @@ public sealed partial class AwkBenchmarkCounterTests
         var total = Enumerable.Range(0, records).Sum(index => (index * 3 + 7) % 101);
         Assert.Equal(total + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.FunctionFramesPrepared);
-        Assert.Equal(records, counters.BoundFrameNumberWrites);
-        Assert.Equal(3 * records, counters.NumericLocalReads);
-        Assert.Equal(0, counters.ScalarLocalValueReads);
-        Assert.Equal(0, counters.AwkTextAllocations);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }
@@ -47,12 +44,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("2112 4\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.NumericReturnForwards);
-        Assert.Equal(2 * records, counters.FunctionFramesPrepared);
-        Assert.Equal(2 * records, counters.BoundFunctionRuns);
-        Assert.Equal(records, counters.ArrayTargetCommits);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }
@@ -70,8 +64,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("7 0007\n0009 strnum\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(1, counters.NumericReturnForwards);
-        Assert.Equal(6, counters.BoundFunctionRuns);
+
         Assert.Equal(0, host.OpenFileCount);
     }
 }

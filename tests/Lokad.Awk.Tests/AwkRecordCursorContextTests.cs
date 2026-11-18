@@ -249,8 +249,8 @@ public sealed class AwkRecordCursorContextTests
         Assert.Equal((count + 1) + "\n", host.Output);
         Assert.Equal("", host.Error);
         // Record/RT copies stay linear; searches borrow UTF-8 without a decoded batch.
-        Assert.InRange(counters.AwkTextPayloadBytes, input.Length, input.Length * 2L);
-        Assert.Equal(0, counters.StringDecodes); // Patterns and record searches remain byte-native in core.
+        Assert.InRange(counters[AwkCounter.TextBytes], input.Length, input.Length * 2L);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]); // Patterns and record searches remain byte-native in core.
         if (governed) Assert.True(budget.Peak > 0);
         Assert.Equal(0, budget.Reserved);
     }

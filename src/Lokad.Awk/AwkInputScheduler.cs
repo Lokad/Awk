@@ -214,7 +214,7 @@ internal sealed class AwkInputScheduler(
 
             string ResolveArgumentString(AwkText text)
             {
-                state.Counters.RecordStringInteropFallback();
+
                 return text.AsString(state.Counters, state.CancellationCheckpoint);
             }
 

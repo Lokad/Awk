@@ -64,9 +64,9 @@ bool asynchronousHost)
         var counters = AwkRuntimeCounters.CreateEnabled();
         var cancelled = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
         Assert.Throws<OperationCanceledException>(cancelled.RecordHostCall);
-        Assert.Equal(0, counters.HostCalls);
+        Assert.Equal(0, counters[AwkCounter.HostCalls]);
         cancelled.RecordCleanupHostCall();
-        Assert.Equal(1, counters.HostCalls);
+        Assert.Equal(1, counters[AwkCounter.HostCalls]);
     }
 
     [Fact]

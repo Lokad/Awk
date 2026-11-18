@@ -7,14 +7,14 @@ public sealed class AwkRegexDialectMemoryTests
     {
         using var memoryForGovernor = Governor(1);
         var governor = memoryForGovernor.Accounting;
-        using var runtime = Runtime(governor,() => { });
+        using var runtime = Runtime(governor, () => { });
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(")")));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         using var memoryForAdmitted = Governor(1 << 24);
         var admitted = memoryForAdmitted.Accounting;
-        using var retry = Runtime(admitted,() => { });
+        using var retry = Runtime(admitted, () => { });
         var regex = retry.Create(new AwkRegexPattern(")"));
         Assert.True(retry.IsMatch(regex, AwkText.FromString(")")));
         Assert.Same(regex, retry.Create(new AwkRegexPattern(")")));
@@ -26,11 +26,11 @@ public sealed class AwkRegexDialectMemoryTests
     [Fact]
     public void DecodedEreStaysAdmittedThroughFinalWrapperPublication()
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24);
         var governor = memoryForGovernor.Accounting;
         long heldAtLastCheck = -1;
-        using var runtime = Runtime(governor,() => heldAtLastCheck = governor.CurrentCommittedBytes);
+        using var runtime = Runtime(governor, () => heldAtLastCheck = governor.CurrentCommittedBytes);
         var regex = runtime.Create(new AwkRegexPattern(@"\q"));
         Assert.True(heldAtLastCheck >= 26, $"Final preparation check held {heldAtLastCheck} bytes.");
         Assert.True(runtime.IsMatch(regex, AwkText.FromString("q")));
@@ -56,8 +56,8 @@ public sealed class AwkRegexDialectMemoryTests
         var pattern = new AwkRegexPattern(text);
         var mode = (AwkCompatibilityMode)profile;
         var expected = AwkRegex.TranslatePattern(pattern, mode, () => { });
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24);
         var governor = memoryForGovernor.Accounting;
         using (var results = governor.CreateTransientLease())
         {
@@ -67,7 +67,7 @@ public sealed class AwkRegexDialectMemoryTests
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        var required = counters.MemoryPeakLiveBytes - 43;
+        var required = memoryForGovernor.Budget.Peak - 43;
         using var memoryForExact = Governor(required);
         var exact = memoryForExact.Accounting;
         Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: exact));
@@ -116,9 +116,9 @@ public sealed class AwkRegexDialectMemoryTests
     }
 
     private static CooperativeTestMemory Governor(long bytes) =>
-        new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
+        new CooperativeTestMemory(bytes);
 
-    private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor,Action checkpoint) =>
+    private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
             AwkRuntimeCounters.Disabled,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);

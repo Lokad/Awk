@@ -35,7 +35,7 @@ internal static class ReferenceExecution
             prepared.Workload.StandardInput, capture, InvocationTimeout, cancellationToken,
             prepared.Workload.Locale, prepared.DirectoryPath);
 
-    public static async Task<ReferenceCounters> CountersAsync(ReferenceWorkload workload,
+    public static async Task<IReadOnlyDictionary<string, long>> CountersAsync(ReferenceWorkload workload,
         CancellationToken cancellationToken)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -47,9 +47,8 @@ internal static class ReferenceExecution
         var exit = await AwkExecutor.ExecuteAsync(host, Invocation(workload),
             deadline.Token, options).ConfigureAwait(false);
         Verify(host.Finish(exit.Value), workload.ExpectedDigest);
-        return new(counters.HostCalls, counters.RecordsRead, counters.FieldSplits,
-            counters.StringDecodes, counters.Utf8Encodes, counters.RegexMatches, counters.RegexCompiles,
-            counters.FieldsMaterialized);
+        return Enum.GetValues<AwkCounter>().Where(counter => counter != AwkCounter.Count)
+            .ToDictionary(counter => counter.ToString(), counter => counters[counter], StringComparer.Ordinal);
     }
 
     public static void Verify(ReferenceExecutionResult result, OutputDigest expected)
@@ -63,7 +62,3 @@ internal static class ReferenceExecution
         AwkCommandInvocation.CreateWithStandardDescriptors("awk", workload.Arguments,
             [new("LC_ALL", workload.Locale), new("TZ", "UTC"), new("PWD", "/")]);
 }
-
-internal sealed record ReferenceCounters(long HostCalls, long Records,
-    long FieldSplits, long StringDecodes, long Utf8Encodes, long RegexMatches, long RegexCompiles,
-    long FieldsMaterialized);

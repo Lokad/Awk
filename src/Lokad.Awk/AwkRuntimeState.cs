@@ -65,7 +65,7 @@ internal sealed class AwkRuntimeState : IDisposable
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
         Resources = resources;
-        MemoryAccounting = AwkMemoryAccounting.Create(Counters, runtimeOptions.MemoryOwner);
+        MemoryAccounting = AwkMemoryAccounting.Create(runtimeOptions.MemoryOwner);
         CompatibilityMode = compatibilityProfile.Mode;
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
@@ -142,7 +142,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 CancellationCheckpoint,
                 ValidateRecordSeparator, csvInput, ReportCsvAssignmentWarning);
             specialVariables = _specialVariables;
-            _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint, Counters);
+            _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
             _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
             _specialVariables.InitializeScalars(fieldSeparator);
             _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
@@ -273,14 +273,13 @@ internal sealed class AwkRuntimeState : IDisposable
     // String origin is already known; numeric use resolves in this execution's mode.
     public AwkValue CreateStringValue(AwkText text)
     {
-        Counters.RecordValueCreated();
+
         return AwkValue.FromDeferredText(text, NumberParsingMode);
     }
 
     public AwkValue CreateNumericStringValue(string text)
     {
-        Counters.RecordValueCreated();
-        Counters.RecordTextValueClassification();
+
         return AwkValue.FromNumericString(
             AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint),
             NumberParsingMode, CancellationCheckpoint);
@@ -288,15 +287,15 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue CreateNumericStringValue(AwkText text, AwkValue? classification = null)
     {
-        Counters.RecordValueCreated();
+
         if (classification is { } known) return known.WithByteText(text);
-        Counters.RecordTextValueClassification();
+
         return AwkValue.FromNumericString(text, NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateNumberValue(double value)
     {
-        Counters.RecordValueCreated();
+
         return AwkValue.FromNumber(value);
     }
 
@@ -350,7 +349,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public IReadOnlyList<AwkEnvironmentVariable> SnapshotEnvironment(AwkMemoryLease commandMemory)
     {
-        Counters.RecordStringInteropFallback();
+
         var count = _variables.GetArraySnapshotCount(EnvironmentArrayName);
         // Snapshot plus the public invocation copy. Keep their
         // strings funded even if ENVIRON is subsequently changed by the parent program.
@@ -422,7 +421,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function)
     {
-        Counters.RecordFunctionNameLookup();
+
         return _functionDefinitions.TryGetValue(name, out function);
     }
 
@@ -700,7 +699,7 @@ internal sealed class AwkRuntimeState : IDisposable
             (uint)index < (uint)slots.Length && slots[index].Array is { } bound)
         {
             array = bound;
-            Counters.RecordBoundGlobalArrayAccess();
+
             return true;
         }
         array = null;
@@ -714,13 +713,12 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!name.IsFunctionLocal && binding.TryGetLocalSlot(out var slot) &&
             _functions.TryGetBoundArray(slot, out array, promote: true))
         {
-            Counters.RecordIndexedLocalArrayAccess();
-            Counters.RecordBoundLocalArrayAccess();
+
             return true;
         }
         if (!name.IsFunctionLocal && _functions.TryGetBoundArray(new AwkVariableName(name.Identifier), out array, promote: true))
         {
-            Counters.RecordBoundLocalArrayAccess();
+
             return true;
         }
         array = null;
@@ -745,7 +743,7 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             if (slots[index].Scalar is { } cell && cell.State.Slot.TryGetNumberValue(out number))
             {
-                Counters.RecordNumericGlobalRead();
+
                 return true;
             }
         }
@@ -819,7 +817,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 {
                     if (slot.TryGetNumberValue(out var number))
                     {
-                        Counters.RecordNumericGlobalRead();
+
                         incoming.StageNumber(index, number);
                     }
                     else if (argument.Consumption == AwkParameterInput.Key && slot.TryGetStoredScalarText(out var text))
@@ -835,7 +833,7 @@ internal sealed class AwkRuntimeState : IDisposable
             }
             if (argument.AllowArray && binding.Array is { } array)
             {
-                Counters.RecordBoundGlobalArrayAccess();
+
                 _functions.StageArrayAlias(incoming, index, new(argument.Name.Identifier), array);
                 return;
             }
@@ -889,7 +887,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (_functions.TryGetLocalFrame(slotId, out var frame) && frame.TryReadNumber(slotId.Index, out number))
         {
-            Counters.RecordNumericLocalRead();
+
             return true;
         }
         number = 0;
@@ -917,13 +915,13 @@ internal sealed class AwkRuntimeState : IDisposable
             var slot = local.Value;
             if (slot.IsNumberValue)
             {
-                Counters.RecordNumericLocalRead();
+
                 key = ToArrayKey(slot);
                 return true;
             }
             if (slot.TryGetStoredScalarText(out var text))
             {
-                Counters.RecordScalarLocalValueRead();
+
                 key = new AwkArrayKey(text, CancellationCheckpoint).WithInputOrigin(slot.HasInputOrigin);
                 return true;
             }
@@ -997,13 +995,13 @@ internal sealed class AwkRuntimeState : IDisposable
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
                 var value = slot.ReadValue(CancellationCheckpoint);
-                Counters.RecordLocalValueRead(in value);
+
                 return value;
             }
             if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText)
             {
                 var value = _functions.ReadFrameValue(frame, slotId);
-                Counters.RecordLocalValueRead(in value);
+
                 return value;
             }
         }
@@ -1014,7 +1012,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (_functions.TryReadBoundLocalValue(slotId, out value, allowArray))
         {
-            Counters.RecordLocalValueRead(in value);
+
             return true;
         }
         return false;
@@ -1050,7 +1048,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (variable.Kind == AwkRegionOperandKind.LocalVariable)
         {
             if (frame is not null && frame.TryWriteNumber(variable.Index, number))
-                Counters.RecordBoundFrameNumberWrite();
+            { }
             else AssignFunctionLocalValue(new(variable.Index), variable.Name, AwkValue.FromNumber(number));
         }
         else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
@@ -1155,7 +1153,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkValue ResolvePreparedSpecialVariableValue(AwkSpecialVariableId id)
     {
-        Counters.RecordPreparedSpecialScalarRead();
+
         return ResolveSpecialVariableValue(id);
     }
 
@@ -1166,14 +1164,13 @@ internal sealed class AwkRuntimeState : IDisposable
             if (!_recordFields.TryGetFieldCountNumber(out number)) return false;
         }
         else if (_variables.GetSpecialScalarCell(id) is { } cell && cell.State.Slot.TryGetNumberValue(out number))
-            Counters.RecordBoundSpecialScalarRead();
+        { }
         else
         {
             number = 0;
             return false;
         }
-        Counters.RecordPreparedSpecialScalarRead();
-        Counters.RecordNumericSpecialScalarRead();
+
         return true;
     }
 
@@ -1185,7 +1182,7 @@ internal sealed class AwkRuntimeState : IDisposable
         // owners in every scope; absent and disabled names keep dynamic resolution.
         if (_variables.GetSpecialScalarCell(id) is { } cell)
         {
-            Counters.RecordBoundSpecialScalarRead();
+
             return _variables.GetScalarValue(cell);
         }
         return _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
@@ -1207,7 +1204,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (id != AwkSpecialVariableId.FieldCount &&
             _variables.GetSpecialScalarCell(id) is { } cell)
         {
-            Counters.RecordBoundSpecialScalarRead();
+
             return cell.State.Slot.TryGetStoredScalarText(out var text)
                 ? text : FormatStringByteText(_variables.GetScalarValue(cell));
         }
@@ -1233,7 +1230,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkText ResolveRecordSeparator()
     {
-        Counters.RecordRecordSeparatorResolution();
+
         return ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
     }
 
@@ -1252,7 +1249,7 @@ internal sealed class AwkRuntimeState : IDisposable
     private AwkValue PrepareRecordTerminatorSlot(AwkRecordTerminator terminator)
     {
         var text = terminator.ByteText;
-        Counters.RecordPreparedRecordTerminatorSlot();
+
         return text.ByteLength == 0 ? AwkValue.Unassigned() : AwkValue.FromDeferredText(text, NumberParsingMode);
     }
 
@@ -1615,12 +1612,12 @@ internal sealed class AwkRuntimeState : IDisposable
             if (TryGetBoundArray(in name, binding, out var array))
             {
                 var boundTarget = _variables.PrepareArrayUpdate(array, bytes, input: true);
-                Counters.RecordBorrowedFieldTargetSnapshot();
+
                 return boundTarget;
             }
             if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
             {
-                Counters.RecordBorrowedFieldTargetSnapshot();
+
                 return target;
             }
         }
@@ -1635,12 +1632,12 @@ internal sealed class AwkRuntimeState : IDisposable
             if (TryGetBoundArray(in name, binding, out var array))
             {
                 var boundTarget = _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
-                Counters.RecordBorrowedFieldTargetSnapshot();
+
                 return boundTarget;
             }
             if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
             {
-                Counters.RecordBorrowedFieldTargetSnapshot();
+
                 return target;
             }
         }
@@ -1698,9 +1695,9 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var array = path.ResolveOwner(this);
         if (ReferenceEquals(array, target.Array) && _variables.TrySetCapturedArrayNumber(array, in target, number))
-            Counters.RecordArrayTargetCommit();
+        { }
         else _variables.SetArrayValue(array, path.Key, AwkValue.FromNumber(number));
-        Counters.RecordBoundArrayUpdate();
+
     }
 
     internal void CommitArrayUpdate(AwkArrayName name, in AwkArrayUpdateTarget target, double number)
@@ -1709,13 +1706,12 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             if (_variables.TrySetCapturedArrayNumber(array, in target, number))
             {
-                Counters.RecordArrayTargetCommit();
-                Counters.RecordBoundArrayUpdate();
+
                 return;
             }
             // Retired/retyped entries retain the ordinary current-owner lookup.
             _variables.SetArrayValue(array, target.Key, AwkValue.FromNumber(number));
-            Counters.RecordBoundArrayUpdate();
+
         }
         else SetArrayAwkValue(name, target.Key, AwkValue.FromNumber(number));
     }

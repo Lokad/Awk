@@ -3,24 +3,25 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPrintStagingMemoryTests
 {
     [Fact]
-    public async Task RefusalAfterIntegerStagingDoesNotPublishPrivatePrefix()
+    public async Task RefusalAfterEarlierPrintArgumentDoesNotPublishPrivatePrefix()
     {
         using var memory = State(true, "default");
         var state = memory.State;
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior"));
         var io = Io(state, new MockFileSystem());
-        var region = BindPrint(state, "print 7,\"" + new string('x', 10_000) + "\"");
+        var region = BindPrint(state, "print (ready=1)*7,\"" + new string('x', 10_000) + "\"");
+        state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         memory.Budget.OnGrowth = _ =>
         {
-            if (state.Counters.PrintIntegerSegments > 0)
+            if (state.ResolveVariableValue(AwkVariableName.FromText("ready")).AsNumber() == 1)
                 memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         };
         try
         {
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.True(state.Counters.PrintIntegerSegments > 0);
+
             Assert.Equal(1, memory.Budget.Refusals);
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
             Assert.Equal("prior", output.ToString());
@@ -40,7 +41,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var earlier = new string('p', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 131_071);
@@ -81,8 +82,10 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task OwnedPrintResultsSurviveLaterPendingArgument(bool governed, bool cancel)
     {
         var source = "function own(s){return substr(tolower(s),1,3)}" +

@@ -17,7 +17,7 @@ public sealed class AwkSingleCallArgumentTests
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
             CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>

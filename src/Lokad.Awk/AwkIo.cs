@@ -252,7 +252,7 @@ internal sealed class AwkIo
                     ? AwkGetlineResult.EndOfFileClearingTerminator
                     : AwkGetlineResult.EndOfFile;
 
-            _counters.RecordRecordRead();
+            _counters.Add(AwkCounter.RecordsRead, 1);
             return AwkGetlineResult.Record(
                 input.RecordText,
                 input.Terminator,

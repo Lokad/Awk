@@ -66,20 +66,19 @@ internal readonly struct AwkValue
             ? AwkValueKind.StoredInputText : DeferredTextKind(mode));
     }
 
-    internal AwkValue ReadVariableStorage(AwkNumberParsingMode mode, AwkRuntimeCounters counters, Action? checkpoint = null)
+    internal AwkValue ReadVariableStorage(AwkNumberParsingMode mode, Action? checkpoint = null)
     {
         switch (_kind)
         {
             case AwkValueKind.NumericString:
                 if (ByteText.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes) checkpoint?.Invoke();
-                counters.RecordPreparedNumericSlotRead();
+
                 return this;
             case AwkValueKind.StoredInputText:
-                counters.RecordValueCreated();
-                counters.RecordTextValueClassification();
+
                 return FromNumericString(ByteText, mode, checkpoint);
             case AwkValueKind.Text:
-                counters.RecordValueCreated();
+
                 return new(_text, 0, DeferredTextKind(mode));
             default:
                 return this;
@@ -92,7 +91,7 @@ internal readonly struct AwkValue
         return IsNumberValue;
     }
 
-    internal double ReadVariableNumber(AwkNumberParsingMode mode, AwkRuntimeCounters counters, Action? checkpoint)
+    internal double ReadVariableNumber(AwkNumberParsingMode mode, Action? checkpoint)
     {
         if (_kind == AwkValueKind.StoredInputText)
         {
@@ -105,7 +104,7 @@ internal readonly struct AwkValue
             return parsed.Number;
         }
         var captured = this;
-        return captured.ReadVariableStorage(mode, counters, checkpoint).AsNumber(checkpoint);
+        return captured.ReadVariableStorage(mode, checkpoint).AsNumber(checkpoint);
     }
 
     internal bool HasSameTextStorage(AwkValue other) =>
@@ -504,15 +503,9 @@ internal readonly struct AwkValue
 
     public static int Compare(AwkValue left, AwkValue right)
     {
-        return Compare(left, right, AwkRuntimeCounters.Disabled);
-    }
-
-    public static int Compare(AwkValue left, AwkValue right, AwkRuntimeCounters counters)
-    {
         if (left.TryGetNumber(out var leftNumber) && right.TryGetNumber(out var rightNumber))
             return leftNumber.CompareTo(rightNumber);
 
-        counters.RecordByteTextComparison();
         return left.ByteText.CompareBytes(right.ByteText);
     }
 

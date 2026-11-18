@@ -13,8 +13,8 @@ public sealed class AwkReplacementCaptureCancellationTests
     [InlineData("traditional")]
     public void RefusedReplacementRunKeepsPublishedBuilderPrefix(string mode)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = Governor(counters);
+
+        using var memory = Governor();
         var budget = memory.Budget;
         var accounting = memory.Accounting;
         using var builder = new AwkUtf8Builder(accounting, 0);
@@ -44,7 +44,7 @@ public sealed class AwkReplacementCaptureCancellationTests
     public void CanceledCallersDoNotFlattenReplacementOrEmptyMatchInput(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         var expected = new string('a', LongText) + "&";
         var text = AwkText.FromString(expected[..^1]).Concat(AwkText.FromString("&"), counters, governor);
@@ -69,7 +69,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(expected, text.AsString());
@@ -97,12 +97,11 @@ public sealed class AwkReplacementCaptureCancellationTests
         };
         var text = AwkText.FromString(replacement);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(governor, 0);
         builder.Append("seed"u8);
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
         Action checkpoint = () =>
         {
             if (++checks == (gensub ? 5 : 3)) cancellation.Cancel();
@@ -149,7 +148,7 @@ public sealed class AwkReplacementCaptureCancellationTests
     public void GensubAppendDoesNotRetainTheParsingCallback(string shape)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var parsing = new CancellationTokenSource();
         var replacement = shape switch
@@ -193,7 +192,7 @@ public sealed class AwkReplacementCaptureCancellationTests
     public void PaddingCancellationDoesNotPublishBuilderLength(bool unaligned)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(governor, LongText * 2);
         builder.Append("seed"u8);
@@ -213,17 +212,17 @@ public sealed class AwkReplacementCaptureCancellationTests
     }
 
     [Theory]
-    [InlineData(false,"preflight")]
-    [InlineData(true,"preflight")]
-    [InlineData(false,"copy")]
-    [InlineData(true,"copy")]
-    [InlineData(false,"publication")]
-    [InlineData(true,"publication")]
-    public void CaptureCancellationReleasesTheLeaseBeforeReturningAMatch(bool byteCoordinates,string phase)
+    [InlineData(false, "preflight")]
+    [InlineData(true, "preflight")]
+    [InlineData(false, "copy")]
+    [InlineData(true, "copy")]
+    [InlineData(false, "publication")]
+    [InlineData(true, "publication")]
+    public void CaptureCancellationReleasesTheLeaseBeforeReturningAMatch(bool byteCoordinates, string phase)
     {
         var input = new string('a', LongText);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -231,9 +230,9 @@ public sealed class AwkReplacementCaptureCancellationTests
         {
             var reached = phase switch
             {
-                "preflight" => governor.CurrentCommittedBytes == 0 && ++checks == 3,
-                "copy" => counters.RegexGroupsMaterialized > 0 && ++checks == 3,
-                "publication" => counters.AwkTextAllocations == 2,
+                "preflight" => governor.CurrentCommittedBytes == 0,
+                "copy" => counters[AwkCounter.TextAllocations] > 0,
+                "publication" => counters[AwkCounter.TextAllocations] == 2,
                 _ => throw new ArgumentOutOfRangeException(nameof(phase))
             };
             if (reached) cancellation.Cancel();
@@ -282,7 +281,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         var cursor = new AwkRegexScalarCoordinates();
         var ranges = Enumerable.Repeat(whole, 1538).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -292,7 +291,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 "scalar-validation" => ++checks == 3,
                 "boundaries" => governor.CurrentCommittedBytes > 0 && ++checks == 3,
-                "materialization" => counters.AwkTextAllocations == 1025,
+                "materialization" => counters[AwkCounter.TextAllocations] == 1025,
                 _ => throw new ArgumentOutOfRangeException(nameof(phase))
             };
             if (reached) cancellation.Cancel();
@@ -325,13 +324,13 @@ public sealed class AwkReplacementCaptureCancellationTests
     internal void RegexRuntimePassesItsCallbackThroughCaptureConstruction(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Byte,
             () =>
             {
-                if (counters.RegexGroupsMaterialized > 0) cancellation.Cancel();
+                if (counters[AwkCounter.TextAllocations] > 0) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
             }, counters, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
@@ -339,7 +338,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         {
             using var match = runtime.MatchValue(regex, AwkText.FromString("a"), governor, AwkRegexCapturePlan.All);
         });
-        Assert.Equal(1, counters.RegexMatches);
+
         runtime.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
@@ -363,8 +362,8 @@ public sealed class AwkReplacementCaptureCancellationTests
         Assert.Throws<OperationCanceledException>(() => AwkRegexSubstitution.ReplaceAll(state, regex,
             AwkText.FromString("a"), replacement, gensub ? AwkReplacementMode.Gensub : AwkReplacementMode.Substitution,
             0, out _));
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
-        Assert.Equal(0, counters.RegexMatches);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
+
         Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -372,8 +371,8 @@ public sealed class AwkReplacementCaptureCancellationTests
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),
         [new(true, 0, 1, AwkText.FromString("H")), new(true, 0, 1, AwkText.FromString("G"))]);
 
-    private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
-        new CooperativeTestMemory(8 << 20, counters);
+    private static CooperativeTestMemory Governor() =>
+        new CooperativeTestMemory(8 << 20);
 
     private static AwkCompatibilityMode ReplacementCompatibility(string mode) => mode switch
     {

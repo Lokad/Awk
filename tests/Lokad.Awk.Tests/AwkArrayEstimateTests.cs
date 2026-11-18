@@ -97,8 +97,8 @@ public sealed class AwkArrayEstimateTests
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
-        var variables = new AwkVariables(accounting, counters,  static (_, _) => { });
+        var accounting = AwkMemoryAccounting.Create(owner);
+        var variables = new AwkVariables(accounting, counters, static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);

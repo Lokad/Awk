@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBinaryNumericTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void NativeNumericSubtreesAvoidFieldCopiesAndRespectMutations(bool governed)
     {
         using var memory = State(governed);
@@ -13,14 +14,14 @@ public sealed class AwkBinaryNumericTests
         var bytes = "007 3 tail"u8.ToArray();
         AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         var parsed = AwkParser.Parse("BEGIN{result=$1*2+$2}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         var result = AwkVariableName.FromText("result");
         Assert.Equal(17, state.ResolveVariableValue(result).AsNumber());
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("008 3 tail"));
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(19, state.ResolveVariableValue(result).AsNumber());
@@ -34,8 +35,10 @@ public sealed class AwkBinaryNumericTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public async Task NativeLeftNumericFailureStopsRightEffectsThroughPublicExecution(bool governed, bool conversion)
     {
         var source = "function right(){print \"right\";return 3}{print " +
@@ -60,7 +63,7 @@ public sealed class AwkBinaryNumericTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options)));
     }

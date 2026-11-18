@@ -43,7 +43,6 @@ internal readonly record struct AwkRegexMatch
     public static AwkRegexMatch NoMatch { get; } =
         new(false, 0, 0, 0, 0, AwkText.Empty, []);
 
-
     internal static void ValidateRanges(ReadOnlySpan<byte> input, AwkRegexCaptureRange whole,
         ReadOnlySpan<AwkRegexCaptureRange> groups, int searchOffset, Action checkpoint)
     {
@@ -100,7 +99,7 @@ internal readonly record struct AwkRegexMatch
             foreach (var boundary in boundaries)
             {
                 var target = (int)(boundary >> 32);
-                positions[(int)(uint)boundary] = cursor.MoveTo(input, target, counters, checkpoint);
+                positions[(int)(uint)boundary] = cursor.MoveTo(input, target, checkpoint);
             }
         }
         var retainedBytes = 0L;
@@ -116,7 +115,7 @@ internal readonly record struct AwkRegexMatch
         {
             checkpoint();
             var groups = captures.Length == 0 ? [] : new AwkRegexGroup[captures.Length];
-            counters.RecordRegexGroupsMaterialized(groups.Length);
+
             for (var index = 0; index < captures.Length; index++)
             {
                 if ((index & 1023) == 0) checkpoint();
@@ -187,15 +186,14 @@ internal readonly record struct AwkRegexGroup
 
 internal readonly record struct AwkRegexMatchPosition(bool Success, int Index, int Length)
 {
-    public static AwkRegexMatchPosition FromSpan(AwkRegexMatchSpan match, AwkText input,
-        AwkRegexCoordinatePolicy policy, AwkRuntimeCounters counters, Action checkpoint)
+    public static AwkRegexMatchPosition FromSpan(AwkRegexMatchSpan match, AwkText input, AwkRegexCoordinatePolicy policy, Action checkpoint)
     {
         if (!match.Success || policy == AwkRegexCoordinatePolicy.Byte)
             return new(match.Success, match.ByteIndex, match.ByteLength);
         var cursor = new AwkRegexScalarCoordinates();
         var bytes = input.AsSpan(checkpoint);
-        var start = cursor.MoveTo(bytes, match.ByteIndex, counters, checkpoint);
-        var end = cursor.MoveTo(bytes, match.ByteIndex + match.ByteLength, counters, checkpoint);
+        var start = cursor.MoveTo(bytes, match.ByteIndex, checkpoint);
+        var end = cursor.MoveTo(bytes, match.ByteIndex + match.ByteLength, checkpoint);
         return new(true, start, end - start);
     }
 }
@@ -225,9 +223,8 @@ internal struct AwkRegexScalarCoordinates
     private int _byteOffset;
     private int _scalarOffset;
 
-    public int MoveTo(ReadOnlySpan<byte> input, int target, AwkRuntimeCounters counters, Action checkpoint)
+    public int MoveTo(ReadOnlySpan<byte> input, int target, Action checkpoint)
     {
-        var before = _byteOffset;
         long next = _byteOffset;
         while (_byteOffset < target)
         {
@@ -246,7 +243,7 @@ internal struct AwkRegexScalarCoordinates
             _byteOffset -= consumed;
             _scalarOffset--;
         }
-        counters.RecordRegexCoordinateBytes(Math.Abs(target - before));
+
         checkpoint();
         return _scalarOffset;
     }

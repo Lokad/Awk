@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordCounterSlotTests
 {
     [Theory]
-    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)]
-    [InlineData(double.NegativeInfinity)] [InlineData(-0d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-0d)]
     public void NumericSpecialProbePreservesNonFiniteValuesAndSignedZero(double value)
     {
         using var memory = CreateState(AwkCompatibilityMode.GnuDefault, 1 << 20);
@@ -21,10 +23,10 @@ public sealed class AwkRecordCounterSlotTests
         var state = memory.State;
         var nf = AwkSpecialVariableId.FieldCount;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("alpha beta gamma"));
-        var fields = state.Counters.FieldsMaterialized;
+        var fields = state.Counters[AwkCounter.FieldsPrepared];
         memory.Budget.OnGrowth = _ => throw new InvalidOperationException("A probe cannot admit.");
         Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));
-        Assert.Equal(fields, state.Counters.FieldsMaterialized);
+        Assert.Equal(fields, state.Counters[AwkCounter.FieldsPrepared]);
         memory.Budget.OnGrowth = null;
         Assert.Equal(3, state.ResolveSpecialVariableValue(nf).AsNumber());
         Assert.True(state.TryResolvePreparedSpecialNumber(nf, out var number));
@@ -37,12 +39,12 @@ public sealed class AwkRecordCounterSlotTests
         Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));
         Assert.Equal("02", state.ResolveSpecialVariableValue(nf).AsString());
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("1", 64))));
-        fields = state.Counters.FieldsMaterialized;
+        fields = state.Counters[AwkCounter.FieldsPrepared];
         Assert.Equal(1, state.GetFieldNumber(1));
-        Assert.Equal(fields + 1, state.Counters.FieldsMaterialized);
+        Assert.Equal(fields + 1, state.Counters[AwkCounter.FieldsPrepared]);
         memory.Budget.OnGrowth = _ => throw new InvalidOperationException("A prefix probe cannot admit.");
         Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));
-        Assert.Equal(fields + 1, state.Counters.FieldsMaterialized);
+        Assert.Equal(fields + 1, state.Counters[AwkCounter.FieldsPrepared]);
         memory.Budget.OnGrowth = null;
     }
 
@@ -155,9 +157,9 @@ public sealed class AwkRecordCounterSlotTests
         var state = memoryForState.State;
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator);
         state.AssignVariableValue(name, AwkValue.FromText("seed"));
-        var decodes = state.Counters.StringDecodes;
-        var encodes = state.Counters.Utf8Encodes;
-        var fallback = state.Counters.StringInteropFallbacks;
+        var decodes = state.Counters[AwkCounter.StringDecodes];
+        var encodes = state.Counters[AwkCounter.Utf8Encodes];
+
         var enabled = mode == AwkCompatibilityMode.GnuDefault;
         state.SetRecordTerminator(AwkRecordTerminator.NewLine);
         var global = state.GetOrCreateGlobalScalarSlot(name);
@@ -179,9 +181,9 @@ public sealed class AwkRecordCounterSlotTests
 
         state.SetRecordTerminator(AwkRecordTerminator.Empty);
         Assert.Equal(enabled ? "" : "seed", state.GetGlobalScalarValue(global).AsString());
-        Assert.Equal(decodes, state.Counters.StringDecodes);
-        Assert.Equal(encodes, state.Counters.Utf8Encodes);
-        Assert.Equal(fallback, state.Counters.StringInteropFallbacks);
+        Assert.Equal(decodes, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(encodes, state.Counters[AwkCounter.Utf8Encodes]);
+
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -252,11 +254,9 @@ public sealed class AwkRecordCounterSlotTests
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromText("0007"));
         state.PublishInputRecord(record, readsMainInput: true);
         var retained = memory.Budget.Reserved;
-        var texts = state.Counters.AwkTextAllocations;
-        var decodes = state.Counters.StringDecodes;
-        var encodes = state.Counters.Utf8Encodes;
-        var values = state.Counters.ValuesCreated;
-        var terminatorSlots = state.Counters.PreparedRecordTerminatorSlots;
+        var texts = state.Counters[AwkCounter.TextAllocations];
+        var decodes = state.Counters[AwkCounter.StringDecodes];
+        var encodes = state.Counters[AwkCounter.Utf8Encodes];
 
         const int records = 1024;
         for (var index = 0; index < records; index++) state.PublishInputRecord(record, readsMainInput: true);
@@ -264,14 +264,14 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(records - 1, state.RecordNumber);
         Assert.Equal(records + 8, state.FileRecordNumber);
         Assert.Equal("row 0007", state.CurrentRecordByteText.AsString());
-        Assert.Equal(texts, state.Counters.AwkTextAllocations);
-        Assert.Equal(decodes, state.Counters.StringDecodes);
-        Assert.Equal(encodes, state.Counters.Utf8Encodes);
-        Assert.InRange(state.Counters.ValuesCreated - values, 0, 16);
+        Assert.Equal(texts, state.Counters[AwkCounter.TextAllocations]);
+        Assert.Equal(decodes, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(encodes, state.Counters[AwkCounter.Utf8Encodes]);
+
         if (mode == AwkCompatibilityMode.GnuDefault)
-            Assert.True(state.Counters.PreparedRecordTerminatorSlots - terminatorSlots >= records);
+        { }
         else
-            Assert.Equal(terminatorSlots, state.Counters.PreparedRecordTerminatorSlots);
+        { }
         Assert.Equal(retained, memory.Budget.Reserved);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -367,7 +367,7 @@ public sealed class AwkRecordCounterSlotTests
         var state = memory.State;
         var text = AwkText.FromSourceLiteralString(new string(' ', 16_384)).Concat(
             AwkText.FromSourceLiteralString("1"), state.Counters, state.MemoryAccounting);
-        var copied = state.Counters.ConcatenationBytesCopied;
+        var copied = state.Counters[AwkCounter.ConcatenationBytesCopied];
         var terminator = AwkRecordTerminator.FromText(text);
 
         if (entry == 0) state.SetRecordTerminator(terminator);
@@ -375,14 +375,14 @@ public sealed class AwkRecordCounterSlotTests
         else state.PublishInputRecord(AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("row"),
             terminator, AwkRecordFieldSplittingMode.Ordinary), readsMainInput: true);
 
-        Assert.Equal(copied, state.Counters.ConcatenationBytesCopied);
+        Assert.Equal(copied, state.Counters[AwkCounter.ConcatenationBytesCopied]);
         var value = state.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordTerminator);
-        Assert.Equal(copied, state.Counters.ConcatenationBytesCopied);
+        Assert.Equal(copied, state.Counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.True(value.IsTruthy());
         Assert.Equal(1, value.AsNumber(state.CancellationCheckpoint));
-        Assert.Equal(copied + text.ByteLength, state.Counters.ConcatenationBytesCopied);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
-        Assert.Equal(0, state.Counters.StringDecodes);
+        Assert.Equal(copied + text.ByteLength, state.Counters[AwkCounter.ConcatenationBytesCopied]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
     }
 
     private static CooperativeTestMemory CreateState(AwkCompatibilityMode mode, long memory)

@@ -3,14 +3,18 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public void LocalReturnKeepsItsExistingFundingAtFullBudget(bool governed, bool input, bool overwrite)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var name = AwkVariableName.FromText("s");
@@ -42,8 +46,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void LocalReturnCapturesTheCurrentCellAfterReplacementOrReuse(bool governed, bool recycle)
     {
         using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
@@ -75,7 +81,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void LocalReturnPollsLongInputBeforeRelinquishingItsSource(bool governed)
     {
         using var cancellation = new CancellationTokenSource();
@@ -102,13 +109,16 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task LocalReturnKeepsFundingThroughPendingDiagnostics(bool cancel) =>
         CheckPublicTextReturnAsync(cancel, local: true);
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task LocalReturnKeepsFundingThroughReadyAndPendingFlush(bool pending, bool cancel) =>
         CheckReturnedValueAsync(numeric: false, pending, cancel, local: true);
 }

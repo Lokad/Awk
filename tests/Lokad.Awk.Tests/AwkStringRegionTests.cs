@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkStringRegionTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CompleteStringActionPreservesStateAndByteNativeProcessing(bool governed)
     {
         var program = Bind("BEGIN{$0=\"id:beta:tail\";s=substr($0,4,4);total=length(s)+index($0,\"beta\")+length(tolower(s))}");
@@ -12,10 +13,10 @@ public sealed class AwkStringRegionTests
         var state = memory.State;
         var host = new MockFileSystem();
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal("beta", state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString());
         Assert.Equal(12, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
@@ -28,10 +29,14 @@ public sealed class AwkStringRegionTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task PendingStringArgumentsPublishOnceAfterActualRead(bool governed, bool length, bool cancel)
     {
         var expression = length ? "length(text_value())" : "substr(text_value(),2,2)";
@@ -55,7 +60,7 @@ public sealed class AwkStringRegionTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -103,7 +108,7 @@ public sealed class AwkStringRegionTests
     private static CooperativeTestMemory State(AwkProgram program, AwkRuntimeCounters counters, bool governed,
         CancellationToken token = default)
     {
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         return memory.Initialize(() =>
         {
             var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,

@@ -69,7 +69,7 @@ public sealed class AwkProfileNameTests
         Assert.Equal(1, count);
         Assert.Equal(admitted, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]

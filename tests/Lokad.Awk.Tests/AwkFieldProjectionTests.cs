@@ -21,17 +21,17 @@ public sealed partial class AwkFieldProjectionTests
         var firstEager = eager.GetFieldValue(1);
         AssertSameScalar(firstEager, first);
         Assert.Equal("0007"u8.ToArray(), first.ByteText.AsSpan().ToArray());
-        Assert.Equal(1, counters.FieldsMaterialized);
-        Assert.Equal(64, eagerCounters.FieldsMaterialized);
+        Assert.Equal(1, counters[AwkCounter.FieldsPrepared]);
+        Assert.Equal(64, eagerCounters[AwkCounter.FieldsPrepared]);
         var third = state.GetFieldValue(3);
         var thirdEager = eager.GetFieldValue(3);
         AssertSameScalar(thirdEager, third);
-        Assert.Equal(3, counters.FieldsMaterialized);
+        Assert.Equal(3, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(64, state.FieldCount);
-        Assert.Equal(64, counters.FieldsMaterialized);
+        Assert.Equal(64, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(first, state.GetFieldValue(1));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
 
         static void AssertSameScalar(AwkValue expected, AwkValue actual)
@@ -50,18 +50,18 @@ public sealed partial class AwkFieldProjectionTests
         using var memoryForState = State(finite);
         var state = memoryForState.State;
         var counters = state.Counters;
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var bytes = "first second"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         // Warm the ordinary ORS binding before comparing field-specific counters.
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
-        var allocations = counters.AwkTextAllocations;
-        var values = counters.ValuesCreated;
+        var allocations = counters[AwkCounter.TextAllocations];
+
         state.AppendFieldPrint(output, 1);
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         // ORS is already canonical, and the projected field creates no scalar.
-        Assert.Equal(values, counters.ValuesCreated);
+
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         Assert.True(original.Span.StartsWith("next"u8));
@@ -75,7 +75,7 @@ public sealed partial class AwkFieldProjectionTests
         using var memoryForState = State(true);
         var state = memoryForState.State;
         var counters = state.Counters;
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var prefix = new string('k', AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity - 4);
         output.Append(AwkText.FromString(prefix));
         state.SetCurrentRecord(AwkText.FromString("1234"));
@@ -98,7 +98,7 @@ public sealed partial class AwkFieldProjectionTests
         using var memoryForState = State(finite);
         var state = memoryForState.State;
         var counters = state.Counters;
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
         state.AppendFieldPrint(output, 1);
         state.AppendFieldPrint(output, 2);
@@ -131,7 +131,7 @@ public sealed partial class AwkFieldProjectionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: finite);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options)));
     }
 }

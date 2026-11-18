@@ -4,11 +4,12 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkFunctionStorageTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ReaderTextMaterializationFailureLeavesBorrowedCellUnchanged(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, counters);
+        using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
         var stack = new AwkFunctionCallStack(1_024, memory.Accounting, AwkNumberParsingMode.Decimal,
             checkpoint: cancellation.Token.ThrowIfCancellationRequested, counters: counters);
@@ -16,7 +17,7 @@ public sealed partial class AwkFunctionStorageTests
         using var borrow = AwkReadBuffer.FromContent(new byte[3000], AwkReadCompletion.EndOfFile, static _ => { });
         stack.StageReaderText(frame, 0, borrow, 0, 3000);
         var before = memory.Budget.Reserved;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         if (cancel)
         {
             memory.Budget.OnGrowth = _ => cancellation.Cancel();
@@ -30,7 +31,7 @@ public sealed partial class AwkFunctionStorageTests
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         }
         Assert.Equal(AwkFunctionLocalSlotKind.ReaderText, frame.GetSlot(0).Kind);
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(before, memory.Budget.Reserved);
         Assert.Equal(0, frame.RetainedMemoryBytes);
         memory.Budget.OnGrowth = null;
@@ -40,7 +41,8 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ReaderTextMaterializesOnceWithinItsFundedFrame(bool governed)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
@@ -71,7 +73,7 @@ public sealed partial class AwkFunctionStorageTests
     public void ReaderForwardingUsesFundedCellsWithoutPrepayingForCopies()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, counters);
+        using var memory = new CooperativeTestMemory(1 << 20);
         var stack = new AwkFunctionCallStack(1_024, memory.Accounting, AwkNumberParsingMode.Decimal,
             counters: counters);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("s")]);
@@ -88,7 +90,7 @@ public sealed partial class AwkFunctionStorageTests
             Assert.Equal(0, first.RetainedMemoryBytes);
             Assert.Equal(0, second.RetainedMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
-            Assert.Equal(0, counters.AwkTextAllocations);
+            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         }
         stack.DiscardIncomingFrame(second);
         stack.DiscardIncomingFrame(first);
@@ -97,7 +99,8 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ReaderMaterializationPreservesItsSnapshotAfterAdmissionChangesTheCell(bool recycle)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -129,8 +132,10 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void ReaderArgumentSlicesKeepTheirSpellingAndAdjacentCells(bool governed, bool empty)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
@@ -152,7 +157,8 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void GeneralCallPreparationObservesCancellationBeforeTheArgumentTail(bool preCanceled)
     {
         const int count = 256;

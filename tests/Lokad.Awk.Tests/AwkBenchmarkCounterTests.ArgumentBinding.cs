@@ -33,7 +33,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(shape switch { "array" => "16512 256\n", "omitted-array" => "256 0\n", _ => "1024\n" },
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionNameLookups);
+
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }

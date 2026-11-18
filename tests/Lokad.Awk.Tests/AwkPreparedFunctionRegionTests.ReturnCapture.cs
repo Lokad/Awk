@@ -21,7 +21,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("$1")] [InlineData("$i")]
+    [InlineData("$1")]
+    [InlineData("$i")]
     public async Task ValueReturnDoesNotAdmitUnreachableWideFields(string expression)
     {
         var budget = new CooperativeTestBudget(2L << 20);
@@ -39,10 +40,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task PublicReturnFlushFailureStopsCallerAndRetiresItsCapture(bool governed, bool pending, bool text)
     {
         const string warning = "awk: warning: sqrt: received negative argument -1\n";
@@ -111,14 +116,19 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var expression = source switch
         {
-            "local" => "s", "global" => "g", "field" => "$1", "dynamic-field" => "$n",
+            "local" => "s",
+            "global" => "g",
+            "field" => "$1",
+            "dynamic-field" => "$n",
             "array" or "array-number" => "a[\"r\"]",
             "nested-array" or "nested-number" or "nested-missing" => "a[\"parent\"][\"r\"]",
-            "literal" => "\"0007\"", "text" => "substr(g,1)",
-            "special" => "OFS", _ => ""
+            "literal" => "\"0007\"",
+            "text" => "substr(g,1)",
+            "special" => "OFS",
+            _ => ""
         };
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
         var state = memory.State;
         var program = Bind("function f(s){return " + expression + "}BEGIN{saved=f(\"0007\")}");
@@ -171,7 +181,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         output.Append(AwkText.FromSourceLiteralString("before\n"));
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try

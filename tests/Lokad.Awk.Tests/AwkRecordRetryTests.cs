@@ -75,7 +75,7 @@ public sealed class AwkRecordRetryTests
         Assert.Equal("ok", (await cursor.ReadRecordAsync()).RecordText.AsString());
         Assert.False((await cursor.ReadRecordAsync()).HasRecord);
         Assert.Single(host.ReadByteCounts);
-        Assert.Equal(enabled ? input.Length : 0, state.Counters.BytesRead);
+        Assert.Equal(enabled ? input.Length : 0, state.Counters[AwkCounter.BytesRead]);
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
     }
@@ -137,7 +137,7 @@ public sealed class AwkRecordRetryTests
         await MemoryFailure(cursor);
 
         Assert.Equal(2, host.ReadByteCounts.Count);
-        Assert.Equal(enabled ? 5 + batch.Length : 0, state.Counters.BytesRead);
+        Assert.Equal(enabled ? 5 + batch.Length : 0, state.Counters[AwkCounter.BytesRead]);
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
         state.MemoryAccounting.ReleaseReserved(pressure);
@@ -151,7 +151,7 @@ public sealed class AwkRecordRetryTests
         }
         Assert.False((await cursor.ReadRecordAsync()).HasRecord);
         Assert.Equal(eof ? 2 : 3, host.ReadByteCounts.Count);
-        Assert.Equal(enabled ? 5 + batch.Length : 0, state.Counters.BytesRead);
+        Assert.Equal(enabled ? 5 + batch.Length : 0, state.Counters[AwkCounter.BytesRead]);
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
     }
@@ -249,7 +249,7 @@ public sealed class AwkRecordRetryTests
             }
         };
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForState = State(enabled,limits,cancellation.Token,memoryEnabled: finite);
+        using var memoryForState = State(enabled, limits, cancellation.Token, memoryEnabled: finite);
         var state = memoryForState.State;
         var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
         var byteReader = reader.CreateByteReader(AwkFileDescriptor.StdIn);
@@ -264,7 +264,7 @@ public sealed class AwkRecordRetryTests
         Assert.Equal(1, reads);
         // A fresh execution can consume the reader's already buffered EOF batch
         // without calling its canceled host boundary again.
-        using var memoryForFresh = State(enabled,limits);
+        using var memoryForFresh = State(enabled, limits);
         // A fresh execution can consume the reader's already buffered EOF batch
         // without calling its canceled host boundary again.
         var fresh = memoryForFresh.State;
@@ -294,7 +294,7 @@ public sealed class AwkRecordRetryTests
             }
         };
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForState = State(enabled,limits,cancellation.Token,memoryEnabled: finite);
+        using var memoryForState = State(enabled, limits, cancellation.Token, memoryEnabled: finite);
         var state = memoryForState.State;
         Assign(state, "RS", ":");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("kept"));
@@ -310,13 +310,13 @@ public sealed class AwkRecordRetryTests
         Assert.Equal(buffered, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(2, reads);
-        Assert.Equal(enabled ? 12 : 0, state.Counters.BytesRead);
+        Assert.Equal(enabled ? 12 : 0, state.Counters[AwkCounter.BytesRead]);
         cursor.Dispose();
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static CooperativeTestMemory State(bool enabled,AwkRuntimeLimits? requested = null,        CancellationToken cancellationToken = default,bool memoryEnabled = true)
+    private static CooperativeTestMemory State(bool enabled, AwkRuntimeLimits? requested = null, CancellationToken cancellationToken = default, bool memoryEnabled = true)
     {
 
         var testMemory = new CooperativeTestMemory(1 << 20, enabled: memoryEnabled);

@@ -3,9 +3,15 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkControlRegionTests
 {
     [Theory]
-    [InlineData("for", false, false)] [InlineData("for", true, false)] [InlineData("for", false, true)]
-    [InlineData("while", false, false)] [InlineData("while", true, false)] [InlineData("while", false, true)]
-    [InlineData("do", false, false)] [InlineData("do", true, false)] [InlineData("do", false, true)]
+    [InlineData("for", false, false)]
+    [InlineData("for", true, false)]
+    [InlineData("for", false, true)]
+    [InlineData("while", false, false)]
+    [InlineData("while", true, false)]
+    [InlineData("while", false, true)]
+    [InlineData("do", false, false)]
+    [InlineData("do", true, false)]
+    [InlineData("do", false, true)]
     public async Task LoopsPreserveUpdatesOutputAndLint(string kind, bool pendingOutput, bool lint)
     {
         var result = await RunLoop(kind, pendingOutput, lint);
@@ -16,7 +22,9 @@ public sealed class AwkControlRegionTests
     }
 
     [Theory]
-    [InlineData("for")] [InlineData("while")] [InlineData("do")]
+    [InlineData("for")]
+    [InlineData("while")]
+    [InlineData("do")]
     public async Task LoopRefusalPreservesTargetAndStopsBeforeIncrement(string kind)
     {
         var result = await RunLoop(kind, failMemory: true);
@@ -27,7 +35,10 @@ public sealed class AwkControlRegionTests
     }
 
     [Theory]
-    [InlineData("")] [InlineData("pending")] [InlineData("lint")] [InlineData("separator")]
+    [InlineData("")]
+    [InlineData("pending")]
+    [InlineData("lint")]
+    [InlineData("separator")]
     public async Task ConditionalsPreserveBranchesAndEarlierOutput(string boundary)
     {
         var result = await RunConditional(boundary);
@@ -48,16 +59,26 @@ public sealed class AwkControlRegionTests
     }
 
     [Theory]
-    [InlineData("for", false, false)] [InlineData("for", false, true)]
-    [InlineData("for", true, false)] [InlineData("for", true, true)]
-    [InlineData("while", false, false)] [InlineData("while", false, true)]
-    [InlineData("while", true, false)] [InlineData("while", true, true)]
-    [InlineData("do", false, false)] [InlineData("do", false, true)]
-    [InlineData("do", true, false)] [InlineData("do", true, true)]
-    [InlineData("if", false, false)] [InlineData("if", false, true)]
-    [InlineData("if", true, false)] [InlineData("if", true, true)]
-    [InlineData("do-condition", false, false)] [InlineData("do-condition", false, true)]
-    [InlineData("do-condition", true, false)] [InlineData("do-condition", true, true)]
+    [InlineData("for", false, false)]
+    [InlineData("for", false, true)]
+    [InlineData("for", true, false)]
+    [InlineData("for", true, true)]
+    [InlineData("while", false, false)]
+    [InlineData("while", false, true)]
+    [InlineData("while", true, false)]
+    [InlineData("while", true, true)]
+    [InlineData("do", false, false)]
+    [InlineData("do", false, true)]
+    [InlineData("do", true, false)]
+    [InlineData("do", true, true)]
+    [InlineData("if", false, false)]
+    [InlineData("if", false, true)]
+    [InlineData("if", true, false)]
+    [InlineData("if", true, true)]
+    [InlineData("do-condition", false, false)]
+    [InlineData("do-condition", false, true)]
+    [InlineData("do-condition", true, false)]
+    [InlineData("do-condition", true, true)]
     public async Task PendingControlPreservesContextPublicationAndCleanup(string kind, bool governed, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -90,7 +111,7 @@ public sealed class AwkControlRegionTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -129,9 +150,12 @@ public sealed class AwkControlRegionTests
     }
 
     [Theory]
-    [InlineData("for", false)] [InlineData("for", true)]
-    [InlineData("while", false)] [InlineData("while", true)]
-    [InlineData("do", false)] [InlineData("do", true)]
+    [InlineData("for", false)]
+    [InlineData("for", true)]
+    [InlineData("while", false)]
+    [InlineData("while", true)]
+    [InlineData("do", false)]
+    [InlineData("do", true)]
     public async Task CancellationBeforeEntryMutatesNothing(string kind, bool governed)
     {
         var program = Bind(Loop(kind, "x=9"));
@@ -142,7 +166,7 @@ public sealed class AwkControlRegionTests
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(42));
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         cancellation.Cancel();
         try
         {
@@ -157,7 +181,9 @@ public sealed class AwkControlRegionTests
     }
 
     [Theory]
-    [InlineData(16)] [InlineData(17)] [InlineData(64)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(64)]
     public async Task LongDoWhileBodyKeepsMandatoryFirstIteration(int count)
     {
         var program = Bind("do{" + string.Concat(Enumerable.Repeat("executed++;", count)) + "}while(0)");
@@ -166,7 +192,7 @@ public sealed class AwkControlRegionTests
         var state = memory.State;
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         Assert.Equal(AwkStatementFlow.Continue, await program.MainProgram.ExecuteAsync(state, io, output));
         Assert.Equal(count, Number(state, "executed"));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -198,7 +224,7 @@ public sealed class AwkControlRegionTests
         }
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var error = "";
         try
         {
@@ -236,7 +262,7 @@ public sealed class AwkControlRegionTests
     private static CooperativeTestMemory State(AwkProgram program, AwkRuntimeCounters counters,
         CancellationToken token = default, bool governed = true, bool lint = false)
     {
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits,
             regexEngine: AwkUtf8RegexEngine.Instance);

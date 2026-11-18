@@ -31,10 +31,9 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("128\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(0, counters.AsciiCasePreparationBytes);
-            Assert.Equal(0, counters.AsciiCaseConversionBytes);
-            Assert.Equal(0, counters.StringDecodes);
-            Assert.Equal(0, counters.Utf8Encodes);
+
+            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+            Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);
         }
@@ -58,9 +57,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal((records * 8) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, records * 2 + 32);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records * 2 + 32);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -86,9 +85,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("0 0 AB abc ABC ABC 0007 ABC\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.AwkTextAllocations, 0, records * 5 + 32);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records * 5 + 32);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

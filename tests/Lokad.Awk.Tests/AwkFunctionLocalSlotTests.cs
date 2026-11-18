@@ -193,9 +193,12 @@ public sealed class AwkFunctionLocalSlotTests
     }
 
     [Theory]
-    [InlineData(1L, false)] [InlineData(1L, true)]
-    [InlineData(9007199254740993L, false)] [InlineData(9007199254740993L, true)]
-    [InlineData(long.MaxValue, false)] [InlineData(long.MaxValue, true)]
+    [InlineData(1L, false)]
+    [InlineData(1L, true)]
+    [InlineData(9007199254740993L, false)]
+    [InlineData(9007199254740993L, true)]
+    [InlineData(long.MaxValue, false)]
+    [InlineData(long.MaxValue, true)]
     public void ForwardedAliasesKeepFullIdentityAndDiscardExtraArguments(long frameId, bool extra)
     {
         var stack = CreateCallStack();
@@ -226,7 +229,9 @@ public sealed class AwkFunctionLocalSlotTests
     }
 
     [Theory]
-    [InlineData(1L)] [InlineData(9007199254740993L)] [InlineData(long.MaxValue)]
+    [InlineData(1L)]
+    [InlineData(9007199254740993L)]
+    [InlineData(long.MaxValue)]
     public void AliasCellsKeepFullIdentityAndMutableOrigin(long frameId)
     {
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), frameId);
@@ -311,8 +316,10 @@ public sealed class AwkFunctionLocalSlotTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void ArrayBindingCapturesItsNameBeforeResolutionCanReplaceTheSourceCell(bool indexed, bool resolved)
     {
         var name = AwkVariableName.FromText("arg");
@@ -366,9 +373,9 @@ public sealed class AwkFunctionLocalSlotTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.IsType<byte[]>(last.Backing);
         Assert.InRange(allocated, 0, 64L * 10_000);
-        Assert.Equal(10_100, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(10_100, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
 
         AwkText Copy() => AwkText.CopyTrustedBytes(sample, counters, AwkMemoryAccounting.Disabled);
     }
@@ -397,17 +404,16 @@ public sealed class AwkFunctionLocalSlotTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         Assert.Equal("0012", text.AsString(counters));
         Assert.Same(text.PreparedString, value.ByteText.AsString(counters));
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
 
         static AwkValue RoundTrip(AwkValue value) => AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal)
-            .ReadVariableStorage(AwkNumberParsingMode.Decimal, AwkRuntimeCounters.Disabled);
+            .ReadVariableStorage(AwkNumberParsingMode.Decimal);
     }
 
     [Fact]
     public void GlobalBindingScopeRetainsChargesPhysicalDepthAndNestedBindings()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForMemory = new CooperativeTestMemory(1 << 20, AwkRuntimeCounters.Disabled);
+        using var memoryForMemory = new CooperativeTestMemory(1 << 20);
         var memory = memoryForMemory.Accounting;
         var stack = new AwkFunctionCallStack(2, memory, AwkNumberParsingMode.Decimal);
         var name = AwkVariableName.FromText("x");

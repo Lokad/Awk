@@ -13,12 +13,11 @@ public sealed partial class AwkPrintStagingMemoryTests
                 yield return [observed, format];
     }
 
-
-
-
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task RefusedExecutionStoragePrecedesArgumentMutationAndOutput(bool observed, bool printf)
     {
         using var memory = State(observed, "default");
@@ -27,7 +26,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
         var operands = string.Join(',', Enumerable.Repeat("++count", 5));
         var region = BindPrint(state, (printf ? "printf \"%d%d%d%d%d\"," : "print ") + operands);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var io = Io(state, new MockFileSystem());
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -58,7 +57,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(Separator));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(Terminator));
         var region = BindPrint(state, PrintNumbers(format, printf));
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var host = new PendingWriteHost();
         host.Allow.TrySetResult();
         var io = Io(state, host);
@@ -78,8 +77,10 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false, 1)] [InlineData(false, 2)]
-    [InlineData(true, 1)] [InlineData(true, 2)]
+    [InlineData(false, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
     public async Task NumericSeparatorsPreserveSingleAndMultipleValueFormatting(bool observed, int count)
     {
         using var memory = State(observed, "default");
@@ -89,7 +90,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var region = BindPrint(state, "print " + string.Join(',', Enumerable.Repeat("\"x\"", count)));
         var host = new MockFileSystem();
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         await region.ExecuteAsync(state, io, output);
         Assert.Equal(count == 1 ? "x2.25" : "x1.25x2.25", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -115,7 +116,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(Separator));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(Terminator));
         var region = BindPrint(state, PrintNumbers(format, printf));
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new PendingWriteHost();
         var io = Io(state, host, cancellation.Token);
@@ -167,7 +168,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var earlier = new string('k', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
         var text = new string('x', 10_000);
@@ -214,11 +215,10 @@ public sealed partial class AwkPrintStagingMemoryTests
         finally { memoryForState.Budget.OnGrowth = null; }
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.True(copyAdmitted);
-        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
-
 
     [Theory]
     [InlineData(false)]
@@ -227,7 +227,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed: true, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new MockFileSystem();
         var io = Io(state, host);

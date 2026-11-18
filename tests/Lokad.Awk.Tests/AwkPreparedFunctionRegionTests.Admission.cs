@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CallAssignmentReturnRefusalKeepsCalleeAndCallerTarget(bool used)
     {
         var budget = new CooperativeTestBudget(8L << 20);
@@ -30,7 +31,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
@@ -86,7 +87,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
@@ -96,7 +97,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal("before 42\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(5, state.ResolveVariableValue(total).AsNumber());
-            Assert.Equal(0, counters.NumericFieldByteParses);
+
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
@@ -144,7 +145,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
@@ -169,7 +170,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task LocalValueRefusalPreservesAssignmentPrefixWithoutRetry(bool conditional)
     {
         var budget = new CooperativeTestBudget(8L << 20);
@@ -196,7 +198,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
         };
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>

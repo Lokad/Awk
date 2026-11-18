@@ -28,15 +28,14 @@ public sealed class AwkArrayStorageCacheTests
     [InlineData("ARGV")]
     public void ReplacementAndClearRemainVisibleAfterCachedRead(string text)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var storage = new AwkArrayStorage(AwkArrayKeyComparer.Instance, counters);
+
+        var storage = new AwkArrayStorage(AwkArrayKeyComparer.Instance);
         var name = AwkArrayName.FromText(text);
         var first = Values(7);
         storage.SetSlots(name, first);
         Assert.True(storage.TryGetArray(name, out var original));
         Assert.Same(first, original);
         Assert.True(storage.Contains(name));
-        Assert.Equal(1, counters.ArrayContainerCacheHits);
 
         var second = Values(9);
         storage.SetSlots(name, second);

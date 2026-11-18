@@ -21,8 +21,8 @@ public sealed class AwkConcatStagingTests
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(Expected(arity, false), state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.Equal(string.Concat(Enumerable.Range(0, arity)), state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
-        Assert.Equal(0, state.Counters.StringDecodes);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -59,7 +59,7 @@ public sealed class AwkConcatStagingTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -117,7 +117,8 @@ public sealed class AwkConcatStagingTests
     }
 
     [Theory]
-    [InlineData(5)] [InlineData(9)]
+    [InlineData(5)]
+    [InlineData(9)]
     public async Task LateAdmissionFailureKeepsTargetAndEarlierEffectsWithoutRetry(int arity)
     {
         using var memory = State(true);
@@ -129,7 +130,7 @@ public sealed class AwkConcatStagingTests
         state.AssignVariableValue(AwkVariableName.FromText("part"), AwkValue.FromText(new string('x', 8192)));
         var host = new MockFileSystem { AfterAppend = () => memory.Budget.RefuseNextAdmissionMinimumGrowth = 1 };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
@@ -152,7 +153,8 @@ public sealed class AwkConcatStagingTests
     }
 
     [Theory]
-    [InlineData(2)] [InlineData(9)]
+    [InlineData(2)]
+    [InlineData(9)]
     public async Task StorageRefusalDoesNotStartArgumentsOrOpenInput(int arity)
     {
         using var memory = State(true);
@@ -161,7 +163,7 @@ public sealed class AwkConcatStagingTests
         SetParts(state, arity, false);
         var host = new MockFileSystem();
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         using var pressure = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.CurrentCommittedBytes);
         await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
         Assert.False(state.HasScalar(AwkVariableName.FromText("order")));

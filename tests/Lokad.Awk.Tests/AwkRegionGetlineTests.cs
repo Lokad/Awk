@@ -26,10 +26,10 @@ public sealed class AwkRegionGetlineTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("7168 0007 " + (redirected ? "0\n" : "1024\n"), host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         // The one native file name crosses the host boundary; records, numeric
         // status/arguments and original numeric-string spelling stay byte-native.
-        Assert.InRange(counters.StringDecodes, 0, redirected ? 1 : 0);
+        Assert.InRange(counters[AwkCounter.StringDecodes], 0, redirected ? 1 : 0);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

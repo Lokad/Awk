@@ -61,12 +61,12 @@ public sealed class AwkIterationLifetimeTests
         Assert.Equal((keys * 3).ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.FunctionNameLookups);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         // Cold field spelling and escaped traversal text are bounded by key count.
-        Assert.InRange(counters.AwkTextAllocations, 0, 2 * keys + 8);
-        Assert.Equal(keys, counters.NumericFieldByteParses);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 2 * keys + 8);
+
         Assert.Equal(0, budget.Reserved);
     }
 

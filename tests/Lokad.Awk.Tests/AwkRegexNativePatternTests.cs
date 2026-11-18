@@ -19,10 +19,10 @@ public sealed class AwkRegexNativePatternTests
         Assert.Same(regex, runtime.Create(new AwkRegexPattern(equalBytes)));
         Assert.True(runtime.IsMatch(regex, AwkText.FromSourceLiteralString(input)));
         Assert.Equal(System.Text.Encoding.UTF8.GetBytes(translated), Assert.Single(engine.Patterns));
-        Assert.Equal(1, counters.RegexCompiles);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+
     }
 
     [Fact]
@@ -39,9 +39,9 @@ public sealed class AwkRegexNativePatternTests
         Assert.False(runtime.IsMatch(literal, AwkText.FromSourceLiteralString("éx")));
         Assert.True(runtime.IsMatch(literal, AwkText.FromSourceLiteralString("é.")));
         Assert.Equal(2, engine.Patterns.Count);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+
     }
 
     private sealed class RecordingEngine : IAwkRegexEngine

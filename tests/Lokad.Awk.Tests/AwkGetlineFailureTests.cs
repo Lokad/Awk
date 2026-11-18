@@ -50,7 +50,7 @@ public sealed class AwkGetlineFailureTests
         Assert.Equal($"-1 Device read failed {nr} {nr} {nf} {index} {index} [seed fields] kept marker\n",
             files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, files.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(afterRecord ? 1 : 0, counters.RecordsRead);
+        Assert.Equal(afterRecord ? 1 : 0, counters[AwkCounter.RecordsRead]);
         Assert.Equal(0, files.OpenFileCount);
         Assert.Equal(0, host.OpenPipeCount);
     }
@@ -80,9 +80,9 @@ bool readFailure)
 
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(0, appends);
-            Assert.Equal(0, counters.OutputBytes);
-            Assert.Equal(0, counters.RecordsRead);
-            Assert.Equal(enabled ? (readFailure ? 3 : 1) : 0, counters.HostCalls);
+            Assert.Equal(0, counters[AwkCounter.OutputBytes]);
+            Assert.Equal(0, counters[AwkCounter.RecordsRead]);
+            Assert.Equal(enabled ? (readFailure ? 3 : 1) : 0, counters[AwkCounter.HostCalls]);
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);

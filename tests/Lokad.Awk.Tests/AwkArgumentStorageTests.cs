@@ -3,7 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArgumentStorageTests
 {
     [Theory]
-    [InlineData(1)] [InlineData(7)] [InlineData(8)] [InlineData(8192)]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(8192)]
     public void CanceledFieldKeyCaptureLeavesIncomingCellUnpublished(int width)
     {
         using var cancellation = new CancellationTokenSource();
@@ -27,7 +30,9 @@ public sealed class AwkArgumentStorageTests
     }
 
     [Theory]
-    [InlineData("success")] [InlineData("fault")] [InlineData("cancel")]
+    [InlineData("success")]
+    [InlineData("fault")]
+    [InlineData("cancel")]
     public async Task NestedUserArgumentsStayFundedThroughActualHostCompletion(string outcome)
     {
         using var cancellation = new CancellationTokenSource();
@@ -65,7 +70,7 @@ public sealed class AwkArgumentStorageTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
             CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -117,7 +122,8 @@ public sealed class AwkArgumentStorageTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CancellationRequestedByColdAdmissionPrecedesLargeArgumentAllocation(bool userFunction)
     {
         using var cancellation = new CancellationTokenSource();

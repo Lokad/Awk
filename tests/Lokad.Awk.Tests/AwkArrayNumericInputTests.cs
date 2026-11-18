@@ -19,13 +19,12 @@ public sealed class AwkArrayNumericInputTests
         var name = AwkArrayName.FromText("a");
         Initialize(variables, name, ["0007", "010", "0x10", "12tail"], indexed);
         var array = variables.ResolveOrdinaryArray(name);
-        var before = counters.TextValueClassifications;
 
         var sum = 0d;
         for (var index = 1; index <= 4; index++) sum += variables.GetArrayNumber(array, AwkArrayKey.FromOrdinal(index));
 
         Assert.Equal(expected, sum);
-        Assert.Equal(before, counters.TextValueClassifications);
+
         var first = variables.GetArrayValue(array, AwkArrayKey.FromOrdinal(1));
         var second = variables.GetArrayValue(array, AwkArrayKey.FromOrdinal(2));
         var last = variables.GetArrayValue(array, AwkArrayKey.FromOrdinal(4));
@@ -35,14 +34,15 @@ public sealed class AwkArrayNumericInputTests
         Assert.Equal(AwkRuntimeValueKind.NumericString, second.RuntimeKind);
         Assert.Equal(AwkRuntimeValueKind.String, last.RuntimeKind);
         Assert.Equal("12tail", last.AsString());
-        Assert.True(counters.TextValueClassifications > before);
+
         variables.ClearArray(array);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ArithmeticReadRetainsDeferredHexadecimalErrorAndInput(bool indexed)
     {
         using var memory = new CooperativeTestMemory(8 << 20);

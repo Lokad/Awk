@@ -18,7 +18,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
             state.SetArrayAwkValue(name, new("keep"), AwkValue.FromNumber(7));
             var body = operation switch
             {
-                1 => "a[\"missing\"]+=1", 2 => "a[\"missing\"]++", 3 => "--a[\"missing\"]",
+                1 => "a[\"missing\"]+=1",
+                2 => "a[\"missing\"]++",
+                3 => "--a[\"missing\"]",
                 _ => "a[\"missing\"]=99"
             };
             var syntax = AwkParser.Parse("BEGIN{" + body + "}");
@@ -58,7 +60,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("missing"));
         _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var region = program.MainProgram;
         using var scratch = new AwkRegionStorage(state);
         scratch.Prepare(region.Layout);
@@ -72,7 +74,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(4, state.ResolveVariableValue(total).AsNumber());
         Assert.Equal(firstExists, state.ContainsArrayValue(a, new("missing")));
         Assert.False(state.ContainsArrayValue(b, new("missing")));
-        Assert.Equal(1, counters.BoundRegionRuns);
+
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
@@ -99,11 +101,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetArrayAwkValue(AwkArrayName.FromText("b"), new("hit"), AwkValue.FromNumber(3));
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         await program.MainProgram.ExecuteAsync(state, io, output);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
-        Assert.Equal(1, counters.BoundRegionRuns);
+
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -120,7 +122,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(missing, result.FirstMiss);
         Assert.Equal(missing, result.SecondMiss);
         Assert.Equal("", result.Error);
-        Assert.Equal(1, result.Prepared);
     }
 
     private static async Task<FieldArrayResult> RunFieldArrayAction(bool missing)
@@ -138,11 +139,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(missing ? "missing" : "hit"));
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var error = "";
         try { await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), counters.BoundRegionRuns, error);
+        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), error);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         return result;
@@ -166,7 +167,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var record = AwkText.FromSourceLiteralString("missing");
         state.SetCurrentRecord(record);
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
             await program.MainProgram.ExecuteAsync(state, io, output));
@@ -181,5 +182,5 @@ public sealed partial class AwkPreparedFunctionRegionTests
         await io.CloseAsync();
     }
 
-    private readonly record struct FieldArrayResult(double Total, bool FirstMiss, bool SecondMiss, long Prepared, string Error);
+    private readonly record struct FieldArrayResult(double Total, bool FirstMiss, bool SecondMiss, string Error);
 }

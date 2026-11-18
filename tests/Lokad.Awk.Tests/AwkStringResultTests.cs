@@ -11,17 +11,16 @@ public sealed class AwkStringResultTests
         var state = State(counters, CancellationToken.None);
         var text = AwkText.FromString(new string('7', 2 * AwkRuntimeLimits.CancellationCheckBytes + 37));
         var value = AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
-        var allocations = counters.AwkTextAllocations;
-        var values = counters.ValuesCreated;
+        var allocations = counters[AwkCounter.TextAllocations];
 
         var result = AwkBuiltins.EvaluateCaseValue(state, value, upper);
 
         Assert.True(text.HasSameStorage(result.ByteText));
-        Assert.Equal(text.ByteLength, counters.AsciiCasePreparationBytes);
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(values + 1, counters.ValuesCreated);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
         Assert.True(result.IsTruthy());
     }
@@ -46,7 +45,7 @@ public sealed class AwkStringResultTests
         Assert.Equal(new AwkArrayKey("008"), key);
         Assert.NotEqual(AwkArrayKey.FromOrdinal(8), key);
         var slot = AwkValue.ForVariableStorage(result, AwkNumberParsingMode.Decimal);
-        var restored = slot.ReadVariableStorage(state.NumberParsingMode, state.Counters, state.CancellationCheckpoint);
+        var restored = slot.ReadVariableStorage(state.NumberParsingMode, state.CancellationCheckpoint);
         Assert.Equal(8, restored.AsNumber(state.CancellationCheckpoint));
         Assert.Equal(AwkRuntimeValueKind.String, restored.RuntimeKind);
         Assert.True(result.ByteText.HasSameStorage(restored.ByteText));

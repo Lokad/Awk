@@ -22,9 +22,9 @@ public sealed class AwkRegexByteSearchTests
             seen++;
         }
         Assert.Equal(count + (emptyMatches ? 1 : 0), seen);
-        Assert.Equal(input.ByteLength, counters.RegexCoordinateBytes);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public sealed class AwkRegexByteSearchTests
             count++;
         }
         Assert.Equal(2, count);
-        Assert.Equal(0, counters.RegexCoordinateBytes);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class AwkRegexByteSearchTests
         Assert.Equal(1, match.Match.Length);
         Assert.Equal(0, match.Match.Groups[1].Index);
         Assert.Equal(1, match.Match.Groups[1].Length);
-        Assert.Equal(6, counters.RegexCoordinateBytes);
+
     }
 
     private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters) =>

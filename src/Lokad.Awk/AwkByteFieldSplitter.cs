@@ -4,15 +4,7 @@ using System.Text;
 namespace Lokad.Awk;
 
 internal sealed class AwkByteFieldSplitter(
-    Func<AwkRegexPattern, AwkRegexCaseSensitivity, AwkRegex> createRegex,
-    Func<AwkRegexLiteralText, AwkRegexCaseSensitivity, AwkRegex> createLiteralRegex,
-    Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
-    Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
-    AwkStringUnitMode stringUnitMode,
-    Action throwIfCancellationRequested,
-    AwkMemoryAccounting memoryAccounting,
-    AwkRuntimeCounters runtimeCounters,
-    Action<object>? resetRegexWarningSite = null)
+    Func<AwkRegexPattern, AwkRegexCaseSensitivity, AwkRegex> createRegex, Func<AwkRegexLiteralText, AwkRegexCaseSensitivity, AwkRegex> createLiteralRegex, Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans, Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity, AwkStringUnitMode stringUnitMode, Action throwIfCancellationRequested, AwkMemoryAccounting memoryAccounting, Action<object>? resetRegexWarningSite = null)
 {
     private ResolvedFieldSeparatorPlan? _resolvedSeparator;
 
@@ -71,7 +63,7 @@ internal sealed class AwkByteFieldSplitter(
 
             var fields = new List<AwkText>();
             var separators = new List<AwkCapturedSeparator>();
-            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters);
+            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested);
             while (scanner.MoveNext(out var field, out var precedingSeparator))
             {
                 if (precedingSeparator.Length > 0)
@@ -213,7 +205,7 @@ internal sealed class AwkByteFieldSplitter(
         var kind = plan.IncrementalKind;
         if (kind == AwkIncrementalFieldKind.Whitespace)
         {
-            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters, position);
+            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, position);
             while (produced < destination.Length && scanner.MoveNext(out var field, out _))
             {
                 destination[produced++] = AwkRecordField.FromRecordSlice(field.Start, field.Length);
@@ -412,7 +404,7 @@ internal sealed class AwkByteFieldSplitter(
     private TFields ScanWhitespaceFields<TSink, TFields>(ReadOnlySpan<byte> line, ref TSink sink)
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct
     {
-        var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters);
+        var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested);
         while (scanner.MoveNext(out var field, out _))
             sink.Add(field);
 
@@ -612,12 +604,11 @@ internal sealed class AwkByteFieldSplitter(
         Regex
     }
 
-    private ref struct AwkWhitespaceFieldScanner(ReadOnlySpan<byte> content, Action checkpoint,
-        AwkRuntimeCounters counters, int position = 0)
+    private ref struct AwkWhitespaceFieldScanner(ReadOnlySpan<byte> content, Action checkpoint, int position = 0)
     {
         private readonly ReadOnlySpan<byte> _content = content;
-        public AwkWhitespaceFieldScanner(AwkText line, Action checkpoint, AwkRuntimeCounters counters, int position = 0)
-            : this(line.AsSpan(checkpoint), checkpoint, counters, position) { }
+        public AwkWhitespaceFieldScanner(AwkText line, Action checkpoint, int position = 0)
+            : this(line.AsSpan(checkpoint), checkpoint, position) { }
 
         private int _position = position;
         // Owners check entry/admission and publication; the scanner bounds long work.
@@ -653,7 +644,7 @@ internal sealed class AwkByteFieldSplitter(
                 // Never search beyond the next existing cancellation boundary.
                 var end = (int)Math.Min(_content.Length, _nextCheckpoint);
                 var length = _content[_position..end].IndexOfAny((byte)' ', (byte)'\t', (byte)'\n');
-                counters.RecordWhitespaceFieldSearch(length < 0 ? end - _position : length + 1);
+
                 if (length >= 0)
                 {
                     _position += length;

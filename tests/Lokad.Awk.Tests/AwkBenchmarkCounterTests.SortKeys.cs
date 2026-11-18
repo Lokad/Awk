@@ -23,8 +23,8 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         // Building string keys owns their formatting/concatenation; sorting distinct numbers
         // needs no additional language-key text. Allow bounded preparation/output.
-        Assert.InRange(counters.AwkTextAllocations, 0, key == "i" ? 16 : 2 * count + 16);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, key == "i" ? 16 : 2 * count + 16);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
     }

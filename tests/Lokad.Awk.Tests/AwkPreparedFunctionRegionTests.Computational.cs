@@ -3,13 +3,15 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task FirstFunctionStatementDrainsInheritedOutputBeforeLaterEffects(bool governed, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(4 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(counters, AwkRuntimeLimits.CreateDefault(), cancellation.Token, memory.Owner));
         var state = memory.State;
         var program = Bind("function f(){first=1;later=2;later*=3;return later}BEGIN{total=f()}");
@@ -38,7 +40,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         output.Append(AwkText.FromSourceLiteralString("inherited\n"));
         var execution = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
@@ -78,7 +80,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(output, prepared.Output);
         Assert.Equal("", prepared.Error);
 
-        Assert.True(prepared.FunctionRuns > 0);
     }
 
     [Theory]
@@ -92,8 +93,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var prepared = await RunAsync(source);
 
         Assert.Equal(7 + count, prepared.Total);
-
-        Assert.Equal(1, prepared.FunctionRuns);
 
     }
 

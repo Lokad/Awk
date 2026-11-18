@@ -115,7 +115,7 @@ public sealed class AwkFunctionFlowTests
         }
         var error = Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
         Assert.Equal("awk: next used outside input action\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         await io.CloseAsync();

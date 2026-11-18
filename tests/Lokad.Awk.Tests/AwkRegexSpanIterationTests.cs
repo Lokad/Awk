@@ -12,18 +12,18 @@ public sealed class AwkRegexSpanIterationTests
         var input = AwkText.FromString("alpha,béta;gamma", counters);
         for (var i = 0; i < 256; i++)
             runtime.EnumerateMatchSpans(regex, input).Dispose();
-        var matchesBefore = counters.RegexMatches;
-        var textBefore = counters.AwkTextAllocations;
-        var decodesBefore = counters.StringDecodes;
+
+        var textBefore = counters[AwkCounter.TextAllocations];
+        var decodesBefore = counters[AwkCounter.StringDecodes];
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 1_024; i++)
             runtime.EnumerateMatchSpans(regex, input).Dispose();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.Equal(0, allocated);
-        Assert.Equal(matchesBefore, counters.RegexMatches);
-        Assert.Equal(textBefore, counters.AwkTextAllocations);
-        Assert.Equal(decodesBefore, counters.StringDecodes);
+
+        Assert.Equal(textBefore, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(decodesBefore, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -40,15 +40,15 @@ public sealed class AwkRegexSpanIterationTests
             Assert.Equal(position, match.ByteIndex);
             Assert.Equal(0, match.ByteLength);
         }
-        var matchesAtEnd = counters.RegexMatches;
+
         Assert.False(spans.MoveNext(out _));
         Assert.False(spans.MoveNext(out _));
-        Assert.Equal(matchesAtEnd, counters.RegexMatches);
+
         spans.Dispose();
         spans.Dispose();
         var exception = Assert.Throws<ObjectDisposedException>(() => spans.MoveNext(out _));
         Assert.Equal(typeof(AwkRegexMatchSpanEnumerator).FullName, exception.ObjectName);
-        Assert.Equal(matchesAtEnd, counters.RegexMatches);
+
     }
 
     private static AwkRegexRuntime CreateRuntime(AwkRuntimeCounters counters) => new(

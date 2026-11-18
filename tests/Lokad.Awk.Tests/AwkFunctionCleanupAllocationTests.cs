@@ -27,9 +27,9 @@ public sealed class AwkFunctionCleanupAllocationTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 1024, "Allocated bytes: " + allocated);
         Assert.Equal(420000, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
-        Assert.Equal(50000, counters.BoundFunctionRuns);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.False(state.IsInsideFunction);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }

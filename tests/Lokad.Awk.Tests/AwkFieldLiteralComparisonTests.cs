@@ -16,9 +16,9 @@ public sealed class AwkFieldLiteralComparisonTests
         var region = Bind(state, "first");
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         Assert.True(Compare(region, storage, state));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         AwkTestHarness.PublishBufferedRecord(state, "XXXXX XXXXXX"u8);
         AwkTestHarness.PublishBufferedRecord(state, "XXXXX XXXXXX"u8);
         Assert.True(original.Span.StartsWith("XXXXX"u8));
@@ -93,7 +93,7 @@ public sealed class AwkFieldLiteralComparisonTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: finite);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, memory.Configure(options)));
     }
 }

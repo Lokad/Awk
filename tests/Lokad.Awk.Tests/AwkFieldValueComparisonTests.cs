@@ -20,9 +20,9 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         Assert.True(Compare(region, storage, state));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         AwkTestHarness.PublishBufferedRecord(state, "k bld"u8);
         AwkTestHarness.PublishBufferedRecord(state, "k bld"u8);
         Assert.True(original.Span.EndsWith("bld"u8));
@@ -80,10 +80,14 @@ public sealed class AwkFieldValueComparisonTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task NativePendingOperandsSelectTheCurrentFieldInOrder(bool pendingLeft, bool pendingIndex, bool condition)
     {
         using var memory = State(true);
@@ -114,7 +118,7 @@ public sealed class AwkFieldValueComparisonTests
             finally { host.ReadAsyncOverride = Read; }
         }
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -153,15 +157,20 @@ public sealed class AwkFieldValueComparisonTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public Task NativeFailedIndexDoesNotSplitOrPublish(bool canceled, bool condition) =>
         RunPendingComparison(canceled ? "cancel-index" : "fault-index", condition);
 
     [Theory]
-    [InlineData("success", false)] [InlineData("success", true)]
-    [InlineData("fault", false)] [InlineData("fault", true)]
-    [InlineData("cancel", false)] [InlineData("cancel", true)]
+    [InlineData("success", false)]
+    [InlineData("success", true)]
+    [InlineData("fault", false)]
+    [InlineData("fault", true)]
+    [InlineData("cancel", false)]
+    [InlineData("cancel", true)]
     public Task NativeLeftFieldStaysOwnedUntilActualRightCompletion(string outcome, bool condition) =>
         RunPendingComparison(outcome, condition);
 
@@ -193,13 +202,13 @@ public sealed class AwkFieldValueComparisonTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = Io(state, host);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(run.IsCompleted);
-            if (failedIndex) Assert.Equal(0, state.Counters.FieldSplits);
+            if (failedIndex) Assert.Equal(0, state.Counters[AwkCounter.FieldSplits]);
             else state.SetCurrentRecord(AwkText.FromSourceLiteralString("9 new"));
             var retained = AwkRuntimeMemory.EstimateTextBytes(513);
             var held = memory.Budget.Reserved;
@@ -222,7 +231,7 @@ public sealed class AwkFieldValueComparisonTests
             if (cancel || fail) Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
             if (failedIndex)
             {
-                Assert.Equal(0, state.Counters.FieldSplits);
+                Assert.Equal(0, state.Counters[AwkCounter.FieldSplits]);
                 Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
             }
             else
@@ -274,7 +283,8 @@ public sealed class AwkFieldValueComparisonTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void DeferredInputConversionFailureFollowsTheLaterOperandEffect(bool reverse)
     {
         using var memory = State(true, profile: AwkCompatibilityProfile.Default.WithNonDecimalData());
@@ -295,7 +305,8 @@ public sealed class AwkFieldValueComparisonTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PublicGetlineComparisonWaitsForItsUserAndCapturesThePriorField(bool cancel)
     {
         var first = "0007 old\n"u8.ToArray();
@@ -377,7 +388,7 @@ public sealed class AwkFieldValueComparisonTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: finite);
         return memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation,
             memory.Configure(options), new AwkRuntimeResourceMonitor(limits, counters, cancellation),
             profile ?? AwkCompatibilityProfile.Default));

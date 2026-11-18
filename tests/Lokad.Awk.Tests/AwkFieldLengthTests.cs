@@ -15,18 +15,18 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(governed, memory.Budget.Reserved > 0);
         _ = state.FieldCount;
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var allocations = counters.AwkTextAllocations;
-        var values = counters.ValuesCreated;
+        var allocations = counters[AwkCounter.TextAllocations];
+
         for (var index = 0; index < 100; index++)
             Assert.Equal(4, state.CountFieldStringUnits(1));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
-        Assert.Equal(values, counters.ValuesCreated);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal("0007", state.GetFieldValue(1).AsString());
-        Assert.Equal(allocations + 1, counters.AwkTextAllocations);
+        Assert.Equal(allocations + 1, counters[AwkCounter.TextAllocations]);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -44,10 +44,10 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(governed, memory.Budget.Reserved > 0);
         Assert.Equal(4, state.CountFieldStringUnits(1));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 100; index++)
             Assert.Equal(4, state.CountFieldStringUnits(1));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         memory.Dispose();
@@ -55,30 +55,30 @@ public sealed class AwkFieldLengthTests
     }
 
     [Theory]
-    [InlineData(false, "café")] [InlineData(true, "café")]
-    [InlineData(false, "😀e\u0301")] [InlineData(true, "😀e\u0301")]
+    [InlineData(false, "café")]
+    [InlineData(true, "café")]
+    [InlineData(false, "😀e\u0301")]
+    [InlineData(true, "😀e\u0301")]
     public void ScalarLengthFactsDoNotOwnOrClassifyFieldText(bool governed, string text)
     {
         using var memory = State(governed);
         var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString(text + " 0007"));
         _ = state.FieldCount;
-        var allocations = state.Counters.AwkTextAllocations;
-        var classifications = state.Counters.TextValueClassifications;
+        var allocations = state.Counters[AwkCounter.TextAllocations];
+
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         for (var index = 0; index < 100; index++)
         {
             Assert.Equal(text.EnumerateRunes().Count(), state.CountFieldStringUnits(1));
             Assert.Equal(4, state.CountFieldStringUnits(2));
         }
-        Assert.Equal(allocations, state.Counters.AwkTextAllocations);
-        Assert.Equal(classifications, state.Counters.TextValueClassifications);
+        Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
+
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        var scanned = state.Counters.FieldRuneBytesScanned;
-        Assert.Equal(System.Text.Encoding.UTF8.GetByteCount(text) + 4, scanned);
         Assert.Equal(7, state.GetFieldNumber(2));
         Assert.Equal(4, state.CountFieldStringUnits(2));
-        Assert.Equal(scanned, state.Counters.FieldRuneBytesScanned);
+
         Assert.Equal("0007", state.GetFieldValue(2).AsString());
         Assert.Equal(AwkRuntimeValueKind.NumericString, state.GetFieldValue(2).RuntimeKind);
         memory.Dispose();
@@ -86,11 +86,12 @@ public sealed class AwkFieldLengthTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void InterruptedScalarLengthPublishesNoPartialFact(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var polls = 0;
@@ -107,24 +108,27 @@ public sealed class AwkFieldLengthTests
         var committed = memory.Accounting.CurrentCommittedBytes;
         armed = true;
         Assert.Throws<OperationCanceledException>(() => context.Frame.TryGetFieldStringLength(new(1), false, out _));
-        Assert.Equal(0, counters.FieldRuneBytesScanned);
+
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         armed = false;
         Assert.True(context.Frame.TryGetFieldStringLength(new(1), false, out var length));
         Assert.Equal(4 * AwkRuntimeLimits.CancellationCheckBytes, length);
-        var scanned = counters.FieldRuneBytesScanned;
+
         Assert.True(context.Frame.TryGetFieldStringLength(new(1), false, out var repeated));
         Assert.Equal(length, repeated);
-        Assert.Equal(scanned, counters.FieldRuneBytesScanned);
+
         context.Frame.ResetRecord();
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
-    [InlineData(false, "success")] [InlineData(true, "success")]
-    [InlineData(false, "fault")] [InlineData(true, "fault")]
-    [InlineData(false, "cancel")] [InlineData(true, "cancel")]
+    [InlineData(false, "success")]
+    [InlineData(true, "success")]
+    [InlineData(false, "fault")]
+    [InlineData(true, "fault")]
+    [InlineData(false, "cancel")]
+    [InlineData(true, "cancel")]
     public async Task NativeIndexCompletionSelectsCurrentRecordAndFailureDoesNotSplit(bool suspend, string outcome)
     {
         using var cancellation = new CancellationTokenSource();
@@ -155,7 +159,7 @@ public sealed class AwkFieldLengthTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
@@ -163,7 +167,7 @@ public sealed class AwkFieldLengthTests
             if (suspend)
             {
                 Assert.False(run.IsCompleted);
-                Assert.Equal(0, state.Counters.FieldSplits);
+                Assert.Equal(0, state.Counters[AwkCounter.FieldSplits]);
                 state.SetCurrentRecord(AwkText.FromSourceLiteralString("after next"));
                 if (outcome == "cancel") cancellation.Cancel();
                 Assert.False(run.IsCompleted);
@@ -185,7 +189,7 @@ public sealed class AwkFieldLengthTests
                     Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(failure.MessageBytes));
                 }
                 Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
-                Assert.Equal(0, state.Counters.FieldSplits);
+                Assert.Equal(0, state.Counters[AwkCounter.FieldSplits]);
             }
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
@@ -211,7 +215,7 @@ public sealed class AwkFieldLengthTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default, token, memory.Configure(options)));
     }

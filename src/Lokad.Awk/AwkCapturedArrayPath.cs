@@ -36,9 +36,9 @@ internal sealed class AwkCapturedArrayPath : IDisposable
         {
             state.ThrowIfCancellationRequested();
             var keys = new AwkArrayKey[count];
-            state.Counters.RecordCapturedPathKeyBufferAllocation();
+
             var path = new AwkCapturedArrayPath(rootName, rootBinding, keys, lease, capacityBytes);
-            state.Counters.RecordCapturedPathAllocation();
+
             return path;
         }
         catch { lease.Dispose(); throw; }
@@ -61,7 +61,7 @@ internal sealed class AwkCapturedArrayPath : IDisposable
             {
                 state.ThrowIfCancellationRequested();
                 keys = new AwkArrayKey[count];
-                state.Counters.RecordCapturedPathKeyBufferAllocation();
+
                 state.ThrowIfCancellationRequested();
             }
             catch { _heldKeys.Release(nextBytes); throw; }

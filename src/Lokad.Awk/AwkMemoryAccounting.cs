@@ -3,18 +3,17 @@ namespace Lokad.Awk;
 // Own-storage estimates; admission belongs exclusively to the host's shared allowance.
 internal sealed class AwkMemoryAccounting
 {
-    private readonly AwkRuntimeCounters _counters;
+
     private readonly AwkExecutionMemoryOwner _owner;
 
-    private AwkMemoryAccounting(AwkRuntimeCounters counters,
-        AwkExecutionMemoryOwner owner)
+    private AwkMemoryAccounting(AwkExecutionMemoryOwner owner)
     {
-        _counters = counters;
+
         _owner = owner;
     }
 
     public static AwkMemoryAccounting Disabled { get; } =
-        new(AwkRuntimeCounters.Disabled, AwkExecutionMemoryOwner.Disabled);
+        new(AwkExecutionMemoryOwner.Disabled);
 
     public bool IsEnabled => _owner.IsEnabled;
 
@@ -22,12 +21,11 @@ internal sealed class AwkMemoryAccounting
 
     public long CurrentCommittedBytes { get; private set; }
 
-    public static AwkMemoryAccounting Create(AwkRuntimeCounters counters,
-        AwkExecutionMemoryOwner owner)
+    public static AwkMemoryAccounting Create(AwkExecutionMemoryOwner owner)
     {
         return !owner.IsEnabled
             ? Disabled
-            : new AwkMemoryAccounting(counters, owner);
+            : new AwkMemoryAccounting(owner);
     }
 
     public void Reserve(long byteCount)
@@ -39,7 +37,7 @@ internal sealed class AwkMemoryAccounting
         var liveBytes = AwkRuntimeMemory.CheckedAdd(reserved, CurrentCommittedBytes);
         ResizeOwner(liveBytes);
         CurrentReservedBytes = reserved;
-        _counters.RecordMemoryLiveBytes(liveBytes);
+
     }
 
     public AwkMemoryPeakAdmission ReserveAllocationPeak(long byteCount)
@@ -115,7 +113,7 @@ internal sealed class AwkMemoryAccounting
         var liveBytes = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, committed);
         ResizeOwner(liveBytes);
         CurrentCommittedBytes = committed;
-        _counters.RecordMemoryLiveBytes(liveBytes);
+
     }
 
     public AwkMemoryLease CreateTransientLease() =>
@@ -126,7 +124,6 @@ internal sealed class AwkMemoryAccounting
         if (!_owner.TryResizeTracked(liveBytes))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
-
 
 }
 

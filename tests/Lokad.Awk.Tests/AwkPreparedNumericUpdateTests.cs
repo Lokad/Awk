@@ -7,9 +7,12 @@ public sealed class AwkPreparedNumericUpdateTests
     private static readonly AwkVariableName Result = AwkVariableName.FromText("result");
 
     [Theory]
-    [InlineData("k", "number")] [InlineData("é", "number")]
-    [InlineData("k", "cancel")] [InlineData("é", "cancel")]
-    [InlineData("k", "refuse")] [InlineData("é", "refuse")]
+    [InlineData("k", "number")]
+    [InlineData("é", "number")]
+    [InlineData("k", "cancel")]
+    [InlineData("é", "cancel")]
+    [InlineData("k", "refuse")]
+    [InlineData("é", "refuse")]
     public void CompleteFieldUpdatesPreserveCapturedNumberAcrossAdmission(string spelling, string outcome)
     {
         using var cancellation = new CancellationTokenSource();
@@ -24,7 +27,7 @@ public sealed class AwkPreparedNumericUpdateTests
         state.GetFieldNumber(1);
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        var captures = state.Counters.BorrowedFieldTargetSnapshots;
+
         var attempted = false;
         if (outcome == "refuse") memory.Budget.RefuseNextAdmissionMinimumGrowth = 4096;
         memory.Budget.OnGrowth = bytes =>
@@ -32,7 +35,7 @@ public sealed class AwkPreparedNumericUpdateTests
             if (bytes < 4096) return;
             memory.Budget.OnGrowth = null;
             attempted = true;
-            Assert.True(state.Counters.BorrowedFieldTargetSnapshots > captures);
+
             if (outcome == "number") state.SetArrayAwkValue(array, key, AwkValue.FromNumber(100));
             else if (outcome == "cancel") cancellation.Cancel();
         };
@@ -59,7 +62,8 @@ public sealed class AwkPreparedNumericUpdateTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void CompleteUpdatesKeepThePriorNumberAcrossRightAdmission(bool arrayTarget)
     {
         using var memory = State(true);
@@ -92,10 +96,14 @@ public sealed class AwkPreparedNumericUpdateTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public void NativeUpdatesReturnNumericValuesAndPreserveStorage(bool decrement, bool post, bool governed)
     {
         using var memory = State(governed);
@@ -109,8 +117,8 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.True(result.IsNumberValue);
         Assert.Equal(post ? 7 : decrement ? 6 : 8, result.AsNumber());
         Assert.Equal(decrement ? 6 : 8, state.ResolveVariableValue(Value).AsNumber());
-        Assert.Equal(0, state.Counters.StringDecodes);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         memory.Dispose();
@@ -134,8 +142,11 @@ public sealed class AwkPreparedNumericUpdateTests
     }
 
     [Theory]
-    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)]
-    [InlineData(double.NegativeInfinity)] [InlineData(-0.0)] [InlineData(1.25)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-0.0)]
+    [InlineData(1.25)]
     public void NumericUpdatesPreserveBinary64AtFullBudget(double number)
     {
         using var memory = State(true);
@@ -144,7 +155,7 @@ public sealed class AwkPreparedNumericUpdateTests
         state.AssignVariableValue(Value, AwkValue.FromNumber(number));
         using var storage = new AwkRegionStorage(state);
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
-        var reads = state.Counters.NumericGlobalReads;
+
         Assert.True(memory.Budget.TryReserve(Limit - memory.Budget.Reserved, out var pressure));
         using (pressure)
         {
@@ -153,11 +164,11 @@ public sealed class AwkPreparedNumericUpdateTests
                 BitConverter.DoubleToInt64Bits(state.ResolveVariableValue(Value).AsNumber()));
             Assert.Equal(BitConverter.DoubleToInt64Bits(number),
                 BitConverter.DoubleToInt64Bits(state.ResolveVariableValue(Result).AsNumber()));
-            Assert.Equal(reads + 1, state.Counters.NumericGlobalReads);
+
             Assert.Equal(0, memory.Budget.Refusals);
         }
-        Assert.Equal(0, state.Counters.StringDecodes);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
         storage.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);

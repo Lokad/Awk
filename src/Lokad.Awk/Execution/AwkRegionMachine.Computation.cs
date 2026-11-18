@@ -145,7 +145,7 @@ internal partial struct AwkRegionMachine
             }
             if (TryText(lengthOperand, out var text))
             {
-                if (instruction.Detail != 0 && lengthOperand.IsVariable) state.Counters.RecordBoundScalarLength();
+
                 var bytes = text.ReadyText;
                 numbers[instruction.Target] = state.CountStringUnits(in bytes);
                 return;
@@ -154,14 +154,14 @@ internal partial struct AwkRegionMachine
             if (instruction.Detail != 0 && lengthOperand.Kind == AwkRegionOperandKind.LocalVariable &&
                 state.TryReadBoundFunctionLocalValue(new(lengthOperand.Index), out lengthValue, allowArray: true))
             {
-                if (!lengthValue.IsArrayValue) state.Counters.RecordBoundScalarLength();
+
             }
             else
             {
                 if (instruction.Detail != 0 && lengthOperand.IsVariable)
                 {
                     if (lengthOperand.Kind == AwkRegionOperandKind.GlobalVariable && state.HasBoundGlobalScalar(lengthOperand.Index))
-                        state.Counters.RecordBoundScalarLength();
+                    { }
                     else if (state.TryGetExistingArrayCount(new(lengthOperand.Name.Identifier), out var count))
                     {
                         numbers[instruction.Target] = count;
@@ -196,7 +196,7 @@ internal partial struct AwkRegionMachine
             if (frame is null) throw new InvalidOperationException("A bound local requires an active function frame.");
             if (!frame.TryReadNumber(index, out number) &&
                 !frame.TryReadNumericScalar(index, out number, state.CancellationCheckpoint)) return false;
-            state.Counters.RecordNumericLocalRead();
+
             return true;
         }
 
@@ -238,7 +238,7 @@ internal partial struct AwkRegionMachine
                     // This return's private capture slot is fresh. A canonical
                     // number owns no payload to move through it. Retire the local
                     // before flushing, as the owning scalar capture does below.
-                    state.Counters.RecordNumericLocalRead();
+
                     frame.GetSlot(source.Index) = default;
                     return true;
                 }
@@ -377,7 +377,7 @@ internal partial struct AwkRegionMachine
                     owner.TryGetDictionaryCell(key, out cell)) &&
                 cell.Slot.TryGetNumberValue(out var prior))
             {
-                state.Counters.RecordNumericArraySlotRead();
+
                 if (TryReadPureUpdateNumber(update.Right, out var right))
                 {
                     var complete = AwkNumericOperations.ApplyCompoundAssignment(prior, right,
@@ -385,8 +385,7 @@ internal partial struct AwkRegionMachine
                     // The known command poll invokes no admission or host callbacks.
                     state.ThrowIfCancellationRequested();
                     cell.SetSlot(AwkValue.FromNumber(complete));
-                    state.Counters.RecordArrayTargetCommit();
-                    state.Counters.RecordBoundArrayUpdate();
+
                     if (instruction.Right >= 0) numbers[instruction.Right] = prior;
                     if (update.Slot >= 0) storage.StoreLocation(update.Slot, new(key, prior, owner, cell));
                     numbers[instruction.Target] = complete;
@@ -427,7 +426,7 @@ internal partial struct AwkRegionMachine
             if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
                 frame.TryReadNumber(operand.Index, out number))
             {
-                state.Counters.RecordNumericLocalRead();
+
                 return true;
             }
             number = 0;
@@ -441,7 +440,7 @@ internal partial struct AwkRegionMachine
             var borrowReader = call.CanBorrowReaderText &&
                 (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);
             var arguments = call.Arguments;
-            state.Counters.RecordFunctionArgumentSegment();
+
             for (var index = first; index < first + count; index++)
             {
                 if ((index & 63) == 63) state.ThrowIfCancellationRequested();
@@ -792,7 +791,7 @@ internal partial struct AwkRegionMachine
                     if (frame is not null && (uint)operand.Index < (uint)frame.Layout.SlotCount &&
                         frame.GetSlot(operand.Index).TryGetTextInput(out text, state.CancellationCheckpoint))
                     {
-                        state.Counters.RecordScalarLocalValueRead();
+
                         return true;
                     }
                     break;

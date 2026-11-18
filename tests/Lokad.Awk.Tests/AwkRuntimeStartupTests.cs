@@ -20,8 +20,10 @@ public sealed class AwkRuntimeStartupTests
     }
 
     [Theory]
-    [InlineData("--version", false)] [InlineData("--version", true)]
-    [InlineData("--help", false)] [InlineData("--help", true)]
+    [InlineData("--version", false)]
+    [InlineData("--version", true)]
+    [InlineData("--help", false)]
+    [InlineData("--help", true)]
     public async Task TerminalOptionAssignmentsHaveBoundedAllocation(string terminal, bool governed)
     {
         var raw = "\\t" + new string('x', 1 << 20);
@@ -103,8 +105,10 @@ public sealed class AwkRuntimeStartupTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task FieldSeparatorTextValidationPrecedesSourceOpensButSkipsTerminalCommands(bool terminal, bool governed)
     {
         var host = new MockFileSystem();
@@ -252,8 +256,8 @@ public sealed class AwkRuntimeStartupTests
             Assert.Equal(expected, runtime.MakeTime(text, true, resources, AwkMemoryAccounting.Disabled));
         Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
         GC.KeepAlive(runtime);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.StringInteropFallbacks);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Fact]

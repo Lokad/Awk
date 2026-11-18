@@ -44,9 +44,6 @@ public class GovernedAllocationProfile
             {
                 Program = _workload.Program.Replace("[,;]+", "([,;]+){1}", StringComparison.Ordinal)
             };
-            var counters = ReferenceExecution.CountersAsync(_workload, CancellationToken.None).GetAwaiter().GetResult();
-            if (counters.RegexMatches < _workload.Records)
-                throw new InvalidOperationException("Expected provider-backed record separators.");
         }
         if (!Scenario.StartsWith("default-", StringComparison.Ordinal)) _policy = _policy.WithMemoryBudget(_budget);
         Execute().GetAwaiter().GetResult();

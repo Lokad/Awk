@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPredicateRegionTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void ComputedFieldPredicatesKeepNumericReadsAndCurrentRecords(bool length, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -13,21 +15,23 @@ public sealed class AwkPredicateRegionTests
         var region = Bind(length ? "result=(length($($1))>1)&&1" : "result=($($1)==\"needle\")&&1");
         using var storage = new AwkRegionStorage(state);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("2 needle"));
-        var before = counters.AwkTextAllocations;
+        var before = counters[AwkCounter.TextAllocations];
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(before, counters.AwkTextAllocations);
+        Assert.Equal(before, counters[AwkCounter.TextAllocations]);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("1 needle"));
-        before = counters.AwkTextAllocations;
+        before = counters[AwkCounter.TextAllocations];
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(before, counters.AwkTextAllocations);
+        Assert.Equal(before, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void OrdinaryLogicalOperandsKeepShortCircuitEffects(bool or, bool left)
     {
         using var memory = State(AwkRuntimeCounters.CreateEnabled(), true);
@@ -50,7 +54,7 @@ public sealed class AwkPredicateRegionTests
 
     private static CooperativeTestMemory State(AwkRuntimeCounters counters, bool governed)
     {
-        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()))));

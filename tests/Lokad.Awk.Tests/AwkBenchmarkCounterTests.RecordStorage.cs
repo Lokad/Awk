@@ -43,14 +43,13 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         if (width <= 65536)
         {
-            Assert.Equal(records, counters.BufferedInputRecords);
-            Assert.InRange(counters.AwkTextAllocations, 0, 8);
-            Assert.True(counters.InputRecordBufferReuses >= records - 2);
+
+            Assert.InRange(counters[AwkCounter.TextAllocations], 0, 8);
+
         }
-        else Assert.Equal(0, counters.BufferedInputRecords);
-        if (width > 4096) Assert.Equal(0, counters.BorrowedInputRecords);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, budget.Reserved);
     }
 }

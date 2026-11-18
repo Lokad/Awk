@@ -294,7 +294,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("64\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.RegexMatches >= 64);
+
     }
 
     public static TheoryData<string, string, int> GovernedAwkTextAllocationCases => new()
@@ -747,9 +747,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_StandardOutputFlushAvoidsCopyingBuffer()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(300, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(300);
         var governor = memoryForGovernor.Accounting;
-        using var output = new AwkOutputSink(governor, AwkRuntimeCounters.Disabled);
+        using var output = new AwkOutputSink(governor);
         output.Append(AwkText.FromString(new string('x', 80)));
         var fileSystem = new MockFileSystem();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
@@ -791,7 +791,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
-        Assert.True(counters.MemoryPeakLiveBytes > 0);
+
     }
 
     [Fact]
@@ -1196,7 +1196,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_MemoryAccountingFailsBeforeMutatingState()
     {
-        using var memoryForGovernor = new CooperativeTestMemory(10, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(10);
         var governor = memoryForGovernor.Accounting;
 
         governor.Reserve(6);
@@ -1212,7 +1212,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_MemoryAccountingTracksReleaseCounters()
     {
-        using var memoryForGovernor = new CooperativeTestMemory(16, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(16);
         var governor = memoryForGovernor.Accounting;
 
         governor.Reserve(10);

@@ -11,7 +11,7 @@ internal sealed class AwkRecordTestExecution : IDisposable
     internal AwkRecordTestExecution(AwkProgram program, AwkRuntimeState state)
     {
         _program = program.MainProgram;
-        _output = new(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        _output = new(state.MemoryAccounting, state.CancellationCheckpoint);
         _storage = new(state);
     }
 

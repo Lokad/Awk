@@ -5,10 +5,14 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkStdinBorrowingTests
 {
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task ExplicitMainFdAliasPreservesMixedReusableBuffers(bool buffered, bool moreData, bool governed)
     {
         var script = (buffered ? "BEGIN{RS=\"[\\n]\"}" : "") +
@@ -77,7 +81,8 @@ public sealed class AwkStdinBorrowingTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task PendingAliasReadKeepsThePreservedTailFunded(bool cancel)
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -116,12 +121,12 @@ public sealed class AwkStdinBorrowingTests
             new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
-        var allocated = counters.AwkTextPayloadBytes;
+        var allocated = counters[AwkCounter.TextBytes];
         foreach (var expected in new[] { "a", "b", "c" })
             Assert.Equal(expected, (await cursor.ReadRecordAsync()).RecordText.AsString());
         Assert.False((await cursor.ReadRecordAsync()).HasRecord);
-        Assert.Equal(3, counters.AwkTextPayloadBytes - allocated);
-        Assert.Equal(0, counters.RecordSeparatorBytesScanned);
+        Assert.Equal(3, counters[AwkCounter.TextBytes] - allocated);
+
         Assert.Equal(1, host.Reads);
     }
 

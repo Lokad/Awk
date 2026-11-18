@@ -391,7 +391,7 @@ public sealed class AwkRegionCallTests
             else Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(cancel ? "" : "7 0011\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(0, counters.Utf8Encodes);
+            Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(0, budget.Reserved);
         }
@@ -423,8 +423,7 @@ public sealed class AwkRegionCallTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("8\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.BoundFunctionRuns);
-        Assert.True(counters.NumericGlobalReads >= records);
+
         // Factor out ordinary input/header value creation; the argument must not
         // introduce another value construction for every record.
         var control = new MockFileSystem();
@@ -439,10 +438,10 @@ public sealed class AwkRegionCallTests
         Assert.Equal(AwkExitCode.Success, controlExit);
         Assert.Equal("8\n", control.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(control.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters.ValuesCreated, 0, controlCounters.ValuesCreated + 16);
-        Assert.InRange(counters.AwkTextAllocations, 0, 16);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 16);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -490,7 +489,7 @@ public sealed class AwkRegionCallTests
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(run.IsCompleted);
-            Assert.Equal(2, counters.BoundFunctionRuns);
+
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
             if (governed) Assert.True(budget.Reserved > 0);
             if (cancel) cancellation.Cancel();
@@ -529,7 +528,7 @@ public sealed class AwkRegionCallTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("907\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(901, counters.BoundFunctionRuns);
+
         Assert.Equal(0, budget.Reserved);
     }
 }

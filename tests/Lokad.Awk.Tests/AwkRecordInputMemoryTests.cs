@@ -6,14 +6,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordInputMemoryTests
 {
     [Theory]
-    [InlineData("k", false, false)] [InlineData("k", false, true)]
-    [InlineData("k", true, false)] [InlineData("k", true, true)]
-    [InlineData("é", false, false)] [InlineData("é", false, true)]
-    [InlineData("é", true, false)] [InlineData("é", true, true)]
+    [InlineData("k", false, false)]
+    [InlineData("k", false, true)]
+    [InlineData("k", true, false)]
+    [InlineData("k", true, true)]
+    [InlineData("é", false, false)]
+    [InlineData("é", false, true)]
+    [InlineData("é", true, false)]
+    [InlineData("é", true, true)]
     public async Task CompleteFieldUpdatesRevalidateAfterInputMemoryCallbacks(string spelling, bool delete, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()))));
@@ -34,19 +38,19 @@ public sealed class AwkRecordInputMemoryTests
         records.StageBorrowed(reader, reader.Content);
         state.PublishInputRecord(AwkInputRecordResult.Buffered(records, AwkRecordTerminator.Empty), readsMainInput: false);
         state.GetFieldNumber(1);
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{values[\"warm\"]+=0;result=(values[$1]+=$300)}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{values[\"warm\"]+=0;result=(values[$1]+=((ready=1)?$300:0))}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var array = AwkArrayName.FromText("values");
         var key = new AwkArrayKey(spelling);
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
-        var captures = counters.BorrowedFieldTargetSnapshots;
         var changed = false;
         manager.OnGetSpan = () =>
         {
-            if (counters.BorrowedFieldTargetSnapshots <= captures) return;
+            if (state.ResolveVariableValue(AwkVariableName.FromText("ready")).AsNumber() != 1) return;
             manager.OnGetSpan = null;
             changed = true;
             if (delete) state.DeleteArrayValue(array, key);
@@ -65,8 +69,10 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task CapturedReaderRangeKeepsSpellingAfterRecordSlotsAreReplaced(bool governed, bool customMemory)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
@@ -162,11 +168,12 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task SlotAsciiProofSurvivesPromotionAndResetsForNewBytes(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         var host = new InputHost(memory.Budget, "a b\n", "é\n") { PoisonConsumedBytes = true };
         using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), false, 4 << 10);
@@ -201,7 +208,8 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task AsciiAndUnicodeBatchesKeepScalarLengthsAfterMutation(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -488,7 +496,8 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task BufferedCurrentRecordStaysFundedThroughActualPendingOutput(bool cancel)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -598,7 +607,8 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void InactiveBufferGrowthFailurePreservesTheCurrentRecord(bool cancel)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -642,10 +652,14 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(4097, false)] [InlineData(4097, true)]
-    [InlineData(8193, false)] [InlineData(8193, true)]
-    [InlineData(65536, false)] [InlineData(65536, true)]
-    [InlineData(65537, false)] [InlineData(65537, true)]
+    [InlineData(4097, false)]
+    [InlineData(4097, true)]
+    [InlineData(8193, false)]
+    [InlineData(8193, true)]
+    [InlineData(65536, false)]
+    [InlineData(65536, true)]
+    [InlineData(65537, false)]
+    [InlineData(65537, true)]
     public async Task OwnedInputEscapesSurviveSlotReuseGetlineAndPendingOutput(int width, bool pending)
     {
         var budget = new CooperativeTestBudget(16 << 20);

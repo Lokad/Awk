@@ -70,8 +70,10 @@ public sealed partial class AwkArrayCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task NativeKeyCompletesBeforeRightMutationAndCommit(bool pendingKey, bool pendingRight)
     {
         var source = "function key(v){order=order \"K\";getline v<\"/key\";return v}" +
@@ -105,8 +107,10 @@ public sealed partial class AwkArrayCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task NativeKeyFailureStopsRightEffects(bool suspend, bool cancel)
     {
         var source = "function key(v){keys++;getline v<\"/key\";return 1/0}" +
@@ -196,7 +200,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
             Host.ReadAsyncOverride = Read;
             _io = new(Host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
                 AwkFileDescriptor.StdErr, CancellationToken.None, State.Counters, State.Limits, State, static _ => []);
-            _output = new(State.MemoryAccounting, State.Counters);
+            _output = new(State.MemoryAccounting);
         }
         internal CooperativeTestMemory Memory { get; }
         internal AwkRuntimeState State { get; }

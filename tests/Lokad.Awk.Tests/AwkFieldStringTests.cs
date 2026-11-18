@@ -5,8 +5,10 @@ public sealed class AwkFieldStringTests
     private const int Limit = 8 << 20;
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void SubstringEscapesRecordStorageWithOriginalUtf8(bool governed, bool whole)
     {
         using var memory = State(governed);
@@ -21,14 +23,18 @@ public sealed class AwkFieldStringTests
         AwkTestHarness.PublishBufferedRecord(state, "other record"u8);
         Assert.True(original.Span.StartsWith("other"u8));
         Assert.Equal(whole ? "résumé" : "ré", result.AsString());
-        Assert.Equal(0, state.Counters.StringDecodes);
-        Assert.Equal(0, state.Counters.Utf8Encodes);
+        Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData("63")] [InlineData("64")] [InlineData("65")]
-    [InlineData("cached")] [InlineData("owned")] [InlineData("variable")]
+    [InlineData("63")]
+    [InlineData("64")]
+    [InlineData("65")]
+    [InlineData("cached")]
+    [InlineData("owned")]
+    [InlineData("variable")]
     public void FieldStringOperationsDoNotDependOnLiteralShape(string shape)
     {
         using var memory = State(false);
@@ -45,7 +51,8 @@ public sealed class AwkFieldStringTests
     }
 
     [Theory]
-    [InlineData(false, 1, "é")] [InlineData(true, 2, "é")]
+    [InlineData(false, 1, "é")]
+    [InlineData(true, 2, "é")]
     [InlineData(true, 1, null)]
     public void SubstringPreservesScalarCoordinatesAndStrictByteBoundaries(bool bytes, int length, string? expected)
     {
@@ -72,8 +79,10 @@ public sealed class AwkFieldStringTests
     }
 
     [Theory]
-    [InlineData(false, false, 6)] [InlineData(true, false, 8)]
-    [InlineData(false, true, 6)] [InlineData(true, true, 8)]
+    [InlineData(false, false, 6)]
+    [InlineData(true, false, 8)]
+    [InlineData(false, true, 6)]
+    [InlineData(true, true, 8)]
     public void SearchPreservesCaseAndCoordinatesAndReusesCachedValues(bool bytes, bool ignoreCase, int expected)
     {
         using var memory = State(false, bytes: bytes);
@@ -85,10 +94,10 @@ public sealed class AwkFieldStringTests
         state.AssignVariableValue(AwkVariableName.FromText("needle"), AwkValue.FromText("timeout"));
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
-        var allocations = state.Counters.AwkTextAllocations;
+        var allocations = state.Counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 10; index++)
             Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
-        Assert.Equal(allocations, state.Counters.AwkTextAllocations);
+        Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
         state.AssignVariableValue(AwkVariableName.FromText("needle"), AwkValue.FromText("😀"));
         Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
         Assert.Equal(bytes ? 15 : 13, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
@@ -103,8 +112,10 @@ public sealed class AwkFieldStringTests
     }
 
     [Theory]
-    [InlineData("substr($2,1,2)")] [InlineData("substr($0,1,1)")]
-    [InlineData("tolower(\"ABC\")")] [InlineData("toupper(\"abc\")")]
+    [InlineData("substr($2,1,2)")]
+    [InlineData("substr($0,1,1)")]
+    [InlineData("tolower(\"ABC\")")]
+    [InlineData("toupper(\"abc\")")]
     public void RefusedResultPreservesTargetAndRecordWithoutRetry(string expression)
     {
         using var memory = State(true);
@@ -126,7 +137,8 @@ public sealed class AwkFieldStringTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void SearchRequiresAdmissionForUnparsedFields(bool parsed)
     {
         using var memory = State(true);
@@ -155,7 +167,8 @@ public sealed class AwkFieldStringTests
     }
 
     [Theory]
-    [InlineData("substr($2,1,2)")] [InlineData("index($2,\"timeout\")")]
+    [InlineData("substr($2,1,2)")]
+    [InlineData("index($2,\"timeout\")")]
     public void CancellationBeforeEntryPreservesTarget(string expression)
     {
         using var cancellation = new CancellationTokenSource();
@@ -173,7 +186,8 @@ public sealed class AwkFieldStringTests
     }
 
     [Theory]
-    [InlineData("tolower($2)")] [InlineData("toupper($2)")]
+    [InlineData("tolower($2)")]
+    [InlineData("toupper($2)")]
     public void RefusedUnicodeSourceOwnershipPreservesRecordAndTarget(string expression)
     {
         using var memory = State(true);
@@ -185,19 +199,20 @@ public sealed class AwkFieldStringTests
         var region = Bind(expression);
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(region);
-        var textAllocations = state.Counters.AwkTextAllocations;
+        var textAllocations = state.Counters[AwkCounter.TextAllocations];
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
         var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
-        Assert.Equal(textAllocations, state.Counters.AwkTextAllocations);
+        Assert.Equal(textAllocations, state.Counters[AwkCounter.TextAllocations]);
         Assert.InRange(memory.Budget.Refusals, 0, 1);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void LongBorrowedStringScansObserveCancellationBeforeCompleting(bool range)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(new string('é', 32_768));
@@ -216,8 +231,8 @@ public sealed class AwkFieldStringTests
             else _ = operand.HasUnitAt(16_384, false, Checkpoint);
         });
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.RuneSliceBytesScanned);
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+
     }
 
     private static AwkRegion Bind(string expression)
@@ -230,7 +245,7 @@ public sealed class AwkFieldStringTests
     private static CooperativeTestMemory State(bool governed, bool bytes = false, CancellationToken token = default)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var memory = new CooperativeTestMemory(Limit, counters, enabled: governed);
+        var memory = new CooperativeTestMemory(Limit, enabled: governed);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));

@@ -36,10 +36,9 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         return ref _second;
     }
 
-    private AwkUtf8Builder Prepare(ref RecordBuffer slot, int length, out bool reused)
+    private AwkUtf8Builder Prepare(ref RecordBuffer slot, int length)
     {
         var buffer = slot.Buffer;
-        reused = buffer is not null;
         if (buffer is null)
         {
             buffer = new(memory, (int)BitOperations.RoundUpToPowerOf2((uint)length));
@@ -54,15 +53,15 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
     {
         var nextSlot = _currentSlot ^ 1;
         ref var next = ref BufferAt(nextSlot);
-        var buffer = Prepare(ref next, bytes.Length, out var reused);
+        var buffer = Prepare(ref next, bytes.Length);
         buffer.Clear();
         buffer.Append(bytes, checkpoint);
         checkpoint();
         next.SetOwned();
         next.IsKnownAscii = false;
         _currentSlot = nextSlot;
-        counters.RecordBufferedInputRecord(reused);
-        counters.RecordInputRecordCopy(bytes.Length);
+
+        counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
     }
 
     internal void StageBorrowed(AwkByteReader reader, ReadOnlyMemory<byte> bytes)
@@ -72,14 +71,14 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         var knownAscii = reader.ContentIsAscii;
         var nextSlot = _currentSlot ^ 1;
         ref var next = ref BufferAt(nextSlot);
-        _ = Prepare(ref next, bytes.Length, out var reused);
+        _ = Prepare(ref next, bytes.Length);
         checkpoint();
         reader.AttachRecordStorage(this);
         next.Borrower = reader;
         next.BorrowedBytes = bytes;
         next.IsKnownAscii = knownAscii;
         _currentSlot = nextSlot;
-        counters.RecordBufferedInputRecord(reused, borrowed: true);
+
     }
 
     // Borrow retirement is not cancellable. All capacity was funded at staging;
@@ -98,7 +97,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
             buffer.Append(bytes.Span);
             slot.SetOwned();
             frame?.RebindBufferedRecord(this, index, buffer.AsMemory());
-            counters.RecordInputRecordCopy(bytes.Length, promotion: true);
+            counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
         }
     }
 

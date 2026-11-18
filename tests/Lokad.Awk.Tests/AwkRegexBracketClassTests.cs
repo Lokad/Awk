@@ -148,7 +148,7 @@ public sealed class AwkRegexBracketClassTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
         var captured = runtime.Create(new AwkRegexPattern("([[:digit:]])([[:alpha:]])"));
         using var captures = runtime.MatchCaptureValue(captured, AwkText.FromString("7A"), AwkMemoryAccounting.Disabled);
         Assert.Equal(3, captures.Match.Groups.Count);
@@ -157,12 +157,10 @@ public sealed class AwkRegexBracketClassTests
         var punctuation = runtime.Create(new AwkRegexPattern("[[:punct:]]"));
         Assert.True(runtime.IsMatch(punctuation, AwkText.FromString("$", counters)));
         Assert.False(runtime.IsMatch(punctuation, AwkText.FromString("A", counters)));
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(3, counters.RegexMatches);
-        Assert.Equal(2, counters.RegexCompiles);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     private static CooperativeTestMemory Governor(long bytes) =>
-        new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
+        new CooperativeTestMemory(bytes);
 }

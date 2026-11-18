@@ -50,10 +50,10 @@ public sealed class AwkUnicodeRegexTests
         var regex = runtime.Create(first);
         Assert.Same(regex, runtime.Create(first));
         Assert.Same(regex, runtime.Create(second));
-        Assert.Equal(1, counters.RegexCompiles);
+
         Assert.Equal(mode == 1 ? 0 : 2, messages.Count);
         Assert.All(messages, message => Assert.Equal(Warning, message));
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         runtime.Create(new AwkRegexPattern(@"\u", AwkRegexPatternOrigin.SourceLiteral, new object()));
         Assert.Equal(mode == 1 ? 0 : 2, messages.Count);
     }
@@ -83,7 +83,7 @@ public sealed class AwkUnicodeRegexTests
     [Fact]
     public void WarningHistoryMemoryPreflightPreservesPreviousEntry()
     {
-        using var memoryForGovernor = new CooperativeTestMemory(4096, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(4096);
         var governor = memoryForGovernor.Accounting;
         var messages = new List<string>();
         var history = new AwkRegexUnicodeWarnings(governor, AwkCompatibilityMode.GnuDefault,
@@ -111,7 +111,7 @@ public sealed class AwkUnicodeRegexTests
     {
         const string pattern = @"\u0041";
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
@@ -124,8 +124,8 @@ public sealed class AwkUnicodeRegexTests
             Assert.Equal(0, governor.CurrentReservedBytes);
             Assert.Equal(0, governor.CurrentCommittedBytes);
         }
-        Assert.Equal(0, counters.RegexMatches);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -133,7 +133,7 @@ public sealed class AwkUnicodeRegexTests
     [InlineData(true)]
     public void WarningCallbackFailureReleasesReservationAndAllowsRetry(bool grow)
     {
-        using var memoryForGovernor = new CooperativeTestMemory(16384, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(16384);
         var governor = memoryForGovernor.Accounting;
         var calls = 0;
         var fail = false;

@@ -4,7 +4,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCaseMemoryTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task CountOnlyCasingKeepsItsPostCaptureCancellationBoundary(bool bytes)
     {
         using var cancellation = new CancellationTokenSource();
@@ -28,8 +29,10 @@ public sealed class AwkCaseMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task UnchangedBorrowedCaseResultStaysFundedUntilConsumption(bool upper, bool bytes)
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -45,7 +48,7 @@ public sealed class AwkCaseMemoryTests
                 Assert.True(destination.Bytes >= result.EstimatedRetainedMemoryBytes);
                 Assert.True(budget.Reserved >= initialBytes + destination.Bytes);
                 Assert.Equal(8193, state.CountStringUnits(result));
-                Assert.Equal(0, state.Counters.StringInteropFallbacks);
+
             }
             Assert.Equal(initialBytes, budget.Reserved);
         }
@@ -53,7 +56,8 @@ public sealed class AwkCaseMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task BorrowedUnicodeSourceRemainsFundedThroughCompatibilityConversion(bool upper)
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -67,7 +71,7 @@ public sealed class AwkCaseMemoryTests
                 var sawFundedDecodedSource = false;
                 budget.OnGrowth = _ =>
                 {
-                    if (state.Counters.StringDecodes == 0) return;
+                    if (state.Counters[AwkCounter.StringDecodes] == 0) return;
                     // A decoded source exists before conversion/output allocation. Its copied
                     // UTF-8 owner must still be funded, without relying on future result funding.
                     Assert.True(destination.Bytes >= source.EstimatedRetainedMemoryBytes);
@@ -86,10 +90,14 @@ public sealed class AwkCaseMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false, false)] [InlineData(false, false, true)]
-    [InlineData(false, true, false)] [InlineData(false, true, true)]
-    [InlineData(true, false, false)] [InlineData(true, false, true)]
-    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task CaseDestinationFundsConstructionThroughItsActualUser(bool upper, bool bytes, bool unicode)
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -106,7 +114,7 @@ public sealed class AwkCaseMemoryTests
                 Assert.True(destination.Bytes >= result.EstimatedRetainedMemoryBytes);
                 Assert.True(budget.Reserved >= destination.Bytes);
                 Assert.Equal(AwkRuntimeValueKind.String, state.CreateStringValue(result).RuntimeKind);
-                Assert.Equal(unicode && !bytes ? 1 : 0, state.Counters.StringInteropFallbacks);
+
                 // The result remains usable while its actual destination owns admission.
                 Assert.Equal(8193 + (unicode ? 2 : 0), result.GetRuneLength());
             }
@@ -116,8 +124,10 @@ public sealed class AwkCaseMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task CancellationDuringCaseAdmissionPrecedesAllocationAndRefundsUnusedStorage(bool upper, bool unicode)
     {
         using var cancellation = new CancellationTokenSource();
@@ -137,7 +147,7 @@ public sealed class AwkCaseMemoryTests
             };
             Assert.Throws<OperationCanceledException>(() =>
                 AwkBuiltins.EvaluateCaseText(state, new(source), destination, upper));
-            Assert.Equal(0, state.Counters.AwkTextAllocations);
+            Assert.Equal(0, state.Counters[AwkCounter.TextAllocations]);
             Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedAtAdmission, 0, 64 * 1024);
             Assert.Equal(0, destination.Bytes);
             Assert.Equal(initialBytes, budget.Reserved);
@@ -146,8 +156,10 @@ public sealed class AwkCaseMemoryTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task LargeCaseResultIsAdmittedBeforeAllocation(bool upper, bool bytes)
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -171,7 +183,8 @@ public sealed class AwkCaseMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task MixedByteCaseStaysByteNativeAndReusesUnchangedText(bool upper)
     {
         var budget = new CooperativeTestBudget(16 << 20);
@@ -181,10 +194,9 @@ public sealed class AwkCaseMemoryTests
             var text = (upper ? "éaΩ" : "ÉAΩ") + new string(upper ? 'a' : 'A', 8192) + "😀";
             var source = AwkValue.FromText(text);
             var result = AwkBuiltins.EvaluateCaseValue(state, source, upper);
-            Assert.Equal(0, state.Counters.StringDecodes);
-            Assert.Equal(0, state.Counters.Utf8Encodes);
-            Assert.Equal(source.ByteText.ByteLength, state.Counters.AsciiCasePreparationBytes);
-            Assert.True(state.Counters.AsciiCaseConversionBytes >= 8192);
+            Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
+            Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
+
             Assert.Equal((upper ? "éAΩ" : "ÉaΩ") + new string(upper ? 'A' : 'a', 8192) + "😀", result.AsString());
             Assert.True(result.ByteText.HasSameStorage(AwkBuiltins.EvaluateCaseValue(state, result, upper).ByteText));
         }
@@ -196,7 +208,8 @@ public sealed class AwkCaseMemoryTests
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, regexEngine: AwkUtf8RegexEngine.Instance) { MemoryOwner = owner };
+            AwkRuntimeCounters.CreateEnabled(), limits, regexEngine: AwkUtf8RegexEngine.Instance)
+        { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         return new(AwkFieldSeparatorSpec.Default, cancellationToken, options,
             new AwkRuntimeResourceMonitor(limits, options.Counters), profile);

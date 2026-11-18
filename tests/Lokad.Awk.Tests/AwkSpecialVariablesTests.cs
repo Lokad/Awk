@@ -19,7 +19,7 @@ public sealed class AwkSpecialVariablesTests
         if (insideFunction)
             state.PushFunctionFrame(new AwkFunctionLocalLayout([AwkVariableName.FromText("ordinary")]),
                 [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(1))]);
-        var created = counters.ValuesCreated;
+
         try
         {
             for (var i = 0; i < 128; i++)
@@ -32,10 +32,9 @@ public sealed class AwkSpecialVariablesTests
         {
             if (insideFunction) state.PopFunctionFrame();
         }
-        Assert.Equal(created, counters.ValuesCreated);
-        Assert.True(counters.BoundSpecialScalarReads >= 256);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         state.AssignSpecialVariableValue(AwkSpecialVariableId.ConversionFormat, AwkValue.FromText("%.2f"));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromNumber(1.25));
         Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator).EqualsAscii("1.25"));
@@ -92,9 +91,9 @@ public sealed class AwkSpecialVariablesTests
         Assert.Equal(string.Concat(Enumerable.Repeat("left changed 2 left\n", records)) + "256\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.True(counters.BoundSpecialScalarReads >= records * 4);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, budget.Reserved);
     }
 

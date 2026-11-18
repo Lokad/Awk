@@ -106,8 +106,8 @@ internal sealed partial class AwkVariables
             _specialScalarCells = new AwkScalarCell?[(int)AwkSpecialVariableId.ArgumentVector];
             bindingMemory.Commit();
         }
-        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint, counters);
-        _arrays = new AwkArrayStorage(_arrayKeyComparer, counters);
+        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint);
+        _arrays = new AwkArrayStorage(_arrayKeyComparer);
         _symbolTable = new AwkSymbolTableArray(
             () => _globalNames,
             EnumerateScalarInventory,
@@ -263,7 +263,7 @@ internal sealed partial class AwkVariables
         {
             // No callback occurs between validating the bounded owning key and
             // capturing the current number. Never reuse the earlier snapshot.
-            _counters.RecordNumericArraySlotRead();
+
             return new(previous.Key.WithInputOrigin(input), number, array, priorCell);
         }
         return PrepareArrayUpdate(array, index, input);
@@ -297,7 +297,7 @@ internal sealed partial class AwkVariables
         {
             // Keep the newly evaluated owning key, including its origin. The old
             // location supplies only the attached cell and its current number.
-            _counters.RecordNumericArraySlotRead();
+
             return new(index, number, array, priorCell);
         }
         // Fresh complete operations need no prior-target transport. Actual reuse
@@ -308,8 +308,8 @@ internal sealed partial class AwkVariables
     internal double ReadArraySlotNumber(scoped in AwkValue slot)
     {
         if (!slot.TryGetNumberValue(out var number))
-            return slot.ReadVariableNumber(_numberParsingMode, _counters, _checkpoint);
-        _counters.RecordNumericArraySlotRead();
+            return slot.ReadVariableNumber(_numberParsingMode, _checkpoint);
+
         return number;
     }
 
@@ -1110,7 +1110,7 @@ internal sealed partial class AwkVariables
     }
 
     internal AwkValue CreateValue(AwkValue slot) =>
-        slot.ReadVariableStorage(_numberParsingMode, _counters, _checkpoint);
+        slot.ReadVariableStorage(_numberParsingMode, _checkpoint);
 
     // Cells stay valid when admission or OFS preparation grows the name/index tables.
     internal AwkScalarCell GetScalarCell(AwkGlobalSlotId id) => _scalarSlots[id.Value];

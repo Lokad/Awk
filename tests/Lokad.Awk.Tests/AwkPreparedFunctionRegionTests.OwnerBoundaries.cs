@@ -50,7 +50,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             };
             var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
                 AwkFileDescriptor.StdErr, cancellation.Token, counters, state.Limits, state, static _ => []);
-            using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+            using var output = new AwkOutputSink(state.MemoryAccounting);
             output.Append(AwkText.FromSourceLiteralString("before\n"));
             var pending = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
             try
@@ -88,8 +88,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.True(Assert.Single(writes).AsSpan().SequenceEqual("before\n"u8));
                 Assert.False(state.IsInsideFunction);
                 Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-                Assert.Equal(0, counters.StringDecodes);
-                Assert.Equal(0, counters.Utf8Encodes);
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+                Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
             }
             finally
             {

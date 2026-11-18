@@ -6,12 +6,13 @@ public sealed class AwkFieldCapacityTests
     private static readonly AwkText Space = AwkText.FromSourceLiteralString(" ");
 
     [Theory]
-    [InlineData(65)] [InlineData(4097)]
+    [InlineData(65)]
+    [InlineData(4097)]
     public async Task RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(int count)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = Fields(accounting, AwkRuntimeCounters.Disabled, count);
         var frame = context.Frame;
         var before = accounting.CurrentCommittedBytes;
@@ -40,7 +41,7 @@ public sealed class AwkFieldCapacityTests
         var budget = new CooperativeTestBudget(Limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = Fields(accounting, counters, 64);
         var frame = context.Frame;
         var record = frame.RecordAwkText;
@@ -48,7 +49,7 @@ public sealed class AwkFieldCapacityTests
         Assert.Equal(target, frame.GetFieldCount());
         Assert.True(accounting.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(record) +
             AwkRuntimeMemory.EstimateFieldTextListBytes(target));
-        Assert.Equal(target, counters.FieldsMaterialized);
+        Assert.Equal(target, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         if (operation == "reference") Assert.True(record.HasSameStorage(frame.RecordAwkText));
         frame.ResetRecord();
@@ -56,13 +57,15 @@ public sealed class AwkFieldCapacityTests
     }
 
     [Theory]
-    [InlineData("field")] [InlineData("count")] [InlineData("reference")]
+    [InlineData("field")]
+    [InlineData("count")]
+    [InlineData("reference")]
     public async Task RefusedGrowthPreservesTheRecordAndFundingWithoutRetry(string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = Fields(accounting, counters, 64);
         var frame = context.Frame;
         var record = frame.RecordAwkText;
@@ -76,7 +79,7 @@ public sealed class AwkFieldCapacityTests
         Assert.Equal(committed, accounting.CurrentCommittedBytes);
         Assert.Equal(reserved, budget.Reserved);
         Assert.Equal(0, accounting.CurrentReservedBytes);
-        Assert.Equal(64, counters.FieldsMaterialized);
+        Assert.Equal(64, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(1, budget.Refusals);
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         frame.ResetRecord();
@@ -84,15 +87,18 @@ public sealed class AwkFieldCapacityTests
     }
 
     [Theory]
-    [InlineData(false, "field")] [InlineData(true, "field")]
-    [InlineData(false, "count")] [InlineData(true, "count")]
-    [InlineData(false, "reference")] [InlineData(true, "reference")]
+    [InlineData(false, "field")]
+    [InlineData(true, "field")]
+    [InlineData(false, "count")]
+    [InlineData(true, "count")]
+    [InlineData(false, "reference")]
+    [InlineData(true, "reference")]
     public async Task CanceledGrowthCannotPublishAPrefix(bool governed, string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -124,12 +130,12 @@ public sealed class AwkFieldCapacityTests
         var budget = new CooperativeTestBudget(Limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         using var context = Fields(accounting, counters, 1);
         var frame = context.Frame;
         for (var count = 2; count <= 513; count++) frame.AssignFieldCount(new(count), Space);
         Assert.Equal(513, frame.GetFieldCount());
-        Assert.Equal(513, counters.FieldsMaterialized);
+        Assert.Equal(513, counters[AwkCounter.FieldsPrepared]);
         Assert.InRange(accounting.CurrentCommittedBytes, 1, 64 << 10);
         frame.AssignFieldCount(new(0), Space);
         Assert.True(accounting.CurrentCommittedBytes > 0);

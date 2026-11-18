@@ -31,10 +31,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         // The update still locates its target. A following current-value read
         // removes a dictionary lookup; nested access retains its prefix lookup.
-        Assert.InRange(result.Counters.ArrayOwnedHashCalls + result.Counters.ArrayBorrowedHashCalls,
-            0, count * (shape == 4 ? 2 : 1) + 64);
-        Assert.Equal(0, result.Counters.StringDecodes);
-        Assert.Equal(0, result.Counters.Utf8Encodes);
+
+        Assert.Equal(0, result.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, result.Counters[AwkCounter.Utf8Encodes]);
     }
 
     [Theory]
@@ -55,11 +54,10 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, exit.Value);
         Assert.Equal("8394753\n0007 strnum\n0 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.True(counters.NumericArraySlotReads >= count);
-        Assert.True(counters.NumericLocalReads >= count);
-        Assert.InRange(counters.AwkTextAllocations, 0, 32);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 32);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
@@ -110,12 +108,9 @@ public sealed partial class AwkBenchmarkCounterTests
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
 
-        Assert.True(counters.ArrayTargetCommits >= records);
-        Assert.True(counters.NumericArraySlotReads >= (loop ? 4L : 2L) * records - 2L * keys);
-        Assert.Equal(records, counters.NumericFieldByteParses);
-        Assert.InRange(counters.AwkTextAllocations, 0, 4 * keys + 32);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 4 * keys + 32);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

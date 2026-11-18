@@ -20,10 +20,10 @@ public sealed class AwkRangeLifetimeTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("384\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(groups * 4, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, 8);
+        Assert.Equal(groups * 4, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 8);
         Assert.Equal(0, budget.Reserved);
     }
 

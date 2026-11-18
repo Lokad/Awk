@@ -90,7 +90,7 @@ internal static class AwkRegionPrinting
         {
             // All addresses are fixed and cannot mutate or suspend. Views are
             // consumed in this synchronous primitive, before any host append.
-            state.Counters.RecordFieldListPrint();
+
             for (var index = 0; index < print.Count; index++)
             {
                 if ((index & 63) == 0) state.ThrowIfCancellationRequested();
@@ -100,7 +100,7 @@ internal static class AwkRegionPrinting
                     state.GetFieldValue(argument.Index), preserveOrigin: true);
             }
         }
-        else if (print.Count <= 4) state.Counters.RecordSmallValuePrint();
+        else { }
 
         if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
 
@@ -122,7 +122,7 @@ internal static class AwkRegionPrinting
                 if (argument.Kind == AwkRegionPrintArgumentKind.Number)
                 {
                     var number = storage.Numbers[argument.Index];
-                    state.Counters.RecordPrintNumberArgument();
+
                     var start = numbers?.Length ?? 0;
                     if (numbers is not null && state.TryAppendPrintInteger(number, numbers))
                         fields[index] = AwkFieldText.FromRecordSlice(start, numbers.Length - start);
@@ -205,7 +205,7 @@ internal static class AwkRegionPrinting
         AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText)
     {
         state.ThrowIfCancellationRequested();
-        state.Counters.RecordSmallValuePrint();
+
         var terminator = storage.FormatBorrowedText(print.TerminatorText,
             state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator), print: false);
         var argument = print.Arguments[0];
@@ -220,7 +220,7 @@ internal static class AwkRegionPrinting
         {
             if (argument.Kind == AwkRegionPrintArgumentKind.Value)
                 storage.MoveValueToText(argument.Index, print.Texts, AwkText.Empty);
-            if (argument.Kind == AwkRegionPrintArgumentKind.Number) state.Counters.RecordPrintNumberArgument();
+
             AppendInteger(state, output, value.StoredNumber, terminator);
         }
         else
@@ -253,7 +253,7 @@ internal static class AwkRegionPrinting
         // Keep the formatter's concrete bound out of the list renderer's frame.
         Span<byte> bytes = stackalloc byte[AwkNumberFormatter.FormattedByteCapacity(number)];
         var content = AwkNumberFormatter.Format(number, bytes);
-        state.Counters.RecordPrintIntegerSegment();
+
         state.ThrowIfCancellationRequested();
         output.Append(content, terminator);
     }

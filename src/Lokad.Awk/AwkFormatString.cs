@@ -13,7 +13,7 @@ internal readonly record struct AwkFormatString
 
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
-        counters.RecordFormattingStringInteropInput();
+
         return Text.AsString(counters, checkpoint);
     }
 }

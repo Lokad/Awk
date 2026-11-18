@@ -3,7 +3,8 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkComputedFieldIndexTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ScalarCompoundTargetSurvivesAPendingIndex(bool governed)
     {
         var host = new MockFileSystem();
@@ -116,9 +117,12 @@ public sealed class AwkComputedFieldIndexTests
     }
 
     [Theory]
-    [InlineData(double.NaN, false)] [InlineData(double.NaN, true)]
-    [InlineData(double.PositiveInfinity, false)] [InlineData(double.PositiveInfinity, true)]
-    [InlineData(double.NegativeInfinity, false)] [InlineData(double.NegativeInfinity, true)]
+    [InlineData(double.NaN, false)]
+    [InlineData(double.NaN, true)]
+    [InlineData(double.PositiveInfinity, false)]
+    [InlineData(double.PositiveInfinity, true)]
+    [InlineData(double.NegativeInfinity, false)]
+    [InlineData(double.NegativeInfinity, true)]
     public async Task PendingInvalidTargetsPreserveTheRecordAndEvaluateTheIndexOnce(double number, bool governed)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
@@ -149,7 +153,7 @@ public sealed class AwkComputedFieldIndexTests
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
-        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {

@@ -34,10 +34,9 @@ public sealed class AwkUnicodePrintClassTests
             Assert.Equal(sample.Print, runtime.IsMatch(printable, input));
         }
         var matches = samples.Length * 2;
-        Assert.Equal(2, counters.RegexCompiles);
-        Assert.Equal(matches, counters.RegexMatches);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
     }
 
     [Theory]

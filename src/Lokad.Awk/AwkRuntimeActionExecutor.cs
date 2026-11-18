@@ -11,7 +11,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         AwkRuntimeState state)
     {
         _program = program;
-        _output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        _output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         _regionStorage = new(state);
     }
 

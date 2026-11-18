@@ -133,8 +133,8 @@ public sealed class AwkUtf8BuilderTests
     public void AwkUtf8Builder_UsesGovernorReserveCommitRelease()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(64, counters);
+
+        using var memoryForGovernor = new CooperativeTestMemory(64);
         var governor = memoryForGovernor.Accounting;
 
         using (var builder = new AwkUtf8Builder(governor, capacity: 4))
@@ -146,14 +146,14 @@ public sealed class AwkUtf8BuilderTests
         }
 
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(12, counters.MemoryPeakLiveBytes);
+
     }
 
     [Fact]
     public void AwkUtf8Builder_GovernedAllocationFailureDoesNotMutateContent()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(10, AwkRuntimeCounters.Disabled);
+        using var memoryForGovernor = new CooperativeTestMemory(10);
         var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(governor, capacity: 4);
         builder.Append("abcd"u8);
@@ -172,16 +172,16 @@ public sealed class AwkUtf8BuilderTests
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(7, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(7);
         var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(governor, capacity: 4);
         builder.Append("abcd"u8);
-        var baselineTextAllocations = counters.AwkTextAllocations;
+        var baselineTextAllocations = counters[AwkCounter.TextAllocations];
 
         var exception = Assert.Throws<AwkRuntimeException>(() => builder.CopyToAwkText(counters));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
+        Assert.Equal(baselineTextAllocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal("abcd"u8.ToArray(), builder.AsSpan().ToArray());
         Assert.Equal(4, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);

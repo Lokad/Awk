@@ -20,11 +20,11 @@ public sealed class AwkRegionFieldTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("640 8256 3\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.True(counters.PreparedSpecialScalarReads >= records);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, records + 16);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, records + 16);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -45,11 +45,11 @@ public sealed class AwkRegionFieldTests
         Assert.Equal(AwkExitCode.Success, await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None, options));
         Assert.Equal("128 0 896\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.AwkTextAllocations, 0, 12);
-        Assert.InRange(counters.NumericFieldByteParses, records, records * 2);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 12);
+
         Assert.Equal(0, budget.Reserved);
     }
 

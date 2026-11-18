@@ -184,7 +184,7 @@ internal sealed partial class AwkVariables
         var child = CreateArraySlots(0, parent);
         origin.PromoteArray(child);
         creation.Commit();
-        _counters.RecordSubarrayPromotion();
+
         return child;
     }
 
@@ -232,7 +232,7 @@ internal sealed partial class AwkVariables
         else
             SetArraySlot(parent, key, AwkValue.FromArrayReference(child));
         creation.Commit();
-        _counters.RecordSubarrayPromotion();
+
         return child;
     }
 

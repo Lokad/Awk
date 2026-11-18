@@ -86,11 +86,11 @@ public sealed class AwkIoCloseDirectionTests
         Assert.Equal("0\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal("native row\n", host.ReadFile("/out"));
-        Assert.Equal(records, counters.RecordsRead);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(counters.StringDecodes, 0, 4);
+        Assert.Equal(records, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.InRange(counters[AwkCounter.StringDecodes], 0, 4);
         // Each redirected record owns its payload until the host append completes.
-        Assert.InRange(counters.AwkTextAllocations, records, records + 8);
+        Assert.InRange(counters[AwkCounter.TextAllocations], records, records + 8);
         Assert.Equal(0, budget.Reserved);
     }
 

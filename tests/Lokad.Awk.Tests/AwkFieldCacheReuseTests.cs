@@ -56,10 +56,10 @@ public sealed class AwkFieldCacheReuseTests
         for (var row = 0; row < 10000; row++) state.SetCurrentRecord(record);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < ceiling, "Allocated bytes: " + allocated);
-        Assert.Equal(0, counters.FieldSplits);
-        Assert.Equal(0, counters.FieldsMaterialized);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.FieldSplits]);
+        Assert.Equal(0, counters[AwkCounter.FieldsPrepared]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }

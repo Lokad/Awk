@@ -3,8 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkScalarMemoryModeTests
 {
     [Theory]
-    [InlineData("123.5", true)] [InlineData("0012", true)]
-    [InlineData("12tail", true)] [InlineData("0012", false)]
+    [InlineData("123.5", true)]
+    [InlineData("0012", true)]
+    [InlineData("12tail", true)]
+    [InlineData("0012", false)]
     public void ScalarCachePromotionUsesFundedCapacityAndKeepsOriginsAndEarlierCopies(string spelling, bool input)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -44,8 +46,10 @@ public sealed class AwkScalarMemoryModeTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void NumericUpdatesKeepTheirOwnerFundedAndRealGrowthStillFails(bool beforeBaseline, bool indexed)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -74,8 +78,10 @@ public sealed class AwkScalarMemoryModeTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public void NumericOfsPublicationReacquiresStorageAfterPreparation(bool fail, bool governed)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -110,7 +116,7 @@ public sealed class AwkScalarMemoryModeTests
         var budget = new CooperativeTestBudget(20_000);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.Equal(governed, accounting.IsEnabled);
         var fieldCount = 3;
         var assignments = 0;
@@ -156,7 +162,7 @@ public sealed class AwkScalarMemoryModeTests
     {
         var budget = new CooperativeTestBudget(20_000);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         var error = new AwkRuntimeException("preparation rejected"u8.ToArray());
         var preparations = 0;
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled, static (_, _) => { },
@@ -179,7 +185,7 @@ public sealed class AwkScalarMemoryModeTests
     {
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var accounting = AwkMemoryAccounting.Create(owner);
         Assert.True(accounting.IsEnabled);
         var preparations = 0;
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled, static (_, _) => { },
@@ -198,7 +204,8 @@ public sealed class AwkScalarMemoryModeTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void CancellationDuringScalarAdmissionPreventsPublication(bool existing)
     {
         using var cancellation = new CancellationTokenSource();

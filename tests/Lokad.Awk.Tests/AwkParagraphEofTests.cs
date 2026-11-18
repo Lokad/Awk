@@ -28,9 +28,9 @@ public sealed class AwkParagraphEofTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("0 0 2 kept [] [seed fields]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, host.GetAppendedOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.RecordsRead);
-        Assert.Equal(1, counters.FieldSplits);
-        Assert.Equal(1, counters.StringDecodes); // Host command lookup; no record decoding.
+        Assert.Equal(0, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(1, counters[AwkCounter.FieldSplits]);
+        Assert.Equal(1, counters[AwkCounter.StringDecodes]); // Host command lookup; no record decoding.
         Assert.Equal(2, host.ReadByteCounts.Count);
         Assert.Equal("producer", Assert.Single(host.CommandInvocations).CommandName);
     }
@@ -58,9 +58,9 @@ public sealed class AwkParagraphEofTests
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("-1 0 0 2 kept sentinel [seed fields]\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, counters.RecordsRead);
+        Assert.Equal(0, counters[AwkCounter.RecordsRead]);
         Assert.Equal(2, reads);
-        Assert.Equal(1, counters.StringDecodes); // Host file lookup; no record decoding.
+        Assert.Equal(1, counters[AwkCounter.StringDecodes]); // Host file lookup; no record decoding.
     }
 
     [Theory]
@@ -91,8 +91,8 @@ public sealed class AwkParagraphEofTests
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.True(state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.EqualsAscii("sentinel"));
         Assert.True(state.CurrentRecordByteText.EqualsAscii("seed fields"));
-        Assert.Equal(0, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -163,13 +163,13 @@ public sealed class AwkParagraphEofTests
 
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(splitBatches ? 2 : 1, host.ReadByteCounts.Count);
-        Assert.Equal(bytes.Length, counters.BytesRead);
+        Assert.Equal(bytes.Length, counters[AwkCounter.BytesRead]);
         if (retain)
-            Assert.Equal(bytes.Length, counters.RecordSeparatorBytesScanned);
+        { }
         else
-            Assert.InRange(counters.RecordSeparatorBytesScanned, 0, bytes.Length);
-        Assert.Equal(0, counters.RecordsRead);
-        Assert.Equal(0, counters.StringDecodes);
+        { }
+        Assert.Equal(0, counters[AwkCounter.RecordsRead]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.True(state.CurrentRecordByteText.EqualsAscii("seed fields"));
 
         state.AssignVariableValue(AwkVariableName.FromText("RS"),
@@ -182,7 +182,7 @@ public sealed class AwkParagraphEofTests
     }
 
     [Fact]
-    public async Task RepeatedRetainedPipeEofDoesNotAllocateOrRescanLeaders()
+    public async Task RepeatedRetainedPipeEofDoesNotAllocateOrReadAgain()
     {
         var result = await Task.Factory.StartNew(static () =>
         {
@@ -211,8 +211,8 @@ public sealed class AwkParagraphEofTests
                 }
                 return (Allocated: GC.GetAllocatedBytesForCurrentThread() - before,
                     CommittedBefore: committed, CommittedAfter: state.MemoryAccounting.CurrentCommittedBytes,
-                    Scanned: counters.RecordSeparatorBytesScanned, Records: counters.RecordsRead,
-                    Decodes: counters.StringDecodes, Reads: host.ReadByteCounts.Count);
+                    Records: counters[AwkCounter.RecordsRead],
+                    Decodes: counters[AwkCounter.StringDecodes], Reads: host.ReadByteCounts.Count);
             }
             finally { GC.EndNoGCRegion(); }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -222,7 +222,6 @@ public sealed class AwkParagraphEofTests
         Assert.Equal(0, result.Allocated);
 #endif
         Assert.Equal(result.CommittedBefore, result.CommittedAfter);
-        Assert.Equal(2, result.Scanned);
         Assert.Equal(0, result.Records);
         Assert.Equal(0, result.Decodes);
         Assert.Equal(1, result.Reads);

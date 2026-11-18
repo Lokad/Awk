@@ -7,14 +7,15 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPrintfFormattingTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void LiteralRunsUseAdmittedCapacityWithoutTextInterop(bool governed)
     {
         var prefix = new string('x', 4095) + "😀%%:" + new string('é', 4096);
         var format = prefix + "%04d:end";
         var expected = AwkUtf8Codec.Encode(prefix.Replace("%%", "%", StringComparison.Ordinal) + "0007:end");
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(64 << 10, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(64 << 10, enabled: governed);
         using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 32 << 10))
         using (var pressure = memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Accounting.CurrentCommittedBytes))
         {
@@ -22,9 +23,9 @@ public sealed class AwkPrintfFormattingTests
             PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
                 counters, memory.Accounting);
             Assert.Equal(expected.ToArray(), builder.AsSpan().ToArray());
-            Assert.Equal(0, counters.StringDecodes);
-            Assert.Equal(0, counters.AwkTextAllocations);
-            Assert.Equal(0, counters.FormattingStringInteropInputs);
+            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+
         }
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -41,20 +42,23 @@ public sealed class AwkPrintfFormattingTests
         PrintfEvaluation.FormatToBuilder(builder, "%.0s", arguments, PrintfMissingArgumentPolicy.Throw,
             counters, AwkMemoryAccounting.Disabled);
         Assert.Equal(0, builder.Length);
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
-        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
-    [InlineData(false, "a")] [InlineData(true, "a")]
-    [InlineData(false, "é")] [InlineData(true, "é")]
-    [InlineData(false, "😀")] [InlineData(true, "😀")]
+    [InlineData(false, "a")]
+    [InlineData(true, "a")]
+    [InlineData(false, "é")]
+    [InlineData(true, "é")]
+    [InlineData(false, "😀")]
+    [InlineData(true, "😀")]
     public void StringPrecisionDoesNotDecodeTheRemainingText(bool governed, string first)
     {
         foreach (var format in new[] { "%.0s", "%.1s", "%6.1s" })
         {
             var counters = AwkRuntimeCounters.CreateEnabled();
-            using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+            using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
             using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
             {
                 var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
@@ -69,21 +73,24 @@ public sealed class AwkPrintfFormattingTests
                 Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
                 var expected = format == "%.0s" ? "" : (format == "%6.1s" ? "     " : "") + first;
                 Assert.Equal(System.Text.Encoding.UTF8.GetBytes(expected), builder.AsSpan().ToArray());
-                Assert.Equal(0, counters.StringDecodes);
-                Assert.Equal(0, counters.FormattingStringInteropInputs);
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
             }
             Assert.Equal(0, memory.Budget.Reserved);
         }
     }
 
     [Theory]
-    [InlineData(false, "a")] [InlineData(true, "a")]
-    [InlineData(false, "é")] [InlineData(true, "é")]
-    [InlineData(false, "😀")] [InlineData(true, "😀")]
+    [InlineData(false, "a")]
+    [InlineData(true, "a")]
+    [InlineData(false, "é")]
+    [InlineData(true, "é")]
+    [InlineData(false, "😀")]
+    [InlineData(true, "😀")]
     public void CharacterConversionDoesNotDecodeTheRemainingText(bool governed, string first)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
         {
             // Prime formatter code without warming the large input's decode cache.
@@ -98,8 +105,8 @@ public sealed class AwkPrintfFormattingTests
                 counters, memory.Accounting);
             Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
             Assert.Equal(System.Text.Encoding.UTF8.GetBytes(first), builder.AsSpan().ToArray());
-            Assert.Equal(0, counters.StringDecodes);
-            Assert.Equal(0, counters.FormattingStringInteropInputs);
+            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
         }
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -130,7 +137,7 @@ public sealed class AwkPrintfFormattingTests
                 Check(-adjacent);
             }
         }
-        Assert.InRange(counters.PrintfSignedIntegerFastPaths, 1, observed - 1);
+
     }
 
     [Theory]
@@ -200,10 +207,9 @@ public sealed class AwkPrintfFormattingTests
         AwkValue[] values = [AwkValue.FromNumber(1)];
         var text = AwkFormattingRuntime.FormatPrintfStrictByteText("%a", new AwkValueArrayPrintfArguments(values, 1, state), counters, state.MemoryAccounting);
         Assert.Equal("0x1p+0", text.AsString());
-        Assert.Equal(1, counters.FormattingFallbacks);
-        Assert.Equal(1, counters.FormattingStringInteropInputs);
-        Assert.Equal(1, counters.Utf8Encodes);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(1, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

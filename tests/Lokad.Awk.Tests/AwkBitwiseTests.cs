@@ -69,10 +69,10 @@ public sealed class AwkBitwiseTests
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         Assert.True(allocations < 1_024, "Allocated bytes: " + allocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.AwkTextAllocations);
-        Assert.Equal(0, counters.FormattingFallbacks);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+
     }
 
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>

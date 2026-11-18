@@ -24,10 +24,9 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(field == "0007" ? "32 112 16\n" : field == "7tail" ? "0 112 0\n" : "0 0 0\n",
             host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(records, counters.NumericFieldByteParses);
-        Assert.Equal(0, counters.FieldValueCacheBufferAllocations);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
@@ -72,13 +71,11 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(total.ToString(System.Globalization.CultureInfo.InvariantCulture) +
             (shape == "escape" ? " 0007" : "") + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(shape == "named-condition" ? 2 * records : shape == "named-body" ? records : 0,
-            counters.BoundFunctionRuns);
-        Assert.Equal(records * (shape == "fields" ? 2 : 1), counters.NumericFieldByteParses);
-        Assert.InRange(counters.AwkTextAllocations, shape == "escape" ? records : 0,
+
+        Assert.InRange(counters[AwkCounter.TextAllocations], shape == "escape" ? records : 0,
             shape == "escape" ? records + 4 : 2);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }

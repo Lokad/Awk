@@ -109,7 +109,7 @@ internal static partial class AwkBuiltins
                     }
                     isAscii = false;
                 }
-                counters.RecordAsciiCasePreparationChunk(length);
+
                 if (firstChange < 0)
                 {
                     var change = conversion is AwkCaseConversion.Upper
@@ -159,7 +159,7 @@ internal static partial class AwkBuiltins
                         chunk[offset] = (uint)(value - lower) <= 25 ? (byte)(value + delta) : value;
                     }
                 }
-                counters.RecordAsciiCaseConversionChunk(length);
+
                 index += length;
             }
 
@@ -183,7 +183,6 @@ internal static partial class AwkBuiltins
             return unchanged ? state.OwnStringResult(source, field, destination: destination) : asciiResult;
         }
 
-        state.Counters.RecordStringInteropFallback();
         var beforeSource = destination.Bytes;
         var ownedSource = state.OwnStringResult(source, field, destination: destination);
         var sourceBytes = destination.Bytes - beforeSource;

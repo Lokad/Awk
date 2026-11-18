@@ -3,11 +3,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFieldCancellationTests
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)] [InlineData(false, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
     public void IncrementalSplitChecksCancellationAfterRetiringSeparator(bool reuseBuffer, bool existingPrefix)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var cancellation = new CancellationTokenSource();
         using var context = new AwkFieldTestContext(counters, memory.Accounting,
             checkpoint: cancellation.Token.ThrowIfCancellationRequested, separator: ":");
@@ -47,7 +49,7 @@ public sealed class AwkFieldCancellationTests
     public void FullSplitChecksCancellationAfterRetiringPrefixStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var cancellation = new CancellationTokenSource();
         using var context = new AwkFieldTestContext(counters, memory.Accounting,
             checkpoint: cancellation.Token.ThrowIfCancellationRequested, separator: ":");
@@ -80,12 +82,14 @@ public sealed class AwkFieldCancellationTests
     private const int LongScan = 16_384;
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void PrefixGrowthChecksCancellationBeforeAndAfterAdmission(bool existingPrefix, bool cancelAtAdmission)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters);
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var cancellation = new CancellationTokenSource();
         var token = CancellationToken.None;
         using var context = new AwkFieldTestContext(counters, memory.Accounting,
@@ -94,7 +98,7 @@ public sealed class AwkFieldCancellationTests
         frame.SetRecordText(AwkText.FromSourceLiteralString("1:2:3:4:5"));
         if (existingPrefix) Assert.Equal(1, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
         var committed = memory.Accounting.CurrentCommittedBytes;
-        var fields = counters.FieldsMaterialized;
+        var fields = counters[AwkCounter.FieldsPrepared];
         var admitted = false;
         memory.Budget.OnGrowth = _ =>
         {
@@ -111,7 +115,7 @@ public sealed class AwkFieldCancellationTests
         memory.Budget.OnGrowth = null;
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(cancelAtAdmission, admitted);
-        Assert.Equal(fields, counters.FieldsMaterialized);
+        Assert.Equal(fields, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(committed, memory.Budget.Reserved);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
@@ -121,14 +125,18 @@ public sealed class AwkFieldCancellationTests
     }
 
     [Theory]
-    [InlineData(false, " ", false)] [InlineData(true, " ", false)]
-    [InlineData(false, ":", false)] [InlineData(true, ":", false)]
-    [InlineData(false, " ", true)] [InlineData(true, " ", true)]
-    [InlineData(false, ":", true)] [InlineData(true, ":", true)]
+    [InlineData(false, " ", false)]
+    [InlineData(true, " ", false)]
+    [InlineData(false, ":", false)]
+    [InlineData(true, ":", false)]
+    [InlineData(false, " ", true)]
+    [InlineData(true, " ", true)]
+    [InlineData(false, ":", true)]
+    [InlineData(true, ":", true)]
     public void CanceledWarmPrefixDoesNotPublishFieldsOrNumericCache(bool governed, string separator, bool longField)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         using var cancellation = new CancellationTokenSource();
         var token = CancellationToken.None;
         using var context = new AwkFieldTestContext(counters, memory.Accounting,
@@ -141,9 +149,8 @@ public sealed class AwkFieldCancellationTests
         frame.SetRecordText(source);
         var plan = frame.SplitPlan;
         var committed = memory.Accounting.CurrentCommittedBytes;
-        var fields = counters.FieldsMaterialized;
-        var parses = counters.NumericFieldByteParses;
-        var scanned = counters.WhitespaceFieldSearchBytes;
+        var fields = counters[AwkCounter.FieldsPrepared];
+
         token = cancellation.Token;
         cancellation.Cancel();
 
@@ -152,9 +159,8 @@ public sealed class AwkFieldCancellationTests
 
         token = CancellationToken.None;
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(fields, counters.FieldsMaterialized);
-        Assert.Equal(parses, counters.NumericFieldByteParses);
-        Assert.InRange(counters.WhitespaceFieldSearchBytes - scanned, 0, AwkRuntimeLimits.CancellationCheckBytes);
+        Assert.Equal(fields, counters[AwkCounter.FieldsPrepared]);
+
         Assert.False(frame.TryGetFieldCountNumber(out _));
         Assert.Equal(plan, frame.SplitPlan);
         Assert.True(source.HasSameStorage(frame.RecordAwkText));
@@ -167,24 +173,26 @@ public sealed class AwkFieldCancellationTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
-    public void WhitespaceSearchCancellationStopsWithinOneByteRegion(bool governed, bool prefix)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void WhitespaceSearchCancellationPreservesPublishedFields(bool governed, bool prefix)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         void Check()
         {
-            if (armed && counters.WhitespaceFieldSearchBytes > 0) cancellation.Cancel();
+            if (armed) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         }
         using var context = new AwkFieldTestContext(counters, memory.Accounting, checkpoint: Check);
         var source = AwkText.FromSourceLiteralString(new string('a', 3 * AwkRuntimeLimits.CancellationCheckBytes + 17) + " b");
         context.Frame.SetRecordText(source);
         var committed = memory.Accounting.CurrentCommittedBytes;
-        var published = counters.FieldsMaterialized;
+        var published = counters[AwkCounter.FieldsPrepared];
         armed = true;
         var error = Assert.Throws<OperationCanceledException>(() =>
         {
@@ -193,8 +201,8 @@ public sealed class AwkFieldCancellationTests
         });
         armed = false;
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.InRange(counters.WhitespaceFieldSearchBytes, 1, AwkRuntimeLimits.CancellationCheckBytes);
-        Assert.Equal(published, counters.FieldsMaterialized);
+
+        Assert.Equal(published, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         Assert.True(source.HasSameStorage(context.Frame.RecordAwkText));
@@ -235,10 +243,9 @@ public sealed class AwkFieldCancellationTests
             Assert.Equal(mode == "captures" ? 3 : 0, result.Separators.Count);
         }
         // Searches are bounded by the existing 4KiB checkpoints, independent of rune width.
-        Assert.InRange(counters.WhitespaceFieldSearches, 5, 7);
-        Assert.InRange(counters.WhitespaceFieldSearchBytes, text.ByteLength - 5, text.ByteLength);
-        Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, counters.StringDecodes);
+
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -278,7 +285,7 @@ public sealed class AwkFieldCancellationTests
     public void CanceledFieldWidthPreparationLeavesThePreviousPlanUntouched(bool estimate)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -332,7 +339,7 @@ public sealed class AwkFieldCancellationTests
         var separator = AwkFieldSeparatorSpec.FromText(scenario == "literal" ? "," : scenario == "characters" ? "" : " ");
         var text = AwkText.FromString(source);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -361,7 +368,7 @@ public sealed class AwkFieldCancellationTests
     public void SplitterCallersCheckBeforeHiddenMaterialization(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         var source = AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan))
             .Concat(AwkText.FromString("1"), counters, governor);
@@ -382,7 +389,7 @@ public sealed class AwkFieldCancellationTests
                 default: throw new ArgumentOutOfRangeException(nameof(operation));
             }
         });
-        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(new string(operation == "widths" ? '0' : 'a', LongScan) + "1", source.AsString());
     }
 
@@ -392,7 +399,7 @@ public sealed class AwkFieldCancellationTests
     public void FieldWidthRuneTraversalAndParagraphScanningObserveCancellation(bool paragraph)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -418,7 +425,7 @@ public sealed class AwkFieldCancellationTests
     public void CanceledFieldPublicationPreservesLazyFieldsMemoryAndPlan()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -435,10 +442,10 @@ public sealed class AwkFieldCancellationTests
         Assert.Equal(plan, frame.SplitPlan);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, counters.FieldsMaterialized);
+        Assert.Equal(0, counters[AwkCounter.FieldsPrepared]);
         armed = false;
         Assert.Equal(1, frame.GetFieldCount());
-        Assert.Equal(1, counters.FieldsMaterialized);
+        Assert.Equal(1, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(default, frame.SplitPlan);
     }
 
@@ -446,7 +453,7 @@ public sealed class AwkFieldCancellationTests
     public void CanceledRecordCopyPreservesDirtyFieldsAndReleasesTransientMemory()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -470,7 +477,7 @@ public sealed class AwkFieldCancellationTests
     public void InterruptedFieldSliceCopyDoesNotPopulateTheValueCache()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor(counters);
+        using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
@@ -480,24 +487,24 @@ public sealed class AwkFieldCancellationTests
         frame.SetRecordText(AwkText.FromString(new string('a', LongScan) + ",b"));
         Assert.Equal(2, frame.GetFieldCount());
         var committed = governor.CurrentCommittedBytes;
-        var allocations = counters.AwkTextAllocations;
+        var allocations = counters[AwkCounter.TextAllocations];
         armed = true;
         Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1)));
-        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
         Assert.Equal(new string('a', LongScan), frame.GetFieldValue(new(1)).AsString());
-        Assert.Equal(allocations + 1, counters.AwkTextAllocations);
+        Assert.Equal(allocations + 1, counters[AwkCounter.TextAllocations]);
         _ = frame.GetFieldValue(new(1));
-        Assert.Equal(allocations + 1, counters.AwkTextAllocations);
+        Assert.Equal(allocations + 1, counters[AwkCounter.TextAllocations]);
     }
 
     private static AwkFieldTestContext Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
         new(counters, governor, value => value.ByteText, checkpoint, separator: ",");
 
-    private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
-        new CooperativeTestMemory(8 << 20, counters);
+    private static CooperativeTestMemory Governor() =>
+        new CooperativeTestMemory(8 << 20);
 
     private static AwkFieldSplitter Splitter(Action checkpoint, AwkRuntimeCounters counters, AwkMemoryAccounting governor, AwkRuntimeResourceMonitor? resources = null)
     {
