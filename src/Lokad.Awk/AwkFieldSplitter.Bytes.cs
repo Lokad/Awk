@@ -344,10 +344,8 @@ internal sealed partial class AwkFieldSplitter
         while (matches.MoveNext(out var match))
         {
             state.CancellationCheckpoint();
-            if (match.ByteLength == 0 && match.ByteIndex == previousNonEmptyEnd)
+            if (!AcceptPatternField(match, ref previousNonEmptyEnd))
                 continue;
-            if (match.ByteLength > 0)
-                previousNonEmptyEnd = match.ByteIndex + match.ByteLength;
             if (separators != null)
                 separators.Add(new AwkCapturedSeparator(fields.Count,
                     SliceTrustedFieldText(content, position, match.ByteIndex - position)));
@@ -377,13 +375,18 @@ internal sealed partial class AwkFieldSplitter
         while (matches.MoveNext(out var match))
         {
             state.CancellationCheckpoint();
-            if (match.ByteLength == 0 && match.ByteIndex == previousNonEmptyEnd)
-                continue;
-            if (match.ByteLength > 0)
-                previousNonEmptyEnd = match.ByteIndex + match.ByteLength;
-            writer.Add(new(match.ByteIndex, match.ByteLength));
+            if (AcceptPatternField(match, ref previousNonEmptyEnd))
+                writer.Add(new(match.ByteIndex, match.ByteLength));
         }
+    }
 
+    private static bool AcceptPatternField(AwkRegexMatchSpan match, ref int previousNonEmptyEnd)
+    {
+        if (match.ByteLength == 0)
+            return match.ByteIndex != previousNonEmptyEnd;
+
+        previousNonEmptyEnd = match.ByteIndex + match.ByteLength;
+        return true;
     }
 
     private TFields ScanWhitespaceFields<TSink, TFields>(AwkText line, TSink sink)
