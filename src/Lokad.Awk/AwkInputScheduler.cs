@@ -163,7 +163,7 @@ internal sealed class AwkInputScheduler(
                     invocation.RuntimeArgumentsPlan.CurrentDirectory, originalFile?.Display ?? default,
                     accessiblePathRoot);
                 state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
-                var displayBytes = AwkRuntimeMemory.CheckedAdd(32, path.Display.Length);
+                var displayBytes = AwkRuntimeMemory.EstimateInputDisplayBytes(path.Display.Length);
                 using var pendingDisplay = state.MemoryAccounting.ReserveTransient(displayBytes);
                 cancellationToken.ThrowIfCancellationRequested();
                 state.Counters.Add(AwkCounter.HostCalls);
@@ -371,7 +371,7 @@ internal sealed class AwkInputScheduler(
     private void RetireOwnedDescriptor()
     {
         if (!_ownedInputDisplay.IsEmpty)
-            _inputDisplayMemory.Release(AwkRuntimeMemory.CheckedAdd(32, _ownedInputDisplay.Length));
+            _inputDisplayMemory.Release(AwkRuntimeMemory.EstimateInputDisplayBytes(_ownedInputDisplay.Length));
         _ownedInputDisplay = default;
         _ownedDescriptor = OwnedInputDescriptor.None;
     }

@@ -28,7 +28,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
     public void PrepareOutput(string path, AwkMemoryLease pending)
     {
         if (_outputFiles.ContainsKey(path)) return;
-        pending.ReserveAdditional(EstimatePathBytes(path));
+        pending.ReserveAdditional(AwkRuntimeMemory.EstimateDescriptorBytes(path.Length));
         PrepareCapacity(_outputFiles);
     }
 
@@ -37,7 +37,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         var exists = _outputFiles.TryGetValue(path, out var previous);
         var order = exists ? previous.Order : openedOrder;
         _outputFiles[path] = new AwkOutputFile(descriptor, true, order);
-        if (!exists) pending.MoveTo(_memory, EstimatePathBytes(path));
+        if (!exists) pending.MoveTo(_memory, AwkRuntimeMemory.EstimateDescriptorBytes(path.Length));
     }
 
     public AwkOpenRedirection GetRedirection(string path)
@@ -68,7 +68,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
 
     public void PrepareInput(string path, AwkMemoryLease pending)
     {
-        pending.ReserveAdditional(EstimatePathBytes(path));
+        pending.ReserveAdditional(AwkRuntimeMemory.EstimateDescriptorBytes(path.Length));
         PrepareCapacity(_inputFiles);
     }
 
@@ -76,17 +76,8 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         AwkMemoryLease pending)
     {
         _inputFiles[path] = new AwkInputFile(descriptor, reader, openedOrder);
-        pending.MoveTo(_memory, EstimatePathBytes(path));
+        pending.MoveTo(_memory, AwkRuntimeMemory.EstimateDescriptorBytes(path.Length));
     }
-
-    // One coarse owner funds retained keys, cursor metadata and backing capacity.
-    // Deleted entries leave reusable backing, so only their payload is refunded.
-    private static long EstimatePathBytes(string path) =>
-        AwkRuntimeMemory.CheckedAdd(512, AwkRuntimeMemory.EstimateUtf16StringBytes(path.Length));
-
-    private static long EstimateBackingBytes(int capacity) =>
-        capacity == 0 ? 0 : AwkRuntimeMemory.CheckedAdd(128,
-            AwkRuntimeMemory.CheckedMultiply(capacity, 96));
 
     private void PrepareCapacity<T>(Dictionary<string, T> files)
     {
@@ -96,9 +87,10 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         var target = (int)Math.Min(Array.MaxLength, Math.Max(3L, 2L * files.Count));
         var bound = (int)Math.Min(Array.MaxLength, 2L * target + 4);
         // Admit new backing while old backing is live, including prime rounding.
-        using var growth = accounting.AdmitMutation(EstimateBackingBytes(bound));
+        using var growth = accounting.AdmitMutation(AwkRuntimeMemory.EstimateDescriptorBackingBytes(bound));
         var capacity = files.EnsureCapacity(target);
-        _memory.ReserveAdditional(EstimateBackingBytes(capacity) - EstimateBackingBytes(previous));
+        _memory.ReserveAdditional(AwkRuntimeMemory.EstimateDescriptorBackingBytes(capacity) -
+            AwkRuntimeMemory.EstimateDescriptorBackingBytes(previous));
     }
 
     private void ReleaseStorage()
@@ -191,7 +183,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         }
         finally
         {
-            if (closed.DescriptorRetired) _memory.Release(EstimatePathBytes(path));
+            if (closed.DescriptorRetired) _memory.Release(AwkRuntimeMemory.EstimateDescriptorBytes(path.Length));
         }
     }
 
@@ -212,7 +204,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         }
         finally
         {
-            if (closed.DescriptorRetired) _memory.Release(EstimatePathBytes(path));
+            if (closed.DescriptorRetired) _memory.Release(AwkRuntimeMemory.EstimateDescriptorBytes(path.Length));
         }
     }
 

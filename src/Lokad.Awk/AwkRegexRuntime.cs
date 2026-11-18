@@ -145,7 +145,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         try
         {
             // One scoped owner, including its lease and input reference; no subject copy.
-            lease = _memoryAccounting.ReserveTransient(128);
+            lease = _memoryAccounting.ReserveTransient(AwkRuntimeMemory.RegexSearchOwnerBytes);
             var bytes = input.Materialize(_throwIfCancellationRequested);
             _cancellationToken.ThrowIfCancellationRequested();
             provider = AwkRegexCallbacks.CreateSearch(owner.Pattern, bytes[inputStart..],
@@ -250,10 +250,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private AwkBoundedCache<AwkRegexCacheKey, CompiledPattern> EnsureCompiledCache()
     {
         if (_compiledRegexCache is { } existing) return existing;
-        // This dictionary has a larger key than ordinary dictionaries. The doubled
-        // coarse capacity covers its prime-sized backing arrays and collection objects.
-        var storage = _memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(128,
-            AwkRuntimeMemory.EstimateDictionaryBufferBytes(MaxCachedRegexes * 2)));
+        var storage = _memoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateRegexCacheBackingBytes(MaxCachedRegexes));
         try
         {
             var cache = new AwkBoundedCache<AwkRegexCacheKey, CompiledPattern>(MaxCachedRegexes,

@@ -8,7 +8,7 @@ internal static class AwkRuntimeMemory
     private const int AwkTextObjectBytes = 64;
     private const int ByteArrayObjectBytes = 24;
     private const int StringObjectBytes = 24;
-    private const int StoredValueBytes = 24;
+    private const int ScalarValueBytes = 24;
     private const int ArrayEntryBytes = 48;
     internal const int ArrayCellBytes = 48;
     internal const int Utf8BuilderObjectBytes = 48;
@@ -22,7 +22,12 @@ internal static class AwkRuntimeMemory
     private const int ReferenceBytes = 8;
     private const int AwkRegexMatchBytes = 64;
     private const int AwkRegexGroupBytes = 32;
-    private const int AwkValueBytes = 32;
+    internal const int RegexSearchOwnerBytes = 128;
+    internal const int DateFormattingOwnerBytes = 128;
+    // Indexed pages store nullable values. The flag and alignment add eight bytes.
+    internal const int IndexedValueSlotBytes = ScalarValueBytes + sizeof(long);
+    // Scratch value arrays retain the existing conservative per-slot headroom.
+    private const int ScalarScratchSlotCharge = ScalarValueBytes + sizeof(long);
     internal const int FieldTextBytes = 24;
     internal const int RecordFieldBytes = 24;
     internal const int CachedFieldValueBytes = 40;
@@ -84,7 +89,7 @@ internal static class AwkRuntimeMemory
     }
 
     public static long EstimateStoredValueBytes(AwkValue slot) =>
-        CheckedAdd(StoredValueBytes, slot.RetainedTextMemoryBytes);
+        CheckedAdd(ScalarValueBytes, slot.RetainedTextMemoryBytes);
 
     public static long EstimateUntypedScalarBytes() => 32;
 
@@ -109,6 +114,21 @@ internal static class AwkRuntimeMemory
     public static long EstimateScalarSymbolMetadataBytes(int characterCount) =>
         CheckedAdd(EstimateSymbolMetadataBytes(characterCount), ScalarCellOverheadBytes);
 
+    public static long EstimateUntypedScalarInsertionBytes(int characterCount) =>
+        CheckedAdd(EstimateScalarSymbolMetadataBytes(characterCount),
+            CheckedAdd(ScalarValueBytes, EstimateUntypedScalarBytes()));
+
+    internal static long EstimateInputDisplayBytes(int byteLength) => CheckedAdd(32, byteLength);
+
+    internal static long EstimatePathRequestBytes(int displayBytes) => CheckedAdd(128, displayBytes);
+
+    // Charge key and cursor metadata separately from the reusable table storage.
+    internal static long EstimateDescriptorBytes(int pathLength) =>
+        CheckedAdd(512, EstimateUtf16StringBytes(pathLength));
+
+    internal static long EstimateDescriptorBackingBytes(int capacity) =>
+        capacity == 0 ? 0 : CheckedAdd(128, CheckedMultiply(capacity, 96));
+
     // Charge retained dictionary capacity, including empty slots left by deletion.
     // The existing coarse entry estimate covers buckets/entries and small headers.
     public static long EstimateArrayBackingBytes(int capacity) => CheckedMultiply(ArrayEntryBytes, capacity);
@@ -120,9 +140,9 @@ internal static class AwkRuntimeMemory
     // is below 128 GiB, so this fixed-layout estimate cannot overflow Int64.
     internal static long EstimateIndexedArrayBackingBytes(int capacity, int tableCapacity) =>
         capacity <= 0 ? 0 : ArrayObjectBytes + (long)tableCapacity * ReferenceBytes +
-            (long)capacity * 32 + (long)AwkArrayIdentity.IndexedPageCount(capacity) * ArrayObjectBytes;
+            (long)capacity * IndexedValueSlotBytes + (long)AwkArrayIdentity.IndexedPageCount(capacity) * ArrayObjectBytes;
 
-    internal static long EstimateIndexedValuePageBytes(int capacity) => EstimateArrayBufferBytes(capacity, 32);
+    internal static long EstimateIndexedValuePageBytes(int capacity) => EstimateArrayBufferBytes(capacity, IndexedValueSlotBytes);
     internal static long EstimateIndexedTableBytes(int capacity) => EstimateArrayBufferBytes(capacity, ReferenceBytes);
 
     internal static long EstimateIndexedArrayConstructionBytes(int count) =>
@@ -171,11 +191,16 @@ internal static class AwkRuntimeMemory
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));
 
+    // Regex keys are larger. Double the capacity estimate to cover the prime-sized
+    // backing arrays and collection objects.
+    internal static long EstimateRegexCacheBackingBytes(int capacity) =>
+        CheckedAdd(128, EstimateDictionaryBufferBytes(CheckedToInt32(CheckedMultiply(capacity, 2))));
+
     public static long EstimateAwkTextArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);
 
     public static long EstimateAwkValueArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, AwkValueBytes);
+        EstimateArrayBufferBytes(count, ScalarScratchSlotCharge);
 
     public static long EstimateDoubleArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, sizeof(double));

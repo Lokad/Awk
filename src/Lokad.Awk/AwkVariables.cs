@@ -450,9 +450,7 @@ internal sealed partial class AwkVariables
         if (_scalarSlotsByName.TryGetValue(name, out var id))
             return CreateValue(GetScalarCell(id).State.Slot);
         using var admission = _governScalarMemory
-            ? _state.MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
-                AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length),
-                AwkRuntimeMemory.CheckedAdd(24, AwkRuntimeMemory.EstimateUntypedScalarBytes())))
+            ? _state.MemoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateUntypedScalarInsertionBytes(name.Text.Length))
             : default;
         var slot = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
         SetScalarSlot(name, slot);

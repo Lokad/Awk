@@ -370,7 +370,8 @@ public sealed class AwkFunctionLocalSlotTests
     {
         Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkText>());
         Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
-        Assert.Equal(24, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue>());
+        Assert.Equal(AwkRuntimeMemory.IndexedValueSlotBytes,
+            System.Runtime.CompilerServices.Unsafe.SizeOf<AwkValue?>());
         Assert.Equal(32, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkFunctionLocalSlot>());
         Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayKey>());
         Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkArrayUpdateTarget>());

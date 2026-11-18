@@ -100,7 +100,7 @@ internal sealed partial class AwkArrayIdentity
             CopyIndexedStorage(source, pages, sizeof(long), checkpoint);
         var page = new AwkValue?[LastIndexedPageLength(capacity)];
         if (source is not null && IndexedPageCount(capacity) == IndexedPageCount(_indexedCapacity))
-            CopyIndexedStorage(source[IndexedPageCount(_indexedCapacity) - 1], page, 32, checkpoint);
+            CopyIndexedStorage(source[IndexedPageCount(_indexedCapacity) - 1], page, AwkRuntimeMemory.IndexedValueSlotBytes, checkpoint);
         return new(pages, page, capacity);
     }
 

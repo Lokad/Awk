@@ -493,7 +493,7 @@ internal static partial class AwkBuiltins
                 : context.State.TimeZone;
             try
             {
-                using var admission = context.State.MemoryAccounting.ReserveTransient(128);
+                using var admission = context.State.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.DateFormattingOwnerBytes);
                 return context.State.CreateStringValue(
                     FormatTime(format, timestamp, timeZone, admission, context.State.CancellationCheckpoint));
             }

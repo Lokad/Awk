@@ -21,7 +21,7 @@ internal sealed class AwkIoHostAdapter(
         // Original display UTF-8 and the request; cwd/root are borrowed immutable values.
         cancellationToken.ThrowIfCancellationRequested();
         var displayBytes = hasDisplay ? 0 : AwkUtf8Codec.GetEncodedByteCount(path);
-        return accounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(128, displayBytes));
+        return accounting.ReserveTransient(AwkRuntimeMemory.EstimatePathRequestBytes(displayBytes));
     }
 
     public AwkFileOperand PreparePath(string path)
