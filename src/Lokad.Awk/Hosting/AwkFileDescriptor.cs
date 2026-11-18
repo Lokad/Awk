@@ -24,12 +24,4 @@ public readonly record struct AwkFileDescriptor
     /// <summary>Gets the conventional standard-error descriptor.</summary>
     public static AwkFileDescriptor StdErr => new(2);
 
-    /// <summary>Gets the distinguished descriptor that discards writes.</summary>
-    public static AwkFileDescriptor DevNull => new(int.MaxValue);
-
-    /// <summary>Gets the canonical path corresponding to the null device.</summary>
-    public static AwkPath DevNullPath { get; } = new("/dev/null");
-
-    /// <summary>Gets whether this is the distinguished null-device descriptor.</summary>
-    public bool IsDevNull => this == DevNull;
 }

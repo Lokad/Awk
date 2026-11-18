@@ -181,7 +181,7 @@ public sealed class AwkStructuredCloseTests
             var descriptor = NewDescriptor();
             _inputs[descriptor] = path.Path.EndsWith(".awk", StringComparison.Ordinal)
                 ? "BEGIN{print \"body\"}"u8.ToArray() : "row\n"u8.ToArray();
-            return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
+            return Task.FromResult(AwkOpenedFile.Opened(descriptor, MemoryHostPaths.Resolve(path)));
         }
         public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {

@@ -385,6 +385,9 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         Assert.False(default(AwkAppendResult).IsAccepted);
         Assert.True(AwkAppendResult.Accepted().IsAccepted);
         Assert.False(AwkAppendResult.DownstreamClosed().IsAccepted);
+        Assert.False(default(AwkOpenedFile).Success);
+        Assert.Equal(AwkOperationErrorKind.Unspecified, default(AwkOpenedFile).Error.Kind);
+        Assert.Throws<InvalidOperationException>(() => default(AwkOpenedFile).ResolvedPath);
         var error = new AwkOperationError(AwkOperationErrorKind.NotFound, "missing input");
         Assert.Equal(AwkOperationErrorKind.NotFound, AwkAppendResult.Failure(error).Error.Kind);
         Assert.Equal("missing input", AwkAppendResult.Failure(error).Error.Message);
@@ -635,7 +638,12 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             {
                 if (!_directories.Contains(current)) return Failed("Not a directory");
                 if (part == ".") continue;
-                if (part == "..") { current = new AwkPath(current).Parent?.Path ?? "/"; continue; }
+                if (part == "..")
+                {
+                    var slash = current.LastIndexOf('/');
+                    current = slash == 0 ? "/" : current[..slash];
+                    continue;
+                }
                 current = (current == "/" ? "" : current) + "/" + part;
                 if (current == "/work/link") current = "/target/sub";
                 if (!_directories.Contains(current) && !Files.FileExists(current))
@@ -645,7 +653,8 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             return Files.OpenFileAsync(new(current, path.CurrentDirectory, path.AccessiblePathRoot), mode, token);
 
             static Task<AwkOpenedFile> Failed(string message) =>
-                Task.FromResult(AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound, message)));
+                Task.FromResult(AwkOpenedFile.Failure(new(message == "Not a directory"
+                    ? AwkOperationErrorKind.IoFailure : AwkOperationErrorKind.NotFound, message)));
         }
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> bytes, CancellationToken token) => Files.AppendAsync(descriptor, bytes, token);

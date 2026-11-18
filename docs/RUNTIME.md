@@ -28,6 +28,8 @@ traversal: `link/../data` can differ from `data`. Return
 `Opened(descriptor, resolvedPath)` with a stable canonical identity. Source/include reuse
 uses this identity; stream names, ARGV, FILENAME and diagnostics retain their own spelling.
 Core performs no lexical containment check or direct filesystem traversal.
+Canonical paths expose their text and validation; namespace utilities and null-device
+handles belong to the host.
 
 Virtual paths use `/` as their separator. Colons, stars and backslashes are literal;
 there is no glob expansion or drive syntax. Main-input operands are resolved only when
@@ -41,6 +43,9 @@ Return structured failures with safe, unprefixed `AwkOperationError` messages. C
 -1 and sets enabled ERRNO without an automatic stderr diagnostic. Unexpected host
 exceptions become generic awk diagnostics, without CLR exception details. Completed
 effects are not rolled back when a later operation fails.
+Report absent files with `AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound,
+"No such file or directory"))`. Source search and suffix fallback continue only for
+`NotFound`. Default open results are unspecified failures and stop search.
 
 ## Buffer lifetimes
 

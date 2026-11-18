@@ -195,7 +195,7 @@ public sealed class AwkCsvHostTests
         {
             var descriptor = new AwkFileDescriptor(501);
             OpenDescriptors.Add(descriptor);
-            return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
+            return Task.FromResult(AwkOpenedFile.Opened(descriptor, MemoryHostPaths.Resolve(path)));
         }
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {

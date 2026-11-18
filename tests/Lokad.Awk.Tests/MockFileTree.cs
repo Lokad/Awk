@@ -51,9 +51,9 @@ internal sealed class MockFileTree
         directory.Children[name] = new FileNode(content, permission);
     }
 
-    public void AddReadOpenError(string path, string message)
+    public void AddReadOpenError(string path, AwkOperationError error)
     {
-        _readOpenErrors[ParsePath(path)] = new AwkOperationError(AwkOperationErrorKind.IoFailure, message);
+        _readOpenErrors[ParsePath(path)] = error;
     }
 
     public bool FileExists(string path)
@@ -70,15 +70,10 @@ internal sealed class MockFileTree
             if (failure is null && (!TryResolveNode(path, out var node) || node is not DirectoryNode))
                 failure = node is FileNode ? "Not a directory" : "No such file or directory";
             if (segment == ".") continue;
-            if (segment == "..") { path = path.Parent ?? AwkPath.Root; continue; }
-            if (!path.TryChild(segment, out var child))
-            {
-                error = new(AwkOperationErrorKind.IoFailure, "Invalid path.");
-                return false;
-            }
-            path = child;
+            if (segment == "..") { path = Parent(path); continue; }
+            path = new AwkPath(path.Path == "/" ? "/" + segment : path.Path + "/" + segment);
         }
-        if (request.AccessiblePathRoot is { } root && !root.IsEqualToOrParentOf(path))
+        if (request.AccessiblePathRoot is { } root && !MemoryHostPaths.IsWithin(root, path))
         {
             error = new(AwkOperationErrorKind.PolicyDenied, "Path is outside the accessible root.");
             return false;
@@ -108,7 +103,7 @@ internal sealed class MockFileTree
             return new MockReadOpenResult.Failure(readError);
 
         if (!TryResolveNode(path, out var node))
-            return MockReadOpenResult.MissingFile.Instance;
+            return new MockReadOpenResult.Failure(new(AwkOperationErrorKind.NotFound, "No such file or directory"));
 
         if (node is DirectoryNode)
             return new MockReadOpenResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Is a directory"));
@@ -200,31 +195,21 @@ internal sealed class MockFileTree
         return true;
     }
 
-    private static bool TryGetParentAndName(AwkPath path, out AwkPath parent, out AwkPathSegment name)
+    private static AwkPath Parent(AwkPath path)
     {
-        parent = AwkPath.Root;
-        name = default;
-        if (path.Parent is not { } parentPath || !AwkPathSegment.TryCreate(path.FileName, out name))
-            return false;
-
-        parent = parentPath;
-        return true;
+        var slash = path.Path.LastIndexOf('/');
+        return slash == 0 ? AwkPath.Root : new AwkPath(path.Path[..slash]);
     }
 
-    private static AwkPathSegment[] SplitPath(AwkPath path)
+    private static bool TryGetParentAndName(AwkPath path, out AwkPath parent, out string name)
     {
-        if (path.IsRoot)
-            return [];
-
-        var parts = path.Path[1..].Split('/');
-        var segments = new AwkPathSegment[parts.Length];
-        for (var index = 0; index < parts.Length; index++)
-        {
-            segments[index] = new AwkPathSegment(parts[index]);
-        }
-
-        return segments;
+        parent = Parent(path);
+        name = path.Path[(path.Path.LastIndexOf('/') + 1)..];
+        return name.Length > 0;
     }
+
+    private static string[] SplitPath(AwkPath path) =>
+        path.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
     private static AwkPath ParsePath(string path)
     {
@@ -250,7 +235,7 @@ internal sealed class MockFileTree
 
     private sealed class DirectoryNode(AwkFileTreePermission permission) : Node
     {
-        public SortedDictionary<AwkPathSegment, Node> Children { get; } = new(AwkPathSegmentComparer.Instance);
+        public SortedDictionary<string, Node> Children { get; } = new(StringComparer.Ordinal);
 
         public AwkFileTreePermission Permission { get; } = permission;
     }
@@ -261,14 +246,6 @@ internal sealed class MockFileTree
 
         public AwkFileTreePermission Permission { get; } = permission;
     }
-
-    private sealed class AwkPathSegmentComparer : IComparer<AwkPathSegment>
-    {
-        public static AwkPathSegmentComparer Instance { get; } = new();
-
-        public int Compare(AwkPathSegment x, AwkPathSegment y) =>
-            string.CompareOrdinal(x.Name, y.Name);
-    }
 }
 
 internal abstract record MockReadOpenResult
@@ -276,11 +253,6 @@ internal abstract record MockReadOpenResult
     public sealed record Opened(byte[] Content) : MockReadOpenResult;
 
     public sealed record Failure(AwkOperationError Error) : MockReadOpenResult;
-
-    public sealed record MissingFile : MockReadOpenResult
-    {
-        public static MissingFile Instance { get; } = new();
-    }
 }
 
 internal abstract record MockWriteOpenResult

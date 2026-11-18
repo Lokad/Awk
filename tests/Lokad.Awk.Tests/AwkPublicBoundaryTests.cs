@@ -312,7 +312,7 @@ public sealed class AwkPublicBoundaryTests
     public async Task AwkExecutionPolicy_RestrictedPresetSanitizesStructuredHostErrors()
     {
         var host = new MockFileSystem();
-        host.AddReadOpenError("/input.txt", "sensitive host path and credential");
+        host.AddReadOpenError("/input.txt", new(AwkOperationErrorKind.IoFailure, "sensitive host path and credential"));
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "{print}",
@@ -334,7 +334,7 @@ public sealed class AwkPublicBoundaryTests
     public async Task AwkExecutionPolicy_HostErrorByteLimitUsesGenericDiagnostic()
     {
         var host = new MockFileSystem();
-        host.AddReadOpenError("/input.txt", "host failure details");
+        host.AddReadOpenError("/input.txt", new(AwkOperationErrorKind.IoFailure, "host failure details"));
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "{print}",
@@ -521,18 +521,15 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public void AwkPaths_HandleNullTryInputsAndRejectNullRequiredInputs()
+    public void AwkPathRequestsKeepOriginalSpellingAndNamespaceContext()
     {
         Assert.False(AwkPath.IsValid(null));
-        Assert.False(AwkPathSegment.IsValid(null));
-        Assert.False(AwkPathSegment.TryCreate(null, out _));
-        Assert.False(AwkPath.Root.TryChild((string?)null, out var nullChild));
-        Assert.Null(nullChild);
-        Assert.False(AwkPath.Root.TryChild(default(AwkPathSegment), out var defaultChild));
-        Assert.Null(defaultChild);
-
-        Assert.True(AwkPath.Root.TryChild("child", out var child));
-        Assert.Equal("/child", Assert.IsType<AwkPath>(child).Path);
+        var directory = new AwkPath("/work");
+        var root = new AwkPath("/allowed");
+        var request = new AwkPathRequest("../dir//name/", directory, root);
+        Assert.Equal("../dir//name/", request.Path);
+        Assert.Same(directory, request.CurrentDirectory);
+        Assert.Same(root, request.AccessiblePathRoot);
     }
 
     [Fact]
@@ -601,22 +598,12 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public void AwkRawPaths_CanonicalizeAndEnforceBoundaries()
-    {
-        var current = new AwkPath("/work/input");
-
-        Assert.Equal("/work/output/data", AwkRawPath.Parse("../output/./data").ToAbsolute(current).Path);
-        Assert.Throws<AwkPathException>(() => AwkRawPath.Parse("../output").ToAbsoluteWithin(current));
-        Assert.Throws<AwkPathException>(() => AwkRawPath.Parse("../../..").ToAbsolute(current));
-    }
-
-    [Fact]
     public void AwkPaths_ValidateWithoutAllocatingSegments()
     {
         const string canonical = "/work/input/data.csv";
         const string raw = "../input/data.csv";
         _ = AwkPath.IsValid(canonical);
-        _ = AwkRawPath.IsValid(raw);
+        _ = AwkPathRequest.IsValidPath(raw);
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -625,7 +612,7 @@ public sealed class AwkPublicBoundaryTests
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
         {
-            if (!AwkPath.IsValid(canonical) || !AwkRawPath.IsValid(raw))
+            if (!AwkPath.IsValid(canonical) || !AwkPathRequest.IsValidPath(raw))
                 throw new InvalidOperationException("A valid path was rejected.");
         }
 

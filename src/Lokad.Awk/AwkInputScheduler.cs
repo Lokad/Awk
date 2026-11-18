@@ -237,9 +237,7 @@ internal sealed class AwkInputScheduler(
                 if (!actionExecutor.HasBeginFileActions)
                     throw CreateOpenFailure(path, opened);
 
-                state.SetErrno(opened.Failed
-                    ? AwkErrno.FromHostMessage(ResolveHostError(opened.Error))
-                    : AwkErrno.NoSuchFileOrDirectory);
+                state.SetErrno(AwkErrno.FromHostMessage(ResolveHostError(opened.Error)));
                 var flow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
                 if (flow == AwkStatementFlow.ExitProgram)
                     return true;
@@ -251,9 +249,7 @@ internal sealed class AwkInputScheduler(
 
                 AwkRuntimeException CreateOpenFailure(AwkFileOperand path, AwkOpenedFile opened) =>
                     new(
-                        opened.Failed
-                            ? AwkMessages.FormatPathError(path.Display, ResolveHostError(opened.Error))
-                            : AwkMessages.FormatPathError(path.Display),
+                        AwkMessages.FormatPathError(path.Display, ResolveHostError(opened.Error)),
                         AwkDiagnosticId.HostIoFailure);
             }
 

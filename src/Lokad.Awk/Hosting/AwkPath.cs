@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Lokad.Awk;
 
 /// <summary>
@@ -19,45 +17,11 @@ public sealed class AwkPath
         Path = path;
     }
 
-    private AwkPath()
-    {
-        Path = "/";
-    }
-
-    private AwkPath(string path, AwkPathConstruction _)
-    {
-        Path = path;
-    }
-
     /// <summary>Gets the canonical absolute path text.</summary>
     public string Path { get; }
 
-    /// <summary>Gets whether this path is the filesystem root.</summary>
-    public bool IsRoot => Path == "/";
-
-    /// <summary>Gets the final path segment, or an empty string for root.</summary>
-    public string FileName => Path[(Path.LastIndexOf('/') + 1)..];
-
-    /// <summary>Gets the parent path, or <see langword="null"/> for root.</summary>
-    public AwkPath? Parent
-    {
-        get
-        {
-            if (IsRoot)
-            {
-                return null;
-            }
-
-            var slash = Path.LastIndexOf('/');
-            return slash == 0 ? Root : new AwkPath(Path[..slash]);
-        }
-    }
-
     /// <summary>Gets the canonical root path.</summary>
-    public static AwkPath Root { get; } = new();
-
-    /// <summary>Gets the canonical temporary-directory path.</summary>
-    public static AwkPath Tmp { get; } = new("/tmp");
+    public static AwkPath Root { get; } = new("/");
 
     /// <summary>Returns whether <paramref name="path"/> is canonical absolute awk path text.</summary>
     public static bool IsValid(string? path)
@@ -104,61 +68,6 @@ public sealed class AwkPath
 
     internal static bool IsForbiddenChar(char c) => c is <= '\x1f' or '\x7f';
 
-    /// <summary>Returns whether this path is a strict parent of <paramref name="other"/>.</summary>
-    public bool IsParentOf(AwkPath other)
-    {
-        ArgumentNullException.ThrowIfNull(other);
-        return Path.Length == 1
-            ? other.Path.Length > 1
-            : other.Path.Length > Path.Length &&
-              other.Path[Path.Length] == '/' &&
-              other.Path.StartsWith(Path, StringComparison.Ordinal);
-    }
-
-    /// <summary>Returns whether this path equals or is a parent of <paramref name="other"/>.</summary>
-    public bool IsEqualToOrParentOf(AwkPath other)
-    {
-        ArgumentNullException.ThrowIfNull(other);
-        return Path == other.Path || IsParentOf(other);
-    }
-
-    /// <summary>Attempts to form the canonical child path.</summary>
-    /// <param name="segment">The validated child segment.</param>
-    /// <param name="child">The child path when the operation succeeds; otherwise, <see langword="null"/>.</param>
-    /// <returns><see langword="true"/> when the child path was formed.</returns>
-    public bool TryChild(
-        AwkPathSegment segment,
-        [NotNullWhen(true)] out AwkPath? child)
-    {
-        var name = segment.Name;
-        if (name.Length == 0)
-        {
-            child = null;
-            return false;
-        }
-
-        var combined = IsRoot ? "/" + name : Path + "/" + name;
-        child = new AwkPath(combined, AwkPathConstruction.Validated);
-        return true;
-    }
-
-    /// <summary>Attempts to form a canonical child path from segment text.</summary>
-    /// <param name="name">The prospective child-segment text.</param>
-    /// <param name="child">The child path when the operation succeeds; otherwise, <see langword="null"/>.</param>
-    /// <returns><see langword="true"/> when the segment is valid and the child path was formed.</returns>
-    public bool TryChild(
-        string? name,
-        [NotNullWhen(true)] out AwkPath? child)
-    {
-        if (!AwkPathSegment.TryCreate(name, out var segment))
-        {
-            child = null;
-            return false;
-        }
-
-        return TryChild(segment, out child);
-    }
-
     /// <inheritdoc />
     public override string ToString() => Path;
 
@@ -167,74 +76,4 @@ public sealed class AwkPath
 
     /// <inheritdoc />
     public override int GetHashCode() => Path.GetHashCode(StringComparison.Ordinal);
-
-    private enum AwkPathConstruction
-    {
-        Validated
-    }
 }
-
-/// <summary>Represents one validated component of an <see cref="AwkPath"/>.</summary>
-public readonly record struct AwkPathSegment
-{
-    private readonly string? _name;
-
-    /// <summary>Initializes a validated path segment.</summary>
-    public AwkPathSegment(string name)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        if (!IsValid(name))
-            throw new ArgumentException($"'{name}' is not a valid awk path segment.", nameof(name));
-
-        _name = name;
-    }
-
-    private AwkPathSegment(string name, AwkPathSegmentConstruction _)
-    {
-        _name = name;
-    }
-
-    /// <summary>Gets the segment text.</summary>
-    public string Name => _name ?? string.Empty;
-
-    /// <summary>Attempts to create a validated path segment.</summary>
-    public static bool TryCreate(string? name, out AwkPathSegment segment)
-    {
-        if (name is not null && IsValid(name))
-        {
-            segment = new AwkPathSegment(name, AwkPathSegmentConstruction.Validated);
-            return true;
-        }
-
-        segment = default;
-        return false;
-    }
-
-    /// <summary>Returns whether <paramref name="name"/> is valid path-segment text.</summary>
-    public static bool IsValid(string? name)
-    {
-        if (string.IsNullOrEmpty(name) || name is "." or "..")
-            return false;
-
-        for (var index = 0; index < name.Length; index++)
-        {
-            if (name[index] == '/' || AwkPath.IsForbiddenChar(name[index]))
-                return false;
-        }
-
-        return true;
-    }
-
-    /// <inheritdoc />
-    public override string ToString() => Name;
-
-    private enum AwkPathSegmentConstruction
-    {
-        Validated
-    }
-}
-
-/// <summary>Represents a failure to resolve a well-formed awk path.</summary>
-/// <param name="message">The awk-shaped resolution error.</param>
-public sealed class AwkPathException(string message) :
-    InvalidOperationException(message ?? throw new ArgumentNullException(nameof(message)));

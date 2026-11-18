@@ -184,7 +184,7 @@ public sealed class AwkFileRedirectionMemoryTests
             OnOpen?.Invoke(path, mode);
             var descriptor = new AwkFileDescriptor(10 + Opens++);
             Assert.True(OpenDescriptors.Add(descriptor));
-            return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
+            return Task.FromResult(AwkOpenedFile.Opened(descriptor, MemoryHostPaths.Resolve(path)));
         }
 
         public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)

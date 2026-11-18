@@ -19,7 +19,7 @@ internal sealed class AwkIoHostAdapter(
 
     public AwkMemoryPeakAdmission AdmitPathRequest(string path, bool hasDisplay = false)
     {
-        if (!accounting.IsEnabled || !AwkRawPath.IsValid(path)) return default;
+        if (!accounting.IsEnabled || !AwkPathRequest.IsValidPath(path)) return default;
         // Original display UTF-8 and the request; cwd/root are borrowed immutable values.
         resources.Checkpoint();
         var displayBytes = hasDisplay ? 0 : AwkUtf8Codec.GetEncodedByteCount(path);

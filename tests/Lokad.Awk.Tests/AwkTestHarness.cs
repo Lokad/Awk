@@ -115,7 +115,7 @@ internal static class AwkTestHarness
 
         foreach (var error in testCase.ReadOpenErrors)
         {
-            fileSystem.AddReadOpenError(error.Path, error.Message);
+            fileSystem.AddReadOpenError(error.Path, new(AwkOperationErrorKind.IoFailure, error.Message));
         }
 
         if (testCase.StandardInput.Length > 0)

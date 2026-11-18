@@ -35,7 +35,7 @@ public sealed class AwkBenchmarkOutputAllocationTests
         var callbacks = 0;
         host.AfterAppend = () => callbacks++;
         var (allocated, accepted) = Measure(() => host.AppendAsync(
-            AwkFileDescriptor.DevNull, payload, CancellationToken.None));
+            MemoryHostPaths.NullDescriptor, payload, CancellationToken.None));
 
         Assert.Equal(Appends, accepted);
         Assert.Equal(Warmup + Appends, callbacks);

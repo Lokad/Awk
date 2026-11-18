@@ -101,7 +101,7 @@ public sealed class AwkPartialCloseTests
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) =>
-            Task.FromResult(AwkOpenedFile.Opened(new(_next++), AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
+            Task.FromResult(AwkOpenedFile.Opened(new(_next++), MemoryHostPaths.Resolve(path)));
 
         public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {

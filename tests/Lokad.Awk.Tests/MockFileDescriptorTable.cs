@@ -75,7 +75,7 @@ internal sealed class MockFileDescriptorTable
 
     public MockDescriptorReadResult ReadBytes(AwkFileDescriptor descriptor, int maxBytes)
     {
-        if (descriptor.IsDevNull)
+        if (descriptor == MemoryHostPaths.NullDescriptor)
         {
             return new MockDescriptorReadResult(
                 AwkReadBuffer.EndOfFile,

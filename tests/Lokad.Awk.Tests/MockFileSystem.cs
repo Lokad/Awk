@@ -63,8 +63,8 @@ public sealed class MockFileSystem : IAwkHost
         AwkFileTreePermission permission) =>
         _files.AddFile(path, content, permission);
 
-    public void AddReadOpenError(string path, string message) =>
-        _files.AddReadOpenError(path, message);
+    public void AddReadOpenError(string path, AwkOperationError error) =>
+        _files.AddReadOpenError(path, error);
 
     public bool FileExists(string path) =>
         _files.FileExists(path);
@@ -104,7 +104,7 @@ public sealed class MockFileSystem : IAwkHost
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (fileDescriptor.IsDevNull)
+        if (fileDescriptor == MemoryHostPaths.NullDescriptor)
         {
             AfterAppend?.Invoke();
             return AcceptedAppendTask;
@@ -126,11 +126,10 @@ public sealed class MockFileSystem : IAwkHost
             throw exception;
 
         if (!_files.TryResolvePath(request, out var path, out var pathError))
-            return Task.FromResult(pathError.Kind == AwkOperationErrorKind.NotFound
-                ? AwkOpenedFile.MissingFile() : AwkOpenedFile.Failure(pathError));
+            return Task.FromResult(AwkOpenedFile.Failure(pathError));
 
-        if (path.Equals(AwkFileDescriptor.DevNullPath))
-            return Task.FromResult(AwkOpenedFile.Opened(AwkFileDescriptor.DevNull, path));
+        if (path.Equals(MemoryHostPaths.NullPath))
+            return Task.FromResult(AwkOpenedFile.Opened(MemoryHostPaths.NullDescriptor, path));
 
         if (mode == AwkFileOpenMode.Read)
         {
@@ -141,7 +140,7 @@ public sealed class MockFileSystem : IAwkHost
         if (mode is AwkFileOpenMode.WriteTruncate or AwkFileOpenMode.WriteAppend)
             return Task.FromResult(OpenForWrite(path, mode));
 
-        return Task.FromResult(AwkOpenedFile.MissingFile());
+        return Task.FromResult(AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotSupported, "Unsupported open mode.")));
 
         AwkOpenedFile OpenForRead(AwkPath path)
         {
@@ -150,8 +149,7 @@ public sealed class MockFileSystem : IAwkHost
                 MockReadOpenResult.Opened opened =>
                     AwkOpenedFile.Opened(_descriptors.OpenRead(opened.Content), path),
                 MockReadOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
-                MockReadOpenResult.MissingFile => AwkOpenedFile.MissingFile(),
-                _ => AwkOpenedFile.MissingFile()
+                _ => throw new InvalidOperationException("Unknown read-open result.")
             };
         }
 
@@ -162,7 +160,7 @@ public sealed class MockFileSystem : IAwkHost
                 MockWriteOpenResult.Opened opened =>
                     AwkOpenedFile.Opened(_descriptors.OpenWrite(opened.InitialContent, opened.Commit), path),
                 MockWriteOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
-                _ => AwkOpenedFile.MissingFile()
+                _ => throw new InvalidOperationException("Unknown write-open result.")
             };
         }
     }
@@ -173,7 +171,7 @@ public sealed class MockFileSystem : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (CloseDescriptorAsyncOverride is { } close) return close(descriptor, cancellationToken);
-        if (descriptor.IsDevNull)
+        if (descriptor == MemoryHostPaths.NullDescriptor)
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
 
         var closed = _descriptors.Close(descriptor);

@@ -38,7 +38,7 @@ public static class AwkPathResolution
     internal static AwkFileOperand PrepareArgument(string raw, AwkPath currentDirectory,
         ReadOnlyMemory<byte> display = default, AwkPath? accessiblePathRoot = null)
     {
-        if (!AwkRawPath.IsValid(raw)) throw new FormatException("Invalid awk path text.");
+        if (!AwkPathRequest.IsValidPath(raw)) throw new FormatException("Invalid awk path text.");
         var request = new AwkPathRequest(raw, currentDirectory, accessiblePathRoot);
         return new AwkFileOperand(display.IsEmpty ? AwkUtf8Codec.Encode(raw) : display, request);
     }
@@ -50,7 +50,7 @@ public static class AwkPathResolution
         {
             return PrepareArgument(raw, currentDirectory, display, accessiblePathRoot);
         }
-        catch (Exception exception) when (exception is FormatException or AwkPathException)
+        catch (FormatException)
         {
             throw new AwkRuntimeException(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.HostIoFailure);
         }

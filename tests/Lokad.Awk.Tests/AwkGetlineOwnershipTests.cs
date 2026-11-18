@@ -163,7 +163,7 @@ public sealed class AwkGetlineOwnershipTests
             return AwkAppendResult.Accepted();
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token)
-        { Opens++; return Task.FromResult(AwkOpenedFile.MissingFile()); }
+        { Opens++; return Task.FromResult(AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound, "No such file or directory"))); }
         public async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             if (PendingRead is { } pending) await pending().ConfigureAwait(false);

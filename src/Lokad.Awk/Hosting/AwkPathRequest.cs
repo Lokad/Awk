@@ -13,11 +13,19 @@ public sealed record AwkPathRequest
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(currentDirectory);
-        if (!AwkRawPath.IsValid(path))
+        if (!IsValidPath(path))
             throw new ArgumentException("Invalid awk path text.", nameof(path));
         Path = path;
         CurrentDirectory = currentDirectory;
         AccessiblePathRoot = accessiblePathRoot;
+    }
+
+    internal static bool IsValidPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        foreach (var character in path)
+            if (AwkPath.IsForbiddenChar(character)) return false;
+        return true;
     }
 
     /// <summary>Gets the original path text, including traversal-significant spelling.</summary>

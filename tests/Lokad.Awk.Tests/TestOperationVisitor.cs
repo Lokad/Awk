@@ -95,7 +95,7 @@ public sealed class TestOperationVisitor : IAwkHost
         cancellationToken.ThrowIfCancellationRequested();
         var operation = Dequeue<TestHostOperation.OpenFile>("open file descriptors");
         AfterOpenFile?.Invoke();
-        return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
+        return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor, MemoryHostPaths.Resolve(path)));
     }
 
     public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
@@ -103,7 +103,7 @@ public sealed class TestOperationVisitor : IAwkHost
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (descriptor.IsDevNull)
+        if (descriptor == MemoryHostPaths.NullDescriptor)
         {
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
@@ -124,7 +124,7 @@ public sealed class TestOperationVisitor : IAwkHost
         ReadByteCounts.Add(maxBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
 
-        if (fileDescriptor.IsDevNull)
+        if (fileDescriptor == MemoryHostPaths.NullDescriptor)
         {
             return ValueTask.FromResult(AwkReadBuffer.EndOfFile);
         }

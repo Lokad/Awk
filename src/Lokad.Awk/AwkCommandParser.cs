@@ -8,7 +8,7 @@ internal static class AwkCommandParser
         cancellationToken.ThrowIfCancellationRequested();
         (memory ?? AwkFrontendMemory.Disabled).AdmitInvocationCopies(invocation, cancellationToken);
         try { return new Parser(invocation, cancellationToken).Parse(); }
-        catch (Exception exception) when (exception is FormatException or AwkPathException)
+        catch (FormatException)
         {
             return new AwkInvocationBuilder(invocation)
                 .WithErrorMessage(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.OptionInvalid)

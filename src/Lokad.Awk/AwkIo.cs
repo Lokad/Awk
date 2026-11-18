@@ -135,9 +135,7 @@ internal sealed class AwkIo
             var opened = await _host.OpenFileAsync(targetPath.Request, mode).ConfigureAwait(false);
             if (!opened.Success)
             {
-                throw new AwkRuntimeException(opened.Failed
-                    ? AwkMessages.FormatPathError(targetPath.Display, _host.ResolveError(opened.Error))
-                    : AwkMessages.FormatPathError(targetPath.Display),
+                throw new AwkRuntimeException(AwkMessages.FormatPathError(targetPath.Display, _host.ResolveError(opened.Error)),
                     AwkDiagnosticId.HostIoFailure);
             }
 
@@ -180,9 +178,7 @@ internal sealed class AwkIo
             var opened = await _host.OpenFileAsync(targetPath.Request, AwkFileOpenMode.Read).ConfigureAwait(false);
             if (!opened.Success)
             {
-                var error = AwkIoError.FromErrno(opened.Failed
-                    ? AwkErrno.FromHostMessage(_host.ResolveError(opened.Error))
-                    : AwkErrno.NoSuchFileOrDirectory);
+                var error = AwkIoError.FromErrno(AwkErrno.FromHostMessage(_host.ResolveError(opened.Error)));
                 return AwkInputReaderResult.Failure(error);
             }
 

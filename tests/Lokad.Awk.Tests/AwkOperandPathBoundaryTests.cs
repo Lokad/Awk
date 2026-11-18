@@ -109,8 +109,8 @@ public sealed class AwkOperandPathBoundaryTests
     public void LiteralRawCharactersAgreeWithCanonicalPaths(string path)
     {
         Assert.True(AwkPath.IsValid(path));
-        Assert.True(AwkRawPath.TryParse(path, out var raw));
-        Assert.Equal(path, raw.ToAbsolute(AwkPath.Root).Path);
+        var request = new AwkPathRequest(path, AwkPath.Root);
+        Assert.Equal(path, request.Path);
     }
 
     [Theory]
@@ -121,7 +121,7 @@ public sealed class AwkOperandPathBoundaryTests
     [InlineData("/a\u007fb")]
     public void RawPathsKeepTheirEmptyAndControlCharacterRestrictions(string path)
     {
-        Assert.False(AwkRawPath.IsValid(path));
-        Assert.False(AwkRawPath.TryParse(path, out _));
+        Assert.False(AwkPathRequest.IsValidPath(path));
+        Assert.Throws<ArgumentException>(() => new AwkPathRequest(path, AwkPath.Root));
     }
 }

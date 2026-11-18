@@ -80,31 +80,19 @@ public readonly struct AwkAppendResult
     public static AwkAppendResult Failure(AwkOperationError error) => new(AwkAppendStatus.Failure, error);
 }
 
-/// <summary>Identifies whether a host operation succeeded.</summary>
-public enum AwkOperationStatus
-{
-    /// <summary>The operation failed.</summary>
-    Failure,
-
-    /// <summary>The operation succeeded.</summary>
-    Success
-}
-
 /// <summary>Reports a descriptor close, including whether ownership ended despite a failure.</summary>
 /// <remarks>The default result is a failure that leaves the descriptor owned by the caller.</remarks>
 public readonly struct AwkDescriptorCloseResult
 {
-    private readonly AwkOperationStatus _status;
-
-    private AwkDescriptorCloseResult(AwkOperationStatus status, bool descriptorRetired, AwkOperationError error)
+    private AwkDescriptorCloseResult(bool success, bool descriptorRetired, AwkOperationError error)
     {
-        _status = status;
+        Success = success;
         DescriptorRetired = descriptorRetired;
         Error = error;
     }
 
     /// <summary>Gets whether the host completed the close successfully.</summary>
-    public bool Success => _status == AwkOperationStatus.Success;
+    public bool Success { get; }
 
     /// <summary>Gets whether this descriptor is no longer owned and must not be closed again.</summary>
     public bool DescriptorRetired { get; }
@@ -113,11 +101,11 @@ public readonly struct AwkDescriptorCloseResult
     public AwkOperationError Error { get; }
 
     /// <summary>Creates a successful result that retires the descriptor.</summary>
-    public static AwkDescriptorCloseResult Closed() => new(AwkOperationStatus.Success, true, default);
+    public static AwkDescriptorCloseResult Closed() => new(true, true, default);
 
     /// <summary>Creates a failure and states whether the host nevertheless retired the descriptor.</summary>
     public static AwkDescriptorCloseResult Failure(AwkOperationError error, bool descriptorRetired) =>
-        new(AwkOperationStatus.Failure, descriptorRetired, error);
+        new(false, descriptorRetired, error);
 }
 
 /// <summary>Identifies what follows the supplied host byte prefix.</summary>
@@ -133,70 +121,41 @@ public enum AwkReadCompletion
     Failure
 }
 
-/// <summary>Represents the result of opening a file through an <see cref="IAwkHost"/>.</summary>
+/// <summary>Reports an opened file or a structured host failure.</summary>
+/// <remarks>The default is an unspecified failure. Report absent files with NotFound.</remarks>
 public readonly struct AwkOpenedFile
 {
     private readonly AwkPath? _resolvedPath;
 
-    private AwkOpenedFile(AwkOpenedFileStatus status, AwkFileDescriptor fileDescriptor, AwkOperationError error,
-        AwkPath? resolvedPath = null)
+    private AwkOpenedFile(AwkFileDescriptor descriptor, AwkPath? resolvedPath, AwkOperationError error)
     {
-        Status = status;
-        FileDescriptor = fileDescriptor;
-        Error = error;
+        FileDescriptor = descriptor;
         _resolvedPath = resolvedPath;
+        Error = error;
     }
 
-    /// <summary>Gets the outcome category.</summary>
-    public AwkOpenedFileStatus Status { get; }
+    /// <summary>Gets whether the file was opened.</summary>
+    public bool Success => _resolvedPath is not null;
 
-    /// <summary>Gets the opened descriptor when <see cref="Success"/> is true.</summary>
+    /// <summary>Gets the opened descriptor when Success is true.</summary>
     public AwkFileDescriptor FileDescriptor { get; }
 
     /// <summary>Gets the stable host-resolved identity after a successful open.</summary>
     public AwkPath ResolvedPath => _resolvedPath ??
         throw new InvalidOperationException("The file was not opened.");
 
-    /// <summary>Gets the host-shaped error when <see cref="Failed"/> is true.</summary>
+    /// <summary>Gets the structured cause when the open did not succeed.</summary>
     public AwkOperationError Error { get; }
 
-    /// <summary>Gets whether the file was opened.</summary>
-    public bool Success => Status == AwkOpenedFileStatus.Success;
-
-    /// <summary>Gets whether no file exists at the requested path.</summary>
-    public bool Missing => Status == AwkOpenedFileStatus.Missing;
-
-    /// <summary>Gets whether the host failed to open the file for another reason.</summary>
-    public bool Failed => Status == AwkOpenedFileStatus.Failure;
-
-    /// <summary>Creates a successful result with a stable canonical identity resolved by the host.</summary>
-    /// <remarks>Resolve links and enforce namespace policy before opening. This identity is separate from display names.</remarks>
+    /// <summary>Creates a successful result with a canonical identity resolved and authorized by the host.</summary>
     public static AwkOpenedFile Opened(AwkFileDescriptor fileDescriptor, AwkPath resolvedPath)
     {
         ArgumentNullException.ThrowIfNull(resolvedPath);
-        return new(AwkOpenedFileStatus.Success, fileDescriptor, default, resolvedPath);
+        return new(fileDescriptor, resolvedPath, default);
     }
 
-    /// <summary>Creates a result indicating that the requested file does not exist.</summary>
-    public static AwkOpenedFile MissingFile() =>
-        new(AwkOpenedFileStatus.Missing, default, default);
-
-    /// <summary>Creates a failed result carrying an awk-shaped host error.</summary>
-    public static AwkOpenedFile Failure(AwkOperationError error) =>
-        new(AwkOpenedFileStatus.Failure, default, error);
-}
-
-/// <summary>Identifies the outcome of opening a file through an <see cref="IAwkHost"/>.</summary>
-public enum AwkOpenedFileStatus
-{
-    /// <summary>The requested file does not exist.</summary>
-    Missing,
-
-    /// <summary>The file was opened successfully.</summary>
-    Success,
-
-    /// <summary>The host failed to open the file for another reason.</summary>
-    Failure
+    /// <summary>Creates a failed result. Use NotFound for a missing namespace entry.</summary>
+    public static AwkOpenedFile Failure(AwkOperationError error) => new(default, null, error);
 }
 
 /// <summary>Contains the read and write descriptors created for an awk pipe.</summary>

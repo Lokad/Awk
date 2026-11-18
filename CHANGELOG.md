@@ -18,6 +18,12 @@ published 0.4.0. Before 1.0, minor releases may break public APIs.
   cwd and an optional accessible root. Hosts traverse/authorize before effects and return
   `Opened(descriptor, resolvedPath)` with a stable identity. Core no longer collapses dot
   segments/trailing slashes. PolicyDenied is fatal; ordinary getline I/O remains recoverable.
+  Use `Failure(NotFound)` for absent files; `MissingFile()`, `Status`, `Missing` and `Failed`
+  are removed. Source search continues only after NotFound; default open results are
+  unspecified failures. `AwkOpenedFileStatus` and `AwkOperationStatus` are removed.
+- **Host helpers:** remove `AwkRawPath`, `AwkPathSegment`, `AwkPathException`, path
+  parent/child/containment conveniences, `Tmp` and descriptor `DevNull` members. Hosts
+  own these namespace conventions; canonical identities and original requests remain.
 - **Reads:** replace `ReadLinesAsync` / `AwkReadResult` with bounded
   `ValueTask<AwkReadBuffer> ReadAsync(descriptor, maxBytes, token)`. Advance an absolute
   consumed prefix and dispose before another descriptor operation. Keep bytes immutable

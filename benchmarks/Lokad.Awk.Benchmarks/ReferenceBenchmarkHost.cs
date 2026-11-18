@@ -34,12 +34,12 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (mode != AwkFileOpenMode.Read || !_files.TryGetValue(AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory).Path, out var content))
-            return Task.FromResult(AwkOpenedFile.MissingFile());
+        if (mode != AwkFileOpenMode.Read || !_files.TryGetValue(MemoryHostPaths.Resolve(path).Path, out var content))
+            return Task.FromResult(AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound, "No such file or directory")));
 
         var descriptor = new AwkFileDescriptor(_nextDescriptor++);
         _openFiles[descriptor] = new ReadState(content);
-        return Task.FromResult(AwkOpenedFile.Opened(descriptor, AwkRawPath.Parse(path.Path).ToAbsolute(path.CurrentDirectory)));
+        return Task.FromResult(AwkOpenedFile.Opened(descriptor, MemoryHostPaths.Resolve(path)));
     }
 
     public ValueTask<AwkReadBuffer> ReadAsync(

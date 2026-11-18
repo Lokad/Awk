@@ -101,10 +101,10 @@ internal static class AwkScriptFileReader
             var opened = await host.OpenFileAsync(path.Request, AwkFileOpenMode.Read, cancellationToken)
                 .ConfigureAwait(false);
             AwkHostPathPolicy.ThrowIfDenied(opened);
-            if (opened.Missing)
+            if (!opened.Success && opened.Error.Kind == AwkOperationErrorKind.NotFound)
                 return AwkScriptTextReadResult.MissingText;
 
-            if (opened.Failed)
+            if (!opened.Success)
             {
                 return AwkScriptTextReadResult.Failure(
                     AwkMessages.FormatPathError(path.Display, plan.ResolveHostError(opened.Error)),
