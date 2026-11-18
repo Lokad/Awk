@@ -24,7 +24,7 @@ public sealed class AwkRegexBracketClassTests
         }
         var valid = runtime.Create(new AwkRegexPattern("[[:digit:]]"));
         Assert.Same(valid, runtime.Create(new AwkRegexPattern("[[:digit:]]")));
-        Assert.True(runtime.IsMatch(valid, AwkText.FromString("3", counters)));
+        Assert.True(runtime.IsMatch(valid, AwkText.FromString("3")));
     }
 
     [Theory]
@@ -155,8 +155,8 @@ public sealed class AwkRegexBracketClassTests
         Assert.Equal("7", captures.Match.Groups[1].Value.AsString());
         Assert.Equal("A", captures.Match.Groups[2].Value.AsString());
         var punctuation = runtime.Create(new AwkRegexPattern("[[:punct:]]"));
-        Assert.True(runtime.IsMatch(punctuation, AwkText.FromString("$", counters)));
-        Assert.False(runtime.IsMatch(punctuation, AwkText.FromString("A", counters)));
+        Assert.True(runtime.IsMatch(punctuation, AwkText.FromString("$")));
+        Assert.False(runtime.IsMatch(punctuation, AwkText.FromString("A")));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
     }

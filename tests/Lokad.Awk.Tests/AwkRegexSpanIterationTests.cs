@@ -9,7 +9,7 @@ public sealed class AwkRegexSpanIterationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = CreateRuntime(counters);
         var regex = runtime.Create(new AwkRegexPattern("[,;]"));
-        var input = AwkText.FromString("alpha,béta;gamma", counters);
+        var input = AwkText.FromString("alpha,béta;gamma");
         for (var i = 0; i < 256; i++)
             runtime.EnumerateMatchSpans(regex, input).Dispose();
 
@@ -32,7 +32,7 @@ public sealed class AwkRegexSpanIterationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = CreateRuntime(counters);
         var regex = runtime.Create(new AwkRegexPattern("x*"));
-        var input = AwkText.FromString("éa", counters);
+        var input = AwkText.FromString("éa");
         var spans = runtime.EnumerateMatchSpans(regex, input);
         foreach (var position in new[] { 0, 2, 3 })
         {

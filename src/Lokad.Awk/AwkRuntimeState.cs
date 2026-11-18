@@ -242,7 +242,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkNumberParsingMode NumberParsingMode { get; }
 
     public AwkValue CreateStringValue(string text) =>
-        CreateStringValue(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint));
+        CreateStringValue(EncodeText(text));
 
     // String origin is already known; numeric use resolves in this execution's mode.
     public AwkValue CreateStringValue(AwkText text)
@@ -255,7 +255,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
 
         return AwkValue.FromNumericString(
-            AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint),
+            EncodeText(text),
             NumberParsingMode, CancellationCheckpoint);
     }
 
@@ -327,6 +327,26 @@ internal sealed class AwkRuntimeState : IDisposable
         var decoded = AwkUtf8Codec.DecodeRuntimeText(key.AsSpan(buffer));
         Counters.Add(AwkCounter.StringDecodes);
         return decoded;
+    }
+
+    internal AwkText EncodeText(ReadOnlySpan<char> text, AwkMemoryLease? destination = null)
+    {
+        if (text.IsEmpty)
+            return AwkText.Empty;
+
+        ThrowIfCancellationRequested();
+        var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
+        ThrowIfCancellationRequested();
+        var bytes = destination is null
+            ? AwkText.AllocateOwnedBytes(byteCount, MemoryAccounting)
+            : AwkText.AllocateOwnedBytes(byteCount, MemoryAccounting, destination, CancellationCheckpoint);
+        Counters.Add(AwkCounter.Utf8Encodes);
+        AwkUtf8Codec.Encode(text, bytes);
+        ThrowIfCancellationRequested();
+
+        Counters.Add(AwkCounter.TextAllocations);
+        Counters.Add(AwkCounter.TextBytes, bytes.Length);
+        return AwkText.FromEncodedStringBytes(bytes);
     }
 
     internal string DecodeText(AwkText text)
@@ -1118,7 +1138,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
         {
             AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
-                CreateStringValue(AwkText.FromString(assignment.Value, Counters, MemoryAccounting, CancellationCheckpoint)));
+                CreateStringValue(EncodeText(assignment.Value)));
             return;
         }
         if (assignment.Source == AwkVariableAssignmentSource.InputArgument)

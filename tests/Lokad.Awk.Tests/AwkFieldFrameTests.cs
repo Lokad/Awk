@@ -10,7 +10,7 @@ public sealed class AwkFieldFrameTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var context = CreateFrame(counters);
         var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromString("alpha beta", counters, AwkMemoryAccounting.Disabled));
+        frame.SetRecordText(AwkText.FromString("alpha beta"));
         var count = frame.GetFieldCount();
 
         Assert.Equal(2, count);
@@ -23,7 +23,7 @@ public sealed class AwkFieldFrameTests
         var governor = AwkMemoryAccounting.Disabled;
         using var context = CreateFrame(counters);
         var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromString("alpha beta", counters, governor));
+        frame.SetRecordText(AwkText.FromString("alpha beta"));
 
         var first = frame.GetFieldValue(new AwkFieldIndex(1));
         var allocationsAfterFirstRead = counters[AwkCounter.TextAllocations];

@@ -140,7 +140,7 @@ public sealed class AwkPrintfAdmissionTests
             using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 0))
             {
                 PrintfEvaluation.FormatToBuilder(builder, upper ? "%.2000000000G" : "%.2000000000g",
-                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), AwkRuntimeCounters.Disabled),
+                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number)),
                 PrintfMissingArgumentPolicy.Throw, memory.State);
                 Assert.InRange(builder.Length, 1, 2_000);
                 var parsed = double.Parse(builder.AsSpan(), System.Globalization.CultureInfo.InvariantCulture);
@@ -189,7 +189,7 @@ public sealed class AwkPrintfAdmissionTests
             using (var builder = new AwkUtf8Builder(accounting, capacity: 0))
             {
                 PrintfEvaluation.FormatToBuilder(builder, format.Replace("*", "1000000", StringComparison.Ordinal),
-                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(1.25), AwkRuntimeCounters.Disabled),
+                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(1.25)),
                 PrintfMissingArgumentPolicy.Throw, memory.State);
                 Assert.Equal(expectedLength, builder.Length);
                 Assert.Equal(accounting.CurrentCommittedBytes, budget.Reserved);
@@ -219,7 +219,7 @@ public sealed class AwkPrintfAdmissionTests
             using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
             {
                 var committed = accounting.CurrentCommittedBytes;
-                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")));
                 PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw, memory.State);
                 Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
                 Assert.Equal(committed, accounting.CurrentCommittedBytes);
@@ -247,7 +247,7 @@ public sealed class AwkPrintfAdmissionTests
             using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
             {
                 builder.Append("kept"u8);
-                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")));
                 using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
                 {
                     var committed = accounting.CurrentCommittedBytes;

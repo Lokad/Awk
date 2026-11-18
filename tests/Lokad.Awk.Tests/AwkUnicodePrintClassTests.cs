@@ -29,7 +29,7 @@ public sealed class AwkUnicodePrintClassTests
         ];
         foreach (var sample in samples)
         {
-            var input = AwkText.FromString(sample.Text, counters);
+            var input = AwkText.FromString(sample.Text);
             Assert.Equal(sample.Graph, runtime.IsMatch(graph, input));
             Assert.Equal(sample.Print, runtime.IsMatch(printable, input));
         }
@@ -53,7 +53,7 @@ public sealed class AwkUnicodePrintClassTests
         Assert.Equal("é😀", captures.Match.Groups[1].Value.AsString());
         Assert.Equal(" ", captures.Match.Groups[2].Value.AsString());
         Assert.Same(regex, runtime.Create(pattern));
-        var match = runtime.MatchSpan(regex, AwkText.FromString("\né\U0001F600 ", AwkRuntimeCounters.Disabled));
+        var match = runtime.MatchSpan(regex, AwkText.FromString("\né\U0001F600 "));
         Assert.True(match.Success);
         Assert.Equal(1, match.ByteIndex);
         Assert.Equal(7, match.ByteLength);

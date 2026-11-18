@@ -624,7 +624,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var memoryForState = CreateGovernedState(600);
         var state = memoryForState.State;
         var record = new string('x', 100);
-        state.SetCurrentRecord(AwkText.FromString(record, state.Counters, state.MemoryAccounting));
+        state.SetCurrentRecord(AwkText.FromString(record));
         // Pressure starts after the record's real storage is admitted; it must not
         // depend on a previous text-wrapper size leaving an accidental shortfall.
         memoryForState.Budget.SetAvailableBytes(0);
@@ -856,7 +856,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var memoryForState = CreateGovernedState(50_000);
         var state = memoryForState.State;
         state.AssignVariable(variableName, "keep");
-        var segment = AwkText.FromString("x", state.Counters, state.MemoryAccounting);
+        var segment = AwkText.FromString("x");
         var concatenated = segment;
         for (var index = 0; index < 1_024; index++)
         {
@@ -900,7 +900,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var memoryForState = CreateGovernedState(200);
         var state = memoryForState.State;
-        state.SetCurrentRecord(AwkText.FromString("keep", state.Counters, state.MemoryAccounting));
+        state.SetCurrentRecord(AwkText.FromString("keep"));
 
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.AssignField(0, new string('v', 400)));
@@ -915,7 +915,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var memoryForState = CreateGovernedState(650);
         var state = memoryForState.State;
-        state.SetCurrentRecord(AwkText.FromString("a b", state.Counters, state.MemoryAccounting));
+        state.SetCurrentRecord(AwkText.FromString("a b"));
         Assert.Equal(2, state.FieldCount);
 
         var exception = Assert.Throws<AwkRuntimeException>(
@@ -934,7 +934,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var memoryForState = CreateGovernedState(500);
         // Admit the original field's value-type buffer while rejecting 30 fields.
         var state = memoryForState.State;
-        state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryAccounting));
+        state.SetCurrentRecord(AwkText.FromString("a"));
 
         var exception = Assert.Throws<AwkRuntimeException>(() => state.AssignFieldCount(30));
 
@@ -1037,7 +1037,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var memoryForState = CreateGovernedState(500);
         // Admit the original field's value-type buffer while rejecting 30 fields.
         var state = memoryForState.State;
-        state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryAccounting));
+        state.SetCurrentRecord(AwkText.FromString("a"));
         Assert.Equal(1, state.FieldCount);
 
         var exception = Assert.Throws<AwkRuntimeException>(

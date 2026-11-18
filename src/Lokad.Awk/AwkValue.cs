@@ -183,7 +183,7 @@ internal readonly struct AwkValue
 
     public static AwkValue FromText(string text, AwkNumberParsingMode numberParsingMode, Action? checkpoint = null)
     {
-        return FromText(AwkText.FromString(text, AwkRuntimeCounters.Disabled, checkpoint), numberParsingMode, checkpoint);
+        return FromText(AwkText.FromString(text, checkpoint), numberParsingMode, checkpoint);
     }
 
     public static AwkValue FromText(AwkText text) =>

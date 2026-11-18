@@ -43,8 +43,8 @@ public sealed class AwkNumericByteEscapeTests
         var pattern = new AwkRegexPattern(@"\303\251");
         var regex = runtime.Create(pattern);
         Assert.Same(regex, runtime.Create(pattern));
-        Assert.True(runtime.IsMatch(regex, AwkText.FromString("é", counters)));
-        Assert.False(runtime.IsMatch(regex, AwkText.FromString("Ã©", counters)));
+        Assert.True(runtime.IsMatch(regex, AwkText.FromString("é")));
+        Assert.False(runtime.IsMatch(regex, AwkText.FromString("Ã©")));
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 

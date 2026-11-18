@@ -40,7 +40,7 @@ internal struct PrintfArgumentCursor<TArguments>(
             // GNU's *0$ selects the format itself, rather than a value argument.
             if (position.OneBasedIndex == 0)
             {
-                var text = AwkText.FromString(format, state.Counters, state.MemoryAccounting);
+                var text = state.EncodeText(format);
                 return text.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var value, out _, state.CancellationCheckpoint) ? value : 0;
             }
             var index = position.OneBasedIndex - 1;

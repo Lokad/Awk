@@ -37,7 +37,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     }
 
     public AwkArrayKey(string text, Action? checkpoint = null)
-        : this(AwkText.FromString(text, AwkRuntimeCounters.Disabled, checkpoint), checkpoint)
+        : this(AwkText.FromString(text, checkpoint), checkpoint)
     {
     }
 

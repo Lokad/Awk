@@ -633,7 +633,7 @@ internal sealed partial class AwkVariables
         var slots = CreateArraySlots(count);
         foreach (var value in names)
         {
-            var text = AwkText.FromString(value, AwkRuntimeCounters.Disabled, _state.CancellationCheckpoint);
+            var text = AwkText.FromString(value, _state.CancellationCheckpoint);
             slots[new AwkArrayKey(text, _state.CancellationCheckpoint)] = AwkValue.FromDeferredText(text, _state.NumberParsingMode);
         }
 
@@ -699,7 +699,7 @@ internal sealed partial class AwkVariables
         {
             _symbolTable.AssignValue(
                 _state.DecodeArrayKey(index),
-                CreateValue(AwkValue.ForStoredText(AwkText.FromString(value, _state.Counters, _state.MemoryAccounting))));
+                CreateValue(AwkValue.ForStoredText(_state.EncodeText(value))));
             return;
         }
 

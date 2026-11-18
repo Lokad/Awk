@@ -18,8 +18,8 @@ public sealed class AwkRegexProfileTests
         Assert.Same(first, runtime.Create(pattern));
 
         Assert.Equal(mode == AwkCompatibilityMode.GnuDefault,
-            runtime.IsMatch(first, AwkText.FromString("a", counters)));
-        Assert.True(runtime.IsMatch(first, AwkText.FromString("w", counters)));
+            runtime.IsMatch(first, AwkText.FromString("a")));
+        Assert.True(runtime.IsMatch(first, AwkText.FromString("w")));
 
     }
 
@@ -33,7 +33,7 @@ public sealed class AwkRegexProfileTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(AwkCompatibilityMode.GnuDefault, AwkRuntimeLimits.CreateDefault(), counters);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
-        var input = AwkText.FromString("W", counters);
+        var input = AwkText.FromString("W");
         Assert.True(runtime.IsMatch(regex, input));
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);

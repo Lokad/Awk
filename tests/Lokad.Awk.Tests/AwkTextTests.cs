@@ -205,7 +205,7 @@ public sealed class AwkTextTests
     public void AwkText_ConcatenationDefersAndCachesPayloadMaterialization()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var concatenated = AwkText.Concat([AwkText.FromString("ab", counters), AwkText.FromString("cd", counters)], counters, AwkMemoryAccounting.Disabled);
+        var concatenated = AwkText.Concat([AwkText.FromString("ab"), AwkText.FromString("cd")], counters, AwkMemoryAccounting.Disabled);
 
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal("abcd", concatenated.AsString());
@@ -230,10 +230,11 @@ public sealed class AwkTextTests
     public void AwkText_GovernedAllocationsCoverConcatAndSlices()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(64);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
+        memoryForGovernor.Budget.SetAvailableBytes(64);
         var governor = memoryForGovernor.Accounting;
-        var source = AwkText.FromString("café", counters, governor);
-        var suffix = AwkText.FromString("!", counters, governor);
+        var source = memoryForGovernor.State.EncodeText("café");
+        var suffix = memoryForGovernor.State.EncodeText("!");
 
         Assert.Equal("café!", AwkText.Concat([source, suffix], counters, governor).AsString());
         Assert.Equal("fé", source.CopyRuneSlice(2, 2, counters, governor).AsString());
@@ -278,9 +279,10 @@ public sealed class AwkTextTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
 
-        _ = AwkText.FromString("a", counters);
-        _ = AwkText.FromString("small", counters);
-        _ = AwkText.FromString(new string('x', 32), counters);
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        _ = runtime.EncodeText("a");
+        _ = runtime.EncodeText("small");
+        _ = runtime.EncodeText(new string('x', 32));
 
         Assert.Equal(3, counters[AwkCounter.TextAllocations]);
         Assert.Equal(3, counters[AwkCounter.Utf8Encodes]);
@@ -315,7 +317,7 @@ public sealed class AwkTextTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
-        var text = AwkText.FromString(new string('\u00e9', 128), counters);
+        var text = AwkText.FromString(new string('\u00e9', 128));
         var retainedBytes = text.EstimatedRetainedMemoryBytes;
 
         _ = decodeRuntime.DecodeText(text);

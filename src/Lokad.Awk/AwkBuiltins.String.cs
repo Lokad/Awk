@@ -190,8 +190,7 @@ internal static partial class AwkBuiltins
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();
         state.ThrowIfCancellationRequested();
-        var result = AwkText.FromUtf16(converted.AsSpan(), state.Counters,
-            state.MemoryAccounting, state.CancellationCheckpoint, destination);
+        var result = state.EncodeText(converted, destination);
         // A borrowed source's owning copy is needed only through conversion.
         // The completed result keeps its own existing destination funding.
         if (sourceBytes > 0) destination.Release(sourceBytes);

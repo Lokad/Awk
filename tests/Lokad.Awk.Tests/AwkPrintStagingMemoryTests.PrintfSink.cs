@@ -31,7 +31,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var state = memoryForState.State;
         using var output = new AwkOutputSink(state.MemoryAccounting);
         using var empty = new AwkOutputSink(state.MemoryAccounting);
-        var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")), state.Counters);
+        var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
         Assert.True(output.TryFormatPrintf("%s", arguments, state));
         Assert.Equal("kept", output.ToString());

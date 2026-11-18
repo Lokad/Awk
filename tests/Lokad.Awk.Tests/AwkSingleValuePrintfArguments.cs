@@ -2,7 +2,6 @@ namespace Lokad.Awk.Tests;
 
 internal readonly struct AwkSingleValuePrintfArguments(
     AwkValue value,
-    AwkRuntimeCounters counters,
     Action? checkpoint = null) : IPrintfArguments
 {
     public int Count => 1;
@@ -15,7 +14,7 @@ internal readonly struct AwkSingleValuePrintfArguments(
 
         // Raw fixture arguments use round-trip spelling; execution format policy stays at its owner.
         return value.IsNumberValue
-            ? AwkText.FromString(value.AsString(), counters, checkpoint)
+            ? AwkText.FromString(value.AsString(), checkpoint)
             : value.ByteText;
     }
 

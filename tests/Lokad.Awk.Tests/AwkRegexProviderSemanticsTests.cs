@@ -39,7 +39,7 @@ public sealed class AwkRegexProviderSemanticsTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(counters, AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern("a+"));
-        var input = AwkText.FromString("zaaa", counters);
+        var input = AwkText.FromString("zaaa");
         var allocations = counters[AwkCounter.TextAllocations];
 
         Assert.True(runtime.IsMatch(regex, input));
@@ -67,7 +67,7 @@ public sealed class AwkRegexProviderSemanticsTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(counters, AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern(pattern));
-        var input = AwkText.FromString("SKU12abc;,😀😀", counters);
+        var input = AwkText.FromString("SKU12abc;,😀😀");
 
         Assert.True(runtime.MatchSpan(regex, input).Success);
 
@@ -87,7 +87,7 @@ AwkStringUnitMode units)
         var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(counters, limits, units);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
-        var input = AwkText.FromString(new string('z', 2000) + "😀😀", counters);
+        var input = AwkText.FromString(new string('z', 2000) + "😀😀");
 
         using (var leased = runtime.MatchCaptureValue(regex, input, governor))
         {

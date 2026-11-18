@@ -209,7 +209,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         try
         {
             failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-                "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
+                "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty)),
                 PrintfMissingArgumentPolicy.Throw, state));
         }
         finally { memoryForState.Budget.OnGrowth = null; }

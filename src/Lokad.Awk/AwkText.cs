@@ -137,60 +137,22 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return ((byte[]?)_backing).AsMemory();
     }
 
-    public static AwkText FromSourceLiteralString(string text) =>
-        FromString(text, AwkRuntimeCounters.Disabled);
+    public static AwkText FromSourceLiteralString(string text) => FromString(text);
 
-    public static AwkText FromString(string text) =>
-        FromString(text, AwkRuntimeCounters.Disabled);
-
-    public static AwkText FromString(string text, AwkRuntimeCounters counters, Action? checkpoint = null)
+    public static AwkText FromString(string text, Action? checkpoint = null)
     {
         if (text.Length == 0)
             return Empty;
 
         checkpoint?.Invoke();
-        counters.Add(AwkCounter.Utf8Encodes);
         var bytes = AwkUtf8Codec.EncodeOwned(text);
         checkpoint?.Invoke();
-
-        counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
-        return new AwkText(bytes);
+        return FromEncodedStringBytes(bytes);
     }
 
-    public static AwkText FromString(
-        string text,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null)
-    {
-        if (text.Length == 0)
-            return Empty;
-
-        return FromUtf16(text.AsSpan(), counters, governor, checkpoint);
-    }
-
-    internal static AwkText FromUtf16(
-        ReadOnlySpan<char> text,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null,
-        AwkMemoryLease? destination = null)
-    {
-        if (text.IsEmpty)
-            return Empty;
-
-        checkpoint?.Invoke();
-        var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
-        checkpoint?.Invoke();
-        var bytes = destination is null ? AllocateOwnedBytes(byteCount, governor) :
-            AllocateOwnedBytes(byteCount, governor, destination, checkpoint);
-        counters.Add(AwkCounter.Utf8Encodes);
-        AwkUtf8Codec.Encode(text, bytes);
-        checkpoint?.Invoke();
-
-        counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
-        return new AwkText(bytes);
-    }
+    // Encoded managed strings retain lazy cache storage even for short ASCII.
+    internal static AwkText FromEncodedStringBytes(byte[] bytes) =>
+        bytes.Length == 0 ? Empty : new AwkText(bytes);
 
     public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes) =>
         FromHostBytes(bytes, AwkRuntimeCounters.Disabled);

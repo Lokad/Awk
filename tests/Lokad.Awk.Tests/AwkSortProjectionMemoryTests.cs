@@ -237,7 +237,7 @@ public sealed class AwkSortProjectionMemoryTests
             using (var lease = state.MemoryAccounting.CreateTransientLease())
             {
                 var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-                    "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
+                    "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty)),
                     PrintfMissingArgumentPolicy.Throw, state, retainedTextLease: lease));
                 Assert.Equal(cancellation.Token, failure.CancellationToken);
                 Assert.True(copyAdmitted);
