@@ -609,21 +609,16 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool TryPreparePrintField(int index, out AwkFieldText field, out ReadOnlySpan<byte> record)
     {
         if (!_recordFields.TryGetUnmaterializedFieldText(new(index), out field, out record)) return false;
-        var bytes = field.AsSpan(record, CancellationCheckpoint);
-        AwkNumberParser.Parse(bytes, NumberParsingMode, out var parsed, CancellationCheckpoint);
-        // Match eager input classification, keeping numeric-conversion errors deferred.
-        if (parsed.Status == AwkNumberParseStatus.Number)
-            _ = AwkNumberParser.SkipWhitespace(bytes, parsed.End, CancellationCheckpoint);
+        // Field preparation can admit storage; check again before consuming the view.
+        ThrowIfCancellationRequested();
         return true;
     }
 
     internal void PreflightPrintfField(int index)
     {
-        if (TryGetPrintfFieldBytes(index, out var bytes))
-            // Original field values classify numeric input eagerly, but conversion errors stay deferred.
-            AwkNumberParser.Parse(bytes, NumberParsingMode, out _, CancellationCheckpoint);
-        else
+        if (!TryGetPrintfFieldBytes(index, out _))
             _ = GetFieldValue(index);
+        ThrowIfCancellationRequested();
     }
 
     internal AwkScalarOperand GetFieldComparison(int index)
