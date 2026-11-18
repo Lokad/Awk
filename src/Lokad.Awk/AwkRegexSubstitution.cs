@@ -65,31 +65,16 @@ internal static class AwkRegexSubstitution
         }
 
         using var replacementPlan = AwkGensubReplacementPlan.Rent(replacement, state.CancellationCheckpoint, state.MemoryAccounting);
-        var capturePlan = replacementPlan.CapturePlan;
-        if (targetOccurrence == 0 && maxReplacements == 1)
-        {
-            var matches = new FirstValueMatchSource(state, regex, input, capturePlan);
-            return ReplaceGensubMatches(
-                state,
-                input,
-                replacement,
-                targetOccurrence,
-                maxReplacements,
-                matches,
-                replacementPlan,
-                out replacementCount);
-        }
-
-        var allValueMatches = new ValueMatchSource(
-            state.EnumerateRegexMatches(regex, input, capturePlan));
-        return ReplaceGensubMatches(
+        var valueMatches = new ValueMatchSource(
+            state.EnumerateRegexMatches(regex, input, replacementPlan.CapturePlan));
+        return ReplaceMatches<AwkRegexMatch, ValueMatchSource, GensubMatchReplacement>(
             state,
             input,
             replacement,
             targetOccurrence,
             maxReplacements,
-            allValueMatches,
-            replacementPlan,
+            valueMatches,
+            new GensubMatchReplacement(replacementPlan),
             out replacementCount);
 
         static AwkText ReplaceSpans<TMatchSource>(
@@ -110,26 +95,6 @@ internal static class AwkRegexSubstitution
                 maxReplacements,
                 matches,
                 new SpanMatchReplacement(replacementKind, state.CompatibilityMode),
-                out replacementCount);
-
-        static AwkText ReplaceGensubMatches<TMatchSource>(
-            AwkRuntimeState state,
-            AwkText input,
-            AwkText replacement,
-            int targetOccurrence,
-            int maxReplacements,
-            TMatchSource matches,
-            AwkGensubReplacementPlan replacementPlan,
-            out int replacementCount)
-            where TMatchSource : struct, IMatchSource<AwkRegexMatch>
-            => ReplaceMatches<AwkRegexMatch, TMatchSource, GensubMatchReplacement>(
-                state,
-                input,
-                replacement,
-                targetOccurrence,
-                maxReplacements,
-                matches,
-                new GensubMatchReplacement(replacementPlan),
                 out replacementCount);
     }
 
@@ -328,38 +293,6 @@ internal static class AwkRegexSubstitution
         public bool MoveNext(out AwkRegexMatchSpan match) => matches.MoveNext(out match);
 
         public void Dispose() => matches.Dispose();
-    }
-
-    private struct FirstValueMatchSource(
-        AwkRuntimeState state,
-        AwkRegex regex,
-        AwkText input,
-        AwkRegexCapturePlan capturePlan) : IMatchSource<AwkRegexMatch>
-    {
-        private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
-        private bool _read;
-
-        public bool MoveNext(out AwkRegexMatch match)
-        {
-            _currentMatch.Dispose();
-            _currentMatch = AwkLeasedRegexMatch.NoMatch;
-            if (_read)
-            {
-                match = AwkRegexMatch.NoMatch;
-                return false;
-            }
-
-            _read = true;
-            _currentMatch = state.MatchRegexValue(regex, input, capturePlan);
-            match = _currentMatch.Match;
-            return match.Success;
-        }
-
-        public void Dispose()
-        {
-            _currentMatch.Dispose();
-            _currentMatch = AwkLeasedRegexMatch.NoMatch;
-        }
     }
 
     private readonly struct ValueMatchSource(
