@@ -43,9 +43,9 @@ public sealed partial class AwkRegionTests
         if (governed) fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var destination = new AwkRegionOperand(AwkRegionOperandKind.NumberTemporary, 0);
         if (substring)
-            storage.StoreSubstringResult(in destination, -1, source, -1,
+            storage.StoreSubstringResult(in destination, source, -1,
                 AwkValue.FromNumber(2), AwkValue.FromNumber(3), 3);
-        else storage.StoreCaseResult(in destination, -1, source, upper: false, field: -1);
+        else storage.StoreCaseResult(in destination, source, upper: false, field: -1);
         Assert.Equal(substring ? 3 : 6, storage.Numbers[0]);
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);

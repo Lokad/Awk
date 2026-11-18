@@ -22,7 +22,6 @@ internal sealed partial class AwkRegionCompiler
             var position = compiler.Emit(new(AwkRegionInstructionKind.Length, number, value,
                 Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
             var consume = compiler.TryTakeFreshTextProducer(value, position - 1, out var producer);
-            if (consume) compiler._texts--;
             var result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
             if (consume)
                 compiler._code.ReplaceTail(position - 1, producer with { Target = result });

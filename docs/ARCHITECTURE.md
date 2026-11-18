@@ -94,6 +94,9 @@ the owned result as text. Host byte ingress validates UTF-8 before copy admissio
 Copies into already funded destinations use the caller's admission.
 Text backing resolves rune ranges. The runtime funds and copies partial slices and
 reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
+Adjacent text assignments transfer the producer's existing charge when the scalar
+destination publishes. A bound destination admits any remaining growth. Ordinary
+assignment fallbacks retain a complete capture through their own mutation checks.
 Concatenation starts in the runtime. A deferred pair keeps its parts, accounting
 and allocation observations until it can publish a complete copy.
 

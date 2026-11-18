@@ -726,11 +726,11 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     }
 
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value,
-        AwkRegionStorage? source = null, in AwkRegionOperand sourceOperand = default)
+        in AwkRegionStorage.ScalarSource source = default)
     {
         // Computed text was constructed in this execution's immutable mode.
         // Other captures keep their ordinary scalar/origin normalization.
-        if (source is null || sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
+        if (!source.IsText)
             value = value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
         else System.Diagnostics.Debug.Assert(value.StoredKind ==
             AwkValue.FromDeferredText(AwkText.Empty, state.NumberParsingMode).StoredKind);
@@ -747,7 +747,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
 
         var assigned = default(AwkFunctionLocalSlot);
         assigned.InitializeScalar(in value);
-        ReplaceLocalSlot(frame, slotId, slot, assigned, source, in sourceOperand);
+        ReplaceLocalSlot(frame, slotId, slot, assigned, in source);
         slot.Value.PromoteUntypedScalar();
         return true;
     }
@@ -757,8 +757,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         AwkFunctionLocalSlotId slotId,
         AwkFunctionLocalSlot oldSlot,
         AwkFunctionLocalSlot newSlot,
-        AwkRegionStorage? source = null,
-        in AwkRegionOperand sourceOperand = default)
+        in AwkRegionStorage.ScalarSource source = default)
     {
         var replacesPotentialAlias =
             oldSlot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
@@ -774,9 +773,9 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         var oldBytes = state.MemoryAccounting.IsEnabled ? EstimateLocalSlotBytes(oldSlot) : 0;
         var nextBytes = state.MemoryAccounting.IsEnabled ? EstimateLocalSlotBytes(newSlot) : 0;
         var growth = nextBytes - oldBytes;
-        // Prepared discarded text/value scratch already funds the new scalar payload.
-        // Both cases share validation, publication, alias handling and retirement.
-        var admission = source is null ? Math.Max(0, growth) : 0;
+        var credit = source.Credit(nextBytes);
+        var unfunded = growth - credit;
+        var admission = Math.Max(0, unfunded);
         try
         {
             var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, growth);
@@ -786,7 +785,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             try
             {
                 if (admission > 0) state.CancellationCheckpoint();
-                source?.TransferScalarFunding(in sourceOperand, nextBytes);
+                source.Transfer(credit);
                 frame.GetSlot(slotId.Index) = newSlot;
                 frame.RecordAlias(slotId.Index, newSlot.Kind);
             }
@@ -801,8 +800,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             // Publish the funded local and clear a consumed source before refunds
             // can call the provider. Actual new admission retains its state.CancellationCheckpoint.
             frame.RetainedMemoryBytes = retained;
-            var refund = source is null ? Math.Max(0, -growth) : oldBytes;
-            if (refund > 0) state.MemoryAccounting.Refund(refund);
+            if (unfunded < 0) state.MemoryAccounting.Refund(-unfunded);
         }
         catch
         {

@@ -21,7 +21,7 @@ public sealed class AwkCaseMemoryTests
             // after the instruction entry check, before this primitive consumes it.
             cancellation.Cancel();
             Assert.Throws<OperationCanceledException>(() => storage.StoreCaseResult(
-                new(AwkRegionOperandKind.NumberTemporary, 0), -1,
+                new(AwkRegionOperandKind.NumberTemporary, 0),
                 new(storage.Texts[0]), upper: false, field: -1));
             Assert.Equal(-7, storage.Numbers[0]);
         }

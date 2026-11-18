@@ -115,7 +115,7 @@ internal partial struct AwkRegionMachine
             var destination = new AwkRegionTextDestination(instruction.Target);
             if (!destination.IsPrint)
             {
-                storage.StoreSubstringResult(in operands[destination.OperandIndex], instruction.Right,
+                storage.StoreSubstringResult(in operands[destination.OperandIndex],
                     source, field, second, third, instruction.Detail);
                 return 0;
             }
@@ -131,7 +131,7 @@ internal partial struct AwkRegionMachine
             ref readonly var operand = ref operands[instruction.Left];
             var field = IsField(operand) ? FieldOrdinal(operand) : -1;
             var text = TextOperand(instruction.Left);
-            storage.StoreCaseResult(in operands[instruction.Target], instruction.Right, text, instruction.Detail != 0, field);
+            storage.StoreCaseResult(in operands[instruction.Target], text, instruction.Detail != 0, field);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

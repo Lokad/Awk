@@ -14,9 +14,9 @@ internal sealed partial class AwkRegionCompiler
         if (result.Kind != AwkRegionOperandKind.TextTemporary || result.Index != _texts - 1 ||
             candidate.Kind is not (AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Substring) ||
             candidate.Target != operand) return false;
-        // The immediate consumer retires this operand. It keeps the text slot
-        // only when actual scalar publication still needs that funded owner.
+        // The adjacent consumer uses the produced text directly.
         _operands.RemoveAt(operand);
+        _texts--;
         producer = candidate;
         return true;
     }

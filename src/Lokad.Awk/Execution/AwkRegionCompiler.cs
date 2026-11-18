@@ -595,7 +595,6 @@ internal sealed partial class AwkRegionCompiler
         {
             // One immediate consumer completes the print before the byte view
             // expires; no retained text result or fragment staging is needed.
-            _texts--;
             _code.ReplaceTail(predecessor, producer with { Target = AwkRegionTextDestination.Print(site).Location });
             arguments[^1] = new(AwkRegionPrintArgumentKind.PreparedText, 0);
         }
@@ -938,7 +937,7 @@ internal sealed partial class AwkRegionCompiler
             if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&
                 TryTakeFreshTextProducer(operand, _code.Count - 2, out var producer))
             {
-                _code.ReplaceTail(_code.Count - 2, producer with { Target = assignment.Target, Right = source.Index });
+                _code.ReplaceTail(_code.Count - 2, producer with { Target = assignment.Target });
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
                 _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&

@@ -480,16 +480,15 @@ internal sealed partial class AwkVariables
     }
 
     internal bool TrySetConsumedScalarValue(AwkScalarCell cell, AwkValue value,
-        AwkRegionStorage source, in AwkRegionOperand sourceOperand)
+        in AwkRegionStorage.ScalarSource source)
     {
         // Computed NF and bootstrap storage retain their ordinary assignment owner.
         if (!_governScalarMemory || IsFieldCountCell(cell)) return false;
-        if (sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
+        if (!source.IsText)
             value = AwkValue.ForVariableStorage(value, _state.NumberParsingMode);
         else System.Diagnostics.Debug.Assert(value.StoredKind ==
             AwkValue.FromDeferredText(AwkText.Empty, _state.NumberParsingMode).StoredKind);
-        StoreScalarSlot(cell, value,
-            IsOutputFieldSeparatorCell(cell), source, in sourceOperand);
+        StoreScalarSlot(cell, value, IsOutputFieldSeparatorCell(cell), in source);
         return true;
     }
 
@@ -1093,7 +1092,7 @@ internal sealed partial class AwkVariables
         StoreScalarSlot(cell, slot, _governScalarMemory && IsOutputFieldSeparatorCell(cell));
 
     private void StoreScalarSlot(AwkScalarCell cell, AwkValue slot, bool prepareOutputSeparator,
-        AwkRegionStorage? source = null, in AwkRegionOperand sourceOperand = default)
+        in AwkRegionStorage.ScalarSource source = default)
     {
         // A number overwrite retains its owner in either memory mode.
         if (slot.TryGetNumberValue(out var number) &&
@@ -1101,7 +1100,7 @@ internal sealed partial class AwkVariables
         {
             if (prepareOutputSeparator)
                 _state.RecordFields.PrepareOutputFieldSeparatorAssignment();
-            source?.TransferScalarFunding(in sourceOperand, 0);
+            source.Transfer(0);
             cell.State.Slot = AwkValue.FromNumber(number);
             return;
         }
@@ -1110,7 +1109,7 @@ internal sealed partial class AwkVariables
         {
             if (prepareOutputSeparator)
                 _state.RecordFields.PrepareOutputFieldSeparatorAssignment();
-            source?.TransferScalarFunding(in sourceOperand, 0);
+            source.Transfer(0);
             cell.State.SetUngovernedSlot(slot);
             return;
         }
@@ -1121,13 +1120,13 @@ internal sealed partial class AwkVariables
             ? baselineBytes
             : 0;
         var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
-        var sourceBytes = source is null ? 0 : slot.RetainedTextMemoryBytes;
+        var sourceBytes = source.Credit(in slot);
         var credited = AwkRuntimeMemory.CheckedAdd(oldCharge, sourceBytes);
         using var mutation = ReserveMemoryMutation(newCharge, credited);
         if (newCharge > credited) _state.ThrowIfCancellationRequested();
         if (prepareOutputSeparator)
             _state.RecordFields.PrepareOutputFieldSeparatorAssignment();
-        source?.TransferScalarFunding(in sourceOperand, sourceBytes);
+        source.Transfer(sourceBytes);
         cell.State.SetSlot(slot, baselineBytes, newCharge);
         mutation.Commit();
     }

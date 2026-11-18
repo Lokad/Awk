@@ -1194,17 +1194,23 @@ internal sealed class AwkRuntimeState : IDisposable
         // Capture before admission/refund callbacks can retire or reuse scratch.
         var text = operand.Kind == AwkRegionOperandKind.TextTemporary;
         var value = text ? CreateStringValue(source.Texts[operand.Index]) : source.Values[operand.Index];
+        AssignConsumedScalar(in variable, value, new(source, in operand));
+    }
+
+    internal void AssignConsumedScalar(in AwkRegionOperand variable, AwkValue value,
+        in AwkRegionStorage.ScalarSource source)
+    {
         ThrowIfCancellationRequested();
         if (variable.Kind == AwkRegionOperandKind.LocalVariable &&
-            _functions.TryAssignLocal(new(variable.Index), value, source, in operand)) return;
+            _functions.TryAssignLocal(new(variable.Index), value, in source)) return;
         if (variable.Kind == AwkRegionOperandKind.GlobalVariable &&
             _globalReadSlots is { } slots && slots[variable.Index].Scalar is { } cell &&
-            _variables.TrySetConsumedScalarValue(cell, value, source, in operand)) return;
+            _variables.TrySetConsumedScalarValue(cell, value, in source)) return;
+        var additionalBytes = source.RetainForFallback(in value);
         StoreScalarOperand(in variable, value);
         // Dynamic/special/cold owners retain all of their ordinary preflights.
         // A failed assignment leaves this source funded for normal cleanup.
-        if (text) source.ReleaseTexts(operand.Index, 1);
-        else source.ReleaseValue(operand.Index);
+        source.Release(additionalBytes);
     }
 
     internal bool TryResolvePreparedSpecialNumber(AwkSpecialVariableId id, out double number)

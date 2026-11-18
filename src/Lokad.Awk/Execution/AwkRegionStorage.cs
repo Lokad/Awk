@@ -280,7 +280,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
-    internal void StoreCaseResult(in AwkRegionOperand destination, int scratch,
+    internal void StoreCaseResult(in AwkRegionOperand destination,
         in AwkByteTextOperand source, bool upper, int field)
     {
         if (destination.Kind == AwkRegionOperandKind.NumberTemporary)
@@ -293,18 +293,22 @@ internal sealed class AwkRegionStorage : IDisposable
         }
         var before = _payload.Bytes;
         var text = AwkBuiltins.EvaluateCaseText(_state, source, _payload, upper, field);
-        ConsumeProducedText(in destination, scratch, text, _payload.Bytes - before);
+        ConsumeProducedText(in destination, text, _payload.Bytes - before);
     }
 
-    private void ConsumeProducedText(in AwkRegionOperand destination, int scratch, AwkText text, long producedBytes)
+    private void ConsumeProducedText(in AwkRegionOperand destination, AwkText text, long producedBytes)
     {
-        var index = destination.Kind == AwkRegionOperandKind.TextTemporary ? destination.Index : scratch;
-        StoreProducedText(index, text, producedBytes);
-        if (destination.Kind != AwkRegionOperandKind.TextTemporary)
+        if (destination.Kind == AwkRegionOperandKind.TextTemporary)
         {
-            System.Diagnostics.Debug.Assert(destination.IsVariable);
-            _state.AssignConsumedScalar(in destination, this, new(AwkRegionOperandKind.TextTemporary, index));
+            StoreProducedText(destination.Index, text, producedBytes);
+            return;
         }
+
+        System.Diagnostics.Debug.Assert(destination.IsVariable);
+        // Only the returned payload survives construction. An existing spelling
+        // may carry no new charge; its destination admits any actual growth.
+        System.Diagnostics.Debug.Assert(producedBytes >= 0 && producedBytes <= text.EstimatedRetainedMemoryBytes);
+        _state.AssignConsumedScalar(in destination, _state.CreateStringValue(text), new(this, producedBytes));
     }
 
     internal bool TryTakeRetiringLocal(int index, AwkFunctionFrame frame, int local)
@@ -327,7 +331,7 @@ internal sealed class AwkRegionStorage : IDisposable
         return true;
     }
 
-    internal void StoreSubstringResult(in AwkRegionOperand destination, int scratch,
+    internal void StoreSubstringResult(in AwkRegionOperand destination,
         in AwkByteTextOperand source, int field, in AwkValue start, in AwkValue length, int count)
     {
         var countOnly = destination.Kind == AwkRegionOperandKind.NumberTemporary;
@@ -340,7 +344,7 @@ internal sealed class AwkRegionStorage : IDisposable
             return;
         }
         var text = _state.OwnStringResult(slice, field, whole, _payload);
-        ConsumeProducedText(in destination, scratch, text, _payload.Bytes - before);
+        ConsumeProducedText(in destination, text, _payload.Bytes - before);
     }
 
     internal int PrintSubstring(AwkOutputSink output, AwkRegionPrint print, in AwkByteTextOperand source, int field,
@@ -419,13 +423,64 @@ internal sealed class AwkRegionStorage : IDisposable
         if (bytes > 0) _payload.Release(bytes);
     }
 
-    internal void TransferScalarFunding(in AwkRegionOperand source, long bytes)
+    // A producer's result can still be held in this lease without occupying a
+    // slot. A saved operand keeps its slot until its destination can publish.
+    internal readonly ref struct ScalarSource
     {
-        if (source.Kind is not (AwkRegionOperandKind.TextTemporary or AwkRegionOperandKind.ValueTemporary))
-            throw new InvalidOperationException("A consumed scalar requires owning scratch.");
-        _payload.Transfer(bytes);
-        if (source.Kind == AwkRegionOperandKind.TextTemporary) _texts[source.Index] = AwkText.Empty;
-        else _values[source.Index] = default;
+        private readonly AwkRegionStorage? _storage;
+        private readonly SourceKind _kind;
+        private readonly int _index;
+        private readonly long _producedBytes;
+
+        internal ScalarSource(AwkRegionStorage storage, long producedBytes) =>
+            (_storage, _kind, _producedBytes) = (storage, SourceKind.ProducedText, producedBytes);
+
+        internal ScalarSource(AwkRegionStorage storage, in AwkRegionOperand operand) =>
+            (_storage, _kind, _index) = (storage, operand.Kind switch
+            {
+                AwkRegionOperandKind.TextTemporary => SourceKind.SavedText,
+                AwkRegionOperandKind.ValueTemporary => SourceKind.SavedValue,
+                _ => throw new InvalidOperationException("A consumed scalar requires owning scratch.")
+            }, operand.Index);
+
+        internal bool IsText => _kind is SourceKind.SavedText or SourceKind.ProducedText;
+
+        private bool HasSavedSlot => _kind is SourceKind.SavedText or SourceKind.SavedValue;
+
+        internal long Credit(long retainedBytes) => HasSavedSlot ? retainedBytes : _producedBytes;
+
+        internal long Credit(in AwkValue value) => HasSavedSlot ? value.RetainedTextMemoryBytes : _producedBytes;
+
+        internal long RetainForFallback(in AwkValue value)
+        {
+            if (_kind != SourceKind.ProducedText || _storage is not { } storage ||
+                !storage._state.MemoryAccounting.IsEnabled) return 0;
+            // An ordinary destination can retire another owner while it writes.
+            // Keep a complete capture through its existing mutation protocol.
+            var growth = value.RetainedTextMemoryBytes - _producedBytes;
+            if (growth <= 0) return 0;
+            storage._payload.ReserveAdditional(growth);
+            storage._state.ThrowIfCancellationRequested();
+            return growth;
+        }
+
+        internal void Transfer(long bytes)
+        {
+            if (_storage is not { } storage) return;
+            storage._payload.Transfer(bytes);
+            if (_kind == SourceKind.SavedText) storage._texts[_index] = AwkText.Empty;
+            else if (_kind == SourceKind.SavedValue) storage._values[_index] = default;
+        }
+
+        internal void Release(long additionalBytes)
+        {
+            if (_storage is not { } storage) return;
+            if (_kind == SourceKind.SavedText) storage.ReleaseTexts(_index, 1);
+            else if (_kind == SourceKind.SavedValue) storage.ReleaseValue(_index);
+            else if (_producedBytes + additionalBytes > 0) storage._payload.Release(_producedBytes + additionalBytes);
+        }
+
+        private enum SourceKind : byte { None, SavedText, SavedValue, ProducedText }
     }
 
     internal void ReleaseValues(int start, int count)

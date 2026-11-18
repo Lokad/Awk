@@ -3,6 +3,86 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnchangedProducedTextReusesDestinationFundingAtCapacity(bool local)
+    {
+        using var memory = new CooperativeTestMemory(4 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var state = memory.State;
+        var name = AwkVariableName.FromText("t");
+        var spelling = "0007" + new string('a', 32 << 10);
+        var value = AwkValue.FromText(spelling);
+        if (local) state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(value)]);
+        else
+        {
+            state.InitializeGlobalReadSlots(1);
+            state.AssignPreparedGlobalValue(name, 0, value);
+        }
+        var destination = new AwkRegionOperand(local ? AwkRegionOperandKind.LocalVariable : AwkRegionOperandKind.GlobalVariable, 0, name);
+        using var storage = new AwkRegionStorage(state);
+        Assert.True(memory.Budget.TryReserve(memory.Budget.Limit - memory.Budget.Reserved, out var pressure));
+        using (pressure)
+        {
+            storage.StoreCaseResult(in destination, new(value.ByteText), upper: false, field: -1);
+            var stored = local ? state.ResolveFunctionLocalValue(new(0), name) : state.ResolveVariableValue(name);
+            Assert.Equal(spelling, stored.ByteText.AsString());
+            Assert.Equal(AwkRuntimeValueKind.String, stored.RuntimeKind);
+            Assert.Equal(0, memory.Budget.Refusals);
+        }
+        if (local) state.PopFunctionFrame();
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ProducedTextStillChecksDestinationGrowthBeforePublication(bool local, bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(4 << 20)
+            .InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var state = memory.State;
+        var name = AwkVariableName.FromText("t");
+        var previous = AwkValue.FromText("previous");
+        if (local) state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(previous)]);
+        else
+        {
+            state.InitializeGlobalReadSlots(1);
+            state.AssignPreparedGlobalValue(name, 0, previous);
+        }
+        var spelling = new string('a', 8192);
+        var value = AwkValue.FromText(spelling);
+        state.AssignVariableValue(AwkVariableName.FromText("source"), value);
+        var destination = new AwkRegionOperand(local ? AwkRegionOperandKind.LocalVariable : AwkRegionOperandKind.GlobalVariable, 0, name);
+        using var storage = new AwkRegionStorage(state);
+        if (cancel)
+        {
+            memory.Budget.OnGrowth = _ => cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() =>
+                storage.StoreCaseResult(in destination, new(value.ByteText), upper: false, field: -1));
+            memory.Budget.OnGrowth = null;
+        }
+        else
+        {
+            memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+                storage.StoreCaseResult(in destination, new(value.ByteText), upper: false, field: -1));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        }
+        var stored = local ? state.ResolveFunctionLocalValue(new(0), name) : state.ResolveVariableValue(name);
+        Assert.Equal("previous", stored.ByteText.AsString());
+        Assert.Equal(spelling, state.ResolveVariableValue(AwkVariableName.FromText("source")).ByteText.AsString());
+        if (local) state.PopFunctionFrame();
+        storage.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false, false)]
     [InlineData(false, false, true)]
     [InlineData(false, true, false)]
