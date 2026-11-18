@@ -30,8 +30,8 @@ or diagnostics. Preparation reports malformed constructs that reach lowering.
 The top-level grammar recognizes balanced action and function bodies, parameter
 lists and groups in patterns. Their consumers read ranges of the original tokens.
 The statement grammar uses the same ranges for balanced headers, expression
-groups, braced bodies and switch blocks. Expression and redirection consumers
-still interpret separators.
+groups, braced bodies, switch blocks and simple statements. Expression and
+redirection consumers still interpret separators.
 Indexed subranges address the same token owner, including when sliced again.
 Validation reads collected symbols in source order. Collection, validation and
 lowering use the same invocation-local function layouts and parameter slots.

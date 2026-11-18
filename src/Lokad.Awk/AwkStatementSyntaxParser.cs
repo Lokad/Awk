@@ -128,10 +128,10 @@ internal sealed class AwkStatementSyntaxParser
 
     [Rule]
     public ContinuationSeparator ContinuationSeparatorRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token)
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> _)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+        return default;
     }
 
     [Rule]
@@ -679,14 +679,14 @@ internal sealed class AwkStatementSyntaxParser
     public SimpleTail SimpleTailElement([NT] SimpleElement element)
     {
         _checkpoint?.Invoke();
-        return new(element.Tokens);
+        return new(element.End);
     }
 
     [Rule]
     public SimpleTail SimpleTailComment([AwkT(AwkTokenKind.Comment)] Pos<string> comment)
     {
         _checkpoint?.Invoke();
-        return new([ToToken(AwkTokenKind.Comment, comment)]);
+        return new(AwkParsingSupport.SourceSpan(comment));
     }
 
     [Rule]
@@ -720,34 +720,32 @@ internal sealed class AwkStatementSyntaxParser
             AwkTokenKind.Pipe,
             AwkTokenKind.PipeAmpersand,
             AwkTokenKind.AmpersandAmpersand,
-            AwkTokenKind.PipePipe)] Pos<string> continuation,
-        [AwkL(Min = 1)] ContinuationSeparator[] separators,
+            AwkTokenKind.PipePipe)] Pos<string> _,
+        [AwkL(Min = 1)] ContinuationSeparator[] __,
         [NT] SimpleElement element)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, continuation, checkpoint: _checkpoint), .. FlattenSeparators(separators), .. element.Tokens]);
-        IReadOnlyList<AwkToken> FlattenSeparators(IEnumerable<ContinuationSeparator> separators) =>
-            Flatten(separators.Select(separator => separator.Tokens));
+        return new(element.End);
     }
     [Rule]
     public SimpleElement SimpleParenthesized([NT] ParenthesizedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(GroupTokens(group.Open, group.Close).FullTokens);
+        return new(group.Close);
     }
 
     [Rule]
     public SimpleElement SimpleBracketed([NT] BracketedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(GroupTokens(group.Open, group.Close).FullTokens);
+        return new(group.Close);
     }
 
     [Rule]
     public SimpleElement SimpleLeaf([AwkStatementSimpleLeaf] Pos<string> token)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+        return new(AwkParsingSupport.SourceSpan(token));
     }
 
     [Rule]
@@ -812,7 +810,7 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkToken> firstTokens,
         IReadOnlyList<SimpleTail> tails)
     {
-        var tokens = Flatten([firstTokens, Flatten(tails.Select(tail => tail.Tokens))]);
+        var tokens = tails.Count == 0 ? firstTokens : GroupTokens(firstTokens[0].Span, tails[^1].End).FullTokens;
         var wholeExpression = AwkStatementSyntaxFacts.HasWholeStatementExpression(kind)
             ? ParseExpression(tokens) : null;
         if (kind == AwkStatementKind.Getline && wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
@@ -1637,10 +1635,7 @@ internal sealed class AwkStatementSyntaxParser
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct ContinuationSeparator(IReadOnlyList<AwkToken>? tokens)
-    {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
+    public readonly struct ContinuationSeparator;
 
     public readonly struct StatementBody(
         IReadOnlyList<AwkToken>? tokens,
@@ -1700,15 +1695,9 @@ internal sealed class AwkStatementSyntaxParser
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct SimpleElement(IReadOnlyList<AwkToken>? tokens)
-    {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
+    public readonly record struct SimpleElement(AwkTextSpan End);
 
-    public readonly struct SimpleTail(IReadOnlyList<AwkToken>? tokens)
-    {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
+    public readonly record struct SimpleTail(AwkTextSpan End);
 
     private readonly struct OutputStatementParts(
         AwkSyntaxOptional<AwkExpressionSlotSyntax> payload,
