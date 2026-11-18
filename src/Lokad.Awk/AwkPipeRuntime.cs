@@ -139,7 +139,7 @@ internal sealed class AwkPipeRuntime(
     {
         try
         {
-            await host.CloseDescriptorForCleanupAsync(descriptors.Read).ConfigureAwait(false);
+            await host.CloseDescriptorWithoutCancellationAsync(descriptors.Read).ConfigureAwait(false);
         }
         catch (Exception)
         {
@@ -148,7 +148,7 @@ internal sealed class AwkPipeRuntime(
 
         try
         {
-            await host.CloseDescriptorForCleanupAsync(descriptors.Write).ConfigureAwait(false);
+            await host.CloseDescriptorWithoutCancellationAsync(descriptors.Write).ConfigureAwait(false);
         }
         catch (Exception)
         {
@@ -200,7 +200,7 @@ internal sealed class AwkPipeRuntime(
             try
             {
                 if (!_closed)
-                    await host.CloseDescriptorForCleanupAsync(WriteDescriptor).ConfigureAwait(false);
+                    await host.CloseDescriptorWithoutCancellationAsync(WriteDescriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -249,7 +249,7 @@ internal sealed class AwkPipeRuntime(
             try
             {
                 if (!_readClosed)
-                    await host.CloseDescriptorForCleanupAsync(readDescriptor).ConfigureAwait(false);
+                    await host.CloseDescriptorWithoutCancellationAsync(readDescriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -259,7 +259,7 @@ internal sealed class AwkPipeRuntime(
             try
             {
                 if (!_writeClosed)
-                    await host.CloseDescriptorForCleanupAsync(writeDescriptor).ConfigureAwait(false);
+                    await host.CloseDescriptorWithoutCancellationAsync(writeDescriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {

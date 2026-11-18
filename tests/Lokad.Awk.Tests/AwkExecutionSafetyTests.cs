@@ -81,7 +81,7 @@ bool asynchronousHost)
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters[AwkCounter.HostCalls]);
         Assert.Equal(0, counters[AwkCounter.OutputBytes]);
-        await adapter.CloseDescriptorForCleanupAsync(descriptor);
+        await adapter.CloseDescriptorWithoutCancellationAsync(descriptor);
         Assert.True(cleanedUp);
         Assert.Equal(1, counters[AwkCounter.HostCalls]);
     }

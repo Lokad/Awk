@@ -50,7 +50,6 @@ internal static class AwkRuntime
             runtimeOptions.ForwardCommandEnvironment);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, state);
         var inputScheduler = new AwkInputScheduler(
-            host,
             invocation,
             actionExecutor,
             state,

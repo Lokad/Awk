@@ -111,10 +111,10 @@ internal static class AwkTestHarness
             cancellationToken, state.Limits, state, static _ => []);
 
     public static AwkInputScheduler BindRegionInput(string source, AwkRuntimeActionExecutor executor,
-        AwkRuntimeState state, AwkIo io, IAwkHost host, CancellationToken cancellationToken = default)
+        AwkRuntimeState state, AwkIo io, CancellationToken cancellationToken = default)
     {
         var invocation = AwkCommandParser.Parse(BuildInvocation("awk", source));
-        var input = new AwkInputScheduler(host, invocation, executor, state, io, cancellationToken);
+        var input = new AwkInputScheduler(invocation, executor, state, io, cancellationToken);
         io.BindMainInputReader(input, input.PreserveStandardInput);
         return input;
     }

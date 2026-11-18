@@ -131,11 +131,18 @@ internal sealed class AwkIoHostAdapter(
         return opened;
     }
 
-    public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor)
+    public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor) =>
+        CloseDescriptorAsync(descriptor, cancellationToken);
+
+    public Task<AwkDescriptorCloseResult> CloseDescriptorWithoutCancellationAsync(AwkFileDescriptor descriptor) =>
+        CloseDescriptorAsync(descriptor, CancellationToken.None);
+
+    private async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
+        AwkFileDescriptor descriptor, CancellationToken closeToken)
     {
-        ObserveHostCall();
-        return await host.CloseDescriptorAsync(descriptor, cancellationToken)
-            .ConfigureAwait(false);
+        closeToken.ThrowIfCancellationRequested();
+        options.Counters.Add(AwkCounter.HostCalls);
+        return await host.CloseDescriptorAsync(descriptor, closeToken).ConfigureAwait(false);
     }
 
     public void ThrowIfCloseFailed(AwkFileDescriptor descriptor, AwkDescriptorCloseResult result, string? identity = null)
@@ -143,12 +150,6 @@ internal sealed class AwkIoHostAdapter(
         if (!result.Success)
             throw AwkHostBoundaryPolicy.CloseFailure(descriptor, result, options.ExposeHostErrorDetails, options.MaxHostErrorBytes,
                 identity is null ? default : AwkUtf8Codec.Encode(identity));
-    }
-
-    public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
-    {
-        options.Counters.Add(AwkCounter.HostCalls);
-        await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
     }
 
     public string ResolveError(AwkOperationError error) =>

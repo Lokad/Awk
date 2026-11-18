@@ -48,7 +48,7 @@ public sealed class AwkFunctionFlowTests
             var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
                 AwkFileDescriptor.StdErr, cancellation.Token, limits, state, static _ => []);
             using var executor = new AwkRuntimeActionExecutor(program, state);
-            var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host, cancellation.Token);
+            var input = AwkTestHarness.BindRegionInput(source, executor, state, io, cancellation.Token);
             using (state.EnterActionPhase(AwkActionPhase.BeginFile))
             {
                 Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
@@ -127,7 +127,7 @@ public sealed class AwkFunctionFlowTests
         async Task ProcessAsync()
         {
             host.SetStandardInput("row\nextra\n");
-            var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host);
+            var input = AwkTestHarness.BindRegionInput(source, executor, state, io);
             try { await input.ProcessRemainingInputAsync(); }
             finally { await input.CloseRemainingDescriptorsForCleanupAsync(); }
         }

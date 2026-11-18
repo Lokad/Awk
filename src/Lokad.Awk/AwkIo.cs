@@ -75,6 +75,8 @@ internal sealed class AwkIo
         _specialPaths = new AwkSpecialPathPolicy(stdIn, stdOut, stdErr);
     }
 
+    internal AwkIoHostAdapter HostAdapter => _host;
+
     public Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
     {
         ReleaseStandardInputBorrow(_stdOut);
@@ -256,7 +258,7 @@ internal sealed class AwkIo
         }
     }
 
-    private AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor) =>
+    internal AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor) =>
         CreateRecordCursor(descriptor, AwkParagraphLeaderPolicy.Discard);
 
     private AwkRecordCursor CreatePipeRecordCursor(AwkFileDescriptor descriptor) =>

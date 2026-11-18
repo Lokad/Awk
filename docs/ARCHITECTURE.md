@@ -178,6 +178,9 @@ failures never replay payloads or diagnostics. Standard descriptors remain borro
 Source loading and runtime I/O take their observer and diagnostic policy from the
 invocation options. Descriptor readers observe received bytes before checking for
 cancellation. Cleanup observes close attempts and uses an independent token.
+Main input and redirections share the host adapter for opening and closing files.
+An owned main-input close checks cancellation before starting and awaits
+retirement with an independent token.
 
 Regex providers own matching, scalar boundaries, POSIX selection and engine admission.
 Compilation reports an explicit status; only core's dedicated syntax signal denotes

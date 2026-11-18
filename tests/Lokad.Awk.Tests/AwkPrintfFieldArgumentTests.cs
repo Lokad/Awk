@@ -32,7 +32,7 @@ public sealed class AwkPrintfFieldArgumentTests
         Assert.True(binding.Success);
         var program = binding.Program;
         using var executor = new AwkRuntimeActionExecutor(program, state);
-        var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host, cancellation.Token);
+        var input = AwkTestHarness.BindRegionInput(source, executor, state, io, cancellation.Token);
         var run = input.ProcessRemainingInputAsync();
         try
         {

@@ -100,7 +100,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             AwkTestHarness.CreateRuntimeOptions(), AwkMemoryAccounting.Disabled);
         for (var index = 0; index < completions.Length; index++)
         {
-            var closing = adapter.CloseDescriptorForCleanupAsync(new(82 + index));
+            var closing = adapter.CloseDescriptorWithoutCancellationAsync(new(82 + index));
             try
             {
                 Assert.False(closing.IsCompleted);

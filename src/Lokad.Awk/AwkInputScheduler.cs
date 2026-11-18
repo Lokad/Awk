@@ -6,7 +6,6 @@ namespace Lokad.Awk;
 /// reaches them, so <c>BEGIN</c> can still change <c>ARGV</c> before the first read.
 /// </summary>
 internal sealed class AwkInputScheduler(
-    IAwkHost host,
     AwkInvocation invocation,
     AwkRuntimeActionExecutor actionExecutor,
     AwkRuntimeState state,
@@ -16,10 +15,10 @@ internal sealed class AwkInputScheduler(
     bool allowDynamicMainInputPaths = true) : IAwkInputRecordReader
 {
     private static readonly AwkText StandardInputFileName = AwkText.FromSourceLiteralString("-");
-    private OwnedInputDescriptor _ownedDescriptor;
+    private AwkFileDescriptor? _ownedDescriptor;
     private ReadOnlyMemory<byte> _ownedInputDisplay;
     private readonly AwkMemoryLease _inputDisplayMemory = state.MemoryAccounting.CreateTransientLease();
-    private OpenMainInput? _currentInput;
+    private AwkRecordCursor? _currentInput;
     private long _nextArgvIndex = 1;
     private bool _selectedInputSource;
     private bool _usedStandardInputFallback;
@@ -27,13 +26,13 @@ internal sealed class AwkInputScheduler(
 
     public void PreserveStandardInput()
     {
-        if (_currentInput is { } input && !_ownedDescriptor.TryGetValue(out _))
-            input.Cursor.PreserveBorrowedInput(releaseDescriptor: true);
+        if (_currentInput is { } input && _ownedDescriptor is null)
+            input.PreserveBorrowedInput(releaseDescriptor: true);
     }
 
     public void TakeRecord(out AwkInputRecordResult record)
     {
-        if (_currentInput is { } input) input.Cursor.TakeRecord(out record);
+        if (_currentInput is { } input) input.TakeRecord(out record);
         else record = AwkInputRecordResult.EndOfFile;
     }
 
@@ -63,8 +62,8 @@ internal sealed class AwkInputScheduler(
             return AwkRecordReadStatus.Pending;
         }
 
-        if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
-        var status = input.Cursor.MoveNext(storage, ref pending);
+        if (_ownedDescriptor is null) io.PreserveRedirectedStandardInput();
+        var status = input.MoveNext(storage, ref pending);
         // The cursor checks host/admission completion; language publication owns
         // its post-admission, pre-effect check. This handoff adds no new boundary.
         if (status == AwkRecordReadStatus.Record) return status;
@@ -84,15 +83,15 @@ internal sealed class AwkInputScheduler(
                     return false;
                 var input = _currentInput ??
                     throw new InvalidOperationException("Main input was not initialized after a successful open.");
-                if (!_ownedDescriptor.TryGetValue(out _)) io.PreserveRedirectedStandardInput();
-                pending = input.Cursor.MoveNextAsync(storage);
+                if (_ownedDescriptor is null) io.PreserveRedirectedStandardInput();
+                pending = input.MoveNextAsync(storage);
             }
             if (await pending.ConfigureAwait(false))
                 return true;
 
             var completedInput = _currentInput ??
                 throw new InvalidOperationException("A completed read requires an input cursor.");
-            completedInput.Cursor.TakeRecord(out var record);
+            completedInput.TakeRecord(out var record);
             if (record.ClearsRecordTerminator)
                 state.SetRecordTerminator(AwkRecordTerminator.Empty);
 
@@ -165,11 +164,8 @@ internal sealed class AwkInputScheduler(
                 state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                 var displayBytes = AwkRuntimeMemory.EstimateInputDisplayBytes(path.Display.Length);
                 using var pendingDisplay = state.MemoryAccounting.ReserveTransient(displayBytes);
-                cancellationToken.ThrowIfCancellationRequested();
-                state.Counters.Add(AwkCounter.HostCalls);
-                var opened = await host.OpenFileAsync(path.Request, AwkFileOpenMode.Read, cancellationToken)
+                var opened = await io.HostAdapter.OpenFileAsync(path.Request, AwkFileOpenMode.Read)
                     .ConfigureAwait(false);
-                AwkHostPathPolicy.ThrowIfDenied(opened);
                 if (!opened.Success)
                 {
                     if (await HandleOpenFailureAsync(path, opened).ConfigureAwait(false))
@@ -178,7 +174,7 @@ internal sealed class AwkInputScheduler(
                     continue;
                 }
 
-                _ownedDescriptor = OwnedInputDescriptor.Owned(opened.FileDescriptor);
+                _ownedDescriptor = opened.FileDescriptor;
                 _ownedInputDisplay = path.Display;
                 pendingDisplay.MoveTo(_inputDisplayMemory, displayBytes);
                 if (await TryActivateInputAsync(
@@ -220,7 +216,7 @@ internal sealed class AwkInputScheduler(
             async ValueTask<bool> TryActivateInputAsync(
                 AwkRecordCursor cursor)
             {
-                _currentInput = new OpenMainInput(cursor);
+                _currentInput = cursor;
                 var beginFileFlow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
                 if (beginFileFlow == AwkStatementFlow.Continue)
                     return true;
@@ -236,7 +232,7 @@ internal sealed class AwkInputScheduler(
                 if (!actionExecutor.HasBeginFileActions)
                     throw CreateOpenFailure(path, opened);
 
-                state.SetErrno(AwkErrno.FromHostMessage(ResolveHostError(opened.Error)));
+                state.SetErrno(AwkErrno.FromHostMessage(io.HostAdapter.ResolveError(opened.Error)));
                 var flow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
                 if (flow == AwkStatementFlow.ExitProgram)
                     return true;
@@ -248,19 +244,13 @@ internal sealed class AwkInputScheduler(
 
                 AwkRuntimeException CreateOpenFailure(AwkFileOperand path, AwkOpenedFile opened) =>
                     new(
-                        AwkMessages.FormatPathError(path.Display, ResolveHostError(opened.Error)),
+                        AwkMessages.FormatPathError(path.Display, io.HostAdapter.ResolveError(opened.Error)),
                         AwkDiagnosticId.HostIoFailure);
             }
 
             AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor)
             {
-                var descriptorReader = new AwkRecordDescriptorReader(
-                    host,
-                    cancellationToken,
-                    state.Options);
-                var cursor = new AwkRecordCursor(
-                    state,
-                    descriptorReader.CreateByteReader(descriptor));
+                var cursor = io.CreateRecordCursor(descriptor);
                 if (descriptor == invocation.Stdio.StdIn)
                     io.PreserveStandardInputIfRedirected(cursor);
                 return cursor;
@@ -287,14 +277,13 @@ internal sealed class AwkInputScheduler(
 
     public async Task CloseRemainingDescriptorsForCleanupAsync()
     {
-        _currentInput?.Cursor.Dispose();
+        _currentInput?.Dispose();
         _currentInput = null;
-        if (_ownedDescriptor.TryGetValue(out var descriptor))
+        if (_ownedDescriptor is { } descriptor)
         {
             try
             {
-                state.Counters.Add(AwkCounter.HostCalls);
-                await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+                await io.HostAdapter.CloseDescriptorWithoutCancellationAsync(descriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -317,7 +306,7 @@ internal sealed class AwkInputScheduler(
             : AwkStatementFlow.Continue;
         var input = _currentInput;
         _currentInput = null;
-        input.Cursor.Dispose();
+        input.Dispose();
         await CloseOwnedDescriptorAsync().ConfigureAwait(false);
 
         return flow;
@@ -351,15 +340,14 @@ internal sealed class AwkInputScheduler(
 
     private async Task CloseOwnedDescriptorAsync()
     {
-        if (!_ownedDescriptor.TryGetValue(out var descriptor))
+        if (_ownedDescriptor is not { } descriptor)
             return;
 
         // Keep ownership through pending or failed closes; cleanup can retry a failure.
         cancellationToken.ThrowIfCancellationRequested();
-        state.Counters.Add(AwkCounter.HostCalls);
-        var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
+        var closed = await io.HostAdapter.CloseDescriptorWithoutCancellationAsync(descriptor)
             .ConfigureAwait(false);
-        if (closed.DescriptorRetired) _ownedDescriptor = OwnedInputDescriptor.None;
+        if (closed.DescriptorRetired) _ownedDescriptor = null;
         try
         {
             if (!closed.Success)
@@ -373,44 +361,7 @@ internal sealed class AwkInputScheduler(
         if (!_ownedInputDisplay.IsEmpty)
             _inputDisplayMemory.Release(AwkRuntimeMemory.EstimateInputDisplayBytes(_ownedInputDisplay.Length));
         _ownedInputDisplay = default;
-        _ownedDescriptor = OwnedInputDescriptor.None;
-    }
-
-    private static string ResolveHostErrorCore(
-        AwkOperationError error,
-        bool exposeDetails,
-        int maxErrorBytes) =>
-        AwkHostBoundaryPolicy.ResolveError(error, exposeDetails, maxErrorBytes);
-
-    private string ResolveHostError(AwkOperationError error) =>
-        ResolveHostErrorCore(error, state.Options.ExposeHostErrorDetails, state.Options.MaxHostErrorBytes);
-
-    private readonly struct OwnedInputDescriptor
-    {
-        private readonly AwkFileDescriptor _value;
-        private readonly OwnedInputDescriptorKind _kind;
-
-        private OwnedInputDescriptor(AwkFileDescriptor value)
-        {
-            _value = value;
-            _kind = OwnedInputDescriptorKind.Owned;
-        }
-
-        public static OwnedInputDescriptor None => default;
-
-        public static OwnedInputDescriptor Owned(AwkFileDescriptor descriptor) => new(descriptor);
-
-        public bool TryGetValue(out AwkFileDescriptor descriptor)
-        {
-            descriptor = _value;
-            return _kind == OwnedInputDescriptorKind.Owned;
-        }
-    }
-
-    private sealed class OpenMainInput(AwkRecordCursor cursor)
-    {
-        public AwkRecordCursor Cursor { get; } = cursor;
-
+        _ownedDescriptor = null;
     }
 
     private enum MainInputReadProhibition
@@ -426,9 +377,4 @@ internal sealed class AwkInputScheduler(
         Execute
     }
 
-    private enum OwnedInputDescriptorKind
-    {
-        None,
-        Owned
-    }
 }

@@ -18,7 +18,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         host.SetStandardInput("next\n");
         var io = AwkTestHarness.CreateRegionIo(state, host, cancellation.Token);
         using var executor = new AwkRuntimeActionExecutor(program, state);
-        var input = AwkTestHarness.BindRegionInput("{}", executor, state, io, host, cancellation.Token);
+        var input = AwkTestHarness.BindRegionInput("{}", executor, state, io, cancellation.Token);
         var refunded = false;
         memory.Budget.OnRefund = () =>
         {
@@ -63,7 +63,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         host.SetStandardInput("1\n");
         var io = AwkTestHarness.CreateRegionIo(state, host, cancellation.Token);
         using var executor = new AwkRuntimeActionExecutor(program, state);
-        var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host, cancellation.Token);
+        var input = AwkTestHarness.BindRegionInput(source, executor, state, io, cancellation.Token);
         cancellation.Cancel();
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => input.ProcessRemainingInputAsync());
         Assert.Equal(cancellation.Token, error.CancellationToken);

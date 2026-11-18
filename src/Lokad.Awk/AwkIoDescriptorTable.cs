@@ -142,7 +142,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
             if (!output.HasDescriptor) continue;
             try
             {
-                await host.CloseDescriptorForCleanupAsync(output.Descriptor).ConfigureAwait(false);
+                await host.CloseDescriptorWithoutCancellationAsync(output.Descriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -155,7 +155,7 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
             input.Reader.Dispose();
             try
             {
-                await host.CloseDescriptorForCleanupAsync(input.Descriptor).ConfigureAwait(false);
+                await host.CloseDescriptorWithoutCancellationAsync(input.Descriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
