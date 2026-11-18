@@ -47,6 +47,8 @@ internal partial struct AwkRegionMachine
             _state.AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
         else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
             _state.AssignPreparedGlobalValue(variable.Name, variable.Index, value);
+        else if (variable.Kind == AwkRegionOperandKind.SpecialVariable)
+            _state.AssignSpecialVariableValue((AwkSpecialVariableId)variable.Index, value);
         else
             _state.AssignVariableValue(variable.Name, value);
     }

@@ -48,7 +48,8 @@ internal sealed class AwkSpecialVariableDispatcher(
         return format.HasValue;
     }
 
-    private void AssignFormat(AwkVariableName name, AwkSpecialVariableId id, AwkValue value)
+    private void AssignFormat(AwkVariableName name, AwkSpecialVariableId id, AwkValue value,
+        AwkVariables.AwkScalarCell? cell)
     {
         AwkMemoryLease? staging = null;
         try
@@ -63,7 +64,7 @@ internal sealed class AwkSpecialVariableDispatcher(
                 prepared = new(text, staging);
             }
             checkpoint();
-            variables.SetScalarValue(name, value);
+            StoreScalar(name, value, cell);
             ref var current = ref (id == AwkSpecialVariableId.ConversionFormat
                 ? ref _numericConversionFormat : ref _numericOutputFormat);
             var previous = current;
@@ -109,6 +110,12 @@ internal sealed class AwkSpecialVariableDispatcher(
         variables.InitializeArrayValues(ProcInfo, csv ? InitialCsvProcInfo : InitialProcInfo);
     }
 
+    private void StoreScalar(AwkVariableName name, AwkValue value, AwkVariables.AwkScalarCell? cell)
+    {
+        if (cell is null) variables.SetScalarValue(name, value);
+        else variables.SetScalarValue(cell, value);
+    }
+
     public void Assign(AwkVariableName name, AwkValue value)
     {
         if (!AwkSpecialVariables.TryGetScalar(name, out var id) ||
@@ -117,13 +124,21 @@ internal sealed class AwkSpecialVariableDispatcher(
             variables.SetScalarValue(name, value);
             return;
         }
+        AssignSpecial(name, id, value, variables.GetSpecialScalarCell(id));
+    }
 
+    internal void AssignBound(AwkSpecialVariableId id, AwkVariables.AwkScalarCell cell, AwkValue value) =>
+        AssignSpecial(cell.Name, id, value, cell);
+
+    private void AssignSpecial(AwkVariableName name, AwkSpecialVariableId id, AwkValue value,
+        AwkVariables.AwkScalarCell? cell)
+    {
         if (id is not (AwkSpecialVariableId.FieldSeparator or AwkSpecialVariableId.FieldPattern or
             AwkSpecialVariableId.FieldWidths or AwkSpecialVariableId.RecordSeparator))
         {
             if (id is AwkSpecialVariableId.ConversionFormat or AwkSpecialVariableId.OutputFormat)
-                AssignFormat(name, id, value);
-            else variables.SetScalarValue(name, value);
+                AssignFormat(name, id, value, cell);
+            else StoreScalar(name, value, cell);
             recordAssignment(id);
             return;
         }
@@ -142,7 +157,7 @@ internal sealed class AwkSpecialVariableDispatcher(
                 fieldSplitter.ValidateFieldPattern(formatting.FormatStringByteText(value));
             else if (id == AwkSpecialVariableId.FieldWidths)
                 _ = fieldSplitter.EstimateFieldWidthsMemory(formatting.FormatStringByteText(value));
-            variables.SetScalarValue(name, value);
+            StoreScalar(name, value, cell);
             warned = true;
             return;
         }
@@ -202,7 +217,7 @@ internal sealed class AwkSpecialVariableDispatcher(
             widths = fieldSplitter.PrepareFieldWidths(text);
 
         // Every check precedes storage, splitter changes, and metadata publication.
-        variables.SetScalarValue(name, value);
+        StoreScalar(name, value, cell);
         if (publish)
             variables.SetArrayValue(ProcInfo, FieldModeKey, fieldMode);
         switch (id)

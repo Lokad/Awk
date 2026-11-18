@@ -1113,6 +1113,8 @@ internal sealed class AwkRuntimeState : IDisposable
             if (!TryAssignPreparedGlobalNumber(variable.Index, number))
                 AssignPreparedGlobalValue(variable.Name, variable.Index, AwkValue.FromNumber(number));
         }
+        else if (variable.Kind == AwkRegionOperandKind.SpecialVariable)
+            AssignSpecialVariableValue((AwkSpecialVariableId)variable.Index, AwkValue.FromNumber(number));
         else AssignVariableValue(variable.Name, AwkValue.FromNumber(number));
     }
 
@@ -1242,17 +1244,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
     }
 
-    private bool TryGetRecordCounterCell(AwkSpecialVariableId id, [NotNullWhen(true)] out AwkVariables.AwkScalarCell? cell)
-    {
-        if (id is AwkSpecialVariableId.RecordNumber or AwkSpecialVariableId.FileRecordNumber)
-        {
-            cell = _variables.GetSpecialScalarCell(id);
-            return cell is not null;
-        }
-        cell = null;
-        return false;
-    }
-
     public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id)
     {
         if (id != AwkSpecialVariableId.FieldCount &&
@@ -1273,10 +1264,16 @@ internal sealed class AwkRuntimeState : IDisposable
             return;
         }
 
-        if (TryGetRecordCounterCell(id, out var cell))
-            _variables.SetScalarValue(cell, value);
-        else
-            _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
+        // Enabled scalar names are reserved. Their initialized bindings identify
+        // the global owner even in a function. Unbound names use ordinary lookup.
+        if ((uint)id < (uint)AwkSpecialVariableId.ArgumentVector && _variables.GetSpecialScalarCell(id) is { } cell)
+        {
+            if (id is AwkSpecialVariableId.RecordNumber or AwkSpecialVariableId.FileRecordNumber)
+                _variables.SetScalarValue(cell, value);
+            else _specialVariables.AssignBound(id, cell, value);
+            return;
+        }
+        _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
     }
 
     public AwkGlobalSlotId GetOrCreateGlobalScalarSlot(AwkVariableName name) =>
