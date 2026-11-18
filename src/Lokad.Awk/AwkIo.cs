@@ -133,12 +133,11 @@ internal sealed class AwkIo
         await _host.AppendAsync(descriptor, output.Content).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkGetlineCompletion> ReadRedirectedRecordAsync(string path)
+    public ValueTask<AwkGetlineCompletion> ReadRedirectedRecordAsync(string path)
     {
         ThrowIfFileRedirectionDisabled();
         AwkSpecialPathPolicy.ThrowIfUnsupported(path);
 
-        AwkRecordCursor reader;
         if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
         {
             _mainInput?.PreserveStandardInput();
@@ -148,13 +147,17 @@ internal sealed class AwkIo
                 _standardInputOrder = NextRedirectionOrder();
             }
             _standardInputReader.PreserveBorrowedInput(releaseDescriptor: true);
-            reader = _standardInputReader;
+            return ReadGetlineRecordAsync(_standardInputReader);
         }
-        else if (_descriptors.TryGetInput(path, out var existing))
-        {
-            reader = existing;
-        }
-        else
+
+        return _descriptors.TryGetInput(path, out var existing)
+            ? ReadGetlineRecordAsync(existing)
+            : OpenAndReadAsync(path);
+    }
+
+    private async ValueTask<AwkGetlineCompletion> OpenAndReadAsync(string path)
+    {
+        AwkRecordCursor reader;
         {
             using var resolution = _host.AdmitPathRequest(path);
             var targetPath = _host.PreparePath(path);
@@ -210,16 +213,34 @@ internal sealed class AwkIo
         return ReadGetlineRecordAsync(input);
     }
 
-    private static async ValueTask<AwkGetlineCompletion> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
+    private static ValueTask<AwkGetlineCompletion> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
     {
         try
         {
-            await reader.MoveNextAsync().ConfigureAwait(false);
-            return AwkGetlineCompletion.Read(reader);
+            var read = reader.MoveNextAsync();
+            if (!read.IsCompletedSuccessfully)
+                return CompleteAsync(reader, read);
+
+            // Consume the completed read. EOF and any RT change come from TakeRecord.
+            _ = read.Result;
+            return ValueTask.FromResult(AwkGetlineCompletion.Read(reader));
         }
         catch (AwkHostReadException exception)
         {
-            return AwkGetlineCompletion.Failure(AwkErrno.FromHostMessage(exception.Error.Message));
+            return ValueTask.FromResult(AwkGetlineCompletion.Failure(AwkErrno.FromHostMessage(exception.Error.Message)));
+        }
+
+        static async ValueTask<AwkGetlineCompletion> CompleteAsync(IAwkInputRecordReader reader, ValueTask<bool> read)
+        {
+            try
+            {
+                await read.ConfigureAwait(false);
+                return AwkGetlineCompletion.Read(reader);
+            }
+            catch (AwkHostReadException exception)
+            {
+                return AwkGetlineCompletion.Failure(AwkErrno.FromHostMessage(exception.Error.Message));
+            }
         }
     }
 
