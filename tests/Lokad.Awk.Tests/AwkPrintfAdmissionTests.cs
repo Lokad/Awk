@@ -123,27 +123,33 @@ public sealed class AwkPrintfAdmissionTests
     public static IEnumerable<object[]> GeneralPrecisionValues()
     {
         foreach (var upper in new[] { false, true })
-        foreach (var number in new[] { 0d, -0d, 1.25, double.Epsilon, double.MaxValue,
+            foreach (var number in new[] { 0d, -0d, 1.25, double.Epsilon, double.MaxValue,
             -double.MaxValue, 1e-300, 1e-4, 1e20 })
-            yield return [upper, number];
+                yield return [upper, number];
     }
 
     [Theory]
     [MemberData(nameof(GeneralPrecisionValues))]
     public void GeneralPrecisionDoesNotRequirePaddingStorage(bool upper, double number)
     {
-        using var memory = new CooperativeTestMemory(64 << 10);
-        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 0))
+        var memory = new CooperativeTestMemory(64 << 10).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            PrintfEvaluation.FormatToBuilder(builder, upper ? "%.2000000000G" : "%.2000000000g",
+            using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 0))
+            {
+                PrintfEvaluation.FormatToBuilder(builder, upper ? "%.2000000000G" : "%.2000000000g",
                 new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), AwkRuntimeCounters.Disabled),
-                PrintfMissingArgumentPolicy.Throw, AwkRuntimeCounters.Disabled, memory.Accounting);
-            Assert.InRange(builder.Length, 1, 2_000);
-            var parsed = double.Parse(builder.AsSpan(), System.Globalization.CultureInfo.InvariantCulture);
-            Assert.Equal(BitConverter.DoubleToInt64Bits(number), BitConverter.DoubleToInt64Bits(parsed));
+                PrintfMissingArgumentPolicy.Throw, memory.State);
+                Assert.InRange(builder.Length, 1, 2_000);
+                var parsed = double.Parse(builder.AsSpan(), System.Globalization.CultureInfo.InvariantCulture);
+                Assert.Equal(BitConverter.DoubleToInt64Bits(number), BitConverter.DoubleToInt64Bits(parsed));
+            }
+            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, memory.Budget.Reserved);
         }
-        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]
@@ -171,76 +177,94 @@ public sealed class AwkPrintfAdmissionTests
     [InlineData("%+.*e", 1_000_007)]
     [InlineData("%#.*g", 1_000_001)]
     [InlineData("%.*a", 1_000_007)]
-    public async Task LargeConversionsReleaseScratchAfterEncoding(string format, int expectedLength)
+    public void LargeConversionsReleaseScratchAfterEncoding(string format, int expectedLength)
     {
-        var budget = new CooperativeTestBudget(16 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using (var builder = new AwkUtf8Builder(accounting, capacity: 0))
+        var memory = new CooperativeTestMemory(16 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            PrintfEvaluation.FormatToBuilder(builder, format.Replace("*", "1000000", StringComparison.Ordinal),
+            var budget = memory.Budget;
+            var accounting = memory.Accounting;
+            using (var builder = new AwkUtf8Builder(accounting, capacity: 0))
+            {
+                PrintfEvaluation.FormatToBuilder(builder, format.Replace("*", "1000000", StringComparison.Ordinal),
                 new AwkSingleValuePrintfArguments(AwkValue.FromNumber(1.25), AwkRuntimeCounters.Disabled),
-                PrintfMissingArgumentPolicy.Throw, AwkRuntimeCounters.Disabled, accounting);
-            Assert.Equal(expectedLength, builder.Length);
-            Assert.Equal(accounting.CurrentCommittedBytes, budget.Reserved);
-            Assert.True(budget.Peak >= 3_000_000);
+                PrintfMissingArgumentPolicy.Throw, memory.State);
+                Assert.Equal(expectedLength, builder.Length);
+                Assert.Equal(accounting.CurrentCommittedBytes, budget.Reserved);
+                Assert.True(budget.Peak >= 3_000_000);
+            }
+            Assert.Equal(memoryBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, budget.Reserved);
         }
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AdmittedCapacityNeedsNoAdditionalMemoryToFormat(bool governed)
+    public void AdmittedCapacityNeedsNoAdditionalMemoryToFormat(bool governed)
     {
         const int limit = 1024;
-        var budget = new CooperativeTestBudget(limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
-        using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
+        var memory = new CooperativeTestMemory(limit, enabled: governed).InitializeRuntime(counters);
+        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            var committed = accounting.CurrentCommittedBytes;
-            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
-            PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw, counters, accounting);
-            Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
-            Assert.Equal(committed, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
-        }
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, budget.Reserved);
-    }
-    [Fact]
-    public async Task ActualGrowthStillRefusesBeforeMutationAndRefundsForRetry()
-    {
-        const int limit = 1024;
-        var budget = new CooperativeTestBudget(limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
-        {
-            builder.Append("kept"u8);
-            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
+            var budget = memory.Budget;
+            var accounting = memory.Accounting;
+            using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
             using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
             {
                 var committed = accounting.CurrentCommittedBytes;
-                var error = Assert.Throws<AwkRuntimeException>(() => PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw, counters, accounting));
-                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-                Assert.Equal("kept"u8.ToArray(), builder.AsSpan().ToArray());
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
+                PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw, memory.State);
+                Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
                 Assert.Equal(committed, accounting.CurrentCommittedBytes);
                 Assert.Equal(0, accounting.CurrentReservedBytes);
+                Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
             }
-            builder.Clear();
-            PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw, counters, accounting);
-            Assert.Equal(AwkUtf8Codec.Encode(new string(' ', 25) + "payload").ToArray(), builder.AsSpan().ToArray());
+            Assert.Equal(memoryBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, budget.Reserved);
         }
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
+    }
+    [Fact]
+    public void ActualGrowthStillRefusesBeforeMutationAndRefundsForRetry()
+    {
+        const int limit = 1024;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var memory = new CooperativeTestMemory(limit).InitializeRuntime(counters);
+        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBudget = memory.Budget;
+        using (memory)
+        {
+            var budget = memory.Budget;
+            var accounting = memory.Accounting;
+            using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
+            {
+                builder.Append("kept"u8);
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
+                using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
+                {
+                    var committed = accounting.CurrentCommittedBytes;
+                    var error = Assert.Throws<AwkRuntimeException>(() => PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw, memory.State));
+                    Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+                    Assert.Equal("kept"u8.ToArray(), builder.AsSpan().ToArray());
+                    Assert.Equal(committed, accounting.CurrentCommittedBytes);
+                    Assert.Equal(0, accounting.CurrentReservedBytes);
+                }
+                builder.Clear();
+                PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw, memory.State);
+                Assert.Equal(AwkUtf8Codec.Encode(new string(' ', 25) + "payload").ToArray(), builder.AsSpan().ToArray());
+            }
+            Assert.Equal(memoryBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, budget.Reserved);
+        }
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
 }

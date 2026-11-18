@@ -179,16 +179,26 @@ public sealed class AwkScanCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(32 << 10);
-        var governor = memoryForGovernor.Accounting;
-        var format = new string('a', 4095) + "\ud83d\ude00a";
         using var cancellation = new CancellationTokenSource();
+        var memoryForGovernor = new CooperativeTestMemory(32 << 10).InitializeRuntime(counters, cancellation.Token);
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBudget = memoryForGovernor.Budget;
+        using (memoryForGovernor)
+        {
+            var governor = memoryForGovernor.Accounting;
+            var format = new string('a', 4095) + "\ud83d\ude00a";
+            memoryForGovernor.Budget.OnGrowth = _ =>
+            {
+                if (governor.CurrentCommittedBytes > 0) cancellation.Cancel();
+            };
 
-        Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-            format, new EmptyPrintfArguments(), PrintfMissingArgumentPolicy.Throw, counters, governor, checkpoint: CancelDuringScan(cancellation)));
+            Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
+                format, new EmptyPrintfArguments(), PrintfMissingArgumentPolicy.Throw, memoryForGovernor.State));
 
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+        }
+        Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
 
     private readonly struct EmptyPrintfArguments : IPrintfArguments

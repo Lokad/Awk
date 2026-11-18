@@ -220,11 +220,11 @@ public sealed class AwkSortProjectionMemoryTests
     [InlineData(true)]
     public void LeasedPrintfResultAdmissionCancellationKeepsOwnersFundedUntilRetirement(bool observed)
     {
-        using var memoryForState = State(observed, "default", "@val_str_asc");
-        var state = memoryForState.State;
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
+        using var memoryForState = State(observed, "default", "@val_str_asc", cancellation.Token);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         var copyAdmitted = false;
         memoryForState.Budget.OnGrowth = _ =>
         {
@@ -238,8 +238,7 @@ public sealed class AwkSortProjectionMemoryTests
             {
                 var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
                     "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
-                    PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting,
-                    checkpoint: cancellation.Token.ThrowIfCancellationRequested, retainedTextLease: lease));
+                    PrintfMissingArgumentPolicy.Throw, state, retainedTextLease: lease));
                 Assert.Equal(cancellation.Token, failure.CancellationToken);
                 Assert.True(copyAdmitted);
                 Assert.Equal(0, counters[AwkCounter.TextAllocations]);
@@ -269,14 +268,14 @@ public sealed class AwkSortProjectionMemoryTests
         AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count) + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count) +
         (count >= 2 ? AwkRuntimeMemory.EstimateInt32ArrayBytes(count) : 0);
 
-    private static CooperativeTestMemory State(bool observed, string format, string selector)
+    private static CooperativeTestMemory State(bool observed, string format, string selector, CancellationToken token = default)
     {
 
         var testMemory = new CooperativeTestMemory(Limit);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options));
         if (format == "wide")
             state.AssignVariableValue(AwkVariableName.FromText("CONVFMT"), AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), selector);

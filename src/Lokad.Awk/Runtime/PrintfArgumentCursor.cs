@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 internal struct PrintfArgumentCursor<TArguments>(
     TArguments arguments, PrintfMissingArgumentPolicy policy, string format,
-    AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action? checkpoint = null)
+    AwkRuntimeState state)
     where TArguments : IPrintfArguments
 {
     private int _next;
@@ -40,8 +40,8 @@ internal struct PrintfArgumentCursor<TArguments>(
             // GNU's *0$ selects the format itself, rather than a value argument.
             if (position.OneBasedIndex == 0)
             {
-                var text = AwkText.FromString(format, counters, governor);
-                return text.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var value, out _, checkpoint) ? value : 0;
+                var text = AwkText.FromString(format, state.Counters, state.MemoryAccounting);
+                return text.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var value, out _, state.CancellationCheckpoint) ? value : 0;
             }
             var index = position.OneBasedIndex - 1;
             if (index < arguments.Count)

@@ -56,7 +56,7 @@ internal sealed class AwkFormattingRuntime(
         using var argumentText = state.MemoryAccounting.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
             state.DecodeText(resolveVariable(variable)), new NumericFormatArguments(number, variable, this, argumentText),
-            PrintfMissingArgumentPolicy.OmitDirective, state.Counters, state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint, retainedTextLease);
+            PrintfMissingArgumentPolicy.OmitDirective, state, retainedTextLease);
     }
 
     private AwkText FormatNumberArgumentText(double number, AwkFormattingVariable variable, AwkMemoryLease lease) =>
@@ -144,8 +144,7 @@ internal sealed class AwkFormattingRuntime(
         where TArguments : IPrintfArguments
     {
 
-        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw, state.Counters,
-            state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint, state.StringUnitMode);
+        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw, state, state.StringUnitMode);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

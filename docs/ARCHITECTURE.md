@@ -11,8 +11,10 @@ backedges. Explicit frames and continuations preserve caller ownership across ca
 nonlocal flow and real pending host work. Execution ownership can differ from the
 currently visible binding scope during retirement or file-phase reentry.
 
-Formatting, function storage and I/O read controls and accounting from their owning
-runtime, keeping cancellation, admission and value interpretation in the same invocation.
+Formatting, including printf cursors and staged output, function storage and I/O read
+controls and accounting from their owning runtime, keeping cancellation, admission and
+value interpretation in the same invocation. Supplied destination leases retain their
+publication funding.
 
 Each invocation parses, prepares and executes its own program. Programs, token caches
 and concatenation owners are not shared between executions. Concurrent invocations

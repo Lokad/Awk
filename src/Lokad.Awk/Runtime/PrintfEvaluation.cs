@@ -12,18 +12,19 @@ internal enum PrintfMissingArgumentPolicy
 
 internal static class PrintfEvaluation
 {
+    // Numeric conversion keeps rune units by default; printf/sprintf pass their selected units.
     public static AwkText FormatByteText<TArguments>(
         string format,
         TArguments arguments,
         PrintfMissingArgumentPolicy missingArgumentPolicy,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null,
+        AwkRuntimeState state,
         AwkMemoryLease? retainedTextLease = null,
         AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
         where TArguments : IPrintfArguments
     {
+        ArgumentNullException.ThrowIfNull(state);
+        var checkpoint = state.CancellationCheckpoint;
+        var governor = state.MemoryAccounting;
         if (format.Length == 0)
         {
             checkpoint?.Invoke();
@@ -31,8 +32,8 @@ internal static class PrintfEvaluation
         }
 
         using var builder = new AwkUtf8Builder(governor, capacity: 0);
-        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, counters, governor, compatibilityMode, checkpoint, stringUnitMode);
-        var output = new PrintfByteOutput(builder, counters, checkpoint, retainedTextLease);
+        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, state, stringUnitMode);
+        var output = new PrintfByteOutput(builder, state, retainedTextLease);
         var result = output.ToAwkText();
         checkpoint?.Invoke();
         return result;
@@ -43,21 +44,22 @@ internal static class PrintfEvaluation
         string format,
         TArguments arguments,
         PrintfMissingArgumentPolicy missingArgumentPolicy,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null,
+        AwkRuntimeState state,
         AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
         where TArguments : IPrintfArguments
     {
         ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(state);
+        var checkpoint = state.CancellationCheckpoint;
+        var governor = state.MemoryAccounting;
+        var compatibilityMode = state.CompatibilityMode;
         if (format.Length == 0)
         {
             checkpoint?.Invoke();
             return;
         }
-        var output = new PrintfByteOutput(builder, counters, checkpoint, null);
-        var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
+        var output = new PrintfByteOutput(builder, state, null);
+        var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, state);
 
         long nextCheckpoint = 0;
         for (var index = 0; index < format.Length; index++)
@@ -630,31 +632,28 @@ internal static class PrintfEvaluation
 
     private readonly struct PrintfByteOutput
     {
-        private readonly AwkRuntimeCounters _counters;
+        private readonly AwkRuntimeState _state;
         private readonly AwkUtf8Builder _builder;
-        private readonly Action? _checkpoint;
         private readonly AwkMemoryLease? _retainedTextLease;
 
         public PrintfByteOutput(
             AwkUtf8Builder builder,
-            AwkRuntimeCounters counters,
-            Action? checkpoint, AwkMemoryLease? retainedTextLease)
+            AwkRuntimeState state, AwkMemoryLease? retainedTextLease)
         {
-            _checkpoint = checkpoint;
+            _state = state;
             _retainedTextLease = retainedTextLease;
-            _counters = counters;
             _builder = builder;
         }
 
         public void Append(AwkText text)
         {
-            var bytes = text.AsSpan(_checkpoint);
-            _builder.Append(bytes, _checkpoint);
+            var bytes = text.AsSpan(_state.CancellationCheckpoint);
+            _builder.Append(bytes, _state.CancellationCheckpoint);
         }
 
         public void Append(ReadOnlySpan<byte> bytes)
         {
-            _builder.Append(bytes, _checkpoint);
+            _builder.Append(bytes, _state.CancellationCheckpoint);
         }
 
         public void Append(string text) => Append(text.AsSpan());
@@ -663,11 +662,11 @@ internal static class PrintfEvaluation
         {
             var longText = text.Length >= AwkRuntimeLimits.CancellationCheckBytes;
             if (longText)
-                _checkpoint?.Invoke();
+                _state.CancellationCheckpoint();
             _builder.AppendUtf8(text);
-            if (!text.IsEmpty) { _counters.Add(AwkCounter.Utf8Encodes, 1); }
+            if (!text.IsEmpty) { _state.Counters.Add(AwkCounter.Utf8Encodes, 1); }
             if (longText)
-                _checkpoint?.Invoke();
+                _state.CancellationCheckpoint();
         }
 
         public void AppendAscii(char value)
@@ -690,10 +689,10 @@ internal static class PrintfEvaluation
 
             var longPadding = count >= AwkRuntimeLimits.CancellationCheckBytes;
             if (longPadding)
-                _checkpoint?.Invoke();
+                _state.CancellationCheckpoint();
             _builder.Append((byte)value, count);
             if (longPadding)
-                _checkpoint?.Invoke();
+                _state.CancellationCheckpoint();
         }
 
         public void PreflightAdditionalBytes(int byteCount)
@@ -707,11 +706,11 @@ internal static class PrintfEvaluation
         public AwkText ToAwkText()
         {
             if (_retainedTextLease is null)
-                return _builder.CopyToAwkText(_counters, _checkpoint);
+                return _builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint);
 
             _retainedTextLease.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(_builder.Length));
-            return AwkText.CopyTrustedBytes(_builder.AsSpan(), _counters,
-                AwkMemoryAccounting.Disabled, _checkpoint);
+            return AwkText.CopyTrustedBytes(_builder.AsSpan(), _state.Counters,
+                AwkMemoryAccounting.Disabled, _state.CancellationCheckpoint);
         }
 
     }

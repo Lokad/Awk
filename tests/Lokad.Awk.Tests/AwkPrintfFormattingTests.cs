@@ -15,31 +15,38 @@ public sealed class AwkPrintfFormattingTests
         var format = prefix + "%04d:end";
         var expected = AwkUtf8Codec.Encode(prefix.Replace("%%", "%", StringComparison.Ordinal) + "0007:end");
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(64 << 10, enabled: governed);
-        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 32 << 10))
-        using (var pressure = memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Accounting.CurrentCommittedBytes))
+        var memory = new CooperativeTestMemory(64 << 10, enabled: governed).InitializeRuntime(counters);
+        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromNumber(7), counters);
-            PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
-                counters, memory.Accounting);
-            Assert.Equal(expected.ToArray(), builder.AsSpan().ToArray());
-            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
-            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+            using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 32 << 10))
+            using (var pressure = memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Accounting.CurrentCommittedBytes))
+            {
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromNumber(7), counters);
+                PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
+                    memory.State);
+                Assert.Equal(expected.ToArray(), builder.AsSpan().ToArray());
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+                Assert.Equal(0, counters[AwkCounter.TextAllocations]);
 
+            }
+            Assert.Equal(memoryBaseline, memory.Budget.Reserved);
         }
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Fact]
     public void ZeroStringPrecisionDoesNotMaterializeConcatenatedText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var text = AwkText.Concat([AwkText.FromString(new string('q', 1_000_000)), AwkText.FromString("tail")], counters, AwkMemoryAccounting.Disabled);
         var arguments = new AwkSingleValuePrintfArguments(
             AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), counters);
         using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 0);
         PrintfEvaluation.FormatToBuilder(builder, "%.0s", arguments, PrintfMissingArgumentPolicy.Throw,
-            counters, AwkMemoryAccounting.Disabled);
+            state);
         Assert.Equal(0, builder.Length);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
@@ -57,25 +64,31 @@ public sealed class AwkPrintfFormattingTests
         foreach (var format in new[] { "%.0s", "%.1s", "%6.1s" })
         {
             var counters = AwkRuntimeCounters.CreateEnabled();
-            using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
-            using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
+            var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters);
+            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBudget = memory.Budget;
+            using (memory)
             {
-                var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
-                PrintfEvaluation.FormatToBuilder(builder, format, warm, PrintfMissingArgumentPolicy.Throw,
-                    AwkRuntimeCounters.Disabled, memory.Accounting);
-                builder.Clear();
-                var text = AwkText.FromString(first + new string('q', 1_000_000));
-                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(text), counters);
-                var before = GC.GetAllocatedBytesForCurrentThread();
-                PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
-                    counters, memory.Accounting);
-                Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
-                var expected = format == "%.0s" ? "" : (format == "%6.1s" ? "     " : "") + first;
-                Assert.Equal(System.Text.Encoding.UTF8.GetBytes(expected), builder.AsSpan().ToArray());
-                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+                using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
+                {
+                    var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
+                    PrintfEvaluation.FormatToBuilder(builder, format, warm, PrintfMissingArgumentPolicy.Throw,
+                        memory.State);
+                    builder.Clear();
+                    var text = AwkText.FromString(first + new string('q', 1_000_000));
+                    var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(text), counters);
+                    var before = GC.GetAllocatedBytesForCurrentThread();
+                    PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
+                        memory.State);
+                    Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
+                    var expected = format == "%.0s" ? "" : (format == "%6.1s" ? "     " : "") + first;
+                    Assert.Equal(System.Text.Encoding.UTF8.GetBytes(expected), builder.AsSpan().ToArray());
+                    Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
+                }
+                Assert.Equal(memoryBaseline, memory.Budget.Reserved);
             }
-            Assert.Equal(0, memory.Budget.Reserved);
+            Assert.Equal(0, memoryBudget.Reserved);
         }
     }
 
@@ -89,39 +102,45 @@ public sealed class AwkPrintfFormattingTests
     public void CharacterConversionDoesNotDecodeTheRemainingText(bool governed, string first)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
-        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters);
+        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            // Prime formatter code without warming the large input's decode cache.
-            var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
-            PrintfEvaluation.FormatToBuilder(builder, "%c", warm, PrintfMissingArgumentPolicy.Throw,
-                AwkRuntimeCounters.Disabled, memory.Accounting);
-            builder.Clear();
-            var input = AwkText.FromString(first + new string('q', 1_000_000));
-            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(input), counters);
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            PrintfEvaluation.FormatToBuilder(builder, "%c", arguments, PrintfMissingArgumentPolicy.Throw,
-                counters, memory.Accounting);
-            Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
-            Assert.Equal(System.Text.Encoding.UTF8.GetBytes(first), builder.AsSpan().ToArray());
-            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+            using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
+            {
+                // Prime formatter code without warming the large input's decode cache.
+                var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
+                PrintfEvaluation.FormatToBuilder(builder, "%c", warm, PrintfMissingArgumentPolicy.Throw,
+                    memory.State);
+                builder.Clear();
+                var input = AwkText.FromString(first + new string('q', 1_000_000));
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(input), counters);
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                PrintfEvaluation.FormatToBuilder(builder, "%c", arguments, PrintfMissingArgumentPolicy.Throw,
+                    memory.State);
+                Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
+                Assert.Equal(System.Text.Encoding.UTF8.GetBytes(first), builder.AsSpan().ToArray());
+                Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
+            }
+            Assert.Equal(memoryBaseline, memory.Budget.Reserved);
         }
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Fact]
     public void SignedDecimalDigitsMatchFixedFormatAcrossBinary64Boundaries()
     {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var observed = 0;
         void Check(double number)
         {
             var integral = Math.Truncate(number);
             var expected = (integral < 0 ? "-" : "") +
                 Math.Abs(integral).ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
-            var actual = PrintfEvaluation.FormatByteText("%d", new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), counters), PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting);
+            var actual = PrintfEvaluation.FormatByteText("%d", new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), counters), PrintfMissingArgumentPolicy.Throw, state);
             Assert.Equal(expected, AwkUtf8Codec.Decode(actual.AsSpan()));
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             observed++;
@@ -148,7 +167,7 @@ public sealed class AwkPrintfFormattingTests
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         AwkValue[] values = [AwkValue.FromNumber(number)];
-        var text = PrintfEvaluation.FormatByteText(format, new AwkValueArrayPrintfArguments(values, 1, state), PrintfMissingArgumentPolicy.Throw, state.Counters, state.MemoryAccounting);
+        var text = PrintfEvaluation.FormatByteText(format, new AwkValueArrayPrintfArguments(values, 1, state), PrintfMissingArgumentPolicy.Throw, state);
         Assert.Equal(byteCount, text.ByteLength);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -190,7 +209,7 @@ public sealed class AwkPrintfFormattingTests
         {
             const string format = "%2$*1$a";
             var cursor = new PrintfArgumentCursor<AwkValueArrayPrintfArguments>(arguments,
-                PrintfMissingArgumentPolicy.Throw, format, state.Counters, state.MemoryAccounting);
+                PrintfMissingArgumentPolicy.Throw, format, state);
             var directive = PrintfDirectiveParser.Read(format, 0, AwkCompatibilityMode.GnuDefault, ref cursor);
             if (!cursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 throw new InvalidOperationException("Missing format value.");
@@ -202,9 +221,9 @@ public sealed class AwkPrintfFormattingTests
     public void HexadecimalFormattingKeepsDigitsInUtf8WithoutDecoding()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         AwkValue[] values = [AwkValue.FromNumber(1)];
-        var text = PrintfEvaluation.FormatByteText("%a", new AwkValueArrayPrintfArguments(values, 1, state), PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting);
+        var text = PrintfEvaluation.FormatByteText("%a", new AwkValueArrayPrintfArguments(values, 1, state), PrintfMissingArgumentPolicy.Throw, state);
         Assert.Equal("0x1p+0", text.AsString());
 
         Assert.Equal(1, counters[AwkCounter.Utf8Encodes]);

@@ -193,11 +193,11 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true)]
     public void UnleasedPrintfResultAdmissionCancellationReleasesFormatting(bool observed)
     {
-        using var memoryForState = State(observed, "default");
-        var state = memoryForState.State;
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
+        using var memoryForState = State(observed, "default", cancellation.Token);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         var copyAdmitted = false;
         memoryForState.Budget.OnGrowth = _ =>
         {
@@ -210,7 +210,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         {
             failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
                 "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
-                PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting, checkpoint: cancellation.Token.ThrowIfCancellationRequested));
+                PrintfMissingArgumentPolicy.Throw, state));
         }
         finally { memoryForState.Budget.OnGrowth = null; }
         Assert.Equal(cancellation.Token, failure.CancellationToken);
