@@ -88,19 +88,19 @@ internal sealed class AwkIo
 
     public async Task WriteAsync(AwkRedirectedOutput output)
     {
-        var path = output.RedirectionPath;
+        var target = output.Target;
         if (output.Kind == AwkOutputRedirectionKind.Pipe)
         {
             ThrowIfCommandPipeDisabled();
-            await _pipes.WriteOutputAsync(path, output.Content).ConfigureAwait(false);
+            await _pipes.WriteOutputAsync(target, output.Content).ConfigureAwait(false);
             return;
         }
 
         ThrowIfFileRedirectionDisabled();
 
-        AwkSpecialPathPolicy.ThrowIfUnsupported(path.Text);
+        AwkSpecialPathPolicy.ThrowIfUnsupported(target);
 
-        if (_specialPaths.TryResolveOutput(path.Text, out var specialDescriptor))
+        if (_specialPaths.TryResolveOutput(target, out var specialDescriptor))
         {
             ReleaseStandardInputBorrow(specialDescriptor);
             await _host.AppendAsync(specialDescriptor, output.Content)
@@ -108,17 +108,17 @@ internal sealed class AwkIo
             return;
         }
 
-        if (!_descriptors.TryGetOutput(path.Text, out var descriptor))
+        if (!_descriptors.TryGetOutput(target, out var descriptor))
         {
-            using var resolution = _host.AdmitPathRequest(path.Text);
-            var targetPath = _host.PreparePath(path.Text);
-            if (!_descriptors.HasOutput(path.Text) &&
+            using var resolution = _host.AdmitPathRequest(target);
+            var targetPath = _host.PreparePath(target);
+            if (!_descriptors.HasOutput(target) &&
                 _descriptors.OutputFileCount + _pipes.OutputPipeCount >= _maxOutputFiles)
                 throw new AwkRuntimeException(AwkMessages.ErrorOutputFileLimit, AwkDiagnosticId.HostIoFailure);
 
-            var mode = _descriptors.ResolveOutputOpenMode(path.Text, output.Kind);
+            var mode = _descriptors.ResolveOutputOpenMode(target, output.Kind);
             using var pending = _state.MemoryAccounting.CreateTransientLease();
-            _descriptors.PrepareOutput(path.Text, pending);
+            _descriptors.PrepareOutput(target, pending);
             var opened = await _host.OpenFileAsync(targetPath.Request, mode).ConfigureAwait(false);
             if (!opened.Success)
             {
@@ -127,7 +127,7 @@ internal sealed class AwkIo
             }
 
             descriptor = opened.FileDescriptor;
-            _descriptors.AddOutput(path.Text, descriptor, NextRedirectionOrder(), pending);
+            _descriptors.AddOutput(target, descriptor, NextRedirectionOrder(), pending);
         }
 
         await _host.AppendAsync(descriptor, output.Content).ConfigureAwait(false);

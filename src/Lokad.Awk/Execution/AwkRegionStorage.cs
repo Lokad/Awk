@@ -486,9 +486,6 @@ internal sealed class AwkRegionStorage : IDisposable
         _ = _state.DecodeText(text);
     }
 
-    internal AwkResolvedOutputRedirection PreparedOutputTarget(AwkRegionOutput output) =>
-        new(new AwkRedirectionPath(_values[output.Value].ByteText.PreparedString), output.Kind);
-
     internal string PreparedString(int index) => _values[index].ByteText.PreparedString;
 
     internal void BeginPath(AwkRegionPath path)

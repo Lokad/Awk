@@ -131,7 +131,7 @@ internal static class AwkTestHarness
         string path,
         AwkOutputRedirectionKind kind,
         string content) =>
-        new(new AwkRedirectionPath(path), kind, AwkUtf8Codec.Encode(content));
+        new(path, kind, AwkUtf8Codec.Encode(content));
 
     public static AwkCommandInvocation BuildInvocation(string command, params string[] arguments)
     {

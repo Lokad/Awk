@@ -551,7 +551,6 @@ public sealed class AwkPublicBoundaryTests
         Assert.Equal(default, new AwkRegexLiteralText(string.Empty));
         Assert.Equal(default, new AwkSourceName(string.Empty));
         Assert.Equal(default, new AwkSourceIdentity(string.Empty));
-        Assert.Equal(default, new AwkRedirectionPath(string.Empty));
         Assert.Equal(default, AwkErrno.None);
     }
 

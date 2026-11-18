@@ -23,9 +23,9 @@ internal sealed class AwkPipeRuntime(
         return output.Newer(input);
     }
 
-    public async Task WriteOutputAsync(AwkRedirectionPath command, ReadOnlyMemory<byte> content)
+    public async Task WriteOutputAsync(string command, ReadOnlyMemory<byte> content)
     {
-        var pipe = await GetOrOpenOutputPipeAsync(command.Text).ConfigureAwait(false);
+        var pipe = await GetOrOpenOutputPipeAsync(command).ConfigureAwait(false);
         await host.AppendAsync(pipe.WriteDescriptor, content).ConfigureAwait(false);
 
         async Task<AwkOutputPipe> GetOrOpenOutputPipeAsync(string command)

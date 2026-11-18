@@ -8,36 +8,10 @@ internal enum AwkOutputRedirectionKind
     Coprocess
 }
 
-internal readonly record struct AwkRedirectionPath
+internal readonly struct AwkRedirectedOutput(
+    string target, AwkOutputRedirectionKind kind, ReadOnlyMemory<byte> content)
 {
-    private readonly string? _text;
-
-    public AwkRedirectionPath(string text)
-    {
-        _text = text.Length == 0 ? null : text;
-    }
-
-    public string Text => _text ?? string.Empty;
-
-    public override string ToString() => Text;
+    public string Target => target ?? string.Empty;
+    public AwkOutputRedirectionKind Kind { get; } = kind;
+    public ReadOnlyMemory<byte> Content { get; } = content;
 }
-
-internal readonly struct AwkRedirectedOutput
-{
-    public AwkRedirectedOutput(AwkRedirectionPath path, AwkOutputRedirectionKind kind, ReadOnlyMemory<byte> content)
-    {
-        RedirectionPath = path;
-        Kind = kind;
-        Content = content;
-    }
-
-    public AwkRedirectionPath RedirectionPath { get; }
-
-    public AwkOutputRedirectionKind Kind { get; }
-
-    public ReadOnlyMemory<byte> Content { get; }
-}
-
-internal readonly record struct AwkResolvedOutputRedirection(
-    AwkRedirectionPath Path,
-    AwkOutputRedirectionKind Kind);

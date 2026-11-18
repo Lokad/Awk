@@ -143,11 +143,11 @@ internal partial struct AwkRegionMachine
     private void BeginWrite(AwkRegionOutput output, int payloadStart = 0)
     {
         var storage = _storage;
-        var target = storage.PreparedOutputTarget(output);
+        var target = storage.PreparedString(output.Value);
         _state.ThrowIfCancellationRequested();
         _destination = output.Value;
         _pending = Pending.Output;
-        _hostCompletion = _io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()[payloadStart..]));
+        _hostCompletion = _io.WriteAsync(new(target, output.Kind, storage.Builders[0].Buffer.AsMemory()[payloadStart..]));
     }
 
     private bool TryFlush(int resumePosition, int fieldDemand = 0)
