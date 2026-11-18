@@ -137,25 +137,26 @@ internal sealed class AwkIo
     public async Task<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
     {
         ThrowIfFileRedirectionDisabled();
-        async Task<AwkInputReaderResult> ResolveInputReaderAsync()
+        AwkSpecialPathPolicy.ThrowIfUnsupported(path);
+
+        AwkRecordCursor reader;
+        if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
         {
-            AwkSpecialPathPolicy.ThrowIfUnsupported(path);
-
-            if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
+            _preserveMainStandardInput?.Invoke();
+            if (_standardInputReader is null)
             {
-                _preserveMainStandardInput?.Invoke();
-                if (_standardInputReader is null)
-                {
-                    _standardInputReader = CreateRecordCursor(specialDescriptor);
-                    _standardInputOrder = NextRedirectionOrder();
-                }
-                _standardInputReader.PreserveBorrowedInput(releaseDescriptor: true);
-                return AwkInputReaderResult.Success(_standardInputReader);
+                _standardInputReader = CreateRecordCursor(specialDescriptor);
+                _standardInputOrder = NextRedirectionOrder();
             }
-
-            if (_descriptors.TryGetInput(path, out var existing))
-                return AwkInputReaderResult.Success(existing);
-
+            _standardInputReader.PreserveBorrowedInput(releaseDescriptor: true);
+            reader = _standardInputReader;
+        }
+        else if (_descriptors.TryGetInput(path, out var existing))
+        {
+            reader = existing;
+        }
+        else
+        {
             using var resolution = _host.AdmitPathRequest(path);
             var targetPath = _host.PreparePath(path);
             if (_descriptors.InputFileCount >= _maxInputFiles)
@@ -165,24 +166,13 @@ internal sealed class AwkIo
             _descriptors.PrepareInput(path, pending);
             var opened = await _host.OpenFileAsync(targetPath.Request, AwkFileOpenMode.Read).ConfigureAwait(false);
             if (!opened.Success)
-            {
-                var error = AwkIoError.FromErrno(AwkErrno.FromHostMessage(_host.ResolveError(opened.Error)));
-                return AwkInputReaderResult.Failure(error);
-            }
+                return AwkGetlineResult.Failure(AwkErrno.FromHostMessage(_host.ResolveError(opened.Error)));
 
-            var reader = CreateRecordCursor(opened.FileDescriptor);
+            reader = CreateRecordCursor(opened.FileDescriptor);
             _descriptors.AddInput(path, opened.FileDescriptor, reader, NextRedirectionOrder(), pending);
-            return AwkInputReaderResult.Success(reader);
         }
 
-        var resolved = await ResolveInputReaderAsync().ConfigureAwait(false);
-        if (resolved is AwkInputReaderResult.Failed failed)
-            return AwkGetlineResult.Failure(failed.Error);
-
-        if (resolved is not AwkInputReaderResult.Resolved resolvedReader)
-            throw new InvalidOperationException("Unexpected awk input reader result.");
-
-        return await ReadGetlineRecordAsync(resolvedReader.Reader).ConfigureAwait(false);
+        return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
     public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
@@ -248,8 +238,7 @@ internal sealed class AwkIo
         }
         catch (AwkHostReadException exception)
         {
-            return AwkGetlineResult.Failure(
-                AwkIoError.FromErrno(AwkErrno.FromHostMessage(exception.Error.Message)));
+            return AwkGetlineResult.Failure(AwkErrno.FromHostMessage(exception.Error.Message));
         }
     }
 
@@ -376,7 +365,7 @@ internal sealed class AwkIo
     public async Task<AwkIoOperationResult> CloseAsync(string path)
     {
         if (path.Length == 0)
-            return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
+            return AwkIoOperationResult.Failure(AwkErrno.RedirectionNeverOpened);
         var redirection = GetRedirection(path);
         switch (redirection.Kind)
         {
@@ -401,24 +390,7 @@ internal sealed class AwkIo
         if (_specialPaths.TryResolveOutput(path, out _))
             return AwkIoOperationResult.Success;
 
-        return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
-    }
-
-    private abstract class AwkInputReaderResult
-    {
-        public static Resolved Success(AwkRecordCursor reader) => new(reader);
-
-        public static Failed Failure(AwkIoError error) => new(error);
-
-        public sealed class Resolved(AwkRecordCursor reader) : AwkInputReaderResult
-        {
-            public AwkRecordCursor Reader { get; } = reader;
-        }
-
-        public sealed class Failed(AwkIoError error) : AwkInputReaderResult
-        {
-            public AwkIoError Error { get; } = error;
-        }
+        return AwkIoOperationResult.Failure(AwkErrno.RedirectionNeverOpened);
     }
 
     private abstract class MainInputReaderBinding

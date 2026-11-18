@@ -31,7 +31,7 @@ internal static class AwkGetlineRuntime
         }
         else if (result.Failed)
         {
-            state.SetErrno(result.Error.Errno);
+            state.SetErrno(result.Errno);
         }
     }
 

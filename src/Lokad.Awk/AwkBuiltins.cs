@@ -225,7 +225,7 @@ internal static partial class AwkBuiltins
             await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
             var result = await execution.Io.CloseAsync(path).ConfigureAwait(false);
             if (result.Failed)
-                context.State.SetErrno(result.Error.Errno);
+                context.State.SetErrno(result.Errno);
 
             return AwkValue.FromNumber(result.StatusCode);
         }
