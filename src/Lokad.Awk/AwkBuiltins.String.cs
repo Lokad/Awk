@@ -47,8 +47,7 @@ internal static partial class AwkBuiltins
         if (length <= 0) return;
         state.PrepareStringRangeSource(field, ref source, zeroBasedStart, length);
         state.CancellationCheckpoint();
-        slice = source.SliceUnits(zeroBasedStart, length, byteMode, state.Counters, state.MemoryAccounting,
-            state.CancellationCheckpoint, destination, borrowOwned);
+        slice = source.SliceUnits(zeroBasedStart, length, byteMode, state, destination, borrowOwned);
         whole = slice.ByteLength == source.ByteLength;
     }
 

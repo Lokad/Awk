@@ -19,9 +19,9 @@ internal readonly ref struct AwkByteTextOperand
         return IsOwned;
     }
 
-    internal AwkText Own(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint,
-        AwkMemoryLease? destination = null) =>
-        _owned.Backing is not null ? _owned : AwkText.CopyTrustedBytes(_bytes, counters, governor, checkpoint, destination);
+    internal AwkText Own(AwkRuntimeState state, AwkMemoryLease? destination = null) =>
+        _owned.Backing is not null ? _owned : AwkText.CopyTrustedBytes(_bytes, state.Counters,
+            state.MemoryAccounting, state.CancellationCheckpoint, destination);
 
     internal bool HasUnitAt(int index, bool bytes, Action? checkpoint)
     {
@@ -30,18 +30,21 @@ internal readonly ref struct AwkByteTextOperand
         return bytes ? index < _bytes.Length : AwkText.HasRuneAt(_bytes, index, checkpoint);
     }
 
-    internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease destination, bool borrowOwned = false)
+    internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, AwkRuntimeState state,
+        AwkMemoryLease destination, bool borrowOwned = false)
     {
+        var checkpoint = state.CancellationCheckpoint;
         if (_owned.Backing is not null && !borrowOwned)
         {
-            if (!bytes) return new(_owned.CopyRuneSlice(start, length, counters, governor, checkpoint, destination));
+            if (!bytes) return new(_owned.CopyRuneSlice(start, length, state.Counters,
+                state.MemoryAccounting, checkpoint, destination));
             start = Math.Min(start, _owned.ByteLength);
-            return new(_owned.CopyByteSlice(start, Math.Min(length, _owned.ByteLength - start), counters, governor, checkpoint, destination));
+            return new(_owned.CopyByteSlice(start, Math.Min(length, _owned.ByteLength - start),
+                state.Counters, state.MemoryAccounting, checkpoint, destination));
         }
         if (_owned.Backing is not null && !bytes)
         {
-            var view = _owned.BorrowRuneSlice(start, length, governor, checkpoint);
+            var view = _owned.BorrowRuneSlice(start, length, state.MemoryAccounting, checkpoint);
             return view.Length == _owned.ByteLength ? new(_owned) : new(view);
         }
         var content = _owned.Backing is not null ? _owned.AsSpan(checkpoint) : _bytes;

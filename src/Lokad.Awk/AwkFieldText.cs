@@ -54,17 +54,4 @@ internal readonly struct AwkFieldText
             AwkFieldTextKind.RecordSlice => recordBytes.Slice(_start, _length),
             _ => ReadOnlySpan<byte>.Empty
         };
-
-    public AwkText Materialize(
-        AwkText recordText,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null) =>
-        Kind switch
-        {
-            AwkFieldTextKind.Empty => AwkText.Empty,
-            AwkFieldTextKind.Owned => _ownedText,
-            AwkFieldTextKind.RecordSlice => recordText.CopyByteSlice(_start, _length, counters, governor, checkpoint),
-            _ => AwkText.Empty
-        };
 }

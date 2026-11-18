@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkFieldSplitter(
+internal sealed partial class AwkFieldSplitter(
     AwkFieldSeparatorSpec fieldSeparator,
     Func<AwkRegexPattern, AwkRegexCaseSensitivity, AwkRegex> createRegex,
     Func<AwkRegexLiteralText, AwkRegexCaseSensitivity, AwkRegex> createLiteralRegex,
@@ -18,8 +18,6 @@ internal sealed class AwkFieldSplitter(
     bool csv = false)
 {
     private static readonly AwkFieldSeparatorSpec NewlineSeparator = AwkFieldSeparatorSpec.FromText("\n");
-    private readonly AwkByteFieldSplitter _byteSplitter = new(
-        createRegex, createLiteralRegex, enumerateMatchSpans, resolveRegexCaseSensitivity, stringUnitMode, throwIfCancellationRequested, memoryAccounting, resetRegexWarningSite);
 
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private AwkText _fieldPattern = AwkText.Empty;
@@ -58,8 +56,8 @@ internal sealed class AwkFieldSplitter(
     public void ValidateFieldSeparator(AwkText value, bool resetHistory = false)
     {
         if (resetHistory || !value.Equals(_fieldSeparator.ByteText))
-            _byteSplitter.ResetWarningHistory();
-        _byteSplitter.ValidateSeparator(AwkFieldSeparatorSpec.FromByteText(value));
+            ResetWarningHistory();
+        ValidateSeparator(AwkFieldSeparatorSpec.FromByteText(value));
     }
 
     public void ValidateFieldPattern(AwkText value)
@@ -141,10 +139,6 @@ internal sealed class AwkFieldSplitter(
                 : mode == AwkRecordFieldSplittingMode.Paragraph ? Paragraph : Ordinary;
     }
 
-    internal int ExtendRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, int position,
-        Span<AwkRecordField> destination, out int count, out int payloadBytes) =>
-        _byteSplitter.ExtendRecordFields(line, plan, position, destination, out count, out payloadBytes);
-
     public void FillRecordFields(AwkText line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
     {
         if (!plan.RequiresRegexSubject)
@@ -154,10 +148,10 @@ internal sealed class AwkFieldSplitter(
         }
         throwIfCancellationRequested();
         if (plan.Mode == AwkFieldSplittingMode.FieldPattern)
-            _byteSplitter.FillFieldPattern(line, new AwkRegexPattern(plan.FieldPattern, warningSite: this),
+            FillFieldPattern(line, new AwkRegexPattern(plan.FieldPattern, warningSite: this),
                 plan.CaseSensitivity, ref writer);
         else
-            _byteSplitter.FillRegexRecordFields(line, plan.Separator, plan.CaseSensitivity, ref writer);
+            FillRegexRecordFields(line, plan.Separator, plan.CaseSensitivity, ref writer);
     }
 
     public void FillRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
@@ -168,7 +162,7 @@ internal sealed class AwkFieldSplitter(
         {
             if (line.IsEmpty) return;
             if (plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph)
-                _byteSplitter.FillRecordFields(line, NewlineSeparator, false, ref writer);
+                FillRecordFields(line, NewlineSeparator, false, ref writer);
             else writer.Add(new(0, line.Length));
             return;
         }
@@ -179,7 +173,7 @@ internal sealed class AwkFieldSplitter(
         }
         if (plan.Mode != AwkFieldSplittingMode.FieldWidths)
         {
-            _byteSplitter.FillRecordFields(line, plan.Separator,
+            FillRecordFields(line, plan.Separator,
                 plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph, ref writer);
             return;
         }
@@ -289,29 +283,4 @@ internal sealed class AwkFieldSplitter(
         }
 
     }
-
-    public AwkTextSplitResult SplitFieldTextsBySeparator(
-        AwkText line,
-        AwkFieldSeparatorSpec separator,
-        AwkSeparatorCaptureMode captureMode,
-        AwkRuntimeCounters counters)
-    {
-        throwIfCancellationRequested();
-        return _byteSplitter.SplitBySeparator(
-            line,
-            separator,
-            captureMode,
-            counters);
-    }
-
-    public AwkTextSplitResult Patsplit(
-        AwkText input,
-        AwkRegexPattern pattern,
-        AwkSeparatorCaptureMode captureMode,
-        AwkRuntimeCounters counters)
-    {
-        throwIfCancellationRequested();
-        return _byteSplitter.Patsplit(input, pattern, captureMode, counters);
-    }
-
 }

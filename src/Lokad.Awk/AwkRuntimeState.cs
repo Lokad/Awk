@@ -971,7 +971,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true,
         AwkMemoryLease? destination = null) =>
         field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(field) :
-            text.Own(Counters, MemoryAccounting, CancellationCheckpoint, destination);
+            text.Own(this, destination);
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,

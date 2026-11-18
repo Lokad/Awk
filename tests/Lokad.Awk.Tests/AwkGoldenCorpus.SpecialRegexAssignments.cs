@@ -4,6 +4,11 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> SpecialRegexAssignmentCases()
     {
+        yield return AwkGoldenCaseBuilder.Create("field-separator-reset-keeps-field-pattern-warning-history",
+            ["BEGIN{FPAT=\"\\\\u\";FS=\",\";FPAT=\"\\\\u\";print \"ok\"}"], [])
+            .WithStandardInput("").WithStdOut("ok\n")
+            .WithStdErr("awk: warning: no hex digits in `\\u' escape sequence\nawk: warning: no hex digits in `\\u' escape sequence\n")
+            .ExitsWith(0).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-regex-warning-history-0475",
             ["BEGIN{FS=\"\\\\u\";print \"ok\";exit}"], [])
             .WithStandardInput("").WithStdOut("ok\n")

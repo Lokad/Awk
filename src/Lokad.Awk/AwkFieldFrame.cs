@@ -73,8 +73,11 @@ internal sealed class AwkFieldFrame(
     {
         if (field.CacheSlot > 0 && !_fieldValueCache[field.CacheSlot - 1].IsScalar)
             return _fieldValueCache[field.CacheSlot - 1].Spelling;
-        if (!HasBufferedRecord || field.Kind != AwkFieldTextKind.RecordSlice)
-            return FieldText(field).Materialize(_recordText, counters, governor, checkpoint);
+        if (field.Kind != AwkFieldTextKind.RecordSlice)
+            return field.Kind == AwkFieldTextKind.Owned
+                ? _fieldValueCache[field.CacheSlot - 1].Spelling : AwkText.Empty;
+        if (!HasBufferedRecord)
+            return _recordText.CopyByteSlice(field.RecordStart, field.ByteLength(), counters, governor, checkpoint);
         return _recordTextIsCurrent && field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
             AwkText.CopyTrustedBytes(field.BytesInRecord(RecordBytes()), counters, governor, checkpoint);
     }

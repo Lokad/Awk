@@ -236,7 +236,7 @@ public sealed class AwkFieldCancellationTests
         else
         {
             var result = splitter.SplitFieldTextsBySeparator(text, AwkFieldSeparatorSpec.Default,
-                mode == "captures" ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit, counters);
+                mode == "captures" ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit);
             Assert.Equal(2, result.Fields.Count);
             Assert.Equal(ascii, result.Fields[0].AsString());
             Assert.Equal(unicode, result.Fields[1].AsString());
@@ -349,12 +349,12 @@ public sealed class AwkFieldCancellationTests
         splitter.ValidateFieldSeparator(separator.ByteText);
         var mode = captures ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit;
         armed = true;
-        var error = Assert.Throws<OperationCanceledException>(() => splitter.SplitFieldTextsBySeparator(text, separator, mode, counters));
+        var error = Assert.Throws<OperationCanceledException>(() => splitter.SplitFieldTextsBySeparator(text, separator, mode));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         armed = false;
-        var retry = splitter.SplitFieldTextsBySeparator(text, separator, mode, counters);
+        var retry = splitter.SplitFieldTextsBySeparator(text, separator, mode);
         Assert.Equal(scenario == "characters" ? scanLength : 2, retry.Fields.Count);
         Assert.Equal(scenario == "characters" ? "a" : scenario == "literal" || scenario == "whitespace-word" ? new string('a', scanLength) : "a", retry.Fields[0].AsString());
         Assert.Equal(scenario == "characters" ? "a" : "b", retry.Fields[^1].AsString());

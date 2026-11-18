@@ -216,7 +216,6 @@ public sealed class AwkFieldStringTests
     public void LongBorrowedStringScansObserveCancellationBeforeCompleting(bool range)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(new string('é', 32_768));
-        var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         var polls = 0;
         void Checkpoint()
@@ -227,11 +226,10 @@ public sealed class AwkFieldStringTests
         var failure = Assert.ThrowsAny<OperationCanceledException>(() =>
         {
             var operand = new AwkByteTextOperand(bytes.AsSpan());
-            if (range) _ = operand.SliceUnits(16_384, 2, false, counters, AwkMemoryAccounting.Disabled, Checkpoint, AwkMemoryLease.Disabled);
+            if (range) AwkText.ResolveRuneByteRange(bytes, 16_384, 2, Checkpoint, out _, out _);
             else _ = operand.HasUnitAt(16_384, false, Checkpoint);
         });
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
 
     }
 

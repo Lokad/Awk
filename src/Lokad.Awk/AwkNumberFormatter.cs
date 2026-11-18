@@ -30,13 +30,10 @@ internal static class AwkNumberFormatter
         return value.ToString("G", CultureInfo.InvariantCulture);
     }
 
-    public static AwkText ToAwkText(double value) =>
-        ToAwkText(value, AwkRuntimeCounters.Disabled);
-
-    public static AwkText ToAwkText(double value, AwkRuntimeCounters counters)
+    public static AwkText ToAwkText(double value)
     {
         Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
-        return AwkText.FromTrustedOwnedBytes(Format(value, buffer).ToArray(), counters);
+        return AwkText.FromTrustedOwnedBytes(Format(value, buffer).ToArray());
     }
 
     internal static void Append(double value, AwkUtf8Builder destination, Action? checkpoint)

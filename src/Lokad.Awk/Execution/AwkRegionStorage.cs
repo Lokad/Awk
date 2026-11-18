@@ -352,7 +352,7 @@ internal sealed class AwkRegionStorage : IDisposable
         {
             // A whole already-owned result needs no staging copy. Its ordinary
             // print slot keeps the existing owner through later formatting.
-            var text = slice.Own(_state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint, _payload);
+            var text = slice.Own(_state, _payload);
             StoreText(print.Texts + print.Count - 1, text);
         }
         return AwkRegionPrinting.Append(_state, this, output, print, default,

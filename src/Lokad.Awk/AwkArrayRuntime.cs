@@ -447,8 +447,7 @@ internal sealed partial class AwkArrayRuntime
             : _fieldSplitter.SplitFieldTextsBySeparator(
             input,
             separator,
-            captureMode,
-            _state.Counters);
+            captureMode);
         using var publication = _state.MemoryAccounting.AdmitMutation(
             _variables.EstimateSplitPublicationBytes(result.Fields, result.Separators, separatorArrayName.HasValue));
         arrayName = ResolveTarget(arrayName);
@@ -486,7 +485,7 @@ internal sealed partial class AwkArrayRuntime
             : AwkSeparatorCaptureMode.Omit;
         using var splitLease = _state.MemoryAccounting.ReserveTransient(
             EstimateSplitBuffers(input.ByteLength, captureMode));
-        var result = _fieldSplitter.Patsplit(input, pattern, captureMode, _state.Counters);
+        var result = _fieldSplitter.Patsplit(input, pattern, captureMode);
         using var publication = _state.MemoryAccounting.AdmitMutation(
             _variables.EstimateSplitPublicationBytes(result.Fields, result.Separators, separatorArrayName.HasValue));
         arrayName = ResolveTarget(arrayName);
