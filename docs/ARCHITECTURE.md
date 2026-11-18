@@ -28,7 +28,8 @@ Parser results carry syntax, errors and warnings. Binding validates function
 declarations and builtin call shapes before lowering and returns a prepared program
 or diagnostics. Preparation reports malformed constructs that reach lowering.
 The top-level grammar recognizes balanced action and function bodies, parameter
-lists and groups in patterns. Their consumers read ranges of the original tokens.
+lists and pattern boundaries. Their consumers read ranges of the original tokens.
+Pattern expressions filter comments while retaining continuation newlines.
 The statement grammar uses the same ranges for balanced headers, expression
 groups, braced bodies, switch blocks and simple statements. Expression and
 redirection consumers still interpret separators.

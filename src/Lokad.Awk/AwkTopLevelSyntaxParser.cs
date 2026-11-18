@@ -276,15 +276,24 @@ internal sealed class AwkTopLevelSyntaxParser
     [Rule]
     public AwkPatternSyntax RangePattern(
         [AwkL(Min = 1)] PatternPart[] start,
-        [AwkT(AwkTokenKind.Comma)] Pos<string> comma,
-        [AwkL(Min = 0)] HeaderPatternGap[] afterComma,
+        [AwkT(AwkTokenKind.Comma)] Pos<string> _,
+        [AwkL(Min = 0)] HeaderPatternGap[] __,
         [AwkL(Min = 1)] PatternPart[] end)
     {
         _checkpoint?.Invoke();
-        var startTokens = PatternTokens(start);
-        var endTokens = PatternTokens(end);
-        var commaToken = ToToken(AwkTokenKind.Comma, comma);
-        var tokens = Flatten([startTokens, [commaToken], Flatten(afterComma.Select(gap => gap.Tokens)), endTokens]);
+        var startSource = PatternTokens(start);
+        var endSource = PatternTokens(end);
+        var startTokens = WithoutComments(startSource);
+        var endTokens = WithoutComments(endSource);
+        var tokens = PatternTokens(start[0].First, end[^1].Last);
+        if (!ReferenceEquals(startSource, startTokens) || !ReferenceEquals(endSource, endTokens))
+        {
+            // The comma and the continuation tokens after it belong to the range,
+            // even when either endpoint drops its own comments.
+            var separator = AwkTokenNavigation.SliceIndexed(tokens, startSource.Count,
+                tokens.Count - startSource.Count - endSource.Count);
+            tokens = AwkTokenNavigation.Flatten([startTokens, separator, endTokens], _checkpoint);
+        }
         return new AwkRangePatternSyntax(
             tokens,
             new AwkPatternPartSyntax(ParseExpression(startTokens)),
@@ -295,7 +304,7 @@ internal sealed class AwkTopLevelSyntaxParser
     public AwkPatternSyntax SinglePattern([AwkL(Min = 1)] PatternPart[] parts)
     {
         _checkpoint?.Invoke();
-        var tokens = PatternTokens(parts);
+        var tokens = WithoutComments(PatternTokens(parts));
         return new AwkSinglePatternSyntax(
             tokens,
             ParseExpression(tokens) ?? ParseExpressionList(tokens));
@@ -308,58 +317,76 @@ internal sealed class AwkTopLevelSyntaxParser
     public PatternPart PatternParenthesized([NT] BalancedParenthesized parenthesized)
     {
         _checkpoint?.Invoke();
-        return new(GroupTokens(parenthesized.OpenToken, parenthesized.CloseToken).FullTokens);
+        return new(parenthesized.OpenToken.Span, parenthesized.CloseToken.Span);
     }
 
     [Rule]
     public PatternPart PatternBracketed([NT] BalancedBracketed bracketed)
     {
         _checkpoint?.Invoke();
-        return new(GroupTokens(bracketed.OpenToken, bracketed.CloseToken).FullTokens);
+        return new(bracketed.OpenToken.Span, bracketed.CloseToken.Span);
     }
 
     [Rule]
     public PatternPart PatternLeaf([AwkTopLevelPatternLeaf] Pos<string> token)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, _checkpoint)]);
+        var span = AwkParsingSupport.SourceSpan(token);
+        return new(span, span);
     }
 
     [Rule]
     public PatternPart PatternContinuation(
         [AwkT(AwkTokenKind.AmpersandAmpersand, AwkTokenKind.PipePipe, AwkTokenKind.Question, AwkTokenKind.Colon)] Pos<string> op,
-        [AwkL(Min = 1)] HeaderPatternGap[] gaps,
+        [AwkL(Min = 1)] HeaderPatternGap[] _,
         [NT] PatternPart next)
     {
         _checkpoint?.Invoke();
-        return new(Flatten([[AwkParsingSupport.RestoreToken(_originalTokens, op, _checkpoint)], Flatten(gaps.Select(gap => gap.Tokens)), next.Tokens]));
+        return new(AwkParsingSupport.SourceSpan(op), next.Last);
     }
 
     [Rule]
     public HeaderPatternGap HeaderPatternGapRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token)
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> _)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, _checkpoint)]);
+        return default;
     }
 
-    public readonly struct HeaderPatternGap(IReadOnlyList<AwkToken>? tokens)
-    {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
+    public readonly struct HeaderPatternGap;
 
-    private AwkToken[] PatternTokens(IReadOnlyList<PatternPart> pattern)
+    private IReadOnlyList<AwkToken> PatternTokens(PatternPart[] parts) =>
+        PatternTokens(parts[0].First, parts[^1].Last);
+
+    private IReadOnlyList<AwkToken> PatternTokens(AwkTextSpan first, AwkTextSpan last) =>
+        AwkParsingSupport.ResolveTokenGroup(_originalTokens, first, last, _checkpoint).FullTokens;
+
+    private IReadOnlyList<AwkToken> WithoutComments(IReadOnlyList<AwkToken> tokens)
     {
-        var tokens = new List<AwkToken>();
-        foreach (var token in AwkTokenNavigation.Enumerate(Flatten(pattern.Select(part => part.Tokens)), _checkpoint))
+        for (var index = 0; index < tokens.Count; index++)
         {
-            if (token.Kind != AwkTokenKind.Comment)
-                tokens.Add(token);
+            _checkpoint?.Invoke();
+            if (tokens[index].Kind == AwkTokenKind.Comment)
+                return CopyWithoutComments(tokens, index);
         }
-        _checkpoint?.Invoke();
-        var copied = tokens.ToArray();
-        _checkpoint?.Invoke();
-        return copied;
+        return tokens;
+    }
+
+    private List<AwkToken> CopyWithoutComments(IReadOnlyList<AwkToken> tokens, int firstComment)
+    {
+        var filtered = new List<AwkToken>(tokens.Count - 1);
+        for (var index = 0; index < firstComment; index++)
+        {
+            _checkpoint?.Invoke();
+            filtered.Add(tokens[index]);
+        }
+        for (var index = firstComment + 1; index < tokens.Count; index++)
+        {
+            _checkpoint?.Invoke();
+            var token = tokens[index];
+            if (token.Kind != AwkTokenKind.Comment) filtered.Add(token);
+        }
+        return filtered;
     }
 
     private AwkToken[] DirectiveTokens(IReadOnlyList<DirectiveArgument> arguments)
@@ -372,9 +399,6 @@ internal sealed class AwkTopLevelSyntaxParser
         }
         return tokens;
     }
-
-    private IReadOnlyList<AwkToken> Flatten(IEnumerable<IReadOnlyList<AwkToken>> groups) =>
-        AwkTokenNavigation.Flatten(groups, _checkpoint);
 
     private AwkExpressionSyntax? ParseExpression(IReadOnlyList<AwkToken> tokens) =>
         AwkExpressionSyntaxParser.Parse(_source, tokens, _checkpoint);
@@ -487,8 +511,5 @@ internal sealed class AwkTopLevelSyntaxParser
     public readonly struct ParenthesizedPart;
     public readonly struct BracketedPart;
 
-    public readonly struct PatternPart(IReadOnlyList<AwkToken>? tokens)
-    {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
+    public readonly record struct PatternPart(AwkTextSpan First, AwkTextSpan Last);
 }
