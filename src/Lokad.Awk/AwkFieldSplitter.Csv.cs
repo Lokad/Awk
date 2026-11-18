@@ -1,11 +1,11 @@
 namespace Lokad.Awk;
 
 // CSV framing belongs to the record cursor; this decoder also serves split(text,array).
-internal static class AwkCsvFields
+internal sealed partial class AwkFieldSplitter
 {
-    public static long EstimateSplitTextMemory(AwkText text, Action checkpoint)
+    public long EstimateCsvSplitTextMemory(AwkText text)
     {
-        var scanner = new Scanner(text.AsSpan(checkpoint), checkpoint);
+        var scanner = new CsvScanner(text.AsSpan(throwIfCancellationRequested), throwIfCancellationRequested);
         var count = 0;
         var bytes = 0L;
         while (scanner.MoveNext(out var field))
@@ -17,72 +17,69 @@ internal static class AwkCsvFields
         return AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(count));
     }
 
-    public static void FillRecord(ReadOnlySpan<byte> text, AwkMemoryAccounting memory,
-        AwkRuntimeCounters counters, Action checkpoint, ref AwkRecordFieldWriter writer)
+    private void FillCsvRecord(ReadOnlySpan<byte> text, ref AwkRecordFieldWriter writer)
     {
-        var scanner = new Scanner(text, checkpoint);
+        var scanner = new CsvScanner(text, throwIfCancellationRequested);
         while (scanner.MoveNext(out var field))
         {
             if (field.HasEscapes)
             {
                 // Keep the returned text funded until the writer takes retained ownership.
-                using var admission = memory.IsEnabled
-                    ? memory.AdmitMutation(AwkRuntimeMemory.EstimateTextBytes(field.DecodedLength)) : default;
-                checkpoint();
-                writer.AddOwned(Decode(text, field, memory, counters, checkpoint));
+                using var admission = memoryAccounting.IsEnabled
+                    ? memoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateTextBytes(field.DecodedLength)) : default;
+                throwIfCancellationRequested();
+                writer.AddOwned(DecodeCsvField(text, field));
             }
             else writer.Add(new(field.Start, field.Length));
         }
     }
 
-    public static AwkTextSplitResult SplitText(AwkText text, AwkMemoryAccounting memory,
-        AwkRuntimeCounters counters, Action checkpoint)
+    public AwkTextSplitResult SplitCsvText(AwkText text)
     {
-        var fields = new List<AwkText>(Count(text, checkpoint));
-        var scanner = new Scanner(text.AsSpan(checkpoint), checkpoint);
+        var fields = new List<AwkText>(CountCsvFields(text));
+        var scanner = new CsvScanner(text.AsSpan(throwIfCancellationRequested), throwIfCancellationRequested);
         while (scanner.MoveNext(out var field))
-            fields.Add(Decode(text.AsSpan(checkpoint), field, memory, counters, checkpoint));
+            fields.Add(DecodeCsvField(text.AsSpan(throwIfCancellationRequested), field));
         return new(fields, []);
     }
 
-    private static int Count(AwkText text, Action checkpoint)
+    private int CountCsvFields(AwkText text)
     {
-        var scanner = new Scanner(text.AsSpan(checkpoint), checkpoint);
+        var scanner = new CsvScanner(text.AsSpan(throwIfCancellationRequested), throwIfCancellationRequested);
         var count = 0;
         while (scanner.MoveNext(out _)) count++;
         return count;
     }
 
-    private static AwkText Decode(ReadOnlySpan<byte> text, Field field, AwkMemoryAccounting memory,
-        AwkRuntimeCounters counters, Action checkpoint)
+    private AwkText DecodeCsvField(ReadOnlySpan<byte> text, CsvField field)
     {
         if (!field.HasEscapes)
-            return AwkText.CopyTrustedBytes(text.Slice(field.Start, field.Length), counters, memory, checkpoint);
-        using var builder = new AwkUtf8Builder(memory, field.DecodedLength);
+            return AwkText.CopyTrustedBytes(text.Slice(field.Start, field.Length), counters, memoryAccounting, throwIfCancellationRequested);
+        using var builder = new AwkUtf8Builder(memoryAccounting, field.DecodedLength);
         var bytes = text.Slice(field.Start, field.Length);
         var start = 0;
         for (var i = 0; i < bytes.Length; i++)
         {
-            if ((i & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0) checkpoint();
+            if ((i & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0) throwIfCancellationRequested();
             if (bytes[i] != (byte)'"' || i + 1 == bytes.Length || bytes[i + 1] != (byte)'"') continue;
-            builder.Append(bytes[start..(i + 1)], checkpoint);
+            builder.Append(bytes[start..(i + 1)], throwIfCancellationRequested);
             start = i + 2;
             i++;
         }
-        builder.Append(bytes[start..], checkpoint);
-        return builder.CopyToAwkText(counters, checkpoint);
+        builder.Append(bytes[start..], throwIfCancellationRequested);
+        return builder.CopyToAwkText(counters, throwIfCancellationRequested);
     }
 
-    private readonly record struct Field(int Start, int Length, int DecodedLength, bool HasEscapes);
+    private readonly record struct CsvField(int Start, int Length, int DecodedLength, bool HasEscapes);
 
-    private ref struct Scanner(ReadOnlySpan<byte> bytes, Action checkpoint)
+    private ref struct CsvScanner(ReadOnlySpan<byte> bytes, Action checkpoint)
     {
         private readonly ReadOnlySpan<byte> _bytes = bytes;
         private readonly Action _checkpoint = checkpoint;
         private int _next;
         private bool _finished = bytes.IsEmpty;
 
-        public bool MoveNext(out Field field)
+        public bool MoveNext(out CsvField field)
         {
             field = default;
             if (_finished) return false;

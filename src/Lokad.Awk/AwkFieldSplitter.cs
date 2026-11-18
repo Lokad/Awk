@@ -168,7 +168,7 @@ internal sealed partial class AwkFieldSplitter(
         }
         if (plan.Mode == AwkFieldSplittingMode.Csv)
         {
-            AwkCsvFields.FillRecord(line, memoryAccounting, counters, throwIfCancellationRequested, ref writer);
+            FillCsvRecord(line, ref writer);
             return;
         }
         if (plan.Mode != AwkFieldSplittingMode.FieldWidths)
