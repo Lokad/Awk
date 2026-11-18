@@ -5,12 +5,21 @@ import argparse
 import json
 import math
 from pathlib import Path
+import re
 import sys
-from urllib.parse import parse_qsl
 
 
 def read_json(path):
     return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def workload_identity(row):
+    # BenchmarkDotNet truncates display parameters. FullName retains the fixture names.
+    match = re.fullmatch(r'[^()]+\(Scale: "([^"]+)", Workload: "([^"]+)"\)', row["FullName"])
+    if match is None:
+        raise ValueError(f"Cannot read workload identity from {row['FullName']}")
+    scale, name = match.groups()
+    return name, scale
 
 
 def load_timings(report, log, expected_type, expected_method):
@@ -28,11 +37,13 @@ def load_timings(report, log, expected_type, expected_method):
     for row in read_json(report)["Benchmarks"]:
         if (row["Type"], row["Method"]) != (expected_type, expected_method):
             raise ValueError(f"Unexpected method in {report.name}: {row['FullName']}")
-        parameters = dict(parse_qsl(row["Parameters"], strict_parsing=True))
-        key = parameters["Workload"], parameters["Scale"]
+        key = workload_identity(row)
         stats = row["Statistics"]
-        if key in timings or key not in stamps or stats is None:
+        if key in timings or (stats is not None and key not in stamps):
             raise ValueError(f"Missing or duplicate measurement evidence for {key} in {report.name}")
+        if stats is None:
+            timings[key] = None
+            continue
         median = stats["Median"]
         if not math.isfinite(median) or median <= 0:
             raise ValueError(f"Invalid elapsed-time median for {key} in {report.name}")
@@ -65,21 +76,28 @@ def render(args):
     reference = verified["Reference"]
     rows = []
     for key in gnu:
-        native_ns, _, native_stamp = gnu[key]
-        managed_ns, memory, managed_stamp = managed[key]
-        for stamp in (native_stamp, managed_stamp):
-            if stamp["LibraryBuild"] != build or stamp["Workload"] != fixtures[key]:
+        native = gnu[key]
+        lokad = managed[key]
+        for timing in (native, lokad):
+            if timing and (timing[2]["LibraryBuild"] != build or timing[2]["Workload"] != fixtures[key]):
                 raise ValueError(f"Build or fixture stamp differs from the verification report for {key}")
-        if native_stamp["ReferenceSha256"] != reference["Sha256"] or not memory:
+        if (native and native[2]["ReferenceSha256"] != reference["Sha256"]) or (lokad and not lokad[1]):
             raise ValueError(f"Missing matching GNU identity or managed allocation evidence for {key}")
-        rows.append((key, fixtures[key]["InputBytes"], managed_ns, native_ns, memory["BytesAllocatedPerOperation"]))
+        native_ns = native[0] if native else None
+        managed_ns = lokad[0] if lokad else None
+        allocated = lokad[1]["BytesAllocatedPerOperation"] if lokad else None
+        ratio = managed_ns / native_ns if native_ns is not None and managed_ns is not None else None
+        rows.append((key, fixtures[key]["InputBytes"], managed_ns, native_ns, allocated, ratio))
+
+    def cell(value, divisor=1, digits=3, suffix=""):
+        return "—" if value is None else f"{value / divisor:.{digits}f}{suffix}"
 
     print(f"Core build `{build}` compared with {reference['Version']}.\n")
     print("| Case | Scale | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |")
     print("| --- | --- | ---: | ---: | ---: | ---: | ---: |")
-    for (name, scale), size, managed_ns, native_ns, allocated in sorted(rows, key=lambda row: -row[2] / row[3]):
-        print(f"| {name} | {scale} | {size / 1024:.2f} | {managed_ns / 1e6:.3f} | {native_ns / 1e6:.3f} | "
-              f"{managed_ns / native_ns:.2f}× | {allocated / 2**20:.3f} |")
+    for (name, scale), size, managed_ns, native_ns, allocated, ratio in sorted(rows, key=lambda row: -(row[5] or 0)):
+        print(f"| {name} | {scale} | {size / 1024:.2f} | {cell(managed_ns, 1e6)} | {cell(native_ns, 1e6)} | "
+              f"{cell(ratio, digits=2, suffix='×')} | {cell(allocated, 2**20)} |")
 
 
 if __name__ == "__main__":
