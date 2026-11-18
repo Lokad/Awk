@@ -64,7 +64,6 @@ public sealed class AwkSpecialRegexAssignmentTests
         Assign(state, variable, value, throughSymbolTable);
         Assert.Equal(value.ByteText, state.ResolveVariableValue(AwkVariableName.FromText(variable)).ByteText);
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static void Assign(AwkRuntimeState state, string variable, AwkValue value, bool throughSymbolTable)

@@ -37,7 +37,6 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignFieldValue(2, AwkValue.FromText("old"));
         state.AssignVariableValue(leftName, left);
         Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -54,11 +53,10 @@ public sealed class AwkFieldValueComparisonTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        using var held = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.CurrentCommittedBytes - 16);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        using var held = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.LiveBytes - 16);
+        var committed = state.MemoryAccounting.LiveBytes;
         await Assert.ThrowsAsync<AwkRuntimeException>(async () => await CompareAsync(region, storage, state, regionOutput, regionIo));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal("k old", state.CurrentRecordByteText.AsString());
         held.Dispose();
         Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
@@ -81,11 +79,10 @@ public sealed class AwkFieldValueComparisonTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await CompareAsync(region, storage, state, regionOutput, regionIo));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]
@@ -151,7 +148,6 @@ public sealed class AwkFieldValueComparisonTests
                 state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
             Assert.Equal("LI", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
             Assert.Equal(2, reads);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -252,7 +248,6 @@ public sealed class AwkFieldValueComparisonTests
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -287,7 +282,7 @@ public sealed class AwkFieldValueComparisonTests
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         using var pressure = state.MemoryAccounting.ReserveTransient(
-            (1 << 20) - state.MemoryAccounting.CurrentCommittedBytes - 16);
+            (1 << 20) - state.MemoryAccounting.LiveBytes - 16);
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
@@ -316,7 +311,6 @@ public sealed class AwkFieldValueComparisonTests
         Assert.Equal("awk: hexadecimal floating point constants require an exponent\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, state.ResolveVariableValue(name).AsNumber());
         Assert.Equal("0x1.1 rest", state.CurrentRecordByteText.AsString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

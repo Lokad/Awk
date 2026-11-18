@@ -71,7 +71,6 @@ public sealed class AwkStringResultTests
             state.AssignVariableValue(target, result);
         });
         Assert.Equal("keep", state.ResolveVariableValue(target).AsString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkRuntimeState State(AwkRuntimeCounters counters, CancellationToken cancellationToken)

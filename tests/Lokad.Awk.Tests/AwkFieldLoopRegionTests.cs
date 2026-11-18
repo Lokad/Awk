@@ -101,7 +101,6 @@ public sealed class AwkFieldLoopRegionTests
             Assert.False(state.IsInsideFunction);
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -135,7 +134,6 @@ public sealed class AwkFieldLoopRegionTests
         var error = "";
         try { await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(),
             state.ResolveVariableValue(AwkVariableName.FromText("nonempty")).AsNumber(),
             state.ResolveVariableValue(AwkVariableName.FromText("chars")).AsNumber(), host.GetOutput(AwkFileDescriptor.StdOut), error);

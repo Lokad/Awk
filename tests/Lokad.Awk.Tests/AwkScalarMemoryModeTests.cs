@@ -55,7 +55,7 @@ public sealed class AwkScalarMemoryModeTests
         var name = beforeBaseline ? AwkVariableName.FromText("RSTART") : AwkVariableName.FromText("total");
         variables.SetScalarValue(name, AwkValue.FromNumber(7));
         var id = variables.GetOrCreateScalarSlot(name);
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         for (var value = 8; value <= 100; value++)
         {
@@ -63,11 +63,10 @@ public sealed class AwkScalarMemoryModeTests
             else variables.SetScalarValue(name, AwkValue.FromNumber(value));
         }
         Assert.Equal(100, variables.GetScalarValue(variables.GetScalarCell(id)).AsNumber());
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(name, new string('x', 4096)));
         Assert.Equal(100, variables.GetOrCreateScalarValue(name).AsNumber());
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -105,7 +104,6 @@ public sealed class AwkScalarMemoryModeTests
             state.AssignFieldValue(1, AwkValue.FromNumber(8.5));
             Assert.Equal("8.57right", state.CurrentRecordByteText.AsString());
         }
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -133,7 +131,7 @@ public sealed class AwkScalarMemoryModeTests
         Assert.Equal(2, variables.GetOrCreateScalarValue(AwkVariableName.FromText("NF")).AsNumber());
         Assert.Equal(2, variables.GetScalarValue(variables.GetScalarCell(nf)).AsNumber());
         Assert.Equal("a|b", state.CurrentRecordByteText.AsString());
-        var baselineBytes = accounting.CurrentCommittedBytes;
+        var baselineBytes = accounting.LiveBytes;
         var baselineReservation = budget.Reserved;
         for (var iteration = 0; iteration < 3; iteration++)
         {
@@ -141,8 +139,7 @@ public sealed class AwkScalarMemoryModeTests
             Assert.Equal(new string('a', 4096), variables.GetOrCreateScalarValue(name).AsString());
             variables.SetScalarValue(name, AwkValue.FromNumber(7));
             Assert.Equal(7, variables.GetOrCreateScalarValue(name).AsNumber());
-            Assert.Equal(baselineBytes, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
+            Assert.Equal(baselineBytes, accounting.LiveBytes);
             Assert.Equal(baselineReservation, budget.Reserved);
         }
     }
@@ -159,7 +156,7 @@ public sealed class AwkScalarMemoryModeTests
         var ofs = AwkVariableName.FromText("OFS");
         memory.State.SetCurrentRecord(AwkText.FromString("left right"));
         memory.State.AssignFieldValue(1, AwkValue.FromNumber(1.25));
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         var reserved = memory.Budget.Reserved;
         if (governed)
         {
@@ -172,8 +169,7 @@ public sealed class AwkScalarMemoryModeTests
             Assert.Throws<OperationCanceledException>(() => variables.SetScalarText(ofs, "|"));
         }
         Assert.Equal(" ", variables.GetOrCreateScalarValue(ofs).AsString());
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         Assert.Equal(reserved, memory.Budget.Reserved);
     }
     [Fact]
@@ -185,15 +181,14 @@ public sealed class AwkScalarMemoryModeTests
         memory.State.AssignFieldValue(1, AwkValue.FromNumber(1.25));
         var variables = memory.State.Variables;
         var ofs = AwkVariableName.FromText("OFS");
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         var reserved = memory.Budget.Reserved;
         var allocations = counters[AwkCounter.TextAllocations];
         memory.Budget.SetAvailableBytes(0);
         Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(ofs, new string('|', 4096)));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(" ", variables.GetOrCreateScalarValue(ofs).AsString());
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         Assert.Equal(reserved, memory.Budget.Reserved);
         memory.Budget.SetAvailableBytes(20_000);
         Assert.Equal("1.25 right", memory.State.CurrentRecordByteText.AsString());
@@ -209,7 +204,7 @@ public sealed class AwkScalarMemoryModeTests
         var variables = memory.InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token).State.Variables;
         var name = AwkVariableName.FromText("target");
         if (existing) variables.SetScalarText(name, "kept");
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         var reserved = memory.Budget.Reserved;
         memory.Budget.OnGrowth = _ => cancellation.Cancel();
 
@@ -217,8 +212,7 @@ public sealed class AwkScalarMemoryModeTests
 
         Assert.Equal(existing, variables.ContainsScalar(name));
         if (existing) Assert.Equal("kept", variables.GetOrCreateScalarValue(name).AsString());
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         Assert.Equal(reserved, memory.Budget.Reserved);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);

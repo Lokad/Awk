@@ -13,22 +13,21 @@ public sealed class AwkArrayMemoryModeTests
         var ordinal = AwkArrayKey.FromOrdinal(1);
         var text = new AwkArrayKey("1");
         variables.SetArrayValue(array, storedAsText ? text : ordinal, AwkValue.FromNumber(7));
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         for (var value = 8; value <= 100; value++)
             variables.SetArrayValue(array, storedAsText ? ordinal : text, AwkValue.FromNumber(value));
         Assert.Equal(100, variables.GetArrayValue(array, text).AsNumber());
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         var capacity = variables.ResolveOrdinaryArray(array).EnsureCapacity(0);
         for (var index = 2; index <= capacity; index++)
             variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(3));
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         Assert.Throws<AwkRuntimeException>(() => variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(capacity + 1), AwkValue.FromNumber(3)));
         Assert.Equal(100, variables.GetArrayValue(array, ordinal).AsNumber());
         Assert.True(variables.TryGetArrayCount(array, out var count));
         Assert.Equal(capacity, count);
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -67,7 +66,7 @@ public sealed class AwkArrayMemoryModeTests
         var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         variables.ClearArray(name);
-        var emptyArrayBytes = accounting.CurrentCommittedBytes;
+        var emptyArrayBytes = accounting.LiveBytes;
         var numericKey = AwkArrayKey.FromOrdinal(1);
         var textKey = new AwkArrayKey("1");
         var paddedKey = new AwkArrayKey("01");
@@ -87,10 +86,9 @@ public sealed class AwkArrayMemoryModeTests
             Assert.Equal(9, variables.GetArrayValue(name, paddedKey).AsNumber());
             variables.DeleteArrayValue(name, textKey);
             variables.DeleteArrayValue(name, paddedKey);
-            Assert.Equal(governed, accounting.CurrentCommittedBytes > 0);
+            Assert.Equal(governed, accounting.LiveBytes > 0);
             variables.ClearArray(name);
-            Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
+            Assert.Equal(emptyArrayBytes, accounting.LiveBytes);
             Assert.Equal(emptyArrayBytes, budget.Reserved);
         }
     }
@@ -107,20 +105,19 @@ public sealed class AwkArrayMemoryModeTests
         var name = AwkArrayName.FromText("a");
         var textKey = new AwkArrayKey("1");
         variables.ClearArray(name);
-        var emptyArrayBytes = accounting.CurrentCommittedBytes;
+        var emptyArrayBytes = accounting.LiveBytes;
         var ordinalKey = AwkArrayKey.FromOrdinal(1);
         for (var iteration = 0; iteration < 8; iteration++)
         {
             variables.SetArrayValue(name, storedAsText ? textKey : ordinalKey, AwkValue.FromNumber(42));
-            Assert.True(accounting.CurrentCommittedBytes > 0);
+            Assert.True(accounting.LiveBytes > 0);
             variables.SetArrayValue(name, storedAsText ? ordinalKey : textKey, AwkValue.FromNumber(7));
             variables.DeleteArrayValue(name, storedAsText ? ordinalKey : textKey);
             Assert.True(variables.TryGetArrayCount(name, out var count));
             Assert.Equal(0, count);
-            Assert.True(accounting.CurrentCommittedBytes > 0);
+            Assert.True(accounting.LiveBytes > 0);
             variables.ClearArray(name);
-            Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
+            Assert.Equal(emptyArrayBytes, accounting.LiveBytes);
             Assert.Equal(emptyArrayBytes, budget.Reserved);
         }
     }
@@ -138,9 +135,9 @@ public sealed class AwkArrayMemoryModeTests
         var name = AwkArrayName.FromText("a");
         var existingKey = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);
-        var emptyArrayBytes = accounting.CurrentCommittedBytes;
+        var emptyArrayBytes = accounting.LiveBytes;
         variables.SetArrayValue(name, existingKey, AwkValue.FromNumber(42));
-        var committed = accounting.CurrentCommittedBytes;
+        var committed = accounting.LiveBytes;
         Assert.True(committed > 0);
         var target = update ? existingKey : AwkArrayKey.FromOrdinal(2);
         Assert.Throws<AwkRuntimeException>(() =>
@@ -148,12 +145,11 @@ public sealed class AwkArrayMemoryModeTests
         Assert.True(variables.TryGetArrayCount(name, out var count));
         Assert.Equal(1, count);
         Assert.Equal(42, variables.GetArrayValue(name, existingKey).AsNumber());
-        Assert.Equal(committed, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(committed, accounting.LiveBytes);
         variables.DeleteArrayValue(name, existingKey);
-        Assert.True(accounting.CurrentCommittedBytes > 0);
+        Assert.True(accounting.LiveBytes > 0);
         variables.ClearArray(name);
-        Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
+        Assert.Equal(emptyArrayBytes, accounting.LiveBytes);
         Assert.Equal(emptyArrayBytes, budget.Reserved);
     }
 

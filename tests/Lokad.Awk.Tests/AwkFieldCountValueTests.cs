@@ -14,7 +14,7 @@ public sealed class AwkFieldCountValueTests
         state.SetCurrentRecord(AwkText.FromString("a b c"));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromText("02.8"));
         Assert.Equal("a b", state.CurrentRecordByteText.AsString());
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
             state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromNumber(value)));
@@ -23,8 +23,7 @@ public sealed class AwkFieldCountValueTests
         Assert.Equal("02.8", state.ResolveSpecialVariableText(AwkSpecialVariableId.FieldCount).AsString());
         Assert.Equal("a b", state.CurrentRecordByteText.AsString());
         Assert.Equal(2, state.FieldCount);
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -34,7 +33,7 @@ public sealed class AwkFieldCountValueTests
         var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("a b"));
         Assert.Equal(2, state.FieldCount);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.AssignSpecialVariableValue(
@@ -43,8 +42,7 @@ public sealed class AwkFieldCountValueTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(2, state.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount).AsNumber());
         Assert.Equal("a b", state.CurrentRecordByteText.AsString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -55,17 +53,16 @@ public sealed class AwkFieldCountValueTests
         var assigned = AwkValue.FromText("foo");
         var fileName = AwkText.FromString("next");
         state.BeginInputFile(fileName, new AwkArgvIndex(1));
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         state.SetCurrentRecord(AwkText.FromString("a b"));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, assigned);
 
         Assert.Equal("", state.CurrentRecordByteText.AsString());
-        Assert.Equal(baseline + assigned.RetainedTextMemoryBytes, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(baseline + assigned.RetainedTextMemoryBytes, state.MemoryAccounting.LiveBytes);
         Assert.Equal("foo", state.ResolveSpecialVariableText(AwkSpecialVariableId.FieldCount).AsString());
         state.BeginInputFile(fileName, new AwkArgvIndex(1));
         Assert.Equal(0, state.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount).AsNumber());
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(baseline, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]

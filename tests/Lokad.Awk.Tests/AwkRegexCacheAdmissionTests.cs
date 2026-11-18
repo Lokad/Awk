@@ -49,18 +49,17 @@ public sealed class AwkRegexCacheAdmissionTests
                 MemoryBudget = memory.Budget
             },
             memory.Accounting);
-        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes); // Cache storage is lazy.
+        Assert.Equal(0, memory.Accounting.LiveBytes); // Cache storage is lazy.
         var source = AwkText.FromSourceLiteralString("[" + new string('x', 30_000) + "]");
         var regex = runtime.Create(new AwkRegexPattern(source));
         using var search = runtime.OpenSearch(regex, AwkText.FromSourceLiteralString("x"));
         for (var index = 0; index < AwkRuntimeLimits.DefaultRegexCacheSize + 1; index++)
             runtime.Create(new AwkRegexPattern("[" + new string('x', 4_000 + index) + "]"));
         runtime.Dispose();
-        Assert.True(memory.Accounting.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(source));
+        Assert.True(memory.Accounting.LiveBytes >= AwkRuntimeMemory.EstimateTextBytes(source));
         Assert.True(search.MatchSpan(0).Success);
         search.Dispose();
-        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(0, memory.Accounting.LiveBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }

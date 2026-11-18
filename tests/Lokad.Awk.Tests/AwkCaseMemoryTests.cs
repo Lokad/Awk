@@ -177,7 +177,6 @@ public sealed class AwkCaseMemoryTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.InRange(allocatedBeforeRefusal, 0, 64 * 1024);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(0, budget.Reserved);
     }

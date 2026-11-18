@@ -20,17 +20,16 @@ public sealed class AwkSortingResourceTests
         var first = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(source, new AwkArrayKey("key"), "value");
         state.SetArrayString(destination, first, "keep");
-        using var pressure = state.MemoryAccounting.ReserveTransient(memoryLimit - state.MemoryAccounting.CurrentCommittedBytes -
+        using var pressure = state.MemoryAccounting.ReserveTransient(memoryLimit - state.MemoryAccounting.LiveBytes -
             AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(1) + 1);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
             AwkArrayStorageTestOperations.Sort(state, source, destination, AwkArraySortOrder.Parse(selector), keys: false));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("keep", state.GetArrayByteText(destination, first).AsString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -43,15 +42,14 @@ public sealed class AwkSortingResourceTests
         for (var index = 1; index <= 32; index++)
             state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), "@unsorted");
-        var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
+        var committedBefore = state.MemoryAccounting.LiveBytes;
         using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state, name))
         {
             Assert.Equal(32, snapshot.Count);
-            Assert.Equal(committedBefore + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(32), state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(committedBefore + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(32), state.MemoryAccounting.LiveBytes);
             Assert.Equal(32, snapshot.Distinct().Count());
         }
-        Assert.Equal(committedBefore, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committedBefore, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]

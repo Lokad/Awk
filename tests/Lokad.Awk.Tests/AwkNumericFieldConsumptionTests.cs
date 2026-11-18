@@ -29,7 +29,6 @@ public sealed class AwkNumericFieldConsumptionTests
             Assert.Equal(AwkRuntimeValueKind.String, state.GetFieldValue(2).RuntimeKind);
             state.SetCurrentRecord(AwkText.FromSourceLiteralString("next"));
             Assert.Equal(spelling, value.AsString());
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
     }
 
@@ -46,12 +45,11 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.True(state.TryGetFieldComparisonNumber(2, out var number));
         Assert.Equal(7, number);
         var captured = state.CaptureFieldStringText(2);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => state.GetFieldValue(2));
         Assert.Equal(spelling, captured.AsString());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -87,7 +85,6 @@ public sealed class AwkNumericFieldConsumptionTests
                     Assert.Equal(spelling, captured.AsString());
                     frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
                     Assert.Equal(spelling, captured.AsString());
-                    Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
                 }
                 Assert.Equal(0, memoryBudget.Reserved);
             }
@@ -120,7 +117,6 @@ public sealed class AwkNumericFieldConsumptionTests
             Assert.Equal(spelling == "7 ", frame.TryGetFieldComparisonNumber(new(1), AwkNumberParsingMode.Decimal, out _));
 
             Assert.Equal(spelling, frame.GetFieldValue(new(1)).AsString());
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         }
         Assert.Equal(0, memoryBudget.Reserved);
     }
@@ -144,7 +140,6 @@ public sealed class AwkNumericFieldConsumptionTests
 
         Assert.Equal("0007", state.GetFieldValue(2).AsString());
         Assert.Equal(AwkRuntimeValueKind.NumericString, state.GetFieldValue(2).RuntimeKind);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -170,7 +165,6 @@ public sealed class AwkNumericFieldConsumptionTests
 
         state.AssignFieldValue(2, AwkValue.FromNumber(1.25));
         Assert.Equal(1.25, state.GetFieldNumber(2));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -229,7 +223,6 @@ public sealed class AwkNumericFieldConsumptionTests
 
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -287,7 +280,6 @@ public sealed class AwkNumericFieldConsumptionTests
         for (var repeat = 0; repeat < 8; repeat++) Assert.Equal(6, state.GetFieldNumber(6));
 
         Assert.Equal("1 2 3 4 0005 0006", state.CurrentRecordByteText.AsString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -298,7 +290,7 @@ public sealed class AwkNumericFieldConsumptionTests
         var record = AwkText.FromSourceLiteralString("k 0007");
         state.SetCurrentRecord(record);
         Assert.Equal(2, state.FieldCount);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Equal(7, state.GetFieldNumber(2));
         Assert.True(state.TryGetFieldComparisonNumber(2, out var comparison));
@@ -308,8 +300,7 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(7, state.GetFieldNumber(2));
         Assert.Equal(record, state.CurrentRecordByteText);
         Assert.Equal(2, state.FieldCount);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -319,13 +310,13 @@ public sealed class AwkNumericFieldConsumptionTests
         var state = memory.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("k 0007 7tail"));
         var splits = state.Counters[AwkCounter.FieldSplits];
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.False(state.TryGetStoredFieldComparisonNumber(2, out _));
         Assert.False(state.TryGetStoredFieldComparisonNumber(-1, out _));
         Assert.False(state.TryGetStoredFieldComparisonNumber(0, out _));
         Assert.Equal(splits, state.Counters[AwkCounter.FieldSplits]);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         memory.Budget.RefuseNextAdmissionMinimumGrowth = null;
         Assert.Equal(3, state.FieldCount);
         Assert.Equal(7, state.GetFieldNumber(2));
@@ -348,7 +339,7 @@ public sealed class AwkNumericFieldConsumptionTests
         var record = AwkText.FromSourceLiteralString("k 0007");
         state.SetCurrentRecord(record);
         Assert.Equal(2, state.FieldCount);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         for (var repeat = 0; repeat < 8; repeat++)
         {
@@ -362,8 +353,7 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(7, retained);
         Assert.Equal(record, state.CurrentRecordByteText);
         Assert.Equal(2, state.FieldCount);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -425,11 +415,10 @@ public sealed class AwkNumericFieldConsumptionTests
         var record = AwkText.FromString("k " + new string('1', 16_384));
         state.SetCurrentRecord(record);
         _ = state.FieldCount;
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => state.GetFieldNumber(2));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(record, state.CurrentRecordByteText);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);

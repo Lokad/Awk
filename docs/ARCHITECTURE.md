@@ -50,9 +50,10 @@ needed, including user comparators and pending output.
 
 ## Admission, cancellation and stack safety
 
-Admission funds actual retained owners, temporary overlap and pending users. Preflight
-mutations before publication; refusal fails without retry or partially replacing a
-record, field, array, capture array or output payload. Temporary construction peaks
+One live execution total covers storage held during preparation, publication and use.
+Charge staged growth before allocation and refund it on failure. Preflight mutations
+before publication. Refusal fails without retry or partially replacing a record, field,
+array, capture array or output payload. Temporary construction peaks
 and retained scratch use the same resizable lease. Compound mutations set an admitted
 floor that their component charges can consume. Capture source values before
 admission callbacks and re-locate mutable destinations afterward. Retire all funding

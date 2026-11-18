@@ -258,7 +258,7 @@ internal sealed partial class AwkVariables
         var replacement = CreateArraySlots(0);
         RetireArrayContents(array, includeRoot: false);
         array.ReplaceSlots(replacement);
-        _state.MemoryAccounting.ReleaseCommitted(oldBytes);
+        _state.MemoryAccounting.Refund(oldBytes);
     }
 
     internal void DeleteArrayValue(AwkArrayIdentity array, AwkArrayKey key)
@@ -285,7 +285,7 @@ internal sealed partial class AwkVariables
         slots.Remove(retainedKey);
         cell?.Detach();
         slot = default;
-        _state.MemoryAccounting.ReleaseCommitted(oldBytes);
+        _state.MemoryAccounting.Refund(oldBytes);
     }
 
     private void RetireArrayContents(AwkArrayIdentity array, bool includeRoot, bool cancellable = true)

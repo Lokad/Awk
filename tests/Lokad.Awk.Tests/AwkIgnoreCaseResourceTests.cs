@@ -16,7 +16,7 @@ public sealed class AwkIgnoreCaseResourceTests
         var source = AwkText.FromString("xÄ𐐀K");
         var a = state.CreateStringValue(left);
         var b = state.CreateStringValue(right);
-        var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
+        var committedBefore = state.MemoryAccounting.LiveBytes;
         var allocatedBefore = counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 16; index++)
         {
@@ -28,7 +28,7 @@ public sealed class AwkIgnoreCaseResourceTests
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
         Assert.Equal(allocatedBefore, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(committedBefore, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committedBefore, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]

@@ -108,14 +108,13 @@ public sealed class AwkFunctionFlowTests
         state.RecordNumber = 0;
 
         await ProcessAsync();
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         for (var index = 1; index < 256; index++)
         {
             await ProcessAsync();
             Assert.False(state.IsInsideFunction);
             Assert.False(state.TryGetExecutionContext(out _));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-            Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         }
         Assert.Equal(skipFile ? 256 : 512, state.RecordNumber);
         var error = Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));

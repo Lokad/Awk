@@ -86,7 +86,7 @@ AwkStringUnitMode units)
         var governor = memoryForGovernor.Accounting;
         using var runtime = Runtime(counters, units, governor);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var input = AwkText.FromString(new string('z', 2000) + "😀😀");
 
         using (var leased = runtime.MatchCaptureValue(regex, input))
@@ -100,12 +100,11 @@ AwkStringUnitMode units)
             Assert.Equal(match.Index, match.Groups[1].Index);
             Assert.Equal(match.Length, match.Groups[1].Length);
             Assert.Equal("😀😀", match.Groups[0].Value.AsString());
-            Assert.True(governor.CurrentCommittedBytes > committed);
+            Assert.True(governor.LiveBytes > committed);
         }
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         runtime.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
 
     }
 
@@ -118,7 +117,7 @@ AwkStringUnitMode units)
         using var runtime = Runtime(counters, accounting: governor);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
         using var search = runtime.OpenSearch(regex, AwkText.FromString("aaa"));
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var allocated = counters[AwkCounter.TextAllocations];
 
         memoryForGovernor.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -126,8 +125,7 @@ AwkStringUnitMode units)
             search.MatchValue(0, AwkRegexCapturePlan.All, out _));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         Assert.Equal(allocated, counters[AwkCounter.TextAllocations]);
 
     }

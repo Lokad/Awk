@@ -25,7 +25,6 @@ public sealed partial class AwkPrintStagingMemoryTests
             Assert.Equal(1, memory.Budget.Refusals);
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
             Assert.Equal("prior", output.ToString());
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -44,8 +43,8 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var earlier = new string('p', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 131_071);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes - 131_071);
+        var before = state.MemoryAccounting.LiveBytes;
         var io = Io(state, new MockFileSystem());
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{print \"" + new string('x', 10_000) + "\",\"" + new string('y', 10_000) + "\"}"));
         Assert.True(binding.Success);
@@ -56,8 +55,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(earlier, output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         await io.CloseAsync();
     }
 

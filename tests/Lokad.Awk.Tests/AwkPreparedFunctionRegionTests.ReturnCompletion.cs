@@ -34,7 +34,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(spelling, caller.Values[0].ByteText.AsString());
             Assert.Equal(textSource ? AwkRuntimeValueKind.String : AwkRuntimeValueKind.NumericString, caller.Values[0].RuntimeKind);
             Assert.Equal(7, caller.Values[0].AsNumber());
-            if (governed) Assert.True(memory.State.MemoryAccounting.CurrentCommittedBytes >= value.RetainedTextMemoryBytes);
+            if (governed) Assert.True(memory.State.MemoryAccounting.LiveBytes >= value.RetainedTextMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
         }
         caller.Dispose();

@@ -42,7 +42,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
             Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally { await io.CloseAsync(); }
     }

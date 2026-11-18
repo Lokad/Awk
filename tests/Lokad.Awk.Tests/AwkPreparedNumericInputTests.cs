@@ -17,7 +17,7 @@ public sealed class AwkPreparedNumericInputTests
         var producerMode = nonDecimal ? AwkNumberParsingMode.Decimal : AwkNumberParsingMode.NonDecimalData;
         using var frame = Store(state, AwkValue.FromDeferredText(text, producerMode), storage);
 
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.LiveBytes;
         var first = Read(state, storage);
         var second = Read(state, storage);
 
@@ -27,8 +27,7 @@ public sealed class AwkPreparedNumericInputTests
         Assert.False(first.TryGetNumber(out _));
         Assert.Equal(nonDecimal ? 8 : 10, first.AsNumber(state.CancellationCheckpoint));
         Assert.Equal("010", first.AsString());
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]
@@ -49,15 +48,14 @@ public sealed class AwkPreparedNumericInputTests
         var input = state.CreateNumericStringValue(text);
         using var frame = Store(state, input, storage);
 
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.LiveBytes;
         var result = Read(state, storage);
         Assert.True(text.HasSameStorage(result.ByteText));
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
         Assert.Equal(number, result.AsNumber());
         Assert.True(AwkComparisonOperations.Evaluate(result, AwkValue.FromNumber(number), AwkComparison.Equal, state));
 
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
     }
@@ -108,13 +106,12 @@ public sealed class AwkPreparedNumericInputTests
         var state = memoryForState.State;
         var input = state.CreateNumericStringValue("1" + new string('0', 8000));
         using var frame = Store(state, input, storage);
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         var error = Assert.Throws<OperationCanceledException>(() => Read(state, storage));
         Assert.Equal(cancellation.Token, error.CancellationToken);
 
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -124,12 +121,11 @@ public sealed class AwkPreparedNumericInputTests
         memoryForState.Budget.SetAvailableBytes(1024);
         var state = memoryForState.State;
         Store(state, state.CreateNumericStringValue("123"), storage: 1);
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.LiveBytes;
         var oversized = AwkTestHarness.NumericInput("1" + new string('0', 2000));
         Assert.Throws<AwkRuntimeException>(() => Store(state, oversized, storage: 1));
         Assert.Equal(123, Read(state, storage: 1).AsNumber());
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
     }
 
     private static StoredLocalFrame Store(AwkRuntimeState state, AwkValue value, int storage)

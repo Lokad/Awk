@@ -1057,7 +1057,7 @@ internal sealed partial class AwkVariables
         var oldBytes = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(array));
         _arrays.Remove(name, out _);
         RetireArrayContents(array, includeRoot: true, cancellable: false);
-        _state.MemoryAccounting.ReleaseCommitted(oldBytes);
+        _state.MemoryAccounting.Refund(oldBytes);
     }
 
     internal AwkValue CreateValue(AwkValue slot) =>
@@ -1297,43 +1297,28 @@ internal sealed partial class AwkVariables
 
     private struct AwkMemoryMutationLease : IDisposable
     {
-        private readonly AwkMemoryAccounting _governor;
-        private readonly long _newBytes;
-        private readonly long _oldBytes;
-        private bool _committed;
+        private readonly AwkMemoryAccounting _accounting;
+        private readonly long _growth;
+        private bool _published;
 
-        public AwkMemoryMutationLease(AwkMemoryAccounting governor, long newBytes, long oldBytes)
+        public AwkMemoryMutationLease(AwkMemoryAccounting accounting, long newBytes, long oldBytes)
         {
-            _governor = governor;
-            _newBytes = newBytes;
-            _oldBytes = oldBytes;
-            _committed = false;
-
-            if (newBytes > oldBytes)
-                governor.Reserve(newBytes - oldBytes);
+            _accounting = accounting;
+            _growth = newBytes - oldBytes;
+            _published = false;
+            accounting.Charge(_growth);
         }
 
         public void Commit()
         {
-            if (_committed)
-                return;
-
-            if (_newBytes > _oldBytes)
-            {
-                _governor.CommitReserved(_newBytes - _oldBytes);
-            }
-            else if (_oldBytes > _newBytes)
-            {
-                _governor.ReleaseCommitted(_oldBytes - _newBytes);
-            }
-
-            _committed = true;
+            if (_published) return;
+            _accounting.Refund(-_growth);
+            _published = true;
         }
 
         public void Dispose()
         {
-            if (!_committed && _newBytes > _oldBytes)
-                _governor.ReleaseReserved(_newBytes - _oldBytes);
+            if (!_published) _accounting.Refund(_growth);
         }
     }
 

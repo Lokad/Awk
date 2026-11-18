@@ -50,7 +50,7 @@ public sealed class AwkPrintfCancellationTests
         };
         var counters = AwkRuntimeCounters.CreateEnabled();
         var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
-        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
@@ -80,8 +80,7 @@ public sealed class AwkPrintfCancellationTests
             var failure = Assert.Throws<OperationCanceledException>(() => Read(longFormat, Checkpoint));
             Assert.Equal(cancellation.Token, failure.CancellationToken);
             Assert.True(calls > 0);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -112,7 +111,7 @@ public sealed class AwkPrintfCancellationTests
         using var cancellation = new CancellationTokenSource();
         var memoryForGovernor = new CooperativeTestMemory(1 << 20)
             .InitializeRuntime(counters, cancellation.Token);
-        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
@@ -124,11 +123,10 @@ public sealed class AwkPrintfCancellationTests
                 PrintfMissingArgumentPolicy.Throw, memoryForGovernor.State));
             Assert.Equal(cancellation.Token, failure.CancellationToken);
             Assert.True(readingValue);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
             memoryForGovernor.Budget.OnGrowth = null;
             var completedMemory = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
-            var completedMemoryBaseline = completedMemory.Accounting.CurrentCommittedBytes;
+            var completedMemoryBaseline = completedMemory.Accounting.LiveBytes;
             var completedMemoryBudget = completedMemory.Budget;
             using (completedMemory)
             {
@@ -142,10 +140,8 @@ public sealed class AwkPrintfCancellationTests
                 };
                 Assert.Equal(expected, completed.AsString());
                 Assert.Equal(conversion == "precision" ? 9006 : conversion == "width" ? 20006 : 12007, completed.RuneLength);
-                Assert.Equal(0, governor.CurrentReservedBytes);
-                Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
-                Assert.Equal(0, completedMemory.Accounting.CurrentReservedBytes);
-                Assert.Equal(completedMemoryBaseline, completedMemory.Accounting.CurrentCommittedBytes);
+                Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
+                Assert.Equal(completedMemoryBaseline, completedMemory.Accounting.LiveBytes);
             }
             Assert.Equal(0, completedMemoryBudget.Reserved);
         }
@@ -162,7 +158,7 @@ public sealed class AwkPrintfCancellationTests
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters, cancellation.Token);
-        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
@@ -171,8 +167,7 @@ public sealed class AwkPrintfCancellationTests
             var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
                 "prefix" + conversion, arguments, PrintfMissingArgumentPolicy.Throw, memoryForGovernor.State));
             Assert.Equal(cancellation.Token, failure.CancellationToken);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -189,7 +184,7 @@ public sealed class AwkPrintfCancellationTests
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters, cancellation.Token);
-        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
@@ -198,8 +193,7 @@ public sealed class AwkPrintfCancellationTests
             var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
                 "prefix" + conversion, arguments, PrintfMissingArgumentPolicy.Throw, memoryForGovernor.State));
             Assert.Equal(cancellation.Token, failure.CancellationToken);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -287,7 +281,7 @@ public sealed class AwkPrintfCancellationTests
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
-        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
@@ -297,8 +291,7 @@ public sealed class AwkPrintfCancellationTests
             Assert.Equal("界", output.AsString());
 
             memoryForGovernor.State.ThrowIfCancellationRequested();
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }

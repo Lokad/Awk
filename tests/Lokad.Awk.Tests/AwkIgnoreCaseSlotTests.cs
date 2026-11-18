@@ -13,10 +13,10 @@ public sealed class AwkIgnoreCaseSlotTests
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase);
         state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase, AwkValue.FromNumber(1));
         var global = state.GetOrCreateGlobalScalarSlot(name);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var allocations = state.Counters[AwkCounter.TextAllocations];
         for (var i = 0; i < 100; i++) Assert.True(state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
         var enabled = modeValue == (int)AwkCompatibilityMode.GnuDefault;
@@ -36,7 +36,6 @@ public sealed class AwkIgnoreCaseSlotTests
         Assert.Equal(enabled ? 2 : 1, state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).AsNumber());
         state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase, AwkValue.FromNumber(0));
         Assert.False(state.ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

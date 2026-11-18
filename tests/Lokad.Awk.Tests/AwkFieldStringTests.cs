@@ -28,7 +28,6 @@ public sealed class AwkFieldStringTests
         Assert.Equal(whole ? "résumé" : "ré", result.AsString());
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -84,7 +83,6 @@ public sealed class AwkFieldStringTests
             Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         }
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -142,13 +140,12 @@ public sealed class AwkFieldStringTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes);
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.InRange(memory.Budget.Refusals, 0, 1);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -168,7 +165,7 @@ public sealed class AwkFieldStringTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes);
         if (parsed)
         {
             Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
@@ -181,7 +178,6 @@ public sealed class AwkFieldStringTests
             Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         }
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -203,7 +199,6 @@ public sealed class AwkFieldStringTests
         var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -224,14 +219,13 @@ public sealed class AwkFieldStringTests
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var textAllocations = state.Counters[AwkCounter.TextAllocations];
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes);
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(textAllocations, state.Counters[AwkCounter.TextAllocations]);
         Assert.InRange(memory.Budget.Refusals, 0, 1);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

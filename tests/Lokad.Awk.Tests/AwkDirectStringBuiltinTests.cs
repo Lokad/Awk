@@ -26,7 +26,6 @@ public sealed class AwkDirectStringBuiltinTests
 
             Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
             Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         var alphabet = new string(Enumerable.Range(0, 128).Select(value => (char)value).ToArray());
         var alphabetState = State(AwkExecutionMemoryOwner.Disabled);

@@ -123,14 +123,13 @@ public sealed class AwkPreparedArrayKindTests
             CancellationToken.None, memory.Configure(Options()))).State;
         state.InitializeGlobalReadSlots(1);
         state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), AwkArrayBinding.Global(0));
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
             state.SetArrayAwkValue(Array, new("new"), AwkValue.FromNumber(9), AwkArrayBinding.Global(0)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(Array, Key, AwkArrayBinding.Global(0)).AsNumber());
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -250,7 +249,6 @@ public sealed class AwkPreparedArrayKindTests
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -286,7 +284,6 @@ public sealed class AwkPreparedArrayKindTests
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
         Assert.Equal(7, state.GetArrayAwkValue(Array, Key).AsNumber());
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         regionOutput.Dispose();
         memory.Dispose();

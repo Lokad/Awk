@@ -25,20 +25,19 @@ public sealed class AwkPreparedGlobalReadTests
         var state = memory.State;
         var counters = state.Counters;
         var name = AwkVariableName.FromText("missing");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         state.InitializeGlobalReadSlots(3);
         Assert.Equal(24 + 3 * Unsafe.SizeOf<AwkGlobalBinding>(),
-            state.MemoryAccounting.CurrentCommittedBytes - before);
+            state.MemoryAccounting.LiveBytes - before);
         Assert.False(state.HasScalar(name));
-        var admitted = state.MemoryAccounting.CurrentCommittedBytes;
+        var admitted = state.MemoryAccounting.LiveBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
         Assert.True(state.HasScalar(name));
         Assert.Equal(AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length) + 24,
-            state.MemoryAccounting.CurrentCommittedBytes - admitted);
-        var typed = state.MemoryAccounting.CurrentCommittedBytes;
+            state.MemoryAccounting.LiveBytes - admitted);
+        var typed = state.MemoryAccounting.LiveBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
-        Assert.Equal(typed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(typed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
@@ -48,13 +47,12 @@ public sealed class AwkPreparedGlobalReadTests
         const int limit = 1 << 20;
         using var memory = State(CancellationToken.None);
         var state = memory.State;
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(limit - before))
         {
-            var pressured = state.MemoryAccounting.CurrentCommittedBytes;
+            var pressured = state.MemoryAccounting.LiveBytes;
             Assert.Throws<AwkRuntimeException>(() => state.InitializeGlobalReadSlots(3));
-            Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.Equal(pressured, state.MemoryAccounting.LiveBytes);
         }
         // With no vector published, legacy evaluation ignores an ordinal.
         Assert.True(state.ResolvePreparedGlobalValue(AwkVariableName.FromText("missing"), 99).IsUnassignedValue);
@@ -66,11 +64,10 @@ public sealed class AwkPreparedGlobalReadTests
         using var cancellation = new CancellationTokenSource();
         using var memory = State(cancellation.Token);
         var state = memory.State;
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => state.InitializeGlobalReadSlots(3));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -82,10 +79,10 @@ public sealed class AwkPreparedGlobalReadTests
         var array = new AwkArrayName(name.Identifier);
         state.SetArrayString(array, AwkArrayKey.FromOrdinal(1), "kept");
         state.InitializeGlobalReadSlots(1);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
         Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         Assert.Equal("kept", state.GetArrayAwkValue(array, AwkArrayKey.FromOrdinal(1)).AsString());
         Assert.False(state.HasScalar(name));
     }

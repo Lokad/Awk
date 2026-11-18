@@ -4,7 +4,6 @@ internal sealed class AwkUtf8Builder : IDisposable
 {
     private readonly AwkMemoryAccounting _governor;
     private byte[] _buffer;
-    private int _committedCapacity;
     private bool _disposed;
 
     public AwkUtf8Builder(AwkMemoryAccounting governor,
@@ -21,19 +20,16 @@ internal sealed class AwkUtf8Builder : IDisposable
             return;
         }
 
-        _governor.Reserve(capacity);
+        _governor.Charge(capacity);
         try
         {
             _buffer = new byte[capacity];
         }
         catch
         {
-            _governor.ReleaseReserved(capacity);
+            _governor.Refund(capacity);
             throw;
         }
-
-        _governor.CommitReserved(capacity);
-        _committedCapacity = capacity;
     }
 
     public int Length { get; private set; }
@@ -277,10 +273,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (_disposed)
             return;
 
-        if (_committedCapacity > 0)
-            _governor.ReleaseCommitted(_committedCapacity);
-
-        _committedCapacity = 0;
+        _governor.Refund(_buffer.Length);
         Length = 0;
         _buffer = [];
         _disposed = true;
@@ -288,26 +281,6 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public void EnsureCapacity(int capacity)
     {
-        void ResizeAndCommit(int newSize)
-        {
-            _governor.Reserve(newSize);
-            try
-            {
-                Array.Resize(ref _buffer, newSize);
-            }
-            catch
-            {
-                _governor.ReleaseReserved(newSize);
-                throw;
-            }
-
-            if (_committedCapacity > 0)
-                _governor.ReleaseCommitted(_committedCapacity);
-
-            _governor.CommitReserved(newSize);
-            _committedCapacity = newSize;
-        }
-
         if (capacity <= _buffer.Length)
             return;
 
@@ -327,7 +300,18 @@ internal sealed class AwkUtf8Builder : IDisposable
             newSize *= 2;
         }
 
-        ResizeAndCommit(newSize);
+        _governor.Charge(newSize);
+        try
+        {
+            Array.Resize(ref _buffer, newSize);
+        }
+        catch
+        {
+            _governor.Refund(newSize);
+            throw;
+        }
+
+        _governor.Refund(currentCapacity);
     }
 
     private void ThrowIfDisposed()

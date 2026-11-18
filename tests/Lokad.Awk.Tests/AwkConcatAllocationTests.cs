@@ -52,7 +52,6 @@ public sealed class AwkConcatAllocationTests
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
 }

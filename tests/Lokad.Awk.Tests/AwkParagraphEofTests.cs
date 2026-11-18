@@ -81,14 +81,14 @@ public sealed class AwkParagraphEofTests
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
 
         var eof = await cursor.ReadRecordAsync();
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var repeated = await cursor.ReadRecordAsync();
 
         Assert.False(eof.HasRecord);
         Assert.True(eof.ClearsRecordTerminator);
         Assert.False(repeated.HasRecord);
         Assert.False(repeated.ClearsRecordTerminator);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.True(state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.EqualsAscii("sentinel"));
         Assert.True(state.CurrentRecordByteText.EqualsAscii("seed fields"));
         Assert.Equal(0, counters[AwkCounter.RecordsRead]);
@@ -153,7 +153,7 @@ public sealed class AwkParagraphEofTests
             retain ? AwkParagraphLeaderPolicy.Retain : AwkParagraphLeaderPolicy.Discard);
 
         Assert.True((await cursor.ReadRecordAsync()).ClearsRecordTerminator);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         for (var index = 0; index < 5; index++)
         {
             var eof = await cursor.ReadRecordAsync();
@@ -161,7 +161,7 @@ public sealed class AwkParagraphEofTests
             Assert.Equal(retain, eof.ClearsRecordTerminator);
         }
 
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(splitBatches ? 2 : 1, host.ReadByteCounts.Count);
         Assert.Equal(bytes.Length, counters[AwkCounter.BytesRead]);
         if (retain)
@@ -201,7 +201,7 @@ public sealed class AwkParagraphEofTests
                 GC.WaitForPendingFinalizers();
                 for (var index = 0; index < 16; index++)
                     _ = cursor.ReadRecordAsync().GetAwaiter().GetResult();
-                var committed = state.MemoryAccounting.CurrentCommittedBytes;
+                var committed = state.MemoryAccounting.LiveBytes;
                 var before = GC.GetAllocatedBytesForCurrentThread();
                 for (var index = 0; index < 1_000; index++)
                 {
@@ -210,7 +210,7 @@ public sealed class AwkParagraphEofTests
                         throw new InvalidOperationException("Retained EOF must complete synchronously without a record.");
                 }
                 return (Allocated: GC.GetAllocatedBytesForCurrentThread() - before,
-                    CommittedBefore: committed, CommittedAfter: state.MemoryAccounting.CurrentCommittedBytes,
+                    CommittedBefore: committed, CommittedAfter: state.MemoryAccounting.LiveBytes,
                     Records: counters[AwkCounter.RecordsRead],
                     Decodes: counters[AwkCounter.StringDecodes], Reads: host.ReadByteCounts.Count);
             }
@@ -269,7 +269,7 @@ public sealed class AwkParagraphEofTests
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("marker")));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         Assert.Equal(2, state.FieldCount);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
 
@@ -281,9 +281,8 @@ public sealed class AwkParagraphEofTests
         Assert.True(state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.EqualsAscii("marker"));
         Assert.Equal(2, state.FieldCount);
         Assert.Equal(0, state.RecordNumber);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         cursor.Dispose();
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -306,7 +305,7 @@ public sealed class AwkParagraphEofTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Options);
         using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
         var pending = cursor.ReadRecordAsync().AsTask();
@@ -322,9 +321,8 @@ public sealed class AwkParagraphEofTests
         }
 
         Assert.True(state.CurrentRecordByteText.EqualsAscii("seed fields"));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         cursor.Dispose();
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(2, reads);
     }
 

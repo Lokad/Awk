@@ -26,6 +26,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     public static AwkExecutionMemoryOwner Disabled { get; } = new();
     public AwkFrontendMemory FrontendMemory { get; } = AwkFrontendMemory.Disabled;
     public bool IsEnabled => _scope is not null;
+    internal long TrackedBytes => _trackedBytes;
     public IMemoryScope Scope => _scope ?? throw new InvalidOperationException("No cooperative memory scope is active.");
     public CancellationToken Token(CancellationToken original) => _cancellation?.Token ?? original;
 

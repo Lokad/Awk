@@ -42,7 +42,6 @@ public sealed class AwkGetlineDestinationTests
         Assert.Equal(1, state.FieldCount);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseForCleanupAsync();
         Assert.Equal(0, host.OpenFileCount);
     }
@@ -70,7 +69,7 @@ public sealed class AwkGetlineDestinationTests
         host.AddFile("/data", "record\n");
         using var output = AwkTestHarness.CreateOutputSink();
         var io = CreateIo(host, state, limits, CancellationToken.None);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
 
         ownedMemory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, io, output));
@@ -89,8 +88,7 @@ public sealed class AwkGetlineDestinationTests
             Assert.Equal(1, count);
             Assert.Equal(7, state.GetArrayAwkValue(array, new AwkArrayKey("kept")).AsNumber());
         }
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -146,7 +144,6 @@ public sealed class AwkGetlineDestinationTests
         Assert.Equal(1, count);
         Assert.True(state.TryPeekArrayAwkValue(array, new AwkArrayKey("κ"), out var value));
         Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         Assert.Equal(0, host.OpenFileCount);
     }

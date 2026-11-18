@@ -26,7 +26,6 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.False(owner.ContainsKey(key));
         Assert.Equal(7, owner[AwkArrayKey.FromOrdinal(1)].AsNumber());
         Assert.Equal(held, memory.Budget.Reserved);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -81,7 +80,6 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.True(owner.IsDetached);
         Assert.Empty(owner);
         Assert.Equal(baseline, memory.Budget.Reserved);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -155,7 +153,6 @@ public sealed class AwkIndexedArrayStorageTests
             Assert.Equal("0007", first.ByteText.AsString());
         }
         Assert.Equal(held, memory.Budget.Reserved);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         if (!cancel) Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
     }
 
@@ -188,7 +185,6 @@ public sealed class AwkIndexedArrayStorageTests
         variables.RemoveFunctionLocalArray(name);
         Assert.Empty(owner);
         Assert.Equal(held, memory.Budget.Reserved);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -283,7 +279,6 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.Equal(first, owner[AwkArrayKey.FromOrdinal(1)]);
         Assert.Equal("0007", first.ByteText.AsString());
         Assert.Equal(before, memory.Budget.Reserved);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -307,6 +302,5 @@ public sealed class AwkIndexedArrayStorageTests
         Assert.Equal(11, leading.AsNumber());
         variables.ClearArray(name);
         Assert.Empty(owner);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 }

@@ -10,17 +10,16 @@ public sealed class AwkRegexDialectMemoryTests
         using var runtime = Runtime(governor, () => { });
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(")")));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
         using var memoryForAdmitted = Governor(1 << 24);
         var admitted = memoryForAdmitted.Accounting;
         using var retry = Runtime(admitted, () => { });
         var regex = retry.Create(new AwkRegexPattern(")"));
         Assert.True(retry.IsMatch(regex, AwkText.FromString(")")));
         Assert.Same(regex, retry.Create(new AwkRegexPattern(")")));
-        Assert.True(admitted.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
+        Assert.True(admitted.LiveBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
         retry.Dispose();
-        Assert.Equal(0, admitted.CurrentCommittedBytes);
+        Assert.Equal(0, admitted.LiveBytes);
     }
 
     [Fact]
@@ -30,14 +29,13 @@ public sealed class AwkRegexDialectMemoryTests
         using var memoryForGovernor = new CooperativeTestMemory(1 << 24);
         var governor = memoryForGovernor.Accounting;
         long heldAtLastCheck = -1;
-        using var runtime = Runtime(governor, () => heldAtLastCheck = governor.CurrentCommittedBytes);
+        using var runtime = Runtime(governor, () => heldAtLastCheck = governor.LiveBytes);
         var regex = runtime.Create(new AwkRegexPattern(@"\q"));
         Assert.True(heldAtLastCheck >= 26, $"Final preparation check held {heldAtLastCheck} bytes.");
         Assert.True(runtime.IsMatch(regex, AwkText.FromString("q")));
-        Assert.True(governor.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
+        Assert.True(governor.LiveBytes >= AwkRuntimeMemory.EstimateTextBytes(regex.Pattern));
         runtime.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     public static IEnumerable<object[]> TranslationCases()
@@ -63,22 +61,20 @@ public sealed class AwkRegexDialectMemoryTests
         {
             results.ReserveAdditional(43);
             Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, results, governor));
-            Assert.True(governor.CurrentCommittedBytes >= 43 + AwkRuntimeMemory.EstimateTextBytes(expected));
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.True(governor.LiveBytes >= 43 + AwkRuntimeMemory.EstimateTextBytes(expected));
         }
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
         var required = memoryForGovernor.Budget.Peak - 43;
         using var memoryForExact = Governor(required);
         var exact = memoryForExact.Accounting;
         Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: exact));
-        Assert.Equal(0, exact.CurrentCommittedBytes);
+        Assert.Equal(0, exact.LiveBytes);
         using var memoryForShortGovernor = Governor(required - 1);
         var shortGovernor = memoryForShortGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() =>
             AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: shortGovernor));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, shortGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, shortGovernor.CurrentReservedBytes);
+        Assert.Equal(0, shortGovernor.LiveBytes);
     }
 
     [Fact]
@@ -90,12 +86,11 @@ public sealed class AwkRegexDialectMemoryTests
         using (var scratch = governor.ReserveTransient(64))
         {
             scratch.MoveTo(retained, 24);
-            Assert.Equal(64, governor.CurrentCommittedBytes);
+            Assert.Equal(64, governor.LiveBytes);
         }
-        Assert.Equal(24, governor.CurrentCommittedBytes);
+        Assert.Equal(24, governor.LiveBytes);
         retained.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]
@@ -109,10 +104,10 @@ public sealed class AwkRegexDialectMemoryTests
         Assert.Throws<InvalidOperationException>(() => source.MoveTo(foreign, 24));
         using var target = governor.CreateTransientLease();
         Assert.Throws<InvalidOperationException>(() => source.MoveTo(target, 65));
-        Assert.Equal(64, governor.CurrentCommittedBytes);
+        Assert.Equal(64, governor.LiveBytes);
         target.Dispose();
         Assert.Throws<InvalidOperationException>(() => source.MoveTo(target, 24));
-        Assert.Equal(64, governor.CurrentCommittedBytes);
+        Assert.Equal(64, governor.LiveBytes);
     }
 
     private static CooperativeTestMemory Governor(long bytes) =>

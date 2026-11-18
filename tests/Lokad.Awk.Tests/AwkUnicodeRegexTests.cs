@@ -90,17 +90,16 @@ compatibilityMode: (AwkCompatibilityMode)mode,
         var site = new object();
         var previous = new AwkRegexPattern(@"\u", warningSite: site);
         history.Report(previous, AwkRegexCaseSensitivity.CaseSensitive);
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         Assert.True(committed > 0);
         Assert.Throws<AwkRuntimeException>(() => history.Report(
             new AwkRegexPattern(@"\u" + new string('z', 5000), warningSite: site),
             AwkRegexCaseSensitivity.CaseSensitive));
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         history.Report(previous, AwkRegexCaseSensitivity.CaseSensitive);
         Assert.Single(messages);
         history.Report(new AwkRegexPattern("A", warningSite: site), AwkRegexCaseSensitivity.CaseSensitive);
-        Assert.True(governor.CurrentCommittedBytes < committed);
+        Assert.True(governor.LiveBytes < committed);
         history.Report(previous, AwkRegexCaseSensitivity.CaseSensitive);
         Assert.Equal(2, messages.Count);
     }
@@ -119,8 +118,7 @@ governor);
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(0, governor.CurrentCommittedBytes);
+            Assert.Equal(0, governor.LiveBytes);
         }
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
@@ -142,17 +140,15 @@ governor);
             history.Report(new AwkRegexPattern(@"\u", warningSite: i == 0 ? site : new object()),
                 AwkRegexCaseSensitivity.CaseSensitive);
         var beforeCalls = calls;
-        var beforeBytes = governor.CurrentCommittedBytes;
+        var beforeBytes = governor.LiveBytes;
         var pattern = new AwkRegexPattern(@"\ug", warningSite: grow ? new object() : site);
         fail = true;
         Assert.Throws<AwkRuntimeException>(() => history.Report(pattern, AwkRegexCaseSensitivity.CaseSensitive));
-        Assert.Equal(beforeBytes, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(beforeBytes, governor.LiveBytes);
         fail = false;
         history.Report(pattern, AwkRegexCaseSensitivity.CaseSensitive);
         history.Report(pattern, AwkRegexCaseSensitivity.CaseSensitive);
         Assert.Equal(beforeCalls + 2, calls);
-        Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
     [Theory]

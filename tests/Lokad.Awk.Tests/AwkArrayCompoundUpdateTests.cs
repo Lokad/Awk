@@ -66,7 +66,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         Assert.Equal(1, execution.Reads);
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

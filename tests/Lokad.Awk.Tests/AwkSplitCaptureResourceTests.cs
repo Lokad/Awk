@@ -55,7 +55,6 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
     [Theory]
     [InlineData("a", ",", 1, 0)]
@@ -76,7 +75,6 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(captures, captureCount);
         Assert.False(state.ContainsArrayValue(Fields, Old));
         Assert.False(state.ContainsArrayValue(Separators, Old));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -89,7 +87,7 @@ public sealed class AwkSplitCaptureResourceTests
             AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = Seed(memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, memory.Configure(options))).State);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
@@ -110,7 +108,7 @@ public sealed class AwkSplitCaptureResourceTests
     {
         using var cancellation = new CancellationTokenSource();
         var state = Seed(State(AwkRuntimeLimits.CreateDefault(), cancellationToken: cancellation.Token));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
 
         Assert.Throws<OperationCanceledException>(() => Split(state, "a,b", ","));
@@ -146,8 +144,7 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(1, separators);
         Assert.Equal("field", state.GetArrayByteText(Fields, Old).AsString());
         Assert.Equal("separator", state.GetArrayByteText(Separators, Old).AsString());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     private static AwkRuntimeState State(AwkRuntimeLimits limits, AwkRuntimeCounters? counters = null,

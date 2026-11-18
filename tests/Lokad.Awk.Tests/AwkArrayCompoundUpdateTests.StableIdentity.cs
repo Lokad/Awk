@@ -31,7 +31,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
             Assert.True(state.ContainsArrayValue(name, Key));
         }
         Assert.Equal(1, execution.Reads);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -81,6 +80,5 @@ public sealed partial class AwkArrayCompoundUpdateTests
         if (replacement == 2) Assert.Equal(1999, state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(1999)).AsNumber());
         Assert.Equal(1, execution.Reads);
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

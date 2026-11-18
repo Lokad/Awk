@@ -1092,7 +1092,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
                         state.CancellationCheckpoint?.Invoke();
                         var bytes = text.EstimatedRetainedMemoryBytes;
                         var next = AwkRuntimeMemory.CheckedAdd(formattedBytes, bytes);
-                        state.MemoryAccounting.ReserveAndCommit(bytes);
+                        state.MemoryAccounting.Charge(bytes);
                         formattedBytes = next;
                         payloadByteLength = AwkRuntimeMemory.CheckedAdd(payloadByteLength, text.ByteLength);
                         field = AwkFieldText.FromOwned(text);
@@ -1145,7 +1145,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             _recordWasRecomposed = true;
             _recompositionSeparator = AwkText.Empty;
         }
-        finally { state.MemoryAccounting.ReleaseCommitted(formattedBytes); }
+        finally { state.MemoryAccounting.Refund(formattedBytes); }
     }
 
     public void PrepareOutputFieldSeparatorAssignment()
@@ -1416,11 +1416,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
         if (newBytes > _retainedMemoryBytes)
         {
-            state.MemoryAccounting.ReserveAndCommit(newBytes - _retainedMemoryBytes);
+            state.MemoryAccounting.Charge(newBytes - _retainedMemoryBytes);
         }
         else if (_retainedMemoryBytes > newBytes)
         {
-            state.MemoryAccounting.ReleaseCommitted(_retainedMemoryBytes - newBytes);
+            state.MemoryAccounting.Refund(_retainedMemoryBytes - newBytes);
         }
 
         _retainedMemoryBytes = newBytes;

@@ -127,8 +127,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.False(match.Match.Success);
         Assert.False(runtime.MatchSpan(regex, input).Success);
 
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]

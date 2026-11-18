@@ -16,7 +16,7 @@ public sealed class AwkFieldMemoryModeTests
         var fieldMemoryBudget = fieldMemory.Budget;
         using (fieldMemory)
         {
-            var fieldMemoryBaseline = fieldMemory.Accounting.CurrentCommittedBytes;
+            var fieldMemoryBaseline = fieldMemory.Accounting.LiveBytes;
             var fieldMemoryBudgetBaseline = fieldMemory.Budget.Reserved;
             fieldMemory.Budget.SetAvailableBytes(8 << 20);
             var budget = fieldMemory.Budget;
@@ -43,8 +43,7 @@ public sealed class AwkFieldMemoryModeTests
                 frame.ResetRecord();
                 Assert.Equal(0, frame.GetFieldCount());
                 Assert.Equal("", frame.RecordAwkText.AsString());
-                Assert.Equal(fieldMemoryBaseline, accounting.CurrentCommittedBytes);
-                Assert.Equal(0, accounting.CurrentReservedBytes);
+                Assert.Equal(fieldMemoryBaseline, accounting.LiveBytes);
                 Assert.Equal(fieldMemoryBudgetBaseline, budget.Reserved);
             }
         }
@@ -60,7 +59,7 @@ public sealed class AwkFieldMemoryModeTests
         var fieldMemoryBudget = fieldMemory.Budget;
         using (fieldMemory)
         {
-            var fieldMemoryBaseline = fieldMemory.Accounting.CurrentCommittedBytes;
+            var fieldMemoryBaseline = fieldMemory.Accounting.LiveBytes;
             var fieldMemoryBudgetBaseline = fieldMemory.Budget.Reserved;
             fieldMemory.Budget.SetAvailableBytes(8 << 20);
             var budget = fieldMemory.Budget;
@@ -73,7 +72,7 @@ public sealed class AwkFieldMemoryModeTests
             Assert.Equal("café", frame.GetFieldValue(new(1)).AsString());
             Assert.Equal(2, frame.GetFieldCount());
             var record = frame.RecordAwkText;
-            var committed = accounting.CurrentCommittedBytes;
+            var committed = accounting.LiveBytes;
             var materialized = counters[AwkCounter.FieldsPrepared];
             budget.RefuseNextAdmissionMinimumGrowth = 1;
             var error = Assert.Throws<AwkRuntimeException>(() =>
@@ -86,13 +85,12 @@ public sealed class AwkFieldMemoryModeTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(2, frame.GetFieldCount());
             Assert.True(record.HasSameStorage(frame.RecordAwkText));
-            Assert.Equal(committed, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
+            Assert.Equal(committed, accounting.LiveBytes);
             Assert.Equal(materialized, counters[AwkCounter.FieldsPrepared]);
             frame.AssignFieldValue(new(1), AwkValue.FromText("z"), Separator);
             Assert.Equal("z|beta", frame.RecordAwkText.AsString());
             frame.ResetRecord();
-            Assert.Equal(fieldMemoryBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(fieldMemoryBaseline, accounting.LiveBytes);
             Assert.Equal(fieldMemoryBudgetBaseline, budget.Reserved);
         }
         Assert.Equal(0, fieldMemoryBudget.Reserved);
@@ -109,7 +107,7 @@ public sealed class AwkFieldMemoryModeTests
         var fieldMemoryBudget = fieldMemory.Budget;
         using (fieldMemory)
         {
-            var fieldMemoryBaseline = fieldMemory.Accounting.CurrentCommittedBytes;
+            var fieldMemoryBaseline = fieldMemory.Accounting.LiveBytes;
             var fieldMemoryBudgetBaseline = fieldMemory.Budget.Reserved;
             fieldMemory.Budget.SetAvailableBytes(8 << 20);
             var budget = fieldMemory.Budget;
@@ -120,13 +118,12 @@ public sealed class AwkFieldMemoryModeTests
             var frame = context.Frame;
             frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
             Assert.Equal(2, frame.GetFieldCount());
-            var committed = accounting.CurrentCommittedBytes;
+            var committed = accounting.LiveBytes;
             if (governed) fieldMemory.Budget.OnGrowth = _ => cancellation.Cancel();
             else cancellation.Cancel();
             var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1)));
             Assert.Equal(cancellation.Token, error.CancellationToken);
-            Assert.Equal(committed, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
+            Assert.Equal(committed, accounting.LiveBytes);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.CreateEnabled(), separator: " ", outputSeparator: " ");
             frame.ResetRecord();
             frame = retry.Frame;
@@ -136,7 +133,7 @@ public sealed class AwkFieldMemoryModeTests
             Assert.Equal("café", value.AsString());
 
             frame.ResetRecord();
-            Assert.Equal(fieldMemoryBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(fieldMemoryBaseline, accounting.LiveBytes);
             Assert.Equal(fieldMemoryBudgetBaseline, budget.Reserved);
         }
         Assert.Equal(0, fieldMemoryBudget.Reserved);

@@ -59,18 +59,17 @@ public sealed class AwkProfileNameTests
             memory.Configure(options), AwkCompatibilityProfile.Default.WithMode((AwkCompatibilityMode)modeValue))).State;
         var name = AwkArrayName.FromText(text);
         var key = AwkArrayKey.FromOrdinal(1);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         Assert.True(state.GetArrayAwkValue(name, key).IsUntypedValue);
-        Assert.True(state.MemoryAccounting.CurrentCommittedBytes > before);
+        Assert.True(state.MemoryAccounting.LiveBytes > before);
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, key));
-        var admitted = state.MemoryAccounting.CurrentCommittedBytes;
+        var admitted = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(2)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.True(state.TryGetExistingArrayCount(name, out var count));
         Assert.Equal(1, count);
-        Assert.Equal(admitted, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(admitted, state.MemoryAccounting.LiveBytes);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
@@ -85,14 +84,14 @@ public sealed class AwkProfileNameTests
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayAwkValue(destination, key, AwkValue.FromNumber(7));
         state.SetArrayAwkValue(separator, key, AwkValue.FromNumber(8));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => state.SplitIntoArray(
             AwkText.FromString("a,b"), destination, AwkFieldSeparatorSpec.FromText(","),
             AwkOptionalIdentifier.Some(separator.Identifier)));
         Assert.Equal("awk: split: fourth argument is a GNU extension\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(destination, key).AsNumber());
         Assert.Equal(8, state.GetArrayAwkValue(separator, key).AsNumber());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     private static AwkRuntimeState State(AwkCompatibilityMode mode, AwkRuntimeCounters counters, AwkRuntimeLimits limits)

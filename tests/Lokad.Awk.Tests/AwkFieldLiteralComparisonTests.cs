@@ -28,7 +28,6 @@ public sealed class AwkFieldLiteralComparisonTests
         Assert.False(await CompareAsync(region, storage, state, regionOutput, regionIo));
         state.SetCurrentRecord(AwkText.FromString("first next"));
         Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -46,11 +45,10 @@ public sealed class AwkFieldLiteralComparisonTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await CompareAsync(region, storage, state, regionOutput, regionIo));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(text, state.CurrentRecordByteText.AsString());
     }
 
@@ -71,10 +69,9 @@ public sealed class AwkFieldLiteralComparisonTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         Assert.False(await CompareAsync(region, storage, state, regionOutput, regionIo));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal("x", state.CurrentRecordByteText.AsString());
     }
 

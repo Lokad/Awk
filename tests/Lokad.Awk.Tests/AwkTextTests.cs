@@ -240,15 +240,14 @@ public sealed class AwkTextTests
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
         memoryForGovernor.Budget.SetAvailableBytes(3);
         var governor = memoryForGovernor.Accounting;
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>
             memoryForGovernor.State.CopyText("abcd"u8));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(0, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
     }
 
     [Fact]

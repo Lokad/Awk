@@ -69,7 +69,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(5, state.ResolveVariableValue(x).AsNumber());
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await input.CloseRemainingDescriptorsForCleanupAsync();
         await io.CloseForCleanupAsync();
     }

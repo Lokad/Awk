@@ -16,12 +16,12 @@ public sealed class AwkPrintfFormattingTests
         var expected = AwkUtf8Codec.Encode(prefix.Replace("%%", "%", StringComparison.Ordinal) + "0007:end");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var memory = new CooperativeTestMemory(64 << 10, enabled: governed).InitializeRuntime(counters);
-        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBaseline = memory.Accounting.LiveBytes;
         var memoryBudget = memory.Budget;
         using (memory)
         {
             using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 32 << 10))
-            using (var pressure = memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Accounting.CurrentCommittedBytes))
+            using (var pressure = memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Accounting.LiveBytes))
             {
                 var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromNumber(7));
                 PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
@@ -65,7 +65,7 @@ public sealed class AwkPrintfFormattingTests
         {
             var counters = AwkRuntimeCounters.CreateEnabled();
             var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters);
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             var memoryBudget = memory.Budget;
             using (memory)
             {
@@ -103,7 +103,7 @@ public sealed class AwkPrintfFormattingTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters);
-        var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+        var memoryBaseline = memory.Accounting.LiveBytes;
         var memoryBudget = memory.Budget;
         using (memory)
         {
@@ -142,7 +142,6 @@ public sealed class AwkPrintfFormattingTests
                 Math.Abs(integral).ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
             var actual = PrintfEvaluation.FormatByteText("%d", new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number)), PrintfMissingArgumentPolicy.Throw, state);
             Assert.Equal(expected, AwkUtf8Codec.Decode(actual.AsSpan()));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             observed++;
         }
         foreach (var number in new[] { 0.0, -0.0, 7.75, -7.75, double.MaxValue, -double.MaxValue }) Check(number);
@@ -169,7 +168,6 @@ public sealed class AwkPrintfFormattingTests
         AwkValue[] values = [AwkValue.FromNumber(number)];
         var text = PrintfEvaluation.FormatByteText(format, new AwkValueArrayPrintfArguments(values, 1, state), PrintfMissingArgumentPolicy.Throw, state);
         Assert.Equal(byteCount, text.ByteLength);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -223,6 +221,5 @@ public sealed class AwkPrintfFormattingTests
 
         Assert.Equal(1, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

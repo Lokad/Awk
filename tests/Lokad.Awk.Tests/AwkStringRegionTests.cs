@@ -21,7 +21,6 @@ public sealed class AwkStringRegionTests
         Assert.Equal(12, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         output.Dispose();
         memory.Dispose();
@@ -84,7 +83,6 @@ public sealed class AwkStringRegionTests
             Assert.Equal(1, reads);
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("reads")).AsNumber());
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

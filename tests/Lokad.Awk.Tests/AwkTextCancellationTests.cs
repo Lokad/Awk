@@ -21,14 +21,13 @@ public sealed class AwkTextCancellationTests
         invalid.CopyTo(bytes.AsSpan(prefix));
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = Governor().InitializeRuntime(counters);
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => memory.State.CopyHostText(bytes));
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, counters[AwkCounter.TextBytes]);
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
     }
 
     [Theory]
@@ -85,7 +84,7 @@ public sealed class AwkTextCancellationTests
         var input = AwkUtf8Codec.Encode(new string('a', prefix) + (supplementary ? "😀" : "")).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = Governor().InitializeRuntime(counters);
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         var text = memory.State.CopyHostText(input);
         Assert.True(text.AsSpan().SequenceEqual(input));
         if (input.Length > 0)
@@ -97,8 +96,7 @@ public sealed class AwkTextCancellationTests
         Assert.Equal(input.Length, counters[AwkCounter.TextBytes]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
     }
 
     [Theory]
@@ -111,7 +109,7 @@ public sealed class AwkTextCancellationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor().InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var expected = scenario switch
         {
             "ascii" => new string('a', LongText) + "z",
@@ -126,7 +124,7 @@ public sealed class AwkTextCancellationTests
         var copyingChecks = 0;
         Action checkpoint = () =>
         {
-            if (governor.CurrentCommittedBytes > committed && ++copyingChecks == 4)
+            if (governor.LiveBytes > committed && ++copyingChecks == 4)
                 cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         };
@@ -134,8 +132,7 @@ public sealed class AwkTextCancellationTests
         var error = Assert.Throws<OperationCanceledException>(() => { _ = text.AsSpan(checkpoint); });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(expected, text.AsString());
         Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
@@ -284,8 +281,7 @@ public sealed class AwkTextCancellationTests
             builder.Append("!"u8);
             Assert.Equal("kept!", AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
         }
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]
@@ -296,12 +292,11 @@ public sealed class AwkTextCancellationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor().InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         using var cancellation = new CancellationTokenSource();
         var completed = memoryForGovernor.State.ConcatText([owned, AwkText.FromString("z")]);
         Assert.Throws<OperationCanceledException>(() => completed.AsMemory(CancelOnCheck(cancellation, 3)));
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         bytes.AsSpan().Fill((byte)'b');
         Assert.Equal(new string('a', LongText) + "z", completed.AsString());
     }
@@ -334,7 +329,7 @@ public sealed class AwkTextCancellationTests
         variables.SetArrayValue(name, key, AwkValue.FromNumber(7));
         Assert.True(variables.ResolveOrdinaryArray(name).TryGetEntry(key, out _, out var cell));
         Assert.NotNull(cell);
-        var retained = governor.CurrentCommittedBytes;
+        var retained = governor.LiveBytes;
         var pending = AwkValue.FromDeferredText(AwkText.FromString(new string('a', LongText)), AwkNumberParsingMode.Decimal);
         memory.Budget.OnGrowth = _ => cancellation.Cancel();
 
@@ -343,8 +338,7 @@ public sealed class AwkTextCancellationTests
         memory.Budget.OnGrowth = null;
         Assert.True(cell.IsAttached);
         Assert.Equal(7, cell.Slot.AsNumber());
-        Assert.Equal(retained, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(retained, governor.LiveBytes);
     }
 
     [Fact]
@@ -355,13 +349,12 @@ public sealed class AwkTextCancellationTests
         using var cancellation = new CancellationTokenSource();
         using (var memory = Governor().InitializeRuntime(counters, cancellation.Token))
         {
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            var committed = memory.Accounting.LiveBytes;
             memory.Budget.OnGrowth = _ => cancellation.Cancel();
             var error = Assert.Throws<OperationCanceledException>(() => memory.State.ConcatText(parts));
             Assert.Equal(cancellation.Token, error.CancellationToken);
             Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
         }
 
         using var retry = Governor().InitializeRuntime(counters);
@@ -377,19 +370,17 @@ public sealed class AwkTextCancellationTests
         using var memoryForGovernor = Governor().InitializeRuntime(counters);
         memoryForGovernor.Budget.SetAvailableBytes(LongText + 1);
         var governor = memoryForGovernor.Accounting;
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var text = memoryForGovernor.State.ConcatText([AwkText.FromString(new string('a', LongText)), AwkText.FromString("z")]);
         using (var existing = governor.ReserveTransient(1))
         {
             var error = Assert.Throws<AwkRuntimeException>(() => { _ = text.AsSpan(() => { }); });
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(committed + 1, governor.CurrentCommittedBytes);
+            Assert.Equal(committed + 1, governor.LiveBytes);
         }
         Assert.Equal(new string('a', LongText) + "z", text.AsString());
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
     }
 
     [Theory]
@@ -437,8 +428,7 @@ public sealed class AwkTextCancellationTests
             new AwkRecordFields(fields), record, separator, terminator, byteLength, CancelOnCheck(cancellation, 6)));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal("kept:", AwkUtf8Codec.Decode(builder.AsSpan()));
-        Assert.True(memory.Accounting.CurrentCommittedBytes > 0);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.True(memory.Accounting.LiveBytes > 0);
 
         // A separate attempt can reuse the still-funded destination, including when
         // responsiveness was required for metadata that emitted no bytes at all.

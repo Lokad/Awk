@@ -168,7 +168,6 @@ public sealed class AwkComputedFieldIndexTests
             Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
             Assert.Equal(2, state.FieldCount);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

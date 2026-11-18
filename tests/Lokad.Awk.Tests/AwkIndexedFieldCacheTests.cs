@@ -56,7 +56,6 @@ public sealed class AwkIndexedFieldCacheTests
             Assert.Equal(spelling is not ("7tail" or "7\u00e9"), value.TryGetStoredComparisonNumber(out _, null));
             frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
             Assert.Equal(spelling, first.AsString());
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         }
         Assert.Equal(0, memoryBudget.Reserved);
     }
@@ -82,11 +81,10 @@ public sealed class AwkIndexedFieldCacheTests
         var saved = state.GetFieldValue(1);
         ReadRecord();
 
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         for (var row = 0; row < 100; row++) ReadRecord();
 
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("next"));
@@ -125,7 +123,7 @@ public sealed class AwkIndexedFieldCacheTests
         var memoryBudget = memory.Budget;
         using (memory)
         {
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             var memoryBudgetBaseline = memory.Budget.Reserved;
             memory.Budget.SetAvailableBytes(memory.Budget.Limit);
             using var context = new AwkFieldTestContext(memory, separator: "");
@@ -135,27 +133,26 @@ public sealed class AwkIndexedFieldCacheTests
             var record = AwkText.FromSourceLiteralString(new string('x', 1024));
             frame.SetRecordText(record);
             Assert.Equal(1024, frame.GetFieldCount());
-            var before = memory.Accounting.CurrentCommittedBytes;
+            var before = memory.Accounting.LiveBytes;
             Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
             for (var index = 2; index <= 4; index++)
                 _ = frame.GetFieldValue(new(index));
-            Assert.True(memory.Accounting.CurrentCommittedBytes - before < 1024);
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            Assert.True(memory.Accounting.LiveBytes - before < 1024);
+            var committed = memory.Accounting.LiveBytes;
 
             Assert.Equal(string.Empty, frame.GetFieldValue(new(int.MaxValue)).AsString());
 
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
 
             memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
             var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1024)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
 
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
             Assert.True(frame.TryGetUnmaterializedFieldBytes(new(1024), out _));
             Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
             frame.ResetRecord();
-            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, memory.Accounting.LiveBytes);
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
         Assert.Equal(0, memoryBudget.Reserved);
@@ -172,7 +169,7 @@ public sealed class AwkIndexedFieldCacheTests
         var memoryBudget = memory.Budget;
         using (memory)
         {
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             var memoryBudgetBaseline = memory.Budget.Reserved;
             memory.Budget.SetAvailableBytes(memory.Budget.Limit);
             var armed = false;
@@ -188,7 +185,7 @@ public sealed class AwkIndexedFieldCacheTests
             var first = frame.GetFieldValue(new(1));
             for (var index = 2; index <= 4; index++)
                 _ = frame.GetFieldValue(new(index));
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            var committed = memory.Accounting.LiveBytes;
             armed = true;
             if (!governed) cancellation.Cancel();
             if (governed) memory.Budget.OnGrowth = _ => cancellation.Cancel();
@@ -199,15 +196,14 @@ public sealed class AwkIndexedFieldCacheTests
             Assert.Equal(8192, frame.GetFieldCount());
             Assert.Equal(first, frame.GetFieldValue(new(1)));
             Assert.True(frame.TryGetUnmaterializedFieldBytes(new(8192), out _));
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, separator: "|");
             frame.ResetRecord();
             frame = retry.Frame;
             frame.SetRecordText(record);
             Assert.Equal(last, frame.GetFieldValue(new(8192)).AsString());
             frame.ResetRecord();
-            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, memory.Accounting.LiveBytes);
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
         Assert.Equal(0, memoryBudget.Reserved);
@@ -223,7 +219,7 @@ public sealed class AwkIndexedFieldCacheTests
         var memoryBudget = memory.Budget;
         using (memory)
         {
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             var memoryBudgetBaseline = memory.Budget.Reserved;
             memory.Budget.SetAvailableBytes(memory.Budget.Limit);
             using var context = new AwkFieldTestContext(memory, separator: "");
@@ -235,13 +231,12 @@ public sealed class AwkIndexedFieldCacheTests
             {
                 frame.SetRecordText(record);
                 Assert.Equal(8192, frame.GetFieldCount());
-                var before = memory.Accounting.CurrentCommittedBytes;
+                var before = memory.Accounting.LiveBytes;
                 Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
-                Assert.InRange(memory.Accounting.CurrentCommittedBytes - before, 0, 1024);
-                Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+                Assert.InRange(memory.Accounting.LiveBytes - before, 0, 1024);
             }
             frame.ResetRecord();
-            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, memory.Accounting.LiveBytes);
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
         Assert.Equal(0, memoryBudget.Reserved);
@@ -268,7 +263,6 @@ public sealed class AwkIndexedFieldCacheTests
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal("007", again.ByteText.AsString());
         Assert.Equal(7, again.AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
 }

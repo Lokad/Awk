@@ -15,7 +15,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(6, result.Total);
             Assert.Empty(result.Output);
             Assert.Empty(result.Error);
-            Assert.Equal(0, result.Reserved);
         }
     }
 
@@ -55,7 +54,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
                 Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
 
-                Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
                 await io.CloseAsync();
             }
     }
@@ -71,7 +69,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(caller ? 42 : 0, result.Caller);
             Assert.Empty(result.Output);
             Assert.Empty(result.Error);
-            Assert.Equal(0, result.Reserved);
         }
     }
 
@@ -105,7 +102,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(12, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -176,7 +172,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
         Assert.Equal(7, state.ResolveVariableValue(x).AsNumber());
         Assert.Equal(8, state.ResolveVariableValue(y).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -210,12 +205,16 @@ public sealed partial class AwkPreparedFunctionRegionTests
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         var local = caller ? state.ResolveFunctionLocalValue(new(0), total).AsNumber() : 0;
         if (caller) state.PopFunctionFrame();
-        var result = new PureActionResult(state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString(), state.ResolveVariableValue(total).AsNumber(), local, state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), state.MemoryAccounting.CurrentReservedBytes, host.GetOutput(AwkFileDescriptor.StdOut), error);
+        var result = new PureActionResult(state.ResolveVariableValue(AwkVariableName.FromText("s")).AsString(), state.ResolveVariableValue(total).AsNumber(), local, state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
+        output.Dispose();
+        state.Dispose();
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
         return result;
     }
 
-    private readonly record struct PureActionResult(string Text, double Total, double Caller, double Index, long Reserved, string Output, string Error);
+    private readonly record struct PureActionResult(string Text, double Total, double Caller, double Index, string Output, string Error);
 
     private const string Functions = "function inc(x){return x+1} function twice(x){return inc(inc(x))}";
     private const string PairFunctions = "function inc(x,a){return x+a} function twice(x,a){return inc(inc(x,a),a)}";
@@ -277,7 +276,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal((boundary == "pending" ? "prior\n" : "") + "27\n", host.GetOutput(AwkFileDescriptor.StdOut));
 
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -304,7 +302,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(boundary == "pending" ? "prior\n" : "", host.GetOutput(AwkFileDescriptor.StdOut));
 
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -353,7 +350,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(7, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
 
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -440,7 +436,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             else Assert.Equal(43, state.ResolveVariableValue(caller).AsNumber());
             Assert.Equal(1, entries);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -504,7 +499,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(21, state.ResolveVariableValue(total).AsNumber());
             Assert.Equal(2, state.ResolveVariableValue(i).AsNumber());
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -611,7 +605,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await Assert.ThrowsAsync<AwkRuntimeException>(() => Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask());
             Assert.Equal(1, state.GetArrayAwkValue(AwkArrayName.FromText("a"), new("key")).AsNumber());
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally { await io.CloseAsync(); }
     }
@@ -625,7 +618,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var slot = new AwkFunctionLocalSlotId(0);
         var layout = new AwkFunctionLocalLayout([name]);
         state.AssignVariableValue(name, AwkValue.FromNumber(99));
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.LiveBytes;
         foreach (var number in new[] { 0d, -0d, double.NaN, double.PositiveInfinity, double.NegativeInfinity, 42.5 })
         {
             state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(number))]);
@@ -638,8 +631,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
             }
             finally { state.PopFunctionFrame(); }
-            Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
         }
 
         Assert.Equal(99, state.ResolveFunctionLocalValue(slot, name).AsNumber());
@@ -653,8 +645,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
         }
         finally { state.PopFunctionFrame(); }
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.LiveBytes);
         Assert.False(state.IsInsideFunction);
     }
 
@@ -681,7 +672,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         try { foreach (var action in program.BeginActions) await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
         return result;

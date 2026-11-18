@@ -135,7 +135,6 @@ public sealed class AwkControlRegionTests
             Assert.Equal(1, reads);
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -175,7 +174,6 @@ public sealed class AwkControlRegionTests
             Assert.Equal(7, Number(state, "x"));
             Assert.Equal(42, Number(state, "i"));
             Assert.False(state.TryGetExecutionContext(out _));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally { await io.CloseForCleanupAsync(); }
     }
@@ -195,7 +193,6 @@ public sealed class AwkControlRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         Assert.Equal(AwkStatementFlow.Continue, await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
         Assert.Equal(count, Number(state, "executed"));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -236,7 +233,6 @@ public sealed class AwkControlRegionTests
         }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.False(state.TryGetExecutionContext(out _));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var result = new Result(Number(state, "x"), Number(state, "i"), host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync();
         output.Dispose();

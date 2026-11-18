@@ -28,19 +28,18 @@ public sealed class AwkGlobalUpdateOwnershipTests
         reference.AssignValue(state, AwkValue.FromNumber(7));
         Assert.Equal(7, reference.Evaluate(state).AsNumber());
         var slot = state.GetOrCreateGlobalScalarSlot(name);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - before))
         {
             var text = AwkValue.FromText(new string('x', 1024));
             var error = Assert.Throws<AwkRuntimeException>(() => reference.AssignValue(state, text));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(7, state.GetGlobalScalarValue(slot).AsNumber());
-            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.Equal(Limit, state.MemoryAccounting.LiveBytes);
             Assert.Throws<AwkRuntimeException>(() => state.AssignVariableValue(slot, text));
             Assert.Equal(7, state.GetGlobalScalarValue(slot).AsNumber());
         }
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         reference.AssignValue(state, AwkValue.FromNumber(9));
         Assert.Equal(9, state.GetGlobalScalarValue(slot).AsNumber());
     }
@@ -57,14 +56,14 @@ public sealed class AwkGlobalUpdateOwnershipTests
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(array, key, "kept");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var read = Assert.Throws<AwkRuntimeException>(() => reference.Evaluate(state));
         var write = Assert.Throws<AwkRuntimeException>(() => reference.AssignValue(state, AwkValue.FromNumber(7)));
         Assert.Equal("awk: attempt to use array `value' in a scalar context\n", AwkUtf8Codec.Decode(read.MessageBytes));
         Assert.Equal(AwkUtf8Codec.Decode(read.MessageBytes), AwkUtf8Codec.Decode(write.MessageBytes));
         Assert.Equal("kept", state.GetArrayByteText(array, key).AsString());
         Assert.False(state.HasScalar(name));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]

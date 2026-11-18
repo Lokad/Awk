@@ -29,7 +29,6 @@ public sealed partial class AwkFieldProjectionTests
         state.AppendFieldPrint(output, 0);
         Assert.Equal("café|É|0007\ncafé|É|0007\nnext\n", output.ToString());
         Assert.Equal("café|É|0007"u8.ToArray(), saved.ByteText.AsSpan().ToArray());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -49,7 +48,6 @@ public sealed partial class AwkFieldProjectionTests
         Assert.True(cancellation.IsCancellationRequested);
         Assert.Equal("keep", AwkUtf8Codec.Decode(builder.AsSpan()));
         Assert.Equal(4, builder.Length);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -88,7 +86,6 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal("before café 007\nnext 😀 8\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -113,7 +110,6 @@ public sealed partial class AwkFieldProjectionTests
         }));
         Assert.Equal("keep", AwkUtf8Codec.Decode(builder.AsSpan()));
         Assert.Equal(4, builder.Length);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static async Task<PrintResult> RunPrintAsync(bool owned, AwkRuntimeLimits limits)

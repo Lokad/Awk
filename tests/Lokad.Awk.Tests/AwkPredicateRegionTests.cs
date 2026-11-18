@@ -27,7 +27,6 @@ public sealed class AwkPredicateRegionTests
         Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(before, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -48,7 +47,6 @@ public sealed class AwkPredicateRegionTests
         Assert.Equal(or ? (left ? 0 : 1) : (left ? 1 : 0),
             state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         Assert.Equal(or || left ? 1 : 0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkRegion Bind(string body)

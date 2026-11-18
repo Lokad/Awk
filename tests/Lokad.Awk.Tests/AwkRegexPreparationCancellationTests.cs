@@ -130,19 +130,17 @@ public sealed class AwkRegexPreparationCancellationTests
         using var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, () =>
             {
-                if (armed && governor.CurrentCommittedBytes > 0 && ++checks == 6) cancellation.Cancel();
+                if (armed && governor.LiveBytes > 0 && ++checks == 6) cancellation.Cancel();
                 if (armed) cancellation.Token.ThrowIfCancellationRequested();
             }, AwkTestHarness.CreateRuntimeOptions(counters), governor);
         var pattern = new AwkRegexPattern(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
         var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(pattern));
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
         var retried = runtime.Create(pattern);
-        Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Same(retried, runtime.Create(pattern));
         runtime.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]

@@ -157,7 +157,6 @@ public sealed partial class AwkFunctionStorageTests
         Assert.False(stack.IsInsideFunction);
         var backingBytes = 128L * Unsafe.SizeOf<AwkFunctionLocalSlot>();
         Assert.InRange(memory.Budget.Reserved, backingBytes, 2 * backingBytes + 4096);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }

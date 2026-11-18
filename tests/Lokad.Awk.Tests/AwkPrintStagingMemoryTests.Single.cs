@@ -31,20 +31,19 @@ public sealed partial class AwkPrintStagingMemoryTests
         var expected = output.ToString();
         await output.FlushAsync(io);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - 1);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, index));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("prior:", output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
 
         pressure.Dispose();
         state.AppendFieldPrint(output, index);
         Assert.Equal("prior:" + expected, output.ToString());
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(baseline, state.MemoryAccounting.LiveBytes);
         await io.CloseAsync();
         output.Dispose();
         memory.Dispose();
@@ -64,13 +63,12 @@ public sealed partial class AwkPrintStagingMemoryTests
         storage.Initialize(region);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline);
         var io = Io(state, new MockFileSystem());
         AppendPreparedValue(state, region, storage, output);
         Assert.Equal("prior:kept\n", output.ToString());
-        Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(Limit, state.MemoryAccounting.LiveBytes);
         await io.CloseAsync();
     }
 
@@ -94,11 +92,10 @@ public sealed partial class AwkPrintStagingMemoryTests
             output.Append(AwkText.FromSourceLiteralString(new string('p', 8193)));
             await output.FlushAsync(io);
         }
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         AppendPreparedValue(state, region, storage, output);
         Assert.Equal((format == "wide" ? new string(' ', 8188) : "") + "1.25\n", output.ToString());
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(baseline, state.MemoryAccounting.LiveBytes);
         await io.CloseAsync();
     }
 
@@ -115,13 +112,12 @@ public sealed partial class AwkPrintStagingMemoryTests
         storage.Initialize(region);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 1);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes - 1);
+        var before = state.MemoryAccounting.LiveBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => AppendPreparedValue(state, region, storage, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("prior:", output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     private static void AppendPreparedValue(AwkRuntimeState state, AwkRegion region,

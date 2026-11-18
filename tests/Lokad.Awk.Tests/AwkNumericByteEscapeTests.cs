@@ -64,8 +64,7 @@ public sealed class AwkNumericByteEscapeTests
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(0, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(0, governor.LiveBytes);
         }
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
@@ -81,14 +80,13 @@ public sealed class AwkNumericByteEscapeTests
             memory.Configure(Options(AwkRuntimeLimits.CreateDefault(), counters)))).State;
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var assignment = AwkVariableAssignment.InputArgument(name,
             @"\303\251" + new string('a', 1 << 18));
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
         Assert.Equal("keep", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]

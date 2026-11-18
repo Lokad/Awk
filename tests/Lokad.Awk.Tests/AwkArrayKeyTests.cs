@@ -607,7 +607,6 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(baselineAllocations + 1, counters[AwkCounter.TextAllocations]);
         Assert.Equal(baselineBytes + 3, counters[AwkCounter.TextBytes]);
 
-        Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
     [Fact]

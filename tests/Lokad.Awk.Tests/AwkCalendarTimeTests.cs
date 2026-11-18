@@ -97,14 +97,13 @@ public sealed class AwkCalendarTimeTests
             AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options))).State;
         var text = AwkText.FromString("2020 10 1 1 30 0");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         Assert.Equal(1601512200, state.MakeCalendarTime(text, false));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         using var pressure = state.MemoryAccounting.ReserveTransient(limit - before - AwkRuntimeMemory.EstimateTimeZoneOffsetsBytes() + 1);
-        var pressured = state.MemoryAccounting.CurrentCommittedBytes;
+        var pressured = state.MemoryAccounting.LiveBytes;
         Assert.Throws<AwkRuntimeException>(() => state.MakeCalendarTime(text, false));
-        Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(pressured, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]

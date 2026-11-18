@@ -205,15 +205,14 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (count == 0) return;
         var bytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(count);
-        MemoryAccounting.Reserve(bytes);
+        MemoryAccounting.Charge(bytes);
         bool[] states;
         try
         {
             ThrowIfCancellationRequested();
             states = new bool[count];
         }
-        catch { MemoryAccounting.ReleaseReserved(bytes); throw; }
-        MemoryAccounting.CommitReserved(bytes);
+        catch { MemoryAccounting.Refund(bytes); throw; }
         _rangePatterns = states;
     }
 
@@ -798,7 +797,7 @@ internal sealed class AwkRuntimeState : IDisposable
             return;
         ThrowIfCancellationRequested();
         var bytes = AwkRuntimeMemory.EstimateGlobalReadSlotsBytes(count);
-        MemoryAccounting.Reserve(bytes);
+        MemoryAccounting.Charge(bytes);
         AwkGlobalBinding[] slots;
         try
         {
@@ -806,10 +805,9 @@ internal sealed class AwkRuntimeState : IDisposable
         }
         catch
         {
-            MemoryAccounting.ReleaseReserved(bytes);
+            MemoryAccounting.Refund(bytes);
             throw;
         }
-        MemoryAccounting.CommitReserved(bytes);
         _globalReadSlots = slots;
     }
 
@@ -1898,7 +1896,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 {
                     var rangeBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
                     _rangePatterns = [];
-                    if (rangeBytes > 0) MemoryAccounting.ReleaseCommitted(rangeBytes);
+                    if (rangeBytes > 0) MemoryAccounting.Refund(rangeBytes);
                 }
             }
         }

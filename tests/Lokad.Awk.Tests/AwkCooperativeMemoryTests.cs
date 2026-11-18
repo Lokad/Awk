@@ -206,15 +206,15 @@ public sealed class AwkCooperativeMemoryTests
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
 
         var accounting = AwkMemoryAccounting.Create(owner);
-        accounting.Reserve(70);
-        Assert.Throws<AwkRuntimeException>(() => accounting.Reserve(31));
-        Assert.Equal(70, accounting.CurrentReservedBytes);
+        accounting.Charge(70);
+        Assert.Throws<AwkRuntimeException>(() => accounting.Charge(31));
+        Assert.Equal(70, accounting.LiveBytes);
         Assert.Equal(70, budget.Reserved);
         Assert.Throws<AwkRuntimeException>(() => accounting.ReserveTransient(31));
         using (accounting.ReserveTransient(30))
             Assert.Equal(100, budget.Reserved);
         Assert.Equal(70, budget.Reserved);
-        accounting.ReleaseReserved(70);
+        accounting.Refund(70);
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -224,18 +224,18 @@ public sealed class AwkCooperativeMemoryTests
         var budget = new CooperativeTestBudget(100);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var accounting = AwkMemoryAccounting.Create(owner);
-        accounting.Reserve(50);
+        accounting.Charge(50);
         using (accounting.AdmitMutation(50))
         {
             Assert.Equal(100, budget.Reserved);
-            accounting.Reserve(30);
+            accounting.Charge(30);
             Assert.Equal(100, budget.Reserved);
             Assert.Throws<AwkRuntimeException>(() => accounting.AdmitMutation(30));
             Assert.Equal(100, budget.Reserved);
             Assert.False(budget.TryReserve(1, out _));
         }
         Assert.Equal(80, budget.Reserved);
-        accounting.ReleaseReserved(80);
+        accounting.Refund(80);
         Assert.Equal(0, budget.Reserved);
     }
 

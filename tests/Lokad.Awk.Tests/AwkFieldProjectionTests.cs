@@ -32,7 +32,6 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal(first, state.GetFieldValue(1));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
 
         static void AssertSameScalar(AwkValue expected, AwkValue actual)
         {
@@ -67,7 +66,6 @@ public sealed partial class AwkFieldProjectionTests
         Assert.True(original.Span.StartsWith("next"u8));
         state.AppendFieldPrint(output, 1);
         Assert.Equal("first\nnext\n", output.ToString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
     [Fact]
     public void FailedCombinedAppendDoesNotPublishTheFieldBeforeItsTerminator()
@@ -84,7 +82,6 @@ public sealed partial class AwkFieldProjectionTests
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, 1));
         Assert.Equal(prefix, output.ToString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         state.SetCurrentRecord(AwkText.FromString("ok"));
         state.AppendFieldPrint(output, 1);
         Assert.Equal(prefix + "ok\n", output.ToString());
@@ -107,7 +104,6 @@ public sealed partial class AwkFieldProjectionTests
         state.AppendFieldPrint(output, 1);
         Assert.Equal("café\n😀\n1.25\n", output.ToString());
         Assert.True(state.GetFieldValue(1).IsNumberValue);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]

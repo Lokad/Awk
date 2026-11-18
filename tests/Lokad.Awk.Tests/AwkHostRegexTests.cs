@@ -173,12 +173,11 @@ public sealed class AwkHostRegexTests
             limits, regexEngine: engine);
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new("(é)"));
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => state.MatchRegexCaptureValue(regex, AwkText.FromString("é")));
         Assert.Equal(AwkDiagnosticId.RuntimeInvalidRegex, error.Id);
 
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -357,7 +356,7 @@ public sealed class AwkHostRegexTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         var engine = new RecordingEngine(Behavior.Unsupported);
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters) with
@@ -375,9 +374,8 @@ public sealed class AwkHostRegexTests
         Assert.Equal(1, engine.Compiles);
         Assert.Empty(engine.Patterns);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         runtime.Dispose();
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
     }
 
     [Theory]
@@ -388,7 +386,7 @@ public sealed class AwkHostRegexTests
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var committed = memory.Accounting.LiveBytes;
         var engine = new RecordingEngine();
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, AwkTestHarness.CreateRuntimeOptions(counters) with
@@ -414,11 +412,10 @@ public sealed class AwkHostRegexTests
         Assert.Equal(0, pattern.SearchesCreated);
         Assert.False(pattern.Disposed);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Budget.OnGrowth = null;
         runtime.Dispose();
         Assert.True(pattern.Disposed);
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
     }
 
     [Theory]

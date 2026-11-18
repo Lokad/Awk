@@ -32,7 +32,6 @@ public sealed class AwkBinaryNumericTests
             state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
             Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
             Assert.Equal(5.5, state.ResolveVariableValue(result).AsNumber());
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         await io.CloseForCleanupAsync();
         memory.Dispose();

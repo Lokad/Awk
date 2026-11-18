@@ -31,7 +31,6 @@ public sealed class AwkFlushTests
         Assert.Equal(stderr, host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal((stdout.Length != 0 ? 1 : 0) + (stderr.Length != 0 ? 1 : 0), appends);
         Assert.False(output.HasPendingOutput);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -79,7 +78,6 @@ public sealed class AwkFlushTests
             }
             Assert.Equal(completion == "success" ? 1 : 0, state.ResolveVariableValue(continued).AsNumber());
             Assert.Equal(completion != "success", output.HasPendingOutput);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -214,22 +212,23 @@ public sealed class AwkFlushTests
         var execution = new AwkExecutionContext(sink, io);
         state.SetErrno(AwkErrno.FromHostMessage("keep"));
         var path = new string('x', 1024);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = maximum - committed - 1;
-        state.MemoryAccounting.Reserve(pressure);
+        var committed = state.MemoryAccounting.LiveBytes;
+        var pressure = maximum - memory.Budget.Reserved - 1;
+        Assert.True(memory.Budget.TryReserve(pressure, out var held));
+        using var retainedPressure = held;
+        var admitted = memory.Budget.Reserved;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
             AwkFflushRuntime.FlushAsync(AwkValue.FromText(path), state, execution).AsTask());
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
+        Assert.Equal(admitted, memory.Budget.Reserved);
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal("keep", state.ResolveSpecialVariableValue(AwkSpecialVariableId.Errno).AsString());
-        state.MemoryAccounting.ReleaseReserved(pressure);
+        retainedPressure.Dispose();
         Assert.Equal(-1, await AwkFflushRuntime.FlushAsync(AwkValue.FromText(path), state, execution));
         Assert.Equal("keep", state.ResolveSpecialVariableValue(AwkSpecialVariableId.Errno).AsString());
         sink.Dispose();
-        Assert.Equal(committed - AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed - AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]

@@ -106,20 +106,19 @@ public sealed class AwkNumericSemanticsTests
         using var sink = new AwkOutputSink(governor);
         for (var index = 0; index < initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
-        var admittedBytes = governor.CurrentCommittedBytes;
+        var admittedBytes = governor.LiveBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() => sink.ReportDiagnostic(Warning(message)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(admittedBytes, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(admittedBytes, governor.LiveBytes);
         var host = new MockFileSystem();
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         await sink.FlushDiagnosticsAsync(CreateIo(host));
         Assert.Equal(string.Concat(Enumerable.Repeat(message, initialCount)), host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(outputBuffer + retainedBuffer, governor.CurrentCommittedBytes);
+        Assert.Equal(outputBuffer + retainedBuffer, governor.LiveBytes);
         sink.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -139,21 +138,19 @@ public sealed class AwkNumericSemanticsTests
         using var sink = new AwkOutputSink(governor);
         for (var index = 0; index <= initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
-        Assert.Equal(outputBuffer + newBuffer + (initialCount + 1) * messageBytes, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(outputBuffer + newBuffer + (initialCount + 1) * messageBytes, governor.LiveBytes);
         var host = new MockFileSystem();
         var io = CreateIo(host);
 
         await sink.FlushDiagnosticsAsync(io);
-        Assert.Equal(outputBuffer + newBuffer, governor.CurrentCommittedBytes);
+        Assert.Equal(outputBuffer + newBuffer, governor.LiveBytes);
         sink.ReportDiagnostic(Warning(message));
-        Assert.Equal(outputBuffer + newBuffer + messageBytes, governor.CurrentCommittedBytes);
+        Assert.Equal(outputBuffer + newBuffer + messageBytes, governor.LiveBytes);
         await sink.FlushDiagnosticsAsync(io);
         Assert.Equal(string.Concat(Enumerable.Repeat(message, initialCount + 2)), host.GetOutput(AwkFileDescriptor.StdErr));
         sink.Dispose();
         sink.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]
@@ -173,13 +170,12 @@ public sealed class AwkNumericSemanticsTests
             AwkUtf8Codec.Decode(error.MessageBytes));
 
         Assert.Equal(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity +
-            AwkRuntimeMemory.EstimateDiagnosticBufferBytes(4), governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+            AwkRuntimeMemory.EstimateDiagnosticBufferBytes(4), governor.LiveBytes);
         host.AfterAppend = null;
         await sink.FlushDiagnosticsAsync(io);
         Assert.Equal("awk: warning: first\n", host.GetOutput(AwkFileDescriptor.StdErr));
         sink.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]

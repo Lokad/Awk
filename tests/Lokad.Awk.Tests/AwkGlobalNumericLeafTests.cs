@@ -141,7 +141,6 @@ public sealed class AwkGlobalNumericLeafTests
         Assert.Equal(1, await ReadAsync(region, state, storage, regionOutput, regionIo));
         Assert.True(admitted);
         Assert.Equal(999, state.ResolveVariableValue(name).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static async ValueTask<double> ReadAsync(AwkRegion region, AwkRuntimeState state, AwkRegionStorage storage,

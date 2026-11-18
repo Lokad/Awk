@@ -11,14 +11,13 @@ public sealed partial class AwkPrintStagingMemoryTests
         var host = new MockFileSystem();
         var io = Io(state, host);
         var region = BindPrint(state, "printf \"%s:%d\",\"payload\"");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
 
         Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("", output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         await output.FlushAsync(io);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         await io.CloseAsync();
@@ -32,7 +31,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         using var empty = new AwkOutputSink(state.MemoryAccounting);
         var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")));
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes);
         Assert.True(output.TryFormatPrintf("%s", arguments, state));
         Assert.Equal("kept", output.ToString());
         Assert.False(output.TryFormatPrintf("%s", arguments, state));
@@ -41,8 +40,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var error = Assert.Throws<AwkRuntimeException>(() => empty.TryFormatPrintf("prefix:%10000s", arguments, state));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("", empty.ToString());
-        Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(Limit, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -56,7 +54,6 @@ public sealed partial class AwkPrintStagingMemoryTests
         var error = Assert.ThrowsAny<OperationCanceledException>(() => output.TryFormatPrintf("prefix:%s", arguments, state));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("", output.ToString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private sealed class CancelingPrintfArguments(CancellationTokenSource cancellation) : IPrintfArguments

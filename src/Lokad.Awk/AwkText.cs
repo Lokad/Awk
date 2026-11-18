@@ -523,23 +523,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return cached;
 
         checkpoint?.Invoke();
-        // Keep the allocation live while copying; cancellation releases the lease
-        // and leaves the retained parts available for an independent retry.
+        // Keep the allocation funded through the copy and publication.
+        // On interruption the retained parts remain available for a later read.
         var governor = concatenation.Governor;
-        governor.Reserve(text.ByteLength);
-        byte[] bytes;
+        governor.Charge(text.ByteLength);
         try
         {
-            bytes = new byte[text.ByteLength];
-            governor.CommitReserved(text.ByteLength);
-        }
-        catch
-        {
-            governor.ReleaseReserved(text.ByteLength);
-            throw;
-        }
-        try
-        {
+            var bytes = new byte[text.ByteLength];
             CopyConcatenationTo(bytes);
             checkpoint?.Invoke();
             concatenation.Counters.Add(AwkCounter.ConcatenationBytesCopied, text.ByteLength);
@@ -551,7 +541,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
         finally
         {
-            governor.ReleaseCommitted(text.ByteLength);
+            governor.Refund(text.ByteLength);
         }
 
         void CopyConcatenationTo(Span<byte> destination)
@@ -709,30 +699,9 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (length == 0)
             return [];
 
-        governor.Reserve(length);
-        byte[] bytes;
-        try
-        {
-            bytes = new byte[length];
-        }
-        catch
-        {
-            governor.ReleaseReserved(length);
-            throw;
-        }
-
-        try
-        {
-            governor.CommitReserved(length);
-        }
-        catch
-        {
-            governor.ReleaseReserved(length);
-            throw;
-        }
-
-        governor.ReleaseCommitted(length);
-        return bytes;
+        governor.Charge(length);
+        try { return new byte[length]; }
+        finally { governor.Refund(length); }
     }
 
     internal static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes, Action? checkpoint)

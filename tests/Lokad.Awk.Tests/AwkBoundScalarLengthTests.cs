@@ -44,7 +44,6 @@ public sealed partial class AwkBoundScalarLengthTests
         Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseForCleanupAsync();
     }
 

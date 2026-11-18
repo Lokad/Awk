@@ -64,7 +64,6 @@ public sealed class AwkRecordInputMemoryTests
         Assert.True(changed);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         reader.Dispose();
         regionOutput.Dispose();

@@ -25,7 +25,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("old:selected")).AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         Assert.Equal(1, execution.Reads);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -65,7 +64,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("later")));
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("selectors")).AsNumber());
         Assert.Equal(2, execution.Reads);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -98,7 +96,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("other")));
         Assert.Equal(1, execution.Reads);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -132,7 +129,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(cancel ? "7" : "007", state.GetArrayAwkValue(name, key).AsString());
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
         Assert.Equal(1, execution.Reads);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -167,7 +163,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(missing ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -185,7 +180,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(expected, state.GetArrayAwkValue(name, new AwkArrayKey(missing ? "missing" : "hit")).AsNumber());
         if (missing) Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("hit")).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -213,7 +207,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
             Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         }
         Assert.Equal(number < 0 ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
 }

@@ -48,7 +48,6 @@ public sealed class AwkArrayCellTests
         Assert.Equal(0, key.RetainedTextMemoryBytes);
         Assert.Equal(2, variables.GetArrayValue(name, AwkArrayKey.FromOrdinal(7)).AsNumber());
         variables.ClearArray(name);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -104,15 +103,16 @@ public sealed class AwkArrayCellTests
         var variables = Variables(memory);
         var array = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
         variables.SetArrayValue(array, new("first"), AwkValue.FromNumber(5));
+        var admitted = memory.Budget.Reserved;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(() =>
             variables.SetArrayValue(array, new("second"), AwkValue.FromNumber(9)));
+        Assert.Equal(admitted, memory.Budget.Reserved);
         Assert.Single(array);
         Assert.Equal(5, variables.GetArrayNumber(array, new AwkArrayKey("first")));
         Assert.True(array.ByteLookup.TryGetValue("first"u8, out var stored));
         Assert.Equal(5, variables.ReadArraySlotNumber(stored));
         Assert.False(array.ByteLookup.ContainsKey("second"u8));
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -144,7 +144,6 @@ public sealed class AwkArrayCellTests
         Assert.False(array.ByteLookup.ContainsKey("0007"u8));
         Assert.True(array.ByteLookup.TryGetValue("replacement"u8, out var replaced));
         Assert.Equal(9, variables.ReadArraySlotNumber(replaced));
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Theory]

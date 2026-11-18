@@ -65,7 +65,6 @@ public sealed class AwkSpecialVariablesTests
         variables.SetScalarValue(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator), AwkValue.FromText("\n"));
         Assert.Equal(mode == AwkCompatibilityMode.GnuDefault,
             variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator) is not null);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }

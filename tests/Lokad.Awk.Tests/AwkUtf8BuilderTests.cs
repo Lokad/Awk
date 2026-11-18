@@ -127,23 +127,18 @@ public sealed class AwkUtf8BuilderTests
     }
 
     [Fact]
-    public void AwkUtf8Builder_UsesGovernorReserveCommitRelease()
+    public void GrowthKeepsBothBuffersFundedUntilReplacement()
     {
-        var limits = AwkRuntimeLimits.CreateDefault();
-
-        using var memoryForGovernor = new CooperativeTestMemory(64);
-        var governor = memoryForGovernor.Accounting;
-
-        using (var builder = new AwkUtf8Builder(governor, capacity: 4))
+        using var memory = new CooperativeTestMemory(64);
+        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 4))
         {
-            Assert.Equal(4, governor.CurrentCommittedBytes);
+            var original = memory.Budget.Reserved;
+            Assert.True(original > 0);
             builder.Append("abcde"u8);
-            Assert.Equal(8, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.True(memory.Budget.Reserved > original);
+            Assert.True(memory.Budget.Peak >= original + memory.Budget.Reserved);
         }
-
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Fact]
@@ -160,8 +155,7 @@ public sealed class AwkUtf8BuilderTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(4, builder.Length);
         Assert.Equal("abcd", AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
-        Assert.Equal(4, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(4, governor.LiveBytes);
     }
 
     [Fact]
@@ -177,7 +171,6 @@ public sealed class AwkUtf8BuilderTests
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("abcd"u8.ToArray(), builder.AsSpan().ToArray());
-        Assert.Equal(4, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(4, governor.LiveBytes);
     }
 }

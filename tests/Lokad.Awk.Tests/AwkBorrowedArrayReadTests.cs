@@ -74,7 +74,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("9")));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         builder.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
@@ -147,7 +146,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(array[seed].TryGetNumber(out var number));
         Assert.Equal(7, number);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         builder.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
@@ -191,7 +189,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(9, stored.AsNumber());
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         builder.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
@@ -250,7 +247,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(array[seed].TryGetNumber(out var seedNumber));
         Assert.Equal(7, seedNumber);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         builder.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
@@ -309,7 +305,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal("0009", stored.AsString());
         Assert.Equal(AwkRuntimeValueKind.NumericString, stored.RuntimeKind);
         Assert.Equal(9, stored.AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -338,7 +333,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -393,11 +387,11 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         _ = state.FieldCount;
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var allocations = counters[AwkCounter.TextAllocations];
         Assert.Equal(7, state.GetArrayFieldValue(name, 1).AsNumber());
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         var bytes = "new tail"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         Assert.Equal("", state.GetArrayFieldValue(name, 1).AsString());
@@ -409,7 +403,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(7, state.GetArrayAwkValue(name, hit).AsNumber());
         Assert.True(state.ContainsArrayValue(name, new AwkArrayKey("new")));
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -432,7 +425,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -443,11 +435,10 @@ public sealed class AwkBorrowedArrayReadTests
         var accounting = memoryForAccounting.Accounting;
         var variables = memoryForAccounting.State.Variables;
         var name = AwkArrayName.FromText("a");
-        var retained = accounting.CurrentCommittedBytes;
+        var retained = accounting.LiveBytes;
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));
         Assert.False(variables.ContainsArray(name));
-        Assert.Equal(retained, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(retained, accounting.LiveBytes);
     }
 
     [Theory]
@@ -521,7 +512,6 @@ public sealed class AwkBorrowedArrayReadTests
             Assert.True(state.TryGetExistingArrayCount(name, out var count));
             Assert.Equal(1, count);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -550,10 +540,10 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         _ = state.FieldCount;
         var allocations = counters[AwkCounter.TextAllocations];
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         Assert.Equal(hit, state.GetArrayFieldKey(name, 1));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         var bytes = "new tail"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var missing = state.GetArrayFieldKey(name, 1);
@@ -565,7 +555,6 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetArrayAwkValue(name, missing, AwkValue.FromNumber(3));
         Assert.Equal(3, state.GetArrayAwkValue(name, new AwkArrayKey("new")).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -598,7 +587,6 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters,

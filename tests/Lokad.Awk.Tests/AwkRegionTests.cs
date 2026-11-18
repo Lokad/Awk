@@ -224,7 +224,6 @@ public sealed partial class AwkRegionTests
             catch (OperationCanceledException) { }
         }
         Assert.False(fixture.State.IsInsideFunction);
-        Assert.Equal(0, fixture.State.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         regionOutput.Dispose();
         fixture.Dispose();

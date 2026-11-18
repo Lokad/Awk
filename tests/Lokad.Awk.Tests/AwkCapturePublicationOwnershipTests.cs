@@ -16,7 +16,7 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         var parent = state.ResolveOrdinaryArray(Target);
         var reference = state.GetArrayAwkValue(parent, AwkArrayKey.FromOrdinal(1));
         var target = new AwkArrayTarget(reference);
-        using (state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes))
+        using (state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.LiveBytes))
         {
             Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch));
             Assert.False(reference.IsArrayValue);
@@ -73,7 +73,6 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
             Assert.Equal(1, state.GetArrayAwkValue(Target, new AwkArrayKey("1" + separator + "start")).AsNumber());
             Assert.Equal(1, state.GetArrayAwkValue(Target, new AwkArrayKey("1" + separator + "length")).AsNumber());
             Assert.False(state.TryPeekArrayAwkValue(Target, AwkArrayKey.FromOrdinal(2), out _));
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
     }
     [Fact]
@@ -83,15 +82,14 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         var state = memoryForState.State;
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
         using var match = Match(state);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(Target, match));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("old", state.GetArrayByteText(Target, new AwkArrayKey("kept")).AsString());
         Assert.True(state.TryGetExistingArrayCount(Target, out var count));
         Assert.Equal(1, count);
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -101,11 +99,10 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         using var memoryForState = State(true);
         var state = memoryForState.State;
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
-        using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.LiveBytes);
         state.ReplaceMatchCaptureArray(Target, AwkLeasedRegexMatch.NoMatch);
         Assert.True(state.TryGetExistingArrayCount(Target, out var count));
         Assert.Equal(0, count);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -117,13 +114,12 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(new string('s', 8192)));
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
         using var match = Match(state);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => state.ReplaceMatchCaptureArray(Target, match));
         Assert.True(state.TryGetExistingArrayCount(Target, out var count));
         Assert.Equal(1, count);
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]
@@ -143,7 +139,6 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         Assert.InRange(allocated, 0, 1_000_000);
         Assert.True(state.TryGetExistingArrayCount(Target, out var count));
         Assert.Equal(0, count);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkLeasedRegexMatch Match(AwkRuntimeState state)

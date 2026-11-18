@@ -46,14 +46,12 @@ public sealed class AwkInventoryOutputBoundaryTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(6, checks);
         Assert.Equal("kept:", output.ToString());
-        Assert.Equal(0, governor.CurrentReservedBytes);
         armed = false;
         Append(output, kind, text, bytes);
         Assert.Equal("kept:" + expected + (kind == "parts" ? "!" : ""), output.ToString());
 
         output.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -71,7 +69,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         var governor = memoryForGovernor.Accounting;
         using var output = new AwkOutputSink(governor, static () => { });
         output.Append(AwkText.FromSourceLiteralString("kept:"));
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var text = AwkText.FromString(new string('a', Large));
         var bytes = Encoding.UTF8.GetBytes(text.AsString());
 
@@ -79,8 +77,7 @@ public sealed class AwkInventoryOutputBoundaryTests
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("kept:", output.ToString());
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
     }
 
     [Theory]
@@ -102,7 +99,6 @@ public sealed class AwkInventoryOutputBoundaryTests
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("kept:", executor.Output.ToString());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     public static IEnumerable<object[]> Inventories()
@@ -201,7 +197,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             foreach (var name in names)
                 variables.SetArrayValue(array, new AwkArrayKey(name.Text), AwkValue.FromNumber(7));
         var count = variables.GetArraySnapshotCount(array);
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         cancellation.Cancel();
 
         var error = Assert.Throws<OperationCanceledException>(() =>
@@ -216,8 +212,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         using var retry = new CooperativeTestMemory(8 << 20).InitializeRuntime(counters);
         var retryVariables = retry.State.Variables;
         if (symbolTable) retryVariables.InitializeGlobalNames(names);

@@ -37,7 +37,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
             Assert.False(state.ContainsArrayValue(name, new("missing")));
             Assert.Equal(7, state.GetArrayAwkValue(name, new("keep")).AsNumber());
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(0, budget.Reserved);
     }
@@ -78,7 +77,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(firstExists, state.ContainsArrayValue(a, new("missing")));
         Assert.False(state.ContainsArrayValue(b, new("missing")));
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -108,7 +106,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 
@@ -144,7 +141,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         try { await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), error);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         return result;
     }
@@ -178,7 +174,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.False(state.ContainsArrayValue(a, new("missing")));
         Assert.False(state.ContainsArrayValue(b, new("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
     }
 

@@ -87,7 +87,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 else Assert.True(original.IsDetached);
                 Assert.True(Assert.Single(writes).AsSpan().SequenceEqual("before\n"u8));
                 Assert.False(state.IsInsideFunction);
-                Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
                 Assert.Equal(0, counters[AwkCounter.StringDecodes]);
                 Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
             }

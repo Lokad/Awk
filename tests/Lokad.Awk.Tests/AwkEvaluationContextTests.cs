@@ -57,7 +57,6 @@ public sealed class AwkEvaluationContextTests
             Assert.Same(firstIo, restored.Io);
         }
         Assert.False(state.TryGetExecutionContext(out _));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await firstIo.CloseAsync();
         await secondIo.CloseAsync();
     }
@@ -109,7 +108,6 @@ public sealed class AwkEvaluationContextTests
             Assert.Same(firstOutput, after.Output);
             Assert.Same(firstIo, after.Io);
         }
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await firstIo.CloseAsync();
         await secondIo.CloseAsync();
     }

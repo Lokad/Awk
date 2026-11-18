@@ -15,7 +15,6 @@ public sealed class AwkFieldCacheReuseTests
         for (var row = 0; row < 10000; row++) ReadRecord();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 6_500_000, "Allocated bytes: " + allocated);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
 
         void ReadRecord()
         {
@@ -51,7 +50,7 @@ public sealed class AwkFieldCacheReuseTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options));
         var record = AwkText.FromString("text\ttext\ttext");
         for (var row = 0; row < 100; row++) state.SetCurrentRecord(record);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var row = 0; row < 10000; row++) state.SetCurrentRecord(record);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -60,8 +59,7 @@ public sealed class AwkFieldCacheReuseTests
         Assert.Equal(0, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Fact]
@@ -80,7 +78,6 @@ public sealed class AwkFieldCacheReuseTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(30000, total);
         Assert.True(allocated < 2000000, "Allocated bytes: " + allocated);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -85,7 +85,7 @@ internal sealed class AwkOutputSink : IDisposable
             : _diagnostics.Capacity;
         var bufferBytes = grow ? AwkRuntimeMemory.EstimateDiagnosticBufferBytes(capacity) : 0;
         var reservedBytes = AwkRuntimeMemory.CheckedAdd(messageBytes, bufferBytes);
-        _governor.Reserve(reservedBytes);
+        _governor.Charge(reservedBytes);
         try
         {
             if (grow)
@@ -93,14 +93,13 @@ internal sealed class AwkOutputSink : IDisposable
         }
         catch
         {
-            _governor.ReleaseReserved(reservedBytes);
+            _governor.Refund(reservedBytes);
             throw;
         }
 
-        _governor.CommitReserved(reservedBytes);
         if (grow)
         {
-            _governor.ReleaseCommitted(_diagnosticBufferBytes);
+            _governor.Refund(_diagnosticBufferBytes);
             _diagnosticBufferBytes = bufferBytes;
         }
         _diagnosticMessageBytes = retainedMessages;
@@ -157,7 +156,7 @@ internal sealed class AwkOutputSink : IDisposable
     {
         ClearDiagnostics();
         _diagnostics.Capacity = 0;
-        _governor.ReleaseCommitted(_diagnosticBufferBytes);
+        _governor.Refund(_diagnosticBufferBytes);
         _diagnosticBufferBytes = 0;
         _standardOutput.Dispose();
     }
@@ -165,7 +164,7 @@ internal sealed class AwkOutputSink : IDisposable
     private void ClearDiagnostics()
     {
         _diagnostics.Clear();
-        _governor.ReleaseCommitted(_diagnosticMessageBytes);
+        _governor.Refund(_diagnosticMessageBytes);
         _diagnosticMessageBytes = 0;
     }
 

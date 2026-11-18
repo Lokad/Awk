@@ -29,14 +29,13 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var io = Io(state, new MockFileSystem());
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, io, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
         Assert.Equal("kept:", output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         Assert.Equal(1, memory.Budget.Refusals);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         await io.CloseForCleanupAsync();
@@ -61,15 +60,14 @@ public sealed partial class AwkPrintStagingMemoryTests
         var host = new PendingWriteHost();
         host.Allow.TrySetResult();
         var io = Io(state, host);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         long duringWrite = -1;
-        host.Inner.AfterAppend = () => duringWrite = state.MemoryAccounting.CurrentCommittedBytes;
+        host.Inner.AfterAppend = () => duringWrite = state.MemoryAccounting.LiveBytes;
         await region.ExecuteAsync(state, io, output);
         await io.CloseAsync();
         Assert.Equal(ExpectedNumbers(format), host.Inner.ReadFile("/result"));
         Assert.True(duringWrite >= baseline + host.BufferCapacity);
-        Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, baseline, duringWrite - 1);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.InRange(state.MemoryAccounting.LiveBytes, baseline, duringWrite - 1);
         Assert.Empty(output.ToString());
         output.Dispose();
         memory.Dispose();
@@ -93,7 +91,6 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         await region.ExecuteAsync(state, io, output);
         Assert.Equal(count == 1 ? "x2.25" : "x1.25x2.25", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         output.Dispose();
         memory.Dispose();
@@ -120,13 +117,13 @@ public sealed partial class AwkPrintStagingMemoryTests
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new PendingWriteHost();
         var io = Io(state, host, cancellation.Token);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         var run = region.ExecuteAsync(state, io, output).AsTask();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(run.IsCompleted);
-            var held = state.MemoryAccounting.CurrentCommittedBytes;
+            var held = state.MemoryAccounting.LiveBytes;
             Assert.True(held >= baseline + host.BufferCapacity);
             Assert.Equal("kept:", output.ToString());
             if (cancel)
@@ -141,8 +138,7 @@ public sealed partial class AwkPrintStagingMemoryTests
                 Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
             }
             await host.Finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, baseline, held - 1);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.InRange(state.MemoryAccounting.LiveBytes, baseline, held - 1);
             Assert.Equal(cancel ? "kept:" : "", output.ToString());
             Assert.Equal(cancel ? "" : "kept:", host.Inner.GetOutput(AwkFileDescriptor.StdOut));
         }
@@ -175,17 +171,16 @@ public sealed partial class AwkPrintStagingMemoryTests
         var region = BindPrint(state, (printf ? "printf " : "print ") + "\"" + text + "\"");
         var io = Io(state, new MockFileSystem());
         var headroom = printf ? AwkRuntimeMemory.EstimateTextBytes(text.Length) + 16_384 : 131_072 - 1;
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - headroom);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
 
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
             region.ExecuteAsync(state, io, output).AsTask());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(earlier, output.ToString());
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]
@@ -197,11 +192,11 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var memoryForState = State(observed, "default", cancellation.Token);
         var state = memoryForState.State;
         var counters = state.Counters;
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         var copyAdmitted = false;
         memoryForState.Budget.OnGrowth = _ =>
         {
-            if (state.MemoryAccounting.CurrentCommittedBytes < baseline + 20000) return;
+            if (state.MemoryAccounting.LiveBytes < baseline + 20000) return;
             copyAdmitted = true;
             cancellation.Cancel();
         };
@@ -216,8 +211,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.True(copyAdmitted);
         Assert.Equal(0, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(baseline, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]
@@ -232,13 +226,12 @@ public sealed partial class AwkPrintStagingMemoryTests
         var host = new MockFileSystem();
         var io = Io(state, host);
         var region = BindPrint(state, "printf \"%s:%d\",\"payload\"" + (redirected ? ">\"result\"" : ""));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
         Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("kept:", output.ToString());
         Assert.False(host.FileExists("/result"));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         await io.CloseAsync();
     }
 

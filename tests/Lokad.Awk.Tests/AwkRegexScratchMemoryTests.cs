@@ -25,12 +25,11 @@ public sealed class AwkRegexScratchMemoryTests
         using (var plan = AwkGensubReplacementPlan.Rent(AwkText.FromString(replacement), governor: governor))
         {
             Assert.Equal(groups, plan.CapturePlan.SelectGroupCount(10));
-            Assert.Equal(bytes, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(bytes, governor.LiveBytes);
             Assert.Equal(0, counters[AwkCounter.TextAllocations]);
             Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         }
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -47,8 +46,7 @@ public sealed class AwkRegexScratchMemoryTests
             using var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
         });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -68,17 +66,16 @@ public sealed class AwkRegexScratchMemoryTests
         {
             using var plan = AwkGensubReplacementPlan.Rent(text, () =>
             {
-                if ((governor.CurrentCommittedBytes > 0) == constructing &&
+                if ((governor.LiveBytes > 0) == constructing &&
                     ++checks == (constructing ? 4 : 3)) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
             }, governor);
         });
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
         using var retry = new CancellationTokenSource();
         using (var plan = AwkGensubReplacementPlan.Rent(text, retry.Token.ThrowIfCancellationRequested, governor))
-            Assert.Equal(expected, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+            Assert.Equal(expected, governor.LiveBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -107,15 +104,14 @@ public sealed class AwkRegexScratchMemoryTests
                     Assert.Throws<AwkRuntimeException>(() => plan.Append(Match(), builder)).MessageBytes));
             Assert.Equal(0, builder.Length);
             builder.Dispose();
-            Assert.Equal(AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(1), governor.CurrentCommittedBytes);
+            Assert.Equal(AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(1), governor.LiveBytes);
         }
         finally
         {
             plan.Dispose();
         }
         plan.Dispose();
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -129,13 +125,12 @@ public sealed class AwkRegexScratchMemoryTests
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance));
         var input = AwkText.FromString("x");
         var regex = state.CreateRegex(new AwkRegexPattern(missingOccurrence ? "(x)" : "z"));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var result = AwkRegexSubstitution.ReplaceOccurrence(state, regex, input, AwkText.FromString("<\\1>"),
             AwkReplacementMode.Gensub, missingOccurrence ? 2 : 1, out var count);
         Assert.True(input.HasSameStorage(result));
         Assert.Equal(0, count);
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]
@@ -168,7 +163,7 @@ public sealed class AwkRegexScratchMemoryTests
         else
         {
             using var result = Capture(groups, governor, counters, scalarPositions: scalarPositions);
-            Assert.True(governor.CurrentCommittedBytes > 0);
+            Assert.True(governor.LiveBytes > 0);
             Assert.Equal(groups, result.Match.Groups.Count);
             Assert.All(result.Match.Groups, group =>
             {
@@ -177,8 +172,7 @@ public sealed class AwkRegexScratchMemoryTests
                 Assert.Equal("😀", group.Value.AsString());
             });
         }
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Theory]
@@ -198,17 +192,16 @@ public sealed class AwkRegexScratchMemoryTests
             {
                 var allocated = counters[AwkCounter.TextAllocations];
                 var reached = phase == "materialization" ? allocated > 0
-                    : governor.CurrentCommittedBytes > 0 && allocated == 0;
+                    : governor.LiveBytes > 0 && allocated == 0;
                 if (reached) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
             }, scalarPositions: phase == "coordinates");
         });
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
         using var retry = new CancellationTokenSource();
         using (var result = Capture(groups, governor, counters, retry.Token.ThrowIfCancellationRequested))
-            Assert.True(governor.CurrentCommittedBytes > 0);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+            Assert.True(governor.LiveBytes > 0);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     [Fact]
@@ -240,7 +233,7 @@ public sealed class AwkRegexScratchMemoryTests
         var governor = memoryForGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(65, governor, counters); });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.LiveBytes);
     }
 
     private static (AwkText Text, int Parts) Replacement(string shape) => shape switch

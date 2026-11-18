@@ -75,12 +75,9 @@ internal sealed partial class AwkFieldSplitter(AwkRuntimeState state, AwkFieldSe
     {
         var bytes = AwkRuntimeMemory.EstimateFieldWidthListBytes(widths.Capacity);
         if (bytes > _fieldWidthsBytes)
-        {
-            state.MemoryAccounting.Reserve(bytes - _fieldWidthsBytes);
-            state.MemoryAccounting.CommitReserved(bytes - _fieldWidthsBytes);
-        }
+            state.MemoryAccounting.Charge(bytes - _fieldWidthsBytes);
         else
-            state.MemoryAccounting.ReleaseCommitted(_fieldWidthsBytes - bytes);
+            state.MemoryAccounting.Refund(_fieldWidthsBytes - bytes);
         _fieldWidthsBytes = bytes;
         _fieldWidths = widths;
         _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
@@ -89,7 +86,7 @@ internal sealed partial class AwkFieldSplitter(AwkRuntimeState state, AwkFieldSe
 
     private void ClearUnusedFieldWidths()
     {
-        state.MemoryAccounting.ReleaseCommitted(_fieldWidthsBytes);
+        state.MemoryAccounting.Refund(_fieldWidthsBytes);
         _fieldWidthsBytes = 0;
         _fieldWidths = [];
     }

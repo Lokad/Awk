@@ -18,8 +18,7 @@ public sealed class AwkRegexBracketClassTests
             var failure = Assert.ThrowsAny<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern("[[:word:]]")));
             Assert.Equal(AwkDiagnosticId.RuntimeInvalidRegex, failure.Id);
             Assert.Equal("awk: invalid regular expression\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(0, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(0, governor.LiveBytes);
         }
         var valid = runtime.Create(new AwkRegexPattern("[[:digit:]]"));
         Assert.Same(valid, runtime.Create(new AwkRegexPattern("[[:digit:]]")));
@@ -88,8 +87,7 @@ public sealed class AwkRegexBracketClassTests
             Assert.Throws<AwkRegexSyntaxException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained));
         else
             AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained);
-        Assert.Equal(11, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(11, governor.LiveBytes);
     }
 
     [Theory]
@@ -104,17 +102,16 @@ public sealed class AwkRegexBracketClassTests
         var checks = 0;
         void Check()
         {
-            if (governor.CurrentCommittedBytes > 11 && ++checks == (afterAllocation ? 2 : 1))
+            if (governor.LiveBytes > 11 && ++checks == (afterAllocation ? 2 : 1))
                 cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(
             "(?x)(a)[[:digit:]]"), Check, retained));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(11, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(11, governor.LiveBytes);
         AwkRegexBracketClasses.Validate(AwkText.FromString("(?x)(a)[[:digit:]]"), lease: retained);
-        Assert.Equal(11, governor.CurrentCommittedBytes);
+        Assert.Equal(11, governor.LiveBytes);
     }
 
     [Theory]

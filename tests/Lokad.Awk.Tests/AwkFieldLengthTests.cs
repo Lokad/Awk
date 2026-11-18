@@ -14,15 +14,14 @@ public sealed class AwkFieldLengthTests
         state.SetCurrentRecord(AwkText.FromString("0007 alpha beta"));
         Assert.Equal(governed, memory.Budget.Reserved > 0);
         _ = state.FieldCount;
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var allocations = counters[AwkCounter.TextAllocations];
 
         for (var index = 0; index < 100; index++)
             Assert.Equal(4, state.CountFieldStringUnits(1));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
 
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         Assert.Equal("0007", state.GetFieldValue(1).AsString());
@@ -43,13 +42,12 @@ public sealed class AwkFieldLengthTests
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
         Assert.Equal(governed, memory.Budget.Reserved > 0);
         Assert.Equal(4, state.CountFieldStringUnits(1));
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var allocations = counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 100; index++)
             Assert.Equal(4, state.CountFieldStringUnits(1));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -67,7 +65,7 @@ public sealed class AwkFieldLengthTests
         _ = state.FieldCount;
         var allocations = state.Counters[AwkCounter.TextAllocations];
 
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         for (var index = 0; index < 100; index++)
         {
             Assert.Equal(text.EnumerateRunes().Count(), state.CountFieldStringUnits(1));
@@ -75,7 +73,7 @@ public sealed class AwkFieldLengthTests
         }
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
 
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(7, state.GetFieldNumber(2));
         Assert.Equal(4, state.CountFieldStringUnits(2));
 
@@ -103,12 +101,11 @@ public sealed class AwkFieldLengthTests
             var unit = new string('a', AwkRuntimeLimits.CancellationCheckBytes - 1) + "😀";
             context.Frame.SetRecordText(AwkText.FromString(string.Concat(Enumerable.Repeat(unit, 4))));
             _ = context.Frame.GetFieldCount();
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            var committed = memory.Accounting.LiveBytes;
             cancellation.Cancel();
             Assert.Throws<OperationCanceledException>(() => context.Frame.TryGetFieldStringLength(new(1), false, out _));
 
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.CreateEnabled(), separator: " ", outputSeparator: " ");
             context.Frame.ResetRecord();
             var retryFrame = retry.Frame;
@@ -197,7 +194,6 @@ public sealed class AwkFieldLengthTests
             }
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

@@ -27,7 +27,6 @@ public sealed class AwkSingleCallArgumentTests
             Assert.Equal(42, state.ResolveVariableValue(AwkVariableName.FromText("observed")).AsNumber());
             Assert.Equal("before 42\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

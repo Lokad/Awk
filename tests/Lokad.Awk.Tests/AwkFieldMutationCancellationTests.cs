@@ -20,7 +20,7 @@ public sealed class AwkFieldMutationCancellationTests
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
-            var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+            var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
             var governor = memoryForGovernor.Accounting;
             using var context = new AwkFieldTestContext(memoryForGovernor, separator: "");
@@ -30,15 +30,14 @@ public sealed class AwkFieldMutationCancellationTests
             frame.AssignFieldCount(new(2), AwkValue.FromText("02.8"), Separator);
             var previousRecord = frame.RecordAwkText;
             var first = frame.GetFieldValue(new(1));
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
             var materialized = counters[AwkCounter.FieldsPrepared];
             memoryForGovernor.Budget.OnGrowth = _ => cancellation.Cancel();
 
             var error = Assert.Throws<OperationCanceledException>(() => Grow(frame, operation, target));
 
             Assert.Equal(cancellation.Token, error.CancellationToken);
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
             Assert.Equal(materialized, counters[AwkCounter.FieldsPrepared]);
             Assert.Equal(2, frame.GetFieldCount());
             Assert.Equal("02.8", frame.GetFieldCountValue().AsString());
@@ -59,7 +58,7 @@ public sealed class AwkFieldMutationCancellationTests
             Assert.Equal(operation == "field" ? "tail" : "", frame.GetFieldValue(new(target)).AsString());
             Assert.Equal(operation == "reference" ? "a|a" : "a|a" + new string('|', target - 2) + (operation == "field" ? "tail" : ""), frame.RecordAwkText.AsString());
             frame.ResetRecord();
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -78,7 +77,7 @@ public sealed class AwkFieldMutationCancellationTests
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
-            var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+            var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
             var governor = memoryForGovernor.Accounting;
             long committed = 0;
@@ -89,7 +88,7 @@ public sealed class AwkFieldMutationCancellationTests
             if (cached)
                 for (var index = 1; index <= ManyFields; index++)
                     _ = frame.GetFieldValue(new(index));
-            committed = governor.CurrentCommittedBytes;
+            committed = governor.LiveBytes;
             var previousRecord = frame.RecordAwkText;
             var allocations = counters[AwkCounter.TextAllocations];
             if (atAdmission) memoryForGovernor.Budget.OnGrowth = _ => cancellation.Cancel();
@@ -98,8 +97,7 @@ public sealed class AwkFieldMutationCancellationTests
             var error = Assert.Throws<OperationCanceledException>(() => frame.AssignFieldCount(new(retained), Separator));
 
             Assert.Equal(cancellation.Token, error.CancellationToken);
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
             Assert.Equal(ManyFields, frame.GetFieldCount());
             Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
             Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
@@ -122,7 +120,7 @@ public sealed class AwkFieldMutationCancellationTests
             }
             Assert.Equal(string.Join("|", Enumerable.Repeat("a", retained)), frame.RecordAwkText.AsString());
             frame.ResetRecord();
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -145,15 +143,14 @@ public sealed class AwkFieldMutationCancellationTests
             var frame = context.Frame;
             Initialize(frame, 2);
             var previousRecord = frame.RecordAwkText;
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
             cancellation.Cancel();
 
             Assert.Throws<OperationCanceledException>(() => Grow(frame, operation, 33));
 
             Assert.Equal(2, frame.GetFieldCount());
             Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -170,7 +167,7 @@ public sealed class AwkFieldMutationCancellationTests
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
-            var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+            var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
             var governor = memoryForGovernor.Accounting;
             using var context = new AwkFieldTestContext(memoryForGovernor, separator: "");
@@ -180,7 +177,7 @@ public sealed class AwkFieldMutationCancellationTests
             // Admit the actual splitter capacity first. The final size fits; its
             // overlapping staged replacement does not fit the remaining allowance.
             memoryForGovernor.Budget.SetAvailableBytes(1_024);
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
             var previousRecord = frame.RecordAwkText;
 
             var error = Assert.Throws<AwkRuntimeException>(() => Grow(frame, operation, ManyFields, AwkText.Empty));
@@ -188,10 +185,9 @@ public sealed class AwkFieldMutationCancellationTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(original, frame.GetFieldCount());
             Assert.True(previousRecord.HasSameStorage(frame.RecordAwkText));
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
             frame.ResetRecord();
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
@@ -207,14 +203,14 @@ public sealed class AwkFieldMutationCancellationTests
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
-            var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+            var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
             var governor = memoryForGovernor.Accounting;
             using var context = new AwkFieldTestContext(memoryForGovernor, separator: "");
             memoryForGovernorBaseline = context.BaselineBytes;
             var frame = context.Frame;
             Initialize(frame, 2);
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
 
             Grow(frame, operation, ManyFields, AwkText.Empty, preserveNumericCount: true);
 
@@ -223,15 +219,14 @@ public sealed class AwkFieldMutationCancellationTests
             {
                 expected += AwkRuntimeMemory.EstimateTextBytes(AwkText.FromSourceLiteralString("tail"));
                 expected += AwkRuntimeMemory.EstimateFieldValueListBytes(4);
-                Assert.Equal(expected, governor.CurrentCommittedBytes);
+                Assert.Equal(expected, governor.LiveBytes);
             }
             else
-                Assert.Equal(expected, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+                Assert.Equal(expected, governor.LiveBytes);
             Assert.Equal(ManyFields, frame.GetFieldCount());
             Assert.Equal(operation == "reference" ? "aa" : operation == "field" ? "aatail" : "aa", frame.RecordAwkText.AsString());
             frame.ResetRecord();
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }

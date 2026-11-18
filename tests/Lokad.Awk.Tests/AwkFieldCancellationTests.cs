@@ -45,7 +45,6 @@ public sealed class AwkFieldCancellationTests
             Assert.Equal(2, countAtRefund);
             Assert.True(frame.TryGetFieldCountNumber(out var count));
             Assert.Equal(2, count);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
             frame.ResetRecord();
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
@@ -86,7 +85,6 @@ public sealed class AwkFieldCancellationTests
             Assert.Equal(3, countAtRefund);
             Assert.True(frame.TryGetFieldCountNumber(out var count));
             Assert.Equal(3, count);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
             frame.ResetRecord();
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
@@ -115,7 +113,7 @@ public sealed class AwkFieldCancellationTests
             var frame = context.Frame;
             frame.SetRecordText(AwkText.FromSourceLiteralString("1:2:3:4:5"));
             if (existingPrefix) Assert.Equal(1, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            var committed = memory.Accounting.LiveBytes;
             var fields = counters[AwkCounter.FieldsPrepared];
             var admitted = false;
             memory.Budget.OnGrowth = _ =>
@@ -131,9 +129,8 @@ public sealed class AwkFieldCancellationTests
             Assert.Equal(cancellation.Token, error.CancellationToken);
             Assert.Equal(cancelAtAdmission, admitted);
             Assert.Equal(fields, counters[AwkCounter.FieldsPrepared]);
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
             Assert.Equal(committed, memory.Budget.Reserved);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, separator: ":");
             frame.ResetRecord();
             frame = retry.Frame;
@@ -173,7 +170,7 @@ public sealed class AwkFieldCancellationTests
             var source = AwkText.FromSourceLiteralString(spelling + separator + "tail");
             frame.SetRecordText(source);
             var plan = frame.SplitPlan;
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            var committed = memory.Accounting.LiveBytes;
             var fields = counters[AwkCounter.FieldsPrepared];
             cancellation.Cancel();
 
@@ -185,8 +182,7 @@ public sealed class AwkFieldCancellationTests
             Assert.False(frame.TryGetFieldCountNumber(out _));
             Assert.Equal(plan, frame.SplitPlan);
             Assert.True(source.HasSameStorage(frame.RecordAwkText));
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, separator: separator);
             frame.ResetRecord();
             frame = retry.Frame;
@@ -218,7 +214,7 @@ public sealed class AwkFieldCancellationTests
             memoryBudgetBaseline = context.BaselineBudget;
             var source = AwkText.FromSourceLiteralString(new string('a', 3 * AwkRuntimeLimits.CancellationCheckBytes + 17) + " b");
             context.Frame.SetRecordText(source);
-            var committed = memory.Accounting.CurrentCommittedBytes;
+            var committed = memory.Accounting.LiveBytes;
             var published = counters[AwkCounter.FieldsPrepared];
             cancellation.Cancel();
             var error = Assert.Throws<OperationCanceledException>(() =>
@@ -233,8 +229,7 @@ public sealed class AwkFieldCancellationTests
             Assert.Equal(cancellation.Token, error.CancellationToken);
 
             Assert.Equal(published, counters[AwkCounter.FieldsPrepared]);
-            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(committed, memory.Accounting.LiveBytes);
             Assert.True(source.HasSameStorage(context.Frame.RecordAwkText));
             Assert.Equal(2, retryFrame.GetFieldCount());
             Assert.Equal("b", retryFrame.GetFieldValue(new(2)).AsString());
@@ -322,7 +317,7 @@ public sealed class AwkFieldCancellationTests
         var splitter = memory.State.FieldSplitter;
         splitter.AssignFieldWidths(splitter.PrepareFieldWidths(AwkText.FromString("2 3")));
         var previous = splitter.CaptureRecordPlan();
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var pending = AwkText.FromString(new string('0', LongScan) + "1");
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() =>
@@ -331,8 +326,7 @@ public sealed class AwkFieldCancellationTests
             else _ = splitter.PrepareFieldWidths(pending);
         });
         Assert.Equal(previous, splitter.CaptureRecordPlan());
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
         using var retryContext = new AwkFieldTestContext(counters);
         var retry = retryContext.Splitter.PrepareFieldWidths(pending);
         Assert.Single(retry);
@@ -486,13 +480,12 @@ public sealed class AwkFieldCancellationTests
             var record = AwkText.FromString(new string('a', LongScan));
             var plan = new AwkRecordSplitPlan(AwkFieldSplittingMode.FieldSeparator, AwkFieldSeparatorSpec.FromText(","), AwkText.Empty, [], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
             frame.SetRecordText(record, plan);
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
             memoryForGovernor.Budget.OnGrowth = _ => cancellation.Cancel();
             Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount());
             Assert.True(record.HasSameStorage(frame.RecordAwkText));
             Assert.Equal(plan, frame.SplitPlan);
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
             Assert.Equal(0, counters[AwkCounter.FieldsPrepared]);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.CreateEnabled(), separator: ",", outputSeparator: " ");
             frame = retry.Frame;
@@ -521,11 +514,10 @@ public sealed class AwkFieldCancellationTests
             frame.SetRecordText(AwkText.FromString("old"));
             var pending = AwkValue.FromDeferredText(AwkText.FromString(new string('a', LongScan)), AwkNumberParsingMode.Decimal);
             frame.AssignFieldValue(new(1), pending, AwkText.FromString("|"));
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
             memoryForGovernor.Budget.OnGrowth = _ => cancellation.Cancel();
             Assert.Throws<OperationCanceledException>(() => frame.RecordAwkText);
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
             Assert.Equal(new string('a', LongScan), frame.GetFieldValue(new(1)).AsString());
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, separator: ",");
             retry.Frame.SetRecordText(AwkText.FromString("old"));
@@ -550,13 +542,12 @@ public sealed class AwkFieldCancellationTests
             var frame = context.Frame;
             frame.SetRecordText(AwkText.FromString(new string('a', LongScan) + ",b"));
             Assert.Equal(2, frame.GetFieldCount());
-            var committed = governor.CurrentCommittedBytes;
+            var committed = governor.LiveBytes;
             var allocations = counters[AwkCounter.TextAllocations];
             memoryForGovernor.Budget.OnGrowth = _ => cancellation.Cancel();
             Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1)));
             Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
-            Assert.Equal(committed, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
+            Assert.Equal(committed, governor.LiveBytes);
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.CreateEnabled(), separator: ",", outputSeparator: " ");
             frame = retry.Frame;
             frame.SetRecordText(AwkText.FromSourceLiteralString(new string('a', LongScan) + ",tail"));

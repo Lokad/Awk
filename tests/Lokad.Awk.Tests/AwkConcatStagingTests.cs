@@ -26,7 +26,6 @@ public sealed class AwkConcatStagingTests
         Assert.Equal(string.Concat(Enumerable.Range(0, arity)), state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     public static IEnumerable<object[]> PendingCases()
@@ -47,7 +46,7 @@ public sealed class AwkConcatStagingTests
         var state = memory.State;
         var region = Bind(state, Source(arity, pendingIndex, outcome));
         SetParts(state, arity, largePrefix: true);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MockFileSystem();
@@ -75,11 +74,11 @@ public sealed class AwkConcatStagingTests
                 Assert.False(state.ContainsArrayValue(AwkArrayName.FromText("values"), AwkArrayKey.FromOrdinal(index)));
             Assert.Equal(string.Concat(Enumerable.Repeat("noise", 9)),
                 state.ResolveVariableValue(AwkVariableName.FromText("scratch")).AsString());
-            var held = state.MemoryAccounting.CurrentCommittedBytes;
+            var held = state.MemoryAccounting.LiveBytes;
             if (governed) Assert.True(held >= baseline);
             if (outcome == "cancel") cancellation.Cancel();
             Assert.False(run.IsCompleted);
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= held);
+            Assert.True(state.MemoryAccounting.LiveBytes >= held);
             release.TrySetResult();
             if (outcome == "success")
             {
@@ -103,7 +102,6 @@ public sealed class AwkConcatStagingTests
             }
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -143,7 +141,6 @@ public sealed class AwkConcatStagingTests
             Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(1, memory.Budget.Refusals);
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -167,12 +164,11 @@ public sealed class AwkConcatStagingTests
         var host = new MockFileSystem();
         var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
-        using var pressure = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.LiveBytes);
         await Assert.ThrowsAsync<AwkRuntimeException>(() => region.ExecuteAsync(state, io, output).AsTask());
         Assert.False(state.HasScalar(AwkVariableName.FromText("order")));
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static string Source(int arity, int pendingIndex, string outcome) =>

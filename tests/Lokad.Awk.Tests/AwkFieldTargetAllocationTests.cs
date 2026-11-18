@@ -12,7 +12,7 @@ public sealed class AwkFieldTargetAllocationTests
         var fieldMemoryBudget = fieldMemory.Budget;
         using (fieldMemory)
         {
-            var fieldMemoryBaseline = fieldMemory.Accounting.CurrentCommittedBytes;
+            var fieldMemoryBaseline = fieldMemory.Accounting.LiveBytes;
             var fieldMemoryBudgetBaseline = fieldMemory.Budget.Reserved;
             fieldMemory.Budget.SetAvailableBytes(8 << 20);
             var budget = fieldMemory.Budget;
@@ -34,7 +34,6 @@ public sealed class AwkFieldTargetAllocationTests
                 Assert.Equal(peak, budget.Peak);
                 Assert.Equal(2, frame.GetFieldCount());
                 Assert.Equal("left left", frame.RecordAwkText.AsString());
-                Assert.Equal(0, accounting.CurrentReservedBytes);
 
                 void Copy()
                 {
@@ -42,7 +41,7 @@ public sealed class AwkFieldTargetAllocationTests
                         throw new InvalidOperationException("The existing field slices should remain available.");
                 }
             }
-            Assert.Equal(fieldMemoryBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(fieldMemoryBaseline, accounting.LiveBytes);
             Assert.Equal(fieldMemoryBudgetBaseline, budget.Reserved);
         }
         Assert.Equal(0, fieldMemoryBudget.Reserved);
@@ -72,7 +71,6 @@ public sealed class AwkFieldTargetAllocationTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.InRange(allocated, 0, 1024);
         Assert.Equal(1063, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
 
         async ValueTask UpdateAsync()
         {

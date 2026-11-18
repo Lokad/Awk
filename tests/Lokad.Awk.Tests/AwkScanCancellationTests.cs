@@ -103,17 +103,15 @@ public sealed class AwkScanCancellationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
-        var committed = governor.CurrentCommittedBytes;
+        var committed = governor.LiveBytes;
         var text = AwkText.FromString(new string('\u754c', LongScan));
         using var cancellation = new CancellationTokenSource();
         Assert.Throws<OperationCanceledException>(() =>
             text.ResolveRuneSliceRange(100, 2, governor, CancelDuringScan(cancellation, 3), out _, out _));
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.LiveBytes);
 
         Assert.Throws<OperationCanceledException>(() =>
             text.ResolveRuneSliceRange(100, 2, governor, cancellation.Token.ThrowIfCancellationRequested, out _, out _));
-        Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal("\u754c\u754c", memoryForGovernor.State.CopyRuneSlice(text, 100, 2).AsString());
 
         Assert.Equal(LongScan, text.RuneLength);
@@ -142,7 +140,6 @@ public sealed class AwkScanCancellationTests
             computation.EvaluateBound(arguments, 0, arguments.Length, new(state)));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -162,7 +159,6 @@ public sealed class AwkScanCancellationTests
             input ? state.CreateNumericStringValue(source) : state.CreateStringValue(source)));
 
         Assert.Equal(7, state.ResolveVariableValue(name).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static Action CancelDuringScan(CancellationTokenSource cancellation, int checkpointNumber = 2)
@@ -182,7 +178,7 @@ public sealed class AwkScanCancellationTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var cancellation = new CancellationTokenSource();
         var memoryForGovernor = new CooperativeTestMemory(32 << 10).InitializeRuntime(counters, cancellation.Token);
-        var memoryForGovernorBaseline = memoryForGovernor.Accounting.CurrentCommittedBytes;
+        var memoryForGovernorBaseline = memoryForGovernor.Accounting.LiveBytes;
         var memoryForGovernorBudget = memoryForGovernor.Budget;
         using (memoryForGovernor)
         {
@@ -190,14 +186,13 @@ public sealed class AwkScanCancellationTests
             var format = new string('a', 4095) + "\ud83d\ude00a";
             memoryForGovernor.Budget.OnGrowth = _ =>
             {
-                if (governor.CurrentCommittedBytes > 0) cancellation.Cancel();
+                if (governor.LiveBytes > 0) cancellation.Cancel();
             };
 
             Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
                 format, new EmptyPrintfArguments(), PrintfMissingArgumentPolicy.Throw, memoryForGovernor.State));
 
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(memoryForGovernorBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryForGovernorBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }

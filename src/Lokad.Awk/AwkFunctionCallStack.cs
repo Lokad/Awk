@@ -79,13 +79,13 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         {
             var retiredBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(cached.SlotCapacity);
             cached.DiscardSlotBuffer();
-            state.MemoryAccounting.ReleaseCommitted(retiredBytes);
+            state.MemoryAccounting.Refund(retiredBytes);
         }
         if (capacity > 0)
             bufferBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(capacity);
         var frameBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
         var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(frameBytes, bufferBytes);
-        state.MemoryAccounting.ReserveAndCommit(unpublishedBytes);
+        state.MemoryAccounting.Charge(unpublishedBytes);
         AwkFunctionFrame? frame = null;
         try
         {
@@ -109,7 +109,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             if (frame is not null) RecycleFrame(frame);
             throw;
         }
-        finally { state.MemoryAccounting.ReleaseCommitted(unpublishedBytes); }
+        finally { state.MemoryAccounting.Refund(unpublishedBytes); }
     }
 
     // Borrow immutable argument transport only during this synchronous staging.
@@ -138,14 +138,14 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             return;
         }
         var bytes = state.MemoryAccounting.IsEnabled ? captured.RetainedTextMemoryBytes : 0;
-        state.MemoryAccounting.ReserveAndCommit(bytes);
+        state.MemoryAccounting.Charge(bytes);
         try
         {
             if (bytes > 0) state.CancellationCheckpoint();
             frame.StageScalar(index, in captured);
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
         }
-        catch { state.MemoryAccounting.ReleaseCommitted(bytes); throw; }
+        catch { state.MemoryAccounting.Refund(bytes); throw; }
     }
 
     internal void StageReaderText(AwkFunctionFrame frame, int index, AwkReadBuffer borrow, int offset, int length)
@@ -179,7 +179,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         in AwkFunctionLocalSlot captured, long bytes)
     {
         // The caller captured the actual owning cell before this admission.
-        state.MemoryAccounting.ReserveAndCommit(bytes);
+        state.MemoryAccounting.Charge(bytes);
         try
         {
             state.CancellationCheckpoint();
@@ -187,7 +187,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             frame.StageCell(index, in captured);
             frame.RetainedMemoryBytes = retained;
         }
-        catch { state.MemoryAccounting.ReleaseCommitted(bytes); throw; }
+        catch { state.MemoryAccounting.Refund(bytes); throw; }
     }
 
     internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array)
@@ -339,7 +339,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         var payload = frame.RetainedMemoryBytes;
         _incomingFrames--;
         RecycleFrame(frame);
-        state.MemoryAccounting.ReleaseCommitted(payload);
+        state.MemoryAccounting.Refund(payload);
     }
 
     public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray)
@@ -362,7 +362,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         var payloadBytes = frame.RetainedMemoryBytes;
 
         RecycleFrame(frame);
-        state.MemoryAccounting.ReleaseCommitted(payloadBytes);
+        state.MemoryAccounting.Refund(payloadBytes);
     }
 
     internal bool TryReadBoundLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value, bool allowArray = false)
@@ -781,7 +781,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         {
             var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, growth);
             if (admission > 0)
-                state.MemoryAccounting.Reserve(admission);
+                state.MemoryAccounting.Charge(admission);
 
             try
             {
@@ -793,7 +793,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             catch
             {
                 if (admission > 0)
-                    state.MemoryAccounting.ReleaseReserved(admission);
+                    state.MemoryAccounting.Refund(admission);
 
                 throw;
             }
@@ -801,9 +801,8 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             // Publish the funded local and clear a consumed source before refunds
             // can call the provider. Actual new admission retains its state.CancellationCheckpoint.
             frame.RetainedMemoryBytes = retained;
-            if (admission > 0) state.MemoryAccounting.CommitReserved(admission);
             var refund = source is null ? Math.Max(0, -growth) : oldBytes;
-            if (refund > 0) state.MemoryAccounting.ReleaseCommitted(refund);
+            if (refund > 0) state.MemoryAccounting.Refund(refund);
         }
         catch
         {
@@ -870,7 +869,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             using var growth = state.MemoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateDictionaryBufferBytes(bound));
             var capacity = _potentialArrayAliasCounts.EnsureCapacity(target);
             var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(capacity);
-            state.MemoryAccounting.ReserveAndCommit(bytes - _aliasCapacityBytes);
+            state.MemoryAccounting.Charge(bytes - _aliasCapacityBytes);
             _aliasCapacityBytes = bytes;
         }
         _potentialArrayAliasCounts[arrayName] = checked(count + 1);
@@ -902,7 +901,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         var id = frame.Id;
         var source = bytes.Span;
         var retained = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(source.Length) : 0;
-        state.MemoryAccounting.ReserveAndCommit(retained);
+        state.MemoryAccounting.Charge(retained);
         try
         {
             if (retained > 0) state.CancellationCheckpoint();
@@ -921,7 +920,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             }
             return owned;
         }
-        finally { state.MemoryAccounting.ReleaseCommitted(retained); }
+        finally { state.MemoryAccounting.Refund(retained); }
     }
 
     private AwkFunctionLocalSlot PromoteScalarProjection(

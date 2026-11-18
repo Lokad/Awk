@@ -45,7 +45,6 @@ public sealed class AwkFunctionFrameReuseTests
             }
             finally { stack.PopFrame(static _ => { }); }
             Assert.False(stack.IsInsideFunction);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
             if (governed) Assert.True(budget.Reserved > bootstrap); // Cached frame, not its released payload.
         }
         memory.Dispose();
@@ -89,8 +88,7 @@ public sealed class AwkFunctionFrameReuseTests
             new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
             [AwkFunctionLocalSlot.PotentialArrayAlias(shared, origin), AwkFunctionLocalSlot.PotentialArrayAlias(shared, origin)]));
         Assert.Equal(before, budget.Reserved);
-        Assert.Equal(before, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(before, accounting.LiveBytes);
         Assert.True(stack.TryResolveLocalValue(name, out var local));
         Assert.Equal(19, local.Value.AsNumber());
         Assert.Equal(1, budget.Refusals);

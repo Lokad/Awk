@@ -67,7 +67,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var memoryBudget = memory.Budget;
         using (memory)
         {
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             memory.Budget.SetAvailableBytes(memory.Budget.Limit);
             var governor = memory.Accounting;
             using var context = new AwkFieldTestContext(memory);
@@ -97,9 +97,8 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             Assert.Equal(0, counters[AwkCounter.TextAllocations]);
             Assert.Equal(0, counters[AwkCounter.StringDecodes]);
             Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-            Assert.Equal(0, governor.CurrentReservedBytes);
             frame.ResetRecord();
-            Assert.Equal(memoryBaseline, governor.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, governor.LiveBytes);
         }
         Assert.Equal(0, memoryBudget.Reserved);
     }
@@ -140,7 +139,6 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         Assert.Equal(textAllocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -151,7 +149,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var memoryForAccountingBudget = memoryForAccounting.Budget;
         using (memoryForAccounting)
         {
-            var memoryForAccountingBaseline = memoryForAccounting.Accounting.CurrentCommittedBytes;
+            var memoryForAccountingBaseline = memoryForAccounting.Accounting.LiveBytes;
             memoryForAccounting.Budget.SetAvailableBytes(memoryForAccounting.Budget.Limit);
             var accounting = memoryForAccounting.Accounting;
             using var context = new AwkFieldTestContext(memoryForAccounting);
@@ -176,11 +174,10 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             Assert.Equal(10_100, counters[AwkCounter.FieldsPrepared]);
             Assert.Equal(0, counters[AwkCounter.TextAllocations]);
             Assert.Equal(0, counters[AwkCounter.StringDecodes]);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
             frame.SetRecordText(AwkText.Empty);
-            Assert.True(accounting.CurrentCommittedBytes > 0);
+            Assert.True(accounting.LiveBytes > 0);
             frame.ResetRecord();
-            Assert.Equal(memoryForAccountingBaseline, accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryForAccountingBaseline, accounting.LiveBytes);
         }
         Assert.Equal(0, memoryForAccountingBudget.Reserved);
     }
@@ -226,7 +223,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var memoryBudget = memory.Budget;
         using (memory)
         {
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             var memoryBudgetBaseline = memory.Budget.Reserved;
             memory.Budget.SetAvailableBytes(memory.Budget.Limit);
             using var context = new AwkFieldTestContext(memory);
@@ -235,7 +232,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             var frame = context.Frame;
             var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("1", width)));
             for (var row = 0; row < 100; row++) _ = ReadRecord();
-            var retained = memory.Accounting.CurrentCommittedBytes;
+            var retained = memory.Accounting.LiveBytes;
             var total = 0;
             var before = GC.GetAllocatedBytesForCurrentThread();
             for (var row = 0; row < 200; row++) total += ReadRecord();
@@ -244,7 +241,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             output.WriteLine("200 wide-record splits: {0} bytes; governed: {1}.", allocated, governed);
             Assert.Equal(width * 200, total);
             Assert.InRange(allocated, 0, 64_000);
-            Assert.Equal(retained, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(retained, memory.Accounting.LiveBytes);
             if (governed)
             {
                 Assert.True(retained >= AwkRuntimeMemory.EstimateRecordFieldListBytes(width));
@@ -253,10 +250,9 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             Assert.Equal(width, ReadRecord());
             frame.SetRecordText(AwkText.FromSourceLiteralString("7"));
             Assert.Equal(1, frame.GetFieldCount());
-            if (governed) Assert.True(memory.Accounting.CurrentCommittedBytes < retained);
+            if (governed) Assert.True(memory.Accounting.LiveBytes < retained);
             frame.ResetRecord();
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, memory.Accounting.LiveBytes);
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
 
             int ReadRecord()
@@ -276,7 +272,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var memoryBudget = memory.Budget;
         using (memory)
         {
-            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBaseline = memory.Accounting.LiveBytes;
             var memoryBudgetBaseline = memory.Budget.Reserved;
             memory.Budget.SetAvailableBytes(memory.Budget.Limit);
             using var context = new AwkFieldTestContext(memory);
@@ -287,20 +283,19 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
             frame.SetRecordText(record);
             for (var field = 1; field <= width; field++) Assert.Equal("0007", frame.GetFieldValue(new(field)).AsString());
             var captured = frame.GetFieldValue(new(width));
-            var full = memory.Accounting.CurrentCommittedBytes;
+            var full = memory.Accounting.LiveBytes;
 
             frame.SetRecordText(record);
-            var empty = memory.Accounting.CurrentCommittedBytes;
+            var empty = memory.Accounting.LiveBytes;
             Assert.InRange(empty, AwkRuntimeMemory.EstimateRecordFieldListBytes(width) +
                 AwkRuntimeMemory.EstimateFieldValueListBytes(width), full);
             Assert.Equal("0007", captured.AsString());
             Assert.Equal("0007", frame.GetFieldValue(new(1)).AsString());
             frame.SetRecordText(AwkText.Empty);
-            Assert.True(memory.Accounting.CurrentCommittedBytes < empty);
+            Assert.True(memory.Accounting.LiveBytes < empty);
             Assert.Equal("0007", captured.AsString());
             frame.ResetRecord();
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBaseline, memory.Accounting.LiveBytes);
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
         Assert.Equal(0, memoryBudget.Reserved);

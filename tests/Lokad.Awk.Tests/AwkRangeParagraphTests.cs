@@ -73,17 +73,19 @@ public sealed class AwkRangeParagraphTests
         state.SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode.Paragraph);
         var record = AwkText.FromSourceLiteralString("a\nbéx");
         state.SetCurrentRecord(record);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved;
-        state.MemoryAccounting.Reserve(pressure);
+        Assert.True(memoryForState.Budget.TryReserve(pressure, out var held));
+        using var retainedPressure = held;
+        var admitted = memoryForState.Budget.Reserved;
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.FieldCount);
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
+        Assert.Equal(admitted, memoryForState.Budget.Reserved);
         Assert.Equal(record, state.CurrentRecordByteText);
-        state.MemoryAccounting.ReleaseReserved(pressure);
+        retainedPressure.Dispose();
         Assign(state, "RS", "\n");
         Assign(state, "FS", ":");
         Assert.Equal(2, state.FieldCount);
@@ -107,18 +109,20 @@ public sealed class AwkRangeParagraphTests
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
         using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
         _ = await cursor.ReadRecordAsync();
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 2;
-        state.MemoryAccounting.Reserve(pressure);
+        Assert.True(memoryForState.Budget.TryReserve(pressure, out var held));
+        using var retainedPressure = held;
+        var admitted = memoryForState.Budget.Reserved;
 
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await cursor.ReadRecordAsync());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
+        Assert.Equal(admitted, memoryForState.Budget.Reserved);
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
-        state.MemoryAccounting.ReleaseReserved(pressure);
+        retainedPressure.Dispose();
         var record = await cursor.ReadRecordAsync();
         Assert.True(record.RecordText.EqualsAscii("x"));
         Assert.True(record.Terminator.ByteText.AsSpan().SequenceEqual("\r\n"u8));

@@ -114,14 +114,13 @@ public sealed class AwkUnicodeCallerTests
             memory.Configure(Options(AwkRuntimeLimits.CreateDefault(), counters)))).State;
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         var assignment = AwkVariableAssignment.InputArgument(name, @"\u0041" + new string('a', 1 << 18));
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("keep", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
 
     [Theory]

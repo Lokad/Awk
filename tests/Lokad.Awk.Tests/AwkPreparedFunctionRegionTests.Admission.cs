@@ -42,7 +42,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal(1, budget.Refusals);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         }
@@ -99,7 +98,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(5, state.ResolveVariableValue(total).AsNumber());
 
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -155,7 +153,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(5, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
             Assert.Equal("before " + expected + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal(1, budget.Refusals);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         }
@@ -208,7 +205,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal("before 7 keep\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(5, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal(1, budget.Refusals);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         }

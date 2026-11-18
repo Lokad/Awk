@@ -64,7 +64,6 @@ public sealed class AwkRecordCounterSlotTests
         state.AdvanceMainInputRecord(AwkRecordTerminator.Empty);
         Assert.True(state.TryResolvePreparedSpecialNumber(id, out number));
         Assert.Equal(8, number);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     public static IEnumerable<object[]> CounterProfiles()
@@ -120,7 +119,6 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.ResolveSpecialVariableValue(special).AsNumber());
         Assert.Equal(7, state.GetGlobalScalarValue(global).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -184,7 +182,6 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(decodes, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(encodes, state.Counters[AwkCounter.Utf8Encodes]);
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -273,7 +270,6 @@ public sealed class AwkRecordCounterSlotTests
         else
         { }
         Assert.Equal(retained, memory.Budget.Reserved);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -309,7 +305,6 @@ public sealed class AwkRecordCounterSlotTests
             Assert.False(value.RetainsInputClassification);
             Assert.Equal(7, value.AsNumber());
             Assert.Equal(limit, memory.Budget.Reserved);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(retained, memory.Budget.Reserved);
 

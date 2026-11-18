@@ -30,7 +30,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal("007", state.GetArrayAwkValue(array, Key).AsString());
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         execution.Memory.Budget.OnRefund = null;
     }
 
@@ -55,7 +54,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
 
         Assert.True(changed);
         Assert.Equal(5, execution.State.GetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("key")).AsNumber());
-        Assert.Equal(0, execution.State.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -71,7 +69,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var child = execution.State.GetSubarray(AwkArrayName.FromText("a"), new AwkArrayKey("r"), default);
         Assert.Equal(2, execution.State.GetArrayNumber(child, new AwkArrayKey("n")));
         Assert.Equal(0, execution.Memory.Budget.Refusals);
-        Assert.Equal(0, execution.State.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

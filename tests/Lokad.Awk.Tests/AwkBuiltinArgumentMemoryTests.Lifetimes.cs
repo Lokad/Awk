@@ -23,7 +23,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
             "getline v<\"/side\";return " + (outcome == "fault" ? "1/0" : "v") + "}" +
             "function effect(){order=order \"e\";return 9}" +
             "BEGIN{target=\"keep\";target=sprintf(\"%s:%d:%d\",arg(payload),delayed(),effect())}");
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         var payload = AwkValue.FromText(new string('x', 32_768));
         state.AssignVariableValue(AwkVariableName.FromText("payload"), payload);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -49,11 +49,11 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
             Assert.Equal("ad", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
             Assert.Empty(state.ResolveVariableValue(AwkVariableName.FromText("payload")).AsString());
             Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
-            var held = state.MemoryAccounting.CurrentCommittedBytes;
+            var held = state.MemoryAccounting.LiveBytes;
             if (governed) Assert.True(held >= baseline + payload.RetainedTextMemoryBytes);
             if (outcome == "cancel") cancellation.Cancel();
             Assert.False(run.IsCompleted);
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= held);
+            Assert.True(state.MemoryAccounting.LiveBytes >= held);
             release.TrySetResult();
             if (outcome == "success")
             {
@@ -75,7 +75,6 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
             }
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

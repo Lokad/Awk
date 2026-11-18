@@ -38,7 +38,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(spelling, value.ByteText.AsString());
             Assert.Equal(AwkRuntimeValueKind.String, value.RuntimeKind);
             Assert.Equal(7, value.AsNumber());
-            if (governed) Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= value.RetainedTextMemoryBytes);
+            if (governed) Assert.True(state.MemoryAccounting.LiveBytes >= value.RetainedTextMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
         }
         if (local) state.PopFunctionFrame();
@@ -167,7 +167,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             source.Dispose();
             var value = local ? state.ResolveFunctionLocalValue(new(0), name) : state.ResolveVariableValue(name);
             Assert.Equal(spelling, value.ByteText.AsString());
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= value.RetainedTextMemoryBytes);
+            Assert.True(state.MemoryAccounting.LiveBytes >= value.RetainedTextMemoryBytes);
         };
         state.AssignConsumedScalar(in variable, source,
             new(textSource ? AwkRegionOperandKind.TextTemporary : AwkRegionOperandKind.ValueTemporary, 0));
@@ -269,7 +269,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(spelling, stored.ByteText.AsString());
             Assert.Equal(numericString ? AwkRuntimeValueKind.NumericString : AwkRuntimeValueKind.String, stored.RuntimeKind);
             Assert.Equal(7, stored.AsNumber());
-            if (governed) Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= stored.RetainedTextMemoryBytes);
+            if (governed) Assert.True(state.MemoryAccounting.LiveBytes >= stored.RetainedTextMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
         }
         if (local) state.PopFunctionFrame();

@@ -58,7 +58,6 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.True(attempted);
         Assert.True(state.TryPeekArrayAwkValue(array, key, out var value));
         Assert.Equal(outcome is "cancel" or "refuse" ? 7 : 10, value.AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         regionOutput.Dispose();
         memory.Dispose();
@@ -96,7 +95,6 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.True(admitted);
         Assert.Equal(307, state.ResolveVariableValue(Result).AsNumber());
         Assert.Equal(307, arrayTarget ? state.GetArrayAwkValue(array, key).AsNumber() : state.ResolveVariableValue(Value).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         regionOutput.Dispose();
         memory.Dispose();
@@ -130,7 +128,6 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.Equal(decrement ? 6 : 8, state.ResolveVariableValue(Value).AsNumber());
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         regionOutput.Dispose();
         memory.Dispose();
@@ -147,13 +144,12 @@ public sealed class AwkPreparedNumericUpdateTests
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
-        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.LiveBytes);
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.False(state.HasScalar(Value));
         Assert.False(state.HasScalar(Result));
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -206,14 +202,13 @@ public sealed class AwkPreparedNumericUpdateTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.True(state.HasScalar(Value));
         Assert.False(state.HasScalar(Result));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     private static AwkRegion Bind(AwkRuntimeState state, string expression, string prefix = "")

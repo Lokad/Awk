@@ -3,12 +3,10 @@ namespace Lokad.Awk;
 // Own-storage estimates; admission belongs exclusively to the host's shared allowance.
 internal sealed class AwkMemoryAccounting
 {
-
     private readonly AwkExecutionMemoryOwner _owner;
 
     private AwkMemoryAccounting(AwkExecutionMemoryOwner owner)
     {
-
         _owner = owner;
     }
 
@@ -17,9 +15,7 @@ internal sealed class AwkMemoryAccounting
 
     public bool IsEnabled => _owner.IsEnabled;
 
-    public long CurrentReservedBytes { get; private set; }
-
-    public long CurrentCommittedBytes { get; private set; }
+    public long LiveBytes => _owner.TrackedBytes;
 
     public static AwkMemoryAccounting Create(AwkExecutionMemoryOwner owner)
     {
@@ -28,55 +24,17 @@ internal sealed class AwkMemoryAccounting
             : new AwkMemoryAccounting(owner);
     }
 
-    public void Reserve(long byteCount)
+    public AwkMemoryMutationAdmission AdmitMutation(long byteCount) =>
+        _owner.AdmitMutation(byteCount);
+
+    public void Charge(long bytes)
     {
-        if (!IsEnabled || byteCount <= 0)
-            return;
-
-        var reserved = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount);
-        var liveBytes = AwkRuntimeMemory.CheckedAdd(reserved, CurrentCommittedBytes);
-        ResizeOwner(liveBytes);
-        CurrentReservedBytes = reserved;
-
+        if (IsEnabled && bytes > 0) ResizeCharge(0, bytes);
     }
 
-    public AwkMemoryMutationAdmission AdmitMutation(long byteCount)
+    public void Refund(long bytes)
     {
-        return _owner.AdmitMutation(byteCount);
-    }
-
-    public void CommitReserved(long byteCount)
-    {
-        if (!IsEnabled || byteCount <= 0)
-            return;
-
-        if (byteCount > CurrentReservedBytes)
-            throw new InvalidOperationException("Cannot commit more bytes than have been reserved.");
-
-        var reserved = CurrentReservedBytes - byteCount;
-        var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes, byteCount);
-        CurrentReservedBytes = reserved;
-        CurrentCommittedBytes = committed;
-    }
-
-    public void ReleaseReserved(long byteCount)
-    {
-        if (!IsEnabled || byteCount <= 0)
-            return;
-
-        if (byteCount > CurrentReservedBytes)
-            throw new InvalidOperationException("Cannot release more reserved bytes than are currently reserved.");
-
-        ResizeOwner(AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes - byteCount, CurrentCommittedBytes));
-        CurrentReservedBytes -= byteCount;
-    }
-
-    public void ReleaseCommitted(long byteCount)
-    {
-        if (!IsEnabled || byteCount <= 0)
-            return;
-
-        ResizeCommitted(byteCount, 0);
+        if (IsEnabled && bytes > 0) ResizeCharge(bytes, 0);
     }
 
     public AwkMemoryLease ReserveTransient(long byteCount)
@@ -94,34 +52,17 @@ internal sealed class AwkMemoryAccounting
     public AwkMemoryLease RetainValue(AwkValue value) =>
         ReserveTransient(IsEnabled ? value.RetainedTextMemoryBytes : 0);
 
-    // Only for immediate charges. Allocation/publication stages keep their
-    // separate reservation and commit so failure can preserve prior state.
-    public void ReserveAndCommit(long byteCount)
+    internal void ResizeCharge(long previousBytes, long bytes)
     {
-        if (!IsEnabled || byteCount <= 0)
-            return;
+        var live = LiveBytes;
+        if (previousBytes > live)
+            throw new InvalidOperationException("Cannot release more bytes than are currently charged.");
 
-        ResizeCommitted(0, byteCount);
-    }
-
-    internal void ResizeCommitted(long previousBytes, long bytes)
-    {
-        if (previousBytes > CurrentCommittedBytes)
-            throw new InvalidOperationException("Cannot release more committed bytes than are currently committed.");
-
-        var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes - previousBytes, bytes);
-        ResizeOwner(AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, committed));
-        CurrentCommittedBytes = committed;
-    }
-
-    public AwkMemoryLease CreateTransientLease() => IsEnabled ? new AwkMemoryLease(this) : AwkMemoryLease.Disabled;
-
-    private void ResizeOwner(long liveBytes)
-    {
-        if (!_owner.TryResizeTracked(liveBytes))
+        if (!_owner.TryResizeTracked(AwkRuntimeMemory.CheckedAdd(live - previousBytes, bytes)))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
+    public AwkMemoryLease CreateTransientLease() => IsEnabled ? new AwkMemoryLease(this) : AwkMemoryLease.Disabled;
 }
 
 internal sealed class AwkMemoryLease : IDisposable
@@ -144,7 +85,7 @@ internal sealed class AwkMemoryLease : IDisposable
         if (ReferenceEquals(this, Disabled)) return;
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         var accounting = _accounting ?? throw new ObjectDisposedException(nameof(AwkMemoryLease));
-        accounting.ResizeCommitted(_byteCount, bytes);
+        accounting.ResizeCharge(_byteCount, bytes);
         _byteCount = bytes;
     }
 
@@ -155,7 +96,7 @@ internal sealed class AwkMemoryLease : IDisposable
             return;
 
         var nextByteCount = AwkRuntimeMemory.CheckedAdd(_byteCount, byteCount);
-        accounting.ReserveAndCommit(byteCount);
+        accounting.Charge(byteCount);
         _byteCount = nextByteCount;
     }
 
@@ -166,7 +107,7 @@ internal sealed class AwkMemoryLease : IDisposable
             return;
         if (byteCount < 0 || byteCount > _byteCount)
             throw new InvalidOperationException("Cannot release more bytes than remain in the memory lease.");
-        accounting.ReleaseCommitted(byteCount);
+        accounting.Refund(byteCount);
         _byteCount -= byteCount;
     }
 
@@ -182,7 +123,7 @@ internal sealed class AwkMemoryLease : IDisposable
     }
 
     // The former storage owner has already admitted these bytes. Its caller
-    // relinquishes the same committed claim before any callback can observe it.
+    // relinquishes its claim before any callback can observe the transfer.
     internal void ReceiveTransferred(long byteCount)
     {
         if (_accounting is null) return;
@@ -210,7 +151,7 @@ internal sealed class AwkMemoryLease : IDisposable
 
         _accounting = null;
         if (_byteCount > 0)
-            accounting.ReleaseCommitted(_byteCount);
+            accounting.Refund(_byteCount);
         _byteCount = 0;
     }
 }

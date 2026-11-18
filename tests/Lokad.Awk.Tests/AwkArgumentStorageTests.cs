@@ -52,7 +52,7 @@ public sealed class AwkArgumentStorageTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.LiveBytes;
         var text = AwkValue.FromText(new string('x', 32_768));
         state.AssignVariableValue(AwkVariableName.FromText("payload"), text);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -78,10 +78,10 @@ public sealed class AwkArgumentStorageTests
             Assert.False(run.IsCompleted);
             Assert.Equal("012", state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
             Assert.Empty(state.ResolveVariableValue(AwkVariableName.FromText("payload")).AsString());
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= baseline + text.RetainedTextMemoryBytes);
+            Assert.True(state.MemoryAccounting.LiveBytes >= baseline + text.RetainedTextMemoryBytes);
             if (outcome == "cancel") cancellation.Cancel();
             Assert.False(run.IsCompleted);
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= baseline + text.RetainedTextMemoryBytes);
+            Assert.True(state.MemoryAccounting.LiveBytes >= baseline + text.RetainedTextMemoryBytes);
             release.TrySetResult();
             if (outcome == "success")
             {
@@ -104,8 +104,7 @@ public sealed class AwkArgumentStorageTests
             }
             Assert.Equal(1, reads);
             Assert.False(state.IsInsideFunction);
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes < baseline + text.RetainedTextMemoryBytes);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.True(state.MemoryAccounting.LiveBytes < baseline + text.RetainedTextMemoryBytes);
         }
         finally
         {

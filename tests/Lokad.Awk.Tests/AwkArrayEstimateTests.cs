@@ -101,9 +101,9 @@ public sealed class AwkArrayEstimateTests
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);
-        var emptyArrayBytes = accounting.CurrentCommittedBytes;
+        var emptyArrayBytes = accounting.LiveBytes;
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
-        var committed = accounting.CurrentCommittedBytes;
+        var committed = accounting.LiveBytes;
         var reserved = budget.Reserved;
         var replacement = variables.CreateMutableArraySlots(0);
         replacement[key] = AwkValue.ForStoredText(new string('x', refuse ? 4096 : 16));
@@ -113,18 +113,17 @@ public sealed class AwkArrayEstimateTests
         {
             AssertMemoryLimit(Replace);
             Assert.Equal(42, variables.GetArrayValue(name, key).AsNumber());
-            Assert.Equal(committed, accounting.CurrentCommittedBytes);
+            Assert.Equal(committed, accounting.LiveBytes);
             Assert.Equal(reserved, budget.Reserved);
         }
         else
         {
             Replace();
             Assert.Equal(new string('x', 16), variables.GetArrayValue(name, key).AsString());
-            Assert.Equal(emptyArrayBytes + AwkVariables.EstimateArrayBytes(variables.ResolveOrdinaryArray(name)), accounting.CurrentCommittedBytes);
+            Assert.Equal(emptyArrayBytes + AwkVariables.EstimateArrayBytes(variables.ResolveOrdinaryArray(name)), accounting.LiveBytes);
         }
-        Assert.Equal(0, accounting.CurrentReservedBytes);
         variables.ClearArray(name);
-        Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
+        Assert.Equal(emptyArrayBytes, accounting.LiveBytes);
         Assert.Equal(emptyArrayBytes, budget.Reserved);
         memory.Dispose();
         Assert.Equal(0, budget.Reserved);

@@ -405,14 +405,14 @@ public sealed class AwkFunctionLocalSlotTests
         var name = AwkVariableName.FromText("x");
         var slot = new AwkFunctionLocalSlotId(0);
         var layout = new AwkFunctionLocalLayout([name]);
-        var initial = memory.CurrentCommittedBytes;
+        var initial = memory.LiveBytes;
         memoryForMemory.State.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
-        var retained = memory.CurrentCommittedBytes;
+        var retained = memory.LiveBytes;
         Assert.True(retained > initial);
         using (stack.EnterGlobalBindings())
         {
             Assert.True(stack.IsInsideFunction);
-            Assert.Equal(retained, memory.CurrentCommittedBytes);
+            Assert.Equal(retained, memory.LiveBytes);
             Assert.False(stack.TryReadBoundLocalValue(slot, out _));
             Assert.False(stack.TryResolveLocal(name, out _));
             Assert.False(stack.TryResolveLocal(slot, out _));
@@ -425,7 +425,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.False(stack.TryAssignLocal(slot, AwkValue.FromNumber(99)));
             // Owned payload is refunded; numeric inline storage stays in the cached frame.
             memoryForMemory.State.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkTestHarness.NumericInput("003"))]);
-            var nestedBytes = memory.CurrentCommittedBytes;
+            var nestedBytes = memory.LiveBytes;
             try
             {
                 Assert.True(stack.TryResolveLocalValue(name, out var nested));
@@ -435,19 +435,18 @@ public sealed class AwkFunctionLocalSlotTests
                 {
                     Assert.False(stack.TryResolveLocal(name, out _));
                     Assert.Throws<AwkRuntimeException>(() => memoryForMemory.State.PushFunctionFrame(layout, []));
-                    Assert.Equal(0, memory.CurrentReservedBytes);
                 }
                 Assert.True(stack.TryResolveLocalValue(name, out nested));
                 Assert.Equal(3, nested.Value.AsNumber());
             }
             finally { stack.PopFrame(static _ => { }); }
             Assert.False(stack.TryResolveLocal(name, out _));
-            Assert.InRange(memory.CurrentCommittedBytes, retained, nestedBytes - 1);
+            Assert.InRange(memory.LiveBytes, retained, nestedBytes - 1);
         }
         Assert.True(stack.TryResolveLocalValue(name, out var restored));
         Assert.Equal(7, restored.Value.AsNumber());
         stack.PopFrame(static _ => { });
-        Assert.True(memory.CurrentCommittedBytes > initial); // Cached frames remain funded.
+        Assert.True(memory.LiveBytes > initial); // Cached frames remain funded.
         memoryForMemory.Dispose();
         Assert.Equal(0, memoryForMemory.Budget.Reserved);
     }

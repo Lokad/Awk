@@ -36,7 +36,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(input ? AwkRuntimeValueKind.NumericString : AwkRuntimeValueKind.String,
                 snapshot.Values[0].RuntimeKind);
             Assert.Equal(7, snapshot.Values[0].AsNumber());
-            if (governed) Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= captured.RetainedTextMemoryBytes);
+            if (governed) Assert.True(state.MemoryAccounting.LiveBytes >= captured.RetainedTextMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
         }
         snapshot.Dispose();
@@ -96,12 +96,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var snapshot = new AwkRegionStorage(state);
         snapshot.Prepare(new(0, Values: 1));
         snapshot.StoreValue(0, AwkValue.FromText("previous"));
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => snapshot.TryTakeRetiringLocal(0, frame, 0));
         Assert.Equal(spelling, frame.GetSlot(0).Value.ByteText.AsString());
         Assert.Equal("previous", snapshot.Values[0].AsString());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         state.PopFunctionFrame();
         snapshot.Dispose();
         memory.Dispose();

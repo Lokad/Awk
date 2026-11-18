@@ -222,12 +222,11 @@ public sealed partial class AwkFunctionStorageTests
         using var memory = new CooperativeTestMemory(1 << 20);
         var stack = Stack(memory);
         Cycle();
-        var retained = memory.Accounting.CurrentCommittedBytes;
+        var retained = memory.Accounting.LiveBytes;
         Assert.True(retained > 0);
         Cycle();
-        Assert.Equal(retained, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(retained, memory.Accounting.LiveBytes);
         Assert.False(stack.IsInsideFunction);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
 
@@ -245,7 +244,7 @@ public sealed partial class AwkFunctionStorageTests
         var stack = Stack(memory);
         memory.State.PushFunctionFrame(AwkFunctionLocalLayout.Empty, []);
         stack.PopFrame(static _ => { });
-        var frameCache = memory.Accounting.CurrentCommittedBytes;
+        var frameCache = memory.Accounting.LiveBytes;
         var names = Enumerable.Range(0, 512).Select(i => AwkVariableName.FromText("p" + i)).ToArray();
         var layout = new AwkFunctionLocalLayout(names);
         var arguments = Enumerable.Range(0, names.Length)
@@ -254,12 +253,11 @@ public sealed partial class AwkFunctionStorageTests
         Assert.True(stack.TryResolveOrPromoteArrayName(names[0], out var alias));
         Assert.Equal(AwkArrayName.FromText("a0"), alias);
         stack.PopFrame(static _ => { });
-        var retained = memory.Accounting.CurrentCommittedBytes;
+        var retained = memory.Accounting.LiveBytes;
         Assert.True(retained > frameCache);
         memory.State.PushFunctionFrame(layout, arguments);
         stack.PopFrame(static _ => { });
-        Assert.Equal(retained, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        Assert.Equal(retained, memory.Accounting.LiveBytes);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }
@@ -276,7 +274,6 @@ public sealed partial class AwkFunctionStorageTests
         Assert.ThrowsAny<OperationCanceledException>(() => memory.State.PushFunctionFrame(new([name]), []));
         Assert.True(stack.TryResolveLocalValue(name, out var caller));
         Assert.Equal(42, caller.Value.AsNumber());
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         stack.PopFrame(static _ => { }); // Cleanup must not poll the cancelled token.
         Assert.False(stack.IsInsideFunction);
         memory.Dispose();

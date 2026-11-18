@@ -34,7 +34,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
             if (found)
             {
                 _sites?.Remove(site);
-                governor.ReleaseCommitted(previous.Bytes);
+                governor.Refund(previous.Bytes);
             }
             return;
         }
@@ -48,7 +48,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
                 AwkRuntimeMemory.CheckedMultiply(capacity, 3)))
             : _bufferBytes;
         var reserved = AwkRuntimeMemory.CheckedAdd(bytes, grow ? bufferBytes : 0);
-        governor.Reserve(reserved);
+        governor.Charge(reserved);
         Dictionary<object, Entry> next;
         try
         {
@@ -74,11 +74,10 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
         }
         catch
         {
-            governor.ReleaseReserved(reserved);
+            governor.Refund(reserved);
             throw;
         }
-        governor.CommitReserved(reserved);
-        governor.ReleaseCommitted((grow ? _bufferBytes : 0) + (found ? previous.Bytes : 0));
+        governor.Refund((grow ? _bufferBytes : 0) + (found ? previous.Bytes : 0));
         _sites = next;
         _capacity = capacity;
         _bufferBytes = bufferBytes;
@@ -91,7 +90,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkC
     public void Reset(object site)
     {
         if (_sites is not null && _sites.Remove(site, out var previous))
-            governor.ReleaseCommitted(previous.Bytes);
+            governor.Refund(previous.Bytes);
     }
 
     private readonly record struct Entry(AwkText Pattern, int CompiledCases, long Bytes);

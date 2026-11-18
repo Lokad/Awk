@@ -20,7 +20,7 @@ internal sealed class AwkFieldTestContext : IDisposable
             AwkValue.FromText(AwkText.FromSourceLiteralString(separator)));
         if (outputSeparator != " ") State.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator,
             AwkValue.FromText(AwkText.FromSourceLiteralString(outputSeparator)));
-        BaselineBytes = memory.Accounting.CurrentCommittedBytes;
+        BaselineBytes = memory.Accounting.LiveBytes;
         BaselineBudget = memory.Budget.Reserved;
     }
 

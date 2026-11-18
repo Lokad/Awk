@@ -79,7 +79,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(spelling, stored.AsString());
             Assert.Equal(numericString ? AwkRuntimeValueKind.NumericString : AwkRuntimeValueKind.String, stored.RuntimeKind);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

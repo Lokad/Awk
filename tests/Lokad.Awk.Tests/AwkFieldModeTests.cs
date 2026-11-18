@@ -19,7 +19,7 @@ public sealed class AwkFieldModeTests
         if (profile == 0)
         {
             Assert.True(value.ByteText.EqualsAscii("FS"));
-            Assert.True(state.MemoryAccounting.CurrentCommittedBytes > 0);
+            Assert.True(state.MemoryAccounting.LiveBytes > 0);
         }
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
@@ -38,24 +38,26 @@ public sealed class AwkFieldModeTests
         var measured = memoryForMeasured.State;
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString(text));
         _ = measured.ResolveVariableValue(AwkVariableName.FromText(name));
-        var before = measured.MemoryAccounting.CurrentCommittedBytes;
+        var before = measured.MemoryAccounting.LiveBytes;
         Assign(measured, name, value, throughSymbolTable);
-        var growth = measured.MemoryAccounting.CurrentCommittedBytes - before;
+        var growth = measured.MemoryAccounting.LiveBytes - before;
         Assert.True(growth > 0);
 
         using var memoryForState = PreparedState();
         var state = memoryForState.State;
         var oldValue = state.ResolveVariableValue(AwkVariableName.FromText(name));
-        before = state.MemoryAccounting.CurrentCommittedBytes;
+        before = state.MemoryAccounting.LiveBytes;
         var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - growth + 1;
-        state.MemoryAccounting.Reserve(pressure);
+        Assert.True(memoryForState.Budget.TryReserve(pressure, out var held));
+        using var retainedPressure = held;
+        var admitted = memoryForState.Budget.Reserved;
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name, value, throughSymbolTable));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
+        Assert.Equal(admitted, memoryForState.Budget.Reserved);
         Assert.Equal(oldValue.ByteText, state.ResolveVariableValue(AwkVariableName.FromText(name)).ByteText);
         Assert.True(state.GetArrayAwkValue(ProcInfo, ModeKey).ByteText.EqualsAscii("FS"));
-        state.MemoryAccounting.ReleaseReserved(pressure);
+        retainedPressure.Dispose();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("ab cd"));
         Assert.Equal(2, state.FieldCount);
     }
@@ -71,15 +73,14 @@ public sealed class AwkFieldModeTests
         var state = memoryForState.State;
         state.SetArrayAwkValue(ProcInfo, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         var old = state.ResolveVariableValue(AwkVariableName.FromText(name));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name,
             AwkValue.FromText(AwkText.FromSourceLiteralString(text)), false));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(old.ByteText, state.ResolveVariableValue(AwkVariableName.FromText(name)).ByteText);
         Assert.False(state.TryPeekArrayAwkValue(ProcInfo, ModeKey, out _));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("ab cd"));
         Assert.Equal(2, state.FieldCount);
     }
@@ -94,14 +95,13 @@ public sealed class AwkFieldModeTests
         using var memoryForState = PreparedState();
         var state = memoryForState.State;
         var old = state.ResolveVariableValue(AwkVariableName.FromText(name));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name,
             AwkValue.FromText(AwkText.FromSourceLiteralString(text)), false));
         Assert.Equal(diagnostic, AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(old.ByteText, state.ResolveVariableValue(AwkVariableName.FromText(name)).ByteText);
         Assert.True(state.GetArrayAwkValue(ProcInfo, ModeKey).ByteText.EqualsAscii("FS"));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("ab cd"));
         Assert.Equal(2, state.FieldCount);
     }
@@ -116,13 +116,12 @@ public sealed class AwkFieldModeTests
         Assign(state, "FIELDWIDTHS", AwkValue.FromText(AwkText.FromSourceLiteralString("1 *")), false);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("abc"));
         Assert.Equal(2, state.FieldCount);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         Assign(state, "FS", AwkValue.FromText(AwkText.FromSourceLiteralString(" ")), false);
-        Assert.True(state.MemoryAccounting.CurrentCommittedBytes < before);
+        Assert.True(state.MemoryAccounting.LiveBytes < before);
         Assert.True(state.GetArrayAwkValue(ProcInfo, ModeKey).ByteText.EqualsAscii("FS"));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -133,13 +132,12 @@ public sealed class AwkFieldModeTests
         var state = memoryForState.State;
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayAwkValue(ProcInfo, key, AwkValue.FromNumber(7));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.LiveBytes;
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(state.InitializeProcInfo);
         Assert.Equal(7, state.GetArrayAwkValue(ProcInfo, key).AsNumber());
         Assert.False(state.TryPeekArrayAwkValue(ProcInfo, ModeKey, out _));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 
     private static void Assign(AwkRuntimeState state, string name, AwkValue value, bool throughSymbolTable)
