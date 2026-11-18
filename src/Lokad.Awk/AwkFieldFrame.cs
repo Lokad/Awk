@@ -545,13 +545,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
                 field.CacheSlot > 0 ? _fieldValueCache[field.CacheSlot - 1].PayloadBytes : 0,
                 cached.PayloadBytes);
         }
-        if (capacity != _fieldValueCache.Capacity)
-            GrowFieldValueCache(capacity, retainedBytes);
-        else
-        {
-            state.CancellationCheckpoint?.Invoke();
-            ReplaceRetainedMemory(retainedBytes);
-        }
+        using var retirement = ResizeFieldStorage(_fieldTexts.Count, _fieldTexts.Capacity, capacity, retainedBytes);
         SetCachedFieldEntry(index, cached);
     }
 
@@ -752,7 +746,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         newRetainedBytes = ReplaceSeparatorEstimate(newRetainedBytes, outputFieldSeparator, newFieldCount);
         using var recompositionAdmission = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         var addedFields = newFieldCount - oldFieldCount;
-        ResizeFieldStorage(newFieldCount, newCapacity, cacheCapacity, newRetainedBytes);
+        using var retirement = ResizeFieldStorage(newFieldCount, newCapacity, cacheCapacity, newRetainedBytes);
         _fieldTexts[fieldIndex] = newField;
         SetCachedFieldValue(fieldIndex, value, spelling);
         _fieldPayloadByteLength = newPayloadByteLength;
@@ -791,7 +785,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var newCapacity = PlanFieldCapacity(index.Value);
         var newRetainedBytes = EstimateFieldBufferResize(newCapacity);
         newRetainedBytes = AdjustEstimate(newRetainedBytes, _fieldCountValue.RetainedTextMemoryBytes, 0);
-        ResizeFieldStorage(index.Value, newCapacity, _fieldValueCache.Capacity, newRetainedBytes);
+        using var retirement = ResizeFieldStorage(index.Value, newCapacity, _fieldValueCache.Capacity, newRetainedBytes);
 
         _fieldCountValue = AwkValue.FromNumber(index.Value);
         state.Counters.Add(AwkCounter.FieldsPrepared, addedFields);
@@ -848,7 +842,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             newPayloadByteLength);
         newRetainedBytes = ReplaceSeparatorEstimate(newRetainedBytes, outputFieldSeparator, newFieldCount);
         using var recompositionAdmission = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
-        ResizeFieldStorage(newFieldCount, newCapacity, cacheCapacity, newRetainedBytes);
+        using var retirement = ResizeFieldStorage(newFieldCount, newCapacity, cacheCapacity, newRetainedBytes);
         if (newFieldCount > oldFieldCount)
             state.Counters.Add(AwkCounter.FieldsPrepared, newFieldCount - oldFieldCount);
 
@@ -866,34 +860,67 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         : AdjustEstimate(_retainedMemoryBytes, AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity),
             AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity));
 
-    private void ResizeFieldStorage(int count, int capacity, int cacheCapacity, long retainedBytes)
+    // Keep replaced storage funded until the caller has also published its field values and NF.
+    private AwkMemoryLease ResizeFieldStorage(int count, int capacity, int cacheCapacity, long retainedBytes)
     {
         var stageFields = ShouldStageFields(count, capacity);
         // A staged truncation must rebuild cache slots even if their capacity stays the same.
         var stageCache = cacheCapacity != _fieldValueCache.Capacity || (stageFields && count < _fieldTexts.Count);
-        if (stageFields || stageCache)
+        var staging = AwkMemoryLease.Disabled;
+        try
         {
-            var stagedBytes = stageFields ? AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity) : 0;
-            if (stageCache)
-                stagedBytes = AwkRuntimeMemory.CheckedAdd(stagedBytes,
-                    EstimateFieldCacheBufferBytes(cacheCapacity));
-            using var staging = state.MemoryAccounting.ReserveTransient(stagedBytes);
-            var fields = stageFields ? StageFieldTexts(count, capacity) : _fieldTexts;
-            var cache = stageCache ? StageFieldValueCache(fields, cacheCapacity) : _fieldValueCache;
-            PublishStagedFields(fields, cache, retainedBytes, staging, stagedBytes);
-        }
-        else
-        {
-            state.CancellationCheckpoint?.Invoke();
-            ReplaceRetainedMemory(retainedBytes);
-            if (count < _fieldTexts.Count)
+            if (stageFields || stageCache)
             {
-                for (var index = count; index < _fieldTexts.Count; index++)
-                    RemoveCachedFieldValue(index);
-                _fieldTexts.Truncate(count);
+                var stagedBytes = stageFields ? AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity) : 0;
+                if (stageCache)
+                    stagedBytes = AwkRuntimeMemory.CheckedAdd(stagedBytes,
+                        EstimateFieldCacheBufferBytes(cacheCapacity));
+                staging = state.MemoryAccounting.ReserveTransient(stagedBytes);
+                var fields = stageFields ? StageFieldTexts(count, capacity) : _fieldTexts;
+                var cache = stageCache ? StageFieldValueCache(fields, cacheCapacity) : _fieldValueCache;
+                state.CancellationCheckpoint?.Invoke();
+                staging = TransferFieldMutationFunding(retainedBytes, staging);
+                _fieldTexts = fields;
+                _fieldValueCache = cache;
             }
+            else
+            {
+                state.CancellationCheckpoint?.Invoke();
+                staging = TransferFieldMutationFunding(retainedBytes, staging);
+                if (count < _fieldTexts.Count)
+                {
+                    for (var index = count; index < _fieldTexts.Count; index++)
+                        RemoveCachedFieldValue(index);
+                    _fieldTexts.Truncate(count);
+                }
+            }
+            while (_fieldTexts.Count < count) _fieldTexts.Add(AwkRecordField.Unassigned);
+            return staging;
         }
-        while (_fieldTexts.Count < count) _fieldTexts.Add(AwkRecordField.Unassigned);
+        catch
+        {
+            staging.Dispose();
+            throw;
+        }
+    }
+
+    private AwkMemoryLease TransferFieldMutationFunding(long retainedBytes, AwkMemoryLease staging)
+    {
+        var change = retainedBytes - _retainedMemoryBytes;
+        if (change < 0)
+        {
+            if (ReferenceEquals(staging, AwkMemoryLease.Disabled))
+                staging = state.MemoryAccounting.CreateTransientLease();
+            staging.ReceiveTransferred(-change);
+        }
+        else if (change > 0)
+        {
+            var transferred = Math.Min(staging.Bytes, change);
+            ReplaceRetainedMemory(retainedBytes - transferred);
+            staging.Transfer(transferred);
+        }
+        _retainedMemoryBytes = retainedBytes;
+        return staging;
     }
 
     // Own the growth policy so admission and allocation use the same destination capacity.
@@ -956,14 +983,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             Math.Max((long)count, Math.Max(4L, 2L * _fieldValueCache.Capacity)));
     }
 
-    private void GrowFieldValueCache(int capacity, long retainedBytes)
-    {
-        var bytes = EstimateFieldCacheBufferBytes(capacity);
-        using var staging = state.MemoryAccounting.ReserveTransient(bytes);
-        var cache = StageFieldValueCache(_fieldTexts, capacity);
-        PublishStagedFields(_fieldTexts, cache, retainedBytes, staging, bytes);
-    }
-
     // Cache slots belong to this frame's descriptors; scalar snapshots never carry them.
     // All capacity and ownership changes are admitted before these non-fallible mutations.
     private AwkFieldText FieldText(AwkRecordField field) => field.Text(CollectionsMarshal.AsSpan(_fieldValueCache));
@@ -1021,24 +1040,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         }
         state.CancellationCheckpoint?.Invoke();
         return cache;
-    }
-
-    private void PublishStagedFields(
-        AwkRecordFieldBuffer fields,
-        List<CachedFieldValue> cache,
-        long retainedBytes,
-        AwkMemoryLease staging,
-        long stagedBytes)
-    {
-        state.CancellationCheckpoint?.Invoke();
-        // The temporary lease already admits the new buffers while the previous ones are live.
-        // Transfer only the retained increase; disposal releases the remaining overlap charge.
-        var transferredBytes = Math.Min(stagedBytes, Math.Max(0, retainedBytes - _retainedMemoryBytes));
-        ReplaceRetainedMemory(retainedBytes - transferredBytes);
-        staging.Transfer(transferredBytes);
-        _retainedMemoryBytes = retainedBytes;
-        _fieldTexts = fields;
-        _fieldValueCache = cache;
     }
 
     private AwkFieldText CompositionField(int index, ReadOnlySpan<AwkFieldText> formatted) =>

@@ -231,6 +231,34 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(0, memoryForGovernorBudget.Reserved);
     }
 
+    [Theory]
+    [InlineData("field")]
+    [InlineData("count")]
+    [InlineData("reference")]
+    public void GrowthPublishesFieldCountBeforeRefundingReplacedStorage(string operation)
+    {
+        var memory = Governor().InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var budget = memory.Budget;
+        using (memory)
+        {
+            using var context = new AwkFieldTestContext(memory, separator: "");
+            var frame = context.Frame;
+            Initialize(frame, 2);
+            (int Fields, double Count)? observed = null;
+            budget.OnRefund = () =>
+            {
+                if (observed is null && frame.TryGetFieldCountNumber(out var count))
+                    observed = (frame.GetFieldCount(), count);
+            };
+
+            Grow(frame, operation, ManyFields, AwkText.Empty, preserveNumericCount: true);
+
+            budget.OnRefund = null;
+            Assert.Equal((ManyFields, (double)ManyFields), observed);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
     private static void Grow(AwkFieldFrame frame, string operation, int target, AwkText? separator = null, bool preserveNumericCount = false)
     {
         switch (operation)
