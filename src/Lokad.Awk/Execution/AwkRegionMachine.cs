@@ -28,9 +28,9 @@ internal partial struct AwkRegionMachine
     private AwkActionPhase _previousRecordPhase;
     private bool _hasRecordPhase;
 
-    internal AwkStatementFlow Flow { get; private set; }
+    private AwkStatementFlow Flow { get; set; }
 
-    internal AwkRegionMachine(AwkRuntimeState state, AwkRegion region, AwkRegionStorage storage,
+    private AwkRegionMachine(AwkRuntimeState state, AwkRegion region, AwkRegionStorage storage,
         AwkOutputSink output, AwkIo io, AwkInputScheduler? input = null)
     {
         _state = state;
@@ -47,7 +47,29 @@ internal partial struct AwkRegionMachine
 
     private AwkEvaluationContext Context => new(_state, _output, _io);
 
-    internal void Initialize()
+    internal static ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkRegion region,
+        AwkRegionStorage storage, AwkOutputSink output, AwkIo io, AwkInputScheduler? input = null)
+    {
+        var machine = new AwkRegionMachine(state, region, storage, output, io, input);
+        bool finished;
+        try
+        {
+            machine.Initialize();
+            finished = machine.Run();
+        }
+        catch
+        {
+            machine.Cleanup();
+            throw;
+        }
+
+        // Only the continuation owns this machine after a host suspension.
+        if (!finished) return ResumeAsync(machine);
+        machine.Cleanup();
+        return ValueTask.FromResult(machine.Flow);
+    }
+
+    private void Initialize()
     {
         _storage.Initialize(_region);
         // Standalone execution has not crossed activation or record publication.
@@ -355,7 +377,7 @@ internal partial struct AwkRegionMachine
         }
     }
 
-    internal void Cleanup()
+    private void Cleanup()
     {
         UnwindFrames();
         _rootStorage.ClearValues();
@@ -366,7 +388,7 @@ internal partial struct AwkRegionMachine
         _mainRead = default;
     }
 
-    internal static async ValueTask<AwkStatementFlow> ResumeAsync(AwkRegionMachine machine)
+    private static async ValueTask<AwkStatementFlow> ResumeAsync(AwkRegionMachine machine)
     {
         try
         {

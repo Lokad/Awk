@@ -30,18 +30,7 @@ internal sealed class AwkRegion(
     }
 
     internal ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkRegionStorage storage,
-        AwkOutputSink output, AwkIo io)
-    {
-        var machine = new AwkRegionMachine(state, this, storage, output, io);
-        try
-        {
-            machine.Initialize();
-            if (!machine.Run()) return AwkRegionMachine.ResumeAsync(machine);
-            machine.Cleanup();
-            return ValueTask.FromResult(machine.Flow);
-        }
-        catch { machine.Cleanup(); throw; }
-    }
+        AwkOutputSink output, AwkIo io) => AwkRegionMachine.ExecuteAsync(state, this, storage, output, io);
 
     internal void InitializeConstants(AwkRuntimeState state, double[] numbers)
     {
