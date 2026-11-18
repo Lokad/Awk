@@ -30,8 +30,7 @@ internal sealed partial class AwkRegionCompiler
         // A contiguous suffix has not introduced another captured path owner.
         _capturedPaths--;
         _paths[index] = path with { Slot = -1, ImmediateKeys = keys };
-        _code.RemoveRange(start, path.Count + 1);
-        _straightLine -= path.Count + 1;
+        _code.TrimTail(path.Count + 1);
     }
 
     private sealed class ArrayKeyWork(IReadOnlyList<AwkExpressionSyntax> parts, int first) : PreparationWork<int>

@@ -205,9 +205,7 @@ internal sealed partial class AwkRegionCompiler
             if (captureIndex >= 0 && _code[captureIndex] is { Kind: AwkRegionInstructionKind.ArrayPrepare } capture &&
                 capture.Target == site.Slot)
             {
-                var removed = _code.Count - captureIndex;
-                _code.RemoveRange(captureIndex, removed);
-                _straightLine -= removed;
+                _code.TrimTail(_code.Count - captureIndex);
                 site = site with { PrepareAccess = capture.Left, Slot = -1 };
             }
             // Only captures crossing instructions need storage and rule retirement.

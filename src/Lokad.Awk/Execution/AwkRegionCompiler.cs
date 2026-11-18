@@ -8,7 +8,7 @@ internal sealed partial class AwkRegionCompiler
 {
     private readonly AwkLoweringScope _scope;
     private readonly AwkRegionKind _kind;
-    private readonly List<AwkRegionInstruction> _code = [];
+    private InstructionEmitter _code = new();
     private readonly List<AwkRegionOperand> _operands = [];
     private readonly List<AwkRegionConstant> _constants = [];
     private readonly List<AwkRegionLiteral> _literals = [];
@@ -51,7 +51,6 @@ internal sealed partial class AwkRegionCompiler
     private int _printSegments;
     private int _iterators;
     private int _arrayTargets;
-    private int _straightLine;
     private bool _usesOutputBuilder;
     private AwkDiagnostic? _diagnostic;
     private int _mainBodyStart = -1;
@@ -63,9 +62,8 @@ internal sealed partial class AwkRegionCompiler
     {
         var compiler = new AwkRegionCompiler(scope, AwkRegionKind.Record);
         // Publication owns computational entry; later labels retain their polls.
-        compiler.Emit(new(AwkRegionInstructionKind.MainRead));
+        compiler._code.BeginMainInput();
         compiler._mainBodyStart = compiler._code.Count;
-        compiler._straightLine = 0;
         return compiler;
     }
 
@@ -317,7 +315,7 @@ internal sealed partial class AwkRegionCompiler
                 if (statement.Expression.TryGetValue(out var returning))
                     if (!Expression(returning, out returned)) return false;
                 // Keep an inserted poll after the read at its original boundary.
-                if (returned >= 0 && _straightLine < 128) TryTakeFreshArrayRead(returned);
+                if (returned >= 0 && !_code.RequiresPoll) TryTakeFreshArrayRead(returned);
                 if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
                 {
                     if (_lastNumberRead == _code.Count - 1 && _code.Count > 0 &&
@@ -845,8 +843,7 @@ internal sealed partial class AwkRegionCompiler
         // producer can give its canonical operand to the immediate consumer.
         _values--;
         _operands[operand] = new(AwkRegionOperandKind.ArrayElement, read.Left);
-        _code.RemoveAt(_code.Count - 1);
-        _straightLine--;
+        _code.TrimTail(1);
         return true;
     }
 
@@ -937,8 +934,7 @@ internal sealed partial class AwkRegionCompiler
             if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&
                 TryTakeFreshTextProducer(operand, _code.Count - 2, out var producer))
             {
-                _code.RemoveAt(_code.Count - 1);
-                _straightLine--;
+                _code.TrimTail(1);
                 _code[^1] = producer with { Target = assignment.Target, Right = source.Index };
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
@@ -975,25 +971,9 @@ internal sealed partial class AwkRegionCompiler
         return _operands.Count - 1;
     }
 
-    private int Emit(AwkRegionInstruction instruction)
-    {
-        if (_straightLine == 128)
-        {
-            _code.Add(new(AwkRegionInstructionKind.Poll));
-            _straightLine = 0;
-        }
-        _straightLine++;
-        _code.Add(instruction);
-        return _code.Count - 1;
-    }
+    private int Emit(AwkRegionInstruction instruction) => _code.Emit(instruction);
 
-    private int Label()
-    {
-        var index = _code.Count;
-        _code.Add(new(AwkRegionInstructionKind.Poll));
-        _straightLine = 0;
-        return index;
-    }
+    private int Label() => _code.Label();
 
     private void Patch(int position, int target) => _code[position] = _code[position] with { Target = target };
 

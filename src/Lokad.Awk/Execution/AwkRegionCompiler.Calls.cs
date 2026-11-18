@@ -88,8 +88,7 @@ internal sealed partial class AwkRegionCompiler
             {
                 firstPending = pending.Left;
                 fieldDemand = FieldDemand(compiler, pending);
-                compiler._code.RemoveAt(compiler._code.Count - 1);
-                compiler._straightLine--;
+                compiler._code.TrimTail(1);
             }
             // Adjacent preparation belongs to the complete call. Intervening
             // argument work keeps its incoming frame at the original boundary.
@@ -97,8 +96,7 @@ internal sealed partial class AwkRegionCompiler
                 { Kind: AwkRegionInstructionKind.BeginCall } begin && begin.Left == _call;
             if (beginsFrame)
             {
-                compiler._code.RemoveAt(compiler._code.Count - 1);
-                compiler._straightLine--;
+                compiler._code.TrimTail(1);
             }
             var incomingSlot = beginsFrame ? -1 : compiler._calls[_call].Slot;
             if (incomingSlot >= 0)
@@ -169,7 +167,7 @@ internal sealed partial class AwkRegionCompiler
             var pendingArguments = firstPending == compiler._code.Count ? [] : new int[compiler._code.Count - firstPending];
             for (var index = 0; index < pendingArguments.Length; index++)
                 pendingArguments[index] = compiler._code[firstPending + index].Left;
-            compiler._code.RemoveRange(firstPending, pendingArguments.Length);
+            compiler._code.TrimTail(pendingArguments.Length);
             var site = compiler._builtins.Count;
             compiler._builtins.Add(new(implementation, _start, count, pendingArguments));
             var returned = implementation.ReturnsNumber ? compiler._numbers++ : compiler._values++;
