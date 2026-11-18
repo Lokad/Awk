@@ -67,6 +67,8 @@ Text caches retain decoded strings, never invocation state.
 Builders fund and copy their bytes. The runtime observes the allocation when adopting
 the owned result as text. Host byte ingress validates UTF-8 before copy admission.
 Copies into already funded destinations use the caller's admission.
+Text backing resolves rune ranges. The runtime funds and copies partial slices and
+reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
 and source order. Known bindings may bypass name lookup only while visibility is valid.

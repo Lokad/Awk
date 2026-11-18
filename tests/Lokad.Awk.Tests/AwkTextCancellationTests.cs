@@ -25,8 +25,6 @@ public sealed class AwkTextCancellationTests
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => memory.State.CopyHostText(bytes));
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        var ownedError = Assert.Throws<AwkRuntimeException>(() => AwkText.FromOwnedBytes(bytes, counters));
-        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(ownedError.MessageBytes));
         Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, counters[AwkCounter.TextBytes]);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);

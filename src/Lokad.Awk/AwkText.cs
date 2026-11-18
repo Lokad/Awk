@@ -160,16 +160,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return FromTrustedOwnedBytes(bytes.ToArray());
     }
 
-    public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, Action? checkpoint = null)
-    {
-        if (bytes.Length == 0)
-            return Empty;
-
-        ThrowIfInvalidUtf8(bytes, checkpoint);
-        counters.ObserveTextAllocation(bytes.Length);
-        return FromTrustedOwnedBytes(bytes);
-    }
-
     // The caller owns valid UTF-8 and can supply an existing ASCII proof.
     internal static AwkText FromTrustedOwnedBytes(byte[] bytes, bool knownAscii = false)
     {
@@ -349,32 +339,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return FromTrustedOwnedBytes(bytes);
     }
 
-    public AwkText CopyByteSlice(
-        int start,
-        int length,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null,
-        AwkMemoryLease? destination = null)
-    {
-        if (start < 0 || start > ByteLength)
-            throw new ArgumentOutOfRangeException(nameof(start));
-
-        if (length < 0 || start > ByteLength - length)
-            throw new ArgumentOutOfRangeException(nameof(length));
-
-        if (length == 0)
-            return Empty;
-
-        if (start == 0 && length == ByteLength)
-            return this;
-
-        var bytes = destination is null ? AllocateOwnedBytes(length, governor) :
-            AllocateOwnedBytes(length, governor, destination, checkpoint);
-        CopyBytes(AsSpan(checkpoint).Slice(start, length), bytes, checkpoint);
-        return FromOwnedBytes(bytes, counters, checkpoint);
-    }
-
     internal bool HasRuneAt(int index, Action? checkpoint)
     {
         if (index >= ByteLength) return false;
@@ -446,38 +410,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint?.Invoke();
     }
 
-    public AwkText CopyRuneSlice(
-        int start,
-        int length,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null,
-        AwkMemoryLease? destination = null)
-    {
-        var text = this;
-        var knownAscii = ResolveRuneSliceRange(start, length, governor, checkpoint, out var byteStart, out var byteEnd);
-
-        if (byteStart == byteEnd)
-            return Empty;
-
-        if (byteStart == 0 && byteEnd == text.ByteLength)
-            return text;
-
-        var byteLength = byteEnd - byteStart;
-        var bytes = destination is null ? AllocateOwnedBytes(byteLength, governor) :
-            AllocateOwnedBytes(byteLength, governor, destination, checkpoint);
-        CopyBytes(text.AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
-        counters.ObserveTextAllocation(byteLength);
-        return FromTrustedOwnedBytes(bytes, knownAscii);
-    }
-
     internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkMemoryAccounting governor, Action? checkpoint)
     {
         ResolveRuneSliceRange(start, length, governor, checkpoint, out var byteStart, out var byteEnd);
         return AsSpan(checkpoint)[byteStart..byteEnd];
     }
 
-    private bool ResolveRuneSliceRange(int start, int length, AwkMemoryAccounting governor, Action? checkpoint, out int byteStart, out int byteEnd)
+    internal bool ResolveRuneSliceRange(int start, int length, AwkMemoryAccounting governor, Action? checkpoint, out int byteStart, out int byteEnd)
     {
         var text = this;
         ArgumentOutOfRangeException.ThrowIfNegative(start);

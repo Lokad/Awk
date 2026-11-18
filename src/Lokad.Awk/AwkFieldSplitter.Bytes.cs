@@ -462,7 +462,7 @@ internal sealed partial class AwkFieldSplitter
     }
 
     private AwkText CaptureSplitField(AwkText line, AwkFieldRange field) =>
-        line.CopyByteSlice(field.Start, field.Length, state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+        state.CopyByteSlice(line, field.Start, field.Length);
 
     private readonly struct OwnedListFieldSink : IAwkFieldSink<IReadOnlyList<AwkText>>
     {

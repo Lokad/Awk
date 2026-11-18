@@ -101,19 +101,20 @@ public sealed class AwkScanCancellationTests
     public void InterruptedRuneIndexReleasesReservationAndCanBeRebuilt()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
+        var committed = governor.CurrentCommittedBytes;
         var text = AwkText.FromString(new string('\u754c', LongScan));
         using var cancellation = new CancellationTokenSource();
         Assert.Throws<OperationCanceledException>(() =>
-            text.CopyRuneSlice(100, 2, counters, governor, CancelDuringScan(cancellation, 3)));
+            text.ResolveRuneSliceRange(100, 2, governor, CancelDuringScan(cancellation, 3), out _, out _));
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
 
         Assert.Throws<OperationCanceledException>(() =>
-            text.CopyRuneSlice(100, 2, counters, governor, cancellation.Token.ThrowIfCancellationRequested));
+            text.ResolveRuneSliceRange(100, 2, governor, cancellation.Token.ThrowIfCancellationRequested, out _, out _));
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal("\u754c\u754c", text.CopyRuneSlice(100, 2, counters, governor).AsString());
+        Assert.Equal("\u754c\u754c", memoryForGovernor.State.CopyRuneSlice(text, 100, 2).AsString());
 
         Assert.Equal(LongScan, text.RuneLength);
     }

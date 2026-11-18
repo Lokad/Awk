@@ -336,9 +336,7 @@ internal sealed class AwkRuntimeState : IDisposable
         ThrowIfCancellationRequested();
         var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
         ThrowIfCancellationRequested();
-        var bytes = destination is null
-            ? AwkText.AllocateOwnedBytes(byteCount, MemoryAccounting)
-            : AwkText.AllocateOwnedBytes(byteCount, MemoryAccounting, destination, CancellationCheckpoint);
+        var bytes = AllocateTextBytes(byteCount, destination);
         Counters.Add(AwkCounter.Utf8Encodes);
         AwkUtf8Codec.Encode(text, bytes);
         ThrowIfCancellationRequested();
@@ -366,12 +364,54 @@ internal sealed class AwkRuntimeState : IDisposable
             return AwkText.Empty;
 
         ThrowIfCancellationRequested();
-        var ownedBytes = destination is null
-            ? AwkText.AllocateOwnedBytes(bytes.Length, MemoryAccounting)
-            : AwkText.AllocateOwnedBytes(bytes.Length, MemoryAccounting, destination, CancellationCheckpoint);
+        var ownedBytes = AllocateTextBytes(bytes.Length, destination);
         AwkText.CopyBytes(bytes, ownedBytes, CancellationCheckpoint);
         return AdoptText(ownedBytes);
     }
+
+    internal AwkText CopyByteSlice(AwkText source, int start, int length,
+        AwkMemoryLease? destination = null)
+    {
+        var sourceLength = source.ByteLength;
+        if (start < 0 || start > sourceLength)
+            throw new ArgumentOutOfRangeException(nameof(start));
+        if (length < 0 || length > sourceLength - start)
+            throw new ArgumentOutOfRangeException(nameof(length));
+        if (length == 0)
+            return AwkText.Empty;
+        if (length == sourceLength)
+            return source;
+
+        var bytes = CopySliceBytes(source, start, length, destination);
+        AwkText.ThrowIfInvalidUtf8(bytes, CancellationCheckpoint);
+        return AdoptText(bytes);
+    }
+
+    internal AwkText CopyRuneSlice(AwkText source, int start, int length,
+        AwkMemoryLease? destination = null)
+    {
+        var knownAscii = source.ResolveRuneSliceRange(start, length, MemoryAccounting, CancellationCheckpoint,
+            out var byteStart, out var byteEnd);
+        var byteLength = byteEnd - byteStart;
+        if (byteLength == 0)
+            return AwkText.Empty;
+        if (byteLength == source.ByteLength)
+            return source;
+
+        return AdoptText(CopySliceBytes(source, byteStart, byteLength, destination), knownAscii);
+    }
+
+    private byte[] CopySliceBytes(AwkText source, int start, int length, AwkMemoryLease? destination)
+    {
+        var bytes = AllocateTextBytes(length, destination);
+        AwkText.CopyBytes(source.AsSpan(CancellationCheckpoint).Slice(start, length), bytes, CancellationCheckpoint);
+        return bytes;
+    }
+
+    private byte[] AllocateTextBytes(int length, AwkMemoryLease? destination) =>
+        destination is null
+            ? AwkText.AllocateOwnedBytes(length, MemoryAccounting)
+            : AwkText.AllocateOwnedBytes(length, MemoryAccounting, destination, CancellationCheckpoint);
 
     internal AwkText CopyFundedText(ReadOnlySpan<byte> bytes) =>
         AdoptText(AwkText.CopyFundedBytes(bytes, CancellationCheckpoint));

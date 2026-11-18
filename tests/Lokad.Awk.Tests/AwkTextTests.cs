@@ -18,7 +18,7 @@ public sealed class AwkTextTests
         foreach (var scalar in input.EnumerateRunes()) scalars.Add(scalar.ToString());
         var text = AwkText.FromString(input);
         var bytes = Encoding.UTF8.GetBytes(input);
-        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
 
         Assert.Equal(scalars.Count, text.RuneLength);
         Assert.Equal(scalars.Count, AwkText.CountRunes(bytes, checkpoint: null));
@@ -29,7 +29,7 @@ public sealed class AwkTextTests
         })
         {
             var expected = Encoding.UTF8.GetBytes(string.Concat(scalars.Skip(start).Take(length)));
-            var owned = text.CopyRuneSlice(start, length, counters, AwkMemoryAccounting.Disabled);
+            var owned = runtime.CopyRuneSlice(text, start, length);
             AwkText.ResolveRuneByteRange(bytes, start, length, checkpoint: null, out var first, out var last);
 
             Assert.Equal(expected, owned.AsSpan().ToArray());
@@ -85,7 +85,8 @@ public sealed class AwkTextTests
     {
         var bytes = "é😀q"u8.ToArray();
         var text = AwkText.FromHostBytes(bytes);
-        var copy = text.CopyRuneSlice(0, int.MaxValue, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
+        var copy = runtime.CopyRuneSlice(text, 0, int.MaxValue);
         Array.Fill(bytes, (byte)'x');
         Assert.True(text.HasSameStorage(copy));
         Assert.Equal("é😀q", copy.AsString());
@@ -119,13 +120,10 @@ public sealed class AwkTextTests
     [Fact]
     public void AwkText_RejectsInvalidUtf8AtByteIngress()
     {
-        var hostException = Assert.Throws<AwkRuntimeException>(
-            () => AwkText.FromHostBytes(new byte[] { 0xC3, 0x28 }));
-        var ownedException = Assert.Throws<AwkRuntimeException>(
-            () => AwkText.FromOwnedBytes([0x61, 0x80], AwkRuntimeCounters.Disabled));
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
+        var error = Assert.Throws<AwkRuntimeException>(() => runtime.CopyHostText([0xC3, 0x28]));
 
-        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(hostException.MessageBytes));
-        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(ownedException.MessageBytes));
+        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
 
     [Fact]
@@ -176,29 +174,23 @@ public sealed class AwkTextTests
     {
         var source = AwkText.FromString("Alpha caf\u00e9");
         var suffix = AwkText.FromString("!");
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
 
         Assert.Equal(
             "Alpha caf\u00e9!",
             AwkText.Concat([source, suffix], AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
         Assert.Equal(
             "ha",
-            source.CopyByteSlice(3, 2, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
+            runtime.CopyByteSlice(source, 3, 2).AsString());
         Assert.Equal(
             "caf\u00e9",
-            source.CopyRuneSlice(
-                6,
-                4,
-                AwkRuntimeCounters.Disabled,
-                AwkMemoryAccounting.Disabled).AsString());
+            runtime.CopyRuneSlice(source, 6, 4).AsString());
         Assert.Equal(6, source.IndexOf(AwkText.FromString("caf\u00e9")));
         Assert.True(source.StartsWith(AwkText.FromString("Alpha")));
         Assert.True(source.EndsWith(AwkText.FromString("caf\u00e9")));
         Assert.True(source.Contains(AwkText.FromString("ha c")));
-        Assert.Throws<AwkRuntimeException>(() => source.CopyByteSlice(
-            10,
-            1,
-            AwkRuntimeCounters.Disabled,
-            AwkMemoryAccounting.Disabled));
+        var error = Assert.Throws<AwkRuntimeException>(() => runtime.CopyByteSlice(source, 10, 1));
+        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
 
     [Fact]
@@ -237,8 +229,8 @@ public sealed class AwkTextTests
         var suffix = memoryForGovernor.State.EncodeText("!");
 
         Assert.Equal("café!", AwkText.Concat([source, suffix], counters, governor).AsString());
-        Assert.Equal("fé", source.CopyRuneSlice(2, 2, counters, governor).AsString());
-        Assert.Equal("ca", source.CopyByteSlice(0, 2, counters, governor).AsString());
+        Assert.Equal("fé", memoryForGovernor.State.CopyRuneSlice(source, 2, 2).AsString());
+        Assert.Equal("ca", memoryForGovernor.State.CopyByteSlice(source, 0, 2).AsString());
 
     }
 
@@ -264,12 +256,12 @@ public sealed class AwkTextTests
     public void AwkText_GovernedRuneIndexFailsBeforeAllocation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(4);
-        var governor = memoryForGovernor.Accounting;
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
+        memoryForGovernor.Budget.SetAvailableBytes(4);
         var source = AwkText.FromString(new string('\u00e9', 128));
 
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => source.CopyRuneSlice(65, 1, counters, governor));
+            () => memoryForGovernor.State.CopyRuneSlice(source, 65, 1));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
 
@@ -323,7 +315,7 @@ public sealed class AwkTextTests
         var retainedBytes = text.EstimatedRetainedMemoryBytes;
 
         _ = decodeRuntime.DecodeText(text);
-        _ = text.CopyRuneSlice(65, 1, counters, AwkMemoryAccounting.Disabled);
+        _ = decodeRuntime.CopyRuneSlice(text, 65, 1);
 
         Assert.True(retainedBytes > text.ByteLength);
         Assert.Equal(retainedBytes, text.EstimatedRetainedMemoryBytes);

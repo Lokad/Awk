@@ -35,11 +35,9 @@ internal readonly ref struct AwkByteTextOperand
         var checkpoint = state.CancellationCheckpoint;
         if (_owned.Backing is not null && !borrowOwned)
         {
-            if (!bytes) return new(_owned.CopyRuneSlice(start, length, state.Counters,
-                state.MemoryAccounting, checkpoint, destination));
+            if (!bytes) return new(state.CopyRuneSlice(_owned, start, length, destination));
             start = Math.Min(start, _owned.ByteLength);
-            return new(_owned.CopyByteSlice(start, Math.Min(length, _owned.ByteLength - start),
-                state.Counters, state.MemoryAccounting, checkpoint, destination));
+            return new(state.CopyByteSlice(_owned, start, Math.Min(length, _owned.ByteLength - start), destination));
         }
         if (_owned.Backing is not null && !bytes)
         {

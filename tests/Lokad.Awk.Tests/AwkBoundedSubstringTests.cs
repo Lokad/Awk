@@ -21,7 +21,7 @@ public sealed class AwkBoundedSubstringTests
             var expected = (unicode ? "😀" : "") + new string('a', 8193);
             var source = AwkText.FromString("x" + expected + "z");
             // This fixture owns its already-prepared source and its scalar index.
-            _ = source.CopyRuneSlice(65, 1, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+            _ = source.ResolveRuneSliceRange(65, 1, AwkMemoryAccounting.Disabled, null, out _, out _);
             var initialBytes = memory.Budget.Reserved;
             using (var destination = state.MemoryAccounting.CreateTransientLease())
             {

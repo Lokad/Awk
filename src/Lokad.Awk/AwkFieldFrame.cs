@@ -69,7 +69,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             return field.Kind == AwkFieldTextKind.Owned
                 ? _fieldValueCache[field.CacheSlot - 1].Spelling : AwkText.Empty;
         if (!HasBufferedRecord)
-            return _recordText.CopyByteSlice(field.RecordStart, field.ByteLength(), state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+            return state.CopyByteSlice(_recordText, field.RecordStart, field.ByteLength());
         return _recordTextIsCurrent && field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
             state.CopyText(field.BytesInRecord(RecordBytes()));
     }
