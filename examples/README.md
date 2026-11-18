@@ -25,6 +25,11 @@ capture ranges, owns its compiled handles and scoped search admission, and adds 
 capture-text copies. `TryCompile` borrows UTF-8 pattern bytes. Published 0.4.0 requires a
 string pattern, so the adapter decodes once per compilation after admission. This temporary
 conversion belongs to the adapter and is outside core conversion counters.
+Compilation returns `AwkRegexCompilationStatus.Compiled`, `Invalid` or `Unsupported`,
+with a handle only for `Compiled`. The adapter maps producer compilation syntax errors
+to `Invalid`; budget/callback faults, cancellation and refused admission remain failures.
+Only the producer compile call uses this mapping. See the emitted dialect and ownership
+requirements in the [runtime contract](../docs/RUNTIME.md#regex-engines).
 `CreateSearch` borrows a complete immutable subject for a disposable scope; keep its storage
 and compiled pattern alive until disposal. `Match` takes an absolute byte restart and returns
 byte-only ranges. The published provider's UTF-16 restart mapping stays inside this scope,

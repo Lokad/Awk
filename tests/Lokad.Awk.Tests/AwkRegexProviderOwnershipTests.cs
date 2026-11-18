@@ -65,8 +65,9 @@ public sealed class AwkRegexProviderOwnershipTests
         Assert.True(budget.TryReserve(17, out var borrowed));
         using (borrowed)
         {
-            Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget,
+            Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget,
                 CancellationToken.None, out var pattern));
+            Assert.NotNull(pattern);
             using (pattern)
             {
                 Assert.True(budget.Reserved > borrowed.Bytes);
@@ -90,8 +91,9 @@ public sealed class AwkRegexProviderOwnershipTests
     public void RefusedSubjectAdmissionKeepsTheCompiledHandleUsableAndRefundsSearchStorage()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget,
+        Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget,
             CancellationToken.None, out var pattern));
+        Assert.NotNull(pattern);
         using (pattern)
         {
             var retained = budget.Reserved;
@@ -113,8 +115,9 @@ public sealed class AwkRegexProviderOwnershipTests
     public void Utf8MatchRefusalPreservesItsLiveHandleAndTemporaryStorageRefunds()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget,
+        Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget,
             CancellationToken.None, out var pattern));
+        Assert.NotNull(pattern);
         using (pattern)
         {
             var retained = budget.Reserved;

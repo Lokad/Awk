@@ -248,11 +248,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             var hasInputStart = HasInputStart(translated);
             if (suppressInputStart) translated = SuppressInputStart(translated, translatedText);
             _throwIfCancellationRequested();
-            var supported = AwkRegexCallbacks.TryCompile(engine, translated.AsSpan(_throwIfCancellationRequested),
+            var status = AwkRegexCallbacks.TryCompile(engine, translated.AsSpan(_throwIfCancellationRequested),
                 sensitivity == AwkRegexCaseSensitivity.IgnoreCase, _regexMemoryBudget, _cancellationToken, out compiled);
-            if (!supported)
+            if (status == AwkRegexCompilationStatus.Unsupported)
                 throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
-            if (compiled is null || AwkRegexCallbacks.GroupCount(compiled) < 1)
+            if (status == AwkRegexCompilationStatus.Invalid || compiled is null || AwkRegexCallbacks.GroupCount(compiled) < 1)
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             _throwIfCancellationRequested();
             var owner = new CompiledPattern(compiled, recipe, entryLease, hasInputStart);
@@ -261,10 +261,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             return owner;
         }
         catch (AwkRegexAdmissionException) { throw AdmissionFailure(); }
-        catch (ArgumentException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
-        }
         finally
         {
             if (!transferred)

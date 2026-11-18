@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkRegexNativePatternTests
@@ -50,8 +48,8 @@ public sealed class AwkRegexNativePatternTests
     {
         public List<byte[]> Patterns { get; } = [];
 
-        public bool TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
-            CancellationToken cancellationToken, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
+        public AwkRegexCompilationStatus TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
+            CancellationToken cancellationToken, out IAwkCompiledRegex? compiledPattern)
         {
             Patterns.Add(patternUtf8.ToArray()); // This test observer owns its retained copy.
             return AwkUtf8RegexEngine.Instance.TryCompile(patternUtf8, ignoreCase, memoryBudget,

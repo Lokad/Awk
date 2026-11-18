@@ -118,6 +118,8 @@ another descriptor operation; appends retain bytes through actual completion. Te
 failures never replay payloads or diagnostics. Standard descriptors remain borrowed.
 
 Regex providers own matching, scalar boundaries, POSIX selection and engine admission.
+Compilation reports an explicit status; only core's dedicated syntax signal denotes
+AWK class-validation failure. Provider argument faults must not become pattern syntax.
 Core translates AWK patterns and validates/publishes captures and replacements. Search
 scopes borrow one complete immutable UTF-8 subject, using absolute byte coordinates.
 Active calls/searches pin compiled handles through cache eviction. Unsupported patterns

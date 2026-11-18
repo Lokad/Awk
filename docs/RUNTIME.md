@@ -184,14 +184,33 @@ The [provider contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) divides owner
 - Awk translates patterns into UTF-8 using .NET-compatible assertion/category spellings.
   Providers admit any retained source and implement earliest-start, longest-whole and
   POSIX subcapture selection over Unicode scalars. Core validates published byte ranges.
+- `TryCompile` returns `Compiled` with an owned handle, or `Invalid`/`Unsupported` with
+  null. Invalid means syntax failure; unsupported means the provider cannot implement
+  the required pattern/semantics. Exceptions signal faults, cancellation or refused admission,
+  never invalid syntax. Invalid literals fail before effects; dynamic patterns fail at use.
 - Compiled handles report GroupCount, including group 0. CreateSearch borrows one complete
   immutable subject until disposal; Match uses absolute byte restarts and fills all supplied
-  capture slots. Keep complete-subject assertion context. Never retain operation tokens.
+  capture slots, clearing absent groups. Successful ranges start and end on scalar boundaries.
+  Requested slot 0 must equal the returned whole match; requesting fewer slots must not
+  change selection. Keep complete-subject assertion context. Never retain operation tokens.
 - Providers receive the active budget and current token, own engine admission/protection
-  and signal refusal with AwkRegexAdmissionException. There is no private regex deadline.
+  and signal refusal with AwkRegexAdmissionException. Handles may retain the borrowed budget
+  for later matching/search admission until disposal; its scope stays live through all users.
+  Never dispose the supplied budget. There is no private regex deadline.
 - Awk owns its bounded cache, source keys, translation, replacements and capture storage.
   Active calls/searches pin handles through eviction; dispose searches before subjects and
   handles. Disposal must be idempotent/non-throwing. Engines support concurrent compilation.
+
+The required translated dialect is UTF-8 literals (including control scalars), ERE groups,
+alternation, repetition, bracket ranges/negation and anchors, plus these emitted spellings:
+escaped punctuation/space (`\#`, `\ ` and escaped regex metacharacters), `\t \n \f \r`,
+`\A \z \b \B \w \s \S`, positive assertions `(?=...)`/`(?<=...)`, and Unicode categories
+`\p{L}`, `\p{M}`, `\p{N}`, `\p{P}`, `\p{S}`, `\p{Ll}`, `\p{Lu}`, `\p{Nd}`, `\p{Cc}`,
+`\p{Cf}`, `\p{Co}`, `\p{Zs}`. Interpret .NET-compatible spellings over Unicode scalars;
+for example `.` becomes `[\s\S]`, word edges use `\b(?=\w)` / `(?<=\w)\b`, and suppressed
+record-start assertions become the impossible `\b\B`. Case-insensitive requests are invariant.
+Core has already expanded named classes and decoded AWK escapes; do not translate again.
+Inherited extensions beyond this emitted subset may return `Unsupported`.
 
 The [copyable source adapter](../examples/README.md) uses published Lokad.Utf8Regex 0.4.0,
 not a sibling checkout. It passes subject bytes without copies and forwards cancellation.

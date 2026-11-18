@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace Lokad.Awk.Tests;
@@ -68,17 +67,17 @@ public sealed class AwkRegexCacheAdmissionTests
     // matching. This separates core key ownership from provider storage estimates.
     private sealed class CompactClassEngine : IAwkRegexEngine
     {
-        public bool TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
-            CancellationToken cancellationToken, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
+        public AwkRegexCompilationStatus TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
+            CancellationToken cancellationToken, out IAwkCompiledRegex? compiledPattern)
         {
             compiledPattern = null;
             cancellationToken.ThrowIfCancellationRequested();
             if (patternUtf8.Length < 3 || patternUtf8[0] != (byte)'[' || patternUtf8[^1] != (byte)']')
-                return false;
+                return AwkRegexCompilationStatus.Unsupported;
             for (var index = 1; index < patternUtf8.Length - 1; index++)
             {
                 if ((index & 16383) == 0) cancellationToken.ThrowIfCancellationRequested();
-                if (patternUtf8[index] != (byte)'x') return false;
+                if (patternUtf8[index] != (byte)'x') return AwkRegexCompilationStatus.Unsupported;
             }
             return AwkUtf8RegexEngine.Instance.TryCompile("x"u8, ignoreCase, memoryBudget,
                 cancellationToken, out compiledPattern);

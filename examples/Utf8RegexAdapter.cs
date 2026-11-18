@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using ProducerRegex = Lokad.Utf8Regex.Utf8Regex;
 
@@ -17,35 +16,46 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
     public static AwkUtf8RegexEngine Instance { get; } = new();
 
     /// <inheritdoc />
-    public bool TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
+    public AwkRegexCompilationStatus TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
         CancellationToken cancellationToken,
-        [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
+        out IAwkCompiledRegex? compiledPattern)
     {
+        compiledPattern = null;
         cancellationToken.ThrowIfCancellationRequested();
         var options = RegexOptions.CultureInvariant | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
         // Pass cancellation through construction and matching without an independent clock.
         IMemoryReservation? storage = null;
         if (memoryBudget is not null && !memoryBudget.TryReserve(1_024L + patternUtf8.Length * 64L, out storage))
             throw new AwkRegexAdmissionException();
+        var transferred = false;
         try
         {
             // Published 0.4.0 only compiles strings. This temporary adapter-owned conversion
             // is included in the coarse construction admission; core preparation stays UTF-8.
             var pattern = PatternEncoding.GetString(patternUtf8);
             cancellationToken.ThrowIfCancellationRequested();
-            var regex = ProducerRegex.Compile(pattern, options,
-                System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
-                resourcePolicy: default, constructionPolicy: default,
-                constructionTimeout: System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
-                cancellationToken: cancellationToken);
+            ProducerRegex regex;
+            try
+            {
+                regex = ProducerRegex.Compile(pattern, options,
+                    System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
+                    resourcePolicy: default, constructionPolicy: default,
+                    constructionTimeout: System.Text.RegularExpressions.Regex.InfiniteMatchTimeout,
+                    cancellationToken: cancellationToken);
+            }
+            catch (ArgumentException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return AwkRegexCompilationStatus.Invalid;
+            }
             cancellationToken.ThrowIfCancellationRequested();
             compiledPattern = new CompiledPattern(regex, memoryBudget, storage);
-            return true;
+            transferred = true;
+            return AwkRegexCompilationStatus.Compiled;
         }
-        catch
+        finally
         {
-            storage?.Dispose();
-            throw;
+            if (!transferred) storage?.Dispose();
         }
     }
 

@@ -1,29 +1,41 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Lokad.Awk;
+
+/// <summary>The outcome of compiling an Awk-translated pattern.</summary>
+public enum AwkRegexCompilationStatus
+{
+    /// <summary>The pattern is syntactically invalid.</summary>
+    Invalid,
+    /// <summary>Compilation succeeded and returned an owned handle.</summary>
+    Compiled,
+    /// <summary>The provider cannot implement this pattern or its required semantics.</summary>
+    Unsupported
+}
 
 /// <summary>Compiles Awk-translated patterns for synchronous matching of valid UTF-8.</summary>
 /// <remarks>The application owns the engine. Implementations must permit concurrent compilation.
-/// Awk owns each successful compiled pattern. Return false only for unsupported syntax;
+/// Awk owns each successful compiled pattern. Return an explicit compilation outcome;
 /// refused memory admission and cancellation must fail. Unsupported patterns fail the command;
 /// Awk has no fallback engine.
 /// The provider owns admission for its construction, retained handles and matching workspace;
 /// engine-specific bounds belong to the provider, not Awk's execution policy.
 /// Preparation and matching must bound stack use, including nested patterns.</remarks>
+/// <seealso href="https://github.com/Lokad/Awk/blob/master/docs/RUNTIME.md#regex-engines">Emitted dialect and provider responsibilities.</seealso>
 public interface IAwkRegexEngine
 {
-    /// <summary>Compiles an already translated pattern, or reports unsupported syntax.</summary>
+    /// <summary>Compiles an already translated pattern, or reports invalid/unsupported syntax.</summary>
     /// <param name="patternUtf8">Borrowed valid UTF-8 bytes of Awk's translated ERE pattern using .NET-compatible assertion/category spelling;
     /// match Unicode scalars rather than UTF-16 halves. Do not translate AWK syntax again. Do not retain the span; any retained source must be
     /// provider-owned and admitted before allocation.</param>
     /// <param name="ignoreCase">Whether invariant case-insensitive matching is requested.</param>
-    /// <param name="memoryBudget">The borrowed active budget, or null without host accounting.</param>
+    /// <param name="memoryBudget">The borrowed active budget, or null without host accounting.
+    /// A compiled handle may retain it for matching/search admission until the handle is disposed;
+    /// its scope remains live through all handle/search users. Never dispose the supplied budget.</param>
     /// <param name="cancellationToken">Current operation cancellation; do not retain it.</param>
-    /// <param name="compiledPattern">An owned handle on success, otherwise null.</param>
-    /// <returns>True on success, false when this engine cannot implement the pattern.</returns>
-    bool TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
+    /// <param name="compiledPattern">An owned handle for Compiled, otherwise null.</param>
+    /// <returns>Compiled, Unsupported, or Invalid. Exceptions do not signal invalid syntax.</returns>
+    AwkRegexCompilationStatus TryCompile(ReadOnlySpan<byte> patternUtf8, bool ignoreCase, IMemoryBudget? memoryBudget,
         CancellationToken cancellationToken,
-        [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern);
+        out IAwkCompiledRegex? compiledPattern);
 }
 
 /// <summary>An Awk-owned compiled pattern used synchronously within one execution.</summary>
@@ -58,7 +70,8 @@ public interface IAwkRegexSearch : IDisposable
     /// complete-subject anchor/lookbehind context; do not search an isolated suffix.
     /// Choose the earliest viable start, then the longest whole match. Resolve ambiguous
     /// subexpressions using POSIX capture priority, independently of how many slots were requested.
-    /// Every successful range must end on Unicode scalar boundaries. A provider must implement
+    /// Every successful range must start and end on Unicode scalar boundaries. Slot 0, when
+    /// requested, must equal the returned whole match. A provider must implement
     /// these rules itself; Awk validates ranges and publishes captures but does not select matches.</remarks>
     AwkRegexCaptureRange Match(int startOffsetInBytes,
         Span<AwkRegexCaptureRange> captures, CancellationToken cancellationToken);

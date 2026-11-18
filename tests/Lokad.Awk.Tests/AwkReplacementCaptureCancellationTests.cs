@@ -242,8 +242,9 @@ public sealed class AwkReplacementCaptureCancellationTests
         AwkLeasedRegexMatch Build(Action callback)
         {
             var coordinates = byteCoordinates ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar;
-            Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("(a+)"u8, false,
+            Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile("(a+)"u8, false,
                 null, CancellationToken.None, out var pattern));
+            Assert.NotNull(pattern);
             using (pattern)
             {
                 var bytes = Encoding.UTF8.GetBytes(input);

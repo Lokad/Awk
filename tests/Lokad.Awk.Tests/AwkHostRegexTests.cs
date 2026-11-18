@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Lokad.Awk.Tests;
@@ -164,6 +163,7 @@ public sealed class AwkHostRegexTests
     [InlineData(Behavior.BadByteRange)]
     [InlineData(Behavior.NegativeByteLength)]
     [InlineData(Behavior.SplitScalar)]
+    [InlineData(Behavior.MismatchedSlotZero)]
     public void InvalidRangesFailBeforeCaptureAllocationOrPublication(Behavior behavior)
     {
         var engine = new RecordingEngine(behavior);
@@ -179,6 +179,21 @@ public sealed class AwkHostRegexTests
         Assert.Equal(0, counters.RegexGroupsMaterialized);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public async Task SlotZeroMustAgreeWithTheWholeMatchAtThePublicBoundary()
+    {
+        var engine = new RecordingEngine(Behavior.MismatchedSlotZero);
+        var host = new MockFileSystem();
+        var budget = AwkMemoryBudget.CreateFixed(1 << 20);
+        var result = await Tool("BEGIN{print \"before\";print match(\"é\",/(é)/,a);print \"after\"}END{print \"end\"}")
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithRegexEngine(engine).WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(AwkExitCode.FatalError, result);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: invalid regular expression\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
+        Assert.Equal(0, budget.ReservedBytes);
     }
 
     [Fact]
@@ -405,7 +420,7 @@ public sealed class AwkHostRegexTests
     public enum Behavior
     {
         Normal, Unsupported, RefuseCompile, RefuseMatch, RefuseSearch, BadByteRange, NegativeByteLength, SplitScalar,
-        NoGroups, NegativeGroupCount
+        NoGroups, NegativeGroupCount, MismatchedSlotZero
     }
 
     private sealed class RecordingEngine(Behavior behavior = Behavior.Normal) : IAwkRegexEngine, IDisposable
@@ -418,8 +433,8 @@ public sealed class AwkHostRegexTests
         public Action<CancellationToken>? BeforeCompile { get; init; }
         public List<Pattern> Patterns { get; } = [];
 
-        public bool TryCompile(ReadOnlySpan<byte> pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
-            CancellationToken token, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
+        public AwkRegexCompilationStatus TryCompile(ReadOnlySpan<byte> pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
+            CancellationToken token, out IAwkCompiledRegex? compiledPattern)
         {
             BeforeCompile?.Invoke(token);
             Compiles++;
@@ -431,13 +446,14 @@ public sealed class AwkHostRegexTests
                 Assert.False(memoryBudget.TryReserve(1L << 40, out _));
                 throw new AwkRegexAdmissionException();
             }
-            if (behavior == Behavior.Unsupported) { compiledPattern = null; return false; }
-            if (!AwkUtf8RegexEngine.Instance.TryCompile(pattern, ignoreCase, memoryBudget, token, out var inner))
-            { compiledPattern = null; return false; }
+            if (behavior == Behavior.Unsupported) { compiledPattern = null; return AwkRegexCompilationStatus.Unsupported; }
+            var status = AwkUtf8RegexEngine.Instance.TryCompile(pattern, ignoreCase, memoryBudget, token, out var inner);
+            if (status != AwkRegexCompilationStatus.Compiled || inner is null)
+            { compiledPattern = inner; return status; }
             var result = new Pattern(inner, behavior, BeforeMatch);
             Patterns.Add(result);
             compiledPattern = result;
-            return true;
+            return AwkRegexCompilationStatus.Compiled;
         }
 
         public void Dispose() => Disposed = true;
@@ -490,7 +506,7 @@ public sealed class AwkHostRegexTests
                     Behavior.SplitScalar => result with { ByteIndex = 1, ByteLength = 0 },
                     _ => result
                 };
-                if (captures.Length != 0) captures[0] = result;
+                if (captures.Length != 0) captures[0] = pattern.BehaviorMode == Behavior.MismatchedSlotZero ? default : result;
                 return result;
             }
             public void Dispose() => innerSearch.Dispose();

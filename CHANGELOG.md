@@ -23,6 +23,11 @@ published 0.4.0. Before 1.0, minor releases may break public APIs.
   Dispose searches before subjects/handles; active searches pin handles through eviction.
   Default RSTART/capture lengths now count Unicode scalars, not UTF-16 units: matching
   `b` in `a😀b` reports 3 (explicit byte mode still reports 6).
+  Compilation now returns `AwkRegexCompilationStatus` (`Compiled`, `Invalid`, `Unsupported`)
+  plus a nullable owned handle; the bool API and invalid-pattern `ArgumentException`
+  convention are removed. Return a handle only for `Compiled`. Map producer syntax
+  failures inside the adapter's compile call; other callback faults keep host-failure
+  semantics. Handles may borrow the active budget until disposal, without retaining tokens.
 - **File opens:** `OpenFileAsync` receives `AwkPathRequest` containing original path text,
   cwd and an optional accessible root. Hosts traverse/authorize before effects and return
   `Opened(descriptor, resolvedPath)` with a stable identity. Core no longer collapses dot

@@ -3,6 +3,57 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkUtf8RegexAdapterTests
 {
     [Theory]
+    [InlineData("(")] [InlineData("[")] [InlineData("*")] [InlineData("(?<broken")]
+    public void InvalidPatternReturnsAnOutcomeAndRefundsConstruction(string source)
+    {
+        var budget = AwkMemoryBudget.CreateFixed(1 << 20);
+        Assert.True(budget.TryReserve(17, out var other));
+        using (other)
+        {
+            var status = AwkUtf8RegexEngine.Instance.TryCompile(System.Text.Encoding.UTF8.GetBytes(source),
+                false, budget, CancellationToken.None, out var pattern);
+            Assert.Equal(AwkRegexCompilationStatus.Invalid, status);
+            Assert.Null(pattern);
+            Assert.Equal(17, budget.ReservedBytes);
+            Assert.Equal(AwkRegexCompilationStatus.Compiled,
+                AwkUtf8RegexEngine.Instance.TryCompile("a"u8, false, budget, CancellationToken.None, out var valid));
+            Assert.NotNull(valid);
+            valid.Dispose();
+            Assert.Equal(17, budget.ReservedBytes);
+        }
+        Assert.Equal(0, budget.ReservedBytes);
+    }
+
+    [Fact]
+    public void InvalidSyntaxDoesNotConcealRefusedAdmission()
+    {
+        var budget = AwkMemoryBudget.CreateFixed(0);
+        Assert.Throws<AwkRegexAdmissionException>(() => AwkUtf8RegexEngine.Instance.TryCompile("("u8,
+            false, budget, CancellationToken.None, out _));
+        Assert.Equal(0, budget.ReservedBytes);
+    }
+
+    [Fact]
+    public void BudgetArgumentFaultDoesNotBecomeAnInvalidPattern()
+    {
+        var error = new ArgumentException("budget callback detail");
+        var budget = new CooperativeTestBudget(1 << 20) { OnGrowth = _ => throw error };
+        var failure = Assert.Throws<ArgumentException>(() => AwkUtf8RegexEngine.Instance.TryCompile("a"u8,
+            false, budget, CancellationToken.None, out _));
+        Assert.Same(error, failure);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public void InvalidUtf8ArgumentDoesNotBecomeProviderPatternSyntax()
+    {
+        var budget = AwkMemoryBudget.CreateFixed(1 << 20);
+        Assert.Throws<System.Text.DecoderFallbackException>(() => AwkUtf8RegexEngine.Instance.TryCompile(
+            new byte[] { 0xff }, false, budget, CancellationToken.None, out _));
+        Assert.Equal(0, budget.ReservedBytes);
+    }
+
+    [Theory]
     [InlineData("a", 1)]
     [InlineData("(a)(b)?", 3)]
     [InlineData("(?<word>a)(b)", 3)]
@@ -122,7 +173,8 @@ public sealed class AwkUtf8RegexAdapterTests
     public void CachedHandleUsesTheCurrentOperationToken()
     {
         using var compilation = new CancellationTokenSource();
-        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("a"u8, true, null, compilation.Token, out var pattern));
+        Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile("a"u8, true, null, compilation.Token, out var pattern));
+        Assert.NotNull(pattern);
         using (pattern)
         {
             using var search = pattern.CreateSearch("a"u8.ToArray(), CancellationToken.None);
@@ -153,7 +205,8 @@ public sealed class AwkUtf8RegexAdapterTests
 
     private static IAwkCompiledRegex Compile(string source)
     {
-        Assert.True(AwkUtf8RegexEngine.Instance.TryCompile(System.Text.Encoding.UTF8.GetBytes(source), false, null, CancellationToken.None, out var pattern));
+        Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile(System.Text.Encoding.UTF8.GetBytes(source), false, null, CancellationToken.None, out var pattern));
+        Assert.NotNull(pattern);
         return pattern;
     }
 

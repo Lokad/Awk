@@ -42,7 +42,7 @@ internal static class AwkRegexBracketClasses
                     if (marker == (byte)':')
                     {
                         if (closing < 0 || !IsClassName(pattern.AsSpan().Slice(index + 2, closing - index - 2)))
-                            throw new ArgumentException("Invalid POSIX character class.", nameof(pattern));
+                            throw new AwkRegexSyntaxException();
                     }
                     if (closing >= 0)
                         index = closing + 1;

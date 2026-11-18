@@ -1,17 +1,19 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Lokad.Awk;
 
 // Only provider invocation is inside these catches. Core preparation/validation
 // faults stay internal; existing provider syntax/admission/cancellation signals stay intact.
 internal static class AwkRegexCallbacks
 {
-    public static bool TryCompile(IAwkRegexEngine engine, ReadOnlySpan<byte> pattern, bool ignoreCase,
-        IMemoryBudget? budget, CancellationToken token, [NotNullWhen(true)] out IAwkCompiledRegex? compiled)
+    public static AwkRegexCompilationStatus TryCompile(IAwkRegexEngine engine, ReadOnlySpan<byte> pattern, bool ignoreCase,
+        IMemoryBudget? budget, CancellationToken token, out IAwkCompiledRegex? compiled)
     {
-        try { return engine.TryCompile(pattern, ignoreCase, budget, token, out compiled); }
-        catch (Exception error) when (IsFault(error, token) && error is not ArgumentException)
+        AwkRegexCompilationStatus status;
+        try { status = engine.TryCompile(pattern, ignoreCase, budget, token, out compiled); }
+        catch (Exception error) when (IsFault(error, token))
         { throw new AwkHostException(error); }
+        if (status is not (AwkRegexCompilationStatus.Compiled or AwkRegexCompilationStatus.Unsupported or AwkRegexCompilationStatus.Invalid))
+            throw new AwkHostException(new InvalidOperationException("Provider returned an unknown compilation status."));
+        return status;
     }
 
     public static int GroupCount(IAwkCompiledRegex pattern)

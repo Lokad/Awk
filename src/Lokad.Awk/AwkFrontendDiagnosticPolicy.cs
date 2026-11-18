@@ -240,10 +240,11 @@ internal static class AwkRegexSyntaxValidator
             IAwkCompiledRegex? compiled = null;
             try
             {
-                var supported = AwkRegexCallbacks.TryCompile(regexEngine, translated.AsSpan(checkpoint), false,
+                var status = AwkRegexCallbacks.TryCompile(regexEngine, translated.AsSpan(checkpoint), false,
                     memoryBudget, cancellationToken, out compiled);
-                if (!supported)
+                if (status == AwkRegexCompilationStatus.Unsupported)
                     throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
+                if (status == AwkRegexCompilationStatus.Invalid) return false;
                 if (compiled is null || AwkRegexCallbacks.GroupCount(compiled) < 1) return false;
             }
             finally { AwkRegexCallbacks.Dispose(compiled); }
@@ -254,7 +255,7 @@ internal static class AwkRegexSyntaxValidator
         {
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
         }
-        catch (ArgumentException)
+        catch (AwkRegexSyntaxException)
         {
             return false;
         }

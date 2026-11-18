@@ -49,14 +49,15 @@ public sealed partial class AwkInternalFailureTests
     {
         private static void Fail() => throw new InvalidOperationException("private provider detail");
 
-        public bool TryCompile(ReadOnlySpan<byte> bytes, bool ignoreCase, IMemoryBudget? budget,
-            CancellationToken token, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
+        public AwkRegexCompilationStatus TryCompile(ReadOnlySpan<byte> bytes, bool ignoreCase, IMemoryBudget? budget,
+            CancellationToken token, out IAwkCompiledRegex? compiledPattern)
         {
             if (stage == "compile") Fail();
-            if (!AwkUtf8RegexEngine.Instance.TryCompile(bytes, ignoreCase, budget, token, out var pattern))
-            { compiledPattern = null; return false; }
+            var status = AwkUtf8RegexEngine.Instance.TryCompile(bytes, ignoreCase, budget, token, out var pattern);
+            if (status != AwkRegexCompilationStatus.Compiled || pattern is null)
+            { compiledPattern = pattern; return status; }
             compiledPattern = new Pattern(pattern, stage);
-            return true;
+            return AwkRegexCompilationStatus.Compiled;
         }
 
         private sealed class Pattern(IAwkCompiledRegex pattern, string stage) : IAwkCompiledRegex

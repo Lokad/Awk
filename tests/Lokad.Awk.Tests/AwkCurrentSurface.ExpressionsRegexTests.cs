@@ -17,7 +17,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     {
         var pattern = string.Concat(Enumerable.Repeat("[:", 16_384));
 
-        Assert.Throws<ArgumentException>(() => AwkRegex.TranslatePattern(new AwkRegexPattern(pattern)));
+        Assert.Throws<AwkRegexSyntaxException>(() => AwkRegex.TranslatePattern(new AwkRegexPattern(pattern)));
     }
 
     [Theory]

@@ -16,7 +16,7 @@ public sealed class AwkRegexBracketClassTests
             static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var run = 0; run < 2; run++)
         {
-            var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern("[[:word:]]")));
+            var failure = Assert.ThrowsAny<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern("[[:word:]]")));
             Assert.Equal(AwkDiagnosticId.RuntimeInvalidRegex, failure.Id);
             Assert.Equal("awk: invalid regular expression\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -38,7 +38,7 @@ public sealed class AwkRegexBracketClassTests
     [InlineData("(?x:(a))#[[:absent:]]")]
     [InlineData("(?x)(?-x:#[[:absent:]])")]
     public void InvalidClassesRespectLexicalAndScopedCommentContext(string pattern) =>
-        Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern)));
+        Assert.Throws<AwkRegexSyntaxException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern)));
 
     [Theory]
     [InlineData("[:word:]")]
@@ -63,7 +63,7 @@ public sealed class AwkRegexBracketClassTests
         var governor = memoryForGovernor.Accounting;
         using var lease = governor.CreateTransientLease();
         if (invalid)
-            Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString("[[:absent:]]"), lease: lease));
+            Assert.Throws<AwkRegexSyntaxException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString("[[:absent:]]"), lease: lease));
         else
             AwkRegexBracketClasses.Validate(AwkText.FromString("(a)([[:digit:]])"), lease: lease);
     }
@@ -86,7 +86,7 @@ public sealed class AwkRegexBracketClassTests
         var governor = memoryForGovernor.Accounting;
         using var retained = governor.ReserveTransient(11);
         if (invalid)
-            Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained));
+            Assert.Throws<AwkRegexSyntaxException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained));
         else
             AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), lease: retained);
         Assert.Equal(11, governor.CurrentCommittedBytes);

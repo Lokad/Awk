@@ -26,7 +26,7 @@ internal static partial class AwkSourceLiterals
             regex = prepared;
             return true;
         }
-        catch (ArgumentException)
+        catch (AwkRegexSyntaxException)
         {
             return false;
         }
