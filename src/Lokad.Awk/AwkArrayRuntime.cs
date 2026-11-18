@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Lokad.Awk;
 
 internal sealed partial class AwkArrayRuntime
@@ -103,11 +101,14 @@ internal sealed partial class AwkArrayRuntime
         return _variables.FindSubarray(ResolveOrdinaryArray(name, binding), key);
     }
 
-    public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default)
+    public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
+        _state.TryGetBoundArray(name, binding, out var array)
+            ? _variables.GetArrayValue(array, index)
+            : ReadUnboundValue(name, _variableRuntime.ResolveArrayReadName(name), index, binding);
+
+    private AwkValue ReadUnboundValue(AwkArrayName name, AwkArrayName resolved, AwkArrayKey index,
+        AwkArrayBinding binding)
     {
-        if (_state.TryGetBoundArray(name, binding, out var array))
-            return _variables.GetArrayValue(array, index);
-        var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetExistingArrayValue(resolved, index, out var value))
         {
             _state.BindGlobalArray(binding, resolved);
@@ -124,7 +125,8 @@ internal sealed partial class AwkArrayRuntime
     {
         return _state.TryGetBoundArray(name, binding, out var array)
             ? _variables.GetArrayNumber(array, index)
-            : GetAwkValue(name, index, binding).AsNumber(_state.CancellationCheckpoint);
+            : ReadUnboundValue(name, _variableRuntime.ResolveArrayReadName(name), index, binding)
+                .AsNumber(_state.CancellationCheckpoint);
     }
 
     internal AwkValue GetAwkValue(AwkArrayName name, double index, AwkArrayBinding binding)
@@ -151,7 +153,7 @@ internal sealed partial class AwkArrayRuntime
             number = _variables.GetArrayNumber(array, index, input);
             return true;
         }
-        var found = TryGetBorrowedAwkValue(name, index, out var value, binding, input);
+        var found = TryReadUnboundBorrowedValue(name, index, out var value, binding, input);
         number = found ? value.AsNumber(_state.CancellationCheckpoint) : 0;
         return found;
     }
@@ -164,8 +166,14 @@ internal sealed partial class AwkArrayRuntime
             value = _variables.GetArrayValue(array, index, input);
             return true;
         }
+        return TryReadUnboundBorrowedValue(name, index, out value, binding, input);
+    }
+
+    private bool TryReadUnboundBorrowedValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value,
+        AwkArrayBinding binding, bool input)
+    {
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        if (_variables.TryGetOrdinaryArray(resolved, out array))
+        if (_variables.TryGetOrdinaryArray(resolved, out var array))
         {
             value = _variables.GetArrayValue(array, index, input);
             _state.BindGlobalArray(binding, resolved);
@@ -289,34 +297,27 @@ internal sealed partial class AwkArrayRuntime
     }
 
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous = default) =>
-        TryResolveUpdateOwner(name, binding, out var array)
-            ? _variables.PrepareArrayUpdate(array, key, in previous) : PrepareMissingUpdate(name, key, binding);
-
-    private bool TryResolveUpdateOwner(AwkArrayName name, AwkArrayBinding binding,
-        [NotNullWhen(true)] out AwkArrayIdentity? array)
+        in AwkArrayUpdateTarget previous = default)
     {
-        if (_state.TryGetBoundArray(name, binding, out array))
-            return true;
+        if (_state.TryGetBoundArray(name, binding, out var array))
+            return _variables.PrepareArrayUpdate(array, key, in previous);
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetOrdinaryArray(resolved, out array))
         {
             _state.BindGlobalArray(binding, resolved);
-            return true;
+            return _variables.PrepareArrayUpdate(array, key, in previous);
         }
-        return false;
+        return PrepareMissingUpdate(name, resolved, key, binding);
     }
 
-    private AwkArrayUpdateTarget PrepareMissingUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding)
+    private AwkArrayUpdateTarget PrepareMissingUpdate(AwkArrayName name, AwkArrayName resolved, AwkArrayKey key,
+        AwkArrayBinding binding)
     {
-        // Keep missing-read promotion/admission and special-array behavior in their
-        // established order. The already-bound ordinary path above needs no second resolve.
-        var priorNumber = GetAwkValue(name, key, binding).AsNumber(_state.CancellationCheckpoint);
+        var priorNumber = ReadUnboundValue(name, resolved, key, binding).AsNumber(_state.CancellationCheckpoint);
+        // A read can promote an alias or enter admission callbacks. Locate the
+        // owner again after the read has completed.
         if (!_state.TryGetBoundArray(name, binding, out var array))
-        {
-            var resolved = _variableRuntime.ResolveArrayReadName(name);
-            _variables.TryGetOrdinaryArray(resolved, out array);
-        }
+            _variables.TryGetOrdinaryArray(_variableRuntime.ResolveArrayReadName(name), out array);
         AwkArrayCell? cell = null;
         if (array is not null) array.TryGetEntry(key, out _, out cell);
         return new(key, priorNumber, array, cell);
@@ -329,7 +330,7 @@ internal sealed partial class AwkArrayRuntime
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         return !resolved.IsFunctionLocal && _variables.IsSymbolTable(resolved.Text)
             ? _variables.GetArrayElementRuntimeKind(resolved, index)
-            : GetAwkValue(name, index, binding).RuntimeKind;
+            : ReadUnboundValue(name, resolved, index, binding).RuntimeKind;
     }
 
     public bool TryPeekAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
