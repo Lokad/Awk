@@ -752,6 +752,24 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint();
     }
 
+    // Consecutive short fragments share the enclosing copy's cancellation interval.
+    internal static void CopyFragment(ReadOnlySpan<byte> source, Span<byte> destination,
+        ref int offset, ref int bytesUntilCheck, Action? checkpoint)
+    {
+        var target = destination[offset..];
+        if (checkpoint is null || source.Length <= bytesUntilCheck)
+        {
+            source.CopyTo(target);
+            if (checkpoint is not null) bytesUntilCheck -= source.Length;
+        }
+        else
+        {
+            CopyBytes(source, target, checkpoint);
+            bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
+        }
+        offset += source.Length;
+    }
+
     private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index, Action? checkpoint) =>
         AwkNumberParser.SkipWhitespace(span, index, checkpoint);
 

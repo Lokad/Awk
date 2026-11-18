@@ -124,30 +124,13 @@ internal sealed class AwkUtf8Builder : IDisposable
                 bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
             }
             if (index > 0)
-                CopyFragment(between);
+                AwkText.CopyFragment(between, _buffer, ref offset, ref bytesUntilCheck, checkpoint);
             var bytes = fields.BytesAt(index, record, checkpoint);
-            CopyFragment(bytes);
+            AwkText.CopyFragment(bytes, _buffer, ref offset, ref bytesUntilCheck, checkpoint);
         }
-        CopyFragment(ending);
+        AwkText.CopyFragment(ending, _buffer, ref offset, ref bytesUntilCheck, checkpoint);
         checkpoint?.Invoke();
         Length = nextLength;
-
-        void CopyFragment(ReadOnlySpan<byte> bytes)
-        {
-            if (checkpoint is null || bytes.Length <= bytesUntilCheck)
-            {
-                bytes.CopyTo(_buffer.AsSpan(offset));
-                if (checkpoint is not null) bytesUntilCheck -= bytes.Length;
-            }
-            else
-            {
-                // The one-shot primitive retains long-copy and overlap behavior;
-                // short fragments share the enclosing record's checked interval.
-                AwkText.CopyBytes(bytes, _buffer.AsSpan(offset), checkpoint);
-                bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
-            }
-            offset += bytes.Length;
-        }
     }
 
     public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, AwkText terminator, Action? checkpoint = null)
