@@ -160,8 +160,12 @@ internal sealed partial class AwkVariables
         if (!target.TryGetArray(out var array))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
         ThrowIfDetached(array);
-        var oldBytes = EstimateArrayBytes(array, _state.CancellationCheckpoint);
-        var newBytes = EstimateArrayBytes(slots, _state.CancellationCheckpoint);
+        long oldBytes = 0, newBytes = 0;
+        if (_state.MemoryAccounting.IsEnabled)
+        {
+            oldBytes = EstimateArrayBytes(array, _state.CancellationCheckpoint);
+            newBytes = EstimateArrayBytes(slots, _state.CancellationCheckpoint);
+        }
         using var mutation = ReserveMemoryMutation(newBytes, AwkRuntimeMemory.CheckedAdd(oldBytes, transferredBytes));
         RetireArrayContents(array, includeRoot: false);
         array.ReplaceSlots(slots);
