@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 
 internal static class AwkNumberFormatter
 {
-    private const int MaxFormattedDoubleBytes = 32;
+    internal const int MaxFormattedDoubleBytes = 32;
     // A finite binary64 integer has at most 309 decimal digits plus its sign.
     private const int MaxFormattedIntegerBytes = 310;
 
@@ -42,51 +42,31 @@ internal static class AwkNumberFormatter
         destination.Append(Format(value, buffer), checkpoint);
     }
 
-    public static AwkText ToAwkText(
-        double value,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkMemoryLease? retainedTextLease = null)
+    public static string ToDefaultFormatString(double value, Action? checkpoint)
     {
-        Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
-        var bytes = Format(value, buffer);
-        return CopyAscii(bytes, counters, governor, retainedTextLease);
+        Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
+        var bytes = FormatDefault(value, buffer);
+        checkpoint?.Invoke();
+        var text = AwkUtf8Codec.DecodeRuntimeText(bytes);
+        checkpoint?.Invoke();
+        return text;
     }
 
-    public static AwkText ToDefaultFormatAwkText(
-        double value,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkMemoryLease? retainedTextLease = null)
+    internal static ReadOnlySpan<byte> FormatDefault(double value, Span<byte> buffer)
     {
         if (double.IsPositiveInfinity(value))
-            return CopyAscii("+inf"u8, counters, governor, retainedTextLease);
+            return "+inf"u8;
 
         if (double.IsNegativeInfinity(value))
-            return CopyAscii("-inf"u8, counters, governor, retainedTextLease);
+            return "-inf"u8;
 
         if (double.IsNaN(value))
-            return CopyAscii(BitConverter.DoubleToInt64Bits(value) < 0 ? "-nan"u8 : "+nan"u8, counters, governor, retainedTextLease);
+            return BitConverter.DoubleToInt64Bits(value) < 0 ? "-nan"u8 : "+nan"u8;
 
-        Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
         if (!Utf8Formatter.TryFormat(value, buffer, out var formattedBytes, new StandardFormat('g', 6)))
             throw new InvalidOperationException("Unable to format an awk numeric value.");
 
-        return CopyAscii(buffer[..formattedBytes], counters, governor, retainedTextLease);
-    }
-
-    private static AwkText CopyAscii(
-        ReadOnlySpan<byte> bytes,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkMemoryLease? retainedTextLease)
-    {
-        retainedTextLease?.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(bytes.Length));
-        // A supplied lease already admits the complete owned text, including its bytes.
-        var owned = AwkText.AllocateOwnedBytes(bytes.Length,
-            retainedTextLease is null ? governor : AwkMemoryAccounting.Disabled);
-        bytes.CopyTo(owned);
-        return AwkText.FromTrustedOwnedBytes(owned, counters);
+        return buffer[..formattedBytes];
     }
 
     private static bool FitsSignedInteger(double value) =>

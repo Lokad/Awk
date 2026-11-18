@@ -7,7 +7,7 @@ internal sealed class AwkFormattingRuntime(
     internal AwkText CaptureNumericFormat(AwkValue value, AwkMemoryLease lease) =>
         double.IsFinite(value.StoredNumber)
             ? FormatStringByteText(value, lease)
-            : AwkNumberFormatter.ToDefaultFormatAwkText(value.StoredNumber, state.Counters, state.MemoryAccounting, lease);
+            : FormatDefaultNumberText(value.StoredNumber, lease);
 
     public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
 
@@ -48,10 +48,10 @@ internal sealed class AwkFormattingRuntime(
         AwkMemoryLease? retainedTextLease)
     {
         if (double.IsInteger(number))
-            return AwkNumberFormatter.ToAwkText(number, state.Counters, state.MemoryAccounting, retainedTextLease);
+            return FormatNumberText(number, retainedTextLease);
 
         if (UsesDefaultFormat(variable))
-            return AwkNumberFormatter.ToDefaultFormatAwkText(number, state.Counters, state.MemoryAccounting, retainedTextLease);
+            return FormatDefaultNumberText(number, retainedTextLease);
 
         using var argumentText = state.MemoryAccounting.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
@@ -64,7 +64,29 @@ internal sealed class AwkFormattingRuntime(
             ? FormatStringByteText(AwkValue.FromNumber(number), lease)
             // A string conversion within CONVFMT cannot apply CONVFMT again.
             // Keep the existing round-trip spelling at this nonrecursive boundary.
-            : AwkNumberFormatter.ToAwkText(number, state.Counters, state.MemoryAccounting, lease);
+            : FormatNumberText(number, lease);
+
+    private AwkText FormatNumberText(double number, AwkMemoryLease? retainedTextLease)
+    {
+        Span<byte> buffer = stackalloc byte[AwkNumberFormatter.FormattedByteCapacity(number)];
+        return CopyNumericText(AwkNumberFormatter.Format(number, buffer), retainedTextLease);
+    }
+
+    private AwkText FormatDefaultNumberText(double number, AwkMemoryLease? retainedTextLease)
+    {
+        Span<byte> buffer = stackalloc byte[AwkNumberFormatter.MaxFormattedDoubleBytes];
+        return CopyNumericText(AwkNumberFormatter.FormatDefault(number, buffer), retainedTextLease);
+    }
+
+    private AwkText CopyNumericText(ReadOnlySpan<byte> bytes, AwkMemoryLease? retainedTextLease)
+    {
+        retainedTextLease?.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(bytes.Length));
+        // A supplied lease already admits the complete owned text, including its bytes.
+        var owned = AwkText.AllocateOwnedBytes(bytes.Length,
+            retainedTextLease is null ? state.MemoryAccounting : AwkMemoryAccounting.Disabled);
+        bytes.CopyTo(owned);
+        return AwkText.FromTrustedOwnedBytes(owned, state.Counters);
+    }
 
     private readonly struct NumericFormatArguments(double number, AwkFormattingVariable variable,
         AwkFormattingRuntime runtime, AwkMemoryLease textLease) : IPrintfArguments
