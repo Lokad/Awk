@@ -1,58 +1,50 @@
 namespace Lokad.Awk;
 
-internal abstract class AwkArraySortOrder
+internal readonly struct AwkArraySortOrder
 {
-    public static AwkArraySortOrder Default { get; } = new DefaultOrder();
+    private readonly string? _unknownSelector;
 
-    public static AwkArraySortOrder Parse(string text)
+    private AwkArraySortOrder(AwkArraySortMode mode, AwkFunctionName functionName = default,
+        string? unknownSelector = null)
     {
-        if (text.Length == 0)
-            return Default;
-
-        if (!text.StartsWith('@'))
-        {
-            return AwkIdentifier.TryParse(text, out var identifier)
-                ? new UserFunctionOrder(new AwkFunctionName(identifier))
-                : new UnknownBuiltinOrder(text);
-        }
-
-        return text switch
-        {
-            "@ind_str_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.IndexStringAscending),
-            "@ind_str_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.IndexStringDescending),
-            "@ind_num_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.IndexNumberAscending),
-            "@ind_num_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.IndexNumberDescending),
-            "@val_str_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueStringAscending),
-            "@val_str_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueStringDescending),
-            "@val_num_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueNumberAscending),
-            "@val_num_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueNumberDescending),
-            "@val_type_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueTypeAscending),
-            "@val_type_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueTypeDescending),
-            "@unsorted" => new BuiltinOrder(AwkArrayBuiltinSortOrder.Unsorted),
-            _ => new UnknownBuiltinOrder(text)
-        };
+        Mode = mode;
+        FunctionName = functionName;
+        _unknownSelector = unknownSelector;
     }
 
-    public sealed class DefaultOrder : AwkArraySortOrder;
+    public static AwkArraySortOrder DefaultIndexOrder => new(AwkArraySortMode.IndexStringAscending);
+    public AwkArraySortMode Mode { get; }
+    public AwkFunctionName FunctionName { get; }
+    public string UnknownSelector => _unknownSelector ??
+        throw new InvalidOperationException("No unknown sort selector is present.");
 
-    public sealed class BuiltinOrder(AwkArrayBuiltinSortOrder kind) : AwkArraySortOrder
+    public static AwkArraySortOrder Parse(AwkText text, AwkRuntimeState state)
     {
-        public AwkArrayBuiltinSortOrder Kind { get; } = kind;
-    }
+        state.ThrowIfCancellationRequested();
+        if (text.ByteLength == 0) return default;
+        var bytes = text.AsSpan(state.CancellationCheckpoint);
+        if (bytes.SequenceEqual("@ind_str_asc"u8)) return new(AwkArraySortMode.IndexStringAscending);
+        if (bytes.SequenceEqual("@ind_str_desc"u8)) return new(AwkArraySortMode.IndexStringDescending);
+        if (bytes.SequenceEqual("@ind_num_asc"u8)) return new(AwkArraySortMode.IndexNumberAscending);
+        if (bytes.SequenceEqual("@ind_num_desc"u8)) return new(AwkArraySortMode.IndexNumberDescending);
+        if (bytes.SequenceEqual("@val_str_asc"u8)) return new(AwkArraySortMode.ValueStringAscending);
+        if (bytes.SequenceEqual("@val_str_desc"u8)) return new(AwkArraySortMode.ValueStringDescending);
+        if (bytes.SequenceEqual("@val_num_asc"u8)) return new(AwkArraySortMode.ValueNumberAscending);
+        if (bytes.SequenceEqual("@val_num_desc"u8)) return new(AwkArraySortMode.ValueNumberDescending);
+        if (bytes.SequenceEqual("@val_type_asc"u8)) return new(AwkArraySortMode.ValueTypeAscending);
+        if (bytes.SequenceEqual("@val_type_desc"u8)) return new(AwkArraySortMode.ValueTypeDescending);
+        if (bytes.SequenceEqual("@unsorted"u8)) return new(AwkArraySortMode.Unsorted);
 
-    public sealed class UserFunctionOrder(AwkFunctionName functionName) : AwkArraySortOrder
-    {
-        public AwkFunctionName FunctionName { get; } = functionName;
-    }
-
-    public sealed class UnknownBuiltinOrder(string text) : AwkArraySortOrder
-    {
-        public string Text { get; } = text;
+        var selector = state.DecodeText(text);
+        return AwkIdentifier.TryParse(selector, out var identifier)
+            ? new(AwkArraySortMode.UserFunction, new AwkFunctionName(identifier))
+            : new(AwkArraySortMode.Unknown, unknownSelector: selector);
     }
 }
 
-internal enum AwkArrayBuiltinSortOrder
+internal enum AwkArraySortMode
 {
+    Default,
     IndexStringAscending,
     IndexStringDescending,
     IndexNumberAscending,
@@ -63,5 +55,7 @@ internal enum AwkArrayBuiltinSortOrder
     ValueNumberDescending,
     ValueTypeAscending,
     ValueTypeDescending,
-    Unsorted
+    Unsorted,
+    UserFunction,
+    Unknown
 }

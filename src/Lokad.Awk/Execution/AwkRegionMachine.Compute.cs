@@ -164,8 +164,10 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.SortBegin:
                 {
                     var sort = computationView.Region.Sorts[instruction.Left];
+                    var order = sort.Order < 0 ? default :
+                        AwkArraySortOrder.Parse(computationView.Storage.Values[sort.Order].ByteText, computationView.State);
                     computationView.Storage.BeginSort(sort.Slot, computationView.Storage.ArrayTarget(sort.Source),
-                        sort.Order < 0 ? AwkArraySortOrder.Default : AwkArraySortOrder.Parse(computationView.Storage.PreparedString(sort.Order)), sort.Keys);
+                        order, sort.Keys);
                     break;
                 }
                 case AwkRegionInstructionKind.SortAdvance:

@@ -25,7 +25,7 @@ public sealed class AwkSortingResourceTests
         var before = state.MemoryAccounting.LiveBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
-            AwkArrayStorageTestOperations.Sort(state, source, destination, AwkArraySortOrder.Parse(selector), keys: false));
+            AwkArrayStorageTestOperations.Sort(state, source, destination, keys: false, selector: selector));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("keep", state.GetArrayByteText(destination, first).AsString());

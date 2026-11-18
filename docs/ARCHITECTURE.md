@@ -170,6 +170,8 @@ Indexed publication carries the ordinal and checks it in the current backing.
 
 Indexed growth/promotion privately constructs admitted replacements, funding old/new
 overlap before publication. Reusable locations carry current values, never stale numbers.
+Sort selectors share one mode across parsing, projection and comparison. Builtin
+selectors are read as UTF-8, with decoding for function lookup and diagnostics.
 Sort snapshots own their keys/value observations; callbacks cannot mutate that snapshot.
 Destination publication is preflighted, including after a suspending user comparator.
 

@@ -157,7 +157,7 @@ public sealed class AwkSortProjectionMemoryTests
         {
             var beforeFailure = state.MemoryAccounting.LiveBytes;
             var failure = Assert.Throws<AwkRuntimeException>(() =>
-                AwkArrayStorageTestOperations.Sort(state, Source, Destination, AwkArraySortOrder.Parse(selector), keys: false));
+                AwkArrayStorageTestOperations.Sort(state, Source, Destination, keys: false, selector: selector));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal("keep", state.Arrays.GetAwkValue(Destination, First).ByteText.AsString());
             Assert.All(expected, item => Assert.True(state.Arrays.GetAwkValue(Source, item.Key).IsNumberValue));
@@ -165,7 +165,7 @@ public sealed class AwkSortProjectionMemoryTests
         }
         var before = state.MemoryAccounting.LiveBytes;
 
-        var count = AwkArrayStorageTestOperations.Sort(state, Source, Destination, AwkArraySortOrder.Parse(selector), keys: false);
+        var count = AwkArrayStorageTestOperations.Sort(state, Source, Destination, keys: false, selector: selector);
 
         Assert.Equal(numbers.Length, count);
         var ordered = selector.EndsWith("desc", StringComparison.Ordinal)

@@ -5,8 +5,9 @@ namespace Lokad.Awk.Tests;
 internal static class AwkArrayStorageTestOperations
 {
     internal static int Sort(AwkRuntimeState state, AwkArrayName source, AwkArrayName destination,
-        AwkArraySortOrder order, bool keys)
+        bool keys, string selector = "")
     {
+        var order = AwkArraySortOrder.Parse(AwkText.FromSourceLiteralString(selector), state);
         using var operation = state.Arrays.BeginSort(new(source), order, keys);
         Assert.False(operation.TryNextComparison());
         return operation.Publish(new(destination), keys);

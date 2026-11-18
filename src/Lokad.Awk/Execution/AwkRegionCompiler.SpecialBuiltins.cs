@@ -312,7 +312,7 @@ internal sealed partial class AwkRegionCompiler
             {
                 order = compiler._values++;
                 compiler.Emit(new(AwkRegionInstructionKind.Value, order, CompletedResult<int>(completed)));
-                compiler.Emit(new(AwkRegionInstructionKind.PrepareString, order));
+                compiler.Emit(new(AwkRegionInstructionKind.PrepareByteText, order));
             }
             var site = compiler._sorts.Count;
             var comparison = compiler._numbers++;

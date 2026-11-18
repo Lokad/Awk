@@ -497,7 +497,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, AwkArraySortOrder.Default, keys: false));
+            () => AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, keys: false));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("keep", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -535,7 +535,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var count = AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, AwkArraySortOrder.Default, keys: false);
+        var count = AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, keys: false);
 
         Assert.Equal(1, count);
         Assert.Equal("v", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -552,7 +552,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var count = AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, AwkArraySortOrder.Default, keys: true);
+        var count = AwkArrayStorageTestOperations.Sort(state, sourceArrayName, destinationArrayName, keys: true);
 
         Assert.Equal(1, count);
         Assert.Equal("k", FormatArrayValue(state, destinationArrayName, ordinalOne));

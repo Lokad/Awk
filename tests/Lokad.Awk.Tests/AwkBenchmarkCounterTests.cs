@@ -1868,7 +1868,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal("strnum 01\nstrnum 0002\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
 
-        Assert.Equal(1, result.Counters[AwkCounter.StringDecodes]); // The sort selector's existing string boundary.
+        Assert.Equal(0, result.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, result.Counters[AwkCounter.Utf8Encodes]);
     }
 

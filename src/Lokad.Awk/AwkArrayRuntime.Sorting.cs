@@ -22,7 +22,7 @@ internal sealed partial class AwkArrayRuntime
 
         internal static AwkArraySortOperation Begin(AwkArrayRuntime runtime, AwkArrayTarget target, AwkArraySortOrder order, bool keys)
         {
-            if (keys && order is AwkArraySortOrder.DefaultOrder) order = DefaultIndexOrder;
+            if (keys && order.Mode == AwkArraySortMode.Default) order = AwkArraySortOrder.DefaultIndexOrder;
             var source = runtime.ResolveTarget(target);
             var reservation = runtime.ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray, keys);
             try { return Create(runtime, source, order, reservation); }
@@ -36,10 +36,10 @@ internal sealed partial class AwkArrayRuntime
             runtime._state.ThrowIfCancellationRequested();
             AwkUserFunction? function = null;
             AwkArraySortEntry[] entries;
-            if (order is AwkArraySortOrder.UserFunctionOrder user)
+            if (order.Mode == AwkArraySortMode.UserFunction)
             {
-                if (!runtime._state.TryGetUserFunction(user.FunctionName, out function))
-                    throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(user.FunctionName.Text));
+                if (!runtime._state.TryGetUserFunction(order.FunctionName, out function))
+                    throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(order.FunctionName.Text));
                 entries = runtime.SnapshotSortEntries(source, AwkArraySortMode.UserFunction, reservation);
             }
             else entries = runtime.SortEntries(source, order, reservation);
@@ -55,7 +55,7 @@ internal sealed partial class AwkArrayRuntime
             {
                 // Empty traversal skips comparator validation; asort/asorti do not.
                 if (reservation.Count == 0) return new(new AwkLeasedReadOnlyList<AwkArrayKey>([], reservation.Lease));
-                if (order is AwkArraySortOrder.UserFunctionOrder) return new(Create(runtime, source, order, reservation));
+                if (order.Mode == AwkArraySortMode.UserFunction) return new(Create(runtime, source, order, reservation));
                 var entries = runtime.SortEntries(source, order, reservation);
                 return new(new AwkLeasedReadOnlyList<AwkArrayKey>(runtime.CopyKeyValues(entries), reservation.Lease));
             }
