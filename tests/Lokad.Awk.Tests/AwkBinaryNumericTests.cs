@@ -5,7 +5,7 @@ public sealed class AwkBinaryNumericTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void NativeNumericSubtreesAvoidFieldCopiesAndRespectMutations(bool governed)
+    public async Task NativeNumericSubtreesAvoidFieldCopiesAndRespectMutations(bool governed)
     {
         using var memory = State(governed);
         var state = memory.State;
@@ -17,19 +17,24 @@ public sealed class AwkBinaryNumericTests
         var allocations = counters[AwkCounter.TextAllocations];
         var parsed = AwkParser.Parse("BEGIN{result=$1*2+$2}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
-        using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
-        var result = AwkVariableName.FromText("result");
-        Assert.Equal(17, state.ResolveVariableValue(result).AsNumber());
-        Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("008 3 tail"));
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
-        Assert.Equal(19, state.ResolveVariableValue(result).AsNumber());
-        state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
-        Assert.Equal(5.5, state.ResolveVariableValue(result).AsNumber());
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        storage.Dispose();
+        var io = AwkTestHarness.CreateRegionIo(state, new MockFileSystem());
+        using (var storage = new AwkRegionStorage(state))
+        using (var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint))
+        using (state.PushExecutionContext(output, io))
+        {
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
+            var result = AwkVariableName.FromText("result");
+            Assert.Equal(17, state.ResolveVariableValue(result).AsNumber());
+            Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("008 3 tail"));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
+            Assert.Equal(19, state.ResolveVariableValue(result).AsNumber());
+            state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
+            Assert.Equal(5.5, state.ResolveVariableValue(result).AsNumber());
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        await io.CloseForCleanupAsync();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }

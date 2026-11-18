@@ -82,6 +82,10 @@ internal static class AwkTestHarness
         new(
             AwkMemoryAccounting.Disabled);
 
+    public static AwkIo CreateRegionIo(AwkRuntimeState state, MockFileSystem host) =>
+        new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
+            CancellationToken.None, state.Limits, state, static _ => []);
+
     public static AwkCompatibilityProfile ProfileForNumberParsing(AwkNumberParsingMode mode) => mode switch
     {
         AwkNumberParsingMode.Decimal => AwkCompatibilityProfile.Default,
