@@ -6,11 +6,11 @@ internal sealed class AwkSpecialVariableDispatcher(
     AwkFormattingRuntime formatting,
     Action<AwkSpecialVariableId> recordAssignment,
     AwkMemoryAccounting memoryAccounting,
-    AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
-    Action? checkpoint = null,
-    Action<AwkText>? validateRecordSeparator = null,
-    bool csv = false,
-    Action<bool>? reportCsvWarning = null) : IDisposable
+    AwkCompatibilityMode mode,
+    Action checkpoint,
+    Action<AwkText> validateRecordSeparator,
+    bool csv,
+    Action<bool> reportCsvWarning) : IDisposable
 {
     private static readonly AwkArrayName ProcInfo = AwkArrayName.FromText("PROCINFO");
     private static readonly AwkArrayKey FieldModeKey = new(AwkText.FromSourceLiteralString("FS"));
@@ -62,7 +62,7 @@ internal sealed class AwkSpecialVariableDispatcher(
                 var text = formatting.CaptureNumericFormat(value, staging);
                 prepared = new(text, staging);
             }
-            checkpoint?.Invoke();
+            checkpoint();
             variables.SetScalarValue(name, value);
             ref var current = ref (id == AwkSpecialVariableId.ConversionFormat
                 ? ref _numericConversionFormat : ref _numericOutputFormat);
@@ -70,7 +70,7 @@ internal sealed class AwkSpecialVariableDispatcher(
             current = prepared;
             staging = null;
             previous?.Dispose();
-            checkpoint?.Invoke();
+            checkpoint();
         }
         finally { staging?.Dispose(); }
     }
@@ -136,7 +136,7 @@ internal sealed class AwkSpecialVariableDispatcher(
             ref var warned = ref (records ? ref _csvRecordsWarned : ref _csvFieldsWarned);
             if (!warned)
             {
-                reportCsvWarning?.Invoke(records);
+                reportCsvWarning(records);
             }
             if (id == AwkSpecialVariableId.FieldPattern)
                 fieldSplitter.ValidateFieldPattern(formatting.FormatStringByteText(value));
@@ -174,7 +174,7 @@ internal sealed class AwkSpecialVariableDispatcher(
                 break;
             case AwkSpecialVariableId.RecordSeparator:
                 text = formatting.FormatStringByteText(value);
-                validateRecordSeparator?.Invoke(text);
+                validateRecordSeparator(text);
                 if (IsSeparatorParser(_parser))
                 {
                     var changed = !text.Equals(ResolveText(id));

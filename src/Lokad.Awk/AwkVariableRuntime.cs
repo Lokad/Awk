@@ -1,7 +1,7 @@
 namespace Lokad.Awk;
 
 internal sealed class AwkVariableRuntime(
-    AwkVariables variables, AwkFunctionCallStack functions, AwkSpecialVariableDispatcher specialVariables, Action? checkpoint = null)
+    AwkVariables variables, AwkFunctionCallStack functions, AwkSpecialVariableDispatcher specialVariables, Action checkpoint)
 {
     public bool HasScalar(AwkVariableName name) =>
         ResolveName(name).Kind is
