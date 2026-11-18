@@ -109,8 +109,9 @@ public sealed class AwkTextCancellationTests
     public void InterruptedMaterializationReleasesMemoryAndRetainsCompleteParts(string scenario)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
+        using var memoryForGovernor = Governor().InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
+        var committed = governor.CurrentCommittedBytes;
         var expected = scenario switch
         {
             "ascii" => new string('a', LongText) + "z",
@@ -119,13 +120,13 @@ public sealed class AwkTextCancellationTests
             "deep" => new string('a', 3_000) + "z",
             _ => throw new ArgumentOutOfRangeException(nameof(scenario))
         };
-        var text = scenario == "deep" ? DeepText(3_000, counters, governor)
-            : AwkText.Concat([AwkText.FromString(expected[..^1]), AwkText.FromString("z")], counters, governor);
+        var text = scenario == "deep" ? DeepText(3_000, memoryForGovernor.State)
+            : memoryForGovernor.State.ConcatText([AwkText.FromString(expected[..^1]), AwkText.FromString("z")]);
         using var cancellation = new CancellationTokenSource();
         var copyingChecks = 0;
         Action checkpoint = () =>
         {
-            if (governor.CurrentCommittedBytes > 0 && ++copyingChecks == 4)
+            if (governor.CurrentCommittedBytes > committed && ++copyingChecks == 4)
                 cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         };
@@ -133,9 +134,8 @@ public sealed class AwkTextCancellationTests
         var error = Assert.Throws<OperationCanceledException>(() => { _ = text.AsSpan(checkpoint); });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(4, copyingChecks);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal(expected, text.AsString());
         Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
@@ -158,7 +158,8 @@ public sealed class AwkTextCancellationTests
     public void CallersCheckCancellationBeforeHiddenMaterialization(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.Concat([AwkText.FromString(new string('0', LongText)), AwkText.FromString("1")], counters, AwkMemoryAccounting.Disabled);
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var text = runtime.ConcatText([AwkText.FromString(new string('0', LongText)), AwkText.FromString("1")]);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         Action checkpoint = cancellation.Token.ThrowIfCancellationRequested;
@@ -292,13 +293,14 @@ public sealed class AwkTextCancellationTests
         var bytes = AwkUtf8Codec.Encode(new string('a', LongText)).ToArray();
         var owned = AwkText.FromHostBytes(bytes);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
+        using var memoryForGovernor = Governor().InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
+        var committed = governor.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
-        var completed = AwkText.Concat([owned, AwkText.FromString("z")], counters, governor);
+        var completed = memoryForGovernor.State.ConcatText([owned, AwkText.FromString("z")]);
         Assert.Throws<OperationCanceledException>(() => completed.AsMemory(CancelOnCheck(cancellation, 3)));
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
         bytes.AsSpan().Fill((byte)'b');
         Assert.Equal(new string('a', LongText) + "z", completed.AsString());
     }
@@ -349,14 +351,20 @@ public sealed class AwkTextCancellationTests
     {
         AwkText[] parts = [AwkText.FromString(new string('a', LongText)), AwkText.FromString("b"), AwkText.FromString("c")];
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        Assert.Throws<OperationCanceledException>(() => AwkText.Concat(parts.AsSpan(), counters, governor, CancelOnCheck(cancellation, 5)));
-        Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        var completed = AwkText.Concat(parts.AsSpan(), counters, governor);
+        using (var memory = Governor().InitializeRuntime(counters, cancellation.Token))
+        {
+            var committed = memory.Accounting.CurrentCommittedBytes;
+            memory.Budget.OnGrowth = _ => cancellation.Cancel();
+            var error = Assert.Throws<OperationCanceledException>(() => memory.State.ConcatText(parts));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        }
+
+        using var retry = Governor().InitializeRuntime(counters);
+        var completed = retry.State.ConcatText(parts);
         Assert.Equal(new string('a', LongText) + "bc", completed.AsString());
         Assert.Equal(completed.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
     }
@@ -365,20 +373,22 @@ public sealed class AwkTextCancellationTests
     public void MaterializationMemoryFailureLeavesTheCacheRetryable()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(LongText + 1);
+        using var memoryForGovernor = Governor().InitializeRuntime(counters);
+        memoryForGovernor.Budget.SetAvailableBytes(LongText + 1);
         var governor = memoryForGovernor.Accounting;
-        var text = AwkText.Concat([AwkText.FromString(new string('a', LongText)), AwkText.FromString("z")], counters, governor);
+        var committed = governor.CurrentCommittedBytes;
+        var text = memoryForGovernor.State.ConcatText([AwkText.FromString(new string('a', LongText)), AwkText.FromString("z")]);
         using (var existing = governor.ReserveTransient(1))
         {
             var error = Assert.Throws<AwkRuntimeException>(() => { _ = text.AsSpan(() => { }); });
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
             Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(1, governor.CurrentCommittedBytes);
+            Assert.Equal(committed + 1, governor.CurrentCommittedBytes);
         }
         Assert.Equal(new string('a', LongText) + "z", text.AsString());
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
     }
 
     [Theory]
@@ -458,12 +468,12 @@ public sealed class AwkTextCancellationTests
     private static CooperativeTestMemory Governor() =>
         new CooperativeTestMemory(1 << 20);
 
-    private static AwkText DeepText(int count, AwkRuntimeCounters counters, AwkMemoryAccounting governor)
+    private static AwkText DeepText(int count, AwkRuntimeState state)
     {
         var leaf = AwkText.FromString("a");
         var text = leaf;
-        for (var index = 1; index < count; index++) text = AwkText.Concat([text, leaf], counters, governor);
-        return AwkText.Concat([text, AwkText.FromString("z")], counters, governor);
+        for (var index = 1; index < count; index++) text = state.ConcatText([text, leaf]);
+        return state.ConcatText([text, AwkText.FromString("z")]);
     }
 
     private static Action CancelOnCheck(CancellationTokenSource cancellation, int check)

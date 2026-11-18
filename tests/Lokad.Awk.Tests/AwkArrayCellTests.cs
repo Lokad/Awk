@@ -172,9 +172,8 @@ public sealed class AwkArrayCellTests
         var name = AwkArrayName.FromText("a");
         var array = variables.ResolveOrdinaryArray(name);
         var key = new AwkArrayKey("kept");
-        var text = AwkText.Concat(
-            [AwkText.FromString(new string('0', 2 * AwkRuntimeLimits.CancellationCheckBytes)), AwkText.FromString("7")],
-            memory.State.Counters, memory.Accounting);
+        var text = memory.State.ConcatText(
+            [AwkText.FromString(new string('0', 2 * AwkRuntimeLimits.CancellationCheckBytes)), AwkText.FromString("7")]);
         variables.SetArrayValue(array, key, input ? AwkValue.ForStoredInputText(text) : AwkValue.FromText(text));
         Assert.True(array.ByteLookup.TryGetValue("kept"u8, out var stored));
         // The test retains its source while the callback replaces the array's claim.

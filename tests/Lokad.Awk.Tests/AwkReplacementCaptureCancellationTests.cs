@@ -44,10 +44,11 @@ public sealed class AwkReplacementCaptureCancellationTests
     public void CanceledCallersDoNotFlattenReplacementOrEmptyMatchInput(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
+        using var memoryForGovernor = Governor().InitializeRuntime(counters);
         var governor = memoryForGovernor.Accounting;
+        var committed = governor.CurrentCommittedBytes;
         var expected = new string('a', LongText) + "&";
-        var text = AwkText.Concat([AwkText.FromString(expected[..^1]), AwkText.FromString("&")], counters, governor);
+        var text = memoryForGovernor.State.ConcatText([AwkText.FromString(expected[..^1]), AwkText.FromString("&")]);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         using var builder = new AwkUtf8Builder(governor, 0);
@@ -70,7 +71,7 @@ public sealed class AwkReplacementCaptureCancellationTests
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(expected, text.AsString());
     }
@@ -353,7 +354,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
-        var replacement = AwkText.Concat([AwkText.FromString(new string('x', LongText)), AwkText.FromString("&")], counters, state.MemoryAccounting);
+        var replacement = state.ConcatText([AwkText.FromString(new string('x', LongText)), AwkText.FromString("&")]);
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => AwkRegexSubstitution.ReplaceAll(state, regex,
             AwkText.FromString("a"), replacement, gensub ? AwkReplacementMode.Gensub : AwkReplacementMode.Substitution,

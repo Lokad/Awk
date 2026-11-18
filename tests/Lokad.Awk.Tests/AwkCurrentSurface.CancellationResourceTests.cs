@@ -860,7 +860,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var concatenated = segment;
         for (var index = 0; index < 1_024; index++)
         {
-            concatenated = AwkText.Concat([concatenated, segment], state.Counters, state.MemoryAccounting);
+            concatenated = state.ConcatText([concatenated, segment]);
         }
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>

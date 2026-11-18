@@ -69,6 +69,8 @@ the owned result as text. Host byte ingress validates UTF-8 before copy admissio
 Copies into already funded destinations use the caller's admission.
 Text backing resolves rune ranges. The runtime funds and copies partial slices and
 reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
+Concatenation starts in the runtime. A deferred pair keeps its parts, accounting
+and allocation observations until it can publish a complete copy.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
 and source order. Known bindings may bypass name lookup only while visibility is valid.

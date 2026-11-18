@@ -41,7 +41,7 @@ public sealed class AwkPrintfFormattingTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
-        var text = AwkText.Concat([AwkText.FromString(new string('q', 1_000_000)), AwkText.FromString("tail")], counters, AwkMemoryAccounting.Disabled);
+        var text = state.ConcatText([AwkText.FromString(new string('q', 1_000_000)), AwkText.FromString("tail")]);
         var arguments = new AwkSingleValuePrintfArguments(
             AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));
         using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 0);

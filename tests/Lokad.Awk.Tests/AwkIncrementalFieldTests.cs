@@ -68,7 +68,7 @@ public sealed class AwkIncrementalFieldTests
             var frame = context.Frame;
             frame.SetRecordText(AwkText.FromSourceLiteralString("warm two three tail"));
             Assert.Equal(4, frame.GetFieldCount());
-            var record = AwkText.Concat([AwkText.FromSourceLiteralString("one "), AwkText.FromSourceLiteralString("two three tail")], counters, memory.Accounting);
+            var record = memory.State.ConcatText([AwkText.FromSourceLiteralString("one "), AwkText.FromSourceLiteralString("two three tail")]);
             if (alreadyMaterialized) _ = record.AsSpan();
             frame.SetRecordText(record);
             var materialized = counters[AwkCounter.FieldsPrepared];

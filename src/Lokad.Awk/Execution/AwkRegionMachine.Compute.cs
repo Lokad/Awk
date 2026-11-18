@@ -207,9 +207,9 @@ internal partial struct AwkRegionMachine
                     computationView.Storage.StoreText(instruction.Target, computationView.State.FormatStringByteText(computationView.Value(instruction.Left)));
                     break;
                 case AwkRegionInstructionKind.ConcatValue:
-                    computationView.Storage.StoreValue(instruction.Target, computationView.State.CreateStringValue(AwkText.Concat(
-                        computationView.Storage.Texts.AsSpan(instruction.Left, instruction.Right),
-                        computationView.State.Counters, computationView.State.MemoryAccounting, computationView.State.CancellationCheckpoint)));
+                    var joined = computationView.State.ConcatText(
+                        computationView.Storage.Texts.AsSpan(instruction.Left, instruction.Right));
+                    computationView.Storage.StoreValue(instruction.Target, computationView.State.CreateStringValue(joined));
                     computationView.Storage.ReleaseTexts(instruction.Left, instruction.Right);
                     break;
                 case AwkRegionInstructionKind.PrintField:

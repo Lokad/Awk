@@ -45,16 +45,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
         _backing = new TextStorage(bytes);
     }
 
-    private AwkText(
-        AwkText left,
-        AwkText right,
-        int byteLength,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor)
-    {
-        _backing = new TextStorage(left, right, byteLength, counters, governor);
-    }
-
     public static AwkText Empty => default;
 
     // Private construction admits only cached storage, owned bytes or default empty.
@@ -275,69 +265,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return true;
     }
 
-    public static AwkText Concat(
-        ReadOnlySpan<AwkText> parts,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null)
-    {
-        var totalLength = 0;
-        var nonEmptyPartCount = 0;
-        var firstNonEmptyPart = Empty;
-        var secondNonEmptyPart = Empty;
-        for (var index = 0; index < parts.Length; index++)
-        {
-            if ((index & 1023) == 0)
-                checkpoint?.Invoke();
-            var part = parts[index];
-            if (part.ByteLength == 0)
-                continue;
-
-            totalLength = AwkRuntimeMemory.CheckedAdd(totalLength, part.ByteLength);
-            nonEmptyPartCount++;
-            if (nonEmptyPartCount == 1)
-                firstNonEmptyPart = part;
-            else if (nonEmptyPartCount == 2)
-                secondNonEmptyPart = part;
-        }
-
-        if (nonEmptyPartCount == 0)
-            return Empty;
-
-        if (nonEmptyPartCount == 1)
-        {
-            return firstNonEmptyPart;
-        }
-        if (nonEmptyPartCount == 2)
-        {
-
-            return new AwkText(
-                firstNonEmptyPart,
-                secondNonEmptyPart,
-                totalLength,
-                counters,
-                governor);
-        }
-
-        var bytes = AllocateOwnedBytes(totalLength, governor);
-        var destinationOffset = 0;
-        for (var index = 0; index < parts.Length; index++)
-        {
-            if ((index & 1023) == 0)
-                checkpoint?.Invoke();
-            var part = parts[index];
-            if (part.ByteLength == 0)
-                continue;
-
-            var source = part.AsSpan(checkpoint);
-            CopyBytes(source, bytes.AsSpan(destinationOffset), checkpoint);
-            destinationOffset += source.Length;
-        }
-
-        counters.Add(AwkCounter.ConcatenationBytesCopied, totalLength);
-        counters.ObserveTextAllocation(totalLength);
-        return FromTrustedOwnedBytes(bytes);
-    }
+    internal static AwkText FromConcatenation(AwkTextConcatenation concatenation, int byteLength) =>
+        new(new TextStorage(concatenation, byteLength));
 
     internal bool HasRuneAt(int index, Action? checkpoint)
     {
@@ -737,7 +666,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
     }
 
-    private sealed class AwkTextConcatenation
+    internal sealed class AwkTextConcatenation
     {
         public AwkTextConcatenation(
             AwkText left,
@@ -771,13 +700,13 @@ internal readonly struct AwkText : IEquatable<AwkText>
             EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateTextBytes(bytes.Length);
         }
 
-        internal TextStorage(AwkText left, AwkText right, int byteLength,
-            AwkRuntimeCounters counters, AwkMemoryAccounting governor)
+        internal TextStorage(AwkTextConcatenation concatenation, int byteLength)
         {
             Bytes = [];
             ByteLength = byteLength;
-            Concatenation = new(left, right, counters, governor);
-            EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(left, right, byteLength);
+            Concatenation = concatenation;
+            EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(
+                concatenation.LeftPart, concatenation.RightPart, byteLength);
         }
 
         internal readonly byte[] Bytes;

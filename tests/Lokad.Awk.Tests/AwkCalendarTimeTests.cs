@@ -124,8 +124,10 @@ public sealed class AwkCalendarTimeTests
     public void CanceledDatePreparationDoesNotMaterializeLazyText(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
-        var text = AwkText.Concat([AwkText.FromString("1970 1 1 0 0 0 "), AwkText.FromString(new string(' ', 1_000_000))], counters, memory.Accounting);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed).InitializeRuntime(counters);
+        var initialBytes = memory.Budget.Reserved;
+        var text = memory.State.ConcatText(
+            [AwkText.FromString("1970 1 1 0 0 0 "), AwkText.FromString(new string(' ', 1_000_000))]);
         var runtime = new AwkTimeRuntime(static () => new(0), TimeZoneInfo.Utc);
         using var cancellation = new CancellationTokenSource();
         var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
@@ -135,11 +137,11 @@ public sealed class AwkCalendarTimeTests
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(initialBytes, memory.Budget.Reserved);
         var active = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
         Assert.Equal(0, runtime.MakeTime(text, true, active, memory.Accounting));
         Assert.Equal(text.ByteLength, counters[AwkCounter.ConcatenationBytesCopied]);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(initialBytes, memory.Budget.Reserved);
     }
 
     private static TimeZoneInfo Zone(bool negative)

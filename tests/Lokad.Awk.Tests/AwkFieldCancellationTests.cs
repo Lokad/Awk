@@ -417,8 +417,8 @@ public sealed class AwkFieldCancellationTests
         using (memoryForGovernor)
         {
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
-            var governor = memoryForGovernor.Accounting;
-            var source = AwkText.Concat([AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan)), AwkText.FromString("1")], counters, governor);
+            var source = memoryForGovernor.State.ConcatText(
+                [AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan)), AwkText.FromString("1")]);
             var splitter = memoryForGovernor.State.FieldSplitter;
             using var recordContext = new AwkFieldTestContext(memoryForGovernor);
             recordContext.Frame.SetRecordText(source);

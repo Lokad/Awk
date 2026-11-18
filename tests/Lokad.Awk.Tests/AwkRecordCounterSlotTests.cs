@@ -365,7 +365,7 @@ public sealed class AwkRecordCounterSlotTests
     {
         using var memory = CreateState(AwkCompatibilityMode.GnuDefault, 1 << 20);
         var state = memory.State;
-        var text = AwkText.Concat([AwkText.FromSourceLiteralString(new string(' ', 16_384)), AwkText.FromSourceLiteralString("1")], state.Counters, state.MemoryAccounting);
+        var text = state.ConcatText([AwkText.FromSourceLiteralString(new string(' ', 16_384)), AwkText.FromSourceLiteralString("1")]);
         var copied = state.Counters[AwkCounter.ConcatenationBytesCopied];
         var terminator = AwkRecordTerminator.FromText(text);
 

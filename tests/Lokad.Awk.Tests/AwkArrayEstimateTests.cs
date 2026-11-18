@@ -47,9 +47,10 @@ public sealed class AwkArrayEstimateTests
     public void AggregateRejectsOverflowAndAcceptsTheLastRepresentableTotal(bool overflow)
     {
         // A valid shared rope gives large estimates without allocating its logical bytes.
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
         var text = AwkText.FromString("x");
         for (var index = 0; index < 30; index++)
-            text = AwkText.Concat([text, text], AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+            text = state.ConcatText([text, text]);
         var slot = AwkValue.ForStoredText(text);
         var elementBytes = AwkRuntimeMemory.EstimateArrayElementBytes(AwkArrayKey.FromOrdinal(0), slot);
         var count = checked((int)(long.MaxValue / elementBytes + (overflow ? 1 : 0)));

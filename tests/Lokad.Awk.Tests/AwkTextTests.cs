@@ -153,7 +153,8 @@ public sealed class AwkTextTests
         var start = new string('a', prefix);
         const string suffix = "\0é😀z";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.Concat([AwkText.FromString(start), AwkText.FromString(suffix)], counters, AwkMemoryAccounting.Disabled);
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var text = runtime.ConcatText([AwkText.FromString(start), AwkText.FromString(suffix)]);
         var owned = AwkText.FromHostBytes(AwkUtf8Codec.Encode(start + suffix).ToArray());
         var different = AwkText.FromString(start + "\0é😀y");
         var longer = AwkText.FromString(start + suffix + "\0");
@@ -178,7 +179,7 @@ public sealed class AwkTextTests
 
         Assert.Equal(
             "Alpha caf\u00e9!",
-            AwkText.Concat([source, suffix], AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
+            runtime.ConcatText([source, suffix]).AsString());
         Assert.Equal(
             "ha",
             runtime.CopyByteSlice(source, 3, 2).AsString());
@@ -197,7 +198,8 @@ public sealed class AwkTextTests
     public void AwkText_ConcatenationDefersAndCachesPayloadMaterialization()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var concatenated = AwkText.Concat([AwkText.FromString("ab"), AwkText.FromString("cd")], counters, AwkMemoryAccounting.Disabled);
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var concatenated = runtime.ConcatText([AwkText.FromString("ab"), AwkText.FromString("cd")]);
 
         Assert.Equal(0, counters[AwkCounter.ConcatenationBytesCopied]);
         Assert.Equal("abcd", concatenated.AsString());
@@ -211,7 +213,8 @@ public sealed class AwkTextTests
     {
         var buffer = "ab"u8.ToArray();
         var owned = AwkText.FromHostBytes(buffer);
-        var concatenated = AwkText.Concat([owned, AwkText.FromString("cd")], AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
+        var concatenated = runtime.ConcatText([owned, AwkText.FromString("cd")]);
 
         buffer[0] = (byte)'x';
 
@@ -224,11 +227,10 @@ public sealed class AwkTextTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
         memoryForGovernor.Budget.SetAvailableBytes(64);
-        var governor = memoryForGovernor.Accounting;
         var source = memoryForGovernor.State.EncodeText("café");
         var suffix = memoryForGovernor.State.EncodeText("!");
 
-        Assert.Equal("café!", AwkText.Concat([source, suffix], counters, governor).AsString());
+        Assert.Equal("café!", memoryForGovernor.State.ConcatText([source, suffix]).AsString());
         Assert.Equal("fé", memoryForGovernor.State.CopyRuneSlice(source, 2, 2).AsString());
         Assert.Equal("ca", memoryForGovernor.State.CopyByteSlice(source, 0, 2).AsString());
 

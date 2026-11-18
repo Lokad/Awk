@@ -413,6 +413,59 @@ internal sealed class AwkRuntimeState : IDisposable
             ? AwkText.AllocateOwnedBytes(length, MemoryAccounting)
             : AwkText.AllocateOwnedBytes(length, MemoryAccounting, destination, CancellationCheckpoint);
 
+    internal AwkText ConcatText(ReadOnlySpan<AwkText> parts)
+    {
+        var totalLength = 0;
+        var nonEmptyPartCount = 0;
+        var firstNonEmptyPart = AwkText.Empty;
+        var secondNonEmptyPart = AwkText.Empty;
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if ((index & 1023) == 0)
+                ThrowIfCancellationRequested();
+            var part = parts[index];
+            if (part.ByteLength == 0)
+                continue;
+
+            totalLength = AwkRuntimeMemory.CheckedAdd(totalLength, part.ByteLength);
+            nonEmptyPartCount++;
+            if (nonEmptyPartCount == 1)
+                firstNonEmptyPart = part;
+            else if (nonEmptyPartCount == 2)
+                secondNonEmptyPart = part;
+        }
+
+        if (nonEmptyPartCount == 0)
+            return AwkText.Empty;
+
+        if (nonEmptyPartCount == 1)
+            return firstNonEmptyPart;
+        if (nonEmptyPartCount == 2)
+        {
+            var concatenation = new AwkText.AwkTextConcatenation(
+                firstNonEmptyPart, secondNonEmptyPart, Counters, MemoryAccounting);
+            return AwkText.FromConcatenation(concatenation, totalLength);
+        }
+
+        var bytes = AllocateTextBytes(totalLength, destination: null);
+        var destinationOffset = 0;
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if ((index & 1023) == 0)
+                ThrowIfCancellationRequested();
+            var part = parts[index];
+            if (part.ByteLength == 0)
+                continue;
+
+            var source = part.AsSpan(CancellationCheckpoint);
+            AwkText.CopyBytes(source, bytes.AsSpan(destinationOffset), CancellationCheckpoint);
+            destinationOffset += source.Length;
+        }
+
+        Counters.Add(AwkCounter.ConcatenationBytesCopied, totalLength);
+        return AdoptText(bytes);
+    }
+
     internal AwkText CopyFundedText(ReadOnlySpan<byte> bytes) =>
         AdoptText(AwkText.CopyFundedBytes(bytes, CancellationCheckpoint));
 
