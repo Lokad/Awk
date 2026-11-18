@@ -455,7 +455,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             () => state.SetArrayString(arrayName, new AwkArrayKey("long"), "value"));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.False(state.ContainsArrayValue(arrayName, new AwkArrayKey("long")));
+        Assert.False(state.Arrays.ContainsValue(arrayName, new AwkArrayKey("long")));
         Assert.Equal(
             before,
             state.MemoryAccounting.LiveBytes);
@@ -479,7 +479,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         state.SetArrayString(arrayName, key, "defg");
         state.SetArrayString(arrayName, key, "x");
-        state.DeleteArrayValue(arrayName, key);
+        state.Arrays.DeleteValue(arrayName, key);
 
         Assert.Equal(0, state.MemoryAccounting.LiveBytes);
     }
@@ -860,7 +860,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var state = memoryForState.State;
         state.PushFunctionFrame(new AwkFunctionLocalLayout([localName]), []);
 
-        state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(arrayName, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
 
         Assert.True(state.IsArray(arrayName));
         var active = state.MemoryAccounting.LiveBytes;

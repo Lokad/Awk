@@ -15,8 +15,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var pending = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(pending.IsCompleted);
-        if (mutation != 0) state.ClearArray(name);
-        if (mutation != 1) state.SetArrayAwkValue(name, Key, AwkValue.FromText("0017"));
+        if (mutation != 0) state.Arrays.Clear(name);
+        if (mutation != 1) state.Arrays.SetAwkValue(name, Key, AwkValue.FromText("0017"));
         if (cancel) execution.Cancel();
         execution.Inputs[0].Release.TrySetResult();
         if (cancel)
@@ -28,7 +28,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         {
             Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(mutation == 1 ? 0 : 17, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-            Assert.True(state.ContainsArrayValue(name, Key));
+            Assert.True(state.Arrays.ContainsValue(name, Key));
         }
         Assert.Equal(1, execution.Reads);
     }
@@ -54,18 +54,18 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = composite ? new AwkArrayKey("left" + (char)28 + "right") : Key;
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         var pending = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(pending.IsCompleted);
-        Assert.False(state.ContainsArrayValue(name, key));
+        Assert.False(state.Arrays.ContainsValue(name, key));
         if (refuse) execution.Memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         execution.Inputs[0].Release.TrySetResult();
         if (refuse)
         {
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.False(state.ContainsArrayValue(name, key));
+            Assert.False(state.Arrays.ContainsValue(name, key));
             Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
             Assert.Equal(1, execution.Memory.Budget.Refusals);
             Assert.Equal(0, execution.Memory.Budget.GrowthAttemptsAfterRefusal);
@@ -74,10 +74,10 @@ public sealed partial class AwkArrayCompoundUpdateTests
         {
             Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-            Assert.Equal(10, state.GetArrayAwkValue(name, key).AsNumber());
+            Assert.Equal(10, state.Arrays.GetAwkValue(name, key).AsNumber());
         }
-        if (replacement == 1) Assert.Equal("20", state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(2)).AsString());
-        if (replacement == 2) Assert.Equal(1999, state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(1999)).AsNumber());
+        if (replacement == 1) Assert.Equal("20", state.Arrays.GetAwkValue(name, AwkArrayKey.FromOrdinal(2)).AsString());
+        if (replacement == 2) Assert.Equal(1999, state.Arrays.GetAwkValue(name, AwkArrayKey.FromOrdinal(1999)).AsNumber());
         Assert.Equal(1, execution.Reads);
         Assert.False(state.IsInsideFunction);
     }

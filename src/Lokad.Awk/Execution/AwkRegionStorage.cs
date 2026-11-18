@@ -516,7 +516,7 @@ internal sealed class AwkRegionStorage : IDisposable
     internal void BeginSort(int slot, AwkArrayTarget source, AwkArraySortOrder order, bool keys)
     {
         ReleaseSort(slot);
-        _sorts[slot] = _state.BeginArraySort(source, order, keys);
+        _sorts[slot] = _state.Arrays.BeginSort(source, order, keys);
     }
 
     internal void StoreSort(int slot, AwkArrayRuntime.AwkArraySortOperation operation)

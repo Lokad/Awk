@@ -71,7 +71,7 @@ public sealed class AwkConcatStagingTests
                 state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
             Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
             for (var index = 0; index < pendingIndex; index++)
-                Assert.False(state.ContainsArrayValue(AwkArrayName.FromText("values"), AwkArrayKey.FromOrdinal(index)));
+                Assert.False(state.Arrays.ContainsValue(AwkArrayName.FromText("values"), AwkArrayKey.FromOrdinal(index)));
             Assert.Equal(string.Concat(Enumerable.Repeat("noise", 9)),
                 state.ResolveVariableValue(AwkVariableName.FromText("scratch")).AsString());
             var held = state.MemoryAccounting.LiveBytes;
@@ -184,7 +184,7 @@ public sealed class AwkConcatStagingTests
     private static void SetParts(AwkRuntimeState state, int arity, bool largePrefix)
     {
         for (var index = 0; index < arity; index++)
-            state.SetArrayAwkValue(AwkArrayName.FromText("values"), AwkArrayKey.FromOrdinal(index), AwkValue.FromText(Part(index, largePrefix)));
+            state.Arrays.SetAwkValue(AwkArrayName.FromText("values"), AwkArrayKey.FromOrdinal(index), AwkValue.FromText(Part(index, largePrefix)));
     }
     private static AwkRegion Bind(AwkRuntimeState state, string source)
     {

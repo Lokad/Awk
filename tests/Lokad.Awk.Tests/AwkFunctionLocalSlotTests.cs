@@ -330,7 +330,7 @@ public sealed class AwkFunctionLocalSlotTests
         callState.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(original)]);
         try
         {
-            if (resolved) callState.SetArrayAwkValue(original, new("key"), AwkValue.FromNumber(7));
+            if (resolved) callState.Arrays.SetAwkValue(original, new("key"), AwkValue.FromNumber(7));
             Assert.Equal(resolved, callState.Variables.TryGetOrdinaryArray(original, out var expected));
             var found = indexed ? stack.TryGetBoundArray(new AwkFunctionLocalSlotId(0), out var array, promote: true)
                 : stack.TryGetBoundArray(name, out array, promote: true);

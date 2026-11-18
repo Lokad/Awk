@@ -22,7 +22,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         execution.Inputs[0].Release.TrySetResult();
         Assert.Equal(AwkStatementFlow.Continue, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
         var name = AwkArrayName.FromText("values");
-        Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("old:selected")).AsNumber());
+        Assert.Equal(7, state.Arrays.GetAwkValue(name, new AwkArrayKey("old:selected")).AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         Assert.Equal(1, execution.Reads);
     }
@@ -40,28 +40,28 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("selected");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(11));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(11));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("earlier row"));
         var run = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         if (pendingIndex)
         {
             Assert.False(execution.Inputs[1].Entered.Task.IsCompleted);
-            Assert.Equal(11, state.GetArrayAwkValue(name, key).AsNumber());
+            Assert.Equal(11, state.Arrays.GetAwkValue(name, key).AsNumber());
             execution.Inputs[0].Release.TrySetResult();
         }
         await execution.Inputs[1].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         if (pendingRight)
         {
             Assert.False(run.IsCompleted);
-            Assert.Equal(100, state.GetArrayAwkValue(name, key).AsNumber());
+            Assert.Equal(100, state.Arrays.GetAwkValue(name, key).AsNumber());
             execution.Inputs[1].Release.TrySetResult();
         }
         Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(14, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(14, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("earlier")));
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("later")));
+        Assert.Equal(14, state.Arrays.GetAwkValue(name, key).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("earlier")));
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("later")));
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("selectors")).AsNumber());
         Assert.Equal(2, execution.Reads);
     }
@@ -76,7 +76,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         AwkTestHarness.PublishBufferedRecord(state, "hit old"u8);
         var original = state.InputRecordStorage.Content;
         var run = execution.Start();
@@ -87,14 +87,14 @@ public sealed partial class AwkArrayCompoundUpdateTests
         if (pending)
         {
             Assert.False(run.IsCompleted);
-            Assert.Equal(100, state.GetArrayAwkValue(name, key).AsNumber());
+            Assert.Equal(100, state.Arrays.GetAwkValue(name, key).AsNumber());
             execution.Inputs[0].Release.TrySetResult();
         }
         Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(10, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("other")));
+        Assert.Equal(10, state.Arrays.GetAwkValue(name, key).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("xxx")));
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("other")));
         Assert.Equal(1, execution.Reads);
     }
 
@@ -109,7 +109,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, cancel ? AwkValue.FromNumber(7) : AwkValue.FromText("007"));
+        state.Arrays.SetAwkValue(name, key, cancel ? AwkValue.FromNumber(7) : AwkValue.FromText("007"));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         execution.CancelOnReadCompletion = cancel;
         var run = execution.Start();
@@ -126,7 +126,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal("awk: division by zero attempted\n", AwkUtf8Codec.Decode(error.MessageBytes));
         }
-        Assert.Equal(cancel ? "7" : "007", state.GetArrayAwkValue(name, key).AsString());
+        Assert.Equal(cancel ? "7" : "007", state.Arrays.GetAwkValue(name, key).AsString());
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
         Assert.Equal(1, execution.Reads);
     }
@@ -140,7 +140,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var state = execution.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
         using var storage = new AwkRegionStorage(state);
@@ -160,8 +160,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
             Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         }
-        Assert.Equal(missing ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
+        Assert.Equal(missing ? 7 : 10, state.Arrays.GetAwkValue(name, key).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
     }
 
@@ -173,13 +173,13 @@ public sealed partial class AwkArrayCompoundUpdateTests
             "BEGIN{result=(values[$" + (missing ? "2" : "1") + "]+=3)}", false);
         var state = execution.State;
         var name = AwkArrayName.FromText("values");
-        state.SetArrayAwkValue(name, new AwkArrayKey("hit"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, new AwkArrayKey("hit"), AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit missing"));
         Assert.Equal(AwkStatementFlow.Continue, await execution.Start());
         var expected = missing ? 3 : 10;
         Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(expected, state.GetArrayAwkValue(name, new AwkArrayKey(missing ? "missing" : "hit")).AsNumber());
-        if (missing) Assert.Equal(7, state.GetArrayAwkValue(name, new AwkArrayKey("hit")).AsNumber());
+        Assert.Equal(expected, state.Arrays.GetAwkValue(name, new AwkArrayKey(missing ? "missing" : "hit")).AsNumber());
+        if (missing) Assert.Equal(7, state.Arrays.GetAwkValue(name, new AwkArrayKey("hit")).AsNumber());
     }
 
     [Theory]
@@ -192,7 +192,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var name = AwkArrayName.FromText("values");
         const string record = "hit hit hit hit hit hit hit hit";
         var key = new AwkArrayKey(number == 0 ? record : "hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
         var run = execution.Start();
         if (number < 0)
@@ -206,7 +206,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
             Assert.Equal(AwkStatementFlow.Continue, await run);
             Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         }
-        Assert.Equal(number < 0 ? 7 : 10, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.Equal(number < 0 ? 7 : 10, state.Arrays.GetAwkValue(name, key).AsNumber());
     }
 
 }

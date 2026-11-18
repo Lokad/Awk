@@ -18,7 +18,7 @@ internal partial struct AwkRegionMachine
         else
             target = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
                 ? new(AwkValue.FromArrayReference(array)) : new(access.Name);
-        var start = _state.BeginArrayKeySnapshot(target);
+        var start = _state.Arrays.BeginKeySnapshot(target);
         if (start.NeedsComparisons) storage.StoreSort(site.Sort, start.Sort);
         else
         {

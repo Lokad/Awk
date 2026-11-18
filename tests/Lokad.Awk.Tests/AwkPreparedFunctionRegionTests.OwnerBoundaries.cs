@@ -26,7 +26,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             state.InitializeFunctions(program.Functions);
             var name = AwkArrayName.FromText("a");
             var original = state.Arrays.GetSubarray(name, new("k"), default);
-            state.SetArrayAwkValue(original, new("sum"), AwkValue.FromNumber(10));
+            state.Variables.SetArrayValue(original, new("sum"), AwkValue.FromNumber(10));
             var total = AwkVariableName.FromText("total");
             state.AssignVariableValue(total, AwkValue.FromNumber(5));
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -37,11 +37,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
             {
                 Assert.Equal(AwkFileDescriptor.StdOut, descriptor);
                 writes.Add(bytes.ToArray());
-                Assert.Equal(12, state.GetArrayAwkValue(original, new("sum")).AsNumber());
+                Assert.Equal(12, state.Variables.GetArrayValue(original, new AwkArrayKey("sum")).AsNumber());
                 if (changeKey) state.AssignVariableValue(AwkVariableName.FromText("k"), AwkValue.FromText("new"));
-                else state.DeleteArrayValue(name, new("k"));
+                else state.Arrays.DeleteValue(name, new("k"));
                 var replacement = state.Arrays.GetSubarray(name, new(changeKey ? "new" : "k"), default);
-                state.SetArrayAwkValue(replacement, new("sum"), AwkValue.FromNumber(40));
+                state.Variables.SetArrayValue(replacement, new("sum"), AwkValue.FromNumber(40));
                 if (outcome == "refusal") budget.RefuseNextAdmissionMinimumGrowth = 1;
                 entered.TrySetResult();
                 if (outcome != "sync") await release.Task.ConfigureAwait(false);

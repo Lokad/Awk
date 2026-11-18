@@ -11,7 +11,7 @@ public sealed partial class AwkRegionTests
         var state = fixture.State;
         var region = Compile("result=a[i]+(later=9)", state);
         var name = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(1));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -73,7 +73,7 @@ public sealed partial class AwkRegionTests
             : builtin + "(\"\",a[\"missing\"]" + pattern + ")";
         var region = Compile(call + ";later=9", state);
         var name = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, new("existing"), AwkValue.FromNumber(7));
         var owner = state.Arrays.ResolveOrdinaryArray(name, default);
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -129,7 +129,7 @@ public sealed partial class AwkRegionTests
         var state = fixture.State;
         var region = Compile("kind=" + builtin + "(a[\"missing\"]);later=9", state);
         var name = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, new("existing"), AwkValue.FromNumber(7));
         var owner = state.Arrays.ResolveOrdinaryArray(name, default);
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -162,7 +162,7 @@ public sealed partial class AwkRegionTests
         var region = Compile("a[1]+=(a[1]+=3);prior=a[1]++;after=a[1]", state);
         var array = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);
@@ -170,7 +170,7 @@ public sealed partial class AwkRegionTests
         await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         Assert.Equal(13, state.ResolveVariableValue(AwkVariableName.FromText("prior")).AsNumber());
         Assert.Equal(14, state.ResolveVariableValue(AwkVariableName.FromText("after")).AsNumber());
-        Assert.Equal(14, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(14, state.Arrays.GetAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         storage.Dispose();
         regionOutput.Dispose();
@@ -190,7 +190,7 @@ public sealed partial class AwkRegionTests
         var region = Compile("a[\"" + spelling + "\"]+=(later=9)", state);
         var array = AwkArrayName.FromText("a");
         var key = new AwkArrayKey(spelling);
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);
@@ -202,7 +202,7 @@ public sealed partial class AwkRegionTests
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
-        Assert.Equal(5, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(5, state.Arrays.GetAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         Assert.Equal(before, fixture.Budget.Reserved);
         storage.Dispose();
@@ -221,7 +221,7 @@ public sealed partial class AwkRegionTests
         var region = Compile("for(i=0;i<8;i++)a[\"k\"]+=1;later=9", state);
         var array = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("k");
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);
@@ -232,7 +232,7 @@ public sealed partial class AwkRegionTests
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
-        Assert.Equal(5, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(5, state.Arrays.GetAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         Assert.Equal(before, fixture.Budget.Reserved);
         storage.Dispose();
@@ -276,7 +276,7 @@ public sealed partial class AwkRegionTests
         var region = Compile(fail ? "a[$1]+=(1/0)" : "a[$1]+=1", state);
         var array = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("0007");
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(5));
         state.SetCurrentRecord(AwkText.FromString("0007"));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -289,7 +289,7 @@ public sealed partial class AwkRegionTests
             else await region.ExecuteAsync(state, storage, regionOutput, regionIo);
             Assert.All(storage.Targets, target => Assert.Null(target.Array));
         }
-        Assert.Equal(fail ? 5 : 25, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(fail ? 5 : 25, state.Arrays.GetAwkValue(array, key).AsNumber());
         storage.Dispose();
         regionOutput.Dispose();
         fixture.Dispose();

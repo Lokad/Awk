@@ -46,15 +46,15 @@ public sealed class AwkRecordInputMemoryTests
         state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var array = AwkArrayName.FromText("values");
         var key = new AwkArrayKey(spelling);
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(7));
         var changed = false;
         manager.OnGetSpan = () =>
         {
             if (state.ResolveVariableValue(AwkVariableName.FromText("ready")).AsNumber() != 1) return;
             manager.OnGetSpan = null;
             changed = true;
-            if (delete) state.DeleteArrayValue(array, key);
-            else state.SetArrayAwkValue(array, key, AwkValue.FromText("100"));
+            if (delete) state.Arrays.DeleteValue(array, key);
+            else state.Arrays.SetAwkValue(array, key, AwkValue.FromText("100"));
         };
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -63,7 +63,7 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal(AwkStatementFlow.Continue, await Assert.Single(program.BeginActions).ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.True(changed);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
-        Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(10, state.Arrays.GetAwkValue(array, key).AsNumber());
         storage.Dispose();
         reader.Dispose();
         regionOutput.Dispose();

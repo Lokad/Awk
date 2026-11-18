@@ -60,12 +60,12 @@ public sealed class AwkProfileNameTests
         var name = AwkArrayName.FromText(text);
         var key = AwkArrayKey.FromOrdinal(1);
         var before = state.MemoryAccounting.LiveBytes;
-        Assert.True(state.GetArrayAwkValue(name, key).IsUntypedValue);
+        Assert.True(state.Arrays.GetAwkValue(name, key).IsUntypedValue);
         Assert.True(state.MemoryAccounting.LiveBytes > before);
-        Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, key));
+        Assert.Equal(AwkRuntimeValueKind.Untyped, state.Arrays.GetElementRuntimeKind(name, key));
         var admitted = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(2)));
+        var error = Assert.Throws<AwkRuntimeException>(() => state.Arrays.GetAwkValue(name, AwkArrayKey.FromOrdinal(2)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.True(state.TryGetExistingArrayCount(name, out var count));
         Assert.Equal(1, count);
@@ -82,15 +82,15 @@ public sealed class AwkProfileNameTests
         var destination = AwkArrayName.FromText("values");
         var separator = AwkArrayName.FromText("separators");
         var key = AwkArrayKey.FromOrdinal(1);
-        state.SetArrayAwkValue(destination, key, AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(separator, key, AwkValue.FromNumber(8));
+        state.Arrays.SetAwkValue(destination, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(separator, key, AwkValue.FromNumber(8));
         var before = state.MemoryAccounting.LiveBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => state.SplitIntoArray(
             AwkText.FromString("a,b"), destination, AwkFieldSeparatorSpec.FromText(","),
             AwkOptionalIdentifier.Some(separator.Identifier)));
         Assert.Equal("awk: split: fourth argument is a GNU extension\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(7, state.GetArrayAwkValue(destination, key).AsNumber());
-        Assert.Equal(8, state.GetArrayAwkValue(separator, key).AsNumber());
+        Assert.Equal(7, state.Arrays.GetAwkValue(destination, key).AsNumber());
+        Assert.Equal(8, state.Arrays.GetAwkValue(separator, key).AsNumber());
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }
 

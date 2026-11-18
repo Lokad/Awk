@@ -73,8 +73,8 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.True(state.TryGetExistingArrayCount(Separators, out var captureCount));
         Assert.Equal(fields, fieldCount);
         Assert.Equal(captures, captureCount);
-        Assert.False(state.ContainsArrayValue(Fields, Old));
-        Assert.False(state.ContainsArrayValue(Separators, Old));
+        Assert.False(state.Arrays.ContainsValue(Fields, Old));
+        Assert.False(state.Arrays.ContainsValue(Separators, Old));
     }
 
     [Theory]

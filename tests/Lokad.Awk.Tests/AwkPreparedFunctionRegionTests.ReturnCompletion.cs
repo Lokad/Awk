@@ -256,7 +256,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             state.InitializeGlobalReadSlots(program.GlobalReadCount);
             state.InitializeFunctions(program.Functions);
             if (storedNumber)
-                state.SetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("r"), AwkValue.FromNumber(7));
+                state.Arrays.SetAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("r"), AwkValue.FromNumber(7));
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var host = new TestOperationVisitor([]);
@@ -283,7 +283,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.True(state.IsInsideFunction);
                 // Return evaluation precedes the flush, including an owned text capture.
                 if (storedNumber)
-                    state.SetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("r"), AwkValue.FromText("changed"));
+                    state.Arrays.SetAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("r"), AwkValue.FromText("changed"));
                 else state.AssignVariableValue(AwkVariableName.FromText("x"), AwkValue.FromText("changed"));
                 if (governed) Assert.True(budget.Reserved > 0);
                 if (cancel) cancellation.Cancel();

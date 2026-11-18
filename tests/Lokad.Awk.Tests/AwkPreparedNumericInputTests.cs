@@ -136,7 +136,7 @@ public sealed class AwkPreparedNumericInputTests
                 [AwkFunctionLocalSlot.Scalar(value)]);
             return new(state);
         }
-        if (storage == 1) state.SetArrayAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1), value);
+        if (storage == 1) state.Arrays.SetAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1), value);
         else state.AssignVariableValue(AwkVariableName.FromText("x"), value);
         return default;
     }
@@ -144,7 +144,7 @@ public sealed class AwkPreparedNumericInputTests
     private static AwkValue Read(AwkRuntimeState state, int storage) => storage switch
     {
         2 => state.ResolveFunctionLocalValue(new AwkFunctionLocalSlotId(0), AwkVariableName.FromText("x")),
-        1 => state.GetArrayAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1)),
+        1 => state.Arrays.GetAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1)),
         _ => state.GetGlobalScalarValue(state.GetOrCreateGlobalScalarSlot(AwkVariableName.FromText("x")))
     };
 

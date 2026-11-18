@@ -44,8 +44,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var original = numericString ? AwkTestHarness.NumericInput(spelling) : AwkValue.FromText(spelling);
         var root = AwkArrayName.FromText("a");
         var child = nested ? state.Arrays.GetSubarray(root, new("k"), default) : null;
-        if (child is not null) state.SetArrayAwkValue(child, new("v"), original);
-        else state.SetArrayAwkValue(root, new("k"), original);
+        if (child is not null) state.Variables.SetArrayValue(child, new("v"), original);
+        else state.Arrays.SetAwkValue(root, new("k"), original);
         var host = new MockFileSystem();
         var clamped = false;
         host.AfterAppend = () =>
@@ -74,8 +74,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.True(clamped);
             Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-            var stored = child is not null ? state.GetArrayAwkValue(child, new("v"))
-                : state.GetArrayAwkValue(root, new AwkArrayKey("k"), default);
+        var stored = child is not null ? state.Variables.GetArrayValue(child, new AwkArrayKey("v"))
+                : state.Arrays.GetAwkValue(root, new AwkArrayKey("k"), default);
             Assert.Equal(spelling, stored.AsString());
             Assert.Equal(numericString ? AwkRuntimeValueKind.NumericString : AwkRuntimeValueKind.String, stored.RuntimeKind);
             Assert.False(state.IsInsideFunction);

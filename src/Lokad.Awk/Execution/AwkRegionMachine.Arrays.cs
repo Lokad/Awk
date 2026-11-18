@@ -90,8 +90,8 @@ internal partial struct AwkRegionMachine
         var array = storage.ArrayTarget(split.Array);
         _state.ThrowIfCancellationRequested();
         storage.Numbers[result] = split.Patsplit
-            ? _state.PatsplitIntoArray(input, array, pattern, separators)
-            : _state.SplitIntoArray(input, array,
+            ? _state.Arrays.PatsplitIntoArray(input, array, pattern, separators)
+            : _state.Arrays.SplitIntoArray(input, array,
                 csv ? default : AwkFieldSeparatorSpec.FromRegexPattern(pattern, split.IsRegexLiteral), separators, csv);
         storage.ReleaseValue(split.Input);
         storage.ReleaseValue(split.Pattern);

@@ -204,7 +204,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         Assert.False(state.HasScalar(Value));
         Assert.False(state.HasScalar(Result));
         Assert.False(state.HasScalar(AwkVariableName.FromText("effects")));
-        Assert.Equal("kept", state.GetArrayAwkValue(array, key).AsString());
+        Assert.Equal("kept", state.Arrays.GetAwkValue(array, key).AsString());
     }
 
     [Theory]

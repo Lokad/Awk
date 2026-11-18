@@ -66,9 +66,9 @@ internal readonly struct AwkResolvedReference : IDisposable
             AwkResolvedReferenceKind.LocalScalar => state.ResolveFunctionLocalValue(
                 _localScalarSlotId,
                 _scalarVariable),
-            AwkResolvedReferenceKind.ArrayElement => state.GetArrayAwkValue(_arrayVariable, _arrayIndex),
+            AwkResolvedReferenceKind.ArrayElement => state.Arrays.GetAwkValue(_arrayVariable, _arrayIndex),
             AwkResolvedReferenceKind.NestedArrayElement when _arrayPath is { } path =>
-                state.GetArrayAwkValue(path.ResolveOwner(state), path.Key),
+                state.Variables.GetArrayValue(path.ResolveOwner(state), path.Key),
             AwkResolvedReferenceKind.Field => EvaluateField(state, _fieldIndex),
             _ => AwkValue.Unassigned()
         };
@@ -134,11 +134,11 @@ internal readonly struct AwkResolvedReference : IDisposable
                 break;
 
             case AwkResolvedReferenceKind.ArrayElement:
-                state.SetArrayAwkValue(_arrayVariable, _arrayIndex, value);
+                state.Arrays.SetAwkValue(_arrayVariable, _arrayIndex, value);
                 break;
 
             case AwkResolvedReferenceKind.NestedArrayElement when _arrayPath is { } path:
-                state.SetArrayAwkValue(path.ResolveOwner(state), path.Key, value);
+                state.Variables.SetArrayValue(path.ResolveOwner(state), path.Key, value);
                 break;
 
             case AwkResolvedReferenceKind.Field:

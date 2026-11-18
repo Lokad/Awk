@@ -53,7 +53,7 @@ public sealed class AwkFieldTargetAllocationTests
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{values[$1]+=1}"));
         Assert.True(binding.Success);
@@ -70,7 +70,7 @@ public sealed class AwkFieldTargetAllocationTests
         for (var row = 0; row < 1024; row++) await UpdateAsync();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.InRange(allocated, 0, 1024);
-        Assert.Equal(1063, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.Equal(1063, state.Arrays.GetAwkValue(name, key).AsNumber());
 
         async ValueTask UpdateAsync()
         {

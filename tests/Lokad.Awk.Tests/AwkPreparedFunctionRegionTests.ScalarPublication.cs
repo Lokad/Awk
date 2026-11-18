@@ -86,7 +86,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var state = memory.State;
         var name = AwkVariableName.FromText("t");
         var arrayName = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(arrayName, new("kept"), AwkValue.FromNumber(9));
+        state.Arrays.SetAwkValue(arrayName, new("kept"), AwkValue.FromNumber(9));
         state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(arrayName)]);
         using var source = new AwkRegionStorage(state);
         source.Prepare(new(0, Texts: 1));
@@ -108,7 +108,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal("awk: attempt to use array `t' in a scalar context\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         }
         Assert.Equal(text.ByteLength, source.Texts[0].ByteLength);
-        Assert.Equal(9, state.GetArrayAwkValue(arrayName, new("kept")).AsNumber());
+        Assert.Equal(9, state.Arrays.GetAwkValue(arrayName, new("kept")).AsNumber());
         source.Dispose();
         state.PopFunctionFrame();
         memory.Dispose();
@@ -331,7 +331,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var array = AwkArrayName.FromText("a");
         if (target == "array")
         {
-            state.SetArrayAwkValue(array, new("kept"), AwkValue.FromNumber(9));
+            state.Arrays.SetAwkValue(array, new("kept"), AwkValue.FromNumber(9));
             state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(array)]);
         }
         else if (target == "hidden") state.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("caller"))]);
@@ -347,7 +347,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal("returned", source.Values[0].ByteText.AsString());
             Assert.False(state.HasScalar(name));
         }
-        if (target == "array") Assert.Equal(9, state.GetArrayAwkValue(array, new("kept")).AsNumber());
+        if (target == "array") Assert.Equal(9, state.Arrays.GetAwkValue(array, new("kept")).AsNumber());
         else if (target == "hidden") Assert.Equal("caller", state.ResolveFunctionLocalValue(new(0), name).AsString());
         source.Dispose();
         if (target != "cold") state.PopFunctionFrame();

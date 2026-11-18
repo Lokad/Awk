@@ -147,11 +147,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariable(AwkVariableName.FromText("OFS"), "0007");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("0007"));
         var arrayValue = numeric ? AwkValue.FromNumber(7) : AwkTestHarness.NumericInput("0007");
-        state.SetArrayAwkValue(a, new("r"), arrayValue);
+        state.Arrays.SetAwkValue(a, new("r"), arrayValue);
         if (nested)
         {
             var parent = state.Arrays.GetSubarray(a, new("parent"), default);
-            if (!empty) state.SetArrayAwkValue(parent, new("r"), arrayValue);
+            if (!empty) state.Variables.SetArrayValue(parent, new("r"), arrayValue);
         }
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -167,11 +167,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 state.AssignFunctionLocalValue(new(0), AwkVariableName.FromText("s"), AwkValue.FromText("changed"));
                 state.AssignVariable(AwkVariableName.FromText("OFS"), "changed");
                 state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed"));
-                state.SetArrayAwkValue(a, new("r"), AwkValue.FromText("changed"));
+                state.Arrays.SetAwkValue(a, new("r"), AwkValue.FromText("changed"));
                 if (nested)
                 {
-                    state.DeleteArrayValue(a, new("parent"));
-                    state.SetArrayAwkValue(state.Arrays.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromText("changed"));
+                    state.Arrays.DeleteValue(a, new("parent"));
+                    state.Variables.SetArrayValue(state.Arrays.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromText("changed"));
                 }
                 entered.SetResult();
                 if (pending) await release.Task.ConfigureAwait(false);

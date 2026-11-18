@@ -56,7 +56,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 !state.CurrentFunctionFrame.Layout.TryGetSlot(AwkVariableName.FromText("owned"), out _)) return;
             memory.Budget.OnRefund = null;
             observed = true;
-            Assert.Equal(99, state.GetArrayNumber(AwkArrayName.FromText("owned"), new AwkArrayKey("v"), default));
+            Assert.Equal(99, state.Arrays.GetNumber(AwkArrayName.FromText("owned"), new AwkArrayKey("v"), default));
             output.Append(AwkText.FromSourceLiteralString("refund\n"));
         };
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
@@ -67,7 +67,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.False(run.IsCompleted);
             Assert.True(state.IsInsideFunction);
             Assert.Equal(0, state.ResolveVariableValue(total).AsNumber());
-            Assert.Equal(99, state.GetArrayNumber(AwkArrayName.FromText("owned"), new AwkArrayKey("v"), default));
+            Assert.Equal(99, state.Arrays.GetNumber(AwkArrayName.FromText("owned"), new AwkArrayKey("v"), default));
             var funded = memory.Budget.Reserved;
             Assert.True(funded > 0);
             if (cancel) cancellation.Cancel();

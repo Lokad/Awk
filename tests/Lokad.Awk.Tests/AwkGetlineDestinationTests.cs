@@ -61,7 +61,7 @@ public sealed class AwkGetlineDestinationTests
         Assert.Equal(1, state.FieldCount);
         var array = new AwkArrayName(AwkVariableName.FromText("a").Identifier);
         if (!field && !memory)
-            state.SetArrayAwkValue(array, new AwkArrayKey("kept"), AwkValue.FromNumber(7));
+            state.Arrays.SetAwkValue(array, new AwkArrayKey("kept"), AwkValue.FromNumber(7));
         var key = memory ? new string('k', 600) : "new";
         var destination = field ? "$30" : "a[\"" + key + "\"]";
         var region = Bind(state, "status=(getline " + destination + "<\"data\")");
@@ -86,7 +86,7 @@ public sealed class AwkGetlineDestinationTests
         {
             Assert.True(state.TryGetExistingArrayCount(array, out var count));
             Assert.Equal(1, count);
-            Assert.Equal(7, state.GetArrayAwkValue(array, new AwkArrayKey("kept")).AsNumber());
+            Assert.Equal(7, state.Arrays.GetAwkValue(array, new AwkArrayKey("kept")).AsNumber());
         }
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
     }
@@ -105,7 +105,7 @@ public sealed class AwkGetlineDestinationTests
         host.ReadAsyncOverride = (_, _, token) =>
         {
             readEntered = true;
-            Assert.True(state.TryPeekArrayAwkValue(array, key, out var value));
+            Assert.True(state.Arrays.TryPeekAwkValue(array, key, out var value));
             Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
             cancellation.Cancel();
             return ValueTask.FromCanceled<AwkReadBuffer>(token);
@@ -116,7 +116,7 @@ public sealed class AwkGetlineDestinationTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, io, output));
 
         Assert.True(readEntered);
-        Assert.True(state.TryPeekArrayAwkValue(array, key, out _));
+        Assert.True(state.Arrays.TryPeekAwkValue(array, key, out _));
         Assert.Equal(0, state.RecordNumber);
         await io.CloseForCleanupAsync();
         Assert.Equal(0, host.OpenFileCount);
@@ -142,7 +142,7 @@ public sealed class AwkGetlineDestinationTests
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("status")).AsNumber());
         Assert.True(state.TryGetExistingArrayCount(array, out var count));
         Assert.Equal(1, count);
-        Assert.True(state.TryPeekArrayAwkValue(array, new AwkArrayKey("κ"), out var value));
+        Assert.True(state.Arrays.TryPeekAwkValue(array, new AwkArrayKey("κ"), out var value));
         Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
         await io.CloseAsync();
         Assert.Equal(0, host.OpenFileCount);

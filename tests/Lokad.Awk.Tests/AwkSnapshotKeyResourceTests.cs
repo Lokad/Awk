@@ -93,7 +93,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var (memory, name) = CreateState(observed, source, "@ind_str_asc");
         using var ownedMemory = memory;
         var state = memory.State;
-        state.ClearArray(Destination);
+        state.Arrays.Clear(Destination);
         var beforeDestination = state.MemoryAccounting.LiveBytes;
         state.SetArrayString(Destination, First, "keep");
         var oldBytes = state.MemoryAccounting.LiveBytes - beforeDestination;
@@ -106,7 +106,7 @@ public sealed class AwkSnapshotKeyResourceTests
         for (var index = 0; index < keys.Length; index++)
             Assert.Equal(keys[index].ToString(), state.GetArrayByteText(Destination, AwkArrayKey.FromOrdinal(index + 1)).AsString());
         Assert.True(state.MemoryAccounting.LiveBytes > before - oldBytes);
-        state.ClearArray(Destination);
+        state.Arrays.Clear(Destination);
         Assert.Equal(before - oldBytes, state.MemoryAccounting.LiveBytes);
     }
 
@@ -208,7 +208,7 @@ public sealed class AwkSnapshotKeyResourceTests
             ? keys.Sum(static key => AwkRuntimeMemory.EstimateTextBytes(key.ByteLength))
             : keys.Sum(static key => key.RetainedTextMemoryBytes);
         if (sorted)
-            payload += keys.Sum(key => state.GetArrayAwkValue(name, key).RetainedTextMemoryBytes);
+            payload += keys.Sum(key => state.Arrays.GetAwkValue(name, key).RetainedTextMemoryBytes);
         return (keys, containers, payload);
     }
 
@@ -236,7 +236,7 @@ public sealed class AwkSnapshotKeyResourceTests
                 // Keep owned-text lifetime/refusal coverage distinct from compact keys.
                 _ => new AwkArrayKey("long-key-" + index)
             };
-            state.SetArrayAwkValue(Source, key, AwkValue.FromNumber(33 - index));
+            state.Arrays.SetAwkValue(Source, key, AwkValue.FromNumber(33 - index));
         }
         return (memory, Source);
     }

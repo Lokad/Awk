@@ -83,7 +83,7 @@ public sealed class AwkPreparedGlobalReadTests
         Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
         Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
-        Assert.Equal("kept", state.GetArrayAwkValue(array, AwkArrayKey.FromOrdinal(1)).AsString());
+        Assert.Equal("kept", state.Arrays.GetAwkValue(array, AwkArrayKey.FromOrdinal(1)).AsString());
         Assert.False(state.HasScalar(name));
     }
 

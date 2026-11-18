@@ -11,7 +11,7 @@ internal static class AwkMatchRuntime
         {
             using var leased = state.MatchRegexCaptureValue(regex, input);
             var match = leased.Match;
-            state.ReplaceMatchCaptureArray(target, leased);
+            state.Arrays.ReplaceMatchCaptures(target, leased);
             return PublishPosition(state, match.Success, match.Index, match.Length);
         }
         var position = state.MatchRegexPosition(regex, input);

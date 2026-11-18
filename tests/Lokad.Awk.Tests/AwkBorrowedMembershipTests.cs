@@ -66,7 +66,7 @@ public sealed class AwkBorrowedMembershipTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var array = AwkArrayName.FromText("lookup");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromString("hit tail"));
         _ = state.FieldCount;
         var before = state.MemoryAccounting.LiveBytes;
@@ -78,7 +78,7 @@ public sealed class AwkBorrowedMembershipTests
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         state.SetCurrentRecord(AwkText.FromString("new other"));
         Assert.False(state.Arrays.ContainsField(array, new(1)));
-        Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(7, state.Arrays.GetAwkValue(array, key).AsNumber());
     }
 
 }

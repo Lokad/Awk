@@ -57,7 +57,7 @@ public sealed class AwkGlobalNumericLeafTests
         var name = AwkVariableName.FromText("x");
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(7));
         var region = Bind(state, "x");
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -67,7 +67,7 @@ public sealed class AwkGlobalNumericLeafTests
         Assert.Equal("awk: attempt to use array `x' in a scalar context\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.False(state.HasScalar(name));
         Assert.False(state.HasScalar(Result));
-        Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(7, state.Arrays.GetAwkValue(array, key).AsNumber());
 
     }
 

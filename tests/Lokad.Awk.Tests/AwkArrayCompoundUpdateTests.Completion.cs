@@ -11,7 +11,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         await using var execution = new NativeArrayExecution(source, true, new InputGate("/rhs", "0003\n", true));
         var state = execution.State;
         var array = AwkArrayName.FromText("values");
-        state.SetArrayAwkValue(array, Key, AwkValue.FromText("007"));
+        state.Arrays.SetAwkValue(array, Key, AwkValue.FromText("007"));
         var run = execution.Start();
         await execution.Inputs[0].Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(run.IsCompleted);
@@ -27,7 +27,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
 
         Assert.True(retired);
-        Assert.Equal("007", state.GetArrayAwkValue(array, Key).AsString());
+        Assert.Equal("007", state.Arrays.GetAwkValue(array, Key).AsString());
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
         Assert.False(state.IsInsideFunction);
         execution.Memory.Budget.OnRefund = null;
@@ -53,7 +53,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
 
         Assert.True(changed);
-        Assert.Equal(5, execution.State.GetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("key")).AsNumber());
+        Assert.Equal(5, execution.State.Arrays.GetAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("key")).AsNumber());
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
 
         var child = execution.State.Arrays.GetSubarray(AwkArrayName.FromText("a"), new AwkArrayKey("r"), default);
-        Assert.Equal(2, execution.State.GetArrayNumber(child, new AwkArrayKey("n")));
+        Assert.Equal(2, execution.State.Variables.GetArrayNumber(child, new AwkArrayKey("n")));
         Assert.Equal(0, execution.Memory.Budget.Refusals);
     }
 

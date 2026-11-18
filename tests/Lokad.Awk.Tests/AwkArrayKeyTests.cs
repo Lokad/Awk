@@ -634,7 +634,7 @@ public sealed class AwkArrayKeyTests
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var arrayName = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
+        state.Arrays.SetAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
 
         using var keys = AwkArrayStorageTestOperations.Snapshot(state, arrayName);
         var key = Assert.Single(keys);

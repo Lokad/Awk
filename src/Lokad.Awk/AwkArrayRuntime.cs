@@ -147,7 +147,7 @@ internal sealed partial class AwkArrayRuntime
     {
         // The dictionary consumes the borrowed bytes before this synchronous call returns.
         if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
-            return ContainsValue(name, bytes, binding);
+            return ContainsBorrowedKey(name, bytes, binding);
         return ContainsValue(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding);
     }
 
@@ -417,7 +417,7 @@ internal sealed partial class AwkArrayRuntime
         return found;
     }
 
-    public bool ContainsValue(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding = default)
+    public bool ContainsBorrowedKey(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
             return array.ByteLookup.ContainsKey(index);

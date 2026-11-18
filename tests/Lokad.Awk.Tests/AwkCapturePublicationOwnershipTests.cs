@@ -14,15 +14,15 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         using var memoryForState = State(true);
         var state = memoryForState.State;
         var parent = state.Arrays.ResolveOrdinaryArray(Target);
-        var reference = state.GetArrayAwkValue(parent, AwkArrayKey.FromOrdinal(1));
+        var reference = state.Variables.GetArrayValue(parent, AwkArrayKey.FromOrdinal(1));
         var target = new AwkArrayTarget(reference);
         using (state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.LiveBytes))
         {
-            Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch));
+            Assert.Throws<AwkRuntimeException>(() => state.Arrays.ReplaceMatchCaptures(target, AwkLeasedRegexMatch.NoMatch));
             Assert.False(reference.IsArrayValue);
             Assert.Single(parent);
         }
-        state.ReplaceMatchCaptureArray(target, AwkLeasedRegexMatch.NoMatch);
+        state.Arrays.ReplaceMatchCaptures(target, AwkLeasedRegexMatch.NoMatch);
         Assert.True(reference.TryGetArrayBinding(out var child));
         Assert.Empty(child);
     }
@@ -36,21 +36,21 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         var parent = state.Arrays.ResolveOrdinaryArray(Target);
         var child = state.Variables.GetSubarray(parent, AwkArrayKey.FromOrdinal(1));
         var grandchild = state.Variables.GetSubarray(child, AwkArrayKey.FromOrdinal(2));
-        state.SetArrayAwkValue(grandchild, AwkArrayKey.FromOrdinal(3), AwkValue.FromText("old"));
+        state.Variables.SetArrayValue(grandchild, AwkArrayKey.FromOrdinal(3), AwkValue.FromText("old"));
         using var match = Match(state);
         if (refuse) memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var target = new AwkArrayTarget(AwkValue.FromArrayReference(child));
         if (refuse)
         {
-            Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(target, match));
+            Assert.Throws<AwkRuntimeException>(() => state.Arrays.ReplaceMatchCaptures(target, match));
             Assert.False(grandchild.IsDetached);
-            Assert.Equal("old", state.GetArrayAwkValue(grandchild, AwkArrayKey.FromOrdinal(3)).AsString());
+            Assert.Equal("old", state.Variables.GetArrayValue(grandchild, AwkArrayKey.FromOrdinal(3)).AsString());
         }
         else
         {
-            state.ReplaceMatchCaptureArray(target, match);
+            state.Arrays.ReplaceMatchCaptures(target, match);
             Assert.True(grandchild.IsDetached);
-            Assert.Equal("s", state.GetArrayAwkValue(child, AwkArrayKey.FromOrdinal(1)).AsString());
+            Assert.Equal("s", state.Variables.GetArrayValue(child, AwkArrayKey.FromOrdinal(1)).AsString());
         }
         Assert.Same(child, state.Variables.GetSubarray(parent, AwkArrayKey.FromOrdinal(1)));
     }
@@ -70,9 +70,9 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
             Assert.True(state.TryGetExistingArrayCount(Target, out var count));
             Assert.Equal(6, count);
             Assert.Equal("s", state.GetArrayByteText(Target, AwkArrayKey.FromOrdinal(1)).AsString());
-            Assert.Equal(1, state.GetArrayAwkValue(Target, new AwkArrayKey("1" + separator + "start")).AsNumber());
-            Assert.Equal(1, state.GetArrayAwkValue(Target, new AwkArrayKey("1" + separator + "length")).AsNumber());
-            Assert.False(state.TryPeekArrayAwkValue(Target, AwkArrayKey.FromOrdinal(2), out _));
+            Assert.Equal(1, state.Arrays.GetAwkValue(Target, new AwkArrayKey("1" + separator + "start")).AsNumber());
+            Assert.Equal(1, state.Arrays.GetAwkValue(Target, new AwkArrayKey("1" + separator + "length")).AsNumber());
+            Assert.False(state.Arrays.TryPeekAwkValue(Target, AwkArrayKey.FromOrdinal(2), out _));
         }
     }
     [Fact]

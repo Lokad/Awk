@@ -36,7 +36,7 @@ public sealed class AwkBorrowedArrayReadTests
         state.InitializeGlobalReadSlots(1);
         var name = AwkArrayName.FromText("a");
         var binding = AwkArrayBinding.Global(0);
-        state.SetArrayAwkValue(name, new AwkArrayKey("seed"), AwkValue.FromNumber(7), bound ? binding : default);
+        state.Arrays.SetAwkValue(name, new AwkArrayKey("seed"), AwkValue.FromNumber(7), bound ? binding : default);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("0009 tail"));
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
@@ -45,12 +45,12 @@ public sealed class AwkBorrowedArrayReadTests
         AwkArrayUpdateTarget target = default;
 
         if (operation == 2)
-            target = composite ? state.PrepareArrayUpdate(name, builder, binding) : state.Arrays.PrepareFieldUpdate(name, new(1), binding);
+            target = composite ? state.Arrays.PrepareUpdate(name, builder, binding) : state.Arrays.PrepareFieldUpdate(name, new(1), binding);
         else if (operation == 1)
-            Assert.Equal(0, composite ? state.GetArrayNumber(name, builder, binding) : state.Arrays.GetFieldNumber(name, new(1), binding));
+            Assert.Equal(0, composite ? state.Arrays.GetNumber(name, builder, binding) : state.Arrays.GetFieldNumber(name, new(1), binding));
         else
         {
-            var value = composite ? state.GetArrayAwkValue(name, builder, binding) : state.Arrays.GetFieldValue(name, new(1), binding);
+            var value = composite ? state.Arrays.GetAwkValue(name, builder, binding) : state.Arrays.GetFieldValue(name, new(1), binding);
             Assert.Equal(AwkRuntimeValueKind.Untyped, value.RuntimeKind);
             Assert.Equal("", value.AsString());
         }
@@ -66,12 +66,12 @@ public sealed class AwkBorrowedArrayReadTests
         {
             Assert.Equal(0, target.Previous);
             Assert.Equal(key, target.Key);
-            state.DeleteArrayValue(name, key);
+            state.Arrays.DeleteValue(name, key);
             state.Arrays.CommitUpdate(name, in target, 9);
-            Assert.Equal(9, state.GetArrayAwkValue(name, key).AsNumber());
+            Assert.Equal(9, state.Arrays.GetAwkValue(name, key).AsNumber());
         }
-        else Assert.Equal("", state.GetArrayAwkValue(name, key).AsString());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("9")));
+        else Assert.Equal("", state.Arrays.GetAwkValue(name, key).AsString());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("9")));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         builder.Dispose();
@@ -101,7 +101,7 @@ public sealed class AwkBorrowedArrayReadTests
         state.InitializeGlobalReadSlots(2);
         var name = AwkArrayName.FromText("a");
         var seed = new AwkArrayKey("seed");
-        state.SetArrayAwkValue(name, seed, AwkValue.FromNumber(7), AwkArrayBinding.Global(1));
+        state.Arrays.SetAwkValue(name, seed, AwkValue.FromNumber(7), AwkArrayBinding.Global(1));
         Assert.True(state.TryGetBoundGlobalArray(1, out var array));
         Assert.NotNull(array);
         var binding = AwkArrayBinding.Global(0);
@@ -118,15 +118,15 @@ public sealed class AwkBorrowedArrayReadTests
         {
             if (operation == 2)
             {
-                if (composite) state.PrepareArrayUpdate(name, builder, binding);
+                if (composite) state.Arrays.PrepareUpdate(name, builder, binding);
                 else state.Arrays.PrepareFieldUpdate(name, new(1), binding);
             }
             else if (operation == 1)
             {
-                if (composite) state.GetArrayNumber(name, builder, binding);
+                if (composite) state.Arrays.GetNumber(name, builder, binding);
                 else state.Arrays.GetFieldNumber(name, new(1), binding);
             }
-            else if (composite) state.GetArrayAwkValue(name, builder, binding);
+            else if (composite) state.Arrays.GetAwkValue(name, builder, binding);
             else state.Arrays.GetFieldValue(name, new(1), binding);
         }
 
@@ -168,14 +168,14 @@ public sealed class AwkBorrowedArrayReadTests
         state.InitializeGlobalReadSlots(1);
         var name = AwkArrayName.FromText("a");
         var binding = AwkArrayBinding.Global(0);
-        state.SetArrayAwkValue(name, new AwkArrayKey("seed"), AwkValue.FromNumber(7), bound ? binding : default);
+        state.Arrays.SetAwkValue(name, new AwkArrayKey("seed"), AwkValue.FromNumber(7), bound ? binding : default);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("café part"));
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
         var replacement = AwkTestHarness.NumericInput("0009");
 
-        if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
+        if (composite) state.Arrays.SetBuilderValue(name, builder, replacement, binding);
         else state.Arrays.SetFieldValue(name, new(1), replacement, binding);
 
         // One lookup and one insertion hash.
@@ -183,7 +183,7 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(state.TryGetBoundGlobalArray(0, out _)); // Bind a cold name only after successful insertion.
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed record"));
-        var stored = state.GetArrayAwkValue(name, new AwkArrayKey(composite ? "café\x1cpart" : "café"));
+        var stored = state.Arrays.GetAwkValue(name, new AwkArrayKey(composite ? "café\x1cpart" : "café"));
         Assert.Equal("0009", stored.AsString());
         Assert.Equal(AwkRuntimeValueKind.NumericString, stored.RuntimeKind);
         Assert.Equal(9, stored.AsNumber());
@@ -213,7 +213,7 @@ public sealed class AwkBorrowedArrayReadTests
         var name = AwkArrayName.FromText("a");
         var binding = AwkArrayBinding.Global(0);
         var seed = new AwkArrayKey("seed");
-        state.SetArrayAwkValue(name, seed, AwkValue.FromNumber(7), binding);
+        state.Arrays.SetAwkValue(name, seed, AwkValue.FromNumber(7), binding);
         var keyText = largeKey ? new string('x', 8192) : "new";
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(keyText + " part"));
         _ = state.FieldCount;
@@ -226,7 +226,7 @@ public sealed class AwkBorrowedArrayReadTests
 
         void Assign()
         {
-            if (composite) state.SetArrayBuilderValue(name, builder, replacement, binding);
+            if (composite) state.Arrays.SetBuilderValue(name, builder, replacement, binding);
             else state.Arrays.SetFieldValue(name, new(1), replacement, binding);
         }
         try
@@ -286,7 +286,7 @@ public sealed class AwkBorrowedArrayReadTests
         var state = memory.Initialize(() => State(memory.Owner, counters)).State;
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey(composite ? "café\x1cpart" : "café");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("café part"));
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
@@ -295,13 +295,13 @@ public sealed class AwkBorrowedArrayReadTests
 
         var allocations = counters[AwkCounter.TextAllocations];
 
-        if (composite) state.SetArrayBuilderValue(name, builder, replacement, default);
+        if (composite) state.Arrays.SetBuilderValue(name, builder, replacement, default);
         else state.Arrays.SetFieldValue(name, new(1), replacement, default);
 
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         builder.Clear();
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("different record"));
-        var stored = state.GetArrayAwkValue(name, key);
+        var stored = state.Arrays.GetAwkValue(name, key);
         Assert.Equal("0009", stored.AsString());
         Assert.Equal(AwkRuntimeValueKind.NumericString, stored.RuntimeKind);
         Assert.Equal(9, stored.AsNumber());
@@ -316,7 +316,7 @@ public sealed class AwkBorrowedArrayReadTests
         var state = memory.Initialize(() => State(memory.Owner, AwkRuntimeCounters.CreateEnabled())).State;
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey(composite ? "hit\x1cpart" : "hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit part"));
         _ = state.FieldCount;
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
@@ -326,12 +326,12 @@ public sealed class AwkBorrowedArrayReadTests
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
-            if (composite) state.SetArrayBuilderValue(name, builder, replacement, default);
+            if (composite) state.Arrays.SetBuilderValue(name, builder, replacement, default);
             else state.Arrays.SetFieldValue(name, new(1), replacement, default);
         });
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.Equal(7, state.Arrays.GetAwkValue(name, key).AsNumber());
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
     }
 
@@ -344,32 +344,32 @@ public sealed class AwkBorrowedArrayReadTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = memory.Initialize(() => State(memory.Owner, counters)).State;
         var name = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(name, new AwkArrayKey("café\x1cpart"), AwkTestHarness.NumericInput("007"));
+        state.Arrays.SetAwkValue(name, new AwkArrayKey("café\x1cpart"), AwkTestHarness.NumericInput("007"));
         using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("café\x1cpart"u8);
         var allocations = counters[AwkCounter.TextAllocations];
 
         if (governed) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
 
-        Assert.Equal(7, state.GetArrayNumber(name, builder, default));
+        Assert.Equal(7, state.Arrays.GetNumber(name, builder, default));
 
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
 
-        Assert.Equal("007", state.GetArrayAwkValue(name, new AwkArrayKey("café\x1cpart")).AsString());
+        Assert.Equal("007", state.Arrays.GetAwkValue(name, new AwkArrayKey("café\x1cpart")).AsString());
         builder.Clear();
         builder.Append("other"u8);
         if (governed)
         {
-            var failure = Assert.Throws<AwkRuntimeException>(() => state.GetArrayNumber(name, builder, default));
+            var failure = Assert.Throws<AwkRuntimeException>(() => state.Arrays.GetNumber(name, builder, default));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("other")));
+            Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("other")));
         }
         else
         {
-            Assert.Equal(0, state.GetArrayNumber(name, builder, default));
+            Assert.Equal(0, state.Arrays.GetNumber(name, builder, default));
             builder.Clear();
             builder.Append("after"u8);
-            Assert.True(state.ContainsArrayValue(name, new AwkArrayKey("other")));
+            Assert.True(state.Arrays.ContainsValue(name, new AwkArrayKey("other")));
         }
     }
 
@@ -384,7 +384,7 @@ public sealed class AwkBorrowedArrayReadTests
         var state = State(owner, counters);
         var name = AwkArrayName.FromText("a");
         var hit = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, hit, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         _ = state.FieldCount;
         var committed = state.MemoryAccounting.LiveBytes;
@@ -395,14 +395,14 @@ public sealed class AwkBorrowedArrayReadTests
         var bytes = "new tail"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         Assert.Equal("", state.Arrays.GetFieldValue(name, new(1)).AsString());
-        Assert.True(state.ContainsArrayValue(name, new AwkArrayKey("new")));
+        Assert.True(state.Arrays.ContainsValue(name, new AwkArrayKey("new")));
         AwkTestHarness.PublishBufferedRecord(state, "xxx tail"u8);
         AwkTestHarness.PublishBufferedRecord(state, "xxx tail"u8);
         Assert.True(original.Span.StartsWith("xxx"u8));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("other record"));
-        Assert.Equal(7, state.GetArrayAwkValue(name, hit).AsNumber());
-        Assert.True(state.ContainsArrayValue(name, new AwkArrayKey("new")));
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
+        Assert.Equal(7, state.Arrays.GetAwkValue(name, hit).AsNumber());
+        Assert.True(state.Arrays.ContainsValue(name, new AwkArrayKey("new")));
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("xxx")));
     }
 
     [Theory]
@@ -415,15 +415,15 @@ public sealed class AwkBorrowedArrayReadTests
         var state = State(owner, counters);
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
         Assert.Equal(7, state.Arrays.GetFieldValue(name, new(1)).AsNumber());
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.Arrays.GetFieldValue(name, new(2)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
+        Assert.Equal(7, state.Arrays.GetAwkValue(name, key).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
     }
 
@@ -465,7 +465,7 @@ public sealed class AwkBorrowedArrayReadTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
-        state.SetArrayAwkValue(name, key, AwkValue.FromText("before"));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromText("before"));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("miss old"));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -502,13 +502,13 @@ public sealed class AwkBorrowedArrayReadTests
             {
                 Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
                 var result = state.ResolveVariableValue(AwkVariableName.FromText("result"));
-                state.SetArrayAwkValue(name, key, AwkValue.FromText("after"));
+                state.Arrays.SetAwkValue(name, key, AwkValue.FromText("after"));
                 if (membership) Assert.Equal(1, result.AsNumber());
                 else Assert.Equal("before", result.AsString());
             }
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
             Assert.Equal(1, reads);
-            Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("miss")));
+            Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("miss")));
             Assert.True(state.TryGetExistingArrayCount(name, out var count));
             Assert.Equal(1, count);
             Assert.False(state.IsInsideFunction);
@@ -536,7 +536,7 @@ public sealed class AwkBorrowedArrayReadTests
         var state = State(owner, counters);
         var name = AwkArrayName.FromText("a");
         var hit = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, hit, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         _ = state.FieldCount;
         var allocations = counters[AwkCounter.TextAllocations];
@@ -547,14 +547,14 @@ public sealed class AwkBorrowedArrayReadTests
         var bytes = "new tail"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var missing = state.Arrays.ResolveFieldKey(name, new(1));
-        Assert.False(state.ContainsArrayValue(name, missing));
+        Assert.False(state.Arrays.ContainsValue(name, missing));
         AwkTestHarness.PublishBufferedRecord(state, "xxx tail"u8);
         AwkTestHarness.PublishBufferedRecord(state, "xxx tail"u8);
         Assert.True(original.Span.StartsWith("xxx"u8));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("other record"));
-        state.SetArrayAwkValue(name, missing, AwkValue.FromNumber(3));
-        Assert.Equal(3, state.GetArrayAwkValue(name, new AwkArrayKey("new")).AsNumber());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
+        state.Arrays.SetAwkValue(name, missing, AwkValue.FromNumber(3));
+        Assert.Equal(3, state.Arrays.GetAwkValue(name, new AwkArrayKey("new")).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("xxx")));
     }
 
     [Fact]
@@ -564,7 +564,7 @@ public sealed class AwkBorrowedArrayReadTests
         var state = memory.Initialize(() => State(memory.Owner, AwkRuntimeCounters.CreateEnabled())).State;
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("hit");
-        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, key, AwkValue.FromNumber(7));
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
         var parsed = AwkTestHarness.ParseSource("BEGIN{++a[$1]}BEGIN{a[$2]+=++count}");
@@ -575,7 +575,7 @@ public sealed class AwkBorrowedArrayReadTests
         var regionIo = AwkTestHarness.CreateRegionIo(state);
         using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         Assert.Equal(AwkStatementFlow.Continue, await first.ExecuteAsync(state, storage, regionOutput, regionIo));
-        Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.Equal(8, state.Arrays.GetAwkValue(name, key).AsNumber());
         var count = AwkVariableName.FromText("count");
         state.AssignVariableValue(count, AwkValue.FromNumber(0));
         storage.Initialize(missing);
@@ -583,8 +583,8 @@ public sealed class AwkBorrowedArrayReadTests
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await missing.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(count).AsNumber());
-        Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());
-        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
+        Assert.Equal(8, state.Arrays.GetAwkValue(name, key).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(name, new AwkArrayKey("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
     }

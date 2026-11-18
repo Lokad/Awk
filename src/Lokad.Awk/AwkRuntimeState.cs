@@ -1528,30 +1528,6 @@ internal sealed class AwkRuntimeState : IDisposable
     private AwkVariables.AwkScalarCell GetInitializedSpecialScalarCell(AwkSpecialVariableId id) =>
         _variables.GetSpecialScalarCell(id) ?? throw new InvalidOperationException("The special scalar is not initialized.");
 
-    public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
-        _arrayRuntime.GetAwkValue(name, index, binding);
-
-    internal double GetArrayNumber(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding) =>
-        _arrayRuntime.GetNumber(name, index, binding);
-
-    internal AwkValue GetArrayAwkValue(AwkArrayName name, double index, AwkArrayBinding binding) =>
-        _arrayRuntime.GetAwkValue(name, index, binding);
-
-    internal double GetArrayNumber(AwkArrayName name, double index, AwkArrayBinding binding) =>
-        _arrayRuntime.GetNumber(name, index, binding);
-
-    internal AwkValue GetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key) =>
-        _variables.GetArrayValue(array, key);
-
-    internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey key) =>
-        _variables.GetArrayNumber(array, key);
-
-    internal AwkValue GetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, in AwkArrayUpdateTarget location) =>
-        _variables.GetArrayValue(array, key, in location);
-
-    internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey key, in AwkArrayUpdateTarget location) =>
-        _variables.GetArrayNumber(array, key, in location);
-
     internal bool TryCaptureReadyShortFieldKey(AwkFieldIndex index, out AwkArrayKey key)
     {
         if (index.IsNamedField && _recordFields.TryGetReadyShortFieldBytes(index, out var bytes))
@@ -1563,9 +1539,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
-        _variables.SetArrayValue(array, key, value);
-
     internal AwkArrayKey CaptureFieldKey(AwkFieldIndex index)
     {
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
@@ -1574,48 +1547,9 @@ internal sealed class AwkRuntimeState : IDisposable
         return ToArrayKey(_recordFields.GetFieldValue(index));
     }
 
-    public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
-        _arrayRuntime.GetElementRuntimeKind(name, index, binding);
-
-    internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        _arrayRuntime.ResolveKey(name, builder, binding);
-
-    internal void SetArrayBuilderValue(AwkArrayName name, AwkUtf8Builder builder, AwkValue value, AwkArrayBinding binding) =>
-        _arrayRuntime.SetBuilderValue(name, builder, value, binding);
-
-    internal AwkValue GetArrayAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        _arrayRuntime.GetAwkValue(name, builder, binding);
-
-    internal double GetArrayNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        _arrayRuntime.GetNumber(name, builder, binding);
-
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous = default) =>
-        _arrayRuntime.PrepareUpdate(name, builder, binding, in previous);
-
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(in AwkArrayName name, double index, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous = default) =>
-        _arrayRuntime.PrepareUpdate(in name, index, binding, in previous);
-
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous = default) =>
-        _arrayRuntime.PrepareUpdate(name, key, binding, in previous);
-
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key,
-        in AwkArrayUpdateTarget previous = default) => _variables.PrepareArrayUpdate(array, key, in previous);
-
-    public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>
-        _arrayRuntime.TryPeekAwkValue(name, index, out value);
-
-    public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
-        _arrayRuntime.ContainsValue(name, index, binding);
-
-    internal bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding) =>
-        _arrayRuntime.ContainsValue(name, index, binding);
-
     public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)
     {
-        if (!TryPeekArrayAwkValue(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index), out var value))
+        if (!_arrayRuntime.TryPeekAwkValue(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index), out var value))
         {
             text = AwkText.Empty;
             return false;
@@ -1624,32 +1558,6 @@ internal sealed class AwkRuntimeState : IDisposable
         text = FormatStringByteText(value);
         return true;
     }
-
-    public void SetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, AwkArrayBinding binding = default) =>
-        _arrayRuntime.SetAwkValue(name, index, value, binding);
-
-    internal void SetArrayNumericValue(AwkArrayName name, double index, AwkValue value, AwkArrayBinding binding) =>
-        _arrayRuntime.SetNumericValue(name, index, value, binding);
-
-    public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index) =>
-        _arrayRuntime.DeleteValue(name, index);
-
-    internal int SplitIntoArray(AwkText input, AwkArrayTarget array, AwkFieldSeparatorSpec separator,
-        AwkArrayTarget? separators, bool csv) => _arrayRuntime.SplitIntoArray(input, array, separator, separators, csv);
-
-    internal int PatsplitIntoArray(AwkText input, AwkArrayTarget array, AwkRegexPattern pattern,
-        AwkArrayTarget? separators) => _arrayRuntime.PatsplitIntoArray(input, array, pattern, separators);
-
-    internal AwkArrayIterationStart BeginArrayKeySnapshot(AwkArrayTarget target) => _arrayRuntime.BeginKeySnapshot(target);
-
-    internal AwkArrayRuntime.AwkArraySortOperation BeginArraySort(AwkArrayTarget source,
-        AwkArraySortOrder order, bool keys) => _arrayRuntime.BeginSort(source, order, keys);
-
-    public void ClearArray(AwkArrayName name) =>
-        _arrayRuntime.Clear(name);
-
-    internal void ReplaceMatchCaptureArray(AwkArrayTarget target, AwkLeasedRegexMatch match) =>
-        _arrayRuntime.ReplaceMatchCaptures(target, match);
 
     public void Dispose()
     {

@@ -7,14 +7,14 @@ internal static class AwkArrayStorageTestOperations
     internal static int Sort(AwkRuntimeState state, AwkArrayName source, AwkArrayName destination,
         AwkArraySortOrder order, bool keys)
     {
-        using var operation = state.BeginArraySort(new(source), order, keys);
+        using var operation = state.Arrays.BeginSort(new(source), order, keys);
         Assert.False(operation.TryNextComparison());
         return operation.Publish(new(destination), keys);
     }
 
     internal static AwkLeasedReadOnlyList<AwkArrayKey> Snapshot(AwkRuntimeState state, AwkArrayName name)
     {
-        var start = state.BeginArrayKeySnapshot(new(name));
+        var start = state.Arrays.BeginKeySnapshot(new(name));
         Assert.False(start.NeedsComparisons);
         return start.Keys;
     }

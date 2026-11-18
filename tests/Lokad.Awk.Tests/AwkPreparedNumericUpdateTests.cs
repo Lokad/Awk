@@ -21,7 +21,7 @@ public sealed class AwkPreparedNumericUpdateTests
         var array = AwkArrayName.FromText("values");
         var key = new AwkArrayKey(spelling);
         var region = Bind(state, "values[$1]+=$300", "values[\"warm\"]+=0;");
-        state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(spelling + " " +
             string.Join(' ', Enumerable.Repeat("3", 299))));
         state.RecordFields.GetFieldNumber(new(1), state.NumberParsingMode);
@@ -39,7 +39,7 @@ public sealed class AwkPreparedNumericUpdateTests
             memory.Budget.OnGrowth = null;
             attempted = true;
 
-            if (outcome == "number") state.SetArrayAwkValue(array, key, AwkValue.FromNumber(100));
+            if (outcome == "number") state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(100));
             else if (outcome == "cancel") cancellation.Cancel();
         };
         if (outcome == "cancel")
@@ -56,7 +56,7 @@ public sealed class AwkPreparedNumericUpdateTests
             Assert.Equal(10, state.ResolveVariableValue(Result).AsNumber());
         }
         Assert.True(attempted);
-        Assert.True(state.TryPeekArrayAwkValue(array, key, out var value));
+        Assert.True(state.Arrays.TryPeekAwkValue(array, key, out var value));
         Assert.Equal(outcome is "cancel" or "refuse" ? 7 : 10, value.AsNumber());
         storage.Dispose();
         regionOutput.Dispose();
@@ -74,7 +74,7 @@ public sealed class AwkPreparedNumericUpdateTests
         var array = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("k");
         var region = Bind(state, arrayTarget ? "values[\"k\"]+=NF" : "value+=NF");
-        if (arrayTarget) state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
+        if (arrayTarget) state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(7));
         else state.AssignVariableValue(Value, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("field", 300))));
         using var storage = new AwkRegionStorage(state);
@@ -88,13 +88,13 @@ public sealed class AwkPreparedNumericUpdateTests
             if (bytes < 4096) return;
             memory.Budget.OnGrowth = null;
             admitted = true;
-            if (arrayTarget) state.SetArrayAwkValue(array, key, AwkValue.FromNumber(100));
+            if (arrayTarget) state.Arrays.SetAwkValue(array, key, AwkValue.FromNumber(100));
             else state.AssignVariableValue(Value, AwkValue.FromNumber(100));
         };
         Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.True(admitted);
         Assert.Equal(307, state.ResolveVariableValue(Result).AsNumber());
-        Assert.Equal(307, arrayTarget ? state.GetArrayAwkValue(array, key).AsNumber() : state.ResolveVariableValue(Value).AsNumber());
+        Assert.Equal(307, arrayTarget ? state.Arrays.GetAwkValue(array, key).AsNumber() : state.ResolveVariableValue(Value).AsNumber());
         storage.Dispose();
         regionOutput.Dispose();
         memory.Dispose();

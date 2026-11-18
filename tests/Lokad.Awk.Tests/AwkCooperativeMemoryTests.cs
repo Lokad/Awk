@@ -299,7 +299,7 @@ public sealed class AwkCooperativeMemoryTests
                 out var otherConsumer));
             using (otherConsumer)
             {
-                var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayElementRuntimeKind(name, key));
+                var error = Assert.Throws<AwkRuntimeException>(() => state.Arrays.GetElementRuntimeKind(name, key));
                 Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
                 Assert.False(state.IsArray(name));
                 Assert.False(state.IsArray(new AwkArrayName(source.Identifier)));

@@ -40,7 +40,7 @@ public sealed class AwkSortingResourceTests
         var state = memory.State;
         var name = AwkArrayName.FromText("values");
         for (var index = 1; index <= 32; index++)
-            state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
+            state.Arrays.SetAwkValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), "@unsorted");
         var committedBefore = state.MemoryAccounting.LiveBytes;
         using (var snapshot = AwkArrayStorageTestOperations.Snapshot(state, name))

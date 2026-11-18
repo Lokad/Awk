@@ -596,14 +596,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
-        state.SetArrayAwkValue(AwkArrayName.FromText("a"), new("key"), AwkValue.FromNumber(1));
+        state.Arrays.SetAwkValue(AwkArrayName.FromText("a"), new("key"), AwkValue.FromNumber(1));
         var host = new MockFileSystem();
         var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
             await Assert.ThrowsAsync<AwkRuntimeException>(() => Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask());
-            Assert.Equal(1, state.GetArrayAwkValue(AwkArrayName.FromText("a"), new("key")).AsNumber());
+            Assert.Equal(1, state.Arrays.GetAwkValue(AwkArrayName.FromText("a"), new("key")).AsNumber());
             Assert.False(state.IsInsideFunction);
         }
         finally { await io.CloseAsync(); }

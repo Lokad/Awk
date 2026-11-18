@@ -23,14 +23,14 @@ public sealed class AwkSpecialArrayReadTests
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (peek)
-                state.TryPeekArrayAwkValue(name, key, out _);
+                state.Arrays.TryPeekAwkValue(name, key, out _);
             else
-                state.GetArrayAwkValue(name, key);
+                state.Arrays.GetAwkValue(name, key);
         });
 
         Assert.Equal("awk: reference to uninitialized element `" + table + "[\"absent\"]' is not allowed\n",
             Encoding.UTF8.GetString(error.MessageBytes.Span));
-        Assert.False(state.ContainsArrayValue(name, key));
+        Assert.False(state.Arrays.ContainsValue(name, key));
         Assert.True(state.TryGetExistingArrayCount(name, out var afterCount));
         Assert.Equal(count, afterCount);
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
@@ -46,8 +46,8 @@ public sealed class AwkSpecialArrayReadTests
         var key = new AwkArrayKey("untouched");
         var before = state.MemoryAccounting.LiveBytes;
 
-        Assert.True(state.ContainsArrayValue(table, key));
-        Assert.True(state.GetArrayAwkValue(table, key).IsUnassignedValue);
+        Assert.True(state.Arrays.ContainsValue(table, key));
+        Assert.True(state.Arrays.GetAwkValue(table, key).IsUnassignedValue);
         Assert.False(state.HasScalar(global));
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
     }

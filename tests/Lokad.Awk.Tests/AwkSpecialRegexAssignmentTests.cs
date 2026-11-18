@@ -69,7 +69,7 @@ public sealed class AwkSpecialRegexAssignmentTests
     private static void Assign(AwkRuntimeState state, string variable, AwkValue value, bool throughSymbolTable)
     {
         if (throughSymbolTable)
-            state.SetArrayAwkValue(AwkArrayName.FromText("SYMTAB"),
+            state.Arrays.SetAwkValue(AwkArrayName.FromText("SYMTAB"),
                 new AwkArrayKey(AwkText.FromSourceLiteralString(variable)), value);
         else
             state.AssignVariableValue(AwkVariableName.FromText(variable), value);

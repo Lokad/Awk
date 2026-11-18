@@ -290,7 +290,7 @@ public sealed class AwkArgumentBindingTests
         var row = new AwkArrayKey("row");
         var key = new AwkArrayKey("key");
         var child = state.Arrays.GetSubarray(parent, row, default);
-        state.SetArrayAwkValue(child, key, AwkValue.FromNumber(7));
+        state.Variables.SetArrayValue(child, key, AwkValue.FromNumber(7));
         var p = AwkVariableName.FromText("p");
         var q = AwkVariableName.FromText("q");
         state.PushFunctionFrame(new([p]), [AwkFunctionLocalSlot.ArrayAlias(child)]);
@@ -298,15 +298,15 @@ public sealed class AwkArgumentBindingTests
         try
         {
             state.StageFunctionLocalArgument(null, new(AwkRegionArgumentKind.Local, 0, p, AllowArray: true), incoming, 0);
-            state.DeleteArrayValue(parent, row);
+            state.Arrays.DeleteValue(parent, row);
             state.FunctionCalls.ActivateFrame(incoming);
             try
             {
                 var local = new AwkArrayName(q.Identifier);
-                Assert.Equal(0, state.GetArrayAwkValue(local, key).AsNumber());
-                state.SetArrayAwkValue(local, key, AwkValue.FromNumber(9));
-                Assert.Equal(9, state.GetArrayAwkValue(local, key).AsNumber());
-                Assert.False(state.ContainsArrayValue(parent, row));
+                Assert.Equal(0, state.Arrays.GetAwkValue(local, key).AsNumber());
+                state.Arrays.SetAwkValue(local, key, AwkValue.FromNumber(9));
+                Assert.Equal(9, state.Arrays.GetAwkValue(local, key).AsNumber());
+                Assert.False(state.Arrays.ContainsValue(parent, row));
             }
             finally { state.PopFunctionFrame(); }
         }
@@ -378,7 +378,7 @@ public sealed class AwkArgumentBindingTests
             var argument = BindLocalArgument(state, new(99), name);
             Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, argument.Kind);
             Assert.Equal(array, argument.ArrayName);
-            Assert.Equal("kept", state.GetArrayAwkValue(array, new AwkArrayKey("key")).AsString());
+            Assert.Equal("kept", state.Arrays.GetAwkValue(array, new AwkArrayKey("key")).AsString());
 
         }
         finally { state.PopFunctionFrame(); }

@@ -38,7 +38,7 @@ public sealed class AwkSortProjectionMemoryTests
             Assert.Equal(before + containers + payload, state.MemoryAccounting.LiveBytes);
         }
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
-        Assert.All(expected, value => Assert.True(state.GetArrayAwkValue(Source, value.Key).IsNumberValue));
+        Assert.All(expected, value => Assert.True(state.Arrays.GetAwkValue(Source, value.Key).IsNumberValue));
     }
 
     [Theory]
@@ -61,7 +61,7 @@ public sealed class AwkSortProjectionMemoryTests
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(before, state.MemoryAccounting.LiveBytes);
-            Assert.All(expected, value => Assert.True(state.GetArrayAwkValue(Source, value.Key).IsNumberValue));
+            Assert.All(expected, value => Assert.True(state.Arrays.GetAwkValue(Source, value.Key).IsNumberValue));
         }
         using (var retry = AwkArrayStorageTestOperations.Snapshot(state, Source))
             Assert.Equal(32, retry.Count);
@@ -84,8 +84,8 @@ public sealed class AwkSortProjectionMemoryTests
         var state = memoryForState.State;
         var left = new AwkArrayKey("a");
         var right = new AwkArrayKey("b");
-        state.SetArrayAwkValue(Source, left, AwkValue.FromNumber(1.25));
-        state.SetArrayAwkValue(Source, right, AwkValue.FromNumber(1.25));
+        state.Arrays.SetAwkValue(Source, left, AwkValue.FromNumber(1.25));
+        state.Arrays.SetAwkValue(Source, right, AwkValue.FromNumber(1.25));
         var payload = AwkRuntimeMemory.EstimateTextBytes(state.FormatStringByteText(AwkValue.FromNumber(1.25)).ByteLength) * 2;
         var required = SnapshotStorage(state, [left, right]) + payload + (format == "wide" ? 8_192 : 0);
         var baseline = state.MemoryAccounting.LiveBytes;
@@ -101,8 +101,8 @@ public sealed class AwkSortProjectionMemoryTests
         }
         using (var retry = AwkArrayStorageTestOperations.Snapshot(state, Source))
             Assert.Equal(selector.EndsWith("desc", StringComparison.Ordinal) ? new[] { right, left } : new[] { left, right }, retry.ToArray());
-        Assert.True(state.GetArrayAwkValue(Source, left).IsNumberValue);
-        Assert.True(state.GetArrayAwkValue(Source, right).IsNumberValue);
+        Assert.True(state.Arrays.GetAwkValue(Source, left).IsNumberValue);
+        Assert.True(state.Arrays.GetAwkValue(Source, right).IsNumberValue);
         Assert.Equal(baseline, state.MemoryAccounting.LiveBytes);
     }
 
@@ -112,8 +112,8 @@ public sealed class AwkSortProjectionMemoryTests
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
-        state.SetArrayAwkValue(Source, new AwkArrayKey("a"), AwkValue.FromNumber(1.25));
-        state.SetArrayAwkValue(Source, new AwkArrayKey("b"), AwkValue.FromNumber(1.25));
+        state.Arrays.SetAwkValue(Source, new AwkArrayKey("a"), AwkValue.FromNumber(1.25));
+        state.Arrays.SetAwkValue(Source, new AwkArrayKey("b"), AwkValue.FromNumber(1.25));
         var payload = AwkRuntimeMemory.EstimateTextBytes(state.FormatStringByteText(AwkValue.FromNumber(1.25)).ByteLength) * 2;
         var containers = SnapshotStorage(state, [new AwkArrayKey("a"), new AwkArrayKey("b")]);
         var required = containers + payload + (format == "wide" ? 8_192 : 0);
@@ -142,7 +142,7 @@ public sealed class AwkSortProjectionMemoryTests
     {
         using var memoryForState = State(observed, format, selector);
         var state = memoryForState.State;
-        state.ClearArray(Destination);
+        state.Arrays.Clear(Destination);
         var beforeDestination = state.MemoryAccounting.LiveBytes;
         state.SetArrayString(Destination, First, "keep");
         var oldBytes = state.MemoryAccounting.LiveBytes - beforeDestination;
@@ -150,7 +150,7 @@ public sealed class AwkSortProjectionMemoryTests
         var expected = numbers.Select((number, index) =>
         {
             var key = new AwkArrayKey("k" + index);
-            state.SetArrayAwkValue(Source, key, AwkValue.FromNumber(number));
+            state.Arrays.SetAwkValue(Source, key, AwkValue.FromNumber(number));
             return (Number: number, Key: key, Text: state.FormatStringByteText(AwkValue.FromNumber(number)));
         }).ToArray();
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -159,8 +159,8 @@ public sealed class AwkSortProjectionMemoryTests
             var failure = Assert.Throws<AwkRuntimeException>(() =>
                 AwkArrayStorageTestOperations.Sort(state, Source, Destination, AwkArraySortOrder.Parse(selector), keys: false));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal("keep", state.GetArrayAwkValue(Destination, First).ByteText.AsString());
-            Assert.All(expected, item => Assert.True(state.GetArrayAwkValue(Source, item.Key).IsNumberValue));
+            Assert.Equal("keep", state.Arrays.GetAwkValue(Destination, First).ByteText.AsString());
+            Assert.All(expected, item => Assert.True(state.Arrays.GetAwkValue(Source, item.Key).IsNumberValue));
             Assert.Equal(beforeFailure, state.MemoryAccounting.LiveBytes);
         }
         var before = state.MemoryAccounting.LiveBytes;
@@ -173,14 +173,14 @@ public sealed class AwkSortProjectionMemoryTests
             : expected.OrderBy(static item => item.Text.AsString(), StringComparer.Ordinal).ToArray();
         for (var index = 0; index < count; index++)
         {
-            var value = state.GetArrayAwkValue(Destination, AwkArrayKey.FromOrdinal(index + 1));
+            var value = state.Arrays.GetAwkValue(Destination, AwkArrayKey.FromOrdinal(index + 1));
             Assert.Equal(double.IsFinite(ordered[index].Number), value.IsNumberValue);
             if (value.IsNumberValue) Assert.Equal(ordered[index].Number, value.AsNumber());
             else Assert.Equal(ordered[index].Text.AsString(), value.ByteText.AsString());
-            Assert.True(state.GetArrayAwkValue(Source, ordered[index].Key).IsNumberValue);
+            Assert.True(state.Arrays.GetAwkValue(Source, ordered[index].Key).IsNumberValue);
         }
         Assert.True(state.MemoryAccounting.LiveBytes > before - oldBytes);
-        state.ClearArray(Destination);
+        state.Arrays.Clear(Destination);
         Assert.Equal(before - oldBytes, state.MemoryAccounting.LiveBytes);
     }
 
@@ -247,14 +247,14 @@ public sealed class AwkSortProjectionMemoryTests
         {
             var number = format == "integer" ? index : index + 0.25;
             var key = new AwkArrayKey("k" + index.ToString("D3", System.Globalization.CultureInfo.InvariantCulture));
-            state.SetArrayAwkValue(Source, key, AwkValue.FromNumber(number));
+            state.Arrays.SetAwkValue(Source, key, AwkValue.FromNumber(number));
             return (key, state.FormatStringByteText(AwkValue.FromNumber(number)));
         }).ToArray();
 
     private static long SnapshotStorage(AwkRuntimeState state, IReadOnlyCollection<AwkArrayKey> keys) =>
         SnapshotContainers(keys.Count) + keys.Sum(key =>
             key.RetainedTextMemoryBytes +
-            state.GetArrayAwkValue(Source, key).RetainedTextMemoryBytes);
+            state.Arrays.GetAwkValue(Source, key).RetainedTextMemoryBytes);
 
     private static long SnapshotContainers(int count) =>
         AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count) + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count) +

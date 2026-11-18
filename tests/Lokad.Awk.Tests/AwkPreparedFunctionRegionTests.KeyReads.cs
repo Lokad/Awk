@@ -18,8 +18,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var region = Assert.IsType<AwkRegion>(function.Region);
         var name = AwkArrayName.FromText("a");
         var x = AwkVariableName.FromText("x");
-        state.SetArrayAwkValue(name, new("local"), AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(name, new("global"), AwkValue.FromNumber(9));
+        state.Arrays.SetAwkValue(name, new("local"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(name, new("global"), AwkValue.FromNumber(9));
         state.AssignVariableValue(AwkVariableName.FromText("k"), AwkValue.FromText("global"));
         state.AssignVariableValue(x, AwkValue.FromNumber(5));
         state.PushFunctionFrame(function.LocalLayout, [AwkFunctionLocalSlot.PreparedKey(new("local"))]);

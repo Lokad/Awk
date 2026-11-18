@@ -52,25 +52,25 @@ internal static class AwkRuntimeStateTestExtensions
         public void AssignField(int index, string value) => state.AssignFieldValue(new(index), state.CreateStringValue(value));
 
         public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
-            state.FormatStringByteText(state.GetArrayAwkValue(name, index));
+            state.FormatStringByteText(state.Arrays.GetAwkValue(name, index));
 
         public void SetArrayString(AwkArrayName name, AwkArrayKey index, string text)
         {
             var bytes = !name.IsFunctionLocal && state.Variables.IsSymbolTable(name.Text)
                 ? state.EncodeText(text) : AwkText.FromString(text);
-            state.SetArrayAwkValue(name, index, state.CreateStringValue(bytes));
+            state.Arrays.SetAwkValue(name, index, state.CreateStringValue(bytes));
         }
 
         public int SplitIntoArray(AwkText input, AwkArrayName arrayName, AwkFieldSeparatorSpec separator,
             AwkOptionalIdentifier separatorArrayName, bool csv = false) =>
-            state.SplitIntoArray(input, new AwkArrayTarget(arrayName), separator, Target(separatorArrayName), csv);
+            state.Arrays.SplitIntoArray(input, new AwkArrayTarget(arrayName), separator, Target(separatorArrayName), csv);
 
         public int PatsplitIntoArray(AwkText input, AwkArrayName arrayName, AwkRegexPattern pattern,
             AwkOptionalIdentifier separatorArrayName) =>
-            state.PatsplitIntoArray(input, new AwkArrayTarget(arrayName), pattern, Target(separatorArrayName));
+            state.Arrays.PatsplitIntoArray(input, new AwkArrayTarget(arrayName), pattern, Target(separatorArrayName));
 
         public void ReplaceMatchCaptureArray(AwkArrayName name, AwkLeasedRegexMatch match) =>
-            state.ReplaceMatchCaptureArray(new AwkArrayTarget(name), match);
+            state.Arrays.ReplaceMatchCaptures(new AwkArrayTarget(name), match);
     }
 
     private static AwkArrayTarget? Target(AwkOptionalIdentifier name) => name.HasValue

@@ -9,7 +9,7 @@ public sealed partial class AwkBoundScalarLengthTests
         var state = memory.State;
         var region = Bind(state, "BEGIN{result=length(s);count=length(a)}");
         state.AssignVariableValue(AwkVariableName.FromText("s"), AwkValue.FromText("abc"));
-        state.SetArrayAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(AwkArrayName.FromText("a"), AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         using var storage = new AwkRegionStorage(state);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var io = AwkTestHarness.CreateRegionIo(state, new MockFileSystem());

@@ -329,7 +329,7 @@ internal partial struct AwkRegionMachine
         internal AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
         {
             { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.Arrays.ResolveFieldKey(access.Name, FieldIndex(field), access.Binding),
-            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
+            { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.Arrays.ResolveKey(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
             _ => ReadKey(access.Key)
         };
 
@@ -339,7 +339,7 @@ internal partial struct AwkRegionMachine
         {
             var previous = location >= 0 ? storage.Targets[location] : default;
             var key = ResolvePath(index, out var owner);
-            return state.PrepareArrayUpdate(owner, key, in previous);
+            return state.Variables.PrepareArrayUpdate(owner, key, in previous);
         }
 
         internal void CompleteScalarUpdate(in AwkRegionInstruction instruction)
@@ -396,7 +396,7 @@ internal partial struct AwkRegionMachine
                 CompleteCapturedArrayUpdate(in instruction, in update, in captured);
                 return;
             }
-            var target = state.PrepareArrayUpdate(owner, key, in previousLocation);
+            var target = state.Variables.PrepareArrayUpdate(owner, key, in previousLocation);
             CompleteCapturedArrayUpdate(in instruction, in update, in target);
         }
 
@@ -564,25 +564,25 @@ internal partial struct AwkRegionMachine
             {
                 var key = ResolvePath(access.Path, out var owner);
                 return access.Location >= 0
-                    ? state.GetArrayAwkValue(owner, key, in storage.Targets[access.Location])
-                    : state.GetArrayAwkValue(owner, key);
+                    ? state.Variables.GetArrayValue(owner, key, in storage.Targets[access.Location])
+                    : state.Variables.GetArrayValue(owner, key);
             }
             if (TryArrayNumberKey(access.Key, out var number))
             {
                 if (access.Location >= 0 && AwkValue.TryGetArrayOrdinal(number, out var ordinal) &&
                     state.TryGetBoundArray(access.Name, access.Binding, out var array) && !array.IsIndexed)
-                    return state.GetArrayAwkValue(array, AwkArrayKey.FromOrdinal(ordinal), in storage.Targets[access.Location]);
-                return state.GetArrayAwkValue(access.Name, number, access.Binding);
+                    return state.Variables.GetArrayValue(array, AwkArrayKey.FromOrdinal(ordinal), in storage.Targets[access.Location]);
+                return state.Arrays.GetAwkValue(access.Name, number, access.Binding);
             }
             if (access.Location >= 0 && TryReadLocationKey(access, out var locatedKey))
                 return state.TryGetBoundArray(access.Name, access.Binding, out var array)
-                    ? state.GetArrayAwkValue(array, locatedKey, in storage.Targets[access.Location])
-                    : state.GetArrayAwkValue(access.Name, locatedKey, access.Binding);
+                    ? state.Variables.GetArrayValue(array, locatedKey, in storage.Targets[access.Location])
+                    : state.Arrays.GetAwkValue(access.Name, locatedKey, access.Binding);
             return operands[access.Key] switch
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.Arrays.GetFieldValue(access.Name, FieldIndex(field), access.Binding),
-                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-                _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
+                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.Arrays.GetAwkValue(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
+                _ => state.Arrays.GetAwkValue(access.Name, Key(access), access.Binding)
             };
         }
 
@@ -592,25 +592,25 @@ internal partial struct AwkRegionMachine
             {
                 var key = ResolvePath(access.Path, out var owner);
                 return access.Location >= 0
-                    ? state.GetArrayNumber(owner, key, in storage.Targets[access.Location])
-                    : state.GetArrayNumber(owner, key);
+                    ? state.Variables.GetArrayNumber(owner, key, in storage.Targets[access.Location])
+                    : state.Variables.GetArrayNumber(owner, key);
             }
             if (TryArrayNumberKey(access.Key, out var number))
             {
                 if (access.Location >= 0 && AwkValue.TryGetArrayOrdinal(number, out var ordinal) &&
                     state.TryGetBoundArray(access.Name, access.Binding, out var array) && !array.IsIndexed)
-                    return state.GetArrayNumber(array, AwkArrayKey.FromOrdinal(ordinal), in storage.Targets[access.Location]);
-                return state.GetArrayNumber(access.Name, number, access.Binding);
+                    return state.Variables.GetArrayNumber(array, AwkArrayKey.FromOrdinal(ordinal), in storage.Targets[access.Location]);
+                return state.Arrays.GetNumber(access.Name, number, access.Binding);
             }
             if (access.Location >= 0 && TryReadLocationKey(access, out var locatedKey))
                 return state.TryGetBoundArray(access.Name, access.Binding, out var array)
-                    ? state.GetArrayNumber(array, locatedKey, in storage.Targets[access.Location])
-                    : state.GetArrayNumber(access.Name, locatedKey, access.Binding);
+                    ? state.Variables.GetArrayNumber(array, locatedKey, in storage.Targets[access.Location])
+                    : state.Arrays.GetNumber(access.Name, locatedKey, access.Binding);
             return operands[access.Key] switch
             {
                 { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.Arrays.GetFieldNumber(access.Name, FieldIndex(field), access.Binding),
-                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
-                _ => state.GetArrayNumber(access.Name, ReadKey(access.Key), access.Binding)
+                { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.Arrays.GetNumber(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
+                _ => state.Arrays.GetNumber(access.Name, ReadKey(access.Key), access.Binding)
             };
         }
 
@@ -657,12 +657,12 @@ internal partial struct AwkRegionMachine
                     target = state.Arrays.PrepareFieldUpdate(in access.Name, FieldIndex(in key), access.Binding, in previous);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
-                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);
+                    target = state.Arrays.PrepareUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);
                     break;
                 default:
                     target = TryArrayNumberKey(access.Key, out var number)
-                        ? state.PrepareArrayUpdate(in access.Name, number, access.Binding, in previous)
-                        : state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
+                        ? state.Arrays.PrepareUpdate(in access.Name, number, access.Binding, in previous)
+                        : state.Arrays.PrepareUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
                     break;
             }
         }

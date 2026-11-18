@@ -105,10 +105,10 @@ internal partial struct AwkRegionMachine
                     var membership = computationView.Region.Arrays[instruction.Left];
                     var keyOperand = computationView.Operands[membership.Key];
                     var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
-                        ? computationView.State.ContainsArrayValue(membership.Name, computationView.Storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
+                        ? computationView.State.Arrays.ContainsBorrowedKey(membership.Name, computationView.Storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
                         : AwkRegionComputation.IsField(keyOperand)
                             ? computationView.State.Arrays.ContainsField(membership.Name, computationView.FieldIndex(keyOperand), membership.Binding)
-                            : computationView.State.ContainsArrayValue(membership.Name, computationView.ReadKey(membership.Key), membership.Binding);
+                            : computationView.State.Arrays.ContainsValue(membership.Name, computationView.ReadKey(membership.Key), membership.Binding);
                     computationView.Numbers[instruction.Target] = found ? 1 : 0;
                     break;
                 }
@@ -185,8 +185,8 @@ internal partial struct AwkRegionMachine
                 {
                     var inspected = computationView.Region.Arrays[instruction.Left];
                     var kind = inspected.Path >= 0
-                        ? computationView.State.GetArrayAwkValue(computationView.CapturedPath(inspected.Path).ResolveOwner(computationView.State), computationView.CapturedPath(inspected.Path).Key).RuntimeKind
-                        : computationView.State.GetArrayElementRuntimeKind(inspected.Name, computationView.Key(inspected), inspected.Binding);
+                        ? computationView.State.Variables.GetArrayValue(computationView.CapturedPath(inspected.Path).ResolveOwner(computationView.State), computationView.CapturedPath(inspected.Path).Key).RuntimeKind
+                        : computationView.State.Arrays.GetElementRuntimeKind(inspected.Name, computationView.Key(inspected), inspected.Binding);
                     if (instruction.Detail == 0) computationView.Numbers[instruction.Target] = kind == AwkRuntimeValueKind.Array ? 1 : 0;
                     else computationView.Storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(kind));
                     break;
@@ -276,11 +276,11 @@ internal partial struct AwkRegionMachine
                     var deleted = computationView.Region.Arrays[instruction.Target];
                     var deletedKey = computationView.CaptureKey(deleted.Key);
                     computationView.State.ThrowIfCancellationRequested();
-                    computationView.State.DeleteArrayValue(deleted.Name, deletedKey);
+                    computationView.State.Arrays.DeleteValue(deleted.Name, deletedKey);
                     break;
                 case AwkRegionInstructionKind.ArrayClear:
                     computationView.State.ThrowIfCancellationRequested();
-                    computationView.State.ClearArray(computationView.Region.Arrays[instruction.Target].Name);
+                    computationView.State.Arrays.Clear(computationView.Region.Arrays[instruction.Target].Name);
                     break;
                 case AwkRegionInstructionKind.IteratorBegin:
                     var iteration = computationView.Region.Iterations[instruction.Left];
@@ -440,14 +440,14 @@ internal partial struct AwkRegionMachine
                             var assignedKey = computationView.ResolvePath(assigned.Path, out var assignedOwner);
                             var assignedValue = computationView.Value(instruction.Left);
                             computationView.State.ThrowIfCancellationRequested();
-                            computationView.State.SetArrayAwkValue(assignedOwner, assignedKey, assignedValue);
+                            computationView.State.Variables.SetArrayValue(assignedOwner, assignedKey, assignedValue);
                         }
                         else
                         {
                             var assignedPath = computationView.CapturedPath(assigned.Path);
                             var assignedValue = computationView.Value(instruction.Left);
                             computationView.State.ThrowIfCancellationRequested();
-                            computationView.State.SetArrayAwkValue(assignedPath.ResolveOwner(computationView.State), assignedPath.Key, assignedValue);
+                            computationView.State.Variables.SetArrayValue(assignedPath.ResolveOwner(computationView.State), assignedPath.Key, assignedValue);
                         }
                     }
                     else
@@ -459,17 +459,17 @@ internal partial struct AwkRegionMachine
                         if (computationView.TryArrayNumberKey(assigned.Key, out var assignedNumber))
                         {
                             computationView.State.ThrowIfCancellationRequested();
-                            computationView.State.SetArrayNumericValue(assigned.Name, assignedNumber, assignedValue, assigned.Binding);
+                            computationView.State.Arrays.SetNumericValue(assigned.Name, assignedNumber, assignedValue, assigned.Binding);
                         }
                         else if (AwkRegionComputation.IsField(assignedOperand))
                             computationView.State.Arrays.SetFieldValue(assigned.Name, computationView.FieldIndex(assignedOperand), assignedValue, assigned.Binding);
                         else if (assignedOperand.Kind == AwkRegionOperandKind.KeyBuilder)
-                            computationView.State.SetArrayBuilderValue(assigned.Name, computationView.Storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
+                            computationView.State.Arrays.SetBuilderValue(assigned.Name, computationView.Storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
                         else
                         {
                             var assignedKey = computationView.Key(assigned);
                             computationView.State.ThrowIfCancellationRequested();
-                            computationView.State.SetArrayAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
+                            computationView.State.Arrays.SetAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
                         }
                     }
                     break;

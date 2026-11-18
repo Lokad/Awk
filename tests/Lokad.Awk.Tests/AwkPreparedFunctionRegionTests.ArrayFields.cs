@@ -15,7 +15,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var counters = AwkRuntimeCounters.CreateEnabled();
             var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner: owner);
             var name = AwkArrayName.FromText("a");
-            state.SetArrayAwkValue(name, new("keep"), AwkValue.FromNumber(7));
+            state.Arrays.SetAwkValue(name, new("keep"), AwkValue.FromNumber(7));
             var body = operation switch
             {
                 1 => "a[\"missing\"]+=1",
@@ -35,8 +35,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.True(budget.Refusals > 0);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
-            Assert.False(state.ContainsArrayValue(name, new("missing")));
-            Assert.Equal(7, state.GetArrayAwkValue(name, new("keep")).AsNumber());
+            Assert.False(state.Arrays.ContainsValue(name, new("missing")));
+            Assert.Equal(7, state.Arrays.GetAwkValue(name, new("keep")).AsNumber());
         }
         Assert.Equal(0, budget.Reserved);
     }
@@ -54,9 +54,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var state = State(counters, limits, owner: owner);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
-        state.SetArrayAwkValue(a, new("hit"), AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(b, new("hit"), AwkValue.FromNumber(3));
-        if (firstExists) _ = state.GetArrayAwkValue(a, new("missing"));
+        state.Arrays.SetAwkValue(a, new("hit"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(b, new("hit"), AwkValue.FromNumber(3));
+        if (firstExists) _ = state.Arrays.GetAwkValue(a, new("missing"));
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("missing"));
@@ -74,8 +74,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(1, budget.Refusals);
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(4, state.ResolveVariableValue(total).AsNumber());
-        Assert.Equal(firstExists, state.ContainsArrayValue(a, new("missing")));
-        Assert.False(state.ContainsArrayValue(b, new("missing")));
+        Assert.Equal(firstExists, state.Arrays.ContainsValue(a, new("missing")));
+        Assert.False(state.Arrays.ContainsValue(b, new("missing")));
 
         await io.CloseAsync();
     }
@@ -95,8 +95,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         if (boundary == "captured-regex") state.AssignVariable(fs, "[,;]");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit"));
         state.AssignVariable(fs, " ");
-        state.SetArrayAwkValue(AwkArrayName.FromText("a"), new("hit"), AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(AwkArrayName.FromText("b"), new("hit"), AwkValue.FromNumber(3));
+        state.Arrays.SetAwkValue(AwkArrayName.FromText("a"), new("hit"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(AwkArrayName.FromText("b"), new("hit"), AwkValue.FromNumber(3));
         var host = new MockFileSystem();
         var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
@@ -130,8 +130,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var state = State(counters, limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
-        state.SetArrayAwkValue(a, new("hit"), AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(b, new("hit"), AwkValue.FromNumber(3));
+        state.Arrays.SetAwkValue(a, new("hit"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(b, new("hit"), AwkValue.FromNumber(3));
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(missing ? "missing" : "hit"));
@@ -140,7 +140,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var error = "";
         try { await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), error);
+        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.Arrays.ContainsValue(a, new("missing")), state.Arrays.ContainsValue(b, new("missing")), error);
         await io.CloseAsync();
         return result;
     }
@@ -156,8 +156,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var state = State(counters, limits, owner: owner);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
-        state.SetArrayAwkValue(a, new("hit"), AwkValue.FromNumber(7));
-        state.SetArrayAwkValue(b, new("hit"), AwkValue.FromNumber(3));
+        state.Arrays.SetAwkValue(a, new("hit"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(b, new("hit"), AwkValue.FromNumber(3));
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         var record = AwkText.FromSourceLiteralString("missing");
@@ -169,10 +169,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(4, state.ResolveVariableValue(total).AsNumber());
-        Assert.Equal(7, state.GetArrayAwkValue(a, new("hit")).AsNumber());
-        Assert.Equal(3, state.GetArrayAwkValue(b, new("hit")).AsNumber());
-        Assert.False(state.ContainsArrayValue(a, new("missing")));
-        Assert.False(state.ContainsArrayValue(b, new("missing")));
+        Assert.Equal(7, state.Arrays.GetAwkValue(a, new("hit")).AsNumber());
+        Assert.Equal(3, state.Arrays.GetAwkValue(b, new("hit")).AsNumber());
+        Assert.False(state.Arrays.ContainsValue(a, new("missing")));
+        Assert.False(state.Arrays.ContainsValue(b, new("missing")));
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
         await io.CloseAsync();
     }

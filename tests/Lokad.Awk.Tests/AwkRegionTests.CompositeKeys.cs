@@ -30,7 +30,7 @@ public sealed partial class AwkRegionTests
             Assert.All(storage.Targets, target => Assert.Null(target.Array));
             Assert.Equal(warm, fixture.Budget.Reserved);
         }
-        Assert.Equal(147, state.GetArrayAwkValue(AwkArrayName.FromText("sum"), new AwkArrayKey("key\u001cpart")).AsNumber());
+        Assert.Equal(147, state.Arrays.GetAwkValue(AwkArrayName.FromText("sum"), new AwkArrayKey("key\u001cpart")).AsNumber());
         storage.Dispose();
         regionOutput.Dispose();
         fixture.Dispose();
@@ -93,7 +93,7 @@ public sealed partial class AwkRegionTests
         var state = fixture.State;
         var region = Compile("a[$1,$2]+=(later=9)", state);
         var array = AwkArrayName.FromText("a");
-        state.SetArrayAwkValue(array, new AwkArrayKey("keep"), AwkValue.FromNumber(7));
+        state.Arrays.SetAwkValue(array, new AwkArrayKey("keep"), AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromString(new string('x', 4096) + " tail"));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -102,7 +102,7 @@ public sealed partial class AwkRegionTests
         storage.Prepare(region.Layout);
         fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1024;
         await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
-        Assert.Equal(7, state.GetArrayAwkValue(array, new AwkArrayKey("keep")).AsNumber());
+        Assert.Equal(7, state.Arrays.GetAwkValue(array, new AwkArrayKey("keep")).AsNumber());
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(0, fixture.Budget.GrowthAttemptsAfterRefusal);
         Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
@@ -162,7 +162,7 @@ public sealed partial class AwkRegionTests
         fixture.Budget.RefuseNextAdmissionMinimumGrowth = state.ResolveSubscriptSeparatorText().EstimatedRetainedMemoryBytes + 1;
         await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("later")).AsNumber());
-        Assert.Equal(1, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(1, state.Arrays.GetAwkValue(array, key).AsNumber());
         Assert.Equal(before, fixture.Budget.Reserved);
         Assert.All(storage.Builders, builder => Assert.Equal(0, builder.Buffer.Length));
         storage.Dispose();
