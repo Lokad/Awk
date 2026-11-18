@@ -1207,27 +1207,14 @@ internal sealed class AwkRuntimeState : IDisposable
         else source.ReleaseValue(operand.Index);
     }
 
-    internal AwkValue ResolvePreparedSpecialVariableValue(AwkSpecialVariableId id)
-    {
-
-        return ResolveSpecialVariableValue(id);
-    }
-
     internal bool TryResolvePreparedSpecialNumber(AwkSpecialVariableId id, out double number)
     {
         if (id == AwkSpecialVariableId.FieldCount)
-        {
-            if (!_recordFields.TryGetFieldCountNumber(out number)) return false;
-        }
-        else if (_variables.GetSpecialScalarCell(id) is { } cell && cell.State.Slot.TryGetNumberValue(out number))
-        { }
-        else
-        {
-            number = 0;
-            return false;
-        }
-
-        return true;
+            return _recordFields.TryGetFieldCountNumber(out number);
+        if (_variables.GetSpecialScalarCell(id) is { } cell && cell.State.Slot.TryGetNumberValue(out number))
+            return true;
+        number = 0;
+        return false;
     }
 
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id)

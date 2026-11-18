@@ -268,7 +268,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.GlobalVariable:
                     return state.ResolvePreparedGlobalValue(operand.Name, operand.Index);
                 case AwkRegionOperandKind.SpecialVariable:
-                    return state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)operand.Index);
+                    return state.ResolveSpecialVariableValue((AwkSpecialVariableId)operand.Index);
                 case AwkRegionOperandKind.DynamicVariable: return state.ResolveVariableValue(operand.Name);
                 case AwkRegionOperandKind.Literal: return state.CreateStringValue(region.Literals[operand.Index].Text);
                 case AwkRegionOperandKind.Field:
@@ -638,7 +638,7 @@ internal partial struct AwkRegionMachine
         {
             AwkRegionOperandKind.LocalVariable => state.ResolveFunctionLocalValue(frame, new(variable.Index), variable.Name),
             AwkRegionOperandKind.GlobalVariable => state.ResolvePreparedGlobalValue(variable.Name, variable.Index),
-            AwkRegionOperandKind.SpecialVariable => state.ResolvePreparedSpecialVariableValue((AwkSpecialVariableId)variable.Index),
+            AwkRegionOperandKind.SpecialVariable => state.ResolveSpecialVariableValue((AwkSpecialVariableId)variable.Index),
             _ => state.ResolveVariableValue(variable.Name)
         };
 

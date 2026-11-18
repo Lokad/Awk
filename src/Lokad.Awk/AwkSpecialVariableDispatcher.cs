@@ -236,7 +236,9 @@ internal sealed class AwkSpecialVariableDispatcher(
         recordAssignment(id);
 
         AwkText ResolveText(AwkSpecialVariableId special) =>
-            formatting.FormatStringByteText(variables.GetOrCreateScalarValue(AwkSpecialVariables.VariableName(special)));
+            formatting.FormatStringByteText(variables.GetSpecialScalarCell(special) is { } bound
+                ? variables.GetScalarValue(bound)
+                : variables.GetOrCreateScalarValue(AwkSpecialVariables.VariableName(special)));
 
         void SelectSeparator(AwkText separator, AwkText recordSeparator, bool changed)
         {
