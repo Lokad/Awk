@@ -34,6 +34,10 @@ admission callbacks and re-locate mutable destinations afterward. Retire all fun
 and descriptors on success, failure and cancellation; cleanup must not abandon owners
 because the execution token is canceled.
 
+The optional fixed budget shares one root allowance through empty scopes. Subtree
+aggregates refund without enumerating reservations; descendant operations reject disposed
+ancestors. It does not replace a host's existing governor or introduce per-execution caps.
+
 Input-dependent depth uses explicit continuations or concrete stack bounds. Computational
 regions, backedges, calls, host boundaries and long primitives provide bounded cancellation
 responsiveness. Admission/refund callbacks can cancel or reenter: preserve post-callback

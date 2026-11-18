@@ -67,7 +67,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{ENVIRON[\"TOKEN\"]=\"secret\"; print \"payload\" | \"consumer\"; exit}"));
-        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithCommandPipes(true);
+        var policy = AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance).WithCommandPipes(true);
 
         var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
 

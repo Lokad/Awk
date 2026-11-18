@@ -280,7 +280,7 @@ internal static class BenchmarkCounterReport
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 counters,
-                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(CounterExecutionMemoryLimitBytes) };
+                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = AwkMemoryBudget.CreateFixed(CounterExecutionMemoryLimitBytes) };
             using var host = new ReferenceBenchmarkHost(scenario.Files, [], capture: false);
             var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []);
             var exitCode = await AwkExecutor.ExecuteAsync(host, command, cancellationToken, options)

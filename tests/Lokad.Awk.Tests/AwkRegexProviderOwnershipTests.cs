@@ -137,7 +137,7 @@ public sealed class AwkRegexProviderOwnershipTests
             [$"BEGIN{{r=\"{pattern}\";print (\"{input}\"~r)}}"], []);
         Assert.True(Awk.TryParse(command, out var awk));
         var host = new MockFileSystem();
-        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance), CancellationToken.None);
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance), CancellationToken.None);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));

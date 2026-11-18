@@ -7,6 +7,18 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkStackSafetyTests(ITestOutputHelper output)
 {
+    [Fact]
+    public async Task MemoryBudgetSubtreesRemainSafeOnSmallStacks()
+    {
+        var executable = Path.ChangeExtension(typeof(AwkStackSafetyTests).Assembly.Location,
+            OperatingSystem.IsWindows() ? ".exe" : null);
+        var child = await ReferenceProcess.RunAsync(executable, ["--memory-budget-scopes"], [], capture: true,
+            TimeSpan.FromSeconds(30), CancellationToken.None);
+        Assert.True(child.ExitCode == 0, Encoding.UTF8.GetString(child.Error));
+        Assert.Empty(child.Error);
+        Assert.Equal("0", Encoding.UTF8.GetString(child.Output).Trim());
+    }
+
     [Theory]
     [InlineData("first")]
     [InlineData("last")]

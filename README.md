@@ -24,9 +24,11 @@ if (!Awk.TryParse(invocation, out var awk))
     throw new InvalidOperationException("Not an awk command.");
 
 IAwkHost host = new ApplicationAwkHost(); // Implement the application's IO boundary.
-var policy = AwkExecutionPolicy.CreateRestricted()
+var budget = AwkMemoryBudget.CreateFixed(64L << 20); // Reuse across cooperating executions.
+var policy = AwkExecutionPolicy.CreateRestricted(budget)
     .WithAccessiblePathRoot(new AwkPath("/data"));
-using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+using var cancellation = new CancellationTokenSource();
+cancellation.CancelAfter(TimeSpan.FromSeconds(10));
 var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 ```
 
@@ -37,10 +39,12 @@ the [runtime guide](docs/RUNTIME.md#buffer-lifetimes) explains buffer lifetimes 
 File opens receive original path spelling, cwd and the requested accessible root. The host
 resolves its namespace and enforces that root before effects.
 
-Use caller cancellation for deadlines and `WithMemoryBudget(IMemoryBudget)` for shared
-memory admission. The restricted preset limits capabilities, stack depth and open resources;
-aggregate memory admission requires a supplied budget. Text must be valid UTF-8. See the
-[runtime contract](docs/RUNTIME.md) for host ownership, cleanup and protection guarantees.
+Use caller cancellation for deadlines. The restricted preset requires a shared budget and
+limits capabilities, stack depth and open resources. Use `AwkMemoryBudget.CreateFixed(bytes)`
+for a standalone allowance, or adapt an existing governor through `IMemoryBudget`.
+`CreateDefault()` remains uncapped; `WithMemoryBudget(budget)` adds admission to it.
+Text must be valid UTF-8; see the [runtime contract](docs/RUNTIME.md) for ownership,
+cleanup and protection guarantees.
 
 ## Regex and compatibility
 

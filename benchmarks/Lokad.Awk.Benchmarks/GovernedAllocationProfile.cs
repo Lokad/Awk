@@ -7,7 +7,7 @@ public class GovernedAllocationProfile
 {
     private ReferenceWorkload? _workload;
     private AwkExecutionPolicy _policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
-    private readonly Lokad.Awk.Tests.CooperativeTestBudget _budget = new(512L << 20);
+    private readonly AwkMemoryBudget _budget = AwkMemoryBudget.CreateFixed(512L << 20);
     [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate",
         "default-conditional-text", "shared-conditional-text", "default-unicode-prefix", "shared-unicode-prefix",
         "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic",
@@ -65,6 +65,6 @@ public class GovernedAllocationProfile
         if (!Awk.TryParse(command, out var awk)) throw new InvalidOperationException("Invalid fixture.");
         var exit = await awk.ExecuteAsync(host, _policy, deadline.Token).ConfigureAwait(false);
         ReferenceExecution.Verify(host.Finish(exit.Value), workload.ExpectedDigest);
-        if (_budget.Reserved != 0) throw new InvalidOperationException("Invocation did not refund.");
+        if (_budget.ReservedBytes != 0) throw new InvalidOperationException("Invocation did not refund.");
     }
 }

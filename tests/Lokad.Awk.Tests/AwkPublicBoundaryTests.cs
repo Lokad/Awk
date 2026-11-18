@@ -23,7 +23,7 @@ public sealed class AwkPublicBoundaryTests
     {
         var host = AwkTestHarness.BuildFileSystem(test);
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithSourceIncludes(true);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
@@ -53,7 +53,7 @@ public sealed class AwkPublicBoundaryTests
     {
         var host = AwkTestHarness.BuildFileSystem(test);
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithSourceIncludes(true);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
@@ -106,7 +106,7 @@ public sealed class AwkPublicBoundaryTests
         host.AddFile("/comments.awk", "# " + new string('x', 64 << 10));
         host.AfterRead = cancellation.Cancel;
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/comments.awk"));
 
@@ -128,7 +128,7 @@ public sealed class AwkPublicBoundaryTests
         host.AddFile("/data", "data\n");
         var budget = new CooperativeTestBudget(16 << 20);
         host.AfterRead = () => budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/comments.awk", "/data"));
 
@@ -248,7 +248,7 @@ public sealed class AwkPublicBoundaryTests
     public void AwkExecutionPolicy_ProvidesImmutableCompatibleAndRestrictedPresets()
     {
         var compatible = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
-        var restricted = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        var restricted = AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance);
         var customized = restricted.WithCommandPipes(true).WithMaxPipes(42);
         var rooted = compatible.WithAccessiblePathRoot(new AwkPath("/jail"));
 
@@ -279,7 +279,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -299,7 +299,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
@@ -320,7 +320,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
@@ -359,7 +359,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
@@ -380,7 +380,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
@@ -403,7 +403,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
@@ -464,7 +464,7 @@ public sealed class AwkPublicBoundaryTests
 
         var exitCode = await tool.ExecuteAsync(
             host,
-            AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance),
+            AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance),
             CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);

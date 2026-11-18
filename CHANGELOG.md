@@ -7,6 +7,11 @@ published 0.4.0. Before 1.0, minor releases may break public APIs.
 
 ### API migration
 
+- **Restricted execution:** replace parameterless `CreateRestricted()` with
+  `CreateRestricted(budget)`. Supply an existing shared `IMemoryBudget` or reuse
+  `AwkMemoryBudget.CreateFixed(bytes)`. Caller cancellation supplies deadlines;
+  `CreateDefault()` remains uncapped. The fixed budget exposes current/peak admitted
+  estimates, refunds immediately and shares one allowance through nested scopes.
 - **Internal failures:** optional `WithInternalFailureObserver(Action<Exception>)` observes
   library bugs once before `awk: internal error` (status 2). Callback exceptions are ignored.
   Host/provider exceptions retain the generic host-failure diagnostic; expected AWK errors,

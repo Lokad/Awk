@@ -20,7 +20,7 @@ public sealed class AwkArgumentSchedulingTests
     {
         var host = AwkTestHarness.BuildFileSystem(test);
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
 
@@ -43,7 +43,7 @@ public sealed class AwkArgumentSchedulingTests
     {
         var host = Files();
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{ARGV[1]=\"/b.txt\"}{print $0}", ""));
@@ -70,7 +70,7 @@ public sealed class AwkArgumentSchedulingTests
         var host = Files();
         host.AfterCloseDescriptor = cancellation.Cancel;
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "{print $0}END{print \"end\"}", "", "/a.txt", "", "/b.txt"));
@@ -97,7 +97,7 @@ public sealed class AwkArgumentSchedulingTests
             if (host.GetOutput(AwkFileDescriptor.StdOut) == "before\n" && budget.Refusals == 0)
                 budget.RefuseNextAdmissionMinimumGrowth = 1;
         };
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print \"before\"}{print \"after\"}END{print \"end\"}", "", "/large.txt", ""));

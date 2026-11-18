@@ -22,7 +22,7 @@ public sealed class AwkOperandPathBoundaryTests
         foreach (var file in test.InputFiles) host.AddFile(file.Path, file.Content);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", test.Arguments, test.Environment);
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(command.CurrentDirectory);
+        var policy = AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(command.CurrentDirectory);
         if (governed) policy = policy.WithMemoryBudget(budget);
         Assert.True(Awk.TryParse(command, out var awk));
         Assert.Equal(test.ExpectedExitCode, (await awk.ExecuteAsync(host, policy, CancellationToken.None)).Value);
@@ -43,7 +43,7 @@ public sealed class AwkOperandPathBoundaryTests
             : "BEGIN{print \"before\"}{print}";
         var command = new AwkCommandInvocation("awk", [source, changed ? "../../ignored" : "../outside"], [],
             new AwkPath("/jail"), AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
-        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail"));
+        var policy = AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail"));
         var budget = new CooperativeTestBudget(1 << 20);
         if (governed) policy = policy.WithMemoryBudget(budget);
         Assert.True(Awk.TryParse(command, out var awk));

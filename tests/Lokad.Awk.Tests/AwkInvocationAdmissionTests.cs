@@ -22,7 +22,7 @@ public sealed class AwkInvocationAdmissionTests
         };
 
         var exit = await AwkTestHarness.ParseAwk(command)
-            .ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance), CancellationToken.None);
+            .ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));

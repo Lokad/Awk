@@ -64,7 +64,7 @@ public sealed class AwkStreamIdentityBoundaryTests
             _ => "{print ARGV[1],FILENAME,ARGIND,FNR,$0}"
         };
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithAccessiblePathRoot(new AwkPath("/jail"));
         if (governed) policy = policy.WithMemoryBudget(budget);
         var expected = alias + " " + alias + " 1 1 one\n";
@@ -129,7 +129,7 @@ public sealed class AwkStreamIdentityBoundaryTests
     public async Task UnopenedLookupsDoNotOpenOrAuthorizeAHostPath()
     {
         var host = new TraceHost(0);
-        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail"));
+        var policy = AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail"));
         Assert.Equal(AwkExitCode.Success, await Execute(host,
             ["BEGIN{print close(\"../outside\"),fflush(\"../outside\")}"], policy, directory: new AwkPath("/jail")));
         Assert.Equal("-1 -1\n", host.Inner.GetOutput(AwkFileDescriptor.StdOut));
@@ -141,7 +141,7 @@ public sealed class AwkStreamIdentityBoundaryTests
     public async Task StdinAliasSupportDoesNotAuthorizeChangedFileOperands()
     {
         var host = new TraceHost(42);
-        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        var policy = AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)).WithRegexEngine(AwkUtf8RegexEngine.Instance);
         Assert.Equal(AwkExitCode.FatalError, await Execute(host,
             ["BEGIN{ARGV[1]=\"/outside\"}{print}", "/dev/fd/0"], policy));
         Assert.Equal("awk: dynamic main-input paths are disabled by execution policy\n", host.Inner.GetOutput(AwkFileDescriptor.StdErr));

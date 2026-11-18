@@ -11,11 +11,14 @@ released APIs and migration requirements. Internal maintenance contracts live in
 
 ## Host authority
 
-`AwkExecutionPolicy.CreateRestricted()` disables file redirections, command pipes,
+`AwkExecutionPolicy.CreateRestricted(budget)` requires a borrowed shared budget. It disables
+file redirections, command pipes,
 includes and changed ARGV input paths; hides invocation environment and host-error
 details; fixes time to Unix epoch/UTC; and tightens depth/open-resource bounds.
-Explicit invocation inputs remain available. Supply a shared budget and caller
-cancellation separately: the preset supplies neither a memory allowance nor a deadline.
+Explicit invocation inputs remain available. Pair it with caller cancellation for deadlines.
+`AwkMemoryBudget.CreateFixed(bytes)` supplies a standalone fixed allowance; reuse it across
+cooperating executions, or adapt the application's existing governor through `IMemoryBudget`.
+`CreateDefault()` remains uncapped. The restricted preset creates neither a budget nor a deadline.
 
 `--sandbox` disables file and command redirections. It does not implement every GNU
 sandbox restriction: changed ARGV inputs are controlled separately by
@@ -140,7 +143,10 @@ admitted before allocation/publication. Estimates are coarse, not a process-heap
 per-object ledger. Live storage is charged rather than cumulative input/output volume;
 reused capacity remains funded. Refused admission fails the command without retry.
 Mutation preflights preserve existing state/output, rather than undoing earlier effects.
-Without a supplied budget there is no private aggregate cap, even in the restricted preset.
+`CreateDefault()` without a supplied budget has no aggregate memory cap. Restricted
+execution requires a budget. The shipped `AwkMemoryBudget.CreateFixed(bytes)` implements
+immediate admission and refund against one shared allowance; shrink requests are never
+refused. `LimitBytes`, `ReservedBytes` and `PeakBytes` expose estimates, not process memory.
 
 Hosts and providers must fund their own storage through the shared allowance. Core cannot
 account for arbitrary external implementation internals. Explicit local mktime DST flags

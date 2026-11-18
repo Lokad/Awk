@@ -6,12 +6,33 @@ internal static class StackSafetyEntryPoint
 {
     private static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--memory-budget-scopes")
+            return RunOnSmallStack(FixedBudgetScopes);
         if (args.Length == 2 && args[0] == "--token-endpoint" && args[1] is "first" or "last")
             return RunOnSmallStack(() => TokenEndpoint(args[1]));
         if (args.Length != 3 || args[0] != "--stack-safety" || !bool.TryParse(args[2], out var governed))
             return 64;
         var scenario = AwkStackSafetyScenario.Create(args[1]);
         return RunOnSmallStack(() => Execute(args[1], governed, scenario));
+    }
+
+    private static long FixedBudgetScopes()
+    {
+        var budget = AwkMemoryBudget.CreateFixed(1);
+        using var parent = budget.CreateScope();
+        var deepest = parent;
+        for (var depth = 0; depth < 4096; depth++) deepest = deepest.CreateScope();
+        using (deepest)
+        {
+            if (!deepest.TryReserve(1, out var charge)) throw new InvalidOperationException("Missing allowance.");
+            using (charge)
+            {
+                parent.Dispose();
+                if (charge.Bytes != 0 || budget.ReservedBytes != 0) throw new InvalidOperationException("Missing subtree refund.");
+                Assert.Throws<ObjectDisposedException>(() => charge.TryResize(0));
+            }
+        }
+        return budget.ReservedBytes;
     }
 
     private static int RunOnSmallStack<T>(Func<T> execute)

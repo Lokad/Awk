@@ -1119,7 +1119,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             ? string.Concat(Enumerable.Range(1, 32)) + "\n" : "10000\n";
         var host = new MockFileSystem();
         var budget = new CooperativeTestBudget(128 << 20);
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)) : AwkExecutionPolicy.CreateDefault())
             .WithMemoryBudget(budget);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -1149,7 +1149,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var source = "BEGIN{print \"before\";print " + expression + "}";
         var host = new MockFileSystem();
         var budget = new CooperativeTestBudget(8 << 20);
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)) : AwkExecutionPolicy.CreateDefault())
             .WithMemoryBudget(budget);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));

@@ -97,10 +97,14 @@ public sealed record AwkExecutionPolicy
     /// <summary>Creates compatible defaults without a private aggregate memory cap or deadline.</summary>
     public static AwkExecutionPolicy CreateDefault() => new(AwkRuntimeLimits.CreateDefault());
 
-    /// <summary>Creates deny-by-default capabilities with tighter stack and open-resource bounds.</summary>
-    public static AwkExecutionPolicy CreateRestricted() =>
-        new(AwkRuntimeLimits.CreateRestricted())
+    /// <summary>Creates deny-by-default capabilities with a borrowed shared budget and tighter stack/open-resource bounds.</summary>
+    /// <remarks>Supply caller cancellation for deadlines; the preset creates neither a budget nor a deadline.</remarks>
+    public static AwkExecutionPolicy CreateRestricted(IMemoryBudget budget)
+    {
+        ArgumentNullException.ThrowIfNull(budget);
+        return new(AwkRuntimeLimits.CreateRestricted())
         {
+            MemoryBudget = budget,
             AllowFileRedirections = false,
             AllowCommandPipes = false,
             AllowSourceIncludes = false,
@@ -112,6 +116,7 @@ public sealed record AwkExecutionPolicy
             TimeZone = TimeZoneInfo.Utc,
             MaxHostErrorBytes = 1 << 10
         };
+    }
 
     /// <summary>Returns a copy with file-redirection capability configured.</summary>
     public AwkExecutionPolicy WithFileRedirections(bool allowed) =>
