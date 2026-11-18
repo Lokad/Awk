@@ -13,7 +13,8 @@ public sealed class AwkStringResultTests
         var value = AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
         var allocations = counters[AwkCounter.TextAllocations];
 
-        var result = AwkBuiltins.EvaluateCaseValue(state, value, upper);
+        var result = state.CreateStringValue(AwkBuiltins.EvaluateCaseText(state,
+            new(state.FormatStringByteText(value)), AwkMemoryLease.Disabled, upper));
 
         Assert.True(text.HasSameStorage(result.ByteText));
 
@@ -35,9 +36,11 @@ public sealed class AwkStringResultTests
         var state = State(AwkRuntimeCounters.CreateEnabled(), CancellationToken.None);
         var text = AwkText.FromSourceLiteralString("008");
         var source = AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
-        var result = name == "substr"
-            ? AwkBuiltins.EvaluateSubstrValues(state, source, AwkValue.FromNumber(1), AwkValue.FromNumber(3), count)
-            : AwkBuiltins.EvaluateCaseValue(state, source, name == "toupper");
+        var operand = new AwkByteTextOperand(state.FormatStringByteText(source));
+        var result = state.CreateStringValue(name == "substr"
+            ? AwkBuiltins.EvaluateSubstrText(state, operand, -1, AwkValue.FromNumber(1), AwkValue.FromNumber(3),
+                count, AwkMemoryLease.Disabled)
+            : AwkBuiltins.EvaluateCaseText(state, operand, AwkMemoryLease.Disabled, name == "toupper"));
         Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
         Assert.Equal(8, result.AsNumber(state.CancellationCheckpoint));
         Assert.Equal(AwkRuntimeValueKind.String, result.RuntimeKind);
@@ -65,10 +68,12 @@ public sealed class AwkStringResultTests
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() =>
         {
+            var operand = new AwkByteTextOperand(value.ByteText);
             var result = name == "substr"
-                ? AwkBuiltins.EvaluateSubstrValues(state, value, AwkValue.FromNumber(1), AwkValue.FromNumber(2), 3)
-                : AwkBuiltins.EvaluateCaseValue(state, value, name == "toupper");
-            state.AssignVariableValue(target, result);
+                ? AwkBuiltins.EvaluateSubstrText(state, operand, -1, AwkValue.FromNumber(1), AwkValue.FromNumber(2),
+                    3, AwkMemoryLease.Disabled)
+                : AwkBuiltins.EvaluateCaseText(state, operand, AwkMemoryLease.Disabled, name == "toupper");
+            state.AssignVariableValue(target, state.CreateStringValue(result));
         });
         Assert.Equal("keep", state.ResolveVariableValue(target).AsString());
     }

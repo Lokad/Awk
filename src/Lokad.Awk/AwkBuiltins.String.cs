@@ -6,22 +6,8 @@ namespace Lokad.Awk;
 internal static partial class AwkBuiltins
 {
 
-    internal static double EvaluateIndexNumber(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
-        EvaluateIndexText(state, new(state.FormatStringByteText(source.ForceScalar())), new(state.FormatStringByteText(needle)));
-
     internal static double EvaluateIndexText(AwkRuntimeState state, AwkByteTextOperand source, AwkByteTextOperand needle) =>
         state.IndexOfStringUnits(source, needle);
-
-    internal static AwkValue EvaluateIndexValues(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
-        AwkValue.FromNumber(EvaluateIndexNumber(state, source, needle));
-
-    internal static AwkValue EvaluateSubstrValues(AwkRuntimeState state, AwkValue sourceValue,
-        AwkValue startValue, AwkValue lengthValue, int argumentCount)
-    {
-        using var destination = state.MemoryAccounting.CreateTransientLease();
-        var source = new AwkByteTextOperand(state.FormatStringByteText(sourceValue));
-        return state.CreateStringValue(EvaluateSubstrText(state, source, -1, startValue, lengthValue, argumentCount, destination));
-    }
 
     internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkByteTextOperand source, int field,
         in AwkValue startValue, in AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
@@ -60,12 +46,6 @@ internal static partial class AwkBuiltins
     private static int SubstringLength(AwkRuntimeState state, in AwkValue value, int argumentCount) =>
         argumentCount == 2 ? int.MaxValue :
             (int)(value.TryGetNumberValue(out var number) ? number : value.AsNumber(state.CancellationCheckpoint));
-
-    internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper)
-    {
-        using var destination = state.MemoryAccounting.CreateTransientLease();
-        return state.CreateStringValue(EvaluateCaseText(state, new(state.FormatStringByteText(value)), destination, upper));
-    }
 
     internal static AwkText EvaluateCaseText(AwkRuntimeState state, in AwkByteTextOperand source,
         AwkMemoryLease destination, bool upper, int field = -1) =>

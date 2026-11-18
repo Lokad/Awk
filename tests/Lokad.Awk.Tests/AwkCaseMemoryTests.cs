@@ -166,14 +166,15 @@ public sealed class AwkCaseMemoryTests
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
             var state = State(owner, bytes);
-            var source = AwkValue.FromText((upper ? "éa" : "ÉA") + new string('0', 1_000_000));
-            _ = source.ByteText.AsString(); // The source's existing decode is not conversion scratch.
+            var source = AwkText.FromString((upper ? "éa" : "ÉA") + new string('0', 1_000_000));
+            _ = source.AsString(); // The source's existing decode is not conversion scratch.
+            using var destination = state.MemoryAccounting.CreateTransientLease();
             var before = 0L;
             var allocatedBeforeRefusal = 0L;
             budget.OnRefusal = () => allocatedBeforeRefusal = GC.GetAllocatedBytesForCurrentThread() - before;
             budget.RefuseNextAdmissionMinimumGrowth = 1;
             before = GC.GetAllocatedBytesForCurrentThread();
-            var failure = Assert.Throws<AwkRuntimeException>(() => AwkBuiltins.EvaluateCaseValue(state, source, upper));
+            var failure = Assert.Throws<AwkRuntimeException>(() => AwkBuiltins.EvaluateCaseText(state, new(source), destination, upper));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.InRange(allocatedBeforeRefusal, 0, 64 * 1024);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
@@ -191,13 +192,14 @@ public sealed class AwkCaseMemoryTests
         {
             var state = State(owner, true);
             var text = (upper ? "éaΩ" : "ÉAΩ") + new string(upper ? 'a' : 'A', 8192) + "😀";
-            var source = AwkValue.FromText(text);
-            var result = AwkBuiltins.EvaluateCaseValue(state, source, upper);
+            var source = AwkText.FromString(text);
+            using var destination = state.MemoryAccounting.CreateTransientLease();
+            var result = AwkBuiltins.EvaluateCaseText(state, new(source), destination, upper);
             Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
             Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
 
             Assert.Equal((upper ? "éAΩ" : "ÉaΩ") + new string(upper ? 'A' : 'a', 8192) + "😀", result.AsString());
-            Assert.True(result.ByteText.HasSameStorage(AwkBuiltins.EvaluateCaseValue(state, result, upper).ByteText));
+            Assert.True(result.HasSameStorage(AwkBuiltins.EvaluateCaseText(state, new(result), destination, upper)));
         }
         Assert.Equal(0, budget.Reserved);
     }

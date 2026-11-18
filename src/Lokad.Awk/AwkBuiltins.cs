@@ -67,10 +67,10 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Length)] = CallableMetadata(AwkBuiltinId.Length, AwkArity.Range(0, 1),
                 AwkCallableKind.Function, AwkBuiltinCompatibility.Posix,
                 [AwkBuiltinArgumentRole.ScalarOrArray], AwkStatementKind.Unknown, AwkBuiltinLoweringKind.Length),
-            [Name(AwkBuiltinId.Index)] = PosixFunction(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex, returnsNumber: true, textCount: 2),
-            [Name(AwkBuiltinId.Substr)] = PosixFunction(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr, arithmeticFrom: 1, textCount: 1),
-            [Name(AwkBuiltinId.ToLower)] = PosixFunction(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower, textCount: 1),
-            [Name(AwkBuiltinId.ToUpper)] = PosixFunction(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper, textCount: 1),
+            [Name(AwkBuiltinId.Index)] = PreparedStringFunction(AwkBuiltinId.Index, AwkArity.Exact(2), textCount: 2, returnsNumber: true),
+            [Name(AwkBuiltinId.Substr)] = PreparedStringFunction(AwkBuiltinId.Substr, AwkArity.Range(2, 3), textCount: 1, arithmeticFrom: 1),
+            [Name(AwkBuiltinId.ToLower)] = PreparedStringFunction(AwkBuiltinId.ToLower, AwkArity.Exact(1), textCount: 1),
+            [Name(AwkBuiltinId.ToUpper)] = PreparedStringFunction(AwkBuiltinId.ToUpper, AwkArity.Exact(1), textCount: 1),
             [Name(AwkBuiltinId.Int)] = PosixFunction(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt, arithmeticFrom: 0, returnsNumber: true),
             [Name(AwkBuiltinId.Sqrt)] = PosixFunction(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt, arithmeticFrom: 0, returnsNumber: true),
             [Name(AwkBuiltinId.Sin)] = PosixFunction(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin, arithmeticFrom: 0, returnsNumber: true),
@@ -396,35 +396,6 @@ internal static partial class AwkBuiltins
             parsed.ThrowIfError();
             return AwkValue.FromNumber(parsed.Number);
         }
-        static AwkValue EvaluateIndex(AwkBuiltinContext context)
-        {
-            if (context.ArgumentCount != 2)
-                return AwkValue.FromNumber(0);
-
-            return EvaluateIndexValues(context.State, context.GetValue(0), context.GetValue(1));
-        }
-
-        static AwkValue EvaluateSubstr(AwkBuiltinContext context)
-        {
-            var argumentCount = context.ArgumentCount;
-            if (argumentCount is < 2 or > 3)
-                return AwkValue.FromText(string.Empty);
-
-            return EvaluateSubstrValues(context.State, context.GetValue(0), context.GetValue(1),
-                argumentCount == 3 ? context.GetValue(2) : default, argumentCount);
-        }
-
-        static AwkValue EvaluateToLower(AwkBuiltinContext context)
-        {
-            if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
-            return EvaluateCaseValue(context.State, context.GetValue(0), upper: false);
-        }
-
-        static AwkValue EvaluateToUpper(AwkBuiltinContext context)
-        {
-            if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
-            return EvaluateCaseValue(context.State, context.GetValue(0), upper: true);
-        }
         static AwkValue EvaluateRand(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 0)
@@ -506,8 +477,8 @@ internal static partial class AwkBuiltins
         static AwkBuiltinDefinition PosixFunction(
             AwkBuiltinId id,
             AwkArity arity,
-            AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1, bool returnsNumber = false, int textCount = 0) =>
-            Function(id, arity, AwkBuiltinCompatibility.Posix, [], evaluator, arithmeticFrom, returnsNumber, textCount);
+            AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1, bool returnsNumber = false) =>
+            Function(id, arity, AwkBuiltinCompatibility.Posix, [], evaluator, arithmeticFrom, returnsNumber);
         static AwkBuiltinDefinition GnuFunction(
             AwkBuiltinId id,
             AwkArity arity,
@@ -620,7 +591,7 @@ internal static partial class AwkBuiltins
         AwkArity arity,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-        AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1, bool returnsNumber = false, int textCount = 0) =>
+        AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1, bool returnsNumber = false) =>
         Function(
             id,
             arity,
@@ -629,7 +600,7 @@ internal static partial class AwkBuiltins
             evaluator,
             AwkStatementKind.Unknown,
             AwkBuiltinLoweringKind.Ordinary,
-            arithmeticFrom, returnsNumber, textCount);
+            arithmeticFrom, returnsNumber);
 
     private static AwkBuiltinDefinition Function(
         AwkBuiltinId id,
@@ -638,7 +609,7 @@ internal static partial class AwkBuiltins
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkBuiltinEvaluator evaluator,
         AwkStatementKind statementKind,
-        AwkBuiltinLoweringKind loweringKind, int arithmeticFrom = -1, bool returnsNumber = false, int textCount = 0) =>
+        AwkBuiltinLoweringKind loweringKind, int arithmeticFrom = -1, bool returnsNumber = false) =>
         new(
             id,
             Name(id),
@@ -648,7 +619,7 @@ internal static partial class AwkBuiltins
             statementKind,
             loweringKind,
             argumentRoles,
-            AwkBuiltinImplementation.Sync(evaluator, arithmeticFrom, returnsNumber, textCount));
+            AwkBuiltinImplementation.Sync(evaluator, arithmeticFrom, returnsNumber));
 
     private static AwkBuiltinDefinition FunctionAsync(
         AwkBuiltinId id,
@@ -697,6 +668,12 @@ internal static partial class AwkBuiltins
             argumentRoles,
             statementKind,
             ResolveLoweringKind(id));
+
+    private static AwkBuiltinDefinition PreparedStringFunction(AwkBuiltinId id, AwkArity arity,
+        int textCount, int arithmeticFrom = -1, bool returnsNumber = false) =>
+        new(id, Name(id), arity, AwkCallableKind.Function, AwkBuiltinCompatibility.Posix,
+            AwkStatementKind.Unknown, AwkBuiltinLoweringKind.Ordinary, [],
+            AwkBuiltinImplementation.PreparedArguments(textCount, arithmeticFrom, returnsNumber));
 
     private static AwkBuiltinDefinition CallableMetadata(
         AwkBuiltinId id,

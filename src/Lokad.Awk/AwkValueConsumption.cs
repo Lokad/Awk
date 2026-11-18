@@ -282,7 +282,7 @@ internal static class AwkValueConsumption
                 (builtin.LoweringKind is AwkBuiltinLoweringKind.Length or AwkBuiltinLoweringKind.IsArray or
                     AwkBuiltinLoweringKind.Match or AwkBuiltinLoweringKind.Split or AwkBuiltinLoweringKind.Patsplit or
                     AwkBuiltinLoweringKind.Asort or AwkBuiltinLoweringKind.Asorti or AwkBuiltinLoweringKind.Sub or AwkBuiltinLoweringKind.Gsub ||
-                 builtin.TryGetScalarComputation(out var computation) && computation.ReturnsNumber);
+                 builtin.ReturnsNumber);
         }
 
         void PushStatements(IReadOnlyList<AwkStatementSyntax> body)

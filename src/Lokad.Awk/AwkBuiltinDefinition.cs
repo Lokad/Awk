@@ -108,6 +108,7 @@ internal sealed class AwkBuiltinDefinition(
             : AwkBuiltinArgumentRole.ScalarExpression;
 
     internal AwkParameterInput InputConsumption(int index) => implementation.InputConsumption(index);
+    internal bool ReturnsNumber => implementation.ReturnsNumber;
 
     internal bool TryGetScalarComputation(
         [NotNullWhen(true)] out AwkBuiltinImplementation.SyncBuiltinImplementation? computation)
@@ -132,30 +133,30 @@ internal sealed class AwkBuiltinDefinition(
     }
 }
 
-internal abstract class AwkBuiltinImplementation
+internal abstract class AwkBuiltinImplementation(int arithmeticFrom = -1, int textCount = 0,
+    bool returnsNumber = false)
 {
     public static AwkBuiltinImplementation Sync(AwkBuiltinEvaluator evaluator, int arithmeticFrom = -1,
-        bool returnsNumber = false, int textCount = 0) =>
-        new SyncBuiltinImplementation(evaluator, arithmeticFrom, returnsNumber, textCount);
+        bool returnsNumber = false) => new SyncBuiltinImplementation(evaluator, arithmeticFrom, returnsNumber);
 
     public static AwkBuiltinImplementation Async(AwkAsyncBuiltinEvaluator evaluator) =>
         new AsyncBuiltinImplementation(evaluator);
 
     public static AwkBuiltinImplementation MetadataOnly { get; } = new MetadataBuiltinImplementation();
+    public static AwkBuiltinImplementation PreparedArguments(int textCount, int arithmeticFrom, bool returnsNumber) =>
+        new MetadataBuiltinImplementation(arithmeticFrom, textCount, returnsNumber);
 
-    internal virtual AwkParameterInput InputConsumption(int index) => AwkParameterInput.Value;
+    // Result type is independent of how the arguments are consumed.
+    internal bool ReturnsNumber => returnsNumber;
+
+    // Preparation and evaluated staging share one positional contract.
+    internal AwkParameterInput InputConsumption(int index) =>
+        arithmeticFrom >= 0 && index >= arithmeticFrom ? AwkParameterInput.Arithmetic :
+        (uint)index < (uint)textCount ? AwkParameterInput.Text : AwkParameterInput.Value;
 
     internal sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator, int arithmeticFrom,
-        bool returnsNumber, int textCount) : AwkBuiltinImplementation
+        bool returnsNumber) : AwkBuiltinImplementation(arithmeticFrom, returnsNumber: returnsNumber)
     {
-        // Independent of numeric argument consumption: e.g. strtonum consumes
-        // spelling but always produces a number, while substr produces text.
-        internal bool ReturnsNumber => returnsNumber;
-        // One positional contract supplies a text prefix and numeric tail to
-        // preparation and evaluated staging; other inputs retain their full value.
-        internal override AwkParameterInput InputConsumption(int index) =>
-            arithmeticFrom >= 0 && index >= arithmeticFrom ? AwkParameterInput.Arithmetic :
-            (uint)index < (uint)textCount ? AwkParameterInput.Text : AwkParameterInput.Value;
         internal AwkValue EvaluateBound(AwkValue[] values, int start, int count, AwkEvaluationContext context) =>
             evaluator(new AwkBuiltinContext(values, count, context, start));
     }
@@ -166,7 +167,8 @@ internal abstract class AwkBuiltinImplementation
             evaluator(new AwkBuiltinContext(values, count, context, start));
     }
 
-    private sealed class MetadataBuiltinImplementation : AwkBuiltinImplementation;
+    private sealed class MetadataBuiltinImplementation(int arithmeticFrom = -1, int textCount = 0,
+        bool returnsNumber = false) : AwkBuiltinImplementation(arithmeticFrom, textCount, returnsNumber);
 }
 
 internal delegate AwkValue AwkBuiltinEvaluator(AwkBuiltinContext context);

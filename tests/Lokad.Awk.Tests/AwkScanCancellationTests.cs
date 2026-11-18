@@ -132,12 +132,20 @@ public sealed class AwkScanCancellationTests
             AwkText.FromString(name is "tolower" or "toupper" ? new string('a', LongScan) : new string('0', LongScan)),
             AwkNumberParsingMode.Decimal);
         cancellation.Cancel();
-        Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
-        AwkValue[] arguments = name == "sprintf" ? [AwkValue.FromText("%d"), value] : [value];
-
-        Assert.True(builtin.TryGetScalarComputation(out var computation));
         var error = Assert.ThrowsAny<OperationCanceledException>(() =>
-            computation.EvaluateBound(arguments, 0, arguments.Length, new(state)));
+        {
+            if (name is "tolower" or "toupper")
+            {
+                using var destination = state.MemoryAccounting.CreateTransientLease();
+                AwkBuiltins.EvaluateCaseText(state, new(value.ByteText), destination, upper: name == "toupper");
+                return;
+            }
+
+            Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
+            Assert.True(builtin.TryGetScalarComputation(out var computation));
+            AwkValue[] arguments = name == "sprintf" ? [AwkValue.FromText("%d"), value] : [value];
+            computation.EvaluateBound(arguments, 0, arguments.Length, new(state));
+        });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
     }

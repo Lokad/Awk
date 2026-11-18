@@ -12,24 +12,23 @@ public sealed class AwkDirectStringBuiltinTests
         {
             var state = State(AwkExecutionMemoryOwner.Disabled);
             var prefix = new string('_', prefixBytes);
-            var source = AwkValue.FromText(prefix + new string(upper ? 'a' : 'A', changedBytes));
-            var result = AwkBuiltins.EvaluateCaseValue(state, source, upper);
+            var source = AwkText.FromString(prefix + new string(upper ? 'a' : 'A', changedBytes));
+            var result = AwkBuiltins.EvaluateCaseText(state, new(source), AwkMemoryLease.Disabled, upper);
 
-            Assert.Equal(prefixBytes + changedBytes, result.ByteText.GetRuneLength(state.CancellationCheckpoint));
+            Assert.Equal(prefixBytes + changedBytes, result.GetRuneLength(state.CancellationCheckpoint));
 
-            Assert.True(result.ByteText.IsAscii(out var inspectedBytes));
+            Assert.True(result.IsAscii(out var inspectedBytes));
             Assert.Equal(0, inspectedBytes);
-            Assert.Equal(prefixBytes + changedBytes, state.CountStringUnits(result.ByteText));
+            Assert.Equal(prefixBytes + changedBytes, state.CountStringUnits(result));
             Assert.Equal(prefix + new string(upper ? 'A' : 'a', changedBytes), result.AsString());
-
-            var offset = prefixBytes % AwkRuntimeLimits.CancellationCheckBytes;
 
             Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
             Assert.Equal(0, state.Counters[AwkCounter.Utf8Encodes]);
         }
         var alphabet = new string(Enumerable.Range(0, 128).Select(value => (char)value).ToArray());
         var alphabetState = State(AwkExecutionMemoryOwner.Disabled);
-        var converted = AwkBuiltins.EvaluateCaseValue(alphabetState, AwkValue.FromText(alphabet), upper);
+        var converted = AwkBuiltins.EvaluateCaseText(alphabetState, new(AwkText.FromString(alphabet)),
+            AwkMemoryLease.Disabled, upper);
         Assert.Equal(upper ? alphabet.ToUpperInvariant() : alphabet.ToLowerInvariant(), converted.AsString());
     }
 
@@ -40,11 +39,12 @@ public sealed class AwkDirectStringBuiltinTests
     {
         var state = State(AwkExecutionMemoryOwner.Disabled);
         var stable = AwkText.FromString(upper ? "ALREADY-09" : "already-09");
-        var result = AwkBuiltins.EvaluateCaseValue(state, AwkValue.FromText(stable), upper);
-        Assert.True(stable.HasSameStorage(result.ByteText));
+        var result = AwkBuiltins.EvaluateCaseText(state, new(stable), AwkMemoryLease.Disabled, upper);
+        Assert.True(stable.HasSameStorage(result));
 
-        var unicode = AwkValue.FromText(upper ? "café" : "CAFÉ");
-        Assert.Equal(upper ? "CAFÉ" : "café", AwkBuiltins.EvaluateCaseValue(state, unicode, upper).AsString());
+        var unicode = AwkText.FromString(upper ? "café" : "CAFÉ");
+        Assert.Equal(upper ? "CAFÉ" : "café",
+            AwkBuiltins.EvaluateCaseText(state, new(unicode), AwkMemoryLease.Disabled, upper).AsString());
 
         Assert.Equal(1, state.Counters[AwkCounter.StringDecodes]);
         Assert.Equal(1, state.Counters[AwkCounter.Utf8Encodes]);
