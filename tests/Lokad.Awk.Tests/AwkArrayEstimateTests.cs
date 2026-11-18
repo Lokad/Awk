@@ -8,9 +8,8 @@ public sealed class AwkArrayEstimateTests
     [Fact]
     public void RefusedIdentityAdmissionDoesNotPublishAnArray()
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-             (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("values");
         var retained = memory.Budget.Reserved;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -24,9 +23,8 @@ public sealed class AwkArrayEstimateTests
     [Fact]
     public void SplitPairIdentitiesStayFundedUntilTheirFunctionScopeRetires()
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-             (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var first = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("fields"), 1);
         var retained = memory.Budget.Reserved;
         var second = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("separators"), 1);
@@ -91,14 +89,14 @@ public sealed class AwkArrayEstimateTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReplacementPreservesAdmissionAtomicityAndRefunds(bool refuse)
+    public void ReplacementPreservesAdmissionAtomicityAndRefunds(bool refuse)
     {
-        var budget = new CooperativeTestBudget(8192);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var limits = AwkRuntimeLimits.CreateDefault();
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
-        var variables = new AwkVariables(accounting, counters, static (_, _) => { });
+        using var memory = new CooperativeTestMemory(8192)
+            .InitializeRuntime(AwkRuntimeCounters.CreateEnabled());
+        memory.Budget.SetAvailableBytes(8192);
+        var budget = memory.Budget;
+        var accounting = memory.Accounting;
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);
@@ -127,14 +125,15 @@ public sealed class AwkArrayEstimateTests
         variables.ClearArray(name);
         Assert.Equal(emptyArrayBytes, accounting.CurrentCommittedBytes);
         Assert.Equal(emptyArrayBytes, budget.Reserved);
+        memory.Dispose();
+        Assert.Equal(0, budget.Reserved);
     }
 
     [Fact]
     public void DeletingEntriesKeepsBackingCapacityFundedUntilTheArrayIsCleared()
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-             (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("values");
         variables.ClearArray(name);
         var emptyArrayBytes = memory.Budget.Reserved;
@@ -155,9 +154,8 @@ public sealed class AwkArrayEstimateTests
     [Fact]
     public void RefusedBackingGrowthPreservesAdmittedEntriesAndRefundsOnClear()
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-             (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("values");
         variables.ClearArray(name);
         var ownerBytes = memory.Budget.Reserved;

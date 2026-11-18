@@ -342,28 +342,24 @@ public sealed class AwkTextCancellationTests
     public void CanceledArrayReplacementReleasesItsMutationReservation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        Action checkpoint = () =>
-        {
-            if (!armed) return;
-            if (governor.CurrentReservedBytes > 0) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        };
-        var variables = new AwkVariables(governor, counters, (_, _) => { }, checkpoint: checkpoint);
+        using var memory = Governor().InitializeRuntime(counters, cancellation.Token);
+        var governor = memory.Accounting;
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("kept");
         var key = new AwkArrayKey(new string('k', LongText));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(7));
+        Assert.True(variables.ResolveOrdinaryArray(name).TryGetEntry(key, out _, out var cell));
+        Assert.NotNull(cell);
         var retained = governor.CurrentCommittedBytes;
         var pending = AwkValue.FromDeferredText(AwkText.FromString(new string('a', LongText)), AwkNumberParsingMode.Decimal);
-        armed = true;
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
 
         Assert.Throws<OperationCanceledException>(() => variables.SetArrayValue(name, key, pending));
 
-        armed = false;
-        Assert.Equal(7, variables.GetArrayValue(name, key).AsNumber());
+        memory.Budget.OnGrowth = null;
+        Assert.True(cell.IsAttached);
+        Assert.Equal(7, cell.Slot.AsNumber());
         Assert.Equal(retained, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }

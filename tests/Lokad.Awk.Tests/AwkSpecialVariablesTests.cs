@@ -52,15 +52,13 @@ public sealed class AwkSpecialVariablesTests
     public void SpecialBindingsReferenceRealCellsAndRespectLazyAndDisabledNames(string modeName)
     {
         var mode = Enum.Parse<AwkCompatibilityMode>(modeName);
-        using var memory = new CooperativeTestMemory(1 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, mode: mode);
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, profile: AwkCompatibilityProfile.Default.WithMode(mode));
+        var variables = memory.State.Variables;
         Assert.Null(variables.GetSpecialScalarCell(AwkSpecialVariableId.RecordTerminator));
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.OutputFieldSeparator);
         variables.SetScalarValue(name, AwkValue.FromText("0007"));
         var cell = variables.GetScalarCell(variables.GetOrCreateScalarSlot(name));
         Assert.Same(cell, variables.GetSpecialScalarCell(AwkSpecialVariableId.OutputFieldSeparator));
-        variables.CaptureScalarMemoryBaseline();
         variables.SetScalarValue(name, AwkValue.FromNumber(1.25));
         Assert.Same(cell, variables.GetSpecialScalarCell(AwkSpecialVariableId.OutputFieldSeparator));
         Assert.True(variables.GetScalarValue(cell).IsNumberValue);

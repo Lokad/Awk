@@ -137,7 +137,7 @@ public sealed class AwkArgumentBindingTests
         {
             state.StageFunctionLocalArgument(owner, in argument, incoming, 0);
             if (key)
-                Assert.Equal("0007", incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
+                Assert.Equal("0007", incoming.GetSlot(0).Key.ToString());
             else Assert.Equal(7, incoming.GetSlot(0).Value.AsNumber());
             state.DiscardIncomingFunctionFrame(incoming);
             incoming = state.PrepareFunctionFrame(layout);
@@ -433,7 +433,7 @@ public sealed class AwkArgumentBindingTests
             state.StageFunctionLocalArgument(caller, new(AwkRegionArgumentKind.Local, 0, name, Consumption: AwkParameterInput.Key), incoming, 0);
             Assert.Equal(1, callbacks);
             Assert.Equal(AwkFunctionLocalSlotKind.Key, incoming.GetSlot(0).Kind);
-            Assert.Equal(spelling, incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
+            Assert.Equal(spelling, incoming.GetSlot(0).Key.ToString());
             Assert.Equal(17, state.ResolveVariableValue(name).AsNumber());
         }
         finally

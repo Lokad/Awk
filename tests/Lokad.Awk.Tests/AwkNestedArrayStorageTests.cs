@@ -299,7 +299,7 @@ public sealed class AwkNestedArrayStorageTests
             token, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
 
     private static AwkVariables Variables(CooperativeTestMemory memory, AwkRuntimeCounters? counters = null) =>
-        new(memory.Accounting, counters ?? AwkRuntimeCounters.Disabled, (_, _) => { });
+        memory.InitializeRuntime(counters ?? AwkRuntimeCounters.Disabled).State.Variables;
 
     private static AwkArrayIdentity Parent(AwkVariables variables)
     {

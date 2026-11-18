@@ -178,7 +178,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.Equal(key, actual);
             Assert.Equal(key.IsOrdinal, actual.IsOrdinal);
             Assert.Equal(key.GetHashCode(), actual.GetHashCode());
-            Assert.Equal(key.AsString(AwkRuntimeCounters.Disabled), actual.AsString(AwkRuntimeCounters.Disabled));
+            Assert.Equal(key.ToString(), actual.ToString());
             Assert.Equal(key.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);
             Assert.True(key.StoredText.HasSameStorage(actual.StoredText));
         }

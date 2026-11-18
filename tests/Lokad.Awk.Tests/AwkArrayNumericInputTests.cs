@@ -13,9 +13,9 @@ public sealed class AwkArrayNumericInputTests
         int readingMode, double expected)
     {
         var mode = (AwkNumberParsingMode)readingMode;
-        using var memory = new CooperativeTestMemory(8 << 20);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var variables = new AwkVariables(memory.Accounting, counters, static (_, _) => { }, numberParsingMode: mode);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(counters, profile: AwkTestHarness.ProfileForNumberParsing(mode));
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         Initialize(variables, name, ["0007", "010", "0x10", "12tail"], indexed);
         var array = variables.ResolveOrdinaryArray(name);
@@ -45,9 +45,8 @@ public sealed class AwkArrayNumericInputTests
     [InlineData(true)]
     public void ArithmeticReadRetainsDeferredHexadecimalErrorAndInput(bool indexed)
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, numberParsingMode: AwkNumberParsingMode.NonDecimalData);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, profile: AwkCompatibilityProfile.Default.WithNonDecimalData());
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         Initialize(variables, name, ["0x1.8"], indexed);
         var array = variables.ResolveOrdinaryArray(name);

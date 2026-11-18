@@ -8,7 +8,7 @@ public sealed class AwkArrayMemoryModeTests
     public void NumericUpdatesRetainEquivalentKeysAndRefuseRealGrowth(bool storedAsText)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
-        var variables = CreateVariables(memory.Accounting, AwkRuntimeCounters.Disabled);
+        var variables = memory.InitializeRuntime(AwkRuntimeCounters.Disabled).State.Variables;
         var array = AwkArrayName.FromText("totals");
         var ordinal = AwkArrayKey.FromOrdinal(1);
         var text = new AwkArrayKey("1");
@@ -37,18 +37,19 @@ public sealed class AwkArrayMemoryModeTests
     public void LongKeyAccessCancelsBeforeMutation()
     {
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var variables = CreateVariables(AwkMemoryAccounting.Disabled, AwkRuntimeCounters.Disabled,
-            () => { if (armed) cancellation.Token.ThrowIfCancellationRequested(); });
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: false)
+            .InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey(new string('k', AwkRuntimeLimits.CancellationCheckBytes * 2));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
         variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(9));
+        Assert.True(variables.ResolveOrdinaryArray(name).TryGetEntry(key, out _, out var cell));
+        Assert.NotNull(cell);
         cancellation.Cancel();
-        armed = true;
         Assert.Throws<OperationCanceledException>(() => variables.SetArrayValue(name, key, AwkValue.FromNumber(7)));
-        armed = false;
-        Assert.Equal(42, variables.GetArrayValue(name, key).AsNumber());
+        Assert.True(cell.IsAttached);
+        Assert.Equal(42, cell.Slot.AsNumber());
         Assert.True(variables.TryGetArrayCount(name, out var count));
         Assert.Equal(2, count);
     }
@@ -56,15 +57,14 @@ public sealed class AwkArrayMemoryModeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task UpdatesPreserveMixedKeysKindsAndRefunds(bool governed)
+    public void UpdatesPreserveMixedKeysKindsAndRefunds(bool governed)
     {
-        var budget = new CooperativeTestBudget(20_000);
-        await using var owner = AwkExecutionMemoryOwner.Create(
-            governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
+        using var memory = new CooperativeTestMemory(20_000, enabled: governed).InitializeRuntime(counters);
+        var budget = memory.Budget;
+        var accounting = memory.Accounting;
         Assert.Equal(governed, accounting.IsEnabled);
-        var variables = CreateVariables(accounting, counters);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         variables.ClearArray(name);
         var emptyArrayBytes = accounting.CurrentCommittedBytes;
@@ -97,13 +97,13 @@ public sealed class AwkArrayMemoryModeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task DeletionRefundsStoredKeyInBothRepresentationDirections(bool storedAsText)
+    public void DeletionRefundsStoredKeyInBothRepresentationDirections(bool storedAsText)
     {
-        var budget = new CooperativeTestBudget(1024);
-        await using var owner = AwkExecutionMemoryOwner.Create(
-            budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
-        var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var budget = memory.Budget;
+        budget.SetAvailableBytes(1024);
+        var accounting = memory.Accounting;
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         var textKey = new AwkArrayKey("1");
         variables.ClearArray(name);
@@ -127,14 +127,14 @@ public sealed class AwkArrayMemoryModeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SharedAdmissionRefusesBeforeInsertOrUpdate(bool update)
+    public void SharedAdmissionRefusesBeforeInsertOrUpdate(bool update)
     {
-        var budget = new CooperativeTestBudget(1024);
-        await using var owner = AwkExecutionMemoryOwner.Create(
-            budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var budget = memory.Budget;
+        budget.SetAvailableBytes(1024);
+        var accounting = memory.Accounting;
         Assert.True(accounting.IsEnabled);
-        var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         var existingKey = AwkArrayKey.FromOrdinal(1);
         variables.ClearArray(name);
@@ -156,7 +156,4 @@ public sealed class AwkArrayMemoryModeTests
         Assert.Equal(emptyArrayBytes, budget.Reserved);
     }
 
-    private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
-        Action? checkpoint = null) =>
-        new(accounting, counters, static (_, _) => { }, checkpoint: checkpoint);
 }

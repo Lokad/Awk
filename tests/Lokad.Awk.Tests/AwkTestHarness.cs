@@ -69,17 +69,26 @@ internal static class AwkTestHarness
     public static AwkRuntimeState CreateRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions) =>
+        AwkRuntimeOptions runtimeOptions,
+        AwkCompatibilityProfile? profile = null) =>
         new(
             fieldSeparator,
             cancellationToken,
             runtimeOptions,
             new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken),
-            AwkCompatibilityProfile.Default);
+            profile ?? AwkCompatibilityProfile.Default);
 
     public static AwkOutputSink CreateOutputSink() =>
         new(
             AwkMemoryAccounting.Disabled);
+
+    public static AwkCompatibilityProfile ProfileForNumberParsing(AwkNumberParsingMode mode) => mode switch
+    {
+        AwkNumberParsingMode.Decimal => AwkCompatibilityProfile.Default,
+        AwkNumberParsingMode.HexadecimalInput => AwkCompatibilityProfile.Default.WithMode(AwkCompatibilityMode.Posix),
+        AwkNumberParsingMode.NonDecimalData => AwkCompatibilityProfile.Default.WithNonDecimalData(),
+        _ => throw new ArgumentOutOfRangeException(nameof(mode))
+    };
 
     public static AwkRedirectedOutput CreateRedirectedOutput(
         string path,

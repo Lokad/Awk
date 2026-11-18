@@ -286,8 +286,7 @@ internal partial struct AwkRegionMachine
             if (operand.Kind == AwkRegionOperandKind.Literal) return region.Literals[operand.Index].Key;
             if (IsField(operand)) return state.CaptureFieldKey(FieldOrdinal(in operand));
             if (operand.Kind == AwkRegionOperandKind.KeyBuilder)
-                return AwkArrayKey.CopyTrustedBytes(storage.Builders[operand.Index].Buffer.AsSpan(),
-                    state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+                return state.CopyArrayKey(storage.Builders[operand.Index].Buffer.AsSpan());
             return ReadKey(index);
         }
 
@@ -624,7 +623,7 @@ internal partial struct AwkRegionMachine
                 var bytes = storage.Builders[operand.Index].Buffer.AsSpan();
                 if (bytes.Length is > 0 and <= AwkArrayKey.InlineByteCapacity)
                 {
-                    key = AwkArrayKey.CopyTrustedBytes(bytes, state.Counters, state.MemoryAccounting, checkpoint: null)
+                    key = AwkArrayKey.FromInlineBytes(bytes)
                         .WithInputOrigin(true);
                     return true;
                 }

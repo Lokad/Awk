@@ -11,10 +11,8 @@ public sealed class AwkStoredValueTests
     public void ScalarAndArrayOwnersBindNumericReadingWithoutChangingOrigins(string readingMode, double expected)
     {
         var mode = Enum.Parse<AwkNumberParsingMode>(readingMode);
-        using var memory = new CooperativeTestMemory(1 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, numberParsingMode: mode);
-        variables.CaptureScalarMemoryBaseline();
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, profile: AwkTestHarness.ProfileForNumberParsing(mode));
+        var variables = memory.State.Variables;
         var name = AwkVariableName.FromText("saved");
         var array = AwkArrayName.FromText("a");
         var text = AwkText.FromSourceLiteralString("010");
@@ -46,10 +44,8 @@ public sealed class AwkStoredValueTests
     public void OwnerWritesDeferConversionErrorsUntilNumericUse(string readingMode, bool fails)
     {
         var mode = Enum.Parse<AwkNumberParsingMode>(readingMode);
-        using var memory = new CooperativeTestMemory(1 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, numberParsingMode: mode);
-        variables.CaptureScalarMemoryBaseline();
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, profile: AwkTestHarness.ProfileForNumberParsing(mode));
+        var variables = memory.State.Variables;
         var text = AwkText.FromSourceLiteralString("0x1.2");
         AwkValue[] inputs = [AwkValue.FromDeferredText(text, AwkNumberParsingMode.NonDecimalData),
             AwkValue.FromNumericString(text, AwkNumberParsingMode.NonDecimalData)];

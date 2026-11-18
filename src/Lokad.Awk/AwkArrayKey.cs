@@ -86,19 +86,9 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _kind = unchecked((AwkArrayKeyKind)(InlineWord(highBytes, length) | (uint)AwkArrayKeyKind.Inline));
     }
 
-    internal static AwkArrayKey CopyTrustedBytes(ReadOnlySpan<byte> bytes,
-        AwkRuntimeCounters counters, AwkMemoryAccounting accounting, Action? checkpoint)
+    internal static AwkArrayKey FromInlineBytes(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length is > 0 and <= InlineByteCapacity)
-        {
-            checkpoint?.Invoke();
-            return FromInlineBytes(bytes);
-        }
-        return new(AwkText.CopyTrustedBytes(bytes, counters, accounting, checkpoint), checkpoint);
-    }
-
-    private static AwkArrayKey FromInlineBytes(ReadOnlySpan<byte> bytes)
-    {
+        System.Diagnostics.Debug.Assert(bytes.Length is > 0 and <= InlineByteCapacity);
         ReadCompactWords(bytes, out var low, out var high);
         return new(low, high, bytes.Length);
     }
@@ -147,25 +137,12 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
         FromOrdinal(index.Value);
 
-    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
+    public override string ToString()
     {
-        if (Representation == AwkArrayKeyKind.Ordinal) return _ordinal.ToString(CultureInfo.InvariantCulture);
-        if (Representation == AwkArrayKeyKind.Text)
-        {
-            var text = Text;
-            var converted = text.PrepareDecodedString(out var wasDecoded, checkpoint);
-            if (wasDecoded)
-            {
-                counters.Add(AwkCounter.StringDecodes);
-                text.PublishDecodedString(converted, checkpoint);
-            }
-            return converted;
-        }
-        checkpoint?.Invoke();
+        if (TryGetOrdinalValue(out var ordinal)) return ordinal.ToString(CultureInfo.InvariantCulture);
+        if (!RequiresTextMaterialization) return Text.AsString();
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer));
-        counters.Add(AwkCounter.StringDecodes);
-        return decoded;
+        return AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer));
     }
 
     public int ByteLength
@@ -258,9 +235,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
         return AwkByteFacts.GetOrdinalHashCode(AsSpan(buffer));
     }
-
-    public override string ToString() =>
-        AsString(AwkRuntimeCounters.Disabled);
 
     private AwkText Text => _text;
 

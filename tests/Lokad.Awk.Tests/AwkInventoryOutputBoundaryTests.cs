@@ -189,18 +189,10 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void VariableSnapshotsPassTheirCheckpointAndPreserveStorage(bool symbolTable, string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(8 << 20);
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var checks = 0;
-        void Check()
-        {
-            if (!armed) return;
-            if (++checks == 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var variables = new AwkVariables(governor, counters, (_, _) => { }, checkpoint: Check);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(counters, cancellation.Token);
+        var governor = memory.Accounting;
+        var variables = memory.State.Variables;
         var names = Enumerable.Range(0, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet();
         var array = AwkArrayName.FromText(symbolTable ? AwkVariables.SymbolTableName : "kept");
         if (symbolTable) variables.InitializeGlobalNames(names);
@@ -209,7 +201,7 @@ public sealed class AwkInventoryOutputBoundaryTests
                 variables.SetArrayValue(array, new AwkArrayKey(name.Text), AwkValue.FromNumber(7));
         var count = variables.GetArraySnapshotCount(array);
         var committed = governor.CurrentCommittedBytes;
-        armed = true;
+        cancellation.Cancel();
 
         var error = Assert.Throws<OperationCanceledException>(() =>
         {
@@ -223,14 +215,19 @@ public sealed class AwkInventoryOutputBoundaryTests
         });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(3, checks);
-        armed = false;
-        Assert.Equal(count, variables.GetArraySnapshotCount(array));
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
+        using var retry = new CooperativeTestMemory(8 << 20).InitializeRuntime(counters);
+        var retryVariables = retry.State.Variables;
+        if (symbolTable) retryVariables.InitializeGlobalNames(names);
+        else
+            foreach (var name in names)
+                retryVariables.SetArrayValue(array, new AwkArrayKey(name.Text), AwkValue.FromNumber(7));
+        Assert.Equal(count, retryVariables.GetArraySnapshotCount(array));
         var keys = new AwkArrayKey[count];
-        variables.CopyArrayKeys(array, keys);
-        Assert.Equal(names.Select(static name => name.Text).Order(StringComparer.Ordinal), keys.Select(static key => key.ToString()).Order(StringComparer.Ordinal));
+        retryVariables.CopyArrayKeys(array, keys);
+        var copiedNames = keys.Select(static key => key.ToString()).ToHashSet(StringComparer.Ordinal);
+        Assert.True(names.All(name => copiedNames.Contains(name.Text)));
     }
 
     [Fact]

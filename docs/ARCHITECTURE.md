@@ -107,6 +107,8 @@ untyped entries; membership does not. Complete updates capture owning keys and p
 values before RHS effects. Never keep a dictionary-entry or page reference across RHS
 evaluation, suspension or admission callbacks; validate/re-locate the current logical
 owner before commit. Detached nested owners and aliases retain their language behavior.
+The runtime owns key text copying, admission and conversion observations. A compact
+key can be constructed directly from a bounded byte span.
 
 Indexed growth/promotion privately constructs admitted replacements, funding old/new
 overlap before publication. Reusable locations carry current values, never stale numbers.

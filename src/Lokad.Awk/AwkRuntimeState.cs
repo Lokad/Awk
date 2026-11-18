@@ -70,7 +70,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
         NonDecimalData = compatibilityProfile.NonDecimalData;
-        var numberParsingMode = CompatibilityMode switch
+        NumberParsingMode = CompatibilityMode switch
         {
             AwkCompatibilityMode.Posix => AwkNumberParsingMode.HexadecimalInput,
             AwkCompatibilityMode.Traditional => AwkNumberParsingMode.Decimal,
@@ -83,11 +83,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _cancellationToken = cancellationToken;
         CancellationCheckpoint = ThrowIfCancellationRequested;
         AwkSpecialVariableDispatcher? specialVariables = null;
-        AwkFieldFrame? recordFields = null;
-        _variables = new AwkVariables(
-            MemoryAccounting, Counters, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .GetFieldCountValue(), () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint, numberParsingMode);
+        _variables = new AwkVariables(this);
         _removeFunctionLocalArray = _variables.RemoveFunctionLocalArray;
         _functions = new AwkFunctionCallStack(
             this,
@@ -113,7 +109,6 @@ internal sealed class AwkRuntimeState : IDisposable
             _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, this);
             _fieldSplitter = new AwkFieldSplitter(this, fieldSeparator);
             _recordFields = new AwkFieldFrame(this);
-            recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(
                 _variables,
                 _fieldSplitter,
@@ -149,20 +144,6 @@ internal sealed class AwkRuntimeState : IDisposable
             return text;
         }
 
-        void ApplySpecialVariableAssignment(string name, AwkValue value)
-        {
-            if (AwkSpecialVariables.IsName(name, AwkSpecialVariableId.FieldCount))
-            {
-                if (recordFields is null)
-                    throw new InvalidOperationException("Record fields are not initialized.");
-                AssignFieldCountValue(value);
-                return;
-            }
-
-            (specialVariables ?? throw new InvalidOperationException("Special variables are not initialized."))
-                .Assign(AwkVariableName.FromText(name), value);
-        }
-
         void RecordSpecialVariableAssignment(AwkSpecialVariableId id)
         {
             if (id is not (AwkSpecialVariableId.RecordSeparator or AwkSpecialVariableId.IgnoreCase))
@@ -182,6 +163,15 @@ internal sealed class AwkRuntimeState : IDisposable
         }
     }
 
+    internal void ApplySpecialVariableAssignment(string name, AwkValue value)
+    {
+        if (AwkSpecialVariables.IsName(name, AwkSpecialVariableId.FieldCount))
+            AssignFieldCountValue(value);
+        else
+            _specialVariables.Assign(AwkVariableName.FromText(name), value);
+    }
+
+    internal AwkVariables Variables => _variables;
     internal AwkFieldFrame RecordFields => _recordFields;
     internal AwkFieldSplitter FieldSplitter => _fieldSplitter;
     internal AwkText ResolveOutputFieldSeparator() =>
@@ -249,7 +239,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _rangePatterns = states;
     }
 
-    internal AwkNumberParsingMode NumberParsingMode => _variables.NumberParsingMode;
+    internal AwkNumberParsingMode NumberParsingMode { get; }
 
     public AwkValue CreateStringValue(string text) =>
         CreateStringValue(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint));
@@ -311,6 +301,32 @@ internal sealed class AwkRuntimeState : IDisposable
         var bytes = AwkText.AllocateOwnedBytes(formatted.Length, allocationAccounting);
         formatted.CopyTo(bytes);
         return AwkText.FromTrustedOwnedBytes(bytes, Counters);
+    }
+
+    internal AwkArrayKey CopyArrayKey(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length is > 0 and <= AwkArrayKey.InlineByteCapacity)
+        {
+            ThrowIfCancellationRequested();
+            return AwkArrayKey.FromInlineBytes(bytes);
+        }
+
+        return new AwkArrayKey(AwkText.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint),
+            CancellationCheckpoint);
+    }
+
+    internal string DecodeArrayKey(AwkArrayKey key)
+    {
+        if (key.TryGetOrdinalValue(out var ordinal))
+            return ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (!key.RequiresTextMaterialization)
+            return DecodeText(key.StoredText);
+
+        ThrowIfCancellationRequested();
+        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(key.AsSpan(buffer));
+        Counters.Add(AwkCounter.StringDecodes);
+        return decoded;
     }
 
     internal string DecodeText(AwkText text)
@@ -379,7 +395,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 // leave their default slot out of the sorted view passed to the host.
                 if (key.ByteLength == 0) return default(AwkEnvironmentVariable);
                 memory.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(key.ByteLength));
-                var name = key.AsString(state.Counters, state.CancellationCheckpoint);
+                var name = state.DecodeArrayKey(key);
                 var text = state.FormatStringByteText(value, memory);
                 memory.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(text.ByteLength));
                 return new AwkEnvironmentVariable(name, state.DecodeText(text));
@@ -949,7 +965,7 @@ internal sealed class AwkRuntimeState : IDisposable
         // One existing admission funds construction through publication into its
         // incoming owner. Only immutable bytes are borrowed during this copy.
         using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(bytes.Length));
-        var key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint)
+        var key = CopyArrayKey(bytes)
             .WithInputOrigin(true);
         ThrowIfCancellationRequested();
         _functions.StageKey(incoming, index, key);
@@ -1556,7 +1572,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (index > 0 && _recordFields.TryGetReadyShortFieldBytes(new(index), out var bytes))
         {
-            key = AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, checkpoint: null);
+            key = AwkArrayKey.FromInlineBytes(bytes);
             return true;
         }
         key = default;
@@ -1603,7 +1619,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
-            return AwkArrayKey.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint)
+            return CopyArrayKey(bytes)
                 .WithInputOrigin(true);
         var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         return ToArrayKey(field);

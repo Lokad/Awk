@@ -23,7 +23,7 @@ internal sealed partial class AwkVariables
     internal long EstimateSubarrayBytes(AwkArrayIdentity array)
     {
         ThrowIfDetached(array);
-        return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(array, _checkpoint));
+        return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(array, _state.CancellationCheckpoint));
     }
 
     // The caller admits the whole copy under its staging lease. Child arrays and
@@ -39,7 +39,7 @@ internal sealed partial class AwkVariables
         {
             foreach (var pair in source)
             {
-                if ((visited++ & 63) == 0) _checkpoint?.Invoke();
+                if ((visited++ & 63) == 0) _state.ThrowIfCancellationRequested();
                 AwkValue copy;
                 if (pair.Value.TryGetArrayBinding(out var child))
                 {
@@ -84,7 +84,7 @@ internal sealed partial class AwkVariables
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(fields.Count));
         for (var index = 0; index < fields.Count; index++)
         {
-            if ((index & 63) == 0) _checkpoint?.Invoke();
+            if ((index & 63) == 0) _state.ThrowIfCancellationRequested();
             bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayPayloadBytes(
                 AwkArrayKey.FromOrdinal(index + 1), AwkValue.ForStoredInputText(fields[index])));
         }
@@ -111,7 +111,7 @@ internal sealed partial class AwkVariables
         var offset = 0;
         foreach (var pair in array)
         {
-            if ((offset & 63) == 0) _checkpoint?.Invoke();
+            if ((offset & 63) == 0) _state.ThrowIfCancellationRequested();
             result[offset++] = project(state, pair.Key, CreateValue(pair.Value));
         }
         return result;
@@ -131,7 +131,7 @@ internal sealed partial class AwkVariables
             SetArrayValues(target.Name, values, createSlot, sourceMemoryLease, sourceRetainedTextBytes);
             return;
         }
-        using var construction = _memoryAccounting.AdmitMutation(
+        using var construction = _state.MemoryAccounting.AdmitMutation(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
         ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, createSlot), sourceMemoryLease, sourceRetainedTextBytes);
     }
@@ -143,7 +143,7 @@ internal sealed partial class AwkVariables
             SetArrayValuesFromExternalText(target.Name, values);
             return;
         }
-        using var construction = _memoryAccounting.AdmitMutation(
+        using var construction = _state.MemoryAccounting.AdmitMutation(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
         ReplaceMutableArraySlots(target, CreateIndexedArraySlots(values, 1, static (text, _) => AwkValue.ForStoredInputText(text)),
             AwkMemoryLease.Disabled, 0);
@@ -160,8 +160,8 @@ internal sealed partial class AwkVariables
         if (!target.TryGetArray(out var array))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray("array element"));
         ThrowIfDetached(array);
-        var oldBytes = EstimateArrayBytes(array, _checkpoint);
-        var newBytes = EstimateArrayBytes(slots, _checkpoint);
+        var oldBytes = EstimateArrayBytes(array, _state.CancellationCheckpoint);
+        var newBytes = EstimateArrayBytes(slots, _state.CancellationCheckpoint);
         using var mutation = ReserveMemoryMutation(newBytes, AwkRuntimeMemory.CheckedAdd(oldBytes, transferredBytes));
         RetireArrayContents(array, includeRoot: false);
         array.ReplaceSlots(slots);
@@ -193,7 +193,7 @@ internal sealed partial class AwkVariables
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
             throw new AwkRuntimeException(AwkMessages.ErrorInvalidSymtabReference);
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _state.CompatibilityMode);
         return GetOrCreateArray(name);
     }
 
@@ -224,7 +224,7 @@ internal sealed partial class AwkVariables
         var growth = AwkRuntimeMemory.ArrayIdentityBytes;
         var estimatedGrowth = found ? growth : EstimateArrayInsertionGrowth(parent, key,
             AwkRuntimeMemory.CheckedAdd(growth, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, default(AwkValue))));
-        using var admission = _memoryAccounting.AdmitMutation(estimatedGrowth);
+        using var admission = _state.MemoryAccounting.AdmitMutation(estimatedGrowth);
         using var creation = ReserveMemoryMutation(growth, 0);
         var child = CreateArraySlots(0, parent);
         if (found && slot.TryGetUntypedScalar(out var origin))
@@ -254,11 +254,11 @@ internal sealed partial class AwkVariables
     internal void ClearArray(AwkArrayIdentity array)
     {
         ThrowIfDetached(array);
-        var oldBytes = EstimateArrayBytes(array, _checkpoint);
+        var oldBytes = EstimateArrayBytes(array, _state.CancellationCheckpoint);
         var replacement = CreateArraySlots(0);
         RetireArrayContents(array, includeRoot: false);
         array.ReplaceSlots(replacement);
-        _memoryAccounting.ReleaseCommitted(oldBytes);
+        _state.MemoryAccounting.ReleaseCommitted(oldBytes);
     }
 
     internal void DeleteArrayValue(AwkArrayIdentity array, AwkArrayKey key)
@@ -274,7 +274,7 @@ internal sealed partial class AwkVariables
         if (slot.TryGetArrayBinding(out var child))
         {
             oldBytes = AwkRuntimeMemory.CheckedAdd(oldBytes,
-                AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(child, _checkpoint)));
+                AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(child, _state.CancellationCheckpoint)));
             RetireArrayContents(child, includeRoot: true);
         }
         else if (slot.TryGetUntypedScalar(out var origin))
@@ -285,7 +285,7 @@ internal sealed partial class AwkVariables
         slots.Remove(retainedKey);
         cell?.Detach();
         slot = default;
-        _memoryAccounting.ReleaseCommitted(oldBytes);
+        _state.MemoryAccounting.ReleaseCommitted(oldBytes);
     }
 
     private void RetireArrayContents(AwkArrayIdentity array, bool includeRoot, bool cancellable = true)
@@ -293,7 +293,7 @@ internal sealed partial class AwkVariables
         // Repair every live frame before changing parent links. Removed subarray
         // parameters become independent existing function-local slots, not retained trees.
         RepairSubarrayAliases?.Invoke(array, includeRoot, cancellable);
-        if (cancellable) _checkpoint?.Invoke();
+        if (cancellable) _state.ThrowIfCancellationRequested();
         // Complete the backing replacement atomically after its cancellable scans.
         // Unwinding a function must finish retirement even when cancellation is set.
         Stack<AwkArrayIdentity>? pending = null;

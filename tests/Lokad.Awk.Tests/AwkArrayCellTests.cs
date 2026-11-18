@@ -129,7 +129,7 @@ public sealed class AwkArrayCellTests
         Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var retainedKey, out var grown));
         Assert.True(array.TryGetEntry(retainedKey, out _, out var grownCell));
         Assert.Same(original, grownCell);
-        Assert.Equal("0007", retainedKey.AsString(AwkRuntimeCounters.Disabled));
+        Assert.Equal("0007", retainedKey.ToString());
         Assert.Equal(5, variables.ReadArraySlotNumber(grown));
         var count = array.Count;
         Assert.False(array.ByteLookup.ContainsKey("missing"u8));
@@ -147,55 +147,54 @@ public sealed class AwkArrayCellTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void NumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+    public void NumericUpdateKeepsItsCapturedValueAfterTheCellChanges(bool borrowedKey) =>
         AssertConversionSnapshot(borrowedKey, input: false);
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void InputNumericUpdateKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+    public void InputNumericUpdateKeepsItsValueWhenConversionRefundReplacesTheCell(bool borrowedKey) =>
         AssertConversionSnapshot(borrowedKey, input: true);
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void NumericReadKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+    public void NumericReadKeepsItsCapturedValueAfterTheCellChanges(bool borrowedKey) =>
         AssertConversionSnapshot(borrowedKey, input: false, update: false);
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void InputNumericReadKeepsItsValueWhenConversionPollReplacesTheCell(bool borrowedKey) =>
+    public void InputNumericReadKeepsItsValueWhenConversionRefundReplacesTheCell(bool borrowedKey) =>
         AssertConversionSnapshot(borrowedKey, input: true, update: false);
 
     private static void AssertConversionSnapshot(bool borrowedKey, bool input, bool update = true)
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        Action? onPoll = null;
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, checkpoint: () => onPoll?.Invoke());
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         var array = variables.ResolveOrdinaryArray(name);
         var key = new AwkArrayKey("kept");
-        var text = AwkText.FromString(new string('0', 2 * AwkRuntimeLimits.CancellationCheckBytes) + "7");
-        if (input)
-            variables.InitializeArrayExternalStringValues(name,
-                new[] { new KeyValuePair<string, string>("kept", text.AsString()) },
-                static pair => pair.Key, static pair => pair.Value);
-        else variables.SetArrayValue(array, key, AwkValue.FromText(text));
+        var text = AwkText.Concat(
+            [AwkText.FromString(new string('0', 2 * AwkRuntimeLimits.CancellationCheckBytes)), AwkText.FromString("7")],
+            memory.State.Counters, memory.Accounting);
+        variables.SetArrayValue(array, key, input ? AwkValue.ForStoredInputText(text) : AwkValue.FromText(text));
         Assert.True(array.ByteLookup.TryGetValue("kept"u8, out var stored));
         // The test retains its source while the callback replaces the array's claim.
         using var sourceMemory = memory.Accounting.ReserveTransient(stored.ByteText.EstimatedRetainedMemoryBytes);
         var replaced = false;
-        onPoll = () =>
+        if (input) memory.Budget.OnRefund = ReplaceCell;
+
+        void ReplaceCell()
         {
-            onPoll = null;
+            memory.Budget.OnRefund = null;
             replaced = true;
             variables.SetArrayValue(array, key, AwkValue.FromNumber(99));
-        };
+        }
 
         if (update)
         {
             var target = borrowedKey
                 ? variables.PrepareArrayUpdate(array, "kept"u8)
                 : variables.PrepareArrayUpdate(array, key);
+            if (!input) ReplaceCell();
             Assert.True(replaced);
             Assert.Equal(7, target.Previous);
             Assert.Equal(key, target.Key);
@@ -206,6 +205,7 @@ public sealed class AwkArrayCellTests
         else
         {
             var number = borrowedKey ? variables.GetArrayNumber(array, "kept"u8) : variables.GetArrayNumber(array, key);
+            if (!input) ReplaceCell();
             Assert.True(replaced);
             Assert.Equal(7, number);
             Assert.Equal(99, variables.GetArrayNumber(array, key));
@@ -240,5 +240,5 @@ public sealed class AwkArrayCellTests
     }
 
     private static AwkVariables Variables(CooperativeTestMemory memory) =>
-        new(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
+        memory.InitializeRuntime(AwkRuntimeCounters.Disabled).State.Variables;
 }

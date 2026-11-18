@@ -27,7 +27,7 @@ public sealed partial class AwkFunctionStorageTests
             Assert.Equal(default, incoming.GetSlot(0).ArrayName);
             Assert.Equal(key, actual);
             Assert.Equal(key.IsOrdinal, actual.IsOrdinal);
-            Assert.Equal(key.AsString(AwkRuntimeCounters.Disabled), actual.AsString(AwkRuntimeCounters.Disabled));
+            Assert.Equal(key.ToString(), actual.ToString());
             Assert.Equal(AwkArrayKeyComparer.Instance.GetHashCode(key), AwkArrayKeyComparer.Instance.GetHashCode(actual));
             Assert.True(key.StoredText.HasSameStorage(actual.StoredText));
             Assert.Equal(9, caller.GetSlot(1).Value.AsNumber());
@@ -53,7 +53,7 @@ public sealed partial class AwkFunctionStorageTests
         using (pressure)
         {
             Assert.True(stack.TryStageLocalArgument(null, new(0), incoming, 0, allowArray: false, prepareKey: true));
-            Assert.Equal("é😀", incoming.GetSlot(0).Key.AsString(AwkRuntimeCounters.Disabled));
+            Assert.Equal("é😀", incoming.GetSlot(0).Key.ToString());
             Assert.Equal(0, incoming.RetainedMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
         }

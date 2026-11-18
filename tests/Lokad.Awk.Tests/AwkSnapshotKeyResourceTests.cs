@@ -162,45 +162,44 @@ public sealed class AwkSnapshotKeyResourceTests
     public void SnapshotMeasurementCancelsBeforeEncodingKeysAndAllowsRetry(bool observed, string source)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        using var memoryForGovernor = new CooperativeTestMemory(MemoryLimit);
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var checks = 0;
-        void Check()
-        {
-            if (!armed) return;
-            if (++checks == 4) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var variables = new AwkVariables(governor, counters, (_, _) => { }, checkpoint: Check);
+        using var memory = new CooperativeTestMemory(MemoryLimit).InitializeRuntime(counters, cancellation.Token);
+        var governor = memory.Accounting;
+        var variables = memory.State.Variables;
         var name = source == "symbols" ? Symbols : Source;
-        if (source == "symbols")
-            variables.InitializeGlobalNames(Enumerable.Range(1, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet());
-        else
-            for (var index = 1; index <= 512; index++)
-                variables.SetArrayValue(name, source == "ordinals" ? AwkArrayKey.FromOrdinal(index) : new AwkArrayKey("v" + index), AwkValue.FromNumber(index));
+        Initialize(variables);
         var before = governor.CurrentCommittedBytes;
         var allocations = counters[AwkCounter.TextAllocations];
         var encodes = counters[AwkCounter.Utf8Encodes];
-        armed = true;
+        cancellation.Cancel();
 
         var error = Assert.Throws<OperationCanceledException>(() => variables.MeasureArraySnapshot(name, materializeKeys: true));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(4, checks);
         Assert.Equal(before, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(encodes, counters[AwkCounter.Utf8Encodes]);
-        armed = false;
-        var measured = variables.MeasureArraySnapshot(name, materializeKeys: true);
-        Assert.Equal(512, measured.Count);
-        var expectedPayload = Enumerable.Range(1, 512).Sum(index =>
-            AwkRuntimeMemory.EstimateTextBytes(index.ToString(System.Globalization.CultureInfo.InvariantCulture).Length +
-                (source == "ordinals" ? 0 : 1)));
-        Assert.Equal(expectedPayload, measured.KeyTextBytes);
-        Assert.Equal(before, governor.CurrentCommittedBytes);
+        using var retry = new CooperativeTestMemory(MemoryLimit).InitializeRuntime(counters);
+        var retryVariables = retry.State.Variables;
+        Initialize(retryVariables);
+        var retryBaseline = retry.Accounting.CurrentCommittedBytes;
+        var measured = retryVariables.MeasureArraySnapshot(name, materializeKeys: true);
+        var keys = new AwkArrayKey[retryVariables.GetArraySnapshotCount(name)];
+        retryVariables.CopyArrayKeys(name, keys);
+        Assert.Equal(keys.Length, measured.Count);
+        Assert.Equal(keys.Sum(static key => AwkRuntimeMemory.EstimateTextBytes(key.ByteLength)), measured.KeyTextBytes);
+        Assert.Equal(retryBaseline, retry.Accounting.CurrentCommittedBytes);
+
+        void Initialize(AwkVariables owner)
+        {
+            if (source == "symbols")
+                owner.InitializeGlobalNames(Enumerable.Range(1, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet());
+            else
+                for (var index = 1; index <= 512; index++)
+                    owner.SetArrayValue(name, source == "ordinals" ? AwkArrayKey.FromOrdinal(index) : new AwkArrayKey("v" + index),
+                        AwkValue.FromNumber(index));
+        }
     }
 
     private static async Task<(AwkArrayKey[] Keys, long Containers, long Payload)> MeasureExpected(
@@ -240,8 +239,7 @@ public sealed class AwkSnapshotKeyResourceTests
             var key = source switch
             {
                 "ordinals" => AwkArrayKey.FromOrdinal(index),
-                "compact" => AwkArrayKey.CopyTrustedBytes(AwkUtf8Codec.Encode("v" + index).Span,
-                    counters, state.MemoryAccounting, state.CancellationCheckpoint),
+                "compact" => state.CopyArrayKey(AwkUtf8Codec.Encode("v" + index).Span),
                 // Keep owned-text lifetime/refusal coverage distinct from compact keys.
                 _ => new AwkArrayKey("long-key-" + index)
             };

@@ -7,9 +7,8 @@ public sealed class AwkIndexedArrayStorageTests
     public void IndexedUpdateCapturePreflightsMissingCoordinateBeforeInsertion(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
         var owner = variables.ResolveOrdinaryArray(AwkArrayName.FromText("a"));
         variables.SetArrayOrdinalValue(owner, 1, AwkValue.FromNumber(7));
         var held = memory.Budget.Reserved;
@@ -35,8 +34,8 @@ public sealed class AwkIndexedArrayStorageTests
     [Fact]
     public void OrdinalGrowthAndPromotionFundTheirActualLiveStorage()
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         var owner = variables.ResolveOrdinaryArray(name);
         var emptyBytes = memory.Budget.Reserved;
@@ -65,9 +64,8 @@ public sealed class AwkIndexedArrayStorageTests
     public void SparseEnumerationObservesCancellationButLocalRetirementStillCompletes(bool bulk)
     {
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
         var baseline = memory.Budget.Reserved;
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("scratch"), 1);
         if (bulk) variables.SetArrayValuesFromExternalText(name, Enumerable.Repeat(AwkText.FromString("7"), 1024).ToArray());
@@ -114,9 +112,8 @@ public sealed class AwkIndexedArrayStorageTests
     public void IndexedInsertionRefusalOrCancellationPreservesTheActualOwner(string shape, bool cancel, bool numeric)
     {
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         if (shape != "start")
         {
@@ -166,8 +163,8 @@ public sealed class AwkIndexedArrayStorageTests
     [InlineData(false)] [InlineData(true)]
     public void GrowingOrdinalsKeepValuesAndBorrowedLookupUntilSparsePromotion(bool borrowed)
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("scratch"), 1);
         var held = memory.Budget.Reserved;
         var owner = variables.ResolveOrdinaryArray(name);
@@ -265,9 +262,8 @@ public sealed class AwkIndexedArrayStorageTests
     public void RefusedOrCanceledPromotionPreservesIndexedContents(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled,
-            static (_, _) => { }, checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         variables.SetArrayValuesFromExternalText(name, [AwkText.FromString("0007"), AwkText.FromString("8")]);
         var owner = variables.ResolveOrdinaryArray(name);
@@ -293,8 +289,8 @@ public sealed class AwkIndexedArrayStorageTests
     [Fact]
     public void PromotionRetainsValuesAndPreservesDeletedPositions()
     {
-        using var memory = new CooperativeTestMemory(8 << 20);
-        var variables = new AwkVariables(memory.Accounting, AwkRuntimeCounters.Disabled, static (_, _) => { });
+        using var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var variables = memory.State.Variables;
         var name = AwkArrayName.FromText("a");
         variables.SetArrayValuesFromExternalText(name, [AwkText.FromString("7"), AwkText.FromString("8"), AwkText.FromString("9")]);
         var owner = variables.ResolveOrdinaryArray(name);

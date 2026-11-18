@@ -18,13 +18,14 @@ internal sealed class CooperativeTestMemory : IDisposable
         (_standaloneAccounting ??= AwkMemoryAccounting.Create(Owner));
     public AwkRuntimeState State => _state ?? throw new InvalidOperationException("No direct runtime was created.");
 
-    public CooperativeTestMemory InitializeRuntime(AwkRuntimeCounters counters, CancellationToken token = default) =>
+    public CooperativeTestMemory InitializeRuntime(AwkRuntimeCounters counters, CancellationToken token = default,
+        AwkCompatibilityProfile? profile = null) =>
         Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
             Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, null,
                 counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
             {
                 InternalFailureObserver = AwkInternalFailuresAttribute.CreateObserver()
-            })));
+            }), profile));
 
     public CooperativeTestMemory Initialize(AwkRuntimeState state)
     {

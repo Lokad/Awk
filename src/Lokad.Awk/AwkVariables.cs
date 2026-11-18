@@ -11,12 +11,7 @@ internal sealed partial class AwkVariables
     private static readonly string FieldCountName = AwkSpecialVariables.Name(AwkSpecialVariableId.FieldCount);
     private static readonly string OutputFieldSeparatorName = AwkSpecialVariables.Name(AwkSpecialVariableId.OutputFieldSeparator);
 
-    private readonly AwkNumberParsingMode _numberParsingMode;
-    private readonly Action<string, AwkValue> _applyScalarAssignment;
-    private readonly AwkCompatibilityMode _mode;
-    private readonly Action? _checkpoint;
-    private readonly AwkRuntimeCounters _counters;
-    private readonly AwkMemoryAccounting _memoryAccounting;
+    private readonly AwkRuntimeState _state;
     private readonly Dictionary<AwkVariableName, AwkGlobalSlotId> _scalarSlotsByName = new();
     private readonly List<AwkScalarCell> _scalarSlots = [];
     private readonly AwkScalarCell?[] _specialScalarCells;
@@ -24,11 +19,7 @@ internal sealed partial class AwkVariables
     private readonly AwkArrayStorage _arrays;
     private readonly AwkSymbolTableArray _symbolTable;
     private IReadOnlySet<AwkVariableName> _globalNames = FrozenSet<AwkVariableName>.Empty;
-    private readonly Func<AwkValue>? _resolveFieldCountValue;
-    private readonly Action _prepareOutputFieldSeparatorAssignment;
     private bool _governScalarMemory;
-
-    internal AwkNumberParsingMode NumberParsingMode => _numberParsingMode;
 
     internal sealed class AwkScalarCell(AwkVariableName name, AwkScalarState state)
     {
@@ -78,31 +69,15 @@ internal sealed partial class AwkVariables
         }
     }
 
-    public AwkVariables(
-        AwkMemoryAccounting memoryAccounting,
-        AwkRuntimeCounters counters,
-        Action<string, AwkValue> applyScalarAssignment,
-        Func<AwkValue>? resolveFieldCountValue = null,
-        Action? prepareOutputFieldSeparatorAssignment = null,
-        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null,
-        AwkNumberParsingMode numberParsingMode = AwkNumberParsingMode.Decimal)
+    public AwkVariables(AwkRuntimeState state)
     {
-
-        _mode = mode;
-        _checkpoint = checkpoint;
-
-        _memoryAccounting = memoryAccounting;
-        _counters = counters;
-        _numberParsingMode = numberParsingMode;
-        _applyScalarAssignment = applyScalarAssignment;
-        _resolveFieldCountValue = resolveFieldCountValue;
-        _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
+        _state = state;
+        var checkpoint = state.CancellationCheckpoint;
         // Scalar IDs precede arrays. These are references to real owners, not a
         // second value store; absent and disabled names keep ordinary resolution.
         using (var bindingMemory = ReserveMemoryMutation(AwkRuntimeMemory.EstimateSpecialScalarBindingsBytes(), 0))
         {
-            if (_memoryAccounting.IsEnabled) _checkpoint?.Invoke();
+            if (_state.MemoryAccounting.IsEnabled) _state.ThrowIfCancellationRequested();
             _specialScalarCells = new AwkScalarCell?[(int)AwkSpecialVariableId.ArgumentVector];
             bindingMemory.Commit();
         }
@@ -116,7 +91,7 @@ internal sealed partial class AwkVariables
             _arrays.Contains,
             () => _arrays.Names,
             CreateValue,
-            SetScalarValueFromSymbolTable,
+            state.ApplySpecialVariableAssignment,
             checkpoint);
 
         bool TryResolveScalarSlot(AwkVariableName name, out AwkGlobalSlotId slotId) =>
@@ -127,9 +102,8 @@ internal sealed partial class AwkVariables
             if (slotId.Value >= 0 && slotId.Value < _scalarSlots.Count)
             {
                 var scalarName = GetScalarCell(slotId).Name;
-                slot = resolveFieldCountValue is not null &&
-                    string.Equals(scalarName.Text, FieldCountName, StringComparison.Ordinal)
-                    ? AwkValue.ForVariableStorage(resolveFieldCountValue(), _numberParsingMode)
+                slot = string.Equals(scalarName.Text, FieldCountName, StringComparison.Ordinal)
+                    ? AwkValue.ForVariableStorage(_state.RecordFields.GetFieldCountValue(), _state.NumberParsingMode)
                     : GetScalarCell(slotId).State.Slot;
                 return true;
             }
@@ -143,20 +117,15 @@ internal sealed partial class AwkVariables
             for (var index = 0; index < _scalarSlots.Count; index++)
                 yield return new AwkScalarInventoryItem(new AwkGlobalSlotId(index), _scalarSlots[index].Name);
         }
-
-        void SetScalarValueFromSymbolTable(string name, AwkValue value)
-        {
-            _applyScalarAssignment(name, value);
-        }
     }
 
     public bool ContainsScalar(AwkVariableName name) =>
         (AwkSpecialVariables.TryGetScalar(name, out var special) &&
-            AwkCompatibilityNames.EnablesSpecial(special, _mode)) ||
+            AwkCompatibilityNames.EnablesSpecial(special, _state.CompatibilityMode)) ||
         (_scalarSlotsByName.TryGetValue(name, out var id) && !GetScalarCell(id).State.Slot.IsUntypedValue);
 
     public bool IsSymbolTable(string name) =>
-        AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _mode) &&
+        AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _state.CompatibilityMode) &&
         AwkSymbolTableArray.IsName(name);
 
     public bool ContainsArray(AwkArrayName name) =>
@@ -188,7 +157,7 @@ internal sealed partial class AwkVariables
             if (array.TryGetIndexed(index, out _, out var slot)) return ReadArraySlotNumber(slot);
         }
         else if (array.TryGetDictionaryCell(index, out var cell)) return ReadArraySlotNumber(in cell.BorrowedSlot);
-        return CreateMissingArrayValue(array, index).AsNumber(_checkpoint);
+        return CreateMissingArrayValue(array, index).AsNumber(_state.CancellationCheckpoint);
     }
 
     internal AwkValue GetArrayValue(AwkArrayIdentity array, AwkArrayKey index, in AwkArrayUpdateTarget location) =>
@@ -308,7 +277,7 @@ internal sealed partial class AwkVariables
     internal double ReadArraySlotNumber(scoped in AwkValue slot)
     {
         if (!slot.TryGetNumberValue(out var number))
-            return slot.ReadVariableNumber(_numberParsingMode, _checkpoint);
+            return slot.ReadVariableNumber(_state.NumberParsingMode, _state.CancellationCheckpoint);
 
         return number;
     }
@@ -318,7 +287,7 @@ internal sealed partial class AwkVariables
 
     private AwkValue CreateMissingArraySlot(AwkArrayIdentity array, AwkArrayKey index, out AwkArrayCell? cell)
     {
-        using var admission = _memoryAccounting.AdmitMutation(EstimateArrayInsertionGrowth(array, index,
+        using var admission = _state.MemoryAccounting.AdmitMutation(EstimateArrayInsertionGrowth(array, index,
             AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index) - AwkRuntimeMemory.EstimateArrayBackingBytes(1)));
         var slot = AwkValue.FromUntypedScalar(new AwkUntypedScalar(array));
         cell = InsertAdmittedArraySlot(array, index, slot);
@@ -332,43 +301,43 @@ internal sealed partial class AwkVariables
     internal void SetArrayValue(AwkArrayIdentity array, AwkArrayKey index, AwkValue value)
     {
         ThrowIfDetached(array);
-        SetArraySlot(array, index, AwkValue.ForVariableStorage(value, _numberParsingMode));
+        SetArraySlot(array, index, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
     internal void SetArrayOrdinalValue(AwkArrayIdentity array, int ordinal, AwkValue value)
     {
         ThrowIfDetached(array);
-        var slot = AwkValue.ForVariableStorage(value, _numberParsingMode);
+        var slot = AwkValue.ForVariableStorage(value, _state.NumberParsingMode);
         if (array.TryGetIndexed(ordinal, out var prior))
             StoreArraySlot(array, default, prior, null, slot, ordinal);
         else if (array.TryPlanIndexedInsertion(ordinal, out var capacity))
         {
-            var payload = _memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(default, slot) : 0;
-            var peak = _memoryAccounting.IsEnabled
+            var payload = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(default, slot) : 0;
+            var peak = _state.MemoryAccounting.IsEnabled
                 ? AwkRuntimeMemory.CheckedAdd(payload - AwkRuntimeMemory.ArrayCellBytes,
                     array.EstimateIndexedInsertionBackingBytes(capacity)) : 0;
-            using var admission = peak > payload ? _memoryAccounting.AdmitMutation(peak) : default;
+            using var admission = peak > payload ? _state.MemoryAccounting.AdmitMutation(peak) : default;
             InsertIndexedArraySlot(array, ordinal, capacity, 0, slot);
         }
         else SetArraySlot(array, AwkArrayKey.FromOrdinal(ordinal), slot);
     }
 
     internal void InsertArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, AwkValue value, bool input = false) =>
-        InsertByteSlot(array, index, AwkValue.ForVariableStorage(value, _numberParsingMode), missing: false, out _, out _, input);
+        InsertByteSlot(array, index, AwkValue.ForVariableStorage(value, _state.NumberParsingMode), missing: false, out _, out _, input);
 
     // Admission covers retained key construction and its actual storage form.
     private AwkValue InsertByteSlot(AwkArrayIdentity array, ReadOnlySpan<byte> index,
         AwkValue slot, bool missing, out AwkArrayKey key, out AwkArrayCell? cell, bool input)
     {
         ThrowIfDetached(array);
-        using var admission = _memoryAccounting.AdmitMutation(_memoryAccounting.IsEnabled
+        using var admission = _state.MemoryAccounting.AdmitMutation(_state.MemoryAccounting.IsEnabled
             ? EstimateArrayInsertionGrowth(array, index, AwkRuntimeMemory.CheckedAdd(
                 AwkArrayKey.EstimateRetainedTextBytes(index.Length),
                 AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayCellBytes,
                     missing ? AwkRuntimeMemory.EstimateUntypedScalarBytes() : slot.RetainedTextMemoryBytes))) : 0);
-        key = AwkArrayKey.CopyTrustedBytes(index, _counters, _memoryAccounting, _checkpoint)
+        key = _state.CopyArrayKey(index)
             .WithInputOrigin(input);
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
         if (missing) slot = AwkValue.FromUntypedScalar(new AwkUntypedScalar(array));
         cell = InsertAdmittedArraySlot(array, key, slot);
         return slot;
@@ -378,7 +347,7 @@ internal sealed partial class AwkVariables
         AwkValue prior, AwkArrayCell? cell, AwkValue value)
     {
         ThrowIfDetached(array);
-        StoreArraySlot(array, key, prior, cell, AwkValue.ForVariableStorage(value, _numberParsingMode));
+        StoreArraySlot(array, key, prior, cell, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
     internal bool TrySetCapturedArrayNumber(AwkArrayIdentity array, in AwkArrayUpdateTarget target, double number)
@@ -421,28 +390,27 @@ internal sealed partial class AwkVariables
     {
         if (IsComputedFieldCount(name))
         {
-            _applyScalarAssignment(name.Text, AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _checkpoint));
+            _state.ApplySpecialVariableAssignment(name.Text, AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _state.CancellationCheckpoint));
             return;
         }
-        SetScalarSlot(name, AwkValue.FromDeferredText(AwkText.FromString(value), _numberParsingMode));
+        SetScalarSlot(name, AwkValue.FromDeferredText(AwkText.FromString(value), _state.NumberParsingMode));
     }
 
     public void SetScalarValue(AwkVariableName name, AwkValue value)
     {
         if (IsComputedFieldCount(name))
         {
-            _applyScalarAssignment(name.Text, value);
+            _state.ApplySpecialVariableAssignment(name.Text, value);
             return;
         }
-        SetScalarSlot(name, AwkValue.ForVariableStorage(value, _numberParsingMode));
+        SetScalarSlot(name, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
     private bool IsComputedFieldCount(AwkVariableName name) =>
-        _governScalarMemory && _resolveFieldCountValue is not null &&
-        string.Equals(name.Text, FieldCountName, StringComparison.Ordinal);
+        _governScalarMemory && string.Equals(name.Text, FieldCountName, StringComparison.Ordinal);
 
     public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value) =>
-        EstimateScalarSlotMemoryGrowth(name, AwkValue.ForVariableStorage(value, _numberParsingMode));
+        EstimateScalarSlotMemoryGrowth(name, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
 
     internal long EstimateScalarSlotMemoryGrowth(AwkVariableName name, AwkValue slot)
     {
@@ -482,7 +450,7 @@ internal sealed partial class AwkVariables
         if (_scalarSlotsByName.TryGetValue(name, out var id))
             return CreateValue(GetScalarCell(id).State.Slot);
         using var admission = _governScalarMemory
-            ? _memoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
+            ? _state.MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length),
                 AwkRuntimeMemory.CheckedAdd(24, AwkRuntimeMemory.EstimateUntypedScalarBytes())))
             : default;
@@ -493,9 +461,8 @@ internal sealed partial class AwkVariables
 
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
-        if (_resolveFieldCountValue is not null &&
-            string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
-            return _resolveFieldCountValue();
+        if (string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
+            return _state.RecordFields.GetFieldCountValue();
 
         if (_scalarSlotsByName.TryGetValue(name, out var id))
             return CreateValue(GetScalarCell(id).State.Slot).ForceScalar();
@@ -509,9 +476,8 @@ internal sealed partial class AwkVariables
 
     internal AwkValue GetScalarValue(AwkScalarCell cell)
     {
-        if (_resolveFieldCountValue is not null &&
-            string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal))
-            return _resolveFieldCountValue();
+        if (string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal))
+            return _state.RecordFields.GetFieldCountValue();
 
         return CreateValue(cell.State.Slot).ForceScalar();
     }
@@ -535,26 +501,24 @@ internal sealed partial class AwkVariables
     internal void SetScalarValue(AwkScalarCell cell, AwkValue value)
     {
         var name = cell.Name;
-        if (_resolveFieldCountValue is not null &&
-            string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
+        if (string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
         {
-            _applyScalarAssignment(name.Text, value);
+            _state.ApplySpecialVariableAssignment(name.Text, value);
             return;
         }
 
-        SetScalarSlot(cell, AwkValue.ForVariableStorage(value, _numberParsingMode));
+        SetScalarSlot(cell, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
     internal bool TrySetConsumedScalarValue(AwkScalarCell cell, AwkValue value,
         AwkRegionStorage source, in AwkRegionOperand sourceOperand)
     {
         // Computed NF and bootstrap storage retain their ordinary assignment owner.
-        if (!_governScalarMemory || _resolveFieldCountValue is not null &&
-            string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal)) return false;
+        if (!_governScalarMemory || string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal)) return false;
         if (sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
-            value = AwkValue.ForVariableStorage(value, _numberParsingMode);
+            value = AwkValue.ForVariableStorage(value, _state.NumberParsingMode);
         else System.Diagnostics.Debug.Assert(value.StoredKind ==
-            AwkValue.FromDeferredText(AwkText.Empty, _numberParsingMode).StoredKind);
+            AwkValue.FromDeferredText(AwkText.Empty, _state.NumberParsingMode).StoredKind);
         StoreScalarSlot(cell, value,
             string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal), source, in sourceOperand);
         return true;
@@ -594,7 +558,7 @@ internal sealed partial class AwkVariables
     internal void IncrementRecordCounter(AwkScalarCell cell)
     {
         var prior = cell.State.Slot;
-        var number = prior.TryGetNumberValue(out var numeric) ? numeric : CreateValue(prior).AsNumber(_checkpoint);
+        var number = prior.TryGetNumberValue(out var numeric) ? numeric : CreateValue(prior).AsNumber(_state.CancellationCheckpoint);
         SetScalarCellNumber(cell, Math.Truncate(number) + 1);
     }
 
@@ -604,12 +568,12 @@ internal sealed partial class AwkVariables
         foreach (var pair in values)
         {
             bytes = AwkRuntimeMemory.CheckedAdd(bytes,
-                EstimateElementBytes(pair.Key, AwkValue.ForVariableStorage(pair.Value, _numberParsingMode)));
+                EstimateElementBytes(pair.Key, AwkValue.ForVariableStorage(pair.Value, _state.NumberParsingMode)));
         }
-        using var allocationPeak = _memoryAccounting.ReserveAllocationPeak(bytes);
+        using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(bytes);
         var slots = CreateArraySlots(values.Count);
         foreach (var pair in values)
-            slots[pair.Key] = AwkValue.ForVariableStorage(pair.Value, _numberParsingMode);
+            slots[pair.Key] = AwkValue.ForVariableStorage(pair.Value, _state.NumberParsingMode);
         ReplaceArraySlots(name, slots);
     }
 
@@ -627,7 +591,7 @@ internal sealed partial class AwkVariables
                 AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, valueBytes));
         }
 
-        using var allocationPeak = _memoryAccounting.ReserveAllocationPeak(prospectiveBytes);
+        using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(prospectiveBytes);
         ReplaceArraySlots(
             name,
             CreateIndexedArraySlots(values, firstIndex, static (text, _) => AwkValue.ForStoredInputText(text)));
@@ -640,7 +604,7 @@ internal sealed partial class AwkVariables
         Func<TValue, string> selectValue)
     {
         var prospectiveBytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(values.Count);
-        using var allocationPeak = _memoryAccounting.ReserveAllocationPeak(prospectiveBytes);
+        using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(prospectiveBytes);
         var slots = CreateArraySlots(values.Count);
         for (var index = 0; index < values.Count; index++)
         {
@@ -653,7 +617,7 @@ internal sealed partial class AwkVariables
                 prospectiveBytes,
                 AwkRuntimeMemory.EstimateExternalArrayElementBytes(keyBytes, valueBytes));
             allocationPeak.Resize(prospectiveBytes);
-            slots[new AwkArrayKey(keyText, _checkpoint)] = AwkValue.ForStoredInputText(valueText);
+            slots[new AwkArrayKey(keyText, _state.CancellationCheckpoint)] = AwkValue.ForStoredInputText(valueText);
         }
 
         ReplaceArraySlots(name, slots);
@@ -664,13 +628,13 @@ internal sealed partial class AwkVariables
         int count,
         IEnumerable<string> names)
     {
-        using var construction = _memoryAccounting.ReserveAllocationPeak(
+        using var construction = _state.MemoryAccounting.ReserveAllocationPeak(
             AwkRuntimeMemory.EstimateArrayConstructionBytes(AwkRuntimeMemory.BoundArrayCapacity(count), count));
         var slots = CreateArraySlots(count);
         foreach (var value in names)
         {
-            var text = AwkText.FromString(value, AwkRuntimeCounters.Disabled, _checkpoint);
-            slots[new AwkArrayKey(text, _checkpoint)] = AwkValue.FromDeferredText(text, _numberParsingMode);
+            var text = AwkText.FromString(value, AwkRuntimeCounters.Disabled, _state.CancellationCheckpoint);
+            slots[new AwkArrayKey(text, _state.CancellationCheckpoint)] = AwkValue.FromDeferredText(text, _state.NumberParsingMode);
         }
 
         ReplaceArraySlots(name, slots);
@@ -679,14 +643,14 @@ internal sealed partial class AwkVariables
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _symbolTable.GetValue(index.AsString(_counters, _checkpoint));
+            return _symbolTable.GetValue(_state.DecodeArrayKey(index));
 
         var values = GetOrCreateArray(name);
         if (values.TryGetValue(index, out var slot))
             return CreateValue(slot);
 
-        if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode))
-            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
+        if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _state.CompatibilityMode))
+            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, _state.DecodeArrayKey(index)));
         return CreateMissingArrayValue(_arrays.ResolveArray(name), index);
     }
 
@@ -694,7 +658,7 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            value = _symbolTable.GetValue(index.AsString(_counters, _checkpoint));
+            value = _symbolTable.GetValue(_state.DecodeArrayKey(index));
             return true;
         }
 
@@ -704,8 +668,8 @@ internal sealed partial class AwkVariables
         var values = GetOrCreateArray(name);
         if (!values.TryGetValue(index, out var slot))
         {
-            if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode))
-                throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
+            if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _state.CompatibilityMode))
+                throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, _state.DecodeArrayKey(index)));
             value = AwkValue.FromText(string.Empty);
             return false;
         }
@@ -716,7 +680,7 @@ internal sealed partial class AwkVariables
 
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.ContainsValue(index.AsString(_counters, _checkpoint))
+            ? _symbolTable.ContainsValue(_state.DecodeArrayKey(index))
             : GetOrCreateArray(name).ContainsKey(index);
 
     public bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index)
@@ -725,7 +689,7 @@ internal sealed partial class AwkVariables
             return GetOrCreateArray(name).ByteLookup.ContainsKey(index);
 
         var decoded = AwkUtf8Codec.DecodeRuntimeText(index);
-        _counters.Add(AwkCounter.StringDecodes);
+        _state.Counters.Add(AwkCounter.StringDecodes);
         return _symbolTable.ContainsValue(decoded);
     }
 
@@ -734,35 +698,35 @@ internal sealed partial class AwkVariables
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
             _symbolTable.AssignValue(
-                index.AsString(_counters, _checkpoint),
-                CreateValue(AwkValue.ForStoredText(AwkText.FromString(value, _counters, _memoryAccounting))));
+                _state.DecodeArrayKey(index),
+                CreateValue(AwkValue.ForStoredText(AwkText.FromString(value, _state.Counters, _state.MemoryAccounting))));
             return;
         }
 
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _state.CompatibilityMode);
         var values = GetOrCreateArray(name);
-        SetArraySlot(values, index, AwkValue.FromDeferredText(AwkText.FromString(value), _numberParsingMode));
+        SetArraySlot(values, index, AwkValue.FromDeferredText(AwkText.FromString(value), _state.NumberParsingMode));
     }
 
     public void SetArrayValue(AwkArrayName name, AwkArrayKey index, AwkValue value)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            _symbolTable.AssignValue(index.AsString(_counters, _checkpoint), value);
+            _symbolTable.AssignValue(_state.DecodeArrayKey(index), value);
             return;
         }
 
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _state.CompatibilityMode);
         var values = GetOrCreateArray(name);
-        SetArraySlot(values, index, AwkValue.ForVariableStorage(value, _numberParsingMode));
+        SetArraySlot(values, index, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
     public long EstimateArrayValueMemoryGrowth(AwkArrayName name, AwkArrayKey index, AwkValue value)
     {
-        AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
-        var slot = AwkValue.ForVariableStorage(value, _numberParsingMode);
+        AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _state.CompatibilityMode);
+        var slot = AwkValue.ForVariableStorage(value, _state.NumberParsingMode);
         if (_arrays.TryGetArray(name, out var slots) && slots.TryGetValue(index, out var oldSlot))
             return Math.Max(0, AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot) -
                 AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, oldSlot));
@@ -775,7 +739,7 @@ internal sealed partial class AwkVariables
             throw new AwkRuntimeException(AwkMessages.ErrorCannotDeleteSymtab);
 
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _state.CompatibilityMode);
         _ = GetOrCreateArray(name);
         DeleteArrayValue(_arrays.ResolveArray(name), index);
     }
@@ -788,8 +752,8 @@ internal sealed partial class AwkVariables
         long sourceRetainedTextBytes)
     {
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _mode);
-        using var construction = _memoryAccounting.AdmitMutation(
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
+        using var construction = _state.MemoryAccounting.AdmitMutation(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, createSlot),
             sourceMemoryLease, sourceRetainedTextBytes);
@@ -799,7 +763,7 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            value = _symbolTable.GetValue(index.AsString(_counters, _checkpoint));
+            value = _symbolTable.GetValue(_state.DecodeArrayKey(index));
             return true;
         }
         if (_arrays.TryGetArray(name, out var slots) && slots.TryGetValue(index, out var slot))
@@ -854,13 +818,13 @@ internal sealed partial class AwkVariables
 
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.GetElementRuntimeKind(index.AsString(_counters, _checkpoint))
+            ? _symbolTable.GetElementRuntimeKind(_state.DecodeArrayKey(index))
             : GetArrayValue(name, index).RuntimeKind;
 
     public AwkMemoryMutationAdmission PreflightArrayElementRead(AwkArrayName name, AwkArrayKey index)
     {
         if (!name.IsFunctionLocal &&
-            (IsSymbolTable(name.Text) || AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode)))
+            (IsSymbolTable(name.Text) || AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _state.CompatibilityMode)))
             return default;
 
         if (_arrays.TryGetArray(name, out var slots))
@@ -868,15 +832,15 @@ internal sealed partial class AwkVariables
             if (slots.ContainsKey(index))
                 return default;
         }
-        return _memoryAccounting.AdmitMutation(EstimateArrayInsertionGrowth(slots, index,
+        return _state.MemoryAccounting.AdmitMutation(EstimateArrayInsertionGrowth(slots, index,
             AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index) - AwkRuntimeMemory.EstimateArrayBackingBytes(1)));
     }
 
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
     {
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _mode);
-        using var construction = _memoryAccounting.AdmitMutation(
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
+        using var construction = _state.MemoryAccounting.AdmitMutation(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, static (text, _) => AwkValue.ForStoredInputText(text)));
     }
@@ -896,10 +860,10 @@ internal sealed partial class AwkVariables
     {
         ValidateArrayOverlap(fieldArrayName, separatorArrayName, allowSame: false);
         if (fieldArrayName.IsNamed && !fieldArrayName.Name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(fieldArrayName.Name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(fieldArrayName.Name.Text, _state.CompatibilityMode);
         if (separatorArrayName.IsNamed && !separatorArrayName.Name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(separatorArrayName.Name.Text, _mode);
-        using var construction = _memoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(separatorArrayName.Name.Text, _state.CompatibilityMode);
+        using var construction = _state.MemoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(fields.Count),
             AwkRuntimeMemory.EstimateArrayConstructionBytes(AwkRuntimeMemory.BoundArrayCapacity(separators.Count), separators.Count)));
         ReplaceArraySlots(
@@ -943,7 +907,7 @@ internal sealed partial class AwkVariables
     public void ClearArray(AwkArrayName name)
     {
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
         ReplaceArraySlots(name, CreateArraySlots(0));
     }
 
@@ -954,7 +918,7 @@ internal sealed partial class AwkVariables
         long sourceRetainedTextBytes)
     {
         if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _mode);
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text, _state.CompatibilityMode);
         ReplaceArraySlots(name, slots, sourceMemoryLease, sourceRetainedTextBytes);
 
     }
@@ -977,10 +941,10 @@ internal sealed partial class AwkVariables
         foreach (var pair in slots)
         {
             if ((writeIndex & 63) == 0)
-                _checkpoint?.Invoke();
+                _state.ThrowIfCancellationRequested();
             snapshot[writeIndex++] = project(state, pair.Key, CreateValue(pair.Value));
         }
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
 
         return snapshot;
     }
@@ -999,7 +963,7 @@ internal sealed partial class AwkVariables
     public AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayName name, bool materializeKeys, bool retainValues = false)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _memoryAccounting.IsEnabled
+            return _state.MemoryAccounting.IsEnabled
                 ? _symbolTable.MeasureSnapshot(retainValues)
                 : new AwkArraySnapshotSize(_symbolTable.Count, 0);
 
@@ -1013,7 +977,7 @@ internal sealed partial class AwkVariables
     private AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayIdentity slots, int count,
         bool materializeKeys, bool retainValues)
     {
-        if (!_memoryAccounting.IsEnabled)
+        if (!_state.MemoryAccounting.IsEnabled)
             return new AwkArraySnapshotSize(count, 0);
 
         var keyTextBytes = 0L;
@@ -1022,7 +986,7 @@ internal sealed partial class AwkVariables
         foreach (var pair in slots)
         {
             if ((visited++ & 63) == 0)
-                _checkpoint?.Invoke();
+                _state.ThrowIfCancellationRequested();
             var key = pair.Key;
             keyTextBytes = AwkRuntimeMemory.CheckedAdd(keyTextBytes,
                 key.RequiresTextMaterialization && materializeKeys
@@ -1030,7 +994,7 @@ internal sealed partial class AwkVariables
             if (retainValues)
                 valueTextBytes = AwkRuntimeMemory.CheckedAdd(valueTextBytes, pair.Value.RetainedTextMemoryBytes);
         }
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
         return new AwkArraySnapshotSize(count, keyTextBytes, valueTextBytes);
     }
 
@@ -1053,21 +1017,21 @@ internal sealed partial class AwkVariables
         if (firstIndex == 1)
         {
             var cells = AwkArrayIdentity.AllocateIndexedSlots(values.Count,
-                AwkArrayIdentity.IndexedPageCount(values.Count), _checkpoint);
+                AwkArrayIdentity.IndexedPageCount(values.Count), _state.CancellationCheckpoint);
             for (var index = 0; index < values.Count; index++)
             {
-                if ((index & 63) == 0) _checkpoint?.Invoke();
+                if ((index & 63) == 0) _state.ThrowIfCancellationRequested();
                 cells[index >> AwkArrayIdentity.IndexedPageShift][index & AwkArrayIdentity.IndexedPageMask] =
-                    createSlot(values[index], _numberParsingMode);
+                    createSlot(values[index], _state.NumberParsingMode);
             }
-            _checkpoint?.Invoke();
-            return AwkArrayIdentity.FromIndexed(cells, values.Count, _arrayKeyComparer, _checkpoint);
+            _state.ThrowIfCancellationRequested();
+            return AwkArrayIdentity.FromIndexed(cells, values.Count, _arrayKeyComparer, _state.CancellationCheckpoint);
         }
         var destination = CreateArraySlots(values.Count);
         for (var index = 0; index < values.Count; index++)
         {
             var key = AwkArrayKey.FromOrdinal(index + firstIndex);
-            destination[key] = createSlot(values[index], _numberParsingMode);
+            destination[key] = createSlot(values[index], _state.NumberParsingMode);
         }
 
         return destination;
@@ -1097,10 +1061,10 @@ internal sealed partial class AwkVariables
         foreach (var key in slots.Keys)
         {
             if ((writeIndex & 63) == 0)
-                _checkpoint?.Invoke();
+                _state.ThrowIfCancellationRequested();
             destination[writeIndex++] = key;
         }
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
     }
 
     public void RemoveFunctionLocalArray(AwkArrayName name)
@@ -1111,11 +1075,11 @@ internal sealed partial class AwkVariables
         var oldBytes = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(array));
         _arrays.Remove(name, out _);
         RetireArrayContents(array, includeRoot: true, cancellable: false);
-        _memoryAccounting.ReleaseCommitted(oldBytes);
+        _state.MemoryAccounting.ReleaseCommitted(oldBytes);
     }
 
     internal AwkValue CreateValue(AwkValue slot) =>
-        slot.ReadVariableStorage(_numberParsingMode, _checkpoint);
+        slot.ReadVariableStorage(_state.NumberParsingMode, _state.CancellationCheckpoint);
 
     // Cells stay valid when admission or OFS preparation grows the name/index tables.
     internal AwkScalarCell GetScalarCell(AwkGlobalSlotId id) => _scalarSlots[id.Value];
@@ -1138,7 +1102,7 @@ internal sealed partial class AwkVariables
             ? AwkRuntimeMemory.EstimateScalarSymbolMetadataBytes(name.Text.Length)
             : AwkRuntimeMemory.ScalarCellOverheadBytes;
         using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(metadataBytes, slotBytes), 0);
-        if (_memoryAccounting.IsEnabled) _checkpoint?.Invoke();
+        if (_state.MemoryAccounting.IsEnabled) _state.ThrowIfCancellationRequested();
         _scalarSlotsByName.Add(name, id);
         var cell = new AwkScalarCell(
             name,
@@ -1147,7 +1111,7 @@ internal sealed partial class AwkVariables
                 : AwkScalarState.Ungoverned(slot));
         _scalarSlots.Add(cell);
         if (AwkSpecialVariables.TryGetScalar(name, out var special) &&
-            AwkCompatibilityNames.EnablesSpecial(special, _mode))
+            AwkCompatibilityNames.EnablesSpecial(special, _state.CompatibilityMode))
             _specialScalarCells[(int)special] = cell;
         mutation.Commit();
         return id;
@@ -1178,16 +1142,16 @@ internal sealed partial class AwkVariables
             cell.State.Slot.StoredKind == AwkValueKind.Number)
         {
             if (prepareOutputSeparator)
-                _prepareOutputFieldSeparatorAssignment();
+                _state.RecordFields.PrepareOutputFieldSeparatorAssignment();
             source?.TransferScalarFunding(in sourceOperand, 0);
             cell.State.Slot = AwkValue.FromNumber(number);
             return;
         }
 
-        if (!_governScalarMemory || !_memoryAccounting.IsEnabled)
+        if (!_governScalarMemory || !_state.MemoryAccounting.IsEnabled)
         {
             if (prepareOutputSeparator)
-                _prepareOutputFieldSeparatorAssignment();
+                _state.RecordFields.PrepareOutputFieldSeparatorAssignment();
             source?.TransferScalarFunding(in sourceOperand, 0);
             cell.State.SetUngovernedSlot(slot);
             return;
@@ -1202,9 +1166,9 @@ internal sealed partial class AwkVariables
         var sourceBytes = source is null ? 0 : slot.RetainedTextMemoryBytes;
         var credited = AwkRuntimeMemory.CheckedAdd(oldCharge, sourceBytes);
         using var mutation = ReserveMemoryMutation(newCharge, credited);
-        if (newCharge > credited) _checkpoint?.Invoke();
+        if (newCharge > credited) _state.ThrowIfCancellationRequested();
         if (prepareOutputSeparator)
-            _prepareOutputFieldSeparatorAssignment();
+            _state.RecordFields.PrepareOutputFieldSeparatorAssignment();
         source?.TransferScalarFunding(in sourceOperand, sourceBytes);
         cell.State.SetSlot(slot, baselineBytes, newCharge);
         mutation.Commit();
@@ -1219,9 +1183,9 @@ internal sealed partial class AwkVariables
 
     private void InsertArraySlot(AwkArrayIdentity values, AwkArrayKey index, AwkValue slot)
     {
-        var payload = _memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot) : 0;
-        var peak = _memoryAccounting.IsEnabled ? EstimateArrayInsertionGrowth(values, index, payload) : 0;
-        using var admission = peak > payload ? _memoryAccounting.AdmitMutation(peak) : default;
+        var payload = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot) : 0;
+        var peak = _state.MemoryAccounting.IsEnabled ? EstimateArrayInsertionGrowth(values, index, payload) : 0;
+        using var admission = peak > payload ? _state.MemoryAccounting.AdmitMutation(peak) : default;
         InsertAdmittedArraySlot(values, index, slot);
     }
 
@@ -1233,14 +1197,14 @@ internal sealed partial class AwkVariables
             return null;
         }
         if (values.IsIndexed) return PromoteAndInsertArraySlot(values, index, slot);
-        if (!_memoryAccounting.IsEnabled) return values.AddDictionarySlot(index, slot);
+        if (!_state.MemoryAccounting.IsEnabled) return values.AddDictionarySlot(index, slot);
         var oldCapacity = values.EnsureCapacity(0);
         if (values.Count == oldCapacity) values.EnsureCapacity(AwkRuntimeMemory.PlanArrayCapacity(oldCapacity));
         using var mutation = ReserveMemoryMutation(
             AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateArrayBackingBytes(values.EnsureCapacity(0)),
                 AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot)),
             AwkRuntimeMemory.EstimateArrayBackingBytes(oldCapacity));
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
         var cell = values.AddDictionarySlot(index, slot);
         mutation.Commit();
         return cell;
@@ -1253,9 +1217,9 @@ internal sealed partial class AwkVariables
         var newBacking = values.EstimateIndexedBackingBytes(capacity);
         using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(
             newBacking, AwkRuntimeMemory.CheckedAdd(keyBytes, slot.RetainedTextMemoryBytes)), oldBacking);
-        var slots = values.PrepareIndexedCapacity(capacity, _checkpoint);
-        if (_memoryAccounting.IsEnabled || oldBacking != newBacking) _checkpoint?.Invoke();
-        values.PublishIndexedInsertion(in slots, ordinal, slot, _checkpoint);
+        var slots = values.PrepareIndexedCapacity(capacity, _state.CancellationCheckpoint);
+        if (_state.MemoryAccounting.IsEnabled || oldBacking != newBacking) _state.ThrowIfCancellationRequested();
+        values.PublishIndexedInsertion(in slots, ordinal, slot, _state.CancellationCheckpoint);
         mutation.Commit();
     }
 
@@ -1263,11 +1227,11 @@ internal sealed partial class AwkVariables
     {
         var oldBacking = values.BackingBytes;
         var cellBytes = AwkRuntimeMemory.CheckedMultiply(values.Count, AwkRuntimeMemory.ArrayCellBytes);
-        var dictionary = values.BuildDictionary(Math.Max(3, values.Count + 1), _checkpoint);
+        var dictionary = values.BuildDictionary(Math.Max(3, values.Count + 1), _state.CancellationCheckpoint);
         using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateArrayBackingBytes(dictionary.EnsureCapacity(0)), cellBytes),
             AwkRuntimeMemory.EstimateArrayElementPayloadBytes(index, slot)), oldBacking);
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
         var cell = new AwkArrayCell(slot);
         dictionary.Add(index.PrepareByteLookup(), cell);
         values.PublishDictionary(dictionary);
@@ -1286,7 +1250,7 @@ internal sealed partial class AwkVariables
             return;
         }
         using var mutation = ReserveMemoryMutation(slot.RetainedTextMemoryBytes, prior.RetainedTextMemoryBytes);
-        _checkpoint?.Invoke();
+        _state.ThrowIfCancellationRequested();
         if (prior.TryGetUntypedScalar(out var origin))
         {
             RepairElementAliases?.Invoke(origin);
@@ -1347,7 +1311,7 @@ internal sealed partial class AwkVariables
     }
 
     private AwkMemoryMutationLease ReserveMemoryMutation(long newBytes, long oldBytes) =>
-        new(_memoryAccounting, newBytes, oldBytes);
+        new(_state.MemoryAccounting, newBytes, oldBytes);
 
     private struct AwkMemoryMutationLease : IDisposable
     {
@@ -1441,7 +1405,7 @@ internal sealed partial class AwkVariables
         AwkRuntimeMemory.EstimateStoredValueBytes(slot);
 
     private long EstimateOwnedArrayBytes(IReadOnlyDictionary<AwkArrayKey, AwkValue> slots) =>
-        _memoryAccounting.IsEnabled ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
-            EstimateArrayBytes(slots, _checkpoint)) : 0;
+        _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes,
+            EstimateArrayBytes(slots, _state.CancellationCheckpoint)) : 0;
 
 }

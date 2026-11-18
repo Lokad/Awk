@@ -439,9 +439,9 @@ public sealed class AwkBorrowedArrayReadTests
     public void MissingBorrowedLookupDoesNotCreateAnArrayOrCommitStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForAccounting = new CooperativeTestMemory(1024);
+        using var memoryForAccounting = new CooperativeTestMemory(1024).InitializeRuntime(counters);
         var accounting = memoryForAccounting.Accounting;
-        var variables = new AwkVariables(accounting, counters, static (_, _) => { });
+        var variables = memoryForAccounting.State.Variables;
         var name = AwkArrayName.FromText("a");
         var retained = accounting.CurrentCommittedBytes;
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));
