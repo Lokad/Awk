@@ -7,7 +7,7 @@ internal readonly struct AwkPrintfFieldArguments(int[] fields, AwkRuntimeState s
     public int Count => fields.Length;
 
     public AwkText GetByteText(int index) => state.FormatStringByteText(state.GetFieldValue(fields[index]));
-    public double GetNumber(int index) => state.GetFieldNumber(fields[index]);
+    public double GetNumber(int index) => state.RecordFields.GetFieldNumber(new(fields[index]), state.NumberParsingMode);
     public bool IsNumeric(int index)
     {
         var value = state.GetFieldValue(fields[index]);

@@ -50,17 +50,20 @@ internal partial struct AwkRegionMachine
                     computationView.Numbers[instruction.Target] = computationView.Numbers[instruction.Left];
                     break;
                 case AwkRegionInstructionKind.FieldNumber:
-                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.State.GetFieldNumber(instruction.Left));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.State.RecordFields.GetFieldNumber(new(instruction.Left), computationView.State.NumberParsingMode));
                     break;
                 case AwkRegionInstructionKind.FieldIndex:
                     computationView.Numbers[instruction.Target] = AwkFieldIndex.FromNumber(computationView.Numbers[instruction.Left]).Value;
                     break;
                 case AwkRegionInstructionKind.FieldIndexNumber:
                     computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
-                        computationView.State.GetFieldNumber(AwkFieldIndex.FromNumber(computationView.Numbers[instruction.Left]).Value));
+                        computationView.State.RecordFields.GetFieldNumber(
+                            AwkFieldIndex.FromNumber(computationView.Numbers[instruction.Left]), computationView.State.NumberParsingMode));
                     break;
                 case AwkRegionInstructionKind.DynamicFieldNumber:
-                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.State.GetFieldNumber((int)computationView.Numbers[instruction.Left]));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.State.RecordFields.GetFieldNumber(new((int)computationView.Numbers[instruction.Left]), computationView.State.NumberParsingMode));
                     break;
                 case AwkRegionInstructionKind.LiteralNumber:
                     computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
@@ -192,7 +195,10 @@ internal partial struct AwkRegionMachine
                 {
                     var inspected = computationView.Operands[instruction.Left];
                     // Classification remains local; field spelling stays with its frame.
-                    var inspectedValue = AwkRegionComputation.IsField(inspected) ? computationView.State.GetFieldComparison(computationView.FieldOrdinal(inspected)).Value : computationView.Value(instruction.Left);
+                    var inspectedValue = AwkRegionComputation.IsField(inspected)
+                        ? computationView.State.RecordFields.GetFieldComparison(computationView.FieldIndex(in inspected),
+                            computationView.State.NumberParsingMode).Value
+                        : computationView.Value(instruction.Left);
                     if (instruction.Detail == 0) computationView.Numbers[instruction.Target] = inspectedValue.IsArrayValue ? 1 : 0;
                     else computationView.Storage.StoreValue(instruction.Target, AwkRuntimeValueKindNames.Value(inspectedValue.RuntimeKind));
                     break;
@@ -393,12 +399,14 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.AssignField:
                     var fieldValue = computationView.Value(instruction.Left);
                     computationView.State.ThrowIfCancellationRequested();
-                    computationView.State.AssignFieldValue(computationView.FieldOrdinal(computationView.Operands[instruction.Target]), fieldValue);
+                    computationView.State.AssignFieldValue(computationView.FieldIndex(computationView.Operands[instruction.Target]), fieldValue);
                     break;
                 case AwkRegionInstructionKind.CopyField:
                     computationView.State.ThrowIfCancellationRequested();
-                    if (!computationView.State.TryCopyInputField(computationView.FieldOrdinal(computationView.Operands[instruction.Left]), instruction.Target))
-                        computationView.State.AssignFieldValue(instruction.Target, computationView.Value(instruction.Left));
+                    var destinationField = new AwkFieldIndex(instruction.Target);
+                    if (!computationView.State.RecordFields.TryCopyInputField(
+                        computationView.FieldIndex(computationView.Operands[instruction.Left]), destinationField))
+                        computationView.State.AssignFieldValue(destinationField, computationView.Value(instruction.Left));
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
                 {

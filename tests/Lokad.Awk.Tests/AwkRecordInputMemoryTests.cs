@@ -37,7 +37,7 @@ public sealed class AwkRecordInputMemoryTests
         var records = state.InputRecordStorage;
         records.StageBorrowed(reader, reader.Content);
         state.PublishInputRecord(AwkInputRecordResult.Buffered(records, AwkRecordTerminator.Empty), readsMainInput: false);
-        state.GetFieldNumber(1);
+        state.RecordFields.GetFieldNumber(new(1), state.NumberParsingMode);
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{values[\"warm\"]+=0;result=(values[$1]+=((ready=1)?$300:0))}"));
         Assert.True(binding.Success);
         var program = binding.Program;

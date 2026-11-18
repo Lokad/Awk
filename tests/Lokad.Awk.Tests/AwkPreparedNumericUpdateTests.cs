@@ -24,7 +24,7 @@ public sealed class AwkPreparedNumericUpdateTests
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(spelling + " " +
             string.Join(' ', Enumerable.Repeat("3", 299))));
-        state.GetFieldNumber(1);
+        state.RecordFields.GetFieldNumber(new(1), state.NumberParsingMode);
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);

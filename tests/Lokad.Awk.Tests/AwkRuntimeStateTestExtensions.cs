@@ -49,7 +49,7 @@ internal static class AwkRuntimeStateTestExtensions
 
         public void AssignVariableValue(AwkGlobalSlotId id, AwkValue value) => state.Variables.SetScalarValue(id, value);
 
-        public void AssignField(int index, string value) => state.AssignFieldValue(index, state.CreateStringValue(value));
+        public void AssignField(int index, string value) => state.AssignFieldValue(new(index), state.CreateStringValue(value));
 
         public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
             state.FormatStringByteText(state.GetArrayAwkValue(name, index));

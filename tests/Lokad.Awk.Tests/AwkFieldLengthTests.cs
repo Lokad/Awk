@@ -74,7 +74,7 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
-        Assert.Equal(7, state.GetFieldNumber(2));
+        Assert.Equal(7, state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
         Assert.Equal(4, state.CountFieldStringUnits(2));
 
         Assert.Equal("0007", state.GetFieldValue(2).AsString());

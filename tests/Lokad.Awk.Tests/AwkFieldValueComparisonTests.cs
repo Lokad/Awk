@@ -34,7 +34,7 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(leftName, AwkValue.FromNumber(7));
         Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.True(state.GetFieldValue(2).IsNumericStringValue);
-        state.AssignFieldValue(2, AwkValue.FromText("old"));
+        state.AssignFieldValue(new(2), AwkValue.FromText("old"));
         state.AssignVariableValue(leftName, left);
         Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
     }

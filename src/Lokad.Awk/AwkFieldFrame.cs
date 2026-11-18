@@ -385,8 +385,9 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     internal AwkScalarOperand GetFieldComparison(AwkFieldIndex index,
         AwkNumberParsingMode mode)
     {
+        if (index.IsCurrentRecord) return new(GetRecordValue());
         EnsureField(index);
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+        if (index.Value > _fieldTexts.Count)
             return new(AwkValue.UnassignedText());
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
@@ -401,9 +402,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     internal bool TryGetFieldComparisonNumber(AwkFieldIndex index, AwkNumberParsingMode mode, out double number)
     {
-        EnsureField(index);
         number = 0;
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return false;
+        if (index.IsCurrentRecord) return false;
+        EnsureField(index);
+        if (index.Value > _fieldTexts.Count) return false;
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
         if (field.IsUnassigned) return false;
@@ -466,10 +468,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         AwkFieldIndex index,
         AwkNumberParsingMode mode, bool deferError, out double number, out int cachedValue)
     {
-        EnsureField(index);
         number = 0;
         cachedValue = -1;
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count) return true;
+        if (index.IsCurrentRecord) return false;
+        EnsureField(index);
+        if (index.Value > _fieldTexts.Count) return true;
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
         if (field.CacheSlot < 0)

@@ -100,7 +100,7 @@ public sealed partial class AwkFieldProjectionTests
         state.AppendFieldPrint(output, 1);
         state.AppendFieldPrint(output, 2);
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFormat, AwkValue.FromText("%.2f"));
-        state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+        state.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
         state.AppendFieldPrint(output, 1);
         Assert.Equal("café\n😀\n1.25\n", output.ToString());
         Assert.True(state.GetFieldValue(1).IsNumberValue);

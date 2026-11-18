@@ -40,7 +40,7 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal("02", state.ResolveSpecialVariableValue(nf).AsString());
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("1", 64))));
         fields = state.Counters[AwkCounter.FieldsPrepared];
-        Assert.Equal(1, state.GetFieldNumber(1));
+        Assert.Equal(1, state.RecordFields.GetFieldNumber(new(1), state.NumberParsingMode));
         Assert.Equal(fields + 1, state.Counters[AwkCounter.FieldsPrepared]);
         memory.Budget.OnGrowth = _ => throw new InvalidOperationException("A prefix probe cannot admit.");
         Assert.False(state.TryResolvePreparedSpecialNumber(nf, out _));

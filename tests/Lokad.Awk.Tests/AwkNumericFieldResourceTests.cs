@@ -16,7 +16,7 @@ public sealed class AwkNumericFieldResourceTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("a b"));
         var allocations = counters[AwkCounter.TextAllocations];
 
-        state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+        state.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
 
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
 
@@ -69,7 +69,7 @@ public sealed class AwkNumericFieldResourceTests
         using var memory = State(AwkRuntimeLimits.CreateDefault());
         var state = memory.State;
         Prepare(state, "%.8f");
-        state.AssignFieldValue(2, AwkValue.FromNumber(2.75));
+        state.AssignFieldValue(new(2), AwkValue.FromNumber(2.75));
         var committed = state.MemoryAccounting.LiveBytes;
 
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -172,7 +172,7 @@ public sealed class AwkNumericFieldResourceTests
     {
         SetFormat(state, format);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("a b"));
-        state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+        state.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
     }
 
     private static void SetFormat(AwkRuntimeState state, string format) =>

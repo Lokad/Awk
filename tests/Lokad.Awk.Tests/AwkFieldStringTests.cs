@@ -210,7 +210,7 @@ public sealed class AwkFieldStringTests
         var state = memory.State;
         var record = AwkText.FromSourceLiteralString("key résumé");
         state.SetCurrentRecord(record);
-        _ = state.GetFieldNumber(2);
+        _ = state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode);
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
         var region = Bind(expression);
         using var storage = new AwkRegionStorage(state);

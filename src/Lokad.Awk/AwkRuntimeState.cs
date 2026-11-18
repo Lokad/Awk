@@ -686,45 +686,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return length;
     }
 
-    internal double GetFieldNumber(int index)
-    {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index == 0)
-            return GetCurrentRecordValue().AsNumber(CancellationCheckpoint);
-        return _recordFields.GetFieldNumber(new(index), NumberParsingMode);
-    }
-
-    internal AwkValue GetFieldArithmeticArgument(int index)
-    {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        return index == 0 ? GetCurrentRecordValue() :
-            _recordFields.GetFieldArithmeticArgument(new(index), NumberParsingMode);
-    }
-
-    internal bool TryGetFieldArithmeticNumber(int index, out double number)
-    {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0) return _recordFields.TryGetFieldArithmeticNumber(new(index), NumberParsingMode, out number);
-        number = 0;
-        return false;
-    }
-
-    internal bool TryGetFieldComparisonNumber(int index, out double number)
-    {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0) return _recordFields.TryGetFieldComparisonNumber(new(index), NumberParsingMode, out number);
-        number = 0;
-        return false;
-    }
-
-    internal bool TryGetStoredFieldComparisonNumber(int index, out double number)
-    {
-        if (index > 0) return _recordFields.TryGetStoredFieldComparisonNumber(new(index), out number);
-        number = 0;
-        return false;
-    }
-
     internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
         _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
 
@@ -741,13 +702,6 @@ internal sealed class AwkRuntimeState : IDisposable
         if (!TryGetPrintfFieldBytes(index, out _))
             _ = GetFieldValue(index);
         ThrowIfCancellationRequested();
-    }
-
-    internal AwkScalarOperand GetFieldComparison(int index)
-    {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        return index == 0 ? new(GetCurrentRecordValue()) :
-            _recordFields.GetFieldComparison(new(index), NumberParsingMode);
     }
 
     internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right, bool sorting = false) =>
@@ -1484,21 +1438,12 @@ internal sealed class AwkRuntimeState : IDisposable
             ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
                 ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary));
 
-    public void AssignFieldValue(int index, AwkValue value)
-    {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        AssignFieldValue(new AwkFieldIndex(index), value);
-    }
-
     public void AssignFieldValue(AwkFieldIndex index, AwkValue value)
     {
         if (index.IsCurrentRecord) SetCurrentRecordValue(value);
         else _recordFields.AssignFieldValue(index, value,
             ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator));
     }
-
-    internal bool TryCopyInputField(int source, int destination) =>
-        _recordFields.TryCopyInputField(new(source), new(destination));
 
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
         _recordFields.ExtendFieldCountForReference(index);

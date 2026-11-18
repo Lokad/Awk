@@ -13,7 +13,7 @@ public sealed class AwkArgumentStorageTests
         using var fixture = State(cancellation.Token);
         var state = fixture.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(new string('k', width) + " 1"));
-        _ = state.GetFieldNumber(2);
+        _ = state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode);
         var incoming = state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("key")]));
         var before = fixture.Budget.Reserved;
         cancellation.Cancel();

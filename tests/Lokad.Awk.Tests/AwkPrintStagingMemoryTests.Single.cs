@@ -15,7 +15,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var state = memory.State;
         state.AssignField(0, "head tail");
         var index = scenario == "recomposed-terminator" ? 0 : 1;
-        if (scenario == "field") state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+        if (scenario == "field") state.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
         else
         {
             if (index == 0) state.AssignField(1, "kept");

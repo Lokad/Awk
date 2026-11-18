@@ -86,7 +86,7 @@ public sealed class AwkScalarMemoryModeTests
         var ofs = AwkVariableName.FromText("OFS");
         variables.SetScalarValue(ofs, AwkValue.FromNumber(42));
         state.SetCurrentRecord(AwkText.FromString("left right"));
-        state.AssignFieldValue(1, AwkValue.FromNumber(12.5));
+        state.AssignFieldValue(new(1), AwkValue.FromNumber(12.5));
         if (fail)
         {
             if (governed) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -101,7 +101,7 @@ public sealed class AwkScalarMemoryModeTests
         if (!fail)
         {
             Assert.Equal("12.542right", state.CurrentRecordByteText.AsString());
-            state.AssignFieldValue(1, AwkValue.FromNumber(8.5));
+            state.AssignFieldValue(new(1), AwkValue.FromNumber(8.5));
             Assert.Equal("8.57right", state.CurrentRecordByteText.AsString());
         }
         memory.Dispose();
@@ -155,7 +155,7 @@ public sealed class AwkScalarMemoryModeTests
         var variables = memory.State.Variables;
         var ofs = AwkVariableName.FromText("OFS");
         memory.State.SetCurrentRecord(AwkText.FromString("left right"));
-        memory.State.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+        memory.State.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
         var committed = memory.Accounting.LiveBytes;
         var reserved = memory.Budget.Reserved;
         if (governed)
@@ -178,7 +178,7 @@ public sealed class AwkScalarMemoryModeTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
         memory.State.SetCurrentRecord(AwkText.FromString("left right"));
-        memory.State.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+        memory.State.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
         var variables = memory.State.Variables;
         var ofs = AwkVariableName.FromText("OFS");
         var committed = memory.Accounting.LiveBytes;

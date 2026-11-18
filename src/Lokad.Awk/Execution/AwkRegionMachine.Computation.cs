@@ -83,7 +83,7 @@ internal partial struct AwkRegionMachine
             if (IsField(operand))
             {
                 if (consumption == AwkParameterInput.Arithmetic)
-                    return state.GetFieldArithmeticArgument(FieldOrdinal(operand));
+                    return state.RecordFields.GetFieldArithmeticArgument(FieldIndex(in operand), state.NumberParsingMode);
                 if (consumption == AwkParameterInput.Text &&
                     state.TryGetFieldTextArgument(FieldOrdinal(operand), out var text)) return text;
             }
@@ -211,7 +211,7 @@ internal partial struct AwkRegionMachine
                         ? AwkResolvedReference.PreparedGlobalScalar(target.Name, target.Index)
                         : AwkResolvedReference.Scalar(target.Name);
             }
-            if (IsField(target)) return AwkResolvedReference.Field(new(FieldOrdinal(target)));
+            if (IsField(target)) return AwkResolvedReference.Field(FieldIndex(in target));
             if (target.Kind == AwkRegionOperandKind.ArrayElement)
             {
                 var array = region.Arrays[target.Index];
@@ -469,10 +469,11 @@ internal partial struct AwkRegionMachine
                         if (argument.Consumption == AwkParameterInput.Text &&
                             state.TryStageFunctionFieldText(ordinal, incoming, index, borrowReader)) break;
                         var fieldNumber = 0d;
+                        var fieldIndex = new AwkFieldIndex(ordinal);
                         var numeric = argument.Consumption == AwkParameterInput.Arithmetic
-                            ? state.TryGetFieldArithmeticNumber(ordinal, out fieldNumber)
+                            ? state.RecordFields.TryGetFieldArithmeticNumber(fieldIndex, state.NumberParsingMode, out fieldNumber)
                             : argument.Consumption == AwkParameterInput.NumericComparison &&
-                                state.TryGetFieldComparisonNumber(ordinal, out fieldNumber);
+                                state.RecordFields.TryGetFieldComparisonNumber(fieldIndex, state.NumberParsingMode, out fieldNumber);
                         if (numeric)
                             incoming.StageNumber(index, fieldNumber);
                         else
@@ -695,7 +696,7 @@ internal partial struct AwkRegionMachine
             {
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
-                    return state.GetFieldNumber(FieldOrdinal(operand));
+                    return state.RecordFields.GetFieldNumber(FieldIndex(in operand), state.NumberParsingMode);
                 case AwkRegionOperandKind.ArrayElement:
                     return ReadArrayNumber(region.Arrays[operand.Index]);
                 case AwkRegionOperandKind.GlobalVariable when state.TryResolvePreparedGlobalNumber(operand.Index, out var globalNumber):
@@ -732,7 +733,7 @@ internal partial struct AwkRegionMachine
             if (operand.Kind == AwkRegionOperandKind.SpecialVariable)
                 return state.TryResolvePreparedSpecialNumber((AwkSpecialVariableId)operand.Index, out number);
             if (IsField(operand))
-                return state.TryGetStoredFieldComparisonNumber(FieldOrdinal(operand), out number);
+                return state.RecordFields.TryGetStoredFieldComparisonNumber(FieldIndex(in operand), out number);
             number = 0;
             return false;
         }
@@ -742,7 +743,7 @@ internal partial struct AwkRegionMachine
             var source = new AwkRegionNumberSource(index);
             if (source.IsRegister) return new(AwkValue.FromNumber(numbers[source.RegisterIndex]));
             var operand = operands[index];
-            if (IsField(operand)) return state.GetFieldComparison(FieldOrdinal(operand));
+            if (IsField(operand)) return state.RecordFields.GetFieldComparison(FieldIndex(in operand), state.NumberParsingMode);
             return new(Value(index));
         }
 

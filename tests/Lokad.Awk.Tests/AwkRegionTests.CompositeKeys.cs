@@ -123,7 +123,7 @@ public sealed partial class AwkRegionTests
         var region = Compile("a[$1,(later=9)]+=(rhs=1)", state);
         state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(new string(':', 32)));
         state.SetCurrentRecord(AwkText.FromString(new string('x', 250)));
-        state.GetFieldNumber(1);
+        state.RecordFields.GetFieldNumber(new(1), state.NumberParsingMode);
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);

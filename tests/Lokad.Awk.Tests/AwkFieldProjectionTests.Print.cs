@@ -13,7 +13,7 @@ public sealed partial class AwkFieldProjectionTests
         var bytes = "café old 0007"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText("|"));
-        state.AssignFieldValue(2, AwkValue.FromText("É"));
+        state.AssignFieldValue(new(2), AwkValue.FromText("É"));
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         var allocations = state.Counters[AwkCounter.TextAllocations];
         state.AppendFieldPrint(output, 0);

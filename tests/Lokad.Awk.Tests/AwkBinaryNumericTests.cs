@@ -29,7 +29,7 @@ public sealed class AwkBinaryNumericTests
             state.SetCurrentRecord(AwkText.FromSourceLiteralString("008 3 tail"));
             Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
             Assert.Equal(19, state.ResolveVariableValue(result).AsNumber());
-            state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
+            state.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
             Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, output, io));
             Assert.Equal(5.5, state.ResolveVariableValue(result).AsNumber());
         }
