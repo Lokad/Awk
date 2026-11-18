@@ -22,7 +22,7 @@ public sealed class AwkFunctionFrameReuseTests
             var layout = new AwkFunctionLocalLayout(names[..count]);
             var args = Enumerable.Range(0, count == 2 ? 1 : count)
                 .Select(index => AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(20 + index))).ToArray();
-            stack.PushFrame(layout, args);
+            memory.State.PushFunctionFrame(layout, args);
             try
             {
                 for (var index = 0; index < count; index++)
@@ -62,7 +62,7 @@ public sealed class AwkFunctionFrameReuseTests
         var accounting = memory.Accounting;
         Assert.Equal(governed, accounting.IsEnabled);
         var stack = memory.State.FunctionCalls;
-        var weak = RunPairWithOwnedPayload(stack);
+        var weak = RunPairWithOwnedPayload(memory.State);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -80,12 +80,12 @@ public sealed class AwkFunctionFrameReuseTests
         var accounting = memory.Accounting;
         var stack = memory.State.FunctionCalls;
         var name = AwkVariableName.FromText("parent");
-        stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(19))]);
+        memory.State.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(19))]);
         var before = budget.Reserved;
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var shared = AwkArrayName.FromText("shared");
         var origin = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
-        Assert.Throws<AwkRuntimeException>(() => stack.PushFrame(
+        Assert.Throws<AwkRuntimeException>(() => memory.State.PushFunctionFrame(
             new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
             [AwkFunctionLocalSlot.PotentialArrayAlias(shared, origin), AwkFunctionLocalSlot.PotentialArrayAlias(shared, origin)]));
         Assert.Equal(before, budget.Reserved);
@@ -103,11 +103,12 @@ public sealed class AwkFunctionFrameReuseTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference<object> RunPairWithOwnedPayload(AwkFunctionCallStack stack)
+    private static WeakReference<object> RunPairWithOwnedPayload(AwkRuntimeState state)
     {
+        var stack = state.FunctionCalls;
         var text = AwkText.FromString(new string('x', 17_000));
         var weak = new WeakReference<object>(text.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
-        stack.PushFrame(new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
+        state.PushFunctionFrame(new([AwkVariableName.FromText("a"), AwkVariableName.FromText("b")]),
             [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(1)), AwkFunctionLocalSlot.Scalar(AwkValue.FromText(text))]);
         Assert.True(stack.TryResolveLocalValue(new AwkFunctionLocalSlotId(1), out var local));
         Assert.Equal(17_000, local.Value.ByteText.ByteLength);

@@ -22,8 +22,27 @@ internal static class AwkRuntimeStateTestExtensions
 
         public AwkFunctionFrame CurrentFunctionFrame => state.FunctionCalls.CurrentFrame;
 
-        public void PushFunctionFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments) =>
-            state.FunctionCalls.PushFrame(layout, arguments);
+        public void PushFunctionFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
+        {
+            var stack = state.FunctionCalls;
+            stack.EnsureDepthAvailable();
+            var frame = stack.PrepareFrame(layout);
+            try
+            {
+                var count = Math.Min(arguments.Length, layout.SlotCount);
+                for (var index = 0; index < count; index++)
+                {
+                    if ((index & 63) == 63) state.ThrowIfCancellationRequested();
+                    stack.StageArgument(frame, index, in arguments[index]);
+                }
+                stack.ActivateFrame(frame);
+            }
+            catch
+            {
+                if (frame.IsIncoming) stack.DiscardIncomingFrame(frame);
+                throw;
+            }
+        }
 
         public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
             state.Variables.GetScalarValue(state.Variables.GetScalarCell(id));

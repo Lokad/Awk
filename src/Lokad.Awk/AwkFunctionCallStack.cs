@@ -45,29 +45,6 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) =>
         TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount;
 
-    // Existing callers provide evaluated arguments. Bound execution stages directly
-    // into the same owner before activation, without making callee locals visible.
-    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
-    {
-        if (_depth >= state.Limits.MaxFunctionCallDepth)
-            throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
-        var frame = PrepareFrame(layout);
-        try
-        {
-            for (var index = 0; index < Math.Min(arguments.Length, layout.SlotCount); index++)
-            {
-                if ((index & 63) == 63) state.CancellationCheckpoint();
-                StageArgument(frame, index, arguments[index]);
-            }
-            ActivateFrame(frame);
-        }
-        catch
-        {
-            if (frame.IsIncoming) DiscardIncomingFrame(frame);
-            throw;
-        }
-    }
-
     private int _incomingFrames;
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout)
@@ -297,10 +274,15 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         return true;
     }
 
-    internal void ActivateFrame(AwkFunctionFrame frame)
+    internal void EnsureDepthAvailable()
     {
         if (_depth >= state.Limits.MaxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
+    }
+
+    internal void ActivateFrame(AwkFunctionFrame frame)
+    {
+        EnsureDepthAvailable();
         var registered = 0;
         try
         {

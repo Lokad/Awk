@@ -233,7 +233,7 @@ public sealed partial class AwkFunctionStorageTests
 
         void Cycle()
         {
-            for (var i = 0; i < 64; i++) stack.PushFrame(AwkFunctionLocalLayout.Empty, []);
+            for (var i = 0; i < 64; i++) memory.State.PushFunctionFrame(AwkFunctionLocalLayout.Empty, []);
             for (var i = 0; i < 64; i++) stack.PopFrame(static _ => { });
         }
     }
@@ -243,20 +243,20 @@ public sealed partial class AwkFunctionStorageTests
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         var stack = Stack(memory);
-        stack.PushFrame(AwkFunctionLocalLayout.Empty, []);
+        memory.State.PushFunctionFrame(AwkFunctionLocalLayout.Empty, []);
         stack.PopFrame(static _ => { });
         var frameCache = memory.Accounting.CurrentCommittedBytes;
         var names = Enumerable.Range(0, 512).Select(i => AwkVariableName.FromText("p" + i)).ToArray();
         var layout = new AwkFunctionLocalLayout(names);
         var arguments = Enumerable.Range(0, names.Length)
             .Select(i => AwkFunctionLocalSlot.PotentialArrayAlias(AwkArrayName.FromText("a" + i))).ToArray();
-        stack.PushFrame(layout, arguments);
+        memory.State.PushFunctionFrame(layout, arguments);
         Assert.True(stack.TryResolveOrPromoteArrayName(names[0], out var alias));
         Assert.Equal(AwkArrayName.FromText("a0"), alias);
         stack.PopFrame(static _ => { });
         var retained = memory.Accounting.CurrentCommittedBytes;
         Assert.True(retained > frameCache);
-        stack.PushFrame(layout, arguments);
+        memory.State.PushFunctionFrame(layout, arguments);
         stack.PopFrame(static _ => { });
         Assert.Equal(retained, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
@@ -271,9 +271,9 @@ public sealed partial class AwkFunctionStorageTests
         using var cancellation = new CancellationTokenSource();
         var stack = Stack(memory, cancellation.Token);
         var name = AwkVariableName.FromText("x");
-        stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
+        memory.State.PushFunctionFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
         memory.Budget.OnGrowth = _ => cancellation.Cancel();
-        Assert.ThrowsAny<OperationCanceledException>(() => stack.PushFrame(new([name]), []));
+        Assert.ThrowsAny<OperationCanceledException>(() => memory.State.PushFunctionFrame(new([name]), []));
         Assert.True(stack.TryResolveLocalValue(name, out var caller));
         Assert.Equal(42, caller.Value.AsNumber());
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
