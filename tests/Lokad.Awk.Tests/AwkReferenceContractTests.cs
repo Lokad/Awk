@@ -48,7 +48,6 @@ public sealed class AwkReferenceContractTests
             var result = ReferenceContracts.Classify(contract, "GNU Awk " + version + ", API: 4.0", 0, bytes, []);
             Assert.Equal("KnownReferenceDifference", result.Status);
             Assert.False(result.Equivalent);
-            Assert.False(ReferenceClaimPolicy.CanPublish("qualify", true, true, true, true, true, 1, 1, result.Equivalent));
         }
         Assert.Equal("UnexpectedDifference", ReferenceContracts.Classify(contract, "GNU Awk 99.0.0", 0, bytes, []).Status);
         Assert.Equal("UnexpectedDifference", ReferenceContracts.Classify(contract,

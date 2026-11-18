@@ -158,6 +158,9 @@ The marked focused cohort adds `--inProcess` to these existing benchmark command
 
 Use the stable SDK in `global.json`:
 
+The comparison command writes correctness-only JSON. BenchmarkDotNet supplies
+timings and allocations.
+
 ```powershell
 dotnet test Lokad.Awk.slnx -c Release
 dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --counter-report

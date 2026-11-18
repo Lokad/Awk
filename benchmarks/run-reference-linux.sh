@@ -41,11 +41,10 @@ fi
 if [[ "${1:-}" == "check-machine" ]]; then
     exec "$sdk_root/dotnet" exec --fx-version 10.0.12 benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
 fi
-if [[ "${1:-}" != "verify" && "${1:-}" != "qualify" ]]; then
-    echo "Usage: bash benchmarks/run-reference-linux.sh build|driver-smoke|check-machine|verify|qualify [comparison options]" >&2
+if [[ "${1:-}" != "verify" ]]; then
+    echo "Usage: bash benchmarks/run-reference-linux.sh build|driver-smoke|check-machine|verify [comparison options]" >&2
     exit 2
 fi
-mode="$1"
 shift
 exec "$sdk_root/dotnet" exec --fx-version 10.0.12 benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll \
-    --compare --awk "$reference" --mode "$mode" "$@"
+    --compare --awk "$reference" --mode verify "$@"

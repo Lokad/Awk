@@ -19,18 +19,16 @@ internal sealed record ReferenceWorkloadInfo(string Name, string Scale, int Reco
     string[] Arguments, string Locale, string TimeZone, string ProgramSha256, ReferenceInputInfo[] Inputs, OutputDigest ExpectedOutput);
 internal sealed record ReferenceVerification(string Status, string Reason, OutputDigest LibraryOutput,
     OutputDigest NativeOutput, ReferenceCounters? Counters);
-internal sealed record ReferenceComparisonRow(ReferenceWorkloadInfo Workload, ReferenceVerification Verification,
-    QualificationResult Timing);
+internal sealed record ReferenceComparisonRow(ReferenceWorkloadInfo Workload, ReferenceVerification Verification);
 internal sealed record ReferenceComparisonReport(int SchemaVersion, string Mode, DateTimeOffset UpdatedUtc,
     string Contract, ReferenceHostProvenance Host, ReferenceIdentity? Reference, object Policy,
-    QuietCheck MachineGate, int RequestedCases, int RequestedPairs, bool Complete, ReferenceComparisonRow[] Cases);
+    int RequestedCases, bool Complete, ReferenceComparisonRow[] Cases);
 
 internal static class ReferenceReport
 {
     public const string Contract =
-        "Warm embedded Lokad.Awk public full invocation versus GNU awk CLI. Both include compilation, execution, " +
-        "complete output consumption and SHA-256. GNU includes launch and pipes; multi-file cases use native fixture " +
-        "files versus in-memory host files. Fixture generation and preflight are excluded. No startup subtraction or overall speedup.";
+        "Public Lokad.Awk command execution versus GNU awk CLI, checking exact expected stdout and successful completion. " +
+        "GNU uses processes and native fixture files; Lokad uses an embedded in-memory host. No timings collected.";
     public static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static ReferenceWorkloadInfo Describe(ReferenceWorkload workload) =>
@@ -116,7 +114,7 @@ internal static class ReferenceReport
     }
 
     public static ReferenceComparisonReport Create(string mode, ReferenceHostProvenance host,
-        ReferenceIdentity? reference, QuietCheck gate, int cases, int pairs, bool complete,
+        ReferenceIdentity? reference, int cases, bool complete,
         IReadOnlyList<ReferenceComparisonRow> rows)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -128,7 +126,7 @@ internal static class ReferenceReport
             DriverOutputBytes = 64L << 20,
             DriverErrorBytes = 64 << 10
         };
-        return new(1, mode, DateTimeOffset.UtcNow, Contract, host, reference, policy, gate, cases, pairs, complete, rows.ToArray());
+        return new(2, mode, DateTimeOffset.UtcNow, Contract, host, reference, policy, cases, complete, rows.ToArray());
     }
 
     public static async Task SaveAsync(string path, ReferenceComparisonReport report, CancellationToken token)
@@ -137,65 +135,5 @@ internal static class ReferenceReport
         var temporary = path + ".tmp";
         await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(report, JsonOptions), token).ConfigureAwait(false);
         File.Move(temporary, path, overwrite: true);
-    }
-
-    public static string Render(ReferenceComparisonReport report)
-    {
-        if (report.SchemaVersion != 1)
-            throw new InvalidOperationException("Unsupported comparison artifact schema.");
-        var claims = ReferenceClaimPolicy.CanPublish(report.Mode, report.Complete, report.Host.CleanCheckout,
-            report.MachineGate.IsQuiet, report.Host.Commit != "Unavailable" &&
-            report.Host.BenchmarkBuild.Contains(report.Host.Commit, StringComparison.Ordinal) &&
-            report.Host.LibraryBuild.Contains(report.Host.Commit, StringComparison.Ordinal),
-            report.Reference is not null, report.RequestedCases, report.Cases.Length,
-            report.Cases.All(row => row.Verification.Status == "Equivalent"));
-        var text = new StringBuilder().AppendLine("## Recorded GNU awk comparison").AppendLine();
-        text.AppendLine("Recorded UTC: " + report.UpdatedUtc.UtcDateTime.ToString("u",
-            System.Globalization.CultureInfo.InvariantCulture) + "; mode " + Escape(report.Mode) + ".");
-        text.AppendLine("Revision: " + Escape(report.Host.Commit) + "; SDK " + Escape(report.Host.Sdk) +
-            "; " + Escape(report.Host.Runtime) + "; " + Escape(report.Host.OperatingSystem) + ".");
-        text.AppendLine("Machine: " + Escape(report.Host.Cpu) + "; " + report.Host.LogicalProcessors +
-            " logical processors; " + Escape(report.Host.MemoryInfo) + ".");
-        text.AppendLine("Assembly SHA-256: benchmark " + Escape(report.Host.BenchmarkAssemblySha256) +
-            "; library " + Escape(report.Host.LibraryAssemblySha256) + ".");
-        if (report.Host.Snapshot is { } snapshot)
-            text.AppendLine("Private source snapshot from " + Escape(snapshot.OriginCommit) +
-                " (origin clean: " + snapshot.OriginCleanCheckout + "); source SHA-256 " +
-                Escape(snapshot.SourceSha256) + "; archive SHA-256 " + Escape(snapshot.ArchiveSha256) + ".");
-        text.AppendLine("Reference: " + Escape(report.Reference?.Version ?? "none") + "; SHA-256 " +
-            Escape(report.Reference?.Sha256 ?? "none") + ".").AppendLine();
-        text.AppendLine(Contract).AppendLine();
-        if (!claims)
-            text.AppendLine("No qualified performance claim: verification-only, paused, incomplete, or missing clean/quiet qualification.").AppendLine();
-        text.AppendLine("Elapsed-time ratios use Lokad.Awk/awk; values above 1 mean Lokad.Awk is slower.").AppendLine();
-        text.AppendLine("| Case / scale | Records | Input bytes | Status | Lokad ms | GNU ms | Lokad.Awk/awk, 95% CI | Interpretation |");
-        text.AppendLine("| --- | ---: | ---: | --- | ---: | ---: | --- | --- |");
-        foreach (var row in report.Cases)
-        {
-            var timing = row.Timing.Summary;
-            var qualified = claims && row.Verification.Status == "Equivalent" && timing.Status == "Qualified";
-            var numbers = qualified
-                ? FormattableString.Invariant($"{timing.LibraryMedianMs:F3} | {timing.ReferenceMedianMs:F3} | {1 / timing.Ratio:F3} [{1 / timing.RatioHigh:F3}, {1 / timing.RatioLow:F3}]")
-                : "— | — | —";
-            text.AppendLine($"| {Escape(row.Workload.Name)}/{Escape(row.Workload.Scale)} | {row.Workload.Records} | {row.Workload.InputBytes} | " +
-                $"{Escape(row.Verification.Status == "Equivalent" ? timing.Status : row.Verification.Status)} | {numbers} | " +
-                $"{Escape(qualified ? timing.Interpretation : row.Verification.Reason.Length > 0 ? row.Verification.Reason : timing.Reason)} |");
-        }
-        return text.ToString();
-
-        static string Escape(string value) => System.Net.WebUtility.HtmlEncode(value)
-            .Replace("|", "\\|", StringComparison.Ordinal).Replace('\r', ' ').Replace('\n', ' ');
-    }
-
-    public static async Task RenderFileAsync(string artifact, CancellationToken token)
-    {
-        var report = JsonSerializer.Deserialize<ReferenceComparisonReport>(
-            await File.ReadAllTextAsync(artifact, token).ConfigureAwait(false), JsonOptions)
-            ?? throw new InvalidOperationException("Missing comparison report.");
-        // Generated evidence belongs beside its artifact; the maintained guide also
-        // combines separate allocation measurements and must not accumulate report history.
-        var path = Path.GetFullPath(artifact) + ".md";
-        await File.WriteAllTextAsync(path, Render(report), token).ConfigureAwait(false);
-        Console.WriteLine(path);
     }
 }

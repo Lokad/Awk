@@ -9,7 +9,10 @@ internal sealed record QuietCheck(bool IsQuiet, string Reason, double[] BusyPerc
     {
         if (samples.Length == 0 || samples.Any(value => !double.IsFinite(value) || value < 0 || value > 100))
             return new(false, "CPU accounting is unavailable; qualification needs a supported quiet machine.", samples);
-        bool quiet = samples.Max() <= 5 && PairedStatistics.Median(samples) <= 3;
+        var sorted = samples.Order().ToArray();
+        var middle = sorted.Length / 2;
+        var median = sorted.Length % 2 == 0 ? sorted[middle - 1] / 2 + sorted[middle] / 2 : sorted[middle];
+        bool quiet = sorted[^1] <= 5 && median <= 3;
         return new(quiet, quiet ? "CPU gate passed." : "Background CPU exceeded the 3% median / 5% maximum gate.", samples);
     }
 }

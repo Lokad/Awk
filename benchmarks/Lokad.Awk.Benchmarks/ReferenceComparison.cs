@@ -62,11 +62,6 @@ internal static class ReferenceComparison
                 Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(quiet, ReferenceReport.JsonOptions));
                 return quiet.IsQuiet ? 0 : 3;
             }
-            if (arguments[0] == "--render-report" && arguments.Length == 2)
-            {
-                await ReferenceReport.RenderFileAsync(arguments[1], cancellation.Token).ConfigureAwait(false);
-                return 0;
-            }
             return await RunAsync(arguments, cancellation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { Console.Error.WriteLine("Comparison interrupted."); return 130; }
@@ -138,14 +133,12 @@ internal static class ReferenceComparison
         var options = Options(arguments.Skip(1).ToArray());
         var smoke = arguments[0] == "--smoke";
         var mode = options.GetValueOrDefault("--mode", "verify");
-        if (mode is not ("verify" or "qualify") || smoke && mode != "verify")
-            throw new ArgumentException("Use --mode verify|qualify; smoke is correctness only.");
+        if (mode != "verify")
+            throw new ArgumentException("Use --mode verify; timings belong to BenchmarkDotNet.");
         var output = ArtifactPath(options.GetValueOrDefault("--output",
             smoke ? "BenchmarkDotNet.Artifacts/reference/smoke.json" : "BenchmarkDotNet.Artifacts/reference/verification.json"));
         var name = options.GetValueOrDefault("--case", "*");
         var scale = options.GetValueOrDefault("--scale", smoke ? "small" : "all");
-        if (!int.TryParse(options.GetValueOrDefault("--pairs", "11"), out var pairs) || pairs < 9 || pairs > 31)
-            throw new ArgumentException("--pairs must be between 9 and 31.");
         var workloads = ReferenceWorkloads.CreateAll(name, scale, includeControls: smoke).ToArray();
         if (workloads.Length == 0)
             throw new ArgumentException("No workloads match --case/--scale.");
@@ -154,28 +147,8 @@ internal static class ReferenceComparison
             string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LOKAD_AWK_ORACLE_EXE"))
             ? null : ResolveExecutable(options.GetValueOrDefault("--awk"));
         var reference = executable is null ? null : await IdentifyReferenceAsync(executable, token).ConfigureAwait(false);
-        if (mode == "qualify")
-        {
-#if DEBUG
-            throw new InvalidOperationException("Qualification requires a Release build.");
-#else
-            if (!host.CleanCheckout || !host.BenchmarkBuild.Contains(host.Commit, StringComparison.Ordinal) ||
-                !host.LibraryBuild.Contains(host.Commit, StringComparison.Ordinal))
-                throw new InvalidOperationException("Qualification requires a clean committed checkout and assemblies built from that revision.");
-#endif
-        }
-        var gate = mode == "qualify"
-            ? await MachineQuietProbe.CheckAsync(5, TimeSpan.FromSeconds(1), token).ConfigureAwait(false)
-            : new QuietCheck(false, "Correctness verification does not qualify quietness.", []);
         var rows = new List<ReferenceComparisonRow>();
         var complete = false;
-        if (mode == "qualify" && !gate.IsQuiet)
-        {
-            mode = "paused";
-            await SaveAsync().ConfigureAwait(false);
-            Console.WriteLine(gate.Reason);
-            return 3;
-        }
         await SaveAsync().ConfigureAwait(false);
         try
         {
@@ -192,24 +165,14 @@ internal static class ReferenceComparison
                         OutputDigest.FromBytes([]), await ReferenceExecution.CountersAsync(workload, token).ConfigureAwait(false));
                 }
                 else verified = await VerifyAsync(executable, prepared, token).ConfigureAwait(false);
-                var timing = mode == "qualify" && verified.Status == "Equivalent" && executable is not null
-                    ? await TimingQualification.RunAsync(executable, prepared, pairs, token).ConfigureAwait(false)
-                    : QualificationResult.NotMeasured;
-                rows.Add(new(ReferenceReport.Describe(workload), verified, timing));
-                Console.WriteLine(workload.Name + "/" + workload.Scale + ": " + verified.Status + "/" + timing.Summary.Status);
-                if (timing.Summary.Status is "Paused" or "Interrupted")
-                {
-                    mode = timing.Summary.Status.ToLowerInvariant();
-                    await SaveAsync().ConfigureAwait(false);
-                    return mode == "paused" ? 3 : 130;
-                }
+                rows.Add(new(ReferenceReport.Describe(workload), verified));
+                Console.WriteLine(workload.Name + "/" + workload.Scale + ": " + verified.Status);
                 await SaveAsync().ConfigureAwait(false);
             }
             complete = true;
             await SaveAsync().ConfigureAwait(false);
-            Console.WriteLine(mode == "verify" ? "Correctness only; no timings collected." : "Qualification checkpoint saved.");
-            return rows.All(row => row.Verification.Status == "Equivalent" &&
-                (mode == "verify" || row.Timing.Summary.Status == "Qualified")) ? 0 : 1;
+            Console.WriteLine("Correctness only; no timings collected.");
+            return rows.All(row => row.Verification.Status == "Equivalent") ? 0 : 1;
         }
         catch
         {
@@ -219,7 +182,7 @@ internal static class ReferenceComparison
         }
 
         Task SaveAsync() => ReferenceReport.SaveAsync(output,
-            ReferenceReport.Create(mode, host, reference, gate, workloads.Length, pairs, complete, rows), CancellationToken.None);
+            ReferenceReport.Create(mode, host, reference, workloads.Length, complete, rows), CancellationToken.None);
     }
 
     internal static Dictionary<string, string> Options(string[] arguments)
@@ -227,10 +190,10 @@ internal static class ReferenceComparison
         var options = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var i = 0; i < arguments.Length; i += 2)
         {
-            if (i + 1 >= arguments.Length || arguments[i] is not ("--awk" or "--mode" or "--case" or "--scale" or "--output" or "--pairs") ||
+            if (i + 1 >= arguments.Length || arguments[i] is not ("--awk" or "--mode" or "--case" or "--scale" or "--output") ||
                 !options.TryAdd(arguments[i], arguments[i + 1]))
-                throw new ArgumentException("Usage: --compare|--smoke [--awk PATH] [--mode verify|qualify] " +
-                    "[--case NAME] [--scale small|medium|large|control|all] [--pairs 11] [--output BenchmarkDotNet.Artifacts/PATH]");
+                throw new ArgumentException("Usage: --compare|--smoke [--awk PATH] [--mode verify] " +
+                    "[--case NAME] [--scale small|medium|large|control|all] [--output BenchmarkDotNet.Artifacts/PATH]");
         }
         return options;
     }
