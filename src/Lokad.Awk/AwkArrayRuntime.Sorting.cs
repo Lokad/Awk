@@ -5,6 +5,68 @@ internal sealed partial class AwkArrayRuntime
     internal AwkArraySortOperation BeginSort(AwkArrayTarget target, AwkArraySortOrder order, bool keys) =>
         AwkArraySortOperation.Begin(this, target, order, keys);
 
+    private int PublishSortedArray(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
+        AwkArraySortEntry[] entries, AwkArrayReservation reservation, bool keys)
+    {
+        var destination = ResolveTarget(destinationArrayName);
+        _variables.ValidateArrayOverlap(source, destination, allowSame: true);
+        if (destination.IsNamed && !destination.Name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(destination.Name.Text, _state.CompatibilityMode);
+
+        var count = entries.Length;
+        var lease = reservation.Lease;
+        var pageCount = AwkArrayIdentity.IndexedPageCount(count);
+        var contentsBytes = AwkRuntimeMemory.EstimateIndexedArrayBackingBytes(count, pageCount);
+        var transferredBytes = AwkRuntimeMemory.CheckedAdd(contentsBytes, keys ? reservation.KeyTextBytes : 0);
+        // The staging lease owns the new pages alongside any copied children.
+        lease.ReserveAdditional(contentsBytes);
+        _state.ThrowIfCancellationRequested();
+        var cells = AwkArrayIdentity.AllocateIndexedSlots(count, pageCount, _state.CancellationCheckpoint);
+        var governed = _state.MemoryAccounting.IsEnabled;
+        var mode = _state.NumberParsingMode;
+        for (var index = 0; index < count; index++)
+        {
+            if ((index & 63) == 0) _state.ThrowIfCancellationRequested();
+            ref readonly var entry = ref entries[index];
+            AwkValue slot;
+            if (keys)
+            {
+                var key = entry.Key;
+                slot = key.HasInputOrigin ? AwkValue.ForStoredInputText(key.StoredText) :
+                    AwkValue.FromDeferredText(key.StoredText, mode);
+            }
+            else if (entry.Value.TryGetArrayBinding(out var child))
+            {
+                if (governed)
+                {
+                    lease.ReserveAdditional(_variables.EstimateSubarrayBytes(child));
+                    _state.ThrowIfCancellationRequested();
+                }
+                var copy = _variables.CloneSubarray(child);
+                slot = AwkValue.FromArrayReference(copy);
+                if (governed)
+                {
+                    var bytes = _variables.EstimateSubarrayBytes(copy);
+                    contentsBytes = AwkRuntimeMemory.CheckedAdd(contentsBytes, bytes);
+                    transferredBytes = AwkRuntimeMemory.CheckedAdd(transferredBytes, bytes);
+                }
+            }
+            else
+            {
+                slot = AwkValue.ForVariableStorage(entry.Value, mode);
+                if (governed)
+                    transferredBytes = AwkRuntimeMemory.CheckedAdd(transferredBytes, entry.Value.RetainedTextMemoryBytes);
+            }
+            cells[index >> AwkArrayIdentity.IndexedPageShift][index & AwkArrayIdentity.IndexedPageMask] = slot;
+            // The stored scalar and the snapshot can differ for an untyped origin.
+            if (governed)
+                contentsBytes = AwkRuntimeMemory.CheckedAdd(contentsBytes, slot.RetainedTextMemoryBytes);
+        }
+        _state.ThrowIfCancellationRequested();
+        _variables.PublishSortedSlots(destination, cells, count, lease, transferredBytes, contentsBytes);
+        return count;
+    }
+
     // Owns the admitted snapshot until publication or unwind. User code is scheduled
     // by the interpreter, never by this storage owner.
     internal sealed class AwkArraySortOperation : IDisposable
@@ -93,9 +155,8 @@ internal sealed partial class AwkArrayRuntime
             EndComparison();
         }
 
-        internal int Publish(AwkArrayTarget destination, bool keys) => keys
-            ? _runtime.PublishSortedKeys(_source, destination, _entries, _reservation)
-            : _runtime.PublishSortedValues(_source, destination, _entries, _reservation);
+        internal int Publish(AwkArrayTarget destination, bool keys) =>
+            _runtime.PublishSortedArray(_source, destination, _entries, _reservation, keys);
 
         internal AwkLeasedReadOnlyList<AwkArrayKey> TakeKeys()
         {

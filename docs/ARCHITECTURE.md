@@ -176,6 +176,8 @@ single-array destinations share the replacement and refund path.
 Sort selectors share one mode across parsing, projection and comparison. Builtin
 selectors are read as UTF-8, with decoding for function lookup and diagnostics.
 Sort snapshots own their keys/value observations; callbacks cannot mutate that snapshot.
+The sort lease holds the destination pages and any child copies during construction.
+Publication uses the measured stored values and transfers funding to the destination.
 Destination publication is preflighted, including after a suspending user comparator.
 
 Enforced by [key origins](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArrayKeyOrigins.cs),

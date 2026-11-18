@@ -135,14 +135,11 @@ internal sealed partial class AwkVariables
         else CopyArrayKeys(target.Name, destination);
     }
 
-    internal void SetArrayValues<TValue>(AwkArrayTarget target, IReadOnlyList<TValue> values,
-        Func<TValue, AwkNumberParsingMode, AwkValue> createSlot, AwkMemoryLease sourceMemoryLease, long sourceRetainedTextBytes)
+    internal void PublishSortedSlots(AwkArrayTarget target, AwkValue?[][] cells, int count,
+        AwkMemoryLease snapshotLease, long transferredBytes, long contentsBytes)
     {
-        if (target.IsNamed && !target.Name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(target.Name.Text, _state.CompatibilityMode);
-        using var construction = _state.MemoryAccounting.AdmitMutation(
-            AwkRuntimeMemory.EstimateIndexedArrayConstructionBytes(values.Count));
-        ReplaceArraySlots(target, CreateIndexedArraySlots(values, 1, createSlot), sourceMemoryLease, sourceRetainedTextBytes);
+        var slots = AwkArrayIdentity.FromIndexed(cells, count, _arrayKeyComparer, _state.CancellationCheckpoint);
+        ReplaceArraySlots(target, slots, snapshotLease, transferredBytes, contentsBytes);
     }
 
     internal void SetSplitFields(AwkArrayTarget target, IReadOnlyList<AwkText> fields, long? fieldBytes = null)

@@ -187,6 +187,53 @@ public sealed class AwkSortProjectionMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void SortedNestedCopyRefundsOnRefusalOrRetirement(bool refuse)
+    {
+        using var memory = State(false, "default", "@ind_str_asc");
+        var state = memory.State;
+        var childKey = new AwkArrayKey("child");
+        var leafKey = new AwkArrayKey("leaf");
+        var child = state.Arrays.GetSubarray(Source, childKey, default);
+        var value = new string('v', 1024);
+        state.Variables.SetArrayValue(child, leafKey, AwkValue.FromText(AwkText.FromString(value)));
+        // The clone can use a smaller dictionary than its source. Retain the
+        // original backing by growing it and then deleting the temporary entries.
+        for (var index = 0; index < 48; index++)
+            state.Variables.SetArrayValue(child, new AwkArrayKey($"temp{index}"), AwkValue.FromNumber(index));
+        for (var index = 0; index < 48; index++)
+            state.Variables.DeleteArrayValue(child, new AwkArrayKey($"temp{index}"));
+        state.Arrays.Clear(Destination);
+        var baseline = memory.Budget.Reserved;
+
+        if (refuse)
+        {
+            var retained = state.Arrays.GetSubarray(Destination, First, default);
+            state.Variables.SetArrayValue(retained, leafKey, AwkValue.FromNumber(42));
+            var before = memory.Budget.Reserved;
+            using (var sort = state.Arrays.BeginSort(new(Source), default, keys: false))
+            {
+                memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+                var error = Assert.Throws<AwkRuntimeException>(() => sort.Publish(new(Destination), keys: false));
+                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            }
+            Assert.Equal(42, state.Variables.GetArrayValue(retained, leafKey).AsNumber());
+            Assert.Equal(before, memory.Budget.Reserved);
+            return;
+        }
+
+        Assert.Equal(1, AwkArrayStorageTestOperations.Sort(state, Source, Destination, keys: false));
+        var copy = state.Arrays.GetSubarray(Destination, First, default);
+        Assert.Equal(value, state.Variables.GetArrayValue(copy, leafKey).AsString());
+        Assert.True(memory.Budget.Reserved > baseline);
+
+        state.Arrays.Clear(Destination);
+        Assert.Equal(baseline, memory.Budget.Reserved);
+        Assert.Equal(value, state.Variables.GetArrayValue(child, leafKey).AsString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void StringSortingRetainsExistingValueTextAtItsAdmittedBudget(bool observed)
     {
         using var memoryForState = State(observed, "default", "@val_str_asc");

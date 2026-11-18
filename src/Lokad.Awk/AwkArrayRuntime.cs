@@ -517,52 +517,6 @@ internal sealed partial class AwkArrayRuntime
         return result.Fields.Count;
     }
 
-    private int PublishSortedValues(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
-        AwkArraySortEntry[] entries, AwkArrayReservation reservation)
-    {
-        var destination = ResolveTarget(destinationArrayName);
-        _variables.ValidateArrayOverlap(source, destination, allowSame: true);
-        long transferredValueTextBytes = 0;
-        for (var index = 0; index < entries.Length; index++)
-        {
-            if ((index & 63) == 0)
-                _state.CancellationCheckpoint();
-            if (entries[index].Value.TryGetArrayBinding(out var child))
-            {
-                reservation.Lease.ReserveAdditional(_variables.EstimateSubarrayBytes(child));
-                var copy = _variables.CloneSubarray(child);
-                entries[index] = entries[index].WithClonedArray(copy, _variables.EstimateSubarrayBytes(copy));
-            }
-            transferredValueTextBytes = AwkRuntimeMemory.CheckedAdd(
-                transferredValueTextBytes, entries[index].TransferredValueTextBytes);
-        }
-        _state.CancellationCheckpoint();
-        _variables.SetArrayValues(
-            destination,
-            entries,
-            static (entry, mode) => entry.Value.TryGetArrayBinding(out var child)
-                ? AwkValue.FromArrayReference(child) : AwkValue.ForVariableStorage(entry.Value, mode),
-            reservation.Lease,
-            transferredValueTextBytes);
-        return entries.Length;
-    }
-
-    private int PublishSortedKeys(AwkArrayTarget source, AwkArrayTarget destinationArrayName,
-        AwkArraySortEntry[] entries, AwkArrayReservation reservation)
-    {
-        var destination = ResolveTarget(destinationArrayName);
-        _variables.ValidateArrayOverlap(source, destination, allowSame: true);
-        _variables.SetArrayValues(
-            destination,
-            entries,
-            static (entry, mode) => entry.Key.HasInputOrigin
-                ? AwkValue.ForStoredInputText(entry.Key.StoredText)
-                : AwkValue.FromDeferredText(entry.Key.StoredText, mode),
-            reservation.Lease,
-            reservation.KeyTextBytes);
-        return entries.Length;
-    }
-
     public void Clear(AwkArrayName name)
     {
         if (_state.TryGetBoundArray(name, default, out var array))
@@ -854,7 +808,6 @@ internal sealed partial class AwkArrayRuntime
                 projectedValue,
                 valueText,
                 numericKey,
-                projectedValue.RetainedTextMemoryBytes,
                 valueKind);
         }
 
@@ -921,7 +874,6 @@ internal sealed partial class AwkArrayRuntime
         AwkValue value,
         AwkText valueText,
         double numericKey,
-        long transferredValueTextBytes,
         AwkArraySortValueKind valueKind)
     {
         public AwkArrayKey Key => key;
@@ -936,10 +888,6 @@ internal sealed partial class AwkArrayRuntime
 
         public double NumericKey { get; } = numericKey;
 
-        public long TransferredValueTextBytes { get; } = transferredValueTextBytes;
-
-        public AwkArraySortEntry WithClonedArray(AwkArrayIdentity array, long retainedBytes) =>
-            new(Key, AwkValue.FromArrayReference(array), ValueText, NumericKey, retainedBytes, AwkArraySortValueKind.Array);
     }
 
     private enum AwkArraySortValueKind : byte
