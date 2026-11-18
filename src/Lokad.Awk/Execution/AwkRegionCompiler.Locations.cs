@@ -198,33 +198,36 @@ internal sealed partial class AwkRegionCompiler
             {
                 Right = AwkRegionNumberSource.Bind(right, _operands[right])
             };
-            var captureIndex = _code.Count - 1;
-            // Key retirement is part of the same prepared operation, not RHS work.
-            if (captureIndex >= 0 && _code[captureIndex].Kind == AwkRegionInstructionKind.KeyEnd)
-                captureIndex--;
+            var instruction = new AwkRegionInstruction(AwkRegionInstructionKind.ArrayUpdate, number,
+                update.Target.Capture, oldNumber, Detail: (int)operation);
+            var position = Emit(instruction);
+            var preceding = position - 1;
+            // Composite key retirement can share the capture's suffix.
+            var keyRetirement = preceding >= 0 && _code[preceding].Kind == AwkRegionInstructionKind.KeyEnd;
+            var captureIndex = keyRetirement ? preceding - 1 : preceding;
             if (captureIndex >= 0 && _code[captureIndex] is { Kind: AwkRegionInstructionKind.ArrayPrepare } capture &&
-                capture.Target == site.Slot)
+                capture.Target == site.Slot && (!keyRetirement ||
+                    _arrays[capture.Left] is { Path: < 0 } access &&
+                    _operands[access.Key] is { Kind: AwkRegionOperandKind.KeyBuilder } key &&
+                    key.Index == _code[preceding].Target))
             {
                 _code.TrimTail(_code.Count - captureIndex);
                 site = site with { PrepareAccess = capture.Left, Slot = -1 };
+                if (site.Right.IsRegister ||
+                    _operands[site.Right.OperandIndex].Kind is AwkRegionOperandKind.LocalVariable or
+                        AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
+                        AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
+                    PrepareImmediatePath(site.PrepareAccess);
+                position = Emit(instruction);
             }
             // Only captures crossing instructions need storage and rule retirement.
             if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);
             _updates[update.Target.Capture] = site;
-            if (site.PrepareAccess >= 0 && (site.Right.IsRegister ||
-                _operands[site.Right.OperandIndex].Kind is AwkRegionOperandKind.LocalVariable or
-                    AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
-                    AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField))
-                PrepareImmediatePath(site.PrepareAccess);
-            Emit(new(AwkRegionInstructionKind.ArrayUpdate, number, update.Target.Capture, oldNumber,
-                Detail: (int)operation));
-            // Emit may insert a cancellation poll. Fuse only after emission proves
-            // the call and its consumer are still adjacent.
-            if (site.PrepareAccess < 0 && site.Right.IsRegister && _code.Count > 1 &&
-                _code[^2] is { Kind: AwkRegionInstructionKind.Call,
+            if (site.PrepareAccess < 0 && site.Right.IsRegister && position > 0 &&
+                _code[position - 1] is { Kind: AwkRegionInstructionKind.Call,
                     Detail: (int)AwkRegionReturnConsumer.Number } call && call.Target == site.Right.RegisterIndex)
             {
-                _code[^2] = call with { Target = number, Detail = (int)AwkRegionReturnConsumer.ArrayUpdate };
+                _code[position - 1] = call with { Target = number, Detail = (int)AwkRegionReturnConsumer.ArrayUpdate };
                 if (call.Target == _numbers - 1) _numbers--;
                 _operands[right] = new(AwkRegionOperandKind.NumberTemporary, number);
                 site = site with { Right = AwkRegionNumberSource.Bind(result, _operands[result]) };
@@ -243,20 +246,21 @@ internal sealed partial class AwkRegionCompiler
                 rightIsRegister ? _operands[right].Index : -1, operation));
             // Keep earlier captures before RHS effects. An adjacent left read can
             // finish a register RHS; a bound RHS uses the same typed read producer.
-            var completesLeft = rightIsRegister && _code.Count != 0 && _code[^1] is var capture &&
-                capture.Target == previous && capture.Left == update.Target.Operand && capture.Detail == 0 &&
-                capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
-                    AwkRegionInstructionKind.VariableNumber;
-            if (completesLeft)
-                _code[^1] = _code[^1] with { Target = number, Right = site,
-                    Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: true).Detail };
-            else if (!rightIsRegister)
+            if (rightIsRegister)
             {
-                var read = EmitNumberRead(right, number);
-                _code[read] = _code[read] with { Right = site,
-                    Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: false).Detail };
+                var predecessor = Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site)) - 1;
+                if (predecessor >= 0 && _code[predecessor] is var capture &&
+                    capture.Target == previous && capture.Left == update.Target.Operand && capture.Detail == 0 &&
+                    capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
+                        AwkRegionInstructionKind.VariableNumber)
+                {
+                    _code[predecessor] = capture with { Target = number, Right = site,
+                        Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: true).Detail };
+                    _code.TrimTail(1);
+                }
             }
-            else Emit(new(AwkRegionInstructionKind.ScalarUpdate, number, site));
+            else Emit(NumberRead(right, number) with { Right = site,
+                Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: false).Detail });
             // This producer also writes a scalar; later return/arithmetic folding
             // must not turn it back into an ordinary numeric source read.
             _lastNumberRead = -1;

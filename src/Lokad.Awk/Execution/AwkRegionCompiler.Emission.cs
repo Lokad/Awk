@@ -13,7 +13,7 @@ internal sealed partial class AwkRegionCompiler
         public InstructionEmitter() { }
 
         internal int Count => _instructions.Count;
-        internal bool RequiresPoll => _straightLine == InstructionsBetweenPolls;
+        private bool RequiresPoll => _straightLine == InstructionsBetweenPolls;
 
         internal AwkRegionInstruction this[int index]
         {
