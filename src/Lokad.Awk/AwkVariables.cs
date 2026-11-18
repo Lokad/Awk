@@ -289,11 +289,9 @@ internal sealed partial class AwkVariables
             StoreArraySlot(array, prior, null, ordinal, slot);
         else if (array.TryPlanIndexedInsertion(ordinal, out var capacity))
         {
-            var payload = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(default, slot) : 0;
-            var peak = _state.MemoryAccounting.IsEnabled
-                ? AwkRuntimeMemory.CheckedAdd(payload - AwkRuntimeMemory.ArrayCellBytes,
-                    array.EstimateIndexedInsertionBackingBytes(capacity)) : 0;
-            using var admission = peak > payload ? _state.MemoryAccounting.AdmitMutation(peak) : default;
+            var allocation = _state.MemoryAccounting.IsEnabled ? array.EstimateIndexedInsertionBackingBytes(capacity) : 0;
+            using var admission = allocation == 0 ? default : _state.MemoryAccounting.AdmitMutation(
+                AwkRuntimeMemory.CheckedAdd(allocation, slot.RetainedTextMemoryBytes));
             InsertIndexedArraySlot(array, ordinal, capacity, 0, slot);
         }
         else SetArraySlot(array, AwkArrayKey.FromOrdinal(ordinal), slot);
@@ -1133,12 +1131,21 @@ internal sealed partial class AwkVariables
     private void InsertIndexedArraySlot(AwkArrayIdentity values, int ordinal, int capacity,
         long keyBytes, AwkValue slot)
     {
-        var oldBacking = values.BackingBytes;
-        var newBacking = values.EstimateIndexedBackingBytes(capacity);
-        using var mutation = ReserveMemoryMutation(AwkRuntimeMemory.CheckedAdd(
-            newBacking, AwkRuntimeMemory.CheckedAdd(keyBytes, slot.RetainedTextMemoryBytes)), oldBacking);
+        var governed = _state.MemoryAccounting.IsEnabled;
+        long oldBacking = 0, newBytes = 0;
+        if (governed)
+        {
+            newBytes = slot.RetainedTextMemoryBytes;
+            if (keyBytes != 0) newBytes = AwkRuntimeMemory.CheckedAdd(keyBytes, newBytes);
+            if (values.NeedsIndexedCapacity(capacity))
+            {
+                oldBacking = values.BackingBytes;
+                newBytes = AwkRuntimeMemory.CheckedAdd(values.EstimateIndexedBackingBytes(capacity), newBytes);
+            }
+        }
+        using var mutation = ReserveMemoryMutation(newBytes, oldBacking);
         var slots = values.PrepareIndexedCapacity(capacity, _state.CancellationCheckpoint);
-        if (_state.MemoryAccounting.IsEnabled || oldBacking != newBacking) _state.ThrowIfCancellationRequested();
+        if (governed || slots.Replacement is not null) _state.ThrowIfCancellationRequested();
         values.PublishIndexedInsertion(in slots, ordinal, slot, _state.CancellationCheckpoint);
         mutation.Commit();
     }

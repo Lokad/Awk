@@ -68,11 +68,13 @@ internal sealed partial class AwkArrayIdentity
     internal long EstimateIndexedBackingBytes(int capacity) =>
         AwkRuntimeMemory.EstimateIndexedArrayBackingBytes(capacity, IndexedTableCapacity(capacity));
 
+    internal bool NeedsIndexedCapacity(int capacity) => _indexed is null || _indexedCapacity != capacity;
+
     // Admission funds newly allocated storage while replaced pages/table remain live.
     // Earlier full pages are retained by this same owner and need no second admission.
     internal long EstimateIndexedInsertionBackingBytes(int capacity)
     {
-        if (_indexed is not null && capacity == _indexedCapacity) return 0;
+        if (!NeedsIndexedCapacity(capacity)) return 0;
         var table = IndexedTableCapacity(capacity);
         return AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateIndexedValuePageBytes(LastIndexedPageLength(capacity)),
