@@ -128,8 +128,8 @@ internal sealed partial class AwkRegionCompiler
                 var location = CompletedResult<PreparedLocation>(completed);
                 if (location.Access >= 0)
                 {
-                    compiler.PrepareImmediatePath(location.Access);
-                    compiler.Emit(new(AwkRegionInstructionKind.ArrayAssign, location.Access, _value));
+                    var position = compiler.Emit(new(AwkRegionInstructionKind.ArrayAssign, location.Access, _value));
+                    compiler.FuseImmediatePath(location.Access, position);
                     compiler.FinishKey(location.Access);
                 }
                 else
@@ -211,14 +211,14 @@ internal sealed partial class AwkRegionCompiler
                     _operands[access.Key] is { Kind: AwkRegionOperandKind.KeyBuilder } key &&
                     key.Index == _code[preceding].Target))
             {
-                _code.TrimTail(_code.Count - captureIndex);
+                _code.ReplaceTail(captureIndex, instruction);
+                position = captureIndex;
                 site = site with { PrepareAccess = capture.Left, Slot = -1 };
                 if (site.Right.IsRegister ||
                     _operands[site.Right.OperandIndex].Kind is AwkRegionOperandKind.LocalVariable or
                         AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
                         AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
-                    PrepareImmediatePath(site.PrepareAccess);
-                position = Emit(instruction);
+                    position = FuseImmediatePath(site.PrepareAccess, position);
             }
             // Only captures crossing instructions need storage and rule retirement.
             if (site.PrepareAccess < 0) _updateSlots = Math.Max(_updateSlots, site.Slot + 1);
@@ -254,9 +254,8 @@ internal sealed partial class AwkRegionCompiler
                     capture.Kind is AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.LocalNumber or
                         AwkRegionInstructionKind.VariableNumber)
                 {
-                    _code[predecessor] = capture with { Target = number, Right = site,
-                        Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: true).Detail };
-                    _code.TrimTail(1);
+                    _code.ReplaceTail(predecessor, capture with { Target = number, Right = site,
+                        Detail = AwkRegionNumberContinuation.ScalarUpdate(readIsLeft: true).Detail });
                 }
             }
             else Emit(NumberRead(right, number) with { Right = site,

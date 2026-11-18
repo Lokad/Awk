@@ -62,17 +62,17 @@ internal sealed partial class AwkRegionCompiler
                 _arguments.Add(AwkRegionArgument.Bind(argument, compiler._operands[argument],
                     syntax.Children[_argument].Kind == AwkExpressionKind.Group,
                     function.LocalLayout.InputConsumption(_argument - 1)));
-                // Only adjacent staging can share a segment. Intervening work
-                // keeps the earlier capture at its original language point.
-                if (compiler._code.Count > 0 && compiler._code[^1] is
-                    { Kind: AwkRegionInstructionKind.Arguments } segment && segment.Target == _call)
-                    compiler._code[^1] = segment with { Right = segment.Right + 1 };
+                var position = compiler.Emit(new(AwkRegionInstructionKind.Arguments, _call, _argument - 1, 1));
+                if (_segment >= 0 && _segment == position - 1 &&
+                    compiler._code[_segment] is { Kind: AwkRegionInstructionKind.Arguments } segment &&
+                    segment.Target == _call && segment.Left + segment.Right == _argument - 1)
+                {
+                    compiler._code.ReplaceTail(_segment, segment with { Right = segment.Right + 1 });
+                }
                 else
                 {
-                    if (_segment >= 0)
-                        compiler._code[_segment] = compiler._code[_segment] with
-                        { Detail = FieldDemand(compiler, compiler._code[_segment]) };
-                    _segment = compiler.Emit(new(AwkRegionInstructionKind.Arguments, _call, _argument - 1, 1));
+                    CompleteSegment(compiler);
+                    _segment = position;
                 }
                 _argument++;
             }
@@ -82,30 +82,40 @@ internal sealed partial class AwkRegionCompiler
                 return true;
             }
             var firstPending = _arguments.Count;
+            var returned = compiler._values++;
+            var instruction = new AwkRegionInstruction(AwkRegionInstructionKind.Call, returned, _call, firstPending);
+            var positionOfCall = compiler.Emit(instruction);
+            var suffix = positionOfCall;
             var fieldDemand = 0;
-            if (compiler._code.Count > 0 && compiler._code[^1] is
-                { Kind: AwkRegionInstructionKind.Arguments } pending && pending.Target == _call)
+            if (_segment >= 0 && _segment == suffix - 1 &&
+                compiler._code[_segment] is { Kind: AwkRegionInstructionKind.Arguments } pending &&
+                pending.Target == _call && pending.Left + pending.Right == _arguments.Count)
             {
                 firstPending = pending.Left;
                 fieldDemand = FieldDemand(compiler, pending);
-                compiler._code.TrimTail(1);
+                suffix--;
             }
+            else CompleteSegment(compiler);
             // Adjacent preparation belongs to the complete call. Intervening
             // argument work keeps its incoming frame at the original boundary.
-            var beginsFrame = compiler._code.Count > 0 && compiler._code[^1] is
+            var beginsFrame = suffix > 0 && compiler._code[suffix - 1] is
                 { Kind: AwkRegionInstructionKind.BeginCall } begin && begin.Left == _call;
-            if (beginsFrame)
-            {
-                compiler._code.TrimTail(1);
-            }
+            if (beginsFrame) suffix--;
+            if (suffix != positionOfCall)
+                compiler._code.ReplaceTail(suffix, instruction with { Right = firstPending });
             var incomingSlot = beginsFrame ? -1 : compiler._calls[_call].Slot;
             if (incomingSlot >= 0)
                 compiler._incomingCalls = Math.Max(compiler._incomingCalls, incomingSlot + 1);
             compiler._calls[_call] = new(function, incomingSlot, _arguments.ToArray(), fieldDemand);
-            var returned = compiler._values++;
-            compiler.Emit(new(AwkRegionInstructionKind.Call, returned, _call, firstPending));
             compiler._activeCalls--;
             return Complete(compiler.Operand(AwkRegionOperandKind.ValueTemporary, returned));
+        }
+
+        private void CompleteSegment(AwkRegionCompiler compiler)
+        {
+            if (_segment < 0) return;
+            var segment = compiler._code[_segment];
+            compiler._code[_segment] = segment with { Detail = FieldDemand(compiler, segment) };
         }
 
         private int FieldDemand(AwkRegionCompiler compiler, AwkRegionInstruction segment)
@@ -160,18 +170,20 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[_argument + 1]);
                 return true;
             }
-            // Retain captures before effects; fold only their final uninterrupted suffix.
-            var firstPending = compiler._code.Count;
+            var site = compiler._builtins.Count;
+            var returned = implementation.ReturnsNumber ? compiler._numbers++ : compiler._values++;
+            var instruction = new AwkRegionInstruction(AwkRegionInstructionKind.Builtin, returned, site);
+            var position = compiler.Emit(instruction);
+            // Retain captures before effects and polls.
+            var firstPending = position;
             while (firstPending > 0 && compiler._code[firstPending - 1] is { Kind: AwkRegionInstructionKind.InputValue } capture &&
                 capture.Target >= _start && capture.Target < _start + count) firstPending--;
-            var pendingArguments = firstPending == compiler._code.Count ? [] : new int[compiler._code.Count - firstPending];
+            var pendingArguments = firstPending == position ? [] : new int[position - firstPending];
             for (var index = 0; index < pendingArguments.Length; index++)
                 pendingArguments[index] = compiler._code[firstPending + index].Left;
-            compiler._code.TrimTail(pendingArguments.Length);
-            var site = compiler._builtins.Count;
+            if (pendingArguments.Length != 0)
+                compiler._code.ReplaceTail(firstPending, instruction);
             compiler._builtins.Add(new(implementation, _start, count, pendingArguments));
-            var returned = implementation.ReturnsNumber ? compiler._numbers++ : compiler._values++;
-            compiler.Emit(new(AwkRegionInstructionKind.Builtin, returned, site));
             return Complete(compiler.Operand(implementation.ReturnsNumber
                 ? AwkRegionOperandKind.NumberTemporary : AwkRegionOperandKind.ValueTemporary, returned));
         }

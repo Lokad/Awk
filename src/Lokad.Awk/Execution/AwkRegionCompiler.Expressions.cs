@@ -234,10 +234,9 @@ internal sealed partial class AwkRegionCompiler
                     {
                         // An intervening instruction or poll keeps the ordinary
                         // read and arithmetic, including the earlier capture.
-                        compiler._code[readPosition] = read with { Target = _number,
+                        compiler._code.ReplaceTail(readPosition, read with { Target = _number,
                             Right = readIsLeft ? rightNumber : leftNumber,
-                            Detail = AwkRegionNumberContinuation.Arithmetic(_arithmetic, readIsLeft).Detail };
-                        compiler._code.TrimTail(1);
+                            Detail = AwkRegionNumberContinuation.Arithmetic(_arithmetic, readIsLeft).Detail });
                     }
                 }
                 else if (_stringComparison || compiler._operands[right].Kind == AwkRegionOperandKind.Literal)

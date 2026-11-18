@@ -4,33 +4,34 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
-    private void PrepareImmediatePath(int access)
+    private int FuseImmediatePath(int access, int position)
     {
         var index = _arrays[access].Path;
-        if (index < 0) return;
+        if (index < 0) return position;
         var path = _paths[index];
-        if (path.Count < 2) return;
-        var start = _code.Count - path.Count - 1;
+        if (path.Count < 2) return position;
+        var start = position - path.Count - 1;
         if (start < 0 || _code[start] is not { Kind: AwkRegionInstructionKind.PathBegin } begin ||
-            begin.Target != index) return;
+            begin.Target != index) return position;
         for (var depth = 0; depth < path.Count; depth++)
         {
             if (_code[start + depth + 1] is not { Kind: AwkRegionInstructionKind.PathKey } key ||
-                key.Target != index || key.Right != depth || key.Detail != 0) return;
+                key.Target != index || key.Right != depth || key.Detail != 0) return position;
             // Ordinary bound reads cannot detach an earlier intermediate owner.
             // Computed/effectful keys keep the already-emitted capture sequence.
             if (_operands[key.Left].Kind is not (AwkRegionOperandKind.LocalVariable or
                 AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or
                 AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField or
-                AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary)) return;
+                AwkRegionOperandKind.NumberTemporary or AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary)) return position;
         }
         var keys = new int[path.Count];
         for (var depth = 0; depth < keys.Length; depth++)
             keys[depth] = _code[start + depth + 1].Left;
-        // A contiguous suffix has not introduced another captured path owner.
+        // One adjacent operation can consume all keys without captured path storage.
         _capturedPaths--;
         _paths[index] = path with { Slot = -1, ImmediateKeys = keys };
-        _code.TrimTail(path.Count + 1);
+        _code.ReplaceTail(start, _code[position]);
+        return start;
     }
 
     private sealed class ArrayKeyWork(IReadOnlyList<AwkExpressionSyntax> parts, int first) : PreparationWork<int>
@@ -155,8 +156,9 @@ internal sealed partial class AwkRegionCompiler
             if (compiler._arrays[access].Path < 0 && compiler._operands[compiler._arrays[access].Key].Kind != AwkRegionOperandKind.KeyBuilder)
                 return Complete(compiler.Operand(AwkRegionOperandKind.ArrayElement, access));
             var captured = compiler._values++;
-            compiler.PrepareImmediatePath(access);
-            compiler.Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access, Detail: preserveOrigin ? 1 : 0));
+            var position = compiler.Emit(new(AwkRegionInstructionKind.ArrayRead, captured, access,
+                Detail: preserveOrigin ? 1 : 0));
+            compiler.FuseImmediatePath(access, position);
             compiler.FinishKey(access);
             return Complete(compiler.Operand(AwkRegionOperandKind.ValueTemporary, captured));
         }

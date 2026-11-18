@@ -19,16 +19,13 @@ internal sealed partial class AwkRegionCompiler
             }
             var value = argument is null ? compiler.Operand(AwkRegionOperandKind.Field, 0) : CompletedResult<int>(completed);
             var number = compiler._numbers++;
-            var producer = default(AwkRegionInstruction);
-            var consume = compiler._code.Count > 0 && compiler._code[^1].Kind is AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Substring &&
-                compiler.TryTakeFreshTextProducer(value, compiler._code.Count - 1, out producer);
+            var position = compiler.Emit(new(AwkRegionInstructionKind.Length, number, value,
+                Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
+            var consume = compiler.TryTakeFreshTextProducer(value, position - 1, out var producer);
             if (consume) compiler._texts--;
             var result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
             if (consume)
-                compiler._code[^1] = producer with { Target = result };
-            else
-                compiler.Emit(new(AwkRegionInstructionKind.Length, number, value,
-                    Detail: argument is not null && AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out _) ? 1 : 0));
+                compiler._code.ReplaceTail(position - 1, producer with { Target = result });
             return Complete(result);
         }
     }

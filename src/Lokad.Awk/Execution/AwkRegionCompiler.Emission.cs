@@ -44,12 +44,14 @@ internal sealed partial class AwkRegionCompiler
             _instructions.Add(new(AwkRegionInstructionKind.MainRead));
         }
 
-        internal void TrimTail(int count)
+        internal void ReplaceTail(int first, AwkRegionInstruction replacement)
         {
-            if ((uint)count > (uint)_straightLine)
+            var count = Count - first;
+            if (count < 2 || count > _straightLine)
                 throw new InvalidOperationException("An instruction rewrite crossed a poll boundary.");
-            _instructions.RemoveRange(Count - count, count);
-            _straightLine -= count;
+            _instructions[first] = replacement;
+            _instructions.RemoveRange(first + 1, count - 1);
+            _straightLine -= count - 1;
         }
 
         internal AwkRegionInstruction[] ToArray() => _instructions.ToArray();

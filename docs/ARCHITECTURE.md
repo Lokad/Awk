@@ -30,6 +30,11 @@ Enforced by [main-input ownership](../tests/Lokad.Awk.Tests/AwkMainInputOwnershi
 [return continuations](../tests/Lokad.Awk.Tests/AwkPreparedFunctionRegionTests.ReturnContinuations.cs)
 and [function flow goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FunctionFlow.cs).
 
+During preparation, emit the consumer before selecting an adjacent producer for
+fusion. The emitter only replaces a contiguous tail after the last poll. A poll
+inserted between a producer and consumer keeps their operations separate. Boundary
+sweeps check output, status, cleanup and admission against the same source semantics.
+
 ## Admission, cancellation and stack safety
 
 Admission funds actual retained owners, temporary overlap and pending users. Preflight

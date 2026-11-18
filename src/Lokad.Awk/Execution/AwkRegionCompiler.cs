@@ -330,8 +330,7 @@ internal sealed partial class AwkRegionCompiler
                     {
                         var capturedRecord = _values++;
                         Emit(new(AwkRegionInstructionKind.Value, capturedRecord, Operand(AwkRegionOperandKind.Field, 0), Detail: 1));
-                        var recordPrint = AllocatePrint([new(AwkRegionPrintArgumentKind.Value, capturedRecord)], printTarget);
-                        EmitPrint(recordPrint);
+                        EmitPrint([new(AwkRegionPrintArgumentKind.Value, capturedRecord)], printTarget);
                     }
                     else Emit(new(AwkRegionInstructionKind.PrintField, Left: Operand(AwkRegionOperandKind.Field, 0)));
                     break;
@@ -352,7 +351,7 @@ internal sealed partial class AwkRegionCompiler
                 if (!Expression(printed, out var printValue, preserveOrigin: true)) return false;
                 if (_operands[printValue].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
                     Emit(new(AwkRegionInstructionKind.PrintField, Left: printValue));
-                else EmitPrint(AllocatePrint([PrintArgument(printValue, final: true)], printTarget));
+                else EmitPrint([PrintArgument(printValue, final: true)], printTarget);
                 break;
             case AwkStatementKind.Printf:
                 if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var formatted)) return false;
@@ -527,8 +526,8 @@ internal sealed partial class AwkRegionCompiler
         var operand = _operands[target];
         if (operand.Kind == AwkRegionOperandKind.ArrayElement)
         {
-            PrepareImmediatePath(operand.Index);
-            Emit(new(AwkRegionInstructionKind.ArrayAssign, operand.Index, value));
+            var position = Emit(new(AwkRegionInstructionKind.ArrayAssign, operand.Index, value));
+            FuseImmediatePath(operand.Index, position);
             FinishKey(operand.Index);
         }
         else if (operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
@@ -585,17 +584,19 @@ internal sealed partial class AwkRegionCompiler
         return true;
     }
 
-    private AwkRegionPrint AllocatePrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
+    private void EmitPrint(AwkRegionPrintArgument[] arguments, AwkRegionOutput output)
     {
+        var site = _prints.Count;
+        var predecessor = Emit(new(AwkRegionInstructionKind.PrintList, Left: site)) - 1;
         if (arguments[^1] is { Kind: AwkRegionPrintArgumentKind.Text } last && _operands.Count > 0 &&
-            _operands[^1].Index == last.Index && _code.Count > 0 &&
-            _code[^1].Kind == AwkRegionInstructionKind.Substring &&
-            TryTakeFreshTextProducer(_operands.Count - 1, _code.Count - 1, out var producer))
+            _operands[^1].Index == last.Index && predecessor >= 0 &&
+            _code[predecessor].Kind == AwkRegionInstructionKind.Substring &&
+            TryTakeFreshTextProducer(_operands.Count - 1, predecessor, out var producer))
         {
             // One immediate consumer completes the print before the byte view
             // expires; no retained text result or fragment staging is needed.
             _texts--;
-            _code[^1] = producer with { Target = AwkRegionTextDestination.Print(_prints.Count).Location };
+            _code.ReplaceTail(predecessor, producer with { Target = AwkRegionTextDestination.Print(site).Location });
             arguments[^1] = new(AwkRegionPrintArgumentKind.PreparedText, 0);
         }
         var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
@@ -603,14 +604,7 @@ internal sealed partial class AwkRegionCompiler
         _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, print.TextCount));
         if (arguments.Length > 1 || output.IsRedirected || print.UsesFieldViews)
             _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
-        return print;
-    }
-
-    private void EmitPrint(AwkRegionPrint print)
-    {
-        var site = _prints.Count;
         _prints.Add(print);
-        if (!print.HasPreparedText) Emit(new(AwkRegionInstructionKind.PrintList, Left: site));
     }
 
     private bool PrintList(IReadOnlyList<AwkExpressionSyntax> arguments, AwkRegionOutput output)
@@ -643,7 +637,7 @@ internal sealed partial class AwkRegionCompiler
                 prepared[index] = PrintArgument(value, final: index == arguments.Count - 1);
             }
         }
-        EmitPrint(AllocatePrint(prepared, output));
+        EmitPrint(prepared, output);
         return true;
     }
 
@@ -806,9 +800,8 @@ internal sealed partial class AwkRegionCompiler
             if (_lastNumberRead >= 0 && _lastNumberRead == position - 1 &&
                 _code[_lastNumberRead] is var read && read.IsNumberRead && read.Target == value.Index)
             {
-                _code[_lastNumberRead] = read with { Kind = AwkRegionInstructionKind.ReturnNumber,
-                    Target = 0, Left = _lastNumberOperand };
-                _code.TrimTail(1);
+                _code.ReplaceTail(_lastNumberRead, read with { Kind = AwkRegionInstructionKind.ReturnNumber,
+                    Target = 0, Left = _lastNumberOperand });
             }
             return;
         }
@@ -827,8 +820,7 @@ internal sealed partial class AwkRegionCompiler
         {
             // A direct capture can keep the same funded slot as the discarded array read.
             _operands[operand] = new(AwkRegionOperandKind.ArrayElement, access);
-            _code[predecessor] = instruction with { Left = operand };
-            _code.TrimTail(1);
+            _code.ReplaceTail(predecessor, instruction with { Left = operand });
         }
         else if (_code[predecessor] is { Kind: AwkRegionInstructionKind.Call,
             Detail: (int)AwkRegionReturnConsumer.Value } call && call.Target == value.Index)
@@ -866,8 +858,7 @@ internal sealed partial class AwkRegionCompiler
             {
                 // Use the existing coordinate slot for the numeric field result.
                 _numbers--;
-                _code[predecessor] = new(AwkRegionInstructionKind.FieldIndexNumber, source.Index, index.Left);
-                _code.TrimTail(1);
+                _code.ReplaceTail(predecessor, new(AwkRegionInstructionKind.FieldIndexNumber, source.Index, index.Left));
                 _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, source.Index);
                 _lastNumberRead = -1;
                 return new(operand, predecessor);
@@ -876,16 +867,14 @@ internal sealed partial class AwkRegionCompiler
             {
                 _values--;
                 _operands[operand] = new(AwkRegionOperandKind.ArrayElement, access);
-                _code[predecessor] = new(AwkRegionInstructionKind.ArrayNumber, target, access);
-                _code.TrimTail(1);
+                _code.ReplaceTail(predecessor, new(AwkRegionInstructionKind.ArrayNumber, target, access));
                 position = predecessor;
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary &&
                 _code[predecessor] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
             {
                 // The adjacent conversion runs while the callee still owns the value.
-                _code[predecessor] = call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number };
-                _code.TrimTail(1);
+                _code.ReplaceTail(predecessor, call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number });
                 if (source.Index == _values - 1) _values--;
                 _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
                 return new(operand);
@@ -945,8 +934,7 @@ internal sealed partial class AwkRegionCompiler
             if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&
                 TryTakeFreshTextProducer(operand, _code.Count - 2, out var producer))
             {
-                _code.TrimTail(1);
-                _code[^1] = producer with { Target = assignment.Target, Right = source.Index };
+                _code.ReplaceTail(_code.Count - 2, producer with { Target = assignment.Target, Right = source.Index });
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
                 _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&
