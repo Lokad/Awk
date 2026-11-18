@@ -1,6 +1,6 @@
 # Benchmarks
 
-Four large workloads have current measurements; remaining catalog rows retain their stated revision.
+Current focused large-workload measurements are marked below; other rows retain their stated revision.
 All use the existing BenchmarkDotNet comparison. Lower
 elapsed-time ratios are faster. Managed allocations include the host; GNU allocations
 are not measured. Source revisions and methods below identify retained evidence;
@@ -77,9 +77,10 @@ has no shared admission. GNU-marked extensions do not imply full conformance.
 
 ## Large-input processing
 
-Rows marked **†** were refreshed at [070b3b5c](https://github.com/Lokad/Awk/commit/070b3b5c5382c2a52afcf41df2809d3b4821e676)
-on **2026-11-18 UTC**, using the in-process BenchmarkDotNet toolchain and exact
-Release managed DLLs. Their GNU timings were refreshed in the same focused cohort.
+Rows marked **‡** were refreshed at [e4edf7f3](https://github.com/Lokad/Awk/commit/e4edf7f3b7ef1c2cd23e5ed7d8f6c4b728b5f7c9)
+on **2026-11-18 UTC**. Rows marked **†** retain [070b3b5c](https://github.com/Lokad/Awk/commit/070b3b5c5382c2a52afcf41df2809d3b4821e676)
+measurements from the same date. Both focused cohorts use the in-process
+BenchmarkDotNet toolchain and exact Release managed DLLs, with fresh GNU comparisons.
 Unmarked rows retain the 72589eb5 out-of-process source-build method. These methods
 must not be compared as a source-change speedup.
 
@@ -94,17 +95,19 @@ by process startup.
 | Text function with branches and local temporary † | 992.00 | 25.943 | 16.405 | 1.58× | 3.658 |
 | ASCII substr/index/length/casing † | 832.00 | 12.898 | 10.080 | 1.28× | 2.120 |
 | Numeric array sort (GNU) | 373.15 | 28.483 | 22.901 | 1.24× | 10.973 |
-| Keyed sum / sorted output (GNU) † | 384.00 | 6.773 | 6.164 | 1.10× | 0.119 |
+| Project three columns / output ‡ | 960.00 | 11.772 | 9.964 | 1.18× | 0.070 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 9.067 | 8.334 | 1.09× | 0.146 |
 | Loop with repeated field arguments | 401.40 | 54.461 | 50.766 | 1.07× | 0.155 |
+| Keyed sum / sorted output (GNU) ‡ | 384.00 | 6.505 | 6.181 | 1.05× | 0.119 |
 | Nested-array calls, 16 keys (GNU) | 100.35 | 5.365 | 5.333 | 1.01× | 0.198 |
 | Two-file membership / join | 1386.30 | 30.814 | 31.094 | 0.99× | 10.121 |
 | Loop with repeated numeric field reads | 401.40 | 30.744 | 31.673 | 0.97× | 0.129 |
 | Unicode length/substr / output | 960.00 | 15.151 | 15.670 | 0.97× | 0.079 |
 | Nested-array calls, 1,024 keys (GNU) | 125.01 | 5.740 | 5.938 | 0.97× | 0.822 |
+| printf ‡ | 384.00 | 17.334 | 17.967 | 0.96× | 0.070 |
 | Project a column / output | 960.00 | 5.786 | 6.187 | 0.94× | 0.059 |
 | Decimal keyed sum / sorted output (GNU) | 576.00 | 7.836 | 8.391 | 0.93× | 0.117 |
-| Sum one numeric column † | 401.40 | 5.311 | 5.877 | 0.90× | 0.075 |
+| Sum one numeric column ‡ | 401.40 | 5.327 | 5.865 | 0.91× | 0.075 |
 | Loop with five-argument calls | 128.00 | 63.721 | 72.776 | 0.88× | 2.178 |
 | Sum one decimal column | 593.40 | 6.067 | 6.993 | 0.87× | 0.074 |
 | Copy field / rebuild record | 960.00 | 9.148 | 10.781 | 0.85× | 0.065 |
@@ -125,11 +128,13 @@ This profile reuses options; compare within its cohort rather than the catalog.
 
 ## Method and refresh
 
-Four marked large rows and the two policy cells were measured at 070b3b5c;
-the other **78 managed/78 GNU catalog timings** remain at 72589eb5. Their retained
-fixture/output checks are unchanged; all refreshed workloads also verify complete
-output. Current driver/core hashes and native identity are retained with each cohort.
-Separate actual-package and pending-host diagnostics remain local evidence.
+The four **‡** rows are current at e4edf7f3; the two **†** rows and the policy
+pair remain at 070b3b5c. The other **78 managed/78 GNU catalog timings** remain at
+72589eb5. Retained results are not fresh checkout measurements. The affected field-output
+rows use their bounded confirmation; controls use the initial focused batch. Every
+refreshed workload verifies complete output. Driver/core hashes and native identity
+are retained with each cohort. Actual-package and pending-host diagnostics remain
+separate qualification evidence.
 
 Quiet checks bracket measurement batches and sample machine state rather than
 guarantee continuous isolation. Source, preflight runtime/driver DLLs, native binary
