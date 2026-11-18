@@ -143,14 +143,21 @@ internal sealed partial class AwkVariables
 
     internal AwkValue GetArrayValue(AwkArrayIdentity array, AwkArrayKey index)
     {
-        AwkValue slot = default;
-        return CreateValue(FindOrInsertArraySlot(array, index, ref slot, out _));
+        ThrowIfDetached(array);
+        var slots = array;
+        if (slots.TryGetValue(index, out var slot)) return CreateValue(slot);
+        return CreateMissingArrayValue(array, index);
     }
 
     internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey index)
     {
-        AwkValue slot = default;
-        return ReadArraySlotNumber(in FindOrInsertArraySlot(array, index, ref slot, out _));
+        ThrowIfDetached(array);
+        if (array.IsIndexed)
+        {
+            if (array.TryGetIndexed(index, out _, out var slot)) return ReadArraySlotNumber(slot);
+        }
+        else if (array.TryGetDictionaryCell(index, out var cell)) return ReadArraySlotNumber(in cell.BorrowedSlot);
+        return CreateMissingArrayValue(array, index).AsNumber(_state.CancellationCheckpoint);
     }
 
     internal AwkValue GetArrayValue(AwkArrayIdentity array, AwkArrayKey index, in AwkArrayUpdateTarget location) =>
@@ -174,52 +181,25 @@ internal sealed partial class AwkVariables
         return array.TryGetValue(key, out slot) ? slot : CreateMissingArraySlot(array, key, out _);
     }
 
-    internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false)
-    {
-        AwkValue slot = default;
-        return CreateValue(FindOrInsertArraySlot(array, index, input, ref slot, out _, out _));
-    }
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false) =>
+        CreateValue(GetArraySlot(array, index, input));
 
     internal double GetArrayNumber(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false)
     {
-        AwkValue slot = default;
-        return ReadArraySlotNumber(in FindOrInsertArraySlot(array, index, input, ref slot, out _, out _));
-    }
-
-    // Conversion consumes the reference immediately. Copy indexed and newly
-    // inserted values into the caller's slot to keep replaceable pages private.
-    private ref readonly AwkValue FindOrInsertArraySlot(AwkArrayIdentity array, AwkArrayKey index,
-        ref AwkValue slot, out AwkArrayCell? cell)
-    {
         ThrowIfDetached(array);
         if (array.IsIndexed)
         {
-            cell = null;
-            if (array.TryGetIndexed(index, out _, out slot)) return ref slot;
+            if (array.TryGetIndexed(index, out _, out var slot)) return ReadArraySlotNumber(slot);
         }
-        else if (array.TryGetDictionaryCell(index, out cell)) return ref cell.BorrowedSlot;
-
-        slot = CreateMissingArraySlot(array, index, out cell);
-        return ref slot;
+        else if (array.ByteLookup.TryGetDictionaryCell(index, out var cell)) return ReadArraySlotNumber(in cell.BorrowedSlot);
+        return ReadArraySlotNumber(InsertByteSlot(array, index, default, missing: true, out _, out _, input));
     }
 
-    private ref readonly AwkValue FindOrInsertArraySlot(AwkArrayIdentity array, scoped ReadOnlySpan<byte> index,
-        bool input, ref AwkValue slot, out AwkArrayKey key, out AwkArrayCell? cell)
+    private AwkValue GetArraySlot(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input)
     {
         ThrowIfDetached(array);
-        if (array.IsIndexed)
-        {
-            cell = null;
-            if (array.TryGetIndexed(index, out var ordinal, out slot))
-            {
-                key = AwkArrayKey.FromOrdinal(ordinal);
-                return ref slot;
-            }
-        }
-        else if (array.ByteLookup.TryGetDictionaryCell(index, out key, out cell)) return ref cell.BorrowedSlot;
-
-        slot = InsertByteSlot(array, index, default, missing: true, out key, out cell, input);
-        return ref slot;
+        return array.ByteLookup.TryGetValue(index, out var slot)
+            ? slot : InsertByteSlot(array, index, default, missing: true, out _, out _, input);
     }
 
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
@@ -229,8 +209,22 @@ internal sealed partial class AwkVariables
         if (previous.TryGetCurrentCell(array, index, out var prior) && prior.Slot.TryGetNumberValue(out var number))
             return new(previous.Key.WithInputOrigin(input), number, array, prior);
 
+        ThrowIfDetached(array);
+        AwkArrayKey key;
         AwkValue slot = default;
-        ref readonly var numberSource = ref FindOrInsertArraySlot(array, index, input, ref slot, out var key, out var cell);
+        ref readonly var numberSource = ref slot;
+        AwkArrayCell? cell;
+        if (array.IsIndexed)
+        {
+            cell = null;
+            if (array.TryGetIndexed(index, out var ordinal, out slot)) key = AwkArrayKey.FromOrdinal(ordinal);
+            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell, input);
+        }
+        else
+        {
+            if (array.ByteLookup.TryGetDictionaryCell(index, out key, out cell)) numberSource = ref cell.BorrowedSlot;
+            else slot = InsertByteSlot(array, index, default, missing: true, out key, out cell, input);
+        }
         return new(key.WithInputOrigin(input), ReadArraySlotNumber(in numberSource), array, cell);
     }
 
@@ -241,8 +235,20 @@ internal sealed partial class AwkVariables
         if (previous.TryGetCurrentCell(array, index, out var prior) && prior.Slot.TryGetNumberValue(out var number))
             return new(index, number, array, prior);
 
+        ThrowIfDetached(array);
         AwkValue slot = default;
-        ref readonly var numberSource = ref FindOrInsertArraySlot(array, index, ref slot, out var cell);
+        ref readonly var numberSource = ref slot;
+        AwkArrayCell? cell;
+        if (array.IsIndexed)
+        {
+            cell = null;
+            if (!array.TryGetIndexed(index, out _, out slot)) slot = CreateMissingArraySlot(array, index, out cell);
+        }
+        else
+        {
+            if (array.TryGetDictionaryCell(index, out cell)) numberSource = ref cell.BorrowedSlot;
+            else slot = CreateMissingArraySlot(array, index, out cell);
+        }
         return new(index, ReadArraySlotNumber(in numberSource), array, cell);
     }
 
