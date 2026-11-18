@@ -691,22 +691,6 @@ internal sealed partial class AwkVariables
         return _symbolTable.ContainsValue(decoded);
     }
 
-    public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
-    {
-        if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-        {
-            _symbolTable.AssignValue(
-                _state.DecodeArrayKey(index),
-                CreateValue(AwkValue.ForStoredText(_state.EncodeText(value))));
-            return;
-        }
-
-        if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _state.CompatibilityMode);
-        var values = GetOrCreateArray(name);
-        SetArraySlot(values, index, AwkValue.FromDeferredText(AwkText.FromString(value), _state.NumberParsingMode));
-    }
-
     public void SetArrayValue(AwkArrayName name, AwkArrayKey index, AwkValue value)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))

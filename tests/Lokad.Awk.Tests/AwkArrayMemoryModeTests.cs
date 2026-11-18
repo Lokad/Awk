@@ -75,7 +75,7 @@ public sealed class AwkArrayMemoryModeTests
         {
             variables.SetArrayValue(name, numericKey, AwkValue.FromNumber(42));
             Assert.Equal(42, variables.GetArrayValue(name, textKey).AsNumber());
-            variables.SetArrayString(name, textKey, new string('a', 4096));
+            variables.SetArrayValue(name, textKey, AwkValue.ForStoredText(new string('a', 4096)));
             Assert.Equal(new string('a', 4096), variables.GetArrayValue(name, numericKey).AsString());
             variables.SetArrayValue(name, numericKey, AwkValue.FromNumericString(AwkText.FromString("007")));
             var numericString = variables.GetArrayValue(name, textKey);
@@ -143,7 +143,8 @@ public sealed class AwkArrayMemoryModeTests
         var committed = accounting.CurrentCommittedBytes;
         Assert.True(committed > 0);
         var target = update ? existingKey : AwkArrayKey.FromOrdinal(2);
-        Assert.Throws<AwkRuntimeException>(() => variables.SetArrayString(name, target, new string('a', 4096)));
+        Assert.Throws<AwkRuntimeException>(() =>
+            variables.SetArrayValue(name, target, AwkValue.ForStoredText(new string('a', 4096))));
         Assert.True(variables.TryGetArrayCount(name, out var count));
         Assert.Equal(1, count);
         Assert.Equal(42, variables.GetArrayValue(name, existingKey).AsNumber());

@@ -1257,9 +1257,6 @@ internal sealed class AwkRuntimeState : IDisposable
     public void AssignVariableValue(AwkSpecialVariableName name, AwkValue value) =>
         AssignSpecialVariableValue(name.Id, value);
 
-    public void AssignVariableValue(AwkGlobalSlotId id, AwkValue value) =>
-        _variableRuntime.AssignGlobalScalarValue(id, value);
-
     public void AssignFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name,
@@ -1881,11 +1878,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return true;
     }
 
-    public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
-    {
-        _arrayRuntime.SetString(name, index, value);
-    }
-
     public void SetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, AwkArrayBinding binding = default) =>
         _arrayRuntime.SetAwkValue(name, index, value, binding);
 
@@ -1896,21 +1888,6 @@ internal sealed class AwkRuntimeState : IDisposable
         _arrayRuntime.DeleteValue(name, index);
 
     internal void DeleteArrayValue(AwkArrayIdentity array, AwkArrayKey key) => _variables.DeleteArrayValue(array, key);
-
-    public int SplitIntoArray(
-        AwkText input,
-        AwkArrayName arrayName,
-        AwkFieldSeparatorSpec separator,
-        AwkOptionalIdentifier separatorArrayName,
-        bool csv = false) =>
-        _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName, csv);
-
-    public int PatsplitIntoArray(
-        AwkText input,
-        AwkArrayName arrayName,
-        AwkRegexPattern pattern,
-        AwkOptionalIdentifier separatorArrayName) =>
-        _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
 
     internal int SplitIntoArray(AwkText input, AwkArrayTarget array, AwkFieldSeparatorSpec separator,
         AwkArrayTarget? separators, bool csv) => _arrayRuntime.SplitIntoArray(input, array, separator, separators, csv);
@@ -1925,9 +1902,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
-
-    public void ReplaceMatchCaptureArray(AwkArrayName name, AwkLeasedRegexMatch match) =>
-        _arrayRuntime.ReplaceMatchCaptures(new AwkArrayTarget(name), match);
 
     internal void ReplaceMatchCaptureArray(AwkArrayTarget target, AwkLeasedRegexMatch match) =>
         _arrayRuntime.ReplaceMatchCaptures(target, match);

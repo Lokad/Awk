@@ -380,11 +380,6 @@ internal sealed partial class AwkArrayRuntime
         return found;
     }
 
-    public void SetString(AwkArrayName name, AwkArrayKey index, string value)
-    {
-        _variables.SetArrayString(_variableRuntime.ResolveOrPromoteArrayName(name), index, value);
-    }
-
     public void SetAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, AwkArrayBinding binding = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
@@ -417,14 +412,6 @@ internal sealed partial class AwkArrayRuntime
         }
         _variables.DeleteArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
     }
-
-    public int SplitIntoArray(
-        AwkText input,
-        AwkArrayName arrayName,
-        AwkFieldSeparatorSpec separator,
-        AwkOptionalIdentifier separatorArrayName,
-        bool csv = false) => SplitIntoArray(input, new AwkArrayTarget(arrayName), separator,
-            separatorArrayName.HasValue ? new AwkArrayTarget(new AwkArrayName(separatorArrayName.Value)) : null, csv);
 
     internal int SplitIntoArray(AwkText input, AwkArrayTarget arrayName, AwkFieldSeparatorSpec separator,
         AwkArrayTarget? separatorArrayName, bool csv = false)
@@ -464,13 +451,6 @@ internal sealed partial class AwkArrayRuntime
 
         return result.Fields.Count;
     }
-
-    public int PatsplitIntoArray(
-        AwkText input,
-        AwkArrayName arrayName,
-        AwkRegexPattern pattern,
-        AwkOptionalIdentifier separatorArrayName) => PatsplitIntoArray(input, new AwkArrayTarget(arrayName), pattern,
-            separatorArrayName.HasValue ? new AwkArrayTarget(new AwkArrayName(separatorArrayName.Value)) : null);
 
     internal int PatsplitIntoArray(AwkText input, AwkArrayTarget arrayName, AwkRegexPattern pattern,
         AwkArrayTarget? separatorArrayName)

@@ -161,11 +161,6 @@ internal sealed class AwkVariableRuntime(
         return variables.GetOrCreateScalarSlot(name);
     }
 
-    public void AssignGlobalScalarValue(AwkGlobalSlotId id, AwkValue value)
-    {
-        variables.SetScalarValue(id, value);
-    }
-
     public bool IsLocalScalar(AwkVariableName name) =>
         functions.TryResolveLocal(name, out var local) &&
         local.Kind is
