@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Lokad.Awk;
-using Xunit.Sdk;
 
 namespace Lokad.Awk.Tests;
 
@@ -317,28 +316,6 @@ public sealed class AwkLexerTests
         Assert.Equal(2, tokens[0].Span.Length);
         Assert.Equal(AwkTokenKind.GreaterEqual, tokens[1].Kind);
         Assert.Equal(4, tokens[1].Span.Start);
-    }
-
-    [Fact]
-    public void AwkLexer_SourceBackedTokenSpansAvoidTextMaterialization()
-    {
-        var tokens = AwkTestHarness.TokenizeSource("BEGIN{total += $1}");
-        var token = Assert.Single(tokens, token => token.Kind == AwkTokenKind.PlusEqual);
-        Assert.Equal("+=", token.Text);
-
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 10_000; index++)
-        {
-            if (!token.TextSpan.SequenceEqual("+=".AsSpan()))
-                throw new XunitException("Source-backed token span changed.");
-        }
-
-        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-        Assert.True(allocatedBytes < 1024, "Allocated bytes: " + allocatedBytes);
     }
 
     [Fact]

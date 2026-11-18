@@ -6,6 +6,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkProgramTests
 {
     [Fact]

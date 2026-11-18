@@ -120,6 +120,19 @@ public sealed class AwkArgumentStorageTests
         }
     }
 
+    private static CooperativeTestMemory State(CancellationToken cancellationToken)
+    {
+        var fixture = new CooperativeTestMemory(4 << 20);
+        var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault());
+        return fixture.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            cancellationToken, fixture.Configure(options)));
+    }
+}
+
+[Collection(AwkAllocationMeasurementCollection.Name)]
+public sealed class AwkArgumentStorageAllocationTests
+{
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -153,14 +166,5 @@ public sealed class AwkArgumentStorageTests
         Assert.Equal(0, budget.Refusals);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
-    }
-
-    private static CooperativeTestMemory State(CancellationToken cancellationToken)
-    {
-        var fixture = new CooperativeTestMemory(4 << 20);
-        var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault());
-        return fixture.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
-            cancellationToken, fixture.Configure(options)));
     }
 }

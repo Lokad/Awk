@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Lokad.Awk.Tests;
 
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkSpecialRegexAssignmentTests
 {
     [Theory]
