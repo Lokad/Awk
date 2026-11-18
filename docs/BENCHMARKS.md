@@ -80,6 +80,9 @@ has no shared admission. GNU-marked extensions do not imply full conformance.
 Rows marked **§** measure record rebuilding on **2026-11-18 UTC**, including a
 numeric edit in a 192-column record. [Core revision 61eaf54e](https://github.com/Lokad/Awk/commit/61eaf54ea2c2d265358aafb707904714abb280a2)
 
+The conditional text call marked **¶** was measured on **2026-11-18 UTC**.
+[Core revision 40dbceec](https://github.com/Lokad/Awk/commit/40dbceecab4eb874bcb2e1c713f9e217670040ca)
+
 Rows marked **‡** were refreshed at [e4edf7f3](https://github.com/Lokad/Awk/commit/e4edf7f3b7ef1c2cd23e5ed7d8f6c4b728b5f7c9)
 on **2026-11-18 UTC**. Rows marked **†** retain [070b3b5c](https://github.com/Lokad/Awk/commit/070b3b5c5382c2a52afcf41df2809d3b4821e676)
 measurements from the same date. Each marked row pairs the managed and GNU
@@ -96,7 +99,7 @@ by process startup.
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 23.622 | 4.656 | 5.07× | 112.198 |
-| Text function with branches and local temporary † | 992.00 | 25.943 | 16.405 | 1.58× | 3.658 |
+| Text function with branches and local temporary ¶ | 992.00 | 21.806 | 16.431 | 1.33× | 3.653 |
 | ASCII substr/index/length/casing † | 832.00 | 12.898 | 10.080 | 1.28× | 2.120 |
 | Numeric array sort (GNU) | 373.15 | 28.483 | 22.901 | 1.24× | 10.973 |
 | Project three columns / output ‡ | 960.00 | 11.772 | 9.964 | 1.18× | 0.070 |
@@ -125,12 +128,13 @@ by process startup.
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 5.566 | 23.207 | 0.24× | 0.106 |
 | Long Unicode field / bounded prefix | 8197.00 | 1.491 | 40.738 | 0.04× | 0.156 |
 
-Current admission-policy profile at [0ac2fba2](https://github.com/Lokad/Awk/commit/0ac2fba2c6d6ff674ed3d5c91703f6f32d2efa97), measured 2026-11-18 UTC:
+Admission-policy profiles measured 2026-11-18 UTC. The **¶** row uses 40dbceec.
+Keyed aggregation uses [0ac2fba2](https://github.com/Lokad/Awk/commit/0ac2fba2c6d6ff674ed3d5c91703f6f32d2efa97).
 
 | Case | Ordinary ms | Shared ms | Shared/ordinary | Ordinary allocated MiB | Shared allocated MiB |
 |---|---:|---:|---:|---:|---:|
 | Keyed aggregation | 6.441 | 7.260 | 1.13× | 0.119 | 0.120 |
-| Conditional text calls | 26.615 | 37.939 | 1.43× | 3.657 | 3.659 |
+| Conditional text calls ¶ | 21.555 | 33.535 | 1.56× | 3.653 | 3.654 |
 
 Shared execution uses the shipped `AwkMemoryBudget.CreateFixed(512L << 20)`.
 Each invocation verifies complete output and refund. This profile reuses options;
@@ -139,9 +143,8 @@ one launch, four warmups and five 500 ms measurement iterations on the quiet mac
 
 ## Method and refresh
 
-The admission-policy table was measured at 0ac2fba2. Unmarked catalog rows retain
-their 72589eb5 measurements. Every refreshed workload verifies complete output.
-The **§** rows use the same inputs and outputs as the tracked workloads and the
+Unmarked processing rows retain their 72589eb5 measurements. Every refreshed workload
+verifies complete output. The **§** and **¶** rows use the tracked workloads and the
 GNU awk 5.3.2 reference. Driver and core hashes and native identity are retained
 with each batch. Actual-package and pending-host diagnostics have their own evidence.
 
