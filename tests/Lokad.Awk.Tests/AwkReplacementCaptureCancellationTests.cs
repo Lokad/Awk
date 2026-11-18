@@ -102,6 +102,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         using var builder = new AwkUtf8Builder(governor, 0);
         builder.Append("seed"u8);
         using var cancellation = new CancellationTokenSource();
+        var checks = 0;
         Action checkpoint = () =>
         {
             if (++checks == (gensub ? 5 : 3)) cancellation.Cancel();
@@ -225,7 +226,6 @@ public sealed class AwkReplacementCaptureCancellationTests
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
         Action checkpoint = () =>
         {
             var reached = phase switch
