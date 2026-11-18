@@ -124,9 +124,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
                 CompatibilityMode,
                 _regexRuntime.ResetWarningSite, csvInput);
-            _recordFields = new AwkFieldFrame(Counters, MemoryAccounting, FormatStringByteText,
-                _fieldSplitter, CreateNumericStringValue, CreateStringValue, ResolveOutputFieldSeparator,
-                CancellationCheckpoint);
+            _recordFields = new AwkFieldFrame(this);
             recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(
                 _variables,
@@ -194,10 +192,12 @@ internal sealed class AwkRuntimeState : IDisposable
             _globalRegexCaseSensitivity = caseSensitivity;
             _recordSeparatorVersion++;
         }
-
-        AwkText ResolveOutputFieldSeparator() =>
-            ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
     }
+
+    internal AwkFieldFrame RecordFields => _recordFields;
+    internal AwkFieldSplitter FieldSplitter => _fieldSplitter;
+    internal AwkText ResolveOutputFieldSeparator() =>
+        ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
 
     public double RecordNumber
     {

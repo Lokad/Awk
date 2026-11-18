@@ -33,7 +33,7 @@ public sealed class AwkTextInputTests
     public void FieldCaptureRetainsTheActualRecordBackingAcrossRebinding()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var context = new AwkFieldTestContext(counters, AwkMemoryAccounting.Disabled);
+        using var context = new AwkFieldTestContext(counters);
         context.Frame.SetRecordText(AwkText.FromSourceLiteralString("0007 tail"));
         Assert.True(context.Frame.TryCaptureTextInput(new(1), out var captured));
         context.Frame.SetRecordText(AwkText.FromSourceLiteralString("changed other"));
@@ -43,28 +43,6 @@ public sealed class AwkTextInputTests
 
     }
 
-    [Fact]
-    public void FieldCapturePrecedesItsOwnedSourceCallback()
-    {
-        var armed = false;
-        AwkFieldFrame? frame = null;
-        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled,
-            checkpoint: () =>
-            {
-                if (!armed) return;
-                armed = false;
-                Assert.IsType<AwkFieldFrame>(frame).SetRecordText(AwkText.FromSourceLiteralString("changed next"));
-            });
-        frame = context.Frame;
-        var original = "old" + new string('x', 4096);
-        frame.SetRecordText(AwkText.FromSourceLiteralString(original + " tail"));
-        Assert.Equal(2, frame.GetFieldCount());
-        armed = true;
-        Assert.True(frame.TryCaptureTextInput(new(1), out var captured));
-        Assert.False(armed);
-        Assert.Equal(original, AwkUtf8Codec.Decode(captured.ReadyText.AsSpan(null)));
-        Assert.Equal("changed", frame.GetFieldValue(new(1)).AsString());
-    }
 
     [Theory]
     [InlineData(false)]

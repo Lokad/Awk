@@ -235,24 +235,31 @@ public sealed class AwkRecordOwnershipTests
     [InlineData(true, 0)]
     [InlineData(false, 1)]
     [InlineData(true, 1)]
-    public async Task UnusedSeparatorIsNotRetained(bool governed, int fields)
+    public void UnusedSeparatorIsNotRetained(bool governed, int fields)
     {
-        var budget = new CooperativeTestBudget(32 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, accounting, format: value => value.ByteText);
-        var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromString("left right"));
-        Assert.Equal(2, frame.GetFieldCount());
-        var separator = Mutate(frame, fields);
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-        Assert.False(IsAlive(separator));
-        Assert.Equal(fields == 0 ? "" : "left", frame.RecordAwkText.AsString());
-        frame.ResetRecord();
-        Assert.Equal(0, budget.Reserved);
-        GC.KeepAlive(frame);
+        var fieldMemory = new CooperativeTestMemory(8 << 20, enabled: governed).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var fieldMemoryBudget = fieldMemory.Budget;
+        using (fieldMemory)
+        {
+            var fieldMemoryBudgetBaseline = fieldMemory.Budget.Reserved;
+            fieldMemory.Budget.SetAvailableBytes(32 << 20);
+            var budget = fieldMemory.Budget;
+            using var context = new AwkFieldTestContext(fieldMemory);
+            fieldMemoryBudgetBaseline = context.BaselineBudget;
+            var frame = context.Frame;
+            frame.SetRecordText(AwkText.FromString("left right"));
+            Assert.Equal(2, frame.GetFieldCount());
+            var separator = Mutate(frame, fields);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            Assert.False(IsAlive(separator));
+            Assert.Equal(fields == 0 ? "" : "left", frame.RecordAwkText.AsString());
+            frame.ResetRecord();
+            Assert.Equal(fieldMemoryBudgetBaseline, budget.Reserved);
+            GC.KeepAlive(frame);
+        }
+        Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

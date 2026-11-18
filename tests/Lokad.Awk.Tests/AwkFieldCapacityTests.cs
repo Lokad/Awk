@@ -8,23 +8,29 @@ public sealed class AwkFieldCapacityTests
     [Theory]
     [InlineData(65)]
     [InlineData(4097)]
-    public async Task RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(int count)
+    public void RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(int count)
     {
-        var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using var context = Fields(accounting, AwkRuntimeCounters.Disabled, count);
-        var frame = context.Frame;
-        var before = accounting.CurrentCommittedBytes;
-        frame.AssignFieldCount(new(1), Space);
-        var shrunk = accounting.CurrentCommittedBytes;
-        Assert.Equal(1, frame.GetFieldCount());
-        if (count == 65) Assert.True(shrunk >= before);
-        else Assert.True(shrunk < before);
-        Assert.Equal("x", frame.RecordAwkText.AsString());
-        Assert.True(accounting.CurrentCommittedBytes < shrunk);
-        frame.ResetRecord();
-        AssertRefunded(accounting, budget);
+        var fieldMemory = new CooperativeTestMemory(8 << 20, enabled: true).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var fieldMemoryBudget = fieldMemory.Budget;
+        using (fieldMemory)
+        {
+            fieldMemory.Budget.SetAvailableBytes(Limit);
+            var budget = fieldMemory.Budget;
+            var accounting = fieldMemory.Accounting;
+            using var context = Fields(fieldMemory, count);
+            var frame = context.Frame;
+            var before = accounting.CurrentCommittedBytes;
+            frame.AssignFieldCount(new(1), Space);
+            var shrunk = accounting.CurrentCommittedBytes;
+            Assert.Equal(1, frame.GetFieldCount());
+            if (count == 65) Assert.True(shrunk >= before);
+            else Assert.True(shrunk < before);
+            Assert.Equal("x", frame.RecordAwkText.AsString());
+            Assert.True(accounting.CurrentCommittedBytes < shrunk);
+            frame.ResetRecord();
+            AssertRefunded(accounting, budget, context.BaselineBytes);
+        }
+        Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
 
     public static IEnumerable<object[]> GrowthCases()
@@ -36,54 +42,66 @@ public sealed class AwkFieldCapacityTests
 
     [Theory]
     [MemberData(nameof(GrowthCases))]
-    public async Task EveryGrowthRouteFundsItsBackingStorage(string operation, int target)
+    public void EveryGrowthRouteFundsItsBackingStorage(string operation, int target)
     {
-        var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using var context = Fields(accounting, counters, 64);
-        var frame = context.Frame;
-        var record = frame.RecordAwkText;
-        Grow(frame, operation, target);
-        Assert.Equal(target, frame.GetFieldCount());
-        Assert.True(accounting.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(record) +
-            AwkRuntimeMemory.EstimateFieldTextListBytes(target));
-        Assert.Equal(target, counters[AwkCounter.FieldsPrepared]);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
-        if (operation == "reference") Assert.True(record.HasSameStorage(frame.RecordAwkText));
-        frame.ResetRecord();
-        AssertRefunded(accounting, budget);
+        var fieldMemory = new CooperativeTestMemory(8 << 20, enabled: true).InitializeRuntime(counters);
+        var fieldMemoryBudget = fieldMemory.Budget;
+        using (fieldMemory)
+        {
+            fieldMemory.Budget.SetAvailableBytes(Limit);
+            var budget = fieldMemory.Budget;
+            var accounting = fieldMemory.Accounting;
+            using var context = Fields(fieldMemory, 64);
+            var frame = context.Frame;
+            var record = frame.RecordAwkText;
+            Grow(frame, operation, target);
+            Assert.Equal(target, frame.GetFieldCount());
+            Assert.True(accounting.CurrentCommittedBytes >= AwkRuntimeMemory.EstimateTextBytes(record) +
+                AwkRuntimeMemory.EstimateFieldTextListBytes(target));
+            Assert.Equal(target, counters[AwkCounter.FieldsPrepared]);
+            Assert.Equal(0, accounting.CurrentReservedBytes);
+            if (operation == "reference") Assert.True(record.HasSameStorage(frame.RecordAwkText));
+            frame.ResetRecord();
+            AssertRefunded(accounting, budget, context.BaselineBytes);
+        }
+        Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
 
     [Theory]
     [InlineData("field")]
     [InlineData("count")]
     [InlineData("reference")]
-    public async Task RefusedGrowthPreservesTheRecordAndFundingWithoutRetry(string operation)
+    public void RefusedGrowthPreservesTheRecordAndFundingWithoutRetry(string operation)
     {
-        var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using var context = Fields(accounting, counters, 64);
-        var frame = context.Frame;
-        var record = frame.RecordAwkText;
-        var committed = accounting.CurrentCommittedBytes;
-        var reserved = budget.Reserved;
-        budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var error = Assert.Throws<AwkRuntimeException>(() => Grow(frame, operation, 4096));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(64, frame.GetFieldCount());
-        Assert.True(record.HasSameStorage(frame.RecordAwkText));
-        Assert.Equal(committed, accounting.CurrentCommittedBytes);
-        Assert.Equal(reserved, budget.Reserved);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
-        Assert.Equal(64, counters[AwkCounter.FieldsPrepared]);
-        Assert.Equal(1, budget.Refusals);
-        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
-        frame.ResetRecord();
-        AssertRefunded(accounting, budget);
+        var fieldMemory = new CooperativeTestMemory(8 << 20, enabled: true).InitializeRuntime(counters);
+        var fieldMemoryBudget = fieldMemory.Budget;
+        using (fieldMemory)
+        {
+            fieldMemory.Budget.SetAvailableBytes(Limit);
+            var budget = fieldMemory.Budget;
+            var accounting = fieldMemory.Accounting;
+            using var context = Fields(fieldMemory, 64);
+            var frame = context.Frame;
+            var record = frame.RecordAwkText;
+            var committed = accounting.CurrentCommittedBytes;
+            var reserved = budget.Reserved;
+            budget.RefuseNextAdmissionMinimumGrowth = 1;
+            var error = Assert.Throws<AwkRuntimeException>(() => Grow(frame, operation, 4096));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal(64, frame.GetFieldCount());
+            Assert.True(record.HasSameStorage(frame.RecordAwkText));
+            Assert.Equal(committed, accounting.CurrentCommittedBytes);
+            Assert.Equal(reserved, budget.Reserved);
+            Assert.Equal(0, accounting.CurrentReservedBytes);
+            Assert.Equal(64, counters[AwkCounter.FieldsPrepared]);
+            Assert.Equal(1, budget.Refusals);
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+            frame.ResetRecord();
+            AssertRefunded(accounting, budget, context.BaselineBytes);
+        }
+        Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
 
     [Theory]
@@ -93,65 +111,63 @@ public sealed class AwkFieldCapacityTests
     [InlineData(true, "count")]
     [InlineData(false, "reference")]
     [InlineData(true, "reference")]
-    public async Task CanceledGrowthCannotPublishAPrefix(bool governed, string operation)
+    public void CanceledGrowthCannotPublishAPrefix(bool governed, string operation)
     {
-        var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var checks = 0;
-        using var context = Fields(accounting, counters, 64, () =>
+        var fieldMemory = new CooperativeTestMemory(8 << 20, enabled: governed).InitializeRuntime(counters, cancellation.Token);
+        var fieldMemoryBudget = fieldMemory.Budget;
+        using (fieldMemory)
         {
-            if (armed && ++checks == 3) cancellation.Cancel();
-            if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        });
-        var frame = context.Frame;
-        var record = frame.RecordAwkText;
-        var committed = accounting.CurrentCommittedBytes;
-        var reserved = budget.Reserved;
-        armed = true;
-        var error = Assert.ThrowsAny<OperationCanceledException>(() => Grow(frame, operation, 4096));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        armed = false;
-        Assert.Equal(64, frame.GetFieldCount());
-        Assert.True(record.HasSameStorage(frame.RecordAwkText));
-        Assert.Equal(committed, accounting.CurrentCommittedBytes);
-        Assert.Equal(reserved, budget.Reserved);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
-        frame.ResetRecord();
-        AssertRefunded(accounting, budget);
+            fieldMemory.Budget.SetAvailableBytes(Limit);
+            var budget = fieldMemory.Budget;
+            var accounting = fieldMemory.Accounting;
+            using var context = Fields(fieldMemory, 64);
+            var frame = context.Frame;
+            var record = frame.RecordAwkText;
+            var committed = accounting.CurrentCommittedBytes;
+            var reserved = budget.Reserved;
+            if (governed) fieldMemory.Budget.OnGrowth = _ => cancellation.Cancel();
+            else cancellation.Cancel();
+            var error = Assert.ThrowsAny<OperationCanceledException>(() => Grow(frame, operation, 4096));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.Equal(64, frame.GetFieldCount());
+            Assert.True(record.HasSameStorage(frame.RecordAwkText));
+            Assert.Equal(committed, accounting.CurrentCommittedBytes);
+            Assert.Equal(reserved, budget.Reserved);
+            Assert.Equal(0, accounting.CurrentReservedBytes);
+            frame.ResetRecord();
+            AssertRefunded(accounting, budget, context.BaselineBytes);
+        }
+        Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
 
     [Fact]
-    public async Task RepeatedGrowthIsBoundedAndZeroNfReleasesStorageOnRecomposition()
+    public void RepeatedGrowthIsBoundedAndZeroNfReleasesStorageOnRecomposition()
     {
-        var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(owner);
-        using var context = Fields(accounting, counters, 1);
-        var frame = context.Frame;
-        for (var count = 2; count <= 513; count++) frame.AssignFieldCount(new(count), Space);
-        Assert.Equal(513, frame.GetFieldCount());
-        Assert.Equal(513, counters[AwkCounter.FieldsPrepared]);
-        Assert.InRange(accounting.CurrentCommittedBytes, 1, 64 << 10);
-        frame.AssignFieldCount(new(0), Space);
-        Assert.True(accounting.CurrentCommittedBytes > 0);
-        Assert.True(AwkText.Empty.HasSameStorage(frame.RecordAwkText));
-        AssertRefunded(accounting, budget);
-        frame.ResetRecord();
+        var fieldMemory = new CooperativeTestMemory(8 << 20, enabled: true).InitializeRuntime(counters);
+        var fieldMemoryBudget = fieldMemory.Budget;
+        using (fieldMemory)
+        {
+            fieldMemory.Budget.SetAvailableBytes(Limit);
+            var budget = fieldMemory.Budget;
+            var accounting = fieldMemory.Accounting;
+            using var context = Fields(fieldMemory, 1);
+            var frame = context.Frame;
+            for (var count = 2; count <= 513; count++) frame.AssignFieldCount(new(count), Space);
+            Assert.Equal(513, frame.GetFieldCount());
+            Assert.Equal(513, counters[AwkCounter.FieldsPrepared]);
+            Assert.InRange(accounting.CurrentCommittedBytes, 1, 64 << 10);
+            frame.AssignFieldCount(new(0), Space);
+            Assert.True(accounting.CurrentCommittedBytes > 0);
+            Assert.True(AwkText.Empty.HasSameStorage(frame.RecordAwkText));
+            AssertRefunded(accounting, budget, context.BaselineBytes);
+            frame.ResetRecord();
+        }
+        Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
-
-    private static AwkFieldTestContext Fields(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
-        int count, Action? checkpoint = null)
-    {
-        var context = new AwkFieldTestContext(counters, accounting, checkpoint: checkpoint);
-        context.Frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", count))));
-        Assert.Equal(count, context.Frame.GetFieldCount());
-        return context;
-    }
+    private static AwkFieldTestContext Fields(CooperativeTestMemory memory, int count) { var context = new AwkFieldTestContext(memory); context.Frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", count)))); Assert.Equal(count, context.Frame.GetFieldCount()); return context; }
 
     private static void Grow(AwkFieldFrame frame, string operation, int target)
     {
@@ -160,10 +176,10 @@ public sealed class AwkFieldCapacityTests
         else frame.ExtendFieldCountForReference(new(target));
     }
 
-    private static void AssertRefunded(AwkMemoryAccounting accounting, CooperativeTestBudget budget)
+    private static void AssertRefunded(AwkMemoryAccounting accounting, CooperativeTestBudget budget, long baseline)
     {
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(baseline, accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
-        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(baseline, budget.Reserved);
     }
 }

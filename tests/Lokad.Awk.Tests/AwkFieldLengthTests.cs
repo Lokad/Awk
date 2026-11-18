@@ -91,35 +91,39 @@ public sealed class AwkFieldLengthTests
     public void InterruptedScalarLengthPublishesNoPartialFact(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var polls = 0;
-        void Check()
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters, cancellation.Token);
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            if (!armed) return;
-            if (++polls == 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
+            var memoryBudgetBaseline = memory.Budget.Reserved;
+            memory.Budget.SetAvailableBytes(memory.Budget.Limit);
+            using var context = new AwkFieldTestContext(memory);
+            memoryBudgetBaseline = context.BaselineBudget;
+            var unit = new string('a', AwkRuntimeLimits.CancellationCheckBytes - 1) + "😀";
+            context.Frame.SetRecordText(AwkText.FromString(string.Concat(Enumerable.Repeat(unit, 4))));
+            _ = context.Frame.GetFieldCount();
+            var committed = memory.Accounting.CurrentCommittedBytes;
+            cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() => context.Frame.TryGetFieldStringLength(new(1), false, out _));
+
+            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            using var retry = new AwkFieldTestContext(AwkRuntimeCounters.CreateEnabled(), separator: " ", outputSeparator: " ");
+            context.Frame.ResetRecord();
+            var retryFrame = retry.Frame;
+            retryFrame.SetRecordText(AwkText.FromString(string.Concat(Enumerable.Repeat(unit, 4))));
+
+            Assert.True(retryFrame.TryGetFieldStringLength(new(1), false, out var length));
+            Assert.Equal(4 * AwkRuntimeLimits.CancellationCheckBytes, length);
+
+            Assert.True(retryFrame.TryGetFieldStringLength(new(1), false, out var repeated));
+            Assert.Equal(length, repeated);
+
+            context.Frame.ResetRecord();
+            Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, checkpoint: Check);
-        var unit = new string('a', AwkRuntimeLimits.CancellationCheckBytes - 1) + "😀";
-        context.Frame.SetRecordText(AwkText.FromString(string.Concat(Enumerable.Repeat(unit, 4))));
-        _ = context.Frame.GetFieldCount();
-        var committed = memory.Accounting.CurrentCommittedBytes;
-        armed = true;
-        Assert.Throws<OperationCanceledException>(() => context.Frame.TryGetFieldStringLength(new(1), false, out _));
-
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        armed = false;
-        Assert.True(context.Frame.TryGetFieldStringLength(new(1), false, out var length));
-        Assert.Equal(4 * AwkRuntimeLimits.CancellationCheckBytes, length);
-
-        Assert.True(context.Frame.TryGetFieldStringLength(new(1), false, out var repeated));
-        Assert.Equal(length, repeated);
-
-        context.Frame.ResetRecord();
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]

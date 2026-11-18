@@ -21,7 +21,7 @@ internal sealed class CooperativeTestMemory : IDisposable
     public CooperativeTestMemory InitializeRuntime(AwkRuntimeCounters counters, CancellationToken token = default) =>
         Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
             Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, null,
-                counters, AwkRuntimeLimits.CreateDefault())
+                counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
             {
                 InternalFailureObserver = AwkInternalFailuresAttribute.CreateObserver()
             })));

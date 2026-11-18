@@ -62,29 +62,35 @@ public sealed class AwkNumericFieldConsumptionTests
     public void CompleteArithmeticFactsServeComparisonsWithoutChangingSpelling(bool governed)
     {
         foreach (var mode in Enum.GetValues<AwkNumberParsingMode>())
-        foreach (var spelling in new[] { "0007", " 7", "1.25", "-0.0", "1e309", "1e-9999", "nan", "0x1p2", "077" })
-        {
-            var counters = AwkRuntimeCounters.CreateEnabled();
-                using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
-            using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|");
-            var frame = context.Frame;
-            var text = AwkText.FromSourceLiteralString(spelling);
-            frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
-            var expected = AwkValue.FromNumericString(text, mode);
-            var number = frame.GetFieldNumber(new(1), mode);
-            Assert.Equal(BitConverter.DoubleToUInt64Bits(expected.AsNumber()), BitConverter.DoubleToUInt64Bits(number));
-            var strict = expected.TryGetStoredComparisonNumber(out var expectedNumber, null);
-            Assert.Equal(strict, frame.TryGetStoredFieldComparisonNumber(new(1), out var actualNumber));
-            if (strict)
-                Assert.Equal(BitConverter.DoubleToUInt64Bits(expectedNumber), BitConverter.DoubleToUInt64Bits(actualNumber));
-            Assert.Equal(strict, frame.TryGetFieldComparisonNumber(new(1), mode, out _));
+            foreach (var spelling in new[] { "0007", " 7", "1.25", "-0.0", "1e309", "1e-9999", "nan", "0x1p2", "077" })
+            {
+                var counters = AwkRuntimeCounters.CreateEnabled();
+                var memory = new CooperativeTestMemory(8 << 20, enabled: governed).InitializeRuntime(counters);
+                var memoryBudget = memory.Budget;
+                using (memory)
+                {
+                    memory.Budget.SetAvailableBytes(memory.Budget.Limit);
+                    using var context = new AwkFieldTestContext(memory, separator: "|");
+                    var frame = context.Frame;
+                    var text = AwkText.FromSourceLiteralString(spelling);
+                    frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
+                    var expected = AwkValue.FromNumericString(text, mode);
+                    var number = frame.GetFieldNumber(new(1), mode);
+                    Assert.Equal(BitConverter.DoubleToUInt64Bits(expected.AsNumber()), BitConverter.DoubleToUInt64Bits(number));
+                    var strict = expected.TryGetStoredComparisonNumber(out var expectedNumber, null);
+                    Assert.Equal(strict, frame.TryGetStoredFieldComparisonNumber(new(1), out var actualNumber));
+                    if (strict)
+                        Assert.Equal(BitConverter.DoubleToUInt64Bits(expectedNumber), BitConverter.DoubleToUInt64Bits(actualNumber));
+                    Assert.Equal(strict, frame.TryGetFieldComparisonNumber(new(1), mode, out _));
 
-            Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var captured));
-            Assert.Equal(spelling, captured.AsString());
-            frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
-            Assert.Equal(spelling, captured.AsString());
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        }
+                    Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var captured));
+                    Assert.Equal(spelling, captured.AsString());
+                    frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
+                    Assert.Equal(spelling, captured.AsString());
+                    Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+                }
+                Assert.Equal(0, memoryBudget.Reserved);
+            }
     }
 
     [Theory]
@@ -101,16 +107,22 @@ public sealed class AwkNumericFieldConsumptionTests
     public void IncompleteArithmeticFactsRetainStrictClassificationAtUse(string spelling, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|");
-        var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
-        Assert.Equal(spelling.Length == 0 ? 0 : 7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
-        Assert.False(frame.TryGetStoredFieldComparisonNumber(new(1), out _));
-        Assert.Equal(spelling == "7 ", frame.TryGetFieldComparisonNumber(new(1), AwkNumberParsingMode.Decimal, out _));
+        var memory = new CooperativeTestMemory(8 << 20, enabled: governed).InitializeRuntime(counters);
+        var memoryBudget = memory.Budget;
+        using (memory)
+        {
+            memory.Budget.SetAvailableBytes(memory.Budget.Limit);
+            using var context = new AwkFieldTestContext(memory, separator: "|");
+            var frame = context.Frame;
+            frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
+            Assert.Equal(spelling.Length == 0 ? 0 : 7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+            Assert.False(frame.TryGetStoredFieldComparisonNumber(new(1), out _));
+            Assert.Equal(spelling == "7 ", frame.TryGetFieldComparisonNumber(new(1), AwkNumberParsingMode.Decimal, out _));
 
-        Assert.Equal(spelling, frame.GetFieldValue(new(1)).AsString());
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.Equal(spelling, frame.GetFieldValue(new(1)).AsString());
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        }
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]

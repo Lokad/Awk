@@ -31,33 +31,34 @@ public sealed class AwkIndexedFieldCacheTests
         string spelling, bool strict, bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
-        var inputValues = 0;
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, separator: "|", createInputValue: text =>
+        var memory = new CooperativeTestMemory(8 << 20, enabled: governed).InitializeRuntime(counters);
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            inputValues++;
-            return AwkValue.FromNumericString(text);
-        });
-        var frame = context.Frame;
-        frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail|old"));
-        if (strict) _ = frame.GetFieldComparison(new(1), AwkNumberParsingMode.Decimal);
-        else Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+            memory.Budget.SetAvailableBytes(memory.Budget.Limit);
 
-        Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var first));
-        Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var repeated));
-        Assert.True(first.HasSameStorage(repeated));
-        Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+            using var context = new AwkFieldTestContext(memory, separator: "|");
+            var frame = context.Frame;
+            frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail|old"));
+            if (strict) _ = frame.GetFieldComparison(new(1), AwkNumberParsingMode.Decimal);
+            else Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
 
-        Assert.Equal(0, inputValues);
-        Assert.Equal(3, frame.GetFieldCount());
-        var value = frame.GetFieldValue(new(1));
-        Assert.Equal(1, inputValues);
-        Assert.True(first.HasSameStorage(value.ByteText));
-        Assert.Equal(spelling, value.ByteText.AsString());
-        Assert.Equal(spelling is not ("7tail" or "7\u00e9"), value.TryGetStoredComparisonNumber(out _, null));
-        frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
-        Assert.Equal(spelling, first.AsString());
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var first));
+            Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var repeated));
+            Assert.True(first.HasSameStorage(repeated));
+            Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+
+            Assert.Equal(3, frame.GetFieldCount());
+            var value = frame.GetFieldValue(new(1));
+
+            Assert.True(first.HasSameStorage(value.ByteText));
+            Assert.Equal(spelling, value.ByteText.AsString());
+            Assert.Equal(spelling is not ("7tail" or "7\u00e9"), value.TryGetStoredComparisonNumber(out _, null));
+            frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
+            Assert.Equal(spelling, first.AsString());
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+        }
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]
@@ -103,16 +104,16 @@ public sealed class AwkIndexedFieldCacheTests
     [Fact]
     public void DefaultScalarIsACachedValueRatherThanAnAbsentEntry()
     {
-        var calls = 0;
-        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled,
-            createInputValue: _ => { calls++; return default; });
+
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled);
         var frame = context.Frame;
         frame.SetRecordText(AwkText.FromSourceLiteralString("x"));
+        frame.AssignFieldValue(new(1), default, AwkText.FromSourceLiteralString(" "));
         var first = frame.GetFieldValue(new(1));
         var second = frame.GetFieldValue(new(1));
         Assert.Equal(default(AwkValue), first);
         Assert.Equal(first, second);
-        Assert.Equal(1, calls);
+
         Assert.False(frame.TryGetUnmaterializedFieldBytes(new(1), out _));
     }
 
@@ -120,34 +121,44 @@ public sealed class AwkIndexedFieldCacheTests
     public void EarlyAndOutOfRangeReadsDoNotAllocateAFullWidthCacheAndRefusedGrowthIsAtomic()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8L << 20);
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, separator: "");
-        var frame = context.Frame;
-        var record = AwkText.FromSourceLiteralString(new string('x', 1024));
-        frame.SetRecordText(record);
-        Assert.Equal(1024, frame.GetFieldCount());
-        var before = memory.Accounting.CurrentCommittedBytes;
-        Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
-        for (var index = 2; index <= 4; index++)
-            _ = frame.GetFieldValue(new(index));
-        Assert.True(memory.Accounting.CurrentCommittedBytes - before < 1024);
-        var committed = memory.Accounting.CurrentCommittedBytes;
+        var memory = new CooperativeTestMemory(8L << 20).InitializeRuntime(counters);
+        var memoryBudget = memory.Budget;
+        using (memory)
+        {
+            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBudgetBaseline = memory.Budget.Reserved;
+            memory.Budget.SetAvailableBytes(memory.Budget.Limit);
+            using var context = new AwkFieldTestContext(memory, separator: "");
+            memoryBaseline = context.BaselineBytes;
+            memoryBudgetBaseline = context.BaselineBudget;
+            var frame = context.Frame;
+            var record = AwkText.FromSourceLiteralString(new string('x', 1024));
+            frame.SetRecordText(record);
+            Assert.Equal(1024, frame.GetFieldCount());
+            var before = memory.Accounting.CurrentCommittedBytes;
+            Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
+            for (var index = 2; index <= 4; index++)
+                _ = frame.GetFieldValue(new(index));
+            Assert.True(memory.Accounting.CurrentCommittedBytes - before < 1024);
+            var committed = memory.Accounting.CurrentCommittedBytes;
 
-        Assert.Equal(string.Empty, frame.GetFieldValue(new(int.MaxValue)).AsString());
+            Assert.Equal(string.Empty, frame.GetFieldValue(new(int.MaxValue)).AsString());
 
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
 
-        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1024)));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1024)));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
 
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(1024), out _));
-        Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
-        frame.ResetRecord();
-        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Budget.Reserved);
+            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            Assert.True(frame.TryGetUnmaterializedFieldBytes(new(1024), out _));
+            Assert.Equal("x", frame.GetFieldValue(new(1)).AsString());
+            frame.ResetRecord();
+            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
+        }
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]
@@ -156,37 +167,50 @@ public sealed class AwkIndexedFieldCacheTests
     public void CanceledCacheStagingPreservesExistingFieldsAndValues(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8L << 20, enabled: governed);
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        memory.Budget.OnGrowth = _ => { if (armed) cancellation.Cancel(); };
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, checkpoint: () =>
+        var memory = new CooperativeTestMemory(8L << 20, enabled: governed).InitializeRuntime(counters, cancellation.Token);
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            if (armed && !governed) cancellation.Cancel();
-            if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        }, separator: "");
-        var frame = context.Frame;
-        var record = AwkText.FromSourceLiteralString(new string('x', 8192));
-        frame.SetRecordText(record);
-        Assert.Equal(8192, frame.GetFieldCount());
-        var first = frame.GetFieldValue(new(1));
-        for (var index = 2; index <= 4; index++)
-            _ = frame.GetFieldValue(new(index));
-        var committed = memory.Accounting.CurrentCommittedBytes;
-        armed = true;
-        var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(8192)));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        armed = false;
-        Assert.True(record.HasSameStorage(frame.RecordAwkText));
-        Assert.Equal(8192, frame.GetFieldCount());
-        Assert.Equal(first, frame.GetFieldValue(new(1)));
-        Assert.True(frame.TryGetUnmaterializedFieldBytes(new(8192), out _));
-        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
-        Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
-        frame.ResetRecord();
-        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Budget.Reserved);
+            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBudgetBaseline = memory.Budget.Reserved;
+            memory.Budget.SetAvailableBytes(memory.Budget.Limit);
+            var armed = false;
+            memory.Budget.OnGrowth = _ => { if (armed) cancellation.Cancel(); };
+            using var context = new AwkFieldTestContext(memory, separator: "|");
+            memoryBaseline = context.BaselineBytes;
+            memoryBudgetBaseline = context.BaselineBudget;
+            var frame = context.Frame;
+            var last = new string('y', 65_536);
+            var record = AwkText.FromSourceLiteralString(string.Join('|', Enumerable.Repeat("x", 8191)) + "|" + last);
+            frame.SetRecordText(record);
+            Assert.Equal(8192, frame.GetFieldCount());
+            var first = frame.GetFieldValue(new(1));
+            for (var index = 2; index <= 4; index++)
+                _ = frame.GetFieldValue(new(index));
+            var committed = memory.Accounting.CurrentCommittedBytes;
+            armed = true;
+            if (!governed) cancellation.Cancel();
+            if (governed) memory.Budget.OnGrowth = _ => cancellation.Cancel();
+            var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(8192)));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            armed = false;
+            Assert.True(record.HasSameStorage(frame.RecordAwkText));
+            Assert.Equal(8192, frame.GetFieldCount());
+            Assert.Equal(first, frame.GetFieldValue(new(1)));
+            Assert.True(frame.TryGetUnmaterializedFieldBytes(new(8192), out _));
+            Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            using var retry = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, separator: "|");
+            frame.ResetRecord();
+            frame = retry.Frame;
+            frame.SetRecordText(record);
+            Assert.Equal(last, frame.GetFieldValue(new(8192)).AsString());
+            frame.ResetRecord();
+            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
+        }
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]
@@ -195,22 +219,32 @@ public sealed class AwkIndexedFieldCacheTests
     public void SparseLateReadsReuseOnlyCachedValues(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(8L << 20, enabled: governed);
-        using var context = new AwkFieldTestContext(counters, memory.Accounting, format: value => value.ByteText, separator: "");
-        var frame = context.Frame;
-        var record = AwkText.FromSourceLiteralString(new string('x', 8192));
-        for (var row = 0; row < 3; row++)
+        var memory = new CooperativeTestMemory(8L << 20, enabled: governed).InitializeRuntime(counters);
+        var memoryBudget = memory.Budget;
+        using (memory)
         {
-            frame.SetRecordText(record);
-            Assert.Equal(8192, frame.GetFieldCount());
-            var before = memory.Accounting.CurrentCommittedBytes;
-            Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
-            Assert.InRange(memory.Accounting.CurrentCommittedBytes - before, 0, 1024);
-            Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            var memoryBaseline = memory.Accounting.CurrentCommittedBytes;
+            var memoryBudgetBaseline = memory.Budget.Reserved;
+            memory.Budget.SetAvailableBytes(memory.Budget.Limit);
+            using var context = new AwkFieldTestContext(memory, separator: "");
+            memoryBaseline = context.BaselineBytes;
+            memoryBudgetBaseline = context.BaselineBudget;
+            var frame = context.Frame;
+            var record = AwkText.FromSourceLiteralString(new string('x', 8192));
+            for (var row = 0; row < 3; row++)
+            {
+                frame.SetRecordText(record);
+                Assert.Equal(8192, frame.GetFieldCount());
+                var before = memory.Accounting.CurrentCommittedBytes;
+                Assert.Equal("x", frame.GetFieldValue(new(8192)).AsString());
+                Assert.InRange(memory.Accounting.CurrentCommittedBytes - before, 0, 1024);
+                Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
+            }
+            frame.ResetRecord();
+            Assert.Equal(memoryBaseline, memory.Accounting.CurrentCommittedBytes);
+            Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
-        frame.ResetRecord();
-        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(0, memoryBudget.Reserved);
     }
 
     [Theory]

@@ -79,7 +79,9 @@ Enforced by [scalar cells](../tests/Lokad.Awk.Tests/AwkFunctionLocalSlotTests.cs
 ## Records and fields
 
 The record frame owns splitting, reference-free field descriptors, numeric caches and
-owned escaping values. Capture immutable splitting configuration when admitting a record.
+owned escaping values. It reads conversion, admission and cancellation from its runtime;
+returned text retains its own immutable backing. Capture immutable splitting configuration
+when admitting a record.
 Record splitting, CSV decoding, split() and patsplit() share the splitter's conversion/admission context;
 FS and FPAT retain distinct warning histories.
 Incremental splitting publishes only a successful tail; NF and mutation complete the
