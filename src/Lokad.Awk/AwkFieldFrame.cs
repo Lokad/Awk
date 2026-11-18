@@ -1086,30 +1086,32 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             fieldCount, fieldCapacity, recycled?.Capacity ?? 0, _fieldValueCache, _fieldCountValue);
         var fields = reusable ?? new AwkRecordFieldBuffer(fieldCapacity);
         var stagedFields = fields.UnpublishedTail(fieldCount);
-        var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting, buffers, state.CancellationCheckpoint);
-        var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(state.CancellationCheckpoint);
+        var checkpoint = state.CancellationCheckpoint;
+        var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting, buffers, checkpoint);
+        var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(checkpoint);
         var offset = 0;
+        var bytesSinceCheck = 0;
         var nextFormatted = 0;
         for (var index = 0; index < fieldCount; index++)
         {
-            if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
-            if (index > 0 && !separator.IsEmpty)
+            if ((index & 1023) == 0)
             {
-                AwkText.CopyBytes(separator, destination.AsSpan(offset), state.CancellationCheckpoint);
-                offset += separator.Length;
+                checkpoint?.Invoke();
+                bytesSinceCheck = 0;
             }
+            if (index > 0 && !separator.IsEmpty)
+                CopyRebuildBytes(separator, destination, ref offset, ref bytesSinceCheck, checkpoint);
             var descriptor = _fieldTexts[index];
             var field = nextFormatted < formattedCount && formatted[nextFormatted].FieldIndex == index
                 ? AwkFieldText.FromOwned(formatted[nextFormatted++].Text) : FieldText(descriptor);
             var length = field.ByteLength();
-            if (length != 0)
-                AwkText.CopyBytes(field.AsSpan(RecordBytes(), state.CancellationCheckpoint),
-                    destination.AsSpan(offset), state.CancellationCheckpoint);
             stagedFields[index] = AwkRecordField.FromRecordSlice(offset, length).WithCacheFrom(descriptor);
-            offset += length;
+            if (length != 0)
+                CopyRebuildBytes(field.AsSpan(RecordBytes(), checkpoint), destination,
+                    ref offset, ref bytesSinceCheck, checkpoint);
         }
         var recordText = byteLength == 0 ? AwkText.Empty : state.AdoptText(destination);
-        state.CancellationCheckpoint?.Invoke();
+        checkpoint?.Invoke();
         fields.PublishCount(fieldCount);
         ClearBufferedRecord();
         _recordText = recordText;
@@ -1120,6 +1122,30 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _recordWasRecomposed = true;
         _recompositionSeparator = AwkText.Empty;
         return TransferFieldProductionFunding(retained, buffers);
+    }
+
+    // The destination is a new record. Share the interval across short field and separator copies.
+    private static void CopyRebuildBytes(ReadOnlySpan<byte> source, Span<byte> destination,
+        ref int offset, ref int bytesSinceCheck, Action? checkpoint)
+    {
+        const int interval = AwkRuntimeLimits.CancellationCheckBytes;
+        var target = destination.Slice(offset, source.Length);
+        if (source.Length > interval)
+        {
+            AwkText.CopyBytes(source, target, checkpoint);
+            bytesSinceCheck = 0;
+        }
+        else
+        {
+            if (bytesSinceCheck + source.Length > interval)
+            {
+                checkpoint?.Invoke();
+                bytesSinceCheck = 0;
+            }
+            source.CopyTo(target);
+            bytesSinceCheck += source.Length;
+        }
+        offset += source.Length;
     }
 
     public void PrepareOutputFieldSeparatorAssignment()

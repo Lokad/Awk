@@ -37,6 +37,10 @@ internal static partial class AwkGoldenCorpus
             ["{$2=$9;print \"[\"$2\"]\",NF;$9=$1;print NF,$1,$9}"], [], "[] 3\n9 a a\n", "a old tail\n");
         yield return Passing("field-copy-empty-destination-keeps-literal-splitting",
             ["-F:", "{$2=$1;print}"], [], "a a c\n", "a::c\n");
+        var longField = new string('é', 3000);
+        yield return Passing("record-rebuild-keeps-offsets-after-long-field-copy",
+            ["{$2=1.25;saved=$0;print saved;print length($1),$2,$3}"], [],
+            longField + " 1.25 tail\n3000 1.25 tail\n", longField + " old tail\n");
         // Numeric $0 follows OFMT, as in mawk; GNU's cached CONVFMT spelling differs.
         yield return Passing("record-print-keeps-format-spelling-and-empty-record",
             ["BEGIN{OFMT=\"%.2f\";CONVFMT=\"%.3f\";ORS=\"|\";$0=1.2345;print;print $0;$0=\"0007\";print;print $0;$0=\"café old\";$2=1.2345;print;print $0;NF=0;print;print $0}"],

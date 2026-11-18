@@ -133,6 +133,8 @@ split completion and reconstruction; failed staging leaves earlier observations 
 Reconstruction stages numeric spellings in field order under the active `CONVFMT`.
 The frame can reuse one funded descriptor buffer to stage a similarly wide rebuild.
 Much smaller records and frame reset release the spare storage.
+Short copies share a cancellation interval across fields and separators. Long copies
+poll by byte chunks, and field-count checks cover runs of empty cells.
 The frame transfers the staged record's funding on publication and checks cancellation after
 retiring the old payload. Field mutations publish cells and `NF` before refunds.
 The frame's two input slots use the invocation ledger. A borrowed slot has funded
