@@ -224,21 +224,21 @@ internal sealed partial class AwkRegionCompiler
                     var leftNumber = compiler.NumericRegister(_left);
                     var rightCapture = compiler.CaptureNumber(right);
                     var rightNumber = compiler._operands[rightCapture.Operand].Index;
-                    var readIsLeft = rightCapture.ReadInstruction < 0 &&
-                        _leftCapture >= 0 && compiler._code.Count == _leftCapture + 1;
+                    var readIsLeft = rightCapture.ReadInstruction < 0;
                     var readPosition = readIsLeft ? _leftCapture : rightCapture.ReadInstruction;
-                    if (readPosition >= 0 && readPosition == compiler._code.Count - 1 &&
-                        compiler._code[^1] is { Detail: 0 } read &&
+                    var arithmetic = compiler.Emit(AwkRegionInstruction.Arithmetic(_arithmetic, _number, leftNumber, rightNumber));
+                    if (readPosition >= 0 && readPosition == arithmetic - 1 &&
+                        compiler._code[readPosition] is { Detail: 0 } read &&
                         read.Target == (readIsLeft ? leftNumber : rightNumber) &&
                         read.IsNumberRead)
                     {
-                        // A fresh read has one consumer. Intervening RHS work keeps
-                        // the earlier capture; calls retain their own conversion.
-                        compiler._code[^1] = read with { Target = _number,
+                        // An intervening instruction or poll keeps the ordinary
+                        // read and arithmetic, including the earlier capture.
+                        compiler._code[readPosition] = read with { Target = _number,
                             Right = readIsLeft ? rightNumber : leftNumber,
                             Detail = AwkRegionNumberContinuation.Arithmetic(_arithmetic, readIsLeft).Detail };
+                        compiler._code.TrimTail(1);
                     }
-                    else compiler.Emit(AwkRegionInstruction.Arithmetic(_arithmetic, _number, leftNumber, rightNumber));
                 }
                 else if (_stringComparison || compiler._operands[right].Kind == AwkRegionOperandKind.Literal)
                     compiler.Emit(new(AwkRegionInstructionKind.CompareText, _number, _left, right, (int)_comparison));
