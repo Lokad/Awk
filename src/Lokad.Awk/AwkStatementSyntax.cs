@@ -84,6 +84,41 @@ internal sealed class AwkStatementSyntax
     public IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions() =>
         Payload.EnumerateChildExpressions();
 
+    // Visits a statement, its primary body, its alternate body and its arms in that order.
+    // The statement visitor supplies the primary body state. An arm may visit its label
+    // and enter a different state before walking that arm's body.
+    internal static void Walk<TState>(IReadOnlyList<AwkStatementSyntax> statements, Action? checkpoint,
+        TState state, Func<AwkStatementSyntax, TState, TState> visit,
+        Func<AwkSwitchCaseSyntax, TState, TState>? enterArm = null)
+    {
+        Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Position, TState State, AwkSwitchCaseSyntax? Arm)>?
+            pending = null;
+        var frame = (Statements: statements, Position: 0, State: state, Arm: (AwkSwitchCaseSyntax?)null);
+        do
+        {
+            checkpoint?.Invoke();
+            var current = frame.Arm is { } arm && enterArm is not null ? enterArm(arm, frame.State) : frame.State;
+            if (frame.Position >= frame.Statements.Count) continue;
+            var statement = frame.Statements[frame.Position];
+            if (frame.Position + 1 < frame.Statements.Count)
+                (pending ??= new()).Push((frame.Statements, frame.Position + 1, current, null));
+
+            var body = visit(statement, current);
+            var cases = statement.SwitchCases;
+            for (var index = cases.Count - 1; index >= 0; index--)
+            {
+                checkpoint?.Invoke();
+                var child = cases[index];
+                if (enterArm is not null || child.BodyStatements.Count != 0)
+                    (pending ??= new()).Push((child.BodyStatements, 0, current, child));
+            }
+            if (statement.ElseStatements is { Count: > 0 } alternate)
+                (pending ??= new()).Push((alternate, 0, current, null));
+            if (statement.BodyStatements is { Count: > 0 } primary)
+                (pending ??= new()).Push((primary, 0, body, null));
+        } while (pending is not null && pending.TryPop(out frame));
+    }
+
     public AwkStatementSyntax WithPayload(
         IReadOnlyList<AwkToken> tokens,
         AwkStatementSyntaxPayload payload,

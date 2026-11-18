@@ -374,22 +374,17 @@ internal static class AwkSemanticValidator
                 AwkDiagnosticId.BindInvalidProgram));
         }
 
-        var pending = new Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Position,
-            AwkStatementValidationContext Context, AwkSyntaxOptional<AwkExpressionSyntax> Label, bool IsCase)>();
-        pending.Push((statements, 0, context, default, false));
-        while (pending.TryPop(out var frame))
-        {
-            context = frame.Context;
-            context.Scope.CheckCancellation();
-            if (frame.IsCase)
+        AwkStatementSyntax.Walk(statements, context.Scope.Checkpoint, (Context: context, Diagnostics: diagnostics),
+            static (statement, state) => (ValidateStatement(statement, state.Context, state.Diagnostics), state.Diagnostics),
+            static (arm, state) =>
             {
-                ValidateExpressionSemantics(frame.Label, context, diagnostics);
-                context = context.EnterSwitch();
-            }
-            if (frame.Position >= frame.Statements.Count) continue;
-            var statement = frame.Statements[frame.Position];
-            if (frame.Position + 1 < frame.Statements.Count)
-                pending.Push((frame.Statements, frame.Position + 1, context, default, false));
+                ValidateExpressionSemantics(arm.Expression, state.Context, state.Diagnostics);
+                return (state.Context.EnterSwitch(), state.Diagnostics);
+            });
+
+        static AwkStatementValidationContext ValidateStatement(AwkStatementSyntax statement,
+            AwkStatementValidationContext context, List<AwkDiagnostic> diagnostics)
+        {
             ValidateControlStatementShape(statement, diagnostics, context.Scope.Checkpoint);
             ValidateControlFlowUsage(statement, context, diagnostics);
             var getlineTarget = statement.Payload switch
@@ -414,16 +409,7 @@ internal static class AwkSemanticValidator
                     ValidateDeleteStatement(headerStatement, context, diagnostics);
             }
             ValidateSwitchLabels(statement, context.Scope, diagnostics);
-            for (var caseIndex = statement.SwitchCases.Count - 1; caseIndex >= 0; caseIndex--)
-            {
-                context.Scope.CheckCancellation();
-                var arm = statement.SwitchCases[caseIndex];
-                pending.Push((arm.BodyStatements, 0, context, arm.Expression, true));
-            }
-            if (statement.ElseStatements.Count != 0)
-                pending.Push((statement.ElseStatements, 0, context, default, false));
-            if (statement.BodyStatements.Count != 0)
-                pending.Push((statement.BodyStatements, 0, context.EnterBody(statement.Kind), default, false));
+            return context.EnterBody(statement.Kind);
         }
 
         static void ValidateSwitchLabels(AwkStatementSyntax statement, AwkLoweringScope scope,
@@ -521,37 +507,15 @@ internal static class AwkSemanticValidator
     }
 
     private static void ValidateExpressionSemanticsCore(AwkExpressionSyntax expression,
-        AwkStatementValidationContext context, List<AwkDiagnostic> diagnostics)
-    {
-        Stack<AwkExpressionSyntax>? pending = null;
-        while (true)
-        {
-            var start = ValidateExpressionNode(expression, context, diagnostics);
-            if (start >= 0 && start < expression.Children.Count)
-            {
-                if (start + 1 < expression.Children.Count)
-                {
-                    pending ??= new();
-                    for (var index = expression.Children.Count - 1; index > start; index--)
-                    {
-                        if ((index & 63) == 0) context.Scope.CheckCancellation();
-                        pending.Push(expression.Children[index]);
-                    }
-                }
-                expression = expression.Children[start];
-                continue;
-            }
-            if (pending is null || !pending.TryPop(out var next)) return;
-            expression = next;
-        }
-    }
+        AwkStatementValidationContext context, List<AwkDiagnostic> diagnostics) =>
+        AwkExpressionSyntaxFacts.Walk(expression, context.Scope.Checkpoint, (Context: context, Diagnostics: diagnostics),
+            static (node, state) => ValidateExpressionNode(node, state.Context, state.Diagnostics));
 
     private static int ValidateExpressionNode(
         AwkExpressionSyntax expression,
         AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
-        context.Scope.CheckCancellation();
         static void ValidateBareCallableVariable(
             AwkExpressionSyntax expression,
             AwkStatementValidationContext context,

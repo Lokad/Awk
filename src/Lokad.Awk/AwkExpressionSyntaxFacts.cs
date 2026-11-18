@@ -2,6 +2,36 @@ namespace Lokad.Awk;
 
 internal static class AwkExpressionSyntaxFacts
 {
+    // Visit in source order. The visitor selects its first child or skips all children.
+    // A narrow expression can stay on this loop without allocating a stack.
+    internal static void Walk<TState>(AwkExpressionSyntax expression, Action? checkpoint,
+        TState state, Func<AwkExpressionSyntax, TState, int> visit)
+    {
+        Stack<AwkExpressionSyntax>? pending = null;
+        while (true)
+        {
+            checkpoint?.Invoke();
+            var first = visit(expression, state);
+            var children = expression.Children;
+            if (first >= 0 && first < children.Count)
+            {
+                if (first + 1 < children.Count)
+                {
+                    pending ??= new();
+                    for (var index = children.Count - 1; index > first; index--)
+                    {
+                        if ((index & 63) == 0) checkpoint?.Invoke();
+                        pending.Push(children[index]);
+                    }
+                }
+                expression = children[first];
+                continue;
+            }
+            if (pending is null || !pending.TryPop(out var next)) return;
+            expression = next;
+        }
+    }
+
     public static bool TryGetIdentifier(
         AwkExpressionSyntax expression,
         out AwkIdentifierSyntax identifier)

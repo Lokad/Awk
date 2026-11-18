@@ -25,6 +25,9 @@ declarations and builtin call shapes before lowering and returns a prepared prog
 or diagnostics. Preparation reports malformed constructs that reach lowering.
 Validation reads collected symbols in source order. Collection, validation and
 lowering use the same invocation-local function layouts and parameter slots.
+Frontend syntax walks share source-order traversal and cancellation checks.
+Symbol collection and validation choose which expression children to visit.
+Statement validation supplies loop and switch context at body and arm entry.
 The executor maps diagnostics to source locations and delivers parser warnings.
 
 Synchronous views borrow actual program/storage/frame state and cannot survive suspension

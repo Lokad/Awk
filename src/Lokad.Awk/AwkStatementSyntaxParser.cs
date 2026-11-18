@@ -1565,39 +1565,23 @@ internal sealed class AwkStatementSyntaxParser
 
     private void AddStatementDiagnostics(
         IReadOnlyList<AwkStatementSyntax> statements,
-        List<AwkDiagnostic> diagnostics)
-    {
-        var pending = new Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Index)>();
-        pending.Push((statements, 0));
-        while (pending.TryPop(out var frame))
-        {
-            if (frame.Index >= frame.Statements.Count) continue;
-            _checkpoint?.Invoke();
-            var statement = frame.Statements[frame.Index];
-            if (frame.Index + 1 < frame.Statements.Count)
-                pending.Push((frame.Statements, frame.Index + 1));
-            for (var index = 0; index < statement.Diagnostics.Count; index++)
+        List<AwkDiagnostic> diagnostics) =>
+        AwkStatementSyntax.Walk(statements, _checkpoint, (Diagnostics: diagnostics, Checkpoint: _checkpoint),
+            static (statement, state) =>
             {
-                _checkpoint?.Invoke();
-                diagnostics.Add(statement.Diagnostics[index]);
-            }
-            foreach (var expression in statement.EnumerateChildExpressions())
-            {
-                _checkpoint?.Invoke();
-                if (expression.Kind == AwkExpressionKind.Unknown)
-                    diagnostics.Add(AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression));
-            }
-            // Depth-first source order: body, else, switch arms, then the next sibling.
-            for (var index = statement.SwitchCases.Count - 1; index >= 0; index--)
-            {
-                _checkpoint?.Invoke();
-                var body = statement.SwitchCases[index].BodyStatements;
-                if (body.Count != 0) pending.Push((body, 0));
-            }
-            if (statement.ElseStatements.Count != 0) pending.Push((statement.ElseStatements, 0));
-            if (statement.BodyStatements.Count != 0) pending.Push((statement.BodyStatements, 0));
-        }
-    }
+                for (var index = 0; index < statement.Diagnostics.Count; index++)
+                {
+                    state.Checkpoint?.Invoke();
+                    state.Diagnostics.Add(statement.Diagnostics[index]);
+                }
+                foreach (var expression in statement.EnumerateChildExpressions())
+                {
+                    state.Checkpoint?.Invoke();
+                    if (expression.Kind == AwkExpressionKind.Unknown)
+                        state.Diagnostics.Add(AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression));
+                }
+                return state;
+            });
 
     private AwkToken? FindFirstSignificant(IReadOnlyList<AwkToken> tokens) =>
         AwkTokenNavigation.FindFirstSignificant(tokens, checkpoint: _checkpoint);

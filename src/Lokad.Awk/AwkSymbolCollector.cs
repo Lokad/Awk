@@ -89,89 +89,59 @@ internal static class AwkSymbolCollector
             }
         }
 
-        private void CollectStatements(IReadOnlyList<AwkStatementSyntax> statements)
-        {
-            var pending = new Stack<(IReadOnlyList<AwkStatementSyntax> Statements, int Position, AwkSyntaxOptional<AwkExpressionSyntax> Label)>();
-            pending.Push((statements, 0, default));
-            while (pending.TryPop(out var frame))
-            {
-                _checkpoint?.Invoke();
-                if (frame.Label.TryGetValue(out var label)) CollectExpression(label);
-                if (frame.Position >= frame.Statements.Count) continue;
-                var statement = frame.Statements[frame.Position];
-                if (frame.Position + 1 < frame.Statements.Count)
-                    pending.Push((frame.Statements, frame.Position + 1, default));
-                foreach (var expression in statement.EnumerateChildExpressions())
-                    CollectExpression(expression);
-                // Preserve body/else/arm and symbol order without recursive descent.
-                for (var index = statement.SwitchCases.Count - 1; index >= 0; index--)
+        private void CollectStatements(IReadOnlyList<AwkStatementSyntax> statements) =>
+            AwkStatementSyntax.Walk(statements, _checkpoint, this,
+                static (statement, collector) =>
                 {
-                    _checkpoint?.Invoke();
-                    var arm = statement.SwitchCases[index];
-                    pending.Push((arm.BodyStatements, 0, arm.Expression));
-                }
-                if (statement.ElseStatements.Count != 0) pending.Push((statement.ElseStatements, 0, default));
-                if (statement.BodyStatements.Count != 0) pending.Push((statement.BodyStatements, 0, default));
-            }
-        }
+                    foreach (var expression in statement.EnumerateChildExpressions())
+                        collector.CollectExpression(expression);
+                    return collector;
+                },
+                static (arm, collector) =>
+                {
+                    if (arm.Expression.TryGetValue(out var label)) collector.CollectExpression(label);
+                    return collector;
+                });
 
-        private void CollectExpression(AwkExpressionSyntax expression)
-        {
-            Stack<AwkExpressionSyntax>? pending = null;
-            while (true)
-            {
-                _checkpoint?.Invoke();
-                var firstChild = 0;
-                switch (expression.Kind)
-                {
-                    case AwkExpressionKind.Variable:
-                        if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier))
-                            AddVariableReference(identifier, AwkSymbolReferenceKind.Variable);
-                        goto NextExpression;
-                    case AwkExpressionKind.ArrayElement:
-                        if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
-                        {
-                            AddVariableReference(target, AwkSymbolReferenceKind.Array);
-                            firstChild = 1;
-                        }
-                        break;
-                    case AwkExpressionKind.FunctionCall:
-                        if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var callable))
-                        {
-                            if (!callable.IsSpecialSyntax)
-                            {
-                                var local = _scope.TryGetFunctionLocalSlot(new(callable.Identifier), out _);
-                                var kind = !local && AwkBuiltins.TryGetCallable(callable.Name, out var builtin) &&
-                                    AwkCompatibilityNames.EnablesBuiltin(builtin, _mode)
-                                    ? AwkSymbolReferenceKind.BuiltinFunction
-                                    : !local && FunctionNames.Contains(callable.Identifier)
-                                        ? AwkSymbolReferenceKind.UserFunction
-                                        : AwkSymbolReferenceKind.UnknownFunction;
-                                Symbols.Add(new AwkSymbolReference(callable.Identifier, kind, callable.Span, local));
-                            }
-                            firstChild = 1;
-                        }
-                        break;
-                }
+        private void CollectExpression(AwkExpressionSyntax expression) =>
+            AwkExpressionSyntaxFacts.Walk(expression, _checkpoint, this,
+                static (node, collector) => collector.CollectExpressionNode(node));
 
-                if (firstChild < expression.Children.Count)
-                {
-                    if (firstChild + 1 < expression.Children.Count)
+        private int CollectExpressionNode(AwkExpressionSyntax expression)
+        {
+            var firstChild = 0;
+            switch (expression.Kind)
+            {
+                case AwkExpressionKind.Variable:
+                    if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier))
+                        AddVariableReference(identifier, AwkSymbolReferenceKind.Variable);
+                    return -1;
+                case AwkExpressionKind.ArrayElement:
+                    if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
                     {
-                        pending ??= new();
-                        for (var index = expression.Children.Count - 1; index > firstChild; index--)
-                        {
-                            if ((index & 63) == 0) _checkpoint?.Invoke();
-                            pending.Push(expression.Children[index]);
-                        }
+                        AddVariableReference(target, AwkSymbolReferenceKind.Array);
+                        firstChild = 1;
                     }
-                    expression = expression.Children[firstChild];
-                    continue;
-                }
-            NextExpression:
-                if (pending is null || !pending.TryPop(out var next)) return;
-                expression = next;
+                    break;
+                case AwkExpressionKind.FunctionCall:
+                    if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var callable))
+                    {
+                        if (!callable.IsSpecialSyntax)
+                        {
+                            var local = _scope.TryGetFunctionLocalSlot(new(callable.Identifier), out _);
+                            var kind = !local && AwkBuiltins.TryGetCallable(callable.Name, out var builtin) &&
+                                AwkCompatibilityNames.EnablesBuiltin(builtin, _mode)
+                                ? AwkSymbolReferenceKind.BuiltinFunction
+                                : !local && FunctionNames.Contains(callable.Identifier)
+                                    ? AwkSymbolReferenceKind.UserFunction
+                                    : AwkSymbolReferenceKind.UnknownFunction;
+                            Symbols.Add(new AwkSymbolReference(callable.Identifier, kind, callable.Span, local));
+                        }
+                        firstChild = 1;
+                    }
+                    break;
             }
+            return firstChild;
         }
 
         private void AddVariableReference(AwkIdentifierSyntax identifier, AwkSymbolReferenceKind ordinaryKind)
