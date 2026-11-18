@@ -86,7 +86,7 @@ internal readonly struct AwkResolvedReference : IDisposable
             if (fieldIndex.Value > state.FieldCount)
                 return AwkValue.FromText(string.Empty);
 
-            return state.GetFieldValue(fieldIndex);
+            return state.RecordFields.GetFieldValue(fieldIndex);
         }
     }
 

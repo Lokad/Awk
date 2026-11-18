@@ -60,7 +60,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("missing"));
-        _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
+        _ = state.RecordFields.GetFieldValue(new(1)); // Ensure the refused growth belongs to the array read.
         var host = new MockFileSystem(); var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var region = Assert.Single(program.BeginActions);

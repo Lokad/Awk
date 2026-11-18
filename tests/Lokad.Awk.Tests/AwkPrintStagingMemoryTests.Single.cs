@@ -27,7 +27,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var io = Io(state, new MockFileSystem());
         // Warm field preparation and output capacity so refusal observes the
         // numeric payload's funding rather than cold descriptors or output growth.
-        state.AppendFieldPrint(output, index);
+        state.AppendFieldPrint(output, new(index));
         var expected = output.ToString();
         await output.FlushAsync(io);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
@@ -35,13 +35,13 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - 1);
         var before = state.MemoryAccounting.LiveBytes;
 
-        var error = Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, index));
+        var error = Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, new(index)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("prior:", output.ToString());
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
 
         pressure.Dispose();
-        state.AppendFieldPrint(output, index);
+        state.AppendFieldPrint(output, new(index));
         Assert.Equal("prior:" + expected, output.ToString());
         Assert.Equal(baseline, state.MemoryAccounting.LiveBytes);
         await io.CloseAsync();

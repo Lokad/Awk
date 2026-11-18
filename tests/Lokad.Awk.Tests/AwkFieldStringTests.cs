@@ -43,7 +43,7 @@ public sealed class AwkFieldStringTests
         var state = memory.State;
         var ascii = int.TryParse(shape, out var size);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id " + (ascii ? new string('a', size) : "résumé")));
-        if (shape == "cached") _ = state.GetFieldValue(2);
+        if (shape == "cached") _ = state.RecordFields.GetFieldValue(new(2));
         if (shape == "owned") state.AssignField(2, "résumé");
         state.AssignVariableValue(AwkVariableName.FromText("start"), AwkValue.FromNumber(1));
         var region = Bind("substr($2," + (shape == "variable" ? "start" : "1") + ",2)");
@@ -132,7 +132,7 @@ public sealed class AwkFieldStringTests
         var state = memory.State;
         var record = AwkText.FromSourceLiteralString("é résumé");
         state.SetCurrentRecord(record);
-        _ = state.GetFieldValue(2);
+        _ = state.RecordFields.GetFieldValue(new(2));
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
         var region = Bind(expression);
         using var storage = new AwkRegionStorage(state);
@@ -158,7 +158,7 @@ public sealed class AwkFieldStringTests
         var record = AwkText.FromSourceLiteralString("id déjà-timeout");
         state.SetCurrentRecord(record);
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromNumber(0));
-        if (parsed) _ = state.GetFieldValue(2);
+        if (parsed) _ = state.RecordFields.GetFieldValue(new(2));
         var region = Bind("index($2,\"timeout\")");
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);

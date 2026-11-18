@@ -19,7 +19,7 @@ public sealed class AwkArgumentStorageTests
         cancellation.Cancel();
         try
         {
-            Assert.ThrowsAny<OperationCanceledException>(() => state.TryStageFunctionFieldKey(1, incoming, 0));
+            Assert.ThrowsAny<OperationCanceledException>(() => state.TryStageFunctionFieldKey(new(1), incoming, 0));
             Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, incoming.GetSlot(0).Kind);
             Assert.Equal(0, incoming.RetainedMemoryBytes);
             Assert.Equal(before, fixture.Budget.Reserved);

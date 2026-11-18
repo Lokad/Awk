@@ -78,7 +78,7 @@ public sealed class AwkIndexedFieldCacheTests
         memory.Initialize(state);
         var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("001", fields)));
         state.SetCurrentRecord(record);
-        var saved = state.GetFieldValue(1);
+        var saved = state.RecordFields.GetFieldValue(new(1));
         ReadRecord();
 
         var committed = state.MemoryAccounting.LiveBytes;
@@ -89,13 +89,13 @@ public sealed class AwkIndexedFieldCacheTests
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("next"));
         Assert.Equal("001", saved.ByteText.AsString());
-        Assert.Equal("next", state.GetFieldValue(1).ByteText.AsString());
+        Assert.Equal("next", state.RecordFields.GetFieldValue(new(1)).ByteText.AsString());
 
         void ReadRecord()
         {
             state.SetCurrentRecord(record);
             for (var index = 1; index <= fields; index++)
-                Assert.Equal(3, state.GetFieldValue(index).ByteText.ByteLength);
+                Assert.Equal(3, state.RecordFields.GetFieldValue(new(index)).ByteText.ByteLength);
         }
     }
 
@@ -255,10 +255,10 @@ public sealed class AwkIndexedFieldCacheTests
             CancellationToken.None, memory.Configure(options));
         memory.Initialize(state);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("007 " + new string('x', 512) + " 03"));
-        var prefix = state.GetFieldValue(1);
+        var prefix = state.RecordFields.GetFieldValue(new(1));
         var allocations = counters[AwkCounter.TextAllocations];
         Assert.Equal(3, state.FieldCount);
-        var again = state.GetFieldValue(1);
+        var again = state.RecordFields.GetFieldValue(new(1));
         Assert.True(prefix.ByteText.HasSameStorage(again.ByteText));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal("007", again.ByteText.AsString());

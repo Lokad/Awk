@@ -345,11 +345,11 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(mainInput ? 5 : 4, state.RecordNumber);
         Assert.Equal(mainInput ? 4 : 3, state.FileRecordNumber);
         Assert.Equal(1, state.FieldCount);
-        Assert.Equal("leftAAright", state.GetFieldValue(1).AsString());
+        Assert.Equal("leftAAright", state.RecordFields.GetFieldValue(new(1)).AsString());
         state.PublishInputRecord(record, mainInput);
         Assert.Equal(2, state.FieldCount);
-        Assert.Equal("left", state.GetFieldValue(1).AsString());
-        Assert.Equal("right", state.GetFieldValue(2).AsString());
+        Assert.Equal("left", state.RecordFields.GetFieldValue(new(1)).AsString());
+        Assert.Equal("right", state.RecordFields.GetFieldValue(new(2)).AsString());
     }
 
     [Theory]

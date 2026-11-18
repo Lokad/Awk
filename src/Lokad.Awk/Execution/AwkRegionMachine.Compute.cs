@@ -220,7 +220,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.PrintField:
                     computationView.State.AppendFieldPrint(output,
-                        computationView.FieldOrdinal(computationView.Operands[instruction.Left]));
+                        computationView.FieldIndex(computationView.Operands[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.PrintList:
                 {

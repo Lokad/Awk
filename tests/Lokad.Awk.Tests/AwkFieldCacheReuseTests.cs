@@ -20,7 +20,7 @@ public sealed class AwkFieldCacheReuseTests
         {
             state.SetCurrentRecord(record);
             for (var index = 1; index <= 3; index++)
-                _ = state.GetFieldValue(index).ByteText.ByteLength;
+                _ = state.RecordFields.GetFieldValue(new(index)).ByteText.ByteLength;
         }
     }
 
@@ -34,7 +34,7 @@ public sealed class AwkFieldCacheReuseTests
         GC.WaitForPendingFinalizers();
         GC.Collect();
         Assert.False(previous.TryGetTarget(out _));
-        Assert.Equal("next", state.GetFieldValue(1).ByteText.AsString());
+        Assert.Equal("next", state.RecordFields.GetFieldValue(new(1)).ByteText.AsString());
     }
 
     [Theory]
@@ -84,6 +84,6 @@ public sealed class AwkFieldCacheReuseTests
     private static WeakReference<object> ReadPreviousField(AwkRuntimeState state)
     {
         state.SetCurrentRecord(AwkText.FromString("old café\tsecond"));
-        return new(state.GetFieldValue(1).ByteText.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
+        return new(state.RecordFields.GetFieldValue(new(1)).ByteText.Backing ?? throw new InvalidOperationException("Expected owned nonempty text."));
     }
 }

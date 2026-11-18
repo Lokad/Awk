@@ -602,53 +602,43 @@ internal sealed class AwkRuntimeState : IDisposable
         if (field >= 0 && !source.IsOwned && StringUnitMode != AwkStringUnitMode.Byte &&
             source.ByteLength > AwkRuntimeMemory.TextRuneCheckpointStride &&
             (long)start + length > AwkRuntimeMemory.TextRuneCheckpointStride)
-            source = new(CaptureFieldStringText(field));
+            source = new(CaptureFieldStringText(new(field)));
     }
 
     internal void PrepareAdmittedFields(int maximum) => _recordFields.PrepareAdmittedFields(maximum);
 
-    internal AwkByteTextOperand ResolveFieldByteOperand(int index) => TryGetFieldStringBytes(index, out var bytes)
+    internal AwkByteTextOperand ResolveFieldByteOperand(AwkFieldIndex index) => TryGetFieldStringBytes(index, out var bytes)
         ? new(bytes) : new(FormatStringByteText(CaptureFieldStringValue(index)));
 
-    internal void CaptureFieldTextInput(int index, out AwkTextInput result)
+    internal void CaptureFieldTextInput(AwkFieldIndex index, out AwkTextInput result)
     {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (!_recordFields.TryCaptureTextInput(new(index), out result))
+        if (!_recordFields.TryCaptureTextInput(index, out result))
             result = new(CaptureFieldStringValue(index));
     }
 
-    private bool TryGetFieldStringBytes(int index, out ReadOnlySpan<byte> bytes)
-    {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        return index == 0 ? _recordFields.TryGetBufferedRecordBytes(out bytes)
-            : _recordFields.TryGetStableFieldBytes(new(index), out bytes);
-    }
+    private bool TryGetFieldStringBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes) =>
+        index.IsCurrentRecord ? _recordFields.TryGetBufferedRecordBytes(out bytes)
+            : _recordFields.TryGetStableFieldBytes(index, out bytes);
 
     // Assigned numbers retain formatting at actual consumption.
-    private AwkValue CaptureFieldStringValue(int index) => TryGetFieldTextArgument(index, out var text) ? text :
-        GetFieldValue(index);
+    private AwkValue CaptureFieldStringValue(AwkFieldIndex index) => TryGetFieldTextArgument(index, out var text)
+        ? text : _recordFields.GetFieldValue(index);
 
-    internal void AppendFieldByteText(AwkUtf8Builder destination, int index)
+    internal void AppendFieldByteText(AwkUtf8Builder destination, AwkFieldIndex index)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
         {
             // Copy synchronously; neither the field span nor its owner crosses an await.
             destination.Append(bytes, CancellationCheckpoint);
             return;
         }
-        var value = GetFieldValue(index);
+        var value = _recordFields.GetFieldValue(index);
         destination.Append(FormatStringByteText(value), CancellationCheckpoint);
     }
 
-    public void AppendFieldPrint(AwkOutputSink output, int index)
+    public void AppendFieldPrint(AwkOutputSink output, AwkFieldIndex index)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-
-        if (index == 0 && _recordFields.TryGetRecomposedRecordFields(
+        if (index.IsCurrentRecord && _recordFields.TryGetRecomposedRecordFields(
             out var fields, out var record, out var separator, out var byteLength))
         {
             var recordTerminator = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
@@ -660,8 +650,8 @@ internal sealed class AwkRuntimeState : IDisposable
             return;
         }
         ReadOnlySpan<byte> bytes = default;
-        var borrowed = index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
-        var value = borrowed ? default : GetFieldValue(index);
+        var borrowed = index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out bytes);
+        var value = borrowed ? default : _recordFields.GetFieldValue(index);
         var terminatorValue = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         // Stored spelling is already owned; only numeric formatting creates text
         // whose funding must survive until the synchronous output copy completes.
@@ -672,35 +662,28 @@ internal sealed class AwkRuntimeState : IDisposable
         output.Append(borrowed ? bytes : FormatPrintByteText(value, formatting).AsSpan(CancellationCheckpoint), terminator);
     }
 
-    public int CountFieldStringUnits(int index)
+    public int CountFieldStringUnits(AwkFieldIndex index)
     {
-        if (index == 0)
+        if (index.IsCurrentRecord)
             return CountStringUnits(FormatStringByteText(GetCurrentRecordValue()));
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-
-        var field = new AwkFieldIndex(index);
-        if (!_recordFields.TryGetFieldStringLength(field, _stringRuntime.IsByteMode, out var length))
-            return CountStringUnits(FormatStringByteText(GetFieldValue(field)));
+        if (!_recordFields.TryGetFieldStringLength(index, _stringRuntime.IsByteMode, out var length))
+            return CountStringUnits(FormatStringByteText(_recordFields.GetFieldValue(index)));
 
         return length;
     }
 
-    internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
-        _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
-
-    internal bool TryPreparePrintField(int index, out AwkFieldText field, out ReadOnlySpan<byte> record)
+    internal bool TryPreparePrintField(AwkFieldIndex index, out AwkFieldText field, out ReadOnlySpan<byte> record)
     {
-        if (!_recordFields.TryGetUnmaterializedFieldText(new(index), out field, out record)) return false;
+        if (!_recordFields.TryGetUnmaterializedFieldText(index, out field, out record)) return false;
         // Field preparation can admit storage; check again before consuming the view.
         ThrowIfCancellationRequested();
         return true;
     }
 
-    internal void PreflightPrintfField(int index)
+    internal void PreflightPrintfField(AwkFieldIndex index)
     {
-        if (!TryGetPrintfFieldBytes(index, out _))
-            _ = GetFieldValue(index);
+        if (!_recordFields.TryGetUnmaterializedFieldBytes(index, out _))
+            _ = _recordFields.GetFieldValue(index);
         ThrowIfCancellationRequested();
     }
 
@@ -1003,9 +986,9 @@ internal sealed class AwkRuntimeState : IDisposable
         return false;
     }
 
-    internal bool TryStageFunctionFieldKey(int field, AwkFunctionFrame incoming, int index)
+    internal bool TryStageFunctionFieldKey(AwkFieldIndex field, AwkFunctionFrame incoming, int index)
     {
-        if (field <= 0 || !_recordFields.TryGetUnmaterializedFieldBytes(new(field), out var bytes)) return false;
+        if (!field.IsNamedField || !_recordFields.TryGetUnmaterializedFieldBytes(field, out var bytes)) return false;
         // One existing admission funds construction through publication into its
         // incoming owner. Only immutable bytes are borrowed during this copy.
         using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(bytes.Length));
@@ -1017,9 +1000,9 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    internal bool TryStageFunctionFieldText(int field, AwkFunctionFrame incoming, int index, bool borrowReader)
+    internal bool TryStageFunctionFieldText(AwkFieldIndex field, AwkFunctionFrame incoming, int index, bool borrowReader)
     {
-        if (borrowReader && field >= 0 && _recordFields.TryCaptureReaderText(new(field), out var borrow, out var offset, out var length))
+        if (borrowReader && _recordFields.TryCaptureReaderText(field, out var borrow, out var offset, out var length))
         {
             ThrowIfCancellationRequested();
             _functions.StageReaderText(incoming, index, borrow, offset, length);
@@ -1033,21 +1016,21 @@ internal sealed class AwkRuntimeState : IDisposable
         return true;
     }
 
-    internal bool TryGetFieldTextArgument(int field, out AwkValue value)
+    internal bool TryGetFieldTextArgument(AwkFieldIndex field, out AwkValue value)
     {
         value = default;
-        if (field < 0 || !_recordFields.TryGetFieldTextSnapshot(new(field), out var text)) return false;
+        if (!_recordFields.TryGetFieldTextSnapshot(field, out var text)) return false;
         value = CreateStringValue(text);
         return true;
     }
 
-    internal AwkText CaptureFieldStringText(int field) =>
-        _recordFields.TryGetFieldTextSnapshot(new(field), out var text) ? text :
-            FormatStringByteText(GetFieldValue(field));
+    internal AwkText CaptureFieldStringText(AwkFieldIndex field) =>
+        _recordFields.TryGetFieldTextSnapshot(field, out var text) ? text :
+            FormatStringByteText(_recordFields.GetFieldValue(field));
 
     internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true,
         AwkMemoryLease? destination = null) =>
-        field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(field) :
+        field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(new(field)) :
             text.Own(this, destination);
 
     public AwkValue ResolveFunctionLocalValue(
@@ -1429,10 +1412,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue GetCurrentRecordValue() => _recordFields.GetRecordValue();
 
-    public AwkValue GetFieldValue(int index) => _recordFields.GetFieldValue(new(index));
-
-    public AwkValue GetFieldValue(AwkFieldIndex index) => _recordFields.GetFieldValue(index);
-
     public void SetCurrentRecordValue(AwkValue value) =>
         _recordFields.SetRecordValue(value, _fieldSplitter.CaptureRecordPlan(
             ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
@@ -1605,7 +1584,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
             return value;
-        return GetArrayAwkValue(name, ToArrayKey(GetFieldValue(index)), binding);
+        return GetArrayAwkValue(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding);
     }
 
     internal double GetArrayFieldNumber(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding)
@@ -1613,7 +1592,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
             return number;
-        return GetArrayNumber(name, ToArrayKey(GetFieldValue(index)), binding);
+        return GetArrayNumber(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding);
     }
 
     public AwkArrayKey GetArrayFieldKey(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
@@ -1621,7 +1600,7 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, binding))
             return key.WithInputOrigin(true);
-        return ToArrayKey(GetFieldValue(index));
+        return ToArrayKey(_recordFields.GetFieldValue(index));
     }
 
     internal AwkArrayKey CaptureFieldKey(AwkFieldIndex index)
@@ -1629,14 +1608,14 @@ internal sealed class AwkRuntimeState : IDisposable
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
             return CopyArrayKey(bytes)
                 .WithInputOrigin(true);
-        return ToArrayKey(GetFieldValue(index));
+        return ToArrayKey(_recordFields.GetFieldValue(index));
     }
 
     internal void SetArrayFieldValue(AwkArrayName name, AwkFieldIndex index, AwkValue value, AwkArrayBinding binding)
     {
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
-        var key = ToArrayKey(GetFieldValue(index));
+        var key = ToArrayKey(_recordFields.GetFieldValue(index));
         ThrowIfCancellationRequested();
         _arrayRuntime.SetAwkValue(name, key, value, binding);
     }
@@ -1654,7 +1633,7 @@ internal sealed class AwkRuntimeState : IDisposable
             if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
                 return target;
         }
-        return PrepareArrayUpdate(name, ToArrayKey(GetFieldValue(index)), binding, in previous);
+        return PrepareArrayUpdate(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding, in previous);
     }
 
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
@@ -1713,7 +1692,7 @@ internal sealed class AwkRuntimeState : IDisposable
         // The dictionary consumes the borrowed bytes before this synchronous call returns.
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
             return _arrayRuntime.ContainsValue(name, bytes, binding);
-        return ContainsArrayValue(name, ToArrayKey(GetFieldValue(index)), binding);
+        return ContainsArrayValue(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding);
     }
 
     public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)

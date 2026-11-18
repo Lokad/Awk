@@ -181,9 +181,9 @@ internal sealed partial class AwkRegionCompiler
                 if (argument.Kind != AwkRegionPrintArgumentKind.Field || !Field(argument.Index)) break;
             return false;
         }
-        bool TerminalFields(int[] fields)
+        bool TerminalFields(AwkFieldIndex[] fields)
         {
-            foreach (var field in fields) if (!Field(field)) break;
+            foreach (var field in fields) if (!Field(field.Value)) break;
             return false;
         }
     }

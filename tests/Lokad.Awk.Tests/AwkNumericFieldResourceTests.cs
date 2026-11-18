@@ -21,13 +21,13 @@ public sealed class AwkNumericFieldResourceTests
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
-        Assert.True(state.GetFieldValue(1).IsNumberValue);
+        Assert.True(state.RecordFields.GetFieldValue(new(1)).IsNumberValue);
         SetFormat(state, "%.4f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.2500 b"u8));
 
         Assert.Equal(allocations + 2, counters[AwkCounter.TextAllocations]);
         Assert.Equal(1, counters[AwkCounter.FieldSplits]);
-        Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
 
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromNumber(0));
         Assert.Empty(state.CurrentRecordByteText.AsSpan().ToArray());
@@ -55,7 +55,7 @@ public sealed class AwkNumericFieldResourceTests
 
         AssertMemoryFailure(error, state, committed);
         Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator).AsSpan().SequenceEqual(" "u8));
-        Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
         Assert.Equal(2, state.FieldCount);
         SetFormat(state, "%.2f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.25 b"u8));
@@ -82,8 +82,8 @@ public sealed class AwkNumericFieldResourceTests
         });
 
         AssertMemoryFailure(error, state, committed);
-        Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
-        Assert.Equal(2.75, state.GetFieldValue(2).AsNumber());
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
+        Assert.Equal(2.75, state.RecordFields.GetFieldValue(new(2)).AsNumber());
         Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator).AsSpan().SequenceEqual(" "u8));
         SetFormat(state, "%.2f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.25 2.75"u8));
@@ -109,7 +109,7 @@ public sealed class AwkNumericFieldResourceTests
         });
 
         AssertMemoryFailure(error, state, committed);
-        Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
         Assert.True(state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator).AsSpan().SequenceEqual(" "u8));
         SetFormat(state, "%.2f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.25 b"u8));
@@ -149,7 +149,7 @@ public sealed class AwkNumericFieldResourceTests
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
 
-        Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
     }
 
     [Fact]

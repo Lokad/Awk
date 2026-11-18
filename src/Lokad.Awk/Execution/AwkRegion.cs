@@ -264,7 +264,7 @@ internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArg
     internal bool HasPreparedText => Arguments[^1].Kind == AwkRegionPrintArgumentKind.PreparedText;
 }
 // Format is -1 only for a bare printf statement without arguments.
-internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields, AwkRegionOutput Output = default);
+internal sealed record AwkRegionPrintf(int Format, int Values, int Count, AwkFieldIndex[] Fields, AwkRegionOutput Output = default);
 internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result);
 internal readonly record struct AwkRegionOutput
 {

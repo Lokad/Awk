@@ -18,13 +18,13 @@ public sealed class AwkFieldLengthTests
         var allocations = counters[AwkCounter.TextAllocations];
 
         for (var index = 0; index < 100; index++)
-            Assert.Equal(4, state.CountFieldStringUnits(1));
+            Assert.Equal(4, state.CountFieldStringUnits(new(1)));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal("0007", state.GetFieldValue(1).AsString());
+        Assert.Equal("0007", state.RecordFields.GetFieldValue(new(1)).AsString());
         Assert.Equal(allocations + 1, counters[AwkCounter.TextAllocations]);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
@@ -41,11 +41,11 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
         Assert.Equal(governed, memory.Budget.Reserved > 0);
-        Assert.Equal(4, state.CountFieldStringUnits(1));
+        Assert.Equal(4, state.CountFieldStringUnits(new(1)));
         var committed = state.MemoryAccounting.LiveBytes;
         var allocations = counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 100; index++)
-            Assert.Equal(4, state.CountFieldStringUnits(1));
+            Assert.Equal(4, state.CountFieldStringUnits(new(1)));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         memory.Dispose();
@@ -68,17 +68,17 @@ public sealed class AwkFieldLengthTests
         var committed = state.MemoryAccounting.LiveBytes;
         for (var index = 0; index < 100; index++)
         {
-            Assert.Equal(text.EnumerateRunes().Count(), state.CountFieldStringUnits(1));
-            Assert.Equal(4, state.CountFieldStringUnits(2));
+            Assert.Equal(text.EnumerateRunes().Count(), state.CountFieldStringUnits(new(1)));
+            Assert.Equal(4, state.CountFieldStringUnits(new(2)));
         }
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal(7, state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
-        Assert.Equal(4, state.CountFieldStringUnits(2));
+        Assert.Equal(4, state.CountFieldStringUnits(new(2)));
 
-        Assert.Equal("0007", state.GetFieldValue(2).AsString());
-        Assert.Equal(AwkRuntimeValueKind.NumericString, state.GetFieldValue(2).RuntimeKind);
+        Assert.Equal("0007", state.RecordFields.GetFieldValue(new(2)).AsString());
+        Assert.Equal(AwkRuntimeValueKind.NumericString, state.RecordFields.GetFieldValue(new(2)).RuntimeKind);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }

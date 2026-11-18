@@ -95,9 +95,10 @@ internal static class AwkRegionPrinting
             {
                 if ((index & 63) == 0) state.ThrowIfCancellationRequested();
                 var argument = print.Arguments[index];
-                borrowed[index] = state.TryPreparePrintField(argument.Index, out fields[index], out record);
+                var fieldIndex = new AwkFieldIndex(argument.Index);
+                borrowed[index] = state.TryPreparePrintField(fieldIndex, out fields[index], out record);
                 if (!borrowed[index]) storage.StoreValue(argument.FallbackValue,
-                    state.GetFieldValue(argument.Index), preserveOrigin: true);
+                    state.RecordFields.GetFieldValue(fieldIndex), preserveOrigin: true);
             }
         }
         else { }

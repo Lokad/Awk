@@ -16,9 +16,9 @@ public sealed partial class AwkFieldProjectionTests
         state.AssignFieldValue(new(2), AwkValue.FromText("É"));
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         var allocations = state.Counters[AwkCounter.TextAllocations];
-        state.AppendFieldPrint(output, 0);
+        state.AppendFieldPrint(output, new(0));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator, AwkValue.FromText(":"));
-        state.AppendFieldPrint(output, 0);
+        state.AppendFieldPrint(output, new(0));
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
 
         var saved = state.GetCurrentRecordValue();
@@ -26,7 +26,7 @@ public sealed partial class AwkFieldProjectionTests
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         Assert.True(original.Span.StartsWith("next"u8));
-        state.AppendFieldPrint(output, 0);
+        state.AppendFieldPrint(output, new(0));
         Assert.Equal("café|É|0007\ncafé|É|0007\nnext\n", output.ToString());
         Assert.Equal("café|É|0007"u8.ToArray(), saved.ByteText.AsSpan().ToArray());
     }

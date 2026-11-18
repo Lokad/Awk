@@ -52,7 +52,7 @@ internal partial struct AwkRegionMachine
                     {
                         ref readonly var component = ref operands[instruction.Left];
                         if (IsField(component))
-                            state.AppendFieldByteText(storage.Builders[instruction.Target].Buffer, FieldOrdinal(component));
+                            state.AppendFieldByteText(storage.Builders[instruction.Target].Buffer, FieldIndex(in component));
                         else
                             storage.Builders[instruction.Target].Buffer.Append(
                                 state.FormatStringByteText(Value(instruction.Left)), state.CancellationCheckpoint);
@@ -85,7 +85,7 @@ internal partial struct AwkRegionMachine
                 if (consumption == AwkParameterInput.Arithmetic)
                     return state.RecordFields.GetFieldArithmeticArgument(FieldIndex(in operand), state.NumberParsingMode);
                 if (consumption == AwkParameterInput.Text &&
-                    state.TryGetFieldTextArgument(FieldOrdinal(operand), out var text)) return text;
+                    state.TryGetFieldTextArgument(FieldIndex(in operand), out var text)) return text;
             }
             return Value(source.OperandIndex);
         }
@@ -140,7 +140,7 @@ internal partial struct AwkRegionMachine
             ref readonly var lengthOperand = ref operands[instruction.Left];
             if (IsField(lengthOperand))
             {
-                numbers[instruction.Target] = state.CountFieldStringUnits(FieldOrdinal(lengthOperand));
+                numbers[instruction.Target] = state.CountFieldStringUnits(FieldIndex(in lengthOperand));
                 return;
             }
             if (TryText(lengthOperand, out var text))
@@ -272,7 +272,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionOperandKind.DynamicVariable: return state.ResolveVariableValue(operand.Name);
                 case AwkRegionOperandKind.Literal: return state.CreateStringValue(region.Literals[operand.Index].Text);
                 case AwkRegionOperandKind.Field:
-                case AwkRegionOperandKind.DynamicField: return ReadField(FieldOrdinal(operand));
+                case AwkRegionOperandKind.DynamicField: return state.RecordFields.GetFieldValue(FieldIndex(in operand));
                 case AwkRegionOperandKind.ValueTemporary: return storage.Values[operand.Index];
                 case AwkRegionOperandKind.TextTemporary: return state.CreateStringValue(storage.Texts[operand.Index]);
                 case AwkRegionOperandKind.ArrayElement: return ReadArray(region.Arrays[operand.Index]);
@@ -464,12 +464,12 @@ internal partial struct AwkRegionMachine
                         }
                         var ordinal = argument.Kind == AwkRegionArgumentKind.Field
                             ? argument.Index : (int)numbers[argument.Index];
-                        if (argument.Consumption == AwkParameterInput.Key &&
-                            state.TryStageFunctionFieldKey(ordinal, incoming, index)) break;
-                        if (argument.Consumption == AwkParameterInput.Text &&
-                            state.TryStageFunctionFieldText(ordinal, incoming, index, borrowReader)) break;
-                        var fieldNumber = 0d;
                         var fieldIndex = new AwkFieldIndex(ordinal);
+                        if (argument.Consumption == AwkParameterInput.Key &&
+                            state.TryStageFunctionFieldKey(fieldIndex, incoming, index)) break;
+                        if (argument.Consumption == AwkParameterInput.Text &&
+                            state.TryStageFunctionFieldText(fieldIndex, incoming, index, borrowReader)) break;
+                        var fieldNumber = 0d;
                         var numeric = argument.Consumption == AwkParameterInput.Arithmetic
                             ? state.RecordFields.TryGetFieldArithmeticNumber(fieldIndex, state.NumberParsingMode, out fieldNumber)
                             : argument.Consumption == AwkParameterInput.NumericComparison &&
@@ -479,7 +479,7 @@ internal partial struct AwkRegionMachine
                         else
                         {
                             // Deferred errors and owned spellings retain ordinary value capture.
-                            var value = ReadField(ordinal);
+                            var value = state.RecordFields.GetFieldValue(fieldIndex);
                             state.FunctionCalls.StageValue(incoming, index, in value);
                         }
                         break;
@@ -787,7 +787,7 @@ internal partial struct AwkRegionMachine
         internal AwkByteTextOperand TextOperand(int index)
         {
             ref readonly var operand = ref operands[index];
-            if (IsField(operand)) return state.ResolveFieldByteOperand(FieldOrdinal(operand));
+            if (IsField(operand)) return state.ResolveFieldByteOperand(FieldIndex(in operand));
             if (TryText(operand, out var text)) return text.ReadyText;
             return new(state.FormatStringByteText(Value(index)));
         }
@@ -795,7 +795,7 @@ internal partial struct AwkRegionMachine
         private void CaptureTextArgument(int index, out AwkTextInput result)
         {
             ref readonly var operand = ref operands[index];
-            if (IsField(operand)) state.CaptureFieldTextInput(FieldOrdinal(operand), out result);
+            if (IsField(operand)) state.CaptureFieldTextInput(FieldIndex(in operand), out result);
             else if (!TryText(operand, out result)) result = new(Value(index));
         }
 
@@ -803,6 +803,5 @@ internal partial struct AwkRegionMachine
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         internal int FieldOrdinal(in AwkRegionOperand operand) => operand.Kind == AwkRegionOperandKind.Field ? operand.Index : (int)numbers[operand.Index];
         internal AwkFieldIndex FieldIndex(in AwkRegionOperand operand) => new(FieldOrdinal(in operand));
-        internal AwkValue ReadField(int index) => state.GetFieldValue(index);
     }
 }

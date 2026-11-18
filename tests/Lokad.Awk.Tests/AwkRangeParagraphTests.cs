@@ -89,8 +89,8 @@ public sealed class AwkRangeParagraphTests
         Assign(state, "RS", "\n");
         Assign(state, "FS", ":");
         Assert.Equal(2, state.FieldCount);
-        Assert.True(state.GetFieldValue(1).ByteText.AsSpan().SequenceEqual("a\nb"u8));
-        Assert.True(state.GetFieldValue(2).ByteText.AsSpan().SequenceEqual("x"u8));
+        Assert.True(state.RecordFields.GetFieldValue(new(1)).ByteText.AsSpan().SequenceEqual("a\nb"u8));
+        Assert.True(state.RecordFields.GetFieldValue(new(2)).ByteText.AsSpan().SequenceEqual("x"u8));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 

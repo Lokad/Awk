@@ -116,9 +116,10 @@ regex and admission services. FS and FPAT retain distinct warning histories.
 Incremental splitting publishes only a successful tail; NF and mutation complete the
 necessary scan. Raw arithmetic, text-only reads and full-value observations retain their
 different classification and ownership requirements.
-Owned field reads use the frame for both numbered fields and the current record.
-Field zero reads the record without starting a field split. Field-derived array keys
-take the validated index and can borrow bytes from named fields for synchronous lookup.
+Owned field reads and arithmetic use the frame for both numbered fields and the
+current record. Field zero reads the record without starting a field split.
+Computed indexes are validated before use. Array keys, assignment and formatting
+carry the validated index, with synchronous borrowing where the backing stays live.
 
 Current records may borrow host bytes. Promote retained slices before retiring that borrow;
 escaping values own their spelling. Rebuilding/output prepares the full byte length and

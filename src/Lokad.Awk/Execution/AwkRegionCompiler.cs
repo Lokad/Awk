@@ -667,10 +667,14 @@ internal sealed partial class AwkRegionCompiler
         // after their effects. The captured text survives record/variable writes.
         Emit(new(AwkRegionInstructionKind.Value, formatSlot, format, Detail: 1));
         var count = arguments.Count - 1;
-        var fields = new int[count];
+        var fields = new AwkFieldIndex[count];
         for (var index = 0; index < count; index++)
         {
-            if (TryFixedField(arguments[index + 1], out fields[index]) && fields[index] != 0) continue;
+            if (TryFixedField(arguments[index + 1], out var ordinal) && ordinal != 0)
+            {
+                fields[index] = new(ordinal);
+                continue;
+            }
             fields = [];
             break;
         }

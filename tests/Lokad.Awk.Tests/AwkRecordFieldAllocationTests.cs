@@ -116,7 +116,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var fieldCount = AwkSpecialVariables.VariableName(AwkSpecialVariableId.FieldCount);
         for (var index = 0; index < 100; index++)
         {
-            _ = state.GetFieldValue(1);
+            _ = state.RecordFields.GetFieldValue(new(1));
             _ = state.FieldCount;
             _ = state.ResolveVariableValue(fieldCount);
         }
@@ -126,7 +126,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
 
         for (var index = 0; index < 10_000; index++)
         {
-            total += state.GetFieldValue(1).ByteText.ByteLength;
+            total += state.RecordFields.GetFieldValue(new(1)).ByteText.ByteLength;
             total += state.FieldCount;
             total += (int)state.ResolveVariableValue(fieldCount).AsNumber();
         }

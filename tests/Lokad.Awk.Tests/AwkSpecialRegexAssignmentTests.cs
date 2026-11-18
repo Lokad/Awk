@@ -20,8 +20,8 @@ public sealed class AwkSpecialRegexAssignmentTests
         GC.Collect();
         Assert.False(IsAlive(backing));
         Assert.Equal(",", state.ResolveVariableValue(AwkVariableName.FromText(variable)).AsString());
-        if (variable == "FS") Assert.Equal("b", state.GetFieldValue(2).AsString());
-        if (variable == "FPAT") Assert.Equal(",", state.GetFieldValue(1).AsString());
+        if (variable == "FS") Assert.Equal("b", state.RecordFields.GetFieldValue(new(2)).AsString());
+        if (variable == "FPAT") Assert.Equal(",", state.RecordFields.GetFieldValue(new(1)).AsString());
         GC.KeepAlive(state);
     }
 
@@ -32,7 +32,7 @@ public sealed class AwkSpecialRegexAssignmentTests
         Assert.True(MemoryMarshal.TryGetArray(record.AsMemory(), out var storage));
         var bytes = storage.Array ?? throw new InvalidOperationException("Expected flat record storage.");
         state.SetCurrentRecord(record);
-        state.AssignVariableValue(AwkVariableName.FromText(variable), state.GetFieldValue(1));
+        state.AssignVariableValue(AwkVariableName.FromText(variable), state.RecordFields.GetFieldValue(new(1)));
         state.SetCurrentRecord(AwkText.FromString("a,b"));
         return new(bytes);
     }

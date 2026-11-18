@@ -17,19 +17,19 @@ public sealed partial class AwkFieldProjectionTests
         state.SetCurrentRecord(source);
         eager.SetCurrentRecord(source);
         Assert.Equal(64, eager.FieldCount);
-        var first = state.GetFieldValue(1);
-        var firstEager = eager.GetFieldValue(1);
+        var first = state.RecordFields.GetFieldValue(new(1));
+        var firstEager = eager.RecordFields.GetFieldValue(new(1));
         AssertSameScalar(firstEager, first);
         Assert.Equal("0007"u8.ToArray(), first.ByteText.AsSpan().ToArray());
         Assert.Equal(1, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(64, eagerCounters[AwkCounter.FieldsPrepared]);
-        var third = state.GetFieldValue(3);
-        var thirdEager = eager.GetFieldValue(3);
+        var third = state.RecordFields.GetFieldValue(new(3));
+        var thirdEager = eager.RecordFields.GetFieldValue(new(3));
         AssertSameScalar(thirdEager, third);
         Assert.Equal(3, counters[AwkCounter.FieldsPrepared]);
         Assert.Equal(64, state.FieldCount);
         Assert.Equal(64, counters[AwkCounter.FieldsPrepared]);
-        Assert.Equal(first, state.GetFieldValue(1));
+        Assert.Equal(first, state.RecordFields.GetFieldValue(new(1)));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
 
@@ -57,14 +57,14 @@ public sealed partial class AwkFieldProjectionTests
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         var allocations = counters[AwkCounter.TextAllocations];
 
-        state.AppendFieldPrint(output, 1);
+        state.AppendFieldPrint(output, new(1));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         // ORS is already canonical, and the projected field creates no scalar.
 
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         AwkTestHarness.PublishBufferedRecord(state, "next"u8);
         Assert.True(original.Span.StartsWith("next"u8));
-        state.AppendFieldPrint(output, 1);
+        state.AppendFieldPrint(output, new(1));
         Assert.Equal("first\nnext\n", output.ToString());
     }
     [Fact]
@@ -80,10 +80,10 @@ public sealed partial class AwkFieldProjectionTests
         _ = state.FieldCount;
         _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, 1));
+        Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, new(1)));
         Assert.Equal(prefix, output.ToString());
         state.SetCurrentRecord(AwkText.FromString("ok"));
-        state.AppendFieldPrint(output, 1);
+        state.AppendFieldPrint(output, new(1));
         Assert.Equal(prefix + "ok\n", output.ToString());
     }
 
@@ -97,13 +97,13 @@ public sealed partial class AwkFieldProjectionTests
         var counters = state.Counters;
         using var output = new AwkOutputSink(state.MemoryAccounting);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
-        state.AppendFieldPrint(output, 1);
-        state.AppendFieldPrint(output, 2);
+        state.AppendFieldPrint(output, new(1));
+        state.AppendFieldPrint(output, new(2));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFormat, AwkValue.FromText("%.2f"));
         state.AssignFieldValue(new(1), AwkValue.FromNumber(1.25));
-        state.AppendFieldPrint(output, 1);
+        state.AppendFieldPrint(output, new(1));
         Assert.Equal("café\n😀\n1.25\n", output.ToString());
-        Assert.True(state.GetFieldValue(1).IsNumberValue);
+        Assert.True(state.RecordFields.GetFieldValue(new(1)).IsNumberValue);
     }
 
     [Fact]
