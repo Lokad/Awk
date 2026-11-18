@@ -280,7 +280,7 @@ public sealed class AwkNestedArrayStorageTests
             AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(4));
         using var callState = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default, cancellation.Token, options);
-        var calls = new AwkFunctionCallStack(callState);
+        var calls = callState.FunctionCalls;
         calls.PushFrame(new([parameter]), [AwkFunctionLocalSlot.ArrayAlias(child)]);
         cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => calls.RepairSubarrayAliases(parent, false, true));

@@ -202,7 +202,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void ForwardedAliasesKeepFullIdentityAndDiscardExtraArguments(long frameId, bool extra)
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("parameter")]);
         var name = AwkArrayName.FunctionLocal(AwkIdentifier.FromTrustedName("local"), frameId);
         var array = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
@@ -321,44 +321,26 @@ public sealed class AwkFunctionLocalSlotTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ArrayBindingCapturesItsNameBeforeResolutionCanReplaceTheSourceCell(bool indexed, bool resolved)
+    public void ArrayBindingFindsTheCurrentArrayWithoutCreatingAMissingOne(bool indexed, bool resolved)
     {
         var name = AwkVariableName.FromText("arg");
         var original = AwkArrayName.FromText("original");
-        var owner = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
-        var origin = new AwkUntypedScalar(owner);
-        AwkFunctionFrame? active = null;
-        var observed = false;
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState,
-            findArray: requested =>
-            {
-                if (active is not { } frame) return null;
-                Assert.Equal(original, requested);
-                observed = true;
-                frame.GetSlot(0) = AwkFunctionLocalSlot.UntypedScalar(AwkValue.FromUntypedScalar(origin));
-                return resolved ? owner : null;
-            },
-            promoteArrayOrigin: _ => throw new XunitException("An unresolved alias must not promote its replacement cell."));
+        var stack = callState.FunctionCalls;
         stack.PushFrame(new([name]), [AwkFunctionLocalSlot.ArrayAlias(original)]);
         try
         {
-            active = stack.CurrentFrame;
+            if (resolved) callState.SetArrayAwkValue(original, new("key"), AwkValue.FromNumber(7));
+            Assert.Equal(resolved, callState.Variables.TryGetOrdinaryArray(original, out var expected));
             var found = indexed ? stack.TryGetBoundArray(new AwkFunctionLocalSlotId(0), out var array, promote: true)
                 : stack.TryGetBoundArray(name, out array, promote: true);
             Assert.Equal(resolved, found);
-            Assert.True(observed);
-            Assert.Same(resolved ? owner : null, array);
-            Assert.Equal(resolved ? original : default, active.GetSlot(0).ArrayName);
-            Assert.Equal(resolved, active.GetSlot(0).TryGetArrayBinding(out var published));
-            Assert.Same(resolved ? owner : null, published);
-            if (!resolved)
-            {
-                Assert.True(active.GetSlot(0).Value.TryGetUntypedScalar(out var replacement));
-                Assert.Same(origin, replacement);
-                Assert.False(origin.IsScalar);
-                Assert.Null(origin.Array);
-            }
+            Assert.Same(expected, array);
+            ref readonly var slot = ref stack.CurrentFrame.GetSlot(0);
+            Assert.Equal(original, slot.ArrayName);
+            Assert.Equal(resolved, slot.TryGetArrayBinding(out var published));
+            Assert.Same(expected, published);
+            Assert.Equal(resolved, callState.Variables.ContainsArray(original));
         }
         finally { stack.PopFrame(static _ => { }); }
     }
@@ -419,7 +401,7 @@ public sealed class AwkFunctionLocalSlotTests
         using var memoryForMemory = new CooperativeTestMemory(1 << 20);
         memoryForMemory.Initialize(() => CreateCallState(memoryForMemory.Owner, maxFunctionCallDepth: 2));
         var memory = memoryForMemory.Accounting;
-        var stack = new AwkFunctionCallStack(memoryForMemory.State);
+        var stack = memoryForMemory.State.FunctionCalls;
         var name = AwkVariableName.FromText("x");
         var slot = new AwkFunctionLocalSlotId(0);
         var layout = new AwkFunctionLocalLayout([name]);
@@ -474,7 +456,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void GlobalBindingScopeKeepsHiddenAliasesInPromotion()
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var outer = AwkVariableName.FromText("outer");
         var inner = AwkVariableName.FromText("inner");
         var array = AwkArrayName.FromText("shared");
@@ -502,7 +484,7 @@ public sealed class AwkFunctionLocalSlotTests
     public async Task GlobalBindingScopeRestoresCallerAfterPendingCompletion(bool cancel)
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var name = AwkVariableName.FromText("x");
         stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7))]);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -535,7 +517,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void ScalarValueOrdinalsRespectCurrentKindsAndActiveLayout()
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var first = new AwkFunctionLocalSlotId(0);
         Assert.False(stack.TryReadBoundLocalValue(first, out _));
         AwkVariableName[] names = [AwkVariableName.FromText("x"), AwkVariableName.FromText("y"),
@@ -575,7 +557,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void AwkFunctionCallStack_ReusesFrameAndSlotStorage()
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]);
         AwkFunctionLocalSlot[] arguments =
             [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("value"))];
@@ -602,7 +584,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void AwkFunctionCallStack_ResolvesNumericLocalSlotValueWithoutTextProjection()
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var localName = AwkVariableName.FromText("x");
         var layout = new AwkFunctionLocalLayout([localName]);
         var slotId = new AwkFunctionLocalSlotId(0);
@@ -647,7 +629,7 @@ public sealed class AwkFunctionLocalSlotTests
     {
         const int aliasCount = 512;
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var names = new AwkVariableName[aliasCount];
         var arguments = new AwkFunctionLocalSlot[aliasCount];
         for (var index = 0; index < aliasCount; index++)
@@ -682,7 +664,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void AwkFunctionCallStack_PromotesEveryForwardedPotentialArrayAlias()
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var outerName = AwkVariableName.FromText("outer");
         var innerName = AwkVariableName.FromText("inner");
         var sharedArrayName = AwkArrayName.FromText("shared");
@@ -721,7 +703,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void AwkFunctionCallStack_ScalarProjectionPromotesEverySharedUntypedOrigin()
     {
         using var callState = CreateCallState();
-        var stack = new AwkFunctionCallStack(callState);
+        var stack = callState.FunctionCalls;
         var firstName = AwkVariableName.FromText("first");
         var secondName = AwkVariableName.FromText("second");
         var sharedArrayName = AwkArrayName.FromText("shared");

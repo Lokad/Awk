@@ -298,6 +298,6 @@ public sealed partial class AwkFunctionStorageTests
             null, counters ?? AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(1_024)));
         memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
             options, profile));
-        return new(memory.State);
+        return memory.State.FunctionCalls;
     }
 }

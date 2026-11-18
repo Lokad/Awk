@@ -84,11 +84,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariableDispatcher? specialVariables = null;
         _variables = new AwkVariables(this);
         _removeFunctionLocalArray = _variables.RemoveFunctionLocalArray;
-        _functions = new AwkFunctionCallStack(
-            this,
-            _variables.ContainsArray,
-            name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null,
-            _variables.PromoteArrayOrigin);
+        _functions = new AwkFunctionCallStack(this);
         _variables.RepairSubarrayAliases = _functions.RepairSubarrayAliases;
         _variables.RepairElementAliases = _functions.RepairElementAliases;
         _regexRuntime = new AwkRegexRuntime(

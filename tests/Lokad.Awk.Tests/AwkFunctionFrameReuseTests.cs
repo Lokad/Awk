@@ -14,7 +14,7 @@ public sealed class AwkFunctionFrameReuseTests
         var budget = memory.Budget;
         var accounting = memory.Accounting;
         Assert.Equal(governed, accounting.IsEnabled);
-        var stack = new AwkFunctionCallStack(memory.State);
+        var stack = memory.State.FunctionCalls;
         var bootstrap = budget.Reserved;
         AwkVariableName[] names = [AwkVariableName.FromText("a"), AwkVariableName.FromText("b"), AwkVariableName.FromText("c")];
         foreach (var count in new[] { 2, 1, 3, 0, 2 })
@@ -61,7 +61,7 @@ public sealed class AwkFunctionFrameReuseTests
         var budget = memory.Budget;
         var accounting = memory.Accounting;
         Assert.Equal(governed, accounting.IsEnabled);
-        var stack = new AwkFunctionCallStack(memory.State);
+        var stack = memory.State.FunctionCalls;
         var weak = RunPairWithOwnedPayload(stack);
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -78,7 +78,7 @@ public sealed class AwkFunctionFrameReuseTests
         using var memory = CreateMemory(true);
         var budget = memory.Budget;
         var accounting = memory.Accounting;
-        var stack = new AwkFunctionCallStack(memory.State);
+        var stack = memory.State.FunctionCalls;
         var name = AwkVariableName.FromText("parent");
         stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(19))]);
         var before = budget.Reserved;
