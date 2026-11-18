@@ -173,10 +173,8 @@ managed elapsed and allocation come from `WorkloadAllocationBenchmarks.LokadFull
 avoiding duplicate managed timing. Raw results and history remain local.
 The marked focused cohort adds `--inProcess` to these existing benchmark commands.
 
-Use the stable SDK in `global.json`:
-
-The comparison command writes correctness-only JSON. BenchmarkDotNet supplies
-timings and allocations.
+With the SDK in `global.json`, `--compare --mode verify` writes correctness JSON.
+BenchmarkDotNet supplies timings and allocations.
 
 ```powershell
 dotnet test Lokad.Awk.slnx -c Release
@@ -185,6 +183,14 @@ dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --compare --m
 dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --reference-benchmarks --awk PATH_TO_GAWK --filter '*ReferenceAwkBenchmarks.GnuAwkCli*medium*'
 dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --filter '*WorkloadAllocationBenchmarks.LokadFullInvocation*medium*'
 ```
+
+On Linux, `benchmarks/run-reference-linux.sh` uses Python 3 to read the SDK
+pin and checks the runtime and GNU binary before running. Use `build` before
+the measurement window, then `verify --case NAME --scale SCALE`, `catalog gnu`
+or `catalog managed`. Pass the BenchmarkDotNet options above for a focused run.
+`AWK_BENCH_DOTNET_ROOT` overrides `dotnet` on `PATH`. Use `AWK_BENCH_GAWK` and
+`AWK_BENCH_GAWK_SHA256` for a different pinned GNU binary. The optional
+`AWK_BENCH_SNAPSHOT_MANIFEST` records the source identity for a source archive.
 
 Native comparisons need an independently installed GNU binary outside `external/`.
 `--check-machine` checks quietness; `--driver-smoke` checks process cancellation,
