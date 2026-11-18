@@ -96,12 +96,10 @@ internal sealed class AwkRuntimeState : IDisposable
             ResolveRegexCaseSensitivity,
             stringUnitMode,
             ThrowIfCancellationRequested,
-            Counters,
+            runtimeOptions,
             MemoryAccounting,
             CompatibilityMode,
-            ReportRegexUnicodeWarning, regexEscapeWarnings, runtimeOptions.RegexEngine,
-            runtimeOptions.MemoryOwner.IsEnabled ? runtimeOptions.MemoryOwner.Scope : runtimeOptions.MemoryBudget,
-            cancellationToken);
+            ReportRegexUnicodeWarning, regexEscapeWarnings, cancellationToken);
         try
         {
             _stringRuntime = new AwkStringRuntime(stringUnitMode, CancellationCheckpoint);
@@ -1604,10 +1602,10 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRegex regex,
         AwkText input,
         AwkRegexCapturePlan capturePlan) =>
-        _regexRuntime.MatchValue(regex, input, MemoryAccounting, capturePlan);
+        _regexRuntime.MatchValue(regex, input, capturePlan);
 
     public AwkLeasedRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
-        _regexRuntime.MatchCaptureValue(regex, input, MemoryAccounting);
+        _regexRuntime.MatchCaptureValue(regex, input);
 
     public AwkRegexMatchPosition MatchRegexPosition(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchPosition(regex, input);
@@ -1650,7 +1648,7 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRegex regex,
         AwkText input,
         AwkRegexCapturePlan capturePlan) =>
-        _regexRuntime.EnumerateMatchValues(regex, input, MemoryAccounting, capturePlan);
+        _regexRuntime.EnumerateMatchValues(regex, input, capturePlan);
 
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);

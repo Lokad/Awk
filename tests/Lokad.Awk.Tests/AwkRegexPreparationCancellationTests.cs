@@ -132,7 +132,7 @@ public sealed class AwkRegexPreparationCancellationTests
             {
                 if (armed && governor.CurrentCommittedBytes > 0 && ++checks == 6) cancellation.Cancel();
                 if (armed) cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            }, AwkTestHarness.CreateRuntimeOptions(counters), governor);
         var pattern = new AwkRegexPattern(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
         var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(pattern));
         Assert.Equal(cancellation.Token, error.CancellationToken);
@@ -203,5 +203,5 @@ public sealed class AwkRegexPreparationCancellationTests
 
     private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            checkpoint, counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            checkpoint, AwkTestHarness.CreateRuntimeOptions(counters));
 }

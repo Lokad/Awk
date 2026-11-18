@@ -41,9 +41,9 @@ public sealed class AwkUnicodeRegexTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var messages = new List<string>();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters,
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters),
 compatibilityMode: (AwkCompatibilityMode)mode,
-            reportUnicodeWarning: messages.Add, regexEngine: AwkUtf8RegexEngine.Instance);
+            reportUnicodeWarning: messages.Add);
         var first = new AwkRegexPattern(@"\u", warningSite: new object());
         var second = new AwkRegexPattern(@"\u", warningSite: new object());
         var regex = runtime.Create(first);
@@ -113,8 +113,8 @@ compatibilityMode: (AwkCompatibilityMode)mode,
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters),
+governor);
         for (var i = 0; i < 2; i++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));

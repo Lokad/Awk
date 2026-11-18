@@ -257,8 +257,10 @@ public sealed class AwkRegexScratchMemoryTests
         var whole = new AwkRegexCaptureRange(true, 0, 4);
         var ranges = Enumerable.Repeat(whole, groups).ToArray();
         var cursor = new AwkRegexScalarCoordinates();
-        return AwkRegexMatch.FromRanges(whole, "\U0001f600"u8, ranges, 0,
-            scalarPositions ? AwkRegexCoordinatePolicy.Scalar : AwkRegexCoordinatePolicy.Byte, counters, governor, checkpoint ?? (() => { }), ref cursor);
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            scalarPositions ? AwkStringUnitMode.Utf8Rune : AwkStringUnitMode.Byte,
+            checkpoint ?? (() => { }), AwkTestHarness.CreateRuntimeOptions(counters), governor);
+        return runtime.MaterializeCaptures(whole, "\U0001f600"u8, ranges, 0, ref cursor);
     }
 
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),

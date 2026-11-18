@@ -44,8 +44,7 @@ public sealed class AwkRegexProviderOwnershipTests
     {
         var budget = new CooperativeTestBudget(1 << 20);
         using (var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled,
-            memoryBudget: budget, regexEngine: AwkUtf8RegexEngine.Instance))
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions() with { MemoryBudget = budget }))
         {
             var first = runtime.Create(new AwkRegexPattern("a"));
             Assert.True(runtime.IsMatch(first, AwkText.FromString("a")));

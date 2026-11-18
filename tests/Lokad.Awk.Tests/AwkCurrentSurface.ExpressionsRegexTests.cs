@@ -40,7 +40,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             () => caseSensitivity,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            AwkRuntimeCounters.Disabled, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions());
 
         var first = runtime.Create(new AwkRegexPattern("a+"));
         var second = runtime.Create(new AwkRegexPattern("a+"));
@@ -62,7 +62,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("[,;]"));
         var input = AwkText.FromString("alpha,béta;gamma");
         var baselineTextAllocations = counters[AwkCounter.TextAllocations];
@@ -92,10 +92,10 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             charactersAsBytes ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("(.)"));
         var input = AwkText.FromString("😀🦊");
-        using var match = runtime.MatchValue(regex, input, AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
+        using var match = runtime.MatchValue(regex, input, AwkRegexCapturePlan.All);
 
         Assert.Equal(4, match.Match.ByteLength);
         Assert.Equal(charactersAsBytes ? 4 : 1, match.Match.Length);
@@ -117,13 +117,13 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         // Raw provider patterns cannot select part of a Unicode scalar. Host-provider tests
         // independently exercise Awk's range validation with malformed provider results.
         var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
         var regex = new AwkRegex(AwkText.FromString(pattern), AwkRegexCaseSensitivity.CaseSensitive);
         var input = AwkText.FromString("😀");
-        using var match = runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All);
+        using var match = runtime.MatchValue(regex, input, AwkRegexCapturePlan.All);
         Assert.False(match.Match.Success);
         Assert.False(runtime.MatchSpan(regex, input).Success);
 
@@ -139,7 +139,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("[0-9]"));
         var input = AwkText.FromString(string.Concat(Enumerable.Repeat("é1", 128)));
         var count = 0;
@@ -165,7 +165,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Byte,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("z"));
         var input = AwkText.FromString(new string('a', 4_096));
 
@@ -183,7 +183,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("(a)"));
         var input = AwkText.FromString("a");
         var baselineTextAllocations = counters[AwkCounter.TextAllocations];
@@ -191,7 +191,6 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         using var leasedMatch = runtime.MatchValue(
             regex,
             input,
-            AwkMemoryAccounting.Disabled,
             AwkRegexCapturePlan.All);
         var match = leasedMatch.Match;
 
@@ -209,7 +208,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("(a)(b)(c)(d)"));
         var input = AwkText.FromString("abcd");
         var baselineTextAllocations = counters[AwkCounter.TextAllocations];
@@ -217,7 +216,6 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         using var leasedMatch = runtime.MatchValue(
             regex,
             input,
-            AwkMemoryAccounting.Disabled,
             AwkRegexCapturePlan.ThroughGroup(2));
         var match = leasedMatch.Match;
 
@@ -240,8 +238,10 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         AwkRegexCaptureRange[] groups = [whole, new(true, 0, 2)];
 
         var cursor = new AwkRegexScalarCoordinates();
-        using var leasedMatch = AwkRegexMatch.FromRanges(
-            whole, "\u00e9x"u8, groups, 0, AwkRegexCoordinatePolicy.Byte, counters, AwkMemoryAccounting.Disabled, () => { }, ref cursor);
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Byte, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters));
+        using var leasedMatch = runtime.MaterializeCaptures(
+            whole, "\u00e9x"u8, groups, 0, ref cursor);
         var match = leasedMatch.Match;
 
         Assert.True(match.Success);

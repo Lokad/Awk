@@ -48,7 +48,7 @@ public sealed class AwkUnicodePrintClassTests
         var runtime = Runtime(profile, AwkRuntimeCounters.Disabled);
         var pattern = new AwkRegexPattern("([[:graph:]]+)([[:print:]])");
         var regex = runtime.Create(pattern);
-        using var captures = runtime.MatchCaptureValue(regex, AwkText.FromString("\né😀 "), AwkMemoryAccounting.Disabled);
+        using var captures = runtime.MatchCaptureValue(regex, AwkText.FromString("\né😀 "));
         Assert.Equal(3, captures.Match.Groups.Count);
         Assert.Equal("é😀", captures.Match.Groups[1].Value.AsString());
         Assert.Equal(" ", captures.Match.Groups[2].Value.AsString());
@@ -62,7 +62,7 @@ public sealed class AwkUnicodePrintClassTests
     private static AwkRegexRuntime Runtime(int profile, AwkRuntimeCounters counters)
     {
         return new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,
-            compatibilityMode: (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, AwkTestHarness.CreateRuntimeOptions(counters),
+            compatibilityMode: (AwkCompatibilityMode)profile);
     }
 }

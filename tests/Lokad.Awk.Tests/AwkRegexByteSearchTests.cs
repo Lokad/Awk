@@ -12,7 +12,7 @@ public sealed class AwkRegexByteSearchTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var runtime = Runtime(counters);
         var regex = runtime.Create(new AwkRegexPattern(emptyMatches ? "x*" : "(😀)"));
-        using var matches = runtime.EnumerateMatchValues(regex, input, AwkMemoryAccounting.Disabled,
+        using var matches = runtime.EnumerateMatchValues(regex, input,
             AwkRegexCapturePlan.All);
         var seen = 0;
         while (matches.MoveNext(out var match))
@@ -35,7 +35,7 @@ public sealed class AwkRegexByteSearchTests
         var regex = runtime.Create(new AwkRegexPattern("(😀)"));
         var input = AwkText.FromSourceLiteralString(new string('a', 8192) + "😀😀");
         Assert.Equal(8192, runtime.MatchSpan(regex, input).ByteIndex);
-        using var matches = runtime.EnumerateMatchValues(regex, input, AwkMemoryAccounting.Disabled,
+        using var matches = runtime.EnumerateMatchValues(regex, input,
             AwkRegexCapturePlan.ThroughGroup(1));
         var count = 0;
         while (matches.MoveNext(out var match))
@@ -54,8 +54,7 @@ public sealed class AwkRegexByteSearchTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var runtime = Runtime(counters);
         var regex = runtime.Create(new AwkRegexPattern("(?<=(é))😀"));
-        using var match = runtime.MatchCaptureValue(regex, AwkText.FromSourceLiteralString("é😀x"),
-            AwkMemoryAccounting.Disabled);
+        using var match = runtime.MatchCaptureValue(regex, AwkText.FromSourceLiteralString("é😀x"));
         Assert.Equal(1, match.Match.Index);
         Assert.Equal(1, match.Match.Length);
         Assert.Equal(0, match.Match.Groups[1].Index);
@@ -65,5 +64,5 @@ public sealed class AwkRegexByteSearchTests
 
     private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters) =>
         new(static () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, AwkTestHarness.CreateRuntimeOptions(counters));
 }

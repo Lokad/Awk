@@ -61,8 +61,7 @@ public sealed class AwkReplacementCaptureCancellationTests
                 case "gensub": using (AwkGensubReplacementPlan.Rent(text, cancellation.Token.ThrowIfCancellationRequested)) { } break;
                 case "search":
                     using (var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-                        AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, counters,
-                        regexEngine: AwkUtf8RegexEngine.Instance, cancellationToken: cancellation.Token))
+                        AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, AwkTestHarness.CreateRuntimeOptions(counters), cancellationToken: cancellation.Token))
                     using (regex.OpenSearch(new AwkRegex(AwkText.Empty, AwkRegexCaseSensitivity.CaseSensitive), text)) { }
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));
@@ -238,7 +237,9 @@ public sealed class AwkReplacementCaptureCancellationTests
         };
         AwkLeasedRegexMatch Build(Action callback)
         {
-            var coordinates = byteCoordinates ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar;
+            using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+                byteCoordinates ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune,
+                callback, AwkTestHarness.CreateRuntimeOptions(counters), governor);
             Assert.Equal(AwkRegexCompilationStatus.Compiled, AwkUtf8RegexEngine.Instance.TryCompile("(a+)"u8, false,
                 null, CancellationToken.None, out var pattern));
             Assert.NotNull(pattern);
@@ -249,7 +250,7 @@ public sealed class AwkReplacementCaptureCancellationTests
                 using var search = pattern.CreateSearch(bytes, CancellationToken.None);
                 var whole = search.Match(0, ranges, CancellationToken.None);
                 var cursor = new AwkRegexScalarCoordinates();
-                return AwkRegexMatch.FromRanges(whole, bytes, ranges, 0, coordinates, counters, governor, callback, ref cursor);
+                return runtime.MaterializeCaptures(whole, bytes, ranges, 0, ref cursor);
             }
         }
         var error = Assert.Throws<OperationCanceledException>(() => { using var match = Build(checkpoint); });
@@ -297,12 +298,16 @@ public sealed class AwkReplacementCaptureCancellationTests
         };
         Assert.Throws<OperationCanceledException>(() =>
         {
-            using var match = AwkRegexMatch.FromRanges(whole, "a"u8, ranges, 0, AwkRegexCoordinatePolicy.Byte, counters, governor, checkpoint, ref cursor);
+            using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+                AwkStringUnitMode.Byte, checkpoint, AwkTestHarness.CreateRuntimeOptions(counters), governor);
+            using var match = runtime.MaterializeCaptures(whole, "a"u8, ranges, 0, ref cursor);
         });
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         using var retry = new CancellationTokenSource();
-        using (var match = AwkRegexMatch.FromRanges(whole, "a"u8, ranges, 0, AwkRegexCoordinatePolicy.Byte, counters, governor, retry.Token.ThrowIfCancellationRequested, ref cursor))
+        using var retryRuntime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Byte, retry.Token.ThrowIfCancellationRequested, AwkTestHarness.CreateRuntimeOptions(counters), governor);
+        using (var match = retryRuntime.MaterializeCaptures(whole, "a"u8, ranges, 0, ref cursor))
         {
             Assert.Equal(1538, match.Match.Groups.Count);
             Assert.All(match.Match.Groups, group =>
@@ -330,11 +335,11 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 if (counters[AwkCounter.TextAllocations] > 0) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            }, AwkTestHarness.CreateRuntimeOptions(counters), governor);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.Throws<OperationCanceledException>(() =>
         {
-            using var match = runtime.MatchValue(regex, AwkText.FromString("a"), governor, AwkRegexCapturePlan.All);
+            using var match = runtime.MatchValue(regex, AwkText.FromString("a"), AwkRegexCapturePlan.All);
         });
 
         runtime.Dispose();

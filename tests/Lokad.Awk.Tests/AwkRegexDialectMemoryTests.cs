@@ -120,6 +120,6 @@ public sealed class AwkRegexDialectMemoryTests
 
     private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
-            AwkRuntimeCounters.Disabled,
-            governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(),
+            governor);
 }

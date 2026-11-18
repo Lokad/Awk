@@ -58,7 +58,7 @@ internal sealed record AwkRuntimeOptions
 
     public AwkRandomGenerator CreateRandomGenerator() => _createRandomGenerator();
 
-    public AwkRuntimeCounters Counters { get; }
+    public AwkRuntimeCounters Counters { get; init; }
 
     public AwkRuntimeLimits Limits { get; }
 

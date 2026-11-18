@@ -145,6 +145,8 @@ Compilation reports an explicit status; only core's dedicated syntax signal deno
 AWK class-validation failure. Provider argument faults must not become pattern syntax.
 Core translates AWK patterns and validates/publishes captures and replacements. Search
 scopes borrow one complete immutable UTF-8 subject, using absolute byte coordinates.
+The regex runtime funds and observes owned capture copies through the same invocation
+ledger used for the search. Captures keep their own lease through publication.
 Active calls/searches pin compiled handles through cache eviction. Unsupported patterns
 fail clearly without a fallback engine; provider deferrals do not qualify missing semantics.
 Provider entry checks the invocation token after subject materialization and capture

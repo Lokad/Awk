@@ -304,7 +304,7 @@ public sealed class AwkHostRegexTests
     {
         var engine = new RecordingEngine();
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled, regexEngine: engine);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions() with { RegexEngine = engine });
         var regex = runtime.Create(new AwkRegexPattern("a"));
         using var search = runtime.OpenSearch(regex, AwkText.FromSourceLiteralString("a"));
         var first = Assert.Single(engine.Patterns);
@@ -323,7 +323,7 @@ public sealed class AwkHostRegexTests
         Action? evict = null;
         var engine = new RecordingEngine { BeforeMatch = _ => evict?.Invoke() };
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled, regexEngine: engine);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions() with { RegexEngine = engine });
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var first = Assert.Single(engine.Patterns);
         evict = () =>
@@ -360,8 +360,12 @@ public sealed class AwkHostRegexTests
         var committed = memory.Accounting.CurrentCommittedBytes;
         var engine = new RecordingEngine(Behavior.Unsupported);
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters) with
+            {
+                RegexEngine = engine,
+                MemoryBudget = memory.Budget
+            },
+            memory.Accounting);
         var subject = memory.State.ConcatText([AwkText.FromString(new string('a', 16_384)), AwkText.FromString("z")]);
         var recipe = new AwkRegex(AwkText.FromSourceLiteralString("a"), AwkRegexCaseSensitivity.CaseSensitive);
 
@@ -387,8 +391,12 @@ public sealed class AwkHostRegexTests
         var committed = memory.Accounting.CurrentCommittedBytes;
         var engine = new RecordingEngine();
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, counters,
-            memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget,
+            AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, AwkTestHarness.CreateRuntimeOptions(counters) with
+            {
+                RegexEngine = engine,
+                MemoryBudget = memory.Budget
+            },
+            memory.Accounting,
             cancellationToken: cancellation.Token);
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var pattern = Assert.Single(engine.Patterns);
@@ -423,8 +431,12 @@ public sealed class AwkHostRegexTests
         var called = false;
         var engine = new RecordingEngine { BeforeMatch = _ => called = true };
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, AwkRuntimeCounters.Disabled,
-            memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget, cancellationToken: cancellation.Token);
+            AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, AwkTestHarness.CreateRuntimeOptions() with
+            {
+                RegexEngine = engine,
+                MemoryBudget = memory.Budget
+            },
+            memory.Accounting, cancellationToken: cancellation.Token);
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var subject = memory.State.ConcatText([AwkText.FromString(new string('a', 16_384)), AwkText.FromString("z")]);
         var reserved = memory.Budget.Reserved;

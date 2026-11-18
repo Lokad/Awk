@@ -41,6 +41,6 @@ public sealed class AwkRegexProfileTests
 
     private static AwkRegexRuntime Runtime(AwkCompatibilityMode mode, AwkRuntimeCounters counters) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,
-            compatibilityMode: mode, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, AwkTestHarness.CreateRuntimeOptions(counters),
+            compatibilityMode: mode);
 }

@@ -12,7 +12,7 @@ public sealed class AwkRegexNativePatternTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var engine = new RecordingEngine();
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters, regexEngine: engine);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters) with { RegexEngine = engine });
         var first = AwkText.FromSourceLiteralString(source);
         var equalBytes = AwkText.FromHostBytes(first.AsMemory());
         var regex = runtime.Create(new AwkRegexPattern(first));
@@ -31,7 +31,7 @@ public sealed class AwkRegexNativePatternTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var engine = new RecordingEngine();
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters, regexEngine: engine);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions(counters) with { RegexEngine = engine });
         var text = AwkText.FromSourceLiteralString("é.");
         var literal = runtime.CreateLiteral(new AwkRegexLiteralText(text));
         var expression = runtime.Create(new AwkRegexPattern(text));

@@ -104,6 +104,6 @@ public sealed class AwkRegexOwnedMemoryTests
 
     private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, Action? checkpoint = null, AwkRuntimeCounters? counters = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            checkpoint ?? (() => { }), counters ?? AwkRuntimeCounters.Disabled,
-            governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            checkpoint ?? (() => { }), AwkTestHarness.CreateRuntimeOptions(counters ?? AwkRuntimeCounters.Disabled),
+            governor);
 }

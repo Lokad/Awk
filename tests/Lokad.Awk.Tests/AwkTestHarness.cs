@@ -36,9 +36,10 @@ internal static class AwkTestHarness
         AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance)
             .WithInternalFailureObserver(AwkInternalFailuresAttribute.CreateObserver());
 
-    public static AwkRuntimeOptions CreateRuntimeOptions() =>
+    public static AwkRuntimeOptions CreateRuntimeOptions(AwkRuntimeCounters? counters = null) =>
         AwkRuntimeOptions.CreateSystemDefault() with
         {
+            Counters = counters ?? AwkRuntimeCounters.Disabled,
             RegexEngine = AwkUtf8RegexEngine.Instance,
             InternalFailureObserver = AwkInternalFailuresAttribute.CreateObserver()
         };

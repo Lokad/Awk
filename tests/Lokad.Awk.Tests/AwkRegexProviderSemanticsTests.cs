@@ -10,7 +10,7 @@ public sealed class AwkRegexProviderSemanticsTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var sensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         var runtime = new AwkRegexRuntime(() => sensitivity, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, AwkTestHarness.CreateRuntimeOptions(counters));
         const string pattern = "^(SKU)([[:alpha:]]+)([0-9]+)$";
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var equalText = new string(pattern.ToCharArray());
@@ -21,7 +21,7 @@ public sealed class AwkRegexProviderSemanticsTests
             foreach (var ignoreCase in new[] { false, true })
             {
                 sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
-                using var match = runtime.MatchCaptureValue(regex, input, AwkMemoryAccounting.Disabled);
+                using var match = runtime.MatchCaptureValue(regex, input);
                 Assert.Equal(ignoreCase, match.Match.Success);
                 if (ignoreCase)
                 {
@@ -84,11 +84,12 @@ AwkStringUnitMode units)
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
-        var runtime = Runtime(counters, units);
+        using var runtime = Runtime(counters, units, governor);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
+        var committed = governor.CurrentCommittedBytes;
         var input = AwkText.FromString(new string('z', 2000) + "😀😀");
 
-        using (var leased = runtime.MatchCaptureValue(regex, input, governor))
+        using (var leased = runtime.MatchCaptureValue(regex, input))
         {
             var match = leased.Match;
             Assert.Equal(2, match.Groups.Count);
@@ -99,10 +100,11 @@ AwkStringUnitMode units)
             Assert.Equal(match.Index, match.Groups[1].Index);
             Assert.Equal(match.Length, match.Groups[1].Length);
             Assert.Equal("😀😀", match.Groups[0].Value.AsString());
-            Assert.True(governor.CurrentCommittedBytes > 0);
+            Assert.True(governor.CurrentCommittedBytes > committed);
         }
-        runtime.Dispose();
         Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
+        runtime.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
 
     }
@@ -111,17 +113,22 @@ AwkStringUnitMode units)
     internal void CaptureFailurePreflightsAllPublicGroups()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(4096);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
-        var runtime = Runtime(counters);
+        using var runtime = Runtime(counters, accounting: governor);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
+        using var search = runtime.OpenSearch(regex, AwkText.FromString("aaa"));
+        var committed = governor.CurrentCommittedBytes;
+        var allocated = counters[AwkCounter.TextAllocations];
 
         memoryForGovernor.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
-            runtime.MatchCaptureValue(regex, AwkText.FromString("aaa"), governor));
+            search.MatchValue(0, AwkRegexCapturePlan.All, out _));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(allocated, counters[AwkCounter.TextAllocations]);
 
     }
 
@@ -130,8 +137,7 @@ AwkStringUnitMode units)
     {
         var runtime = Runtime(AwkRuntimeCounters.Disabled);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
-        using var match = runtime.MatchValue(regex, AwkText.FromString("aa"),
-            AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
+        using var match = runtime.MatchValue(regex, AwkText.FromString("aa"), AwkRegexCapturePlan.All);
 
         Assert.Equal(2, match.Match.Groups.Count);
         Assert.Equal("aa", match.Match.Value.AsString());
@@ -144,7 +150,7 @@ AwkStringUnitMode units)
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested,
-            counters, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions(counters));
         var regex = runtime.Create(new AwkRegexPattern("a|aa"));
         cancellation.Cancel();
 
@@ -153,6 +159,8 @@ AwkStringUnitMode units)
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
-    private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters, AwkStringUnitMode units = AwkStringUnitMode.Utf8Rune) =>
-        new(() => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { }, counters, regexEngine: AwkUtf8RegexEngine.Instance);
+    private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters, AwkStringUnitMode units = AwkStringUnitMode.Utf8Rune,
+        AwkMemoryAccounting? accounting = null) =>
+        new(static () => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { },
+            AwkTestHarness.CreateRuntimeOptions(counters), accounting);
 }

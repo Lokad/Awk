@@ -255,7 +255,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 if (checks > 5)
                     throw new OperationCanceledException();
             },
-            AwkRuntimeCounters.Disabled, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkTestHarness.CreateRuntimeOptions());
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 32));
         enumerating = true;
@@ -263,7 +263,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var matches = runtime.EnumerateMatchValues(
             regex,
             input,
-            AwkMemoryAccounting.Disabled,
             AwkRegexCapturePlan.All);
         Assert.Throws<OperationCanceledException>(() =>
         {
@@ -699,7 +698,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         // Prepare outside the capture-only budget. Runtime scalar preparation has
         // its own admission; the literal isolates capture publication from scalar matching.
         var preparation = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions());
         var regex = preparation.Create(new AwkRegexPattern(text));
         var input = AwkText.FromString(text);
 

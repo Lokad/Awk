@@ -142,7 +142,7 @@ public sealed class AwkNumericByteEscapeTests
 
     private static AwkRegexRuntime Runtime(int profile, AwkRuntimeCounters counters, AwkMemoryAccounting? governor = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, governor, (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, AwkTestHarness.CreateRuntimeOptions(counters), governor, (AwkCompatibilityMode)profile);
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits limits, bool counters) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
