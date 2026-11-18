@@ -910,12 +910,24 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     {
         state.CancellationCheckpoint?.Invoke();
         var fields = new AwkRecordFieldBuffer(capacity);
-        for (var index = 0; index < count; index++)
+        var destination = fields.UnpublishedTail(count);
+        var copiedCount = Math.Min(_fieldTexts.Count, count);
+        var source = _fieldTexts.AsSpan()[..copiedCount];
+        for (var offset = 0; offset < copiedCount;)
         {
-            if ((index & (MutationCheckpointFields - 1)) == 0)
-                state.CancellationCheckpoint?.Invoke();
-            fields.Add(index < _fieldTexts.Count ? _fieldTexts[index] : AwkRecordField.Unassigned);
+            state.CancellationCheckpoint?.Invoke();
+            var length = Math.Min(copiedCount - offset, MutationCheckpointFields);
+            source.Slice(offset, length).CopyTo(destination.Slice(offset, length));
+            offset += length;
         }
+        for (var offset = copiedCount; offset < count;)
+        {
+            state.CancellationCheckpoint?.Invoke();
+            var length = Math.Min(count - offset, MutationCheckpointFields);
+            destination.Slice(offset, length).Fill(AwkRecordField.Unassigned);
+            offset += length;
+        }
+        fields.PublishCount(count);
         state.CancellationCheckpoint?.Invoke();
         return fields;
     }
@@ -1227,23 +1239,12 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var capacity = (int)Math.Max(targetCount, Math.Min(Array.MaxLength, (long)_fieldTexts.Capacity * 2));
         var staging = state.MemoryAccounting.ReserveTransient(state.MemoryAccounting.IsEnabled
             ? AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity) : 0);
-        var copied = 0;
         try
         {
-            state.CancellationCheckpoint?.Invoke();
-            var fields = new AwkRecordFieldBuffer(capacity);
-
-            for (var index = 0; index < _fieldTexts.Count; index++)
-            {
-                if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
-                fields.Add(_fieldTexts[index]);
-                copied++;
-            }
             // Frame cleanup keeps this lease through publication or interrupted scans.
-            return (fields, staging);
+            return (StageFieldTexts(_fieldTexts.Count, capacity), staging);
         }
         catch { staging.Dispose(); throw; }
-        finally { }
     }
 
     private void EnsureFields()
@@ -1302,7 +1303,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             state.Counters.Add(AwkCounter.FieldsPrepared, _fieldTexts.Count - previousCount);
             _fieldsAreSplit = true;
             _splitPlan = default;
-            if (ReferenceEquals(fieldTexts, reusable)) { }
             retiredFunding = TransferFieldProductionFunding(retainedBytes, writer.Staging);
         }
         catch
