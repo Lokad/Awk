@@ -268,7 +268,7 @@ internal partial struct AwkRegionMachine
                 _state.AssignConsumedScalar(in variable, storage, new(AwkRegionOperandKind.ValueTemporary, resumePoint.Destination));
             else
             {
-                AssignVariable(in variable, storage.Values[resumePoint.Destination]);
+                _state.AssignScalarOperand(in variable, storage.Values[resumePoint.Destination]);
             }
             _position++;
 

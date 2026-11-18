@@ -1102,20 +1102,11 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void AssignVariableNumber(in AwkRegionOperand variable, AwkFunctionFrame? frame, double number)
     {
         ThrowIfCancellationRequested();
-        if (variable.Kind == AwkRegionOperandKind.LocalVariable)
-        {
-            if (frame is not null && frame.TryWriteNumber(variable.Index, number))
-            { }
-            else AssignFunctionLocalValue(new(variable.Index), variable.Name, AwkValue.FromNumber(number));
-        }
-        else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
-        {
-            if (!TryAssignPreparedGlobalNumber(variable.Index, number))
-                AssignPreparedGlobalValue(variable.Name, variable.Index, AwkValue.FromNumber(number));
-        }
-        else if (variable.Kind == AwkRegionOperandKind.SpecialVariable)
-            AssignSpecialVariableValue((AwkSpecialVariableId)variable.Index, AwkValue.FromNumber(number));
-        else AssignVariableValue(variable.Name, AwkValue.FromNumber(number));
+        if (variable.Kind == AwkRegionOperandKind.LocalVariable &&
+            frame is not null && frame.TryWriteNumber(variable.Index, number)) return;
+        if (variable.Kind == AwkRegionOperandKind.GlobalVariable &&
+            TryAssignPreparedGlobalNumber(variable.Index, number)) return;
+        StoreScalarOperand(in variable, AwkValue.FromNumber(number));
     }
 
     internal bool TryAssignPreparedGlobalNumber(int index, double number)
@@ -1180,6 +1171,23 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
+    internal void AssignScalarOperand(in AwkRegionOperand variable, AwkValue value)
+    {
+        ThrowIfCancellationRequested();
+        StoreScalarOperand(in variable, value);
+    }
+
+    private void StoreScalarOperand(in AwkRegionOperand variable, AwkValue value)
+    {
+        if (variable.Kind == AwkRegionOperandKind.LocalVariable)
+            AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
+        else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
+            AssignPreparedGlobalValue(variable.Name, variable.Index, value);
+        else if (variable.Kind == AwkRegionOperandKind.SpecialVariable)
+            AssignSpecialVariableValue((AwkSpecialVariableId)variable.Index, value);
+        else AssignVariableValue(variable.Name, value);
+    }
+
     internal void AssignConsumedScalar(in AwkRegionOperand variable, AwkRegionStorage source,
         in AwkRegionOperand operand)
     {
@@ -1187,20 +1195,12 @@ internal sealed class AwkRuntimeState : IDisposable
         var text = operand.Kind == AwkRegionOperandKind.TextTemporary;
         var value = text ? CreateStringValue(source.Texts[operand.Index]) : source.Values[operand.Index];
         ThrowIfCancellationRequested();
-        if (variable.Kind == AwkRegionOperandKind.LocalVariable)
-        {
-            if (_functions.TryAssignLocal(new(variable.Index), value, source, in operand)) return;
-            _variableRuntime.AssignFunctionLocalValue(new(variable.Index), variable.Name, value);
-        }
-        else if (variable.Kind == AwkRegionOperandKind.GlobalVariable)
-        {
-            if (_globalReadSlots is { } slots && slots[variable.Index].Scalar is { } cell &&
-                _variables.TrySetConsumedScalarValue(cell, value, source, in operand)) return;
-            AssignPreparedGlobalValue(variable.Name, variable.Index, value);
-        }
-        else if (variable.Kind == AwkRegionOperandKind.SpecialVariable)
-            AssignSpecialVariableValue((AwkSpecialVariableId)variable.Index, value);
-        else AssignVariableValue(variable.Name, value);
+        if (variable.Kind == AwkRegionOperandKind.LocalVariable &&
+            _functions.TryAssignLocal(new(variable.Index), value, source, in operand)) return;
+        if (variable.Kind == AwkRegionOperandKind.GlobalVariable &&
+            _globalReadSlots is { } slots && slots[variable.Index].Scalar is { } cell &&
+            _variables.TrySetConsumedScalarValue(cell, value, source, in operand)) return;
+        StoreScalarOperand(in variable, value);
         // Dynamic/special/cold owners retain all of their ordinary preflights.
         // A failed assignment leaves this source funded for normal cleanup.
         if (text) source.ReleaseTexts(operand.Index, 1);

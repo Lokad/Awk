@@ -293,7 +293,8 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.IteratorNext:
                     if (computationView.Storage.TryNextKey(instruction.Left, out var nextKey))
-                        AssignVariable(in computationView.Operands[instruction.Right], computationView.State.CreateArrayKeyValue(nextKey));
+                        computationView.State.AssignScalarOperand(in computationView.Operands[instruction.Right],
+                            computationView.State.CreateArrayKeyValue(nextKey));
                     else position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.IteratorEnd:
@@ -385,7 +386,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Assign:
                     var value = computationView.Value(instruction.Left);
                     // A region poll cannot replace the check before an observable store.
-                    AssignVariable(in computationView.Operands[instruction.Target], value);
+                    computationView.State.AssignScalarOperand(in computationView.Operands[instruction.Target], value);
                     break;
                 case AwkRegionInstructionKind.AssignConsumedScalar:
                     computationView.State.AssignConsumedScalar(in computationView.Operands[instruction.Target],
