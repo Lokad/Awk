@@ -143,10 +143,11 @@ internal sealed class AwkStatementSyntaxParser
     {
         _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.If, keyword);
-        var headerSlot = ParseExpressionSlot(header.InnerTokens);
+        var headerTokens = GroupTokens(header.Open, header.Close);
+        var headerSlot = ParseExpressionSlot(headerTokens.InnerTokens);
         return CreateStatement(
             AwkStatementKind.If,
-            Flatten([[keywordToken], header.FullTokens, Flatten(beforeBody), body.Tokens]),
+            Flatten([[keywordToken], headerTokens.FullTokens, Flatten(beforeBody), body.Tokens]),
             ExpressionsFromSlots([headerSlot]),
             body.Statements,
             [],
@@ -230,10 +231,11 @@ internal sealed class AwkStatementSyntaxParser
     {
         _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.While, keyword);
-        var headerSlot = ParseExpressionSlot(header.InnerTokens);
+        var headerTokens = GroupTokens(header.Open, header.Close);
+        var headerSlot = ParseExpressionSlot(headerTokens.InnerTokens);
         return CreateStatement(
             AwkStatementKind.While,
-            Flatten([[keywordToken], header.FullTokens, Flatten(beforeBody), body.Tokens]),
+            Flatten([[keywordToken], headerTokens.FullTokens, Flatten(beforeBody), body.Tokens]),
             ExpressionsFromSlots([headerSlot]),
             body.Statements,
             [],
@@ -253,7 +255,8 @@ internal sealed class AwkStatementSyntaxParser
         _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Do, keyword);
         var whileToken = ToToken(AwkTokenKind.While, whileKeyword);
-        var headerSlot = ParseExpressionSlot(header.InnerTokens);
+        var headerTokens = GroupTokens(header.Open, header.Close);
+        var headerSlot = ParseExpressionSlot(headerTokens.InnerTokens);
         return CreateStatement(
             AwkStatementKind.DoWhile,
             Flatten([
@@ -262,7 +265,7 @@ internal sealed class AwkStatementSyntaxParser
                 body.Tokens,
                 Flatten(beforeWhile),
                 [whileToken],
-                header.FullTokens
+                headerTokens.FullTokens
             ]),
             ExpressionsFromSlots([headerSlot]),
             body.Statements,
@@ -308,10 +311,11 @@ internal sealed class AwkStatementSyntaxParser
     {
         _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.For, keyword);
-        var forHeader = ParseForHeader(header.InnerTokens);
+        var headerTokens = GroupTokens(header.Open, header.Close);
+        var forHeader = ParseForHeader(headerTokens.InnerTokens);
         return CreateStatement(
             AwkStatementKind.For,
-            Flatten([[keywordToken], header.FullTokens, Flatten(beforeBody), body.Tokens]),
+            Flatten([[keywordToken], headerTokens.FullTokens, Flatten(beforeBody), body.Tokens]),
             ExpressionsFromSlots(forHeader.Parts),
             body.Statements,
             [],
@@ -408,10 +412,11 @@ internal sealed class AwkStatementSyntaxParser
     {
         _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Switch, keyword);
-        var headerSlot = ParseExpressionSlot(header.InnerTokens);
+        var headerTokens = GroupTokens(header.Open, header.Close);
+        var headerSlot = ParseExpressionSlot(headerTokens.InnerTokens);
         return CreateStatement(
             AwkStatementKind.Switch,
-            Flatten([[keywordToken], header.FullTokens, Flatten(beforeBody), body.Tokens]),
+            Flatten([[keywordToken], headerTokens.FullTokens, Flatten(beforeBody), body.Tokens]),
             ExpressionsFromSlots([headerSlot]),
             [],
             [],
@@ -542,14 +547,14 @@ internal sealed class AwkStatementSyntaxParser
     public CaseLabelPart CaseLabelParenthesized([NT] ParenthesizedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return new(GroupTokens(group.Open, group.Close).FullTokens);
     }
 
     [Rule]
     public CaseLabelPart CaseLabelBracketed([NT] BracketedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return new(GroupTokens(group.Open, group.Close).FullTokens);
     }
 
     [Rule]
@@ -675,14 +680,14 @@ internal sealed class AwkStatementSyntaxParser
     public ExpressionStart ExpressionStartParenthesized([NT] ParenthesizedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return new(GroupTokens(group.Open, group.Close).FullTokens);
     }
 
     [Rule]
     public ExpressionStart ExpressionStartBracketed([NT] BracketedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return new(GroupTokens(group.Open, group.Close).FullTokens);
     }
 
     [Rule]
@@ -750,14 +755,14 @@ internal sealed class AwkStatementSyntaxParser
     public SimpleElement SimpleParenthesized([NT] ParenthesizedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return new(GroupTokens(group.Open, group.Close).FullTokens);
     }
 
     [Rule]
     public SimpleElement SimpleBracketed([NT] BracketedGroup group)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return new(GroupTokens(group.Open, group.Close).FullTokens);
     }
 
     [Rule]
@@ -777,49 +782,46 @@ internal sealed class AwkStatementSyntaxParser
     [Rule]
     public ParenthesizedGroup ParenthesizedGroupRule(
         [AwkT(AwkTokenKind.LeftParen)] Pos<string> open,
-        [AwkL(Min = 0)] GroupPart[] parts,
+        [AwkL(Min = 0)] GroupPart[] _,
         [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
     {
         _checkpoint?.Invoke();
-        var openToken = ToToken(AwkTokenKind.LeftParen, open);
-        var closeToken = ToToken(AwkTokenKind.RightParen, close);
-        var inner = Flatten(parts.Select(part => part.Tokens));
-        return new ParenthesizedGroup(openToken, closeToken, inner);
+        return new(AwkParsingSupport.SourceSpan(open), AwkParsingSupport.SourceSpan(close));
     }
 
     [Rule]
     public BracketedGroup BracketedGroupRule(
         [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
-        [AwkL(Min = 0)] GroupPart[] parts,
+        [AwkL(Min = 0)] GroupPart[] _,
         [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
     {
         _checkpoint?.Invoke();
-        var openToken = ToToken(AwkTokenKind.LeftBracket, open);
-        var closeToken = ToToken(AwkTokenKind.RightBracket, close);
-        var inner = Flatten(parts.Select(part => part.Tokens));
-        return new BracketedGroup(openToken, closeToken, inner);
+        return new(AwkParsingSupport.SourceSpan(open), AwkParsingSupport.SourceSpan(close));
     }
 
     [Rule]
-    public GroupPart NestedParenthesizedGroup([NT] ParenthesizedGroup group)
+    public GroupPart NestedParenthesizedGroup([NT] ParenthesizedGroup _)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return default;
     }
 
     [Rule]
-    public GroupPart NestedBracketedGroup([NT] BracketedGroup group)
+    public GroupPart NestedBracketedGroup([NT] BracketedGroup _)
     {
         _checkpoint?.Invoke();
-        return new(group.FullTokens);
+        return default;
     }
 
     [Rule]
-    public GroupPart GroupLeaf([AwkStatementGroupLeaf] Pos<string> token)
+    public GroupPart GroupLeaf([AwkStatementGroupLeaf] Pos<string> _)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+        return default;
     }
+
+    private AwkParsingSupport.TokenGroup GroupTokens(AwkTextSpan open, AwkTextSpan close) =>
+        AwkParsingSupport.ResolveTokenGroup(_originalTokens, open, close, _checkpoint);
 
     private AwkStatementSyntax CreateSimpleStatement(
         AwkStatementKind kind,
@@ -1761,18 +1763,7 @@ internal sealed class AwkStatementSyntaxParser
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public sealed class ParenthesizedGroup(
-        AwkToken openToken,
-        AwkToken closeToken,
-        IReadOnlyList<AwkToken> innerTokens) : AwkBalancedTokenGroup(openToken, closeToken, innerTokens);
-
-    public sealed class BracketedGroup(
-        AwkToken openToken,
-        AwkToken closeToken,
-        IReadOnlyList<AwkToken> innerTokens) : AwkBalancedTokenGroup(openToken, closeToken, innerTokens);
-
-    public readonly struct GroupPart(IReadOnlyList<AwkToken>? tokens)
-    {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
-    }
+    public readonly record struct ParenthesizedGroup(AwkTextSpan Open, AwkTextSpan Close);
+    public readonly record struct BracketedGroup(AwkTextSpan Open, AwkTextSpan Close);
+    public readonly struct GroupPart;
 }

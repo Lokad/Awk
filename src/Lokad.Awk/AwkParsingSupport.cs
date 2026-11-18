@@ -53,11 +53,14 @@ internal static class AwkParsingSupport
     public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        return new(kind, value.Value, new AwkTextSpan(value.Location.Location.Position, value.Location.Length));
+        return new(kind, value.Value, SourceSpan(value));
     }
 
     public static AwkToken ToToken(Pos<string> value, Action? checkpoint = null) =>
         ToToken(ResolveTextKind(value.Value, checkpoint), value, checkpoint);
+
+    internal static AwkTextSpan SourceSpan(Pos<string> token) =>
+        new(token.Location.Location.Position, token.Location.Length);
 
     // Generic grammar leaves must retain the lexical classification selected by the
     // compatibility profile and function scope. Reclassifying their text loses it.
@@ -65,11 +68,43 @@ internal static class AwkParsingSupport
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        var span = new AwkTextSpan(value.Location.Location.Position, value.Location.Length);
-        return tokens[FindOriginalTokenIndex(tokens, span, checkpoint)];
+        return tokens[FindOriginalTokenIndex(tokens, SourceSpan(value), checkpoint)];
     }
 
-    internal static int FindOriginalTokenIndex(IReadOnlyList<AwkToken> tokens, AwkTextSpan span, Action? checkpoint)
+    internal static TokenGroup ResolveTokenGroup(IReadOnlyList<AwkToken> tokens,
+        AwkTextSpan open, AwkTextSpan close, Action? checkpoint)
+    {
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        return new(tokens, FindOriginalTokenIndex(tokens, open, checkpoint),
+            FindOriginalTokenIndex(tokens, close, checkpoint));
+    }
+
+    internal readonly struct TokenGroup(IReadOnlyList<AwkToken> tokens, int open, int close)
+    {
+        internal IReadOnlyList<AwkToken> InnerTokens => close == open + 1
+            ? [] : new OriginalTokenRange(tokens, open + 1, close - open - 1);
+
+        internal IReadOnlyList<AwkToken> FullTokens => new OriginalTokenRange(tokens, open, close - open + 1);
+    }
+
+    // Both grammars use the complete lexer stream for kinds, text and source spans.
+    private sealed class OriginalTokenRange(IReadOnlyList<AwkToken> tokens, int start, int count) : IReadOnlyList<AwkToken>
+    {
+        public int Count => count;
+
+        public AwkToken this[int index] => (uint)index < (uint)count
+            ? tokens[start + index] : throw new ArgumentOutOfRangeException(nameof(index));
+
+        public IEnumerator<AwkToken> GetEnumerator()
+        {
+            for (var index = 0; index < count; index++)
+                yield return tokens[start + index];
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private static int FindOriginalTokenIndex(IReadOnlyList<AwkToken> tokens, AwkTextSpan span, Action? checkpoint)
     {
         var low = 0;
         var high = tokens.Count - 1;
