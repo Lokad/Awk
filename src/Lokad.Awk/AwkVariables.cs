@@ -287,7 +287,7 @@ internal sealed partial class AwkVariables
         ThrowIfDetached(array);
         var slot = AwkValue.ForVariableStorage(value, _state.NumberParsingMode);
         if (array.TryGetIndexed(ordinal, out var prior))
-            StoreArraySlot(array, default, prior, null, slot, ordinal);
+            StoreArraySlot(array, prior, null, ordinal, slot);
         else if (array.TryPlanIndexedInsertion(ordinal, out var capacity))
         {
             var payload = _state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateArrayElementPayloadBytes(default, slot) : 0;
@@ -325,25 +325,21 @@ internal sealed partial class AwkVariables
         AwkValue prior, AwkArrayCell? cell, AwkValue value)
     {
         ThrowIfDetached(array);
-        StoreArraySlot(array, key, prior, cell, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
+        var ordinal = cell is null && key.TryGetOrdinalValue(out var index) ? index : 0;
+        StoreArraySlot(array, prior, cell, ordinal, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
-    internal bool TrySetCapturedArrayNumber(AwkArrayIdentity array, in AwkArrayUpdateTarget target, double number)
+    internal void SetCapturedArrayNumber(AwkArrayIdentity array, in AwkArrayUpdateTarget target, double number)
     {
-        if (target.Cell is { } cell)
+        ThrowIfDetached(array);
+        var value = AwkValue.FromNumber(number);
+        if (target.Cell is { IsAttached: true } cell)
         {
-            if (!cell.IsAttached) return false;
             if (cell.Slot.StoredKind == AwkValueKind.Number)
-            {
-                cell.SetSlot(AwkValue.FromNumber(number));
-                return true;
-            }
-            StoreArraySlot(array, target.Key, cell.Slot, cell, AwkValue.FromNumber(number));
-            return true;
+                cell.SetSlot(value);
+            else StoreArraySlot(array, cell.Slot, cell, 0, value);
         }
-        if (!array.TryGetEntry(target.Key, out var prior, out var located)) return false;
-        StoreArraySlot(array, target.Key, prior, located, AwkValue.FromNumber(number));
-        return true;
+        else SetArraySlot(array, target.Key, value);
     }
 
     public bool TryGetArrayCount(AwkArrayName name, out int count)
@@ -1134,8 +1130,8 @@ internal sealed partial class AwkVariables
 
     private void SetArraySlot(AwkArrayIdentity values, AwkArrayKey index, AwkValue slot)
     {
-        if (values.TryGetEntry(index, out var prior, out var cell))
-            StoreArraySlot(values, index, prior, cell, slot);
+        if (values.TryGetEntry(index, out var prior, out var cell, out var ordinal))
+            StoreArraySlot(values, prior, cell, ordinal, slot);
         else InsertArraySlot(values, index, slot);
     }
 
@@ -1197,8 +1193,7 @@ internal sealed partial class AwkVariables
         return cell;
     }
 
-    private void StoreArraySlot(AwkArrayIdentity array, AwkArrayKey key, AwkValue prior,
-        AwkArrayCell? cell, AwkValue slot, int ordinal = 0)
+    private void StoreArraySlot(AwkArrayIdentity array, AwkValue prior, AwkArrayCell? cell, int ordinal, AwkValue slot)
     {
         if (prior.TryGetArrayBinding(out _))
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar("array element"));
@@ -1220,8 +1215,7 @@ internal sealed partial class AwkVariables
         void Publish(AwkValue value)
         {
             if (cell is not null) cell.SetSlot(value);
-            else if (ordinal > 0) array.SetIndexedValue(ordinal, value);
-            else array.SetIndexedValue(key, value);
+            else array.SetIndexedValue(ordinal, value);
         }
     }
 

@@ -1763,25 +1763,15 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void CommitArrayUpdate(AwkCapturedArrayPath path, in AwkArrayUpdateTarget target, double number)
     {
         var array = path.ResolveOwner(this);
-        if (ReferenceEquals(array, target.Array) && _variables.TrySetCapturedArrayNumber(array, in target, number))
-        { }
+        if (ReferenceEquals(array, target.Array))
+            _variables.SetCapturedArrayNumber(array, in target, number);
         else _variables.SetArrayValue(array, path.Key, AwkValue.FromNumber(number));
-
     }
 
     internal void CommitArrayUpdate(AwkArrayName name, in AwkArrayUpdateTarget target, double number)
     {
         if (target.Array is { IsDetached: false } array)
-        {
-            if (_variables.TrySetCapturedArrayNumber(array, in target, number))
-            {
-
-                return;
-            }
-            // Retired/retyped entries retain the ordinary current-owner lookup.
-            _variables.SetArrayValue(array, target.Key, AwkValue.FromNumber(number));
-
-        }
+            _variables.SetCapturedArrayNumber(array, in target, number);
         else SetArrayAwkValue(name, target.Key, AwkValue.FromNumber(number));
     }
 

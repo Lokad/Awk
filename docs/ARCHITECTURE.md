@@ -141,6 +141,8 @@ key can be constructed directly from a bounded byte span.
 Staged and complete updates share target preparation. A cached location must still
 match the evaluated key and attached owner. Each update reads the current number
 while that location is valid.
+Commit reuses an attached cell or locates the captured key in the current owner.
+Indexed publication carries the ordinal and checks it in the current backing.
 
 Indexed growth/promotion privately constructs admitted replacements, funding old/new
 overlap before publication. Reusable locations carry current values, never stale numbers.

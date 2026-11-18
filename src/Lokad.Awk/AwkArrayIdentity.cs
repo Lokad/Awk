@@ -125,10 +125,11 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
 
     // Mutation/capture consumers also need an owning value. Ordinal storage keeps
     // values directly and is located again after RHS evaluation.
-    internal bool TryGetEntry(AwkArrayKey key, out AwkValue value, out AwkArrayCell? cell)
+    internal bool TryGetEntry(AwkArrayKey key, out AwkValue value, out AwkArrayCell? cell, out int ordinal)
     {
         if (_indexed is null)
         {
+            ordinal = 0;
             if (TryGetDictionaryCell(key, out cell))
             {
                 value = cell.Slot;
@@ -138,7 +139,7 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
             return false;
         }
         cell = null;
-        return TryGetIndexed(key, out _, out value);
+        return TryGetIndexed(key, out ordinal, out value);
     }
 
     internal bool TryGetIndexed(ReadOnlySpan<byte> bytes, out int ordinal, out AwkValue value)
@@ -157,18 +158,18 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
         return true;
     }
 
-    internal void SetIndexedValue(AwkArrayKey key, AwkValue value)
-    {
-        if (_indexed is not { } indexed || !TryGetIndexed(key, out var ordinal, out _))
-            throw new InvalidOperationException("An indexed update requires an existing ordinal.");
-        indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] = value;
-    }
-
     internal void SetIndexedValue(int ordinal, AwkValue value)
     {
-        if (_indexed is not { } indexed || !TryGetIndexed(ordinal, out _))
-            throw new InvalidOperationException("An indexed update requires an existing ordinal.");
-        indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask] = value;
+        if (_indexed is { } indexed && ordinal > 0 && ordinal <= _indexedCapacity)
+        {
+            ref var slot = ref indexed[(ordinal - 1) >> IndexedPageShift][(ordinal - 1) & IndexedPageMask];
+            if (slot.HasValue)
+            {
+                slot = value;
+                return;
+            }
+        }
+        throw new InvalidOperationException("An indexed update requires an existing ordinal.");
     }
 
     private static bool TryParseOrdinal(ReadOnlySpan<byte> bytes, out int ordinal)

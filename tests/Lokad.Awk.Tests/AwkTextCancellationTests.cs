@@ -327,7 +327,7 @@ public sealed class AwkTextCancellationTests
         var name = AwkArrayName.FromText("kept");
         var key = new AwkArrayKey(new string('k', LongText));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(7));
-        Assert.True(variables.ResolveOrdinaryArray(name).TryGetEntry(key, out _, out var cell));
+        Assert.True(variables.ResolveOrdinaryArray(name).TryGetDictionaryCell(key, out var cell));
         Assert.NotNull(cell);
         var retained = governor.LiveBytes;
         var pending = AwkValue.FromDeferredText(AwkText.FromString(new string('a', LongText)), AwkNumberParsingMode.Decimal);

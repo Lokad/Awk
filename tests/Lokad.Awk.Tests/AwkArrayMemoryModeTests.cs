@@ -43,7 +43,7 @@ public sealed class AwkArrayMemoryModeTests
         var key = new AwkArrayKey(new string('k', AwkRuntimeLimits.CancellationCheckBytes * 2));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
         variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(9));
-        Assert.True(variables.ResolveOrdinaryArray(name).TryGetEntry(key, out _, out var cell));
+        Assert.True(variables.ResolveOrdinaryArray(name).TryGetDictionaryCell(key, out var cell));
         Assert.NotNull(cell);
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => variables.SetArrayValue(name, key, AwkValue.FromNumber(7)));

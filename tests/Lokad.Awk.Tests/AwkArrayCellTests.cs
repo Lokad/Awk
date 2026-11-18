@@ -64,7 +64,7 @@ public sealed class AwkArrayCellTests
         var spelling = new AwkArrayKey("2147483647");
         variables.SetArrayValue(array, storedOrdinal ? ordinal : spelling, AwkValue.FromNumber(7));
         Assert.Equal(2, array.Count);
-        Assert.True(array.TryGetEntry(ordinal, out _, out var cell));
+        Assert.True(array.TryGetDictionaryCell(ordinal, out var cell));
         Assert.NotNull(cell);
 
         variables.DeleteArrayValue(array, storedOrdinal ? spelling : ordinal);
@@ -123,13 +123,13 @@ public sealed class AwkArrayCellTests
         var name = AwkArrayName.FromText("a");
         var array = variables.ResolveOrdinaryArray(name);
         variables.SetArrayValue(array, new AwkArrayKey("0007"), AwkValue.FromNumber(5));
-        Assert.True(array.TryGetEntry(new("0007"), out _, out var original));
+        Assert.True(array.TryGetDictionaryCell(new("0007"), out var original));
         Assert.NotNull(original);
         for (var index = 0; index < 1024; index++)
             variables.SetArrayValue(array, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
 
         Assert.True(array.ByteLookup.TryGetValue("0007"u8, out var retainedKey, out var grown));
-        Assert.True(array.TryGetEntry(retainedKey, out _, out var grownCell));
+        Assert.True(array.TryGetDictionaryCell(retainedKey, out var grownCell));
         Assert.Same(original, grownCell);
         Assert.Equal("0007", retainedKey.ToString());
         Assert.Equal(5, variables.ReadArraySlotNumber(grown));
@@ -199,7 +199,7 @@ public sealed class AwkArrayCellTests
             Assert.Equal(7, target.Previous);
             Assert.Equal(key, target.Key);
             Assert.Equal(99, variables.GetArrayNumber(array, key));
-            Assert.True(variables.TrySetCapturedArrayNumber(array, in target, target.Previous + 3));
+            variables.SetCapturedArrayNumber(array, in target, target.Previous + 3);
             Assert.Equal(10, variables.GetArrayNumber(array, key));
         }
         else
@@ -221,7 +221,7 @@ public sealed class AwkArrayCellTests
         AwkArrayName name, AwkArrayIdentity array, bool detach)
     {
         variables.SetArrayValue(array, new("cell"), AwkValue.FromNumber(7));
-        Assert.True(array.TryGetEntry(new("cell"), out _, out var cell));
+        Assert.True(array.TryGetDictionaryCell(new("cell"), out var cell));
         var reference = new WeakReference<AwkArrayCell>(Assert.IsType<AwkArrayCell>(cell));
         if (detach) variables.RemoveFunctionLocalArray(name);
         else variables.ClearArray(name);

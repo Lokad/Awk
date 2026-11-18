@@ -256,7 +256,7 @@ internal sealed partial class AwkArrayRuntime
         // Keep the owning key/value and optional stable dictionary cell. No borrowed
         // bytes or backing reference crosses mutation admission or its callbacks.
         _state.ThrowIfCancellationRequested();
-        _variables.SetLocatedArrayValue(array, key.WithInputOrigin(input), prior, cell, value);
+        _variables.SetLocatedArrayValue(array, key, prior, cell, value);
         return true;
     }
 
@@ -319,7 +319,7 @@ internal sealed partial class AwkArrayRuntime
         if (!_state.TryGetBoundArray(name, binding, out var array))
             _variables.TryGetOrdinaryArray(_variableRuntime.ResolveArrayReadName(name), out array);
         AwkArrayCell? cell = null;
-        if (array is not null) array.TryGetEntry(key, out _, out cell);
+        if (array is { IsIndexed: false }) array.TryGetDictionaryCell(key, out cell);
         return new(key, priorNumber, array, cell);
     }
 

@@ -48,7 +48,7 @@ public sealed class AwkIndexedArrayStorageTests
         variables.SetArrayValue(owner, new("01"), AwkValue.FromNumber(11));
         Assert.False(owner.IsIndexed);
         Assert.Equal(emptyBytes + AwkVariables.EstimateArrayBytes(owner), memory.Budget.Reserved);
-        Assert.True(variables.TrySetCapturedArrayNumber(owner, in captured, captured.Previous + 3));
+        variables.SetCapturedArrayNumber(owner, in captured, captured.Previous + 3);
         Assert.Equal(4, variables.GetArrayNumber(owner, AwkArrayKey.FromOrdinal(1)));
         Assert.False(owner.ContainsKey(AwkArrayKey.FromOrdinal(2)));
         Assert.Equal(11, variables.GetArrayNumber(owner, new AwkArrayKey("01")));
