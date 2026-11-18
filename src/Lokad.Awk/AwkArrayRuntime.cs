@@ -181,20 +181,25 @@ internal sealed partial class AwkArrayRuntime
                 .AsNumber(_state.CancellationCheckpoint);
     }
 
-    internal AwkValue GetAwkValue(AwkArrayName name, double index, AwkArrayBinding binding)
+    internal AwkValue GetAwkValue(AwkArrayName name, double index, AwkArrayBinding binding,
+        AwkArrayUpdateTarget location = default)
     {
-        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
-            _state.TryGetBoundArray(name, binding, out var array))
-            return _variables.GetArrayValue(array, ordinal);
-        return GetAwkValue(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding);
+        if (!AwkValue.TryGetArrayOrdinal(index, out var ordinal))
+            return GetAwkValue(name, _state.FormatArrayKey(AwkValue.FromNumber(index)), binding);
+        return _state.TryGetBoundArray(name, binding, out var array)
+            ? _variables.GetArrayValue(array, ordinal, in location)
+            : ReadUnboundValue(name, _variableRuntime.ResolveArrayReadName(name), AwkArrayKey.FromOrdinal(ordinal), binding);
     }
 
-    internal double GetNumber(AwkArrayName name, double index, AwkArrayBinding binding)
+    internal double GetNumber(AwkArrayName name, double index, AwkArrayBinding binding,
+        AwkArrayUpdateTarget location = default)
     {
-        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
-            _state.TryGetBoundArray(name, binding, out var array))
-            return _variables.GetArrayNumber(array, ordinal);
-        return GetNumber(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding);
+        if (!AwkValue.TryGetArrayOrdinal(index, out var ordinal))
+            return GetNumber(name, _state.FormatArrayKey(AwkValue.FromNumber(index)), binding);
+        return _state.TryGetBoundArray(name, binding, out var array)
+            ? _variables.GetArrayNumber(array, ordinal, in location)
+            : ReadUnboundValue(name, _variableRuntime.ResolveArrayReadName(name), AwkArrayKey.FromOrdinal(ordinal), binding)
+                .AsNumber(_state.CancellationCheckpoint);
     }
 
     public bool TryGetBorrowedNumber(AwkArrayName name, ReadOnlySpan<byte> index, out double number,

@@ -166,18 +166,20 @@ internal sealed partial class AwkVariables
         location.TryGetCurrentCell(array, index, out var cell)
             ? ReadArraySlotNumber(in cell.BorrowedSlot) : GetArrayNumber(array, index);
 
-    internal AwkValue GetArrayValue(AwkArrayIdentity array, int ordinal) =>
-        CreateValue(GetArrayOrdinalSlot(array, ordinal));
+    internal AwkValue GetArrayValue(AwkArrayIdentity array, int ordinal, in AwkArrayUpdateTarget location) =>
+        CreateValue(GetArrayOrdinalSlot(array, ordinal, in location));
 
-    internal double GetArrayNumber(AwkArrayIdentity array, int ordinal) =>
-        ReadArraySlotNumber(GetArrayOrdinalSlot(array, ordinal));
+    internal double GetArrayNumber(AwkArrayIdentity array, int ordinal, in AwkArrayUpdateTarget location) =>
+        ReadArraySlotNumber(GetArrayOrdinalSlot(array, ordinal, in location));
 
-    private AwkValue GetArrayOrdinalSlot(AwkArrayIdentity array, int ordinal)
+    private AwkValue GetArrayOrdinalSlot(AwkArrayIdentity array, int ordinal, in AwkArrayUpdateTarget location)
     {
         ThrowIfDetached(array);
         if (array.TryGetIndexed(ordinal, out var slot)) return slot;
         var key = AwkArrayKey.FromOrdinal(ordinal);
-        return array.TryGetValue(key, out slot) ? slot : CreateMissingArraySlot(array, key, out _);
+        if (!array.IsIndexed && (location.TryGetCurrentCell(array, key, out var cell) ||
+            array.TryGetDictionaryCell(key, out cell))) return cell.Slot;
+        return CreateMissingArraySlot(array, key, out _);
     }
 
     internal AwkValue GetArrayValue(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false) =>

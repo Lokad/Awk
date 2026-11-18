@@ -254,8 +254,10 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkArrayKey ToArrayKey(AwkValue value) =>
         value.TryGetArrayOrdinal(out var ordinal)
             ? AwkArrayKey.FromOrdinal(ordinal)
-            : new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint)
-                .WithInputOrigin(value.HasInputOrigin);
+            : FormatArrayKey(value);
+
+    internal AwkArrayKey FormatArrayKey(AwkValue value) =>
+        new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint).WithInputOrigin(value.HasInputOrigin);
 
     public AwkValue CreateArrayKeyValue(AwkArrayKey key)
     {

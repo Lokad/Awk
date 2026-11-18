@@ -160,7 +160,9 @@ owner before commit. Detached nested owners and aliases retain their language be
 The runtime owns key text copying, admission and conversion observations. A compact
 key can be constructed directly from a bounded byte span.
 The array runtime resolves named operands. Operations on an already resolved array
-use the variable store directly. Field and composite keys share borrowed update
+use the variable store directly. Numeric reads classify an ordinal once and pass
+any captured location by value through binding. The store validates the current
+owner and key before reusing a cached cell. Field and composite keys share borrowed update
 preparation, with the evaluated key's origin retained through capture.
 Staged and complete updates share target preparation. A cached location must still
 match the evaluated key and attached owner. Each update reads the current number

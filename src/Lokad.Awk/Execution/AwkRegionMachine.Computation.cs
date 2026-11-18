@@ -558,7 +558,7 @@ internal partial struct AwkRegionMachine
             }
         }
 
-        internal AwkValue ReadArray(AwkRegionArrayAccess access)
+        internal AwkValue ReadArray(scoped in AwkRegionArrayAccess access)
         {
             if (access.Path >= 0)
             {
@@ -568,12 +568,8 @@ internal partial struct AwkRegionMachine
                     : state.Variables.GetArrayValue(owner, key);
             }
             if (TryArrayNumberKey(access.Key, out var number))
-            {
-                if (access.Location >= 0 && AwkValue.TryGetArrayOrdinal(number, out var ordinal) &&
-                    state.TryGetBoundArray(access.Name, access.Binding, out var array) && !array.IsIndexed)
-                    return state.Variables.GetArrayValue(array, AwkArrayKey.FromOrdinal(ordinal), in storage.Targets[access.Location]);
-                return state.Arrays.GetAwkValue(access.Name, number, access.Binding);
-            }
+                return state.Arrays.GetAwkValue(access.Name, number, access.Binding,
+                    access.Location >= 0 ? storage.Targets[access.Location] : default);
             if (access.Location >= 0 && TryReadLocationKey(access, out var locatedKey))
                 return state.TryGetBoundArray(access.Name, access.Binding, out var array)
                     ? state.Variables.GetArrayValue(array, locatedKey, in storage.Targets[access.Location])
@@ -596,12 +592,8 @@ internal partial struct AwkRegionMachine
                     : state.Variables.GetArrayNumber(owner, key);
             }
             if (TryArrayNumberKey(access.Key, out var number))
-            {
-                if (access.Location >= 0 && AwkValue.TryGetArrayOrdinal(number, out var ordinal) &&
-                    state.TryGetBoundArray(access.Name, access.Binding, out var array) && !array.IsIndexed)
-                    return state.Variables.GetArrayNumber(array, AwkArrayKey.FromOrdinal(ordinal), in storage.Targets[access.Location]);
-                return state.Arrays.GetNumber(access.Name, number, access.Binding);
-            }
+                return state.Arrays.GetNumber(access.Name, number, access.Binding,
+                    access.Location >= 0 ? storage.Targets[access.Location] : default);
             if (access.Location >= 0 && TryReadLocationKey(access, out var locatedKey))
                 return state.TryGetBoundArray(access.Name, access.Binding, out var array)
                     ? state.Variables.GetArrayNumber(array, locatedKey, in storage.Targets[access.Location])
