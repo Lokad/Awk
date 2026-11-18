@@ -1,15 +1,16 @@
 # Benchmarks
 
-The latest measured catalog uses the existing BenchmarkDotNet comparison. Lower
+Four large workloads have current measurements; remaining catalog rows retain their stated revision.
+All use the existing BenchmarkDotNet comparison. Lower
 elapsed-time ratios are faster. Managed allocations include the host; GNU allocations
 are not measured. Source revisions and methods below identify retained evidence;
-later correctness changes have not been remeasured.
+unmarked rows have not been refreshed for later source changes.
 
 ## Representative processing
 
 Latest measured **Release source-build catalog** at [72589eb5](https://github.com/Lokad/Awk/commit/72589eb58e5a6d060f18f9611a1cc86ac6b50562),
 measured **2026-11-17 UTC** using BenchmarkDotNet. Its out-of-process toolchain
-rebuilds project references, so these are not timings of the CI-package DLL above.
+rebuilds project references, so these are source-build timings rather than actual-package timings.
 Times are medians. The 56 families below mostly process 4,096 records; all-field,
 numeric-wide, fixed-count, prefix-to-NF, wide-rebuilding and long-field cases use 256.
 Join uses 4,096 records per file; long Unicode prefixes use 64. Default execution
@@ -76,7 +77,13 @@ has no shared admission. GNU-marked extensions do not imply full conformance.
 
 ## Large-input processing
 
-The same retained 72589eb5 source-build method: 65,536 records, or 4,096 for the 128-column cases;
+Rows marked **†** were refreshed at [070b3b5c](https://github.com/Lokad/Awk/commit/070b3b5c5382c2a52afcf41df2809d3b4821e676)
+on **2026-11-18 UTC**, using the in-process BenchmarkDotNet toolchain and exact
+Release managed DLLs. Their GNU timings were refreshed in the same focused cohort.
+Unmarked rows retain the 72589eb5 out-of-process source-build method. These methods
+must not be compared as a source-change speedup.
+
+Workloads use 65,536 records, or 4,096 for the 128-column cases;
 nested-array calls use 16,384. Join uses 65,536 records per file; long Unicode prefixes
 use 1,024. Larger inputs expose processing costs better than small inputs dominated
 by process startup.
@@ -84,11 +91,12 @@ by process startup.
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 23.622 | 4.656 | 5.07× | 112.198 |
+| Text function with branches and local temporary † | 992.00 | 25.943 | 16.405 | 1.58× | 3.658 |
+| ASCII substr/index/length/casing † | 832.00 | 12.898 | 10.080 | 1.28× | 2.120 |
 | Numeric array sort (GNU) | 373.15 | 28.483 | 22.901 | 1.24× | 10.973 |
+| Keyed sum / sorted output (GNU) † | 384.00 | 6.773 | 6.164 | 1.10× | 0.119 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 9.067 | 8.334 | 1.09× | 0.146 |
 | Loop with repeated field arguments | 401.40 | 54.461 | 50.766 | 1.07× | 0.155 |
-| ASCII substr/index/length/casing | 832.00 | 10.421 | 10.091 | 1.03× | 2.119 |
-| Keyed sum / sorted output (GNU) | 384.00 | 6.231 | 6.172 | 1.01× | 0.117 |
 | Nested-array calls, 16 keys (GNU) | 100.35 | 5.365 | 5.333 | 1.01× | 0.198 |
 | Two-file membership / join | 1386.30 | 30.814 | 31.094 | 0.99× | 10.121 |
 | Loop with repeated numeric field reads | 401.40 | 30.744 | 31.673 | 0.97× | 0.129 |
@@ -96,6 +104,7 @@ by process startup.
 | Nested-array calls, 1,024 keys (GNU) | 125.01 | 5.740 | 5.938 | 0.97× | 0.822 |
 | Project a column / output | 960.00 | 5.786 | 6.187 | 0.94× | 0.059 |
 | Decimal keyed sum / sorted output (GNU) | 576.00 | 7.836 | 8.391 | 0.93× | 0.117 |
+| Sum one numeric column † | 401.40 | 5.311 | 5.877 | 0.90× | 0.075 |
 | Loop with five-argument calls | 128.00 | 63.721 | 72.776 | 0.88× | 2.178 |
 | Sum one decimal column | 593.40 | 6.067 | 6.993 | 0.87× | 0.074 |
 | Copy field / rebuild record | 960.00 | 9.148 | 10.781 | 0.85× | 0.065 |
@@ -103,27 +112,24 @@ by process startup.
 | Numeric range filtering / accumulation | 512.00 | 6.767 | 8.085 | 0.84× | 0.101 |
 | Numeric prefix / finish field loop through NF (128 columns) | 1616.00 | 29.994 | 36.034 | 0.83× | 0.122 |
 | Fixed-count numeric field loop (128 columns) | 1616.00 | 29.467 | 35.721 | 0.82× | 0.111 |
-| Sum one numeric column | 401.40 | 4.846 | 5.880 | 0.82× | 0.073 |
 | Sum every numeric field (128 columns) | 1616.00 | 28.076 | 35.943 | 0.78× | 0.110 |
-| Text function with branches and local temporary | 992.00 | 12.090 | 16.420 | 0.74× | 0.162 |
 | 16 computed numbers / output | 320.00 | 39.970 | 70.883 | 0.56× | 0.166 |
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 5.566 | 23.207 | 0.24× | 0.106 |
 | Long Unicode field / bounded prefix | 8197.00 | 1.491 | 40.738 | 0.04× | 0.156 |
 
-A separate retained **20-cell** paired BenchmarkDotNet cohort at **72589eb5** compares default/shared admission
-on ten large-input scripts with a 512 MiB budget. Shared/default time ratios span
-**1.03–1.18×**: scalar 1.06×, keyed 1.04×, composite-key 1.08×, nested calls with 16
-keys 1.14×, nested calls with 1,024 keys 1.11×.
-Those pairs reuse options without a caller deadline; the GNU-comparison catalog
-uses a 15 s caller deadline per invocation. Compare within each method/cohort.
+The current 070b3b5c admission-policy cohort runs the same text-call script with
+the existing profile: **23.795 ms ordinary / 36.177 ms shared admission**,
+**1.52×**, with a 512 MiB budget. Managed allocations are
+**3.658 / 3.659 MiB**. Every invocation checks complete refund.
+This profile reuses options; compare within its cohort rather than the catalog.
 
 ## Method and refresh
 
-All **82 managed/82 GNU catalog timings and 20 policy cells** were measured at
-72589eb5. They are retained measurements, not fresh results of the development
-checkout. All 82 fixture/output checks passed at that revision. Timing uses the
-tracked catalog; separate actual-package and pending-host diagnostics remain local
-evidence until their method is represented by the tracked tooling.
+Four marked large rows and the two policy cells were measured at 070b3b5c;
+the other **78 managed/78 GNU catalog timings** remain at 72589eb5. Their retained
+fixture/output checks are unchanged; all refreshed workloads also verify complete
+output. Current driver/core hashes and native identity are retained with each cohort.
+Separate actual-package and pending-host diagnostics remain local evidence.
 
 Quiet checks bracket measurement batches and sample machine state rather than
 guarantee continuous isolation. Source, preflight runtime/driver DLLs, native binary
@@ -148,6 +154,7 @@ BenchmarkDotNet uses one launch, four warmups and five 500 ms measurement iterat
 with normal outlier handling. GNU elapsed comes from `ReferenceAwkBenchmarks.GnuAwkCli`;
 managed elapsed and allocation come from `WorkloadAllocationBenchmarks.LokadFullInvocation`,
 avoiding duplicate managed timing. Raw results and history remain local.
+The marked focused cohort adds `--inProcess` to these existing benchmark commands.
 
 Use the stable SDK in `global.json`:
 
