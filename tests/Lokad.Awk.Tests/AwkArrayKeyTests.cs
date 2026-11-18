@@ -167,14 +167,13 @@ public sealed class AwkArrayKeyTests
         var spelling = ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var owned = new AwkArrayKey(spelling);
         var prepared = coordinate.PrepareByteLookup();
-        Assert.True(prepared.IsOrdinal);
+        Assert.Equal(spelling, prepared.ToString());
         Assert.Equal(coordinate, prepared);
         Assert.Equal(prepared, owned);
         Assert.Equal(prepared, prepared.PrepareByteLookup());
         var restored = AwkArrayKey.FromStorage(coordinate.StoredText, coordinate.StoredOrdinal, coordinate.StorageTag);
         Assert.True(restored.TryGetOrdinalValue(out var restoredOrdinal));
         Assert.Equal(ordinal, restoredOrdinal);
-        Assert.True(restored.IsOrdinal);
         Assert.Equal(0, restored.RetainedTextMemoryBytes);
         Assert.Equal(coordinate, restored);
         Assert.Equal(restored, coordinate);
@@ -261,7 +260,6 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(9, observed.AsNumber());
         Assert.True(view.TryGetValue(bytes, out var retained, out observed));
         Assert.Equal(key, retained);
-        Assert.False(retained.IsOrdinal);
         Assert.Equal(9, observed.AsNumber());
         Assert.False(view.ContainsKey(AwkUtf8Codec.Encode(text + "x").Span));
         Assert.Single(owner);
@@ -524,8 +522,8 @@ public sealed class AwkArrayKeyTests
             [fromOrdinal] = "value"
         };
 
-        Assert.True(fromOrdinal.IsOrdinal);
-        Assert.False(fromText.IsOrdinal);
+        Assert.True(fromOrdinal.TryGetOrdinalValue(out _));
+        Assert.False(fromText.TryGetOrdinalValue(out _));
         Assert.Equal(fromText, fromOrdinal);
         Assert.Equal(fromOrdinal, fromBytes);
         Assert.Equal(fromBytes, fromOrdinal);
@@ -557,7 +555,7 @@ public sealed class AwkArrayKeyTests
         var owner = new AwkArrayIdentity(1, comparer) { [fromOrdinal] = AwkValue.FromNumber(7) };
         Assert.True(owner.ByteLookup.TryGetValue(AwkUtf8Codec.Encode(text).Span,
             out var retained, out var observed));
-        Assert.True(retained.IsOrdinal);
+        Assert.Equal(fromOrdinal, retained);
         Assert.Equal(7, observed.AsNumber());
         Assert.Single(owner);
     }
@@ -622,13 +620,13 @@ public sealed class AwkArrayKeyTests
         var text = state.ToArrayKey(AwkValue.FromText("42"));
         var fractional = state.ToArrayKey(AwkValue.FromNumber(1.5));
 
-        Assert.True(ordinal.IsOrdinal);
+        Assert.True(ordinal.TryGetOrdinalValue(out _));
         Assert.Equal("42", ordinal.ToString());
-        Assert.False(numericString.IsOrdinal);
+        Assert.False(numericString.TryGetOrdinalValue(out _));
         Assert.Equal("042", numericString.ToString());
-        Assert.False(text.IsOrdinal);
+        Assert.False(text.TryGetOrdinalValue(out _));
         Assert.Equal("42", text.ToString());
-        Assert.False(fractional.IsOrdinal);
+        Assert.False(fractional.TryGetOrdinalValue(out _));
         Assert.Equal("1.5", fractional.ToString());
     }
 
@@ -641,7 +639,7 @@ public sealed class AwkArrayKeyTests
 
         using var keys = AwkArrayStorageTestOperations.Snapshot(state, arrayName);
         var key = Assert.Single(keys);
-        Assert.True(key.IsOrdinal);
+        Assert.Equal(0, key.RetainedTextMemoryBytes);
         Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());
     }
 }

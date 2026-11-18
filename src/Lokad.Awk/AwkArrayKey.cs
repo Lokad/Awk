@@ -66,9 +66,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         if (Representation != AwkArrayKeyKind.Ordinal || _ordinal is < -999999 or > 9999999)
             return this;
         Span<byte> buffer = stackalloc byte[InlineByteCapacity];
-        var prepared = FromInlineBytes(FormatOrdinalBytes(_ordinal, buffer));
-        return new(prepared._text, prepared._ordinal,
-            (int)(prepared._kind | AwkArrayKeyKind.Ordinal | (_kind & AwkArrayKeyKind.Input)));
+        return FromInlineBytes(FormatOrdinalBytes(_ordinal, buffer)).WithInputOrigin(HasInputOrigin);
     }
 
     internal bool TryGetOrdinalValue(out int ordinal)
@@ -163,8 +161,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public long RetainedTextMemoryBytes =>
         Representation == AwkArrayKeyKind.Text ? Text.EstimatedRetainedMemoryBytes : 0;
 
-    public bool IsOrdinal => ((uint)_kind & (uint)AwkArrayKeyKind.Ordinal) != 0;
-
     private bool IsInline => ((uint)_kind & (uint)AwkArrayKeyKind.Inline) != 0;
 
     // Ordinals and inline keys are bounded without formatting or inspecting bytes.
@@ -211,8 +207,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         if (Representation == AwkArrayKeyKind.Ordinal && other.Representation == AwkArrayKeyKind.Ordinal)
             return _ordinal == other._ordinal;
         if (IsInline && other.IsInline)
-            return ((uint)_kind & ~(1u | (uint)AwkArrayKeyKind.Input)) ==
-                ((uint)other._kind & ~(1u | (uint)AwkArrayKeyKind.Input)) && _ordinal == other._ordinal;
+            return Representation == other.Representation && _ordinal == other._ordinal;
         if (Representation == AwkArrayKeyKind.Text && other.Representation == AwkArrayKeyKind.Text)
             return Text.Equals(other.Text, checkpoint);
         return EqualsMixed(other, checkpoint);

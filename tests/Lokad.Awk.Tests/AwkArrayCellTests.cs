@@ -43,7 +43,9 @@ public sealed class AwkArrayCellTests
         variables.InitializeArrayValues(name,
             [new(AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1)),
              new(new AwkArrayKey("7"), AwkValue.FromNumber(2))]);
-        Assert.True(Assert.Single(variables.ResolveOrdinaryArray(name)).Key.IsOrdinal);
+        var key = Assert.Single(variables.ResolveOrdinaryArray(name)).Key;
+        Assert.Equal(new AwkArrayKey("7"), key);
+        Assert.Equal(0, key.RetainedTextMemoryBytes);
         Assert.Equal(2, variables.GetArrayValue(name, AwkArrayKey.FromOrdinal(7)).AsNumber());
         variables.ClearArray(name);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);

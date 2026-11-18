@@ -176,7 +176,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.Equal(AwkValueKind.Unassigned, cell.Value.StoredKind);
             Assert.False(cell.TryReadNumber(out _));
             Assert.Equal(key, actual);
-            Assert.Equal(key.IsOrdinal, actual.IsOrdinal);
+            Assert.Equal(key.HasInputOrigin, actual.HasInputOrigin);
             Assert.Equal(key.GetHashCode(), actual.GetHashCode());
             Assert.Equal(key.ToString(), actual.ToString());
             Assert.Equal(key.RetainedTextMemoryBytes, actual.RetainedTextMemoryBytes);

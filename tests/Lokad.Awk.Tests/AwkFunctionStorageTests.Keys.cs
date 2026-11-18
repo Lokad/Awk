@@ -26,7 +26,7 @@ public sealed partial class AwkFunctionStorageTests
             Assert.Equal(AwkFunctionLocalSlotKind.Key, incoming.GetSlot(0).Kind);
             Assert.Equal(default, incoming.GetSlot(0).ArrayName);
             Assert.Equal(key, actual);
-            Assert.Equal(key.IsOrdinal, actual.IsOrdinal);
+            Assert.Equal(key.HasInputOrigin, actual.HasInputOrigin);
             Assert.Equal(key.ToString(), actual.ToString());
             Assert.Equal(AwkArrayKeyComparer.Instance.GetHashCode(key), AwkArrayKeyComparer.Instance.GetHashCode(actual));
             Assert.True(key.StoredText.HasSameStorage(actual.StoredText));

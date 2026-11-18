@@ -45,8 +45,8 @@ public sealed class AwkSnapshotKeyResourceTests
             Assert.Equal(keys, snapshot.ToArray());
             Assert.Equal(before + required, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-            if (source != "symbols" && selector != "@ind_str_asc")
-                Assert.All(snapshot, key => Assert.Equal(source == "ordinals", key.IsOrdinal));
+            if (source == "ordinals" && selector != "@ind_str_asc")
+                Assert.All(snapshot, key => Assert.Equal(0, key.RetainedTextMemoryBytes));
         }
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
