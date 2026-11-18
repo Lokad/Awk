@@ -5,10 +5,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Lokad.Awk;
+using Xunit.Abstractions;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkGoldenCorpusTests
+public sealed class AwkGoldenCorpusTests(ITestOutputHelper output)
 {
     public static IEnumerable<object[]> DirectCases(bool providerGap)
     {
@@ -32,35 +33,43 @@ public sealed class AwkGoldenCorpusTests
     [MemberData(nameof(DirectCases), true, Skip = AwkRegexProviderGaps.SkipReason)]
     public async Task Awk_DirectGoldenCaseMatches(AwkGoldenCase testCase)
     {
-        var result = await AwkTestHarness.RunGoldenCaseAsync(testCase, CancellationToken.None);
+        try
+        {
+            var result = await AwkTestHarness.RunGoldenCaseAsync(testCase, CancellationToken.None);
 
-        Assert.Equal(testCase.ExpectedExitCode, result.ExitCode);
-        AssertGoldenText(testCase, result.StdOut);
-        Assert.Equal(testCase.ExpectedStdErr, result.StdErr);
-        if (testCase.ExpectedStdErr.Length > 0)
-        {
-            AwkTestHarness.AssertNoClrExceptionLeak(result.StdErr);
-        }
+            Assert.Equal(testCase.ExpectedExitCode, result.ExitCode);
+            AssertGoldenText(testCase, result.StdOut);
+            Assert.Equal(testCase.ExpectedStdErr, result.StdErr);
+            if (testCase.ExpectedStdErr.Length > 0)
+            {
+                AwkTestHarness.AssertNoClrExceptionLeak(result.StdErr);
+            }
 
-        if (testCase.ExpectedStdErr.StartsWith("awk:", StringComparison.Ordinal) &&
-            testCase.ExpectedExitCode != 0)
-        {
-            AwkTestHarness.AssertFriendlyAwkFailure(
-                result,
-                testCase.ExpectedExitCode,
-                testCase.ExpectedStdOut.Length == 0);
-        }
-        else if (testCase.ExpectedStdErr.StartsWith("awk:", StringComparison.Ordinal))
-        {
-            AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
-        }
+            if (testCase.ExpectedStdErr.StartsWith("awk:", StringComparison.Ordinal) &&
+                testCase.ExpectedExitCode != 0)
+            {
+                AwkTestHarness.AssertFriendlyAwkFailure(
+                    result,
+                    testCase.ExpectedExitCode,
+                    testCase.ExpectedStdOut.Length == 0);
+            }
+            else if (testCase.ExpectedStdErr.StartsWith("awk:", StringComparison.Ordinal))
+            {
+                AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
+            }
 
-        foreach (var expectedFile in testCase.ExpectedFiles)
+            foreach (var expectedFile in testCase.ExpectedFiles)
+            {
+                Assert.True(
+                    result.ExpectedFiles.TryGetValue(expectedFile.Path, out var actualContent) && actualContent != null,
+                    "Expected file was not created: " + expectedFile.Path);
+                Assert.Equal(expectedFile.Content, actualContent);
+            }
+        }
+        catch
         {
-            Assert.True(
-                result.ExpectedFiles.TryGetValue(expectedFile.Path, out var actualContent) && actualContent != null,
-                "Expected file was not created: " + expectedFile.Path);
-            Assert.Equal(expectedFile.Content, actualContent);
+            ReportGoldenSource(testCase);
+            throw;
         }
     }
 
@@ -68,37 +77,45 @@ public sealed class AwkGoldenCorpusTests
     [MemberData(nameof(SyntaxCases))]
     public async Task Awk_GoldenSourcesHaveInterpreterSyntaxOutlines(AwkGoldenCase testCase)
     {
-        var fileSystem = AwkTestHarness.BuildFileSystem(testCase);
-        var invocation = AwkCommandParser.Parse(
-            AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment));
-        if (invocation.TerminalResult.IsTerminal)
+        try
         {
-            return;
+            var fileSystem = AwkTestHarness.BuildFileSystem(testCase);
+            var invocation = AwkCommandParser.Parse(
+                AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment));
+            if (invocation.TerminalResult.IsTerminal)
+            {
+                return;
+            }
+
+            var runtimeOptions = AwkTestHarness.CreateRuntimeOptions();
+            var sourceLoad = await AwkSourceLoader.LoadAsync(
+                fileSystem,
+                invocation,
+                runtimeOptions,
+                CancellationToken.None);
+            if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
+                return;
+
+            var expectParserFailure = IsParserDiagnosticCase(testCase);
+            var source = loaded.CompilationSource;
+            var parse = AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
+                    CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode);
+            var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
+            if (expectParserFailure)
+            {
+                AssertStructuredParserDiagnostic(testCase, binding);
+                return;
+            }
+
+            Assert.True(binding.Diagnostics.Count == 0, string.Join("\n", binding.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            Assert.True(binding.Success, "Expected lowering success for golden case: " + testCase.Name);
+            AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
         }
-
-        var runtimeOptions = AwkTestHarness.CreateRuntimeOptions();
-        var sourceLoad = await AwkSourceLoader.LoadAsync(
-            fileSystem,
-            invocation,
-            runtimeOptions,
-            CancellationToken.None);
-        if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
-            return;
-
-        var expectParserFailure = IsParserDiagnosticCase(testCase);
-        var source = loaded.CompilationSource;
-        var parse = AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
-                CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode);
-        var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
-        if (expectParserFailure)
+        catch
         {
-            AssertStructuredParserDiagnostic(testCase, binding);
-            return;
+            ReportGoldenSource(testCase);
+            throw;
         }
-
-        Assert.True(binding.Diagnostics.Count == 0, string.Join("\n", binding.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.True(binding.Success, "Expected lowering success for golden case: " + testCase.Name);
-        AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
 
         static void AssertSyntaxOutlinesForAcceptedSource(string caseName, AwkSyntaxProgram syntax)
         {
@@ -309,6 +326,9 @@ public sealed class AwkGoldenCorpusTests
         Assert.Contains("stdout-and-file-output-flush-independently", outputCases);
         Assert.Contains("stdout-and-stderr-special-paths-flush-independently", outputCases);
     }
+
+    private void ReportGoldenSource(AwkGoldenCase testCase) =>
+        output.WriteLine($"Golden {testCase.Name} from {testCase.SourceFile}:{testCase.SourceLine}");
 
     private static void AssertGoldenText(AwkGoldenCase testCase, string actual)
     {

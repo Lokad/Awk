@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Lokad.Awk.Tests;
 
@@ -3443,10 +3444,12 @@ internal static partial class AwkGoldenCorpus
                 IReadOnlyList<string> arguments,
                 IReadOnlyList<AwkGoldenFile> inputFiles,
                 IReadOnlyList<AwkGoldenReadOpenError> readOpenErrors,
-                string expectedStdOut)
+                string expectedStdOut,
+                [CallerFilePath] string sourceFile = "",
+                [CallerLineNumber] int sourceLine = 0)
             {
                 return AwkGoldenCaseBuilder
-                    .Create(name, arguments, inputFiles)
+                    .Create(name, arguments, inputFiles, sourceFile, sourceLine)
                     .WithReadOpenErrors(readOpenErrors)
                     .WithStdOut(expectedStdOut)
                     .Build();
@@ -3459,10 +3462,12 @@ internal static partial class AwkGoldenCorpus
                 int expectedExitCode,
                 string expectedStdOut,
                 string expectedStdErr,
-                IReadOnlyList<AwkGoldenFile> expectedFiles)
+                IReadOnlyList<AwkGoldenFile> expectedFiles,
+                [CallerFilePath] string sourceFile = "",
+                [CallerLineNumber] int sourceLine = 0)
             {
                 return AwkGoldenCaseBuilder
-                    .Create(name, arguments, inputFiles)
+                    .Create(name, arguments, inputFiles, sourceFile, sourceLine)
                     .ExitsWith(expectedExitCode)
                     .WithStdOut(expectedStdOut)
                     .WithStdErr(expectedStdErr)
@@ -3477,10 +3482,12 @@ internal static partial class AwkGoldenCorpus
                 IReadOnlyList<AwkGoldenReadOpenError> readOpenErrors,
                 int expectedExitCode,
                 string expectedStdOut,
-                string expectedStdErr)
+                string expectedStdErr,
+                [CallerFilePath] string sourceFile = "",
+                [CallerLineNumber] int sourceLine = 0)
             {
                 return AwkGoldenCaseBuilder
-                    .Create(name, arguments, inputFiles)
+                    .Create(name, arguments, inputFiles, sourceFile, sourceLine)
                     .WithReadOpenErrors(readOpenErrors)
                     .ExitsWith(expectedExitCode)
                     .WithStdOut(expectedStdOut)
@@ -4794,20 +4801,7 @@ internal static partial class AwkGoldenCorpus
 
         AddDerivedTags(testCase, mergedTags);
 
-        return AwkGoldenCaseBuilder
-            .Create(testCase.Name, testCase.Arguments, testCase.InputFiles)
-            .WithInputDirectories(testCase.InputDirectories)
-            .WithReadOpenErrors(testCase.ReadOpenErrors)
-            .WithStandardInput(testCase.StandardInput)
-            .WithEnvironment(testCase.Environment)
-            .ExitsWith(testCase.ExpectedExitCode)
-            .WithStdOut(testCase.ExpectedStdOut)
-            .WithStdErr(testCase.ExpectedStdErr)
-            .WithExpectedFiles(testCase.ExpectedFiles)
-            .WithStdOutComparison(testCase.StdOutComparison)
-            .WithTags(mergedTags)
-            .WithNondeterminismNote(testCase.NondeterminismNote)
-            .Build();
+        return testCase.WithTags(mergedTags);
 
         static void AddDerivedTags(AwkGoldenCase testCase, List<AwkGoldenTag> tags)
         {
@@ -4853,20 +4847,13 @@ internal static partial class AwkGoldenCorpus
         string name,
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkGoldenFile> inputFiles,
-        string expectedStdOut)
-    {
-        return Passing(name, arguments, inputFiles, expectedStdOut, string.Empty);
-    }
-
-    private static AwkGoldenCase Passing(
-        string name,
-        IReadOnlyList<string> arguments,
-        IReadOnlyList<AwkGoldenFile> inputFiles,
         string expectedStdOut,
-        string standardInput)
+        string standardInput = "",
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .WithStdOut(expectedStdOut)
             .WithStandardInput(standardInput)
             .Build();
@@ -4876,10 +4863,12 @@ internal static partial class AwkGoldenCorpus
         string name,
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkGoldenFile> inputFiles,
-        string expectedStdOut)
+        string expectedStdOut,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .WithStdOut(expectedStdOut)
             .WithStdOutComparison(AwkGoldenTextComparison.UnorderedNonEmptyLines)
             .WithNondeterminismNote("GNU awk leaves this array traversal order unspecified.")
@@ -4891,10 +4880,12 @@ internal static partial class AwkGoldenCorpus
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkGoldenFile> inputFiles,
         IReadOnlyList<AwkEnvironmentVariable> environment,
-        string expectedStdOut)
+        string expectedStdOut,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .WithEnvironment(environment)
             .WithStdOut(expectedStdOut)
             .Build();
@@ -4905,10 +4896,12 @@ internal static partial class AwkGoldenCorpus
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkGoldenFile> inputFiles,
         string expectedStdOut,
-        IReadOnlyList<AwkGoldenFile> expectedFiles)
+        IReadOnlyList<AwkGoldenFile> expectedFiles,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .WithStdOut(expectedStdOut)
             .WithExpectedFiles(expectedFiles)
             .Build();
@@ -4919,10 +4912,12 @@ internal static partial class AwkGoldenCorpus
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkGoldenFile> inputFiles,
         string expectedStdOut,
-        string expectedStdErr)
+        string expectedStdErr,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .WithStdOut(expectedStdOut)
             .WithStdErr(expectedStdErr)
             .Build();
@@ -4933,10 +4928,12 @@ internal static partial class AwkGoldenCorpus
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkGoldenFile> inputFiles,
         int expectedExitCode,
-        string expectedStdOut)
+        string expectedStdOut,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .ExitsWith(expectedExitCode)
             .WithStdOut(expectedStdOut)
             .Build();
@@ -4948,10 +4945,12 @@ internal static partial class AwkGoldenCorpus
         IReadOnlyList<AwkGoldenFile> inputFiles,
         int expectedExitCode,
         string expectedStdOut,
-        string expectedStdErr)
+        string expectedStdErr,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .ExitsWith(expectedExitCode)
             .WithStdOut(expectedStdOut)
             .WithStdErr(expectedStdErr)
@@ -4965,10 +4964,12 @@ internal static partial class AwkGoldenCorpus
         IReadOnlyList<AwkGoldenFile> inputFiles,
         int expectedExitCode,
         string expectedStdOut,
-        string expectedStdErr)
+        string expectedStdErr,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0)
     {
         return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
+            .Create(name, arguments, inputFiles, sourceFile, sourceLine)
             .WithInputDirectories(inputDirectories)
             .ExitsWith(expectedExitCode)
             .WithStdOut(expectedStdOut)
@@ -4977,20 +4978,7 @@ internal static partial class AwkGoldenCorpus
     }
 
     private static AwkGoldenCase Posix(AwkGoldenCase testCase) =>
-        AwkGoldenCaseBuilder
-            .Create(testCase.Name, testCase.Arguments, testCase.InputFiles)
-            .WithInputDirectories(testCase.InputDirectories)
-            .WithReadOpenErrors(testCase.ReadOpenErrors)
-            .WithStandardInput(testCase.StandardInput)
-            .WithEnvironment(testCase.Environment)
-            .ExitsWith(testCase.ExpectedExitCode)
-            .WithStdOut(testCase.ExpectedStdOut)
-            .WithStdErr(testCase.ExpectedStdErr)
-            .WithExpectedFiles(testCase.ExpectedFiles)
-            .WithStdOutComparison(testCase.StdOutComparison)
-            .WithTags([.. testCase.Tags, AwkGoldenTag.Posix])
-            .WithNondeterminismNote(testCase.NondeterminismNote)
-            .Build();
+        testCase.WithTags([.. testCase.Tags, AwkGoldenTag.Posix]);
 
     private static AwkGoldenFile File(string path, string content) => new(path, content);
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Lokad.Awk.Tests;
 
@@ -19,7 +20,9 @@ public sealed class AwkGoldenCase
         IReadOnlyList<AwkGoldenFile> expectedFiles,
         AwkGoldenTextComparison stdOutComparison,
         IReadOnlyList<AwkGoldenTag> tags,
-        string nondeterminismNote)
+        string nondeterminismNote,
+        string sourceFile,
+        int sourceLine)
     {
         Name = name;
         Arguments = arguments;
@@ -35,6 +38,8 @@ public sealed class AwkGoldenCase
         StdOutComparison = stdOutComparison;
         Tags = tags;
         NondeterminismNote = nondeterminismNote;
+        SourceFile = sourceFile;
+        SourceLine = sourceLine;
     }
 
     public string Name { get; }
@@ -67,6 +72,14 @@ public sealed class AwkGoldenCase
 
     public string NondeterminismNote { get; }
 
+    internal string SourceFile { get; }
+    internal int SourceLine { get; }
+
+    internal AwkGoldenCase WithTags(IReadOnlyList<AwkGoldenTag> tags) =>
+        new(Name, Arguments, InputFiles, InputDirectories, ReadOpenErrors, StandardInput, Environment,
+            ExpectedStatus, ExpectedStdOut, ExpectedStdErr, ExpectedFiles, StdOutComparison, tags,
+            NondeterminismNote, SourceFile, SourceLine);
+
     public override string ToString() => Name;
 }
 
@@ -75,6 +88,8 @@ internal sealed class AwkGoldenCaseBuilder
     private readonly string _name;
     private readonly IReadOnlyList<string> _arguments;
     private readonly IReadOnlyList<AwkGoldenFile> _inputFiles;
+    private readonly string _sourceFile;
+    private readonly int _sourceLine;
     private IReadOnlyList<AwkGoldenPath> _inputDirectories = [];
     private IReadOnlyList<AwkGoldenReadOpenError> _readOpenErrors = [];
     private string _standardInput = string.Empty;
@@ -90,18 +105,24 @@ internal sealed class AwkGoldenCaseBuilder
     private AwkGoldenCaseBuilder(
         string name,
         IReadOnlyList<string> arguments,
-        IReadOnlyList<AwkGoldenFile> inputFiles)
+        IReadOnlyList<AwkGoldenFile> inputFiles,
+        string sourceFile,
+        int sourceLine)
     {
         _name = name;
         _arguments = arguments;
         _inputFiles = inputFiles;
+        _sourceFile = Path.GetFileName(sourceFile);
+        _sourceLine = sourceLine;
     }
 
     public static AwkGoldenCaseBuilder Create(
         string name,
         IReadOnlyList<string> arguments,
-        IReadOnlyList<AwkGoldenFile> inputFiles) =>
-        new(name, arguments, inputFiles);
+        IReadOnlyList<AwkGoldenFile> inputFiles,
+        [CallerFilePath] string sourceFile = "",
+        [CallerLineNumber] int sourceLine = 0) =>
+        new(name, arguments, inputFiles, sourceFile, sourceLine);
 
     public AwkGoldenCaseBuilder WithInputDirectories(IReadOnlyList<string> inputDirectories)
     {
@@ -204,7 +225,9 @@ internal sealed class AwkGoldenCaseBuilder
             _expectedFiles,
             _stdOutComparison,
             _tags,
-            _nondeterminismNote);
+            _nondeterminismNote,
+            _sourceFile,
+            _sourceLine);
 }
 
 public readonly record struct AwkGoldenPath
